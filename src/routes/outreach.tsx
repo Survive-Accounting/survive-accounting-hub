@@ -1,7 +1,8 @@
 // /outreach — ported faithfully from the original app (ProfessorOutreach.tsx).
-// Runs on mock data until Supabase is wired.
-import { useState } from "react";
+// Reads the real database; falls back to mock data if the backend is unreachable.
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,6 +23,12 @@ import {
   type Campus,
   type CampusFilters,
 } from "@/lib/outreach-mock";
+import {
+  fetchCampusIdsForDate,
+  fetchCampuses,
+  fetchWeekCounts,
+  patchCampusDb,
+} from "@/lib/outreach-api";
 
 export const Route = createFileRoute("/outreach")({
   head: () => ({
@@ -34,7 +41,8 @@ export const Route = createFileRoute("/outreach")({
 });
 
 function OutreachPage() {
-  const [campuses, setCampuses] = useState<Campus[]>(MOCK_CAMPUSES);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [usingMock, setUsingMock] = useState(false);
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
@@ -47,12 +55,52 @@ function OutreachPage() {
     return today;
   });
 
-  const weekMonday = mondayOfISO(selectedDate);
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDaysISO(weekMonday, i));
-  const counts = mockWeekCounts(weekDays);
+  // ----- Campuses: real data, mock fallback -----
+  const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
+  useEffect(() => {
+    if (campusQuery.data) {
+      setCampuses(campusQuery.data);
+      setUsingMock(false);
+    } else if (campusQuery.isError) {
+      setCampuses(MOCK_CAMPUSES);
+      setUsingMock(true);
+    }
+  }, [campusQuery.data, campusQuery.isError]);
 
-  const patchCampus = (id: string, patch: Partial<Campus>) =>
+  // ----- Week strip counts -----
+  const weekMonday = mondayOfISO(selectedDate);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDaysISO(weekMonday, i)),
+    [weekMonday],
+  );
+  const countsQuery = useQuery({
+    queryKey: ["week-counts", weekDays[0], weekDays[6]],
+    queryFn: () => fetchWeekCounts(weekDays[0], weekDays[6]),
+    retry: 1,
+  });
+  const counts = countsQuery.data ?? (usingMock ? mockWeekCounts(weekDays) : {});
+
+  // ----- Today's assigned campuses (checklist step 1) -----
+  const dayIdsQuery = useQuery({
+    queryKey: ["day-campus-ids", selectedDate],
+    queryFn: () => fetchCampusIdsForDate(selectedDate),
+    retry: 1,
+  });
+  const todaysCampuses = useMemo(() => {
+    if (!dayIdsQuery.data) return undefined;
+    const byId = new Map(campuses.map((c) => [c.id, c]));
+    return dayIdsQuery.data.map((id) => byId.get(id)).filter(Boolean) as Campus[];
+  }, [dayIdsQuery.data, campuses]);
+
+  // ----- Patching: local state immediately, database in the background -----
+  const patchCampus = (id: string, patch: Partial<Campus>) => {
     setCampuses((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    if (!usingMock) {
+      patchCampusDb(id, patch).catch((e) =>
+        toast.error(`Save failed: ${e?.message ?? "unknown error"}`),
+      );
+    }
+  };
 
   const handleAssignPatch = (
     id: string,
@@ -73,6 +121,9 @@ function OutreachPage() {
           <h1 className="text-2xl font-bold tracking-tight font-sans">Outreach Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage leads, campuses, templates, and outreach campaigns.
+            {usingMock && (
+              <span className="ml-2 text-amber-600">(showing sample data — database unreachable)</span>
+            )}
           </p>
         </header>
 
@@ -88,32 +139,39 @@ function OutreachPage() {
             <TodayChecklist
               dateISO={selectedDate}
               campuses={campuses}
+              todaysCampuses={todaysCampuses}
               onFocusCampus={handleFocusCampus}
-              onImportProfessors={() => toast.info("Connect Supabase to import professor leads")}
+              onImportProfessors={() => toast.info("Professor lead import lands in the next pass")}
               onOpenEmailQueue={() => setTab("templates")}
             />
           </TabsContent>
 
           <TabsContent value="schools" className="mt-8 space-y-8">
-            <CampusTable
-              campuses={campuses}
-              filters={filters}
-              onFiltersChange={setFilters}
-              onReview={(c) => setReviewing(c)}
-              onImportLeads={() => toast.info("Connect Supabase to import professor leads")}
-              onAssignPatch={handleAssignPatch}
-              selectedIds={selectedIds}
-              onToggleSelect={(id, value) =>
-                setSelectedIds((prev) => {
-                  const next = new Set(prev);
-                  if (value) next.add(id); else next.delete(id);
-                  return next;
-                })
-              }
-              onToggleSelectAll={(ids, value) =>
-                setSelectedIds(value ? new Set(ids) : new Set())
-              }
-            />
+            {campusQuery.isLoading ? (
+              <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+                Loading campuses…
+              </div>
+            ) : (
+              <CampusTable
+                campuses={campuses}
+                filters={filters}
+                onFiltersChange={setFilters}
+                onReview={(c) => setReviewing(c)}
+                onImportLeads={() => toast.info("Professor lead import lands in the next pass")}
+                onAssignPatch={handleAssignPatch}
+                selectedIds={selectedIds}
+                onToggleSelect={(id, value) =>
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (value) next.add(id); else next.delete(id);
+                    return next;
+                  })
+                }
+                onToggleSelectAll={(ids, value) =>
+                  setSelectedIds(value ? new Set(ids) : new Set())
+                }
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="templates" className="mt-8 space-y-8">

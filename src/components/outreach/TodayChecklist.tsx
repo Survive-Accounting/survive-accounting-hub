@@ -17,17 +17,22 @@ function StepBadge({ n }: { n: number }) {
 export function TodayChecklist({
   dateISO,
   campuses,
+  todaysCampuses: todaysCampusesProp,
   onFocusCampus,
   onImportProfessors,
   onOpenEmailQueue,
 }: {
   dateISO: string;
   campuses: Campus[];
+  todaysCampuses?: Campus[];
   onFocusCampus: (name: string) => void;
   onImportProfessors: () => void;
   onOpenEmailQueue: () => void;
 }) {
-  const todaysCampuses = useMemo(() => mockCampusesForDate(dateISO, campuses), [dateISO, campuses]);
+  const todaysCampuses = useMemo(
+    () => todaysCampusesProp ?? mockCampusesForDate(dateISO, campuses),
+    [todaysCampusesProp, dateISO, campuses],
+  );
   const n = todaysCampuses.length;
   const approvedCount = todaysCampuses.filter((c) => c.approval_status === "approved").length;
   const campusesWithProfs = 0; // leads import not wired yet

@@ -1,6 +1,7 @@
 // Ported from the original app (ProfessorOutreach.tsx — TemplatesPanel + TemplateFormDialog).
 // Templates are held in memory until Supabase is wired.
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ import {
   type TemplateKind,
   type TemplateVariant,
 } from "@/lib/outreach-mock";
+import { fetchTemplates, saveTemplateDb } from "@/lib/outreach-api";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -36,7 +38,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function EmailTemplatesPanel() {
-  const [templates, setTemplates] = useState<EmailTemplate[]>(MOCK_TEMPLATES);
+  const qc = useQueryClient();
+  const templatesQuery = useQuery({ queryKey: ["outreach-templates"], queryFn: fetchTemplates, retry: 1 });
+  const usingMock = templatesQuery.isError;
+  const [localTemplates, setLocalTemplates] = useState<EmailTemplate[]>(MOCK_TEMPLATES);
+  const templates = usingMock ? localTemplates : (templatesQuery.data ?? []);
+  const setTemplates = setLocalTemplates;
   const [editing, setEditing] = useState<{ kind: TemplateKind; variant: TemplateVariant; template?: EmailTemplate } | null>(null);
 
   const grouped = useMemo(() => {
@@ -51,6 +58,16 @@ export function EmailTemplatesPanel() {
   }, [templates]);
 
   const handleSave = (payload: Omit<EmailTemplate, "id">, existingId?: string) => {
+    if (!usingMock) {
+      saveTemplateDb(payload, existingId)
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ["outreach-templates"] });
+          toast.success("Saved");
+        })
+        .catch((e) => toast.error(`Save failed: ${e?.message ?? "unknown error"}`));
+      setEditing(null);
+      return;
+    }
     setTemplates((prev) => {
       let next = prev;
       if (payload.is_active) {
