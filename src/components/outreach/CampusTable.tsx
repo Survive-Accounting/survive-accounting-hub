@@ -1,0 +1,354 @@
+import { useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  Check,
+  Copy,
+  Download,
+  Eye,
+  MousePointerClick,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import AssignCampusPopover from "./AssignCampusPopover";
+import {
+  ASSIGNMENT_STATUS_BADGE,
+  ASSIGNMENT_STATUS_LABEL,
+  type Campus,
+} from "@/lib/outreach-mock";
+
+type SortKey = "name" | "students" | "tuition";
+
+interface Props {
+  campuses: Campus[];
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string, value: boolean) => void;
+  onToggleSelectAll: (value: boolean) => void;
+  onReview: (campus: Campus) => void;
+  onImportLeads: (campus: Campus) => void;
+  onAssignSave: (
+    id: string,
+    patch: {
+      assigned_to: string | null;
+      due_date: string | null;
+      assignment_status: Campus["assignment_status"];
+    },
+  ) => void;
+}
+
+export default function CampusTable({
+  campuses,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
+  onReview,
+  onImportLeads,
+  onAssignSave,
+}: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(k);
+      setSortDir(k === "name" ? "asc" : "desc");
+    }
+  };
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const tuitionOf = (c: Campus) =>
+      c.tuition_out_state ?? c.tuition_in_state ?? -1;
+    return [...campuses].sort((a, b) => {
+      if (sortKey === "name") {
+        return (
+          a.school_name.toLowerCase().localeCompare(b.school_name.toLowerCase()) * dir
+        );
+      }
+      const primary =
+        sortKey === "students"
+          ? (a.tam_total ?? -1) - (b.tam_total ?? -1)
+          : tuitionOf(a) - tuitionOf(b);
+      if (primary !== 0) return primary * dir;
+      return a.school_name.localeCompare(b.school_name);
+    });
+  }, [campuses, sortKey, sortDir]);
+
+  if (sorted.length === 0) {
+    return (
+      <div className="p-12 text-center text-sm text-muted-foreground">
+        No campuses match.
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-h-[70vh] overflow-auto">
+      <table className="w-full text-sm">
+        <thead className="sticky top-0 z-10 bg-muted/80 text-xs uppercase text-muted-foreground backdrop-blur">
+          <tr className="text-left">
+            <th className="px-3 py-2 w-8">
+              <Checkbox
+                checked={
+                  sorted.length > 0 && sorted.every((s) => selectedIds.has(s.id))
+                }
+                onCheckedChange={(v) => onToggleSelectAll(!!v)}
+              />
+            </th>
+            <th className="px-3 py-2">
+              <button
+                type="button"
+                onClick={() => toggleSort("name")}
+                className="inline-flex items-center gap-1 hover:text-foreground"
+              >
+                Campus{" "}
+                {sortKey === "name" &&
+                  (sortDir === "asc" ? (
+                    <ArrowUp className="h-3 w-3" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3" />
+                  ))}
+              </button>
+            </th>
+            <th className="px-3 py-2">Landing Page</th>
+            <th className="px-3 py-2 text-right">
+              <button
+                type="button"
+                onClick={() => toggleSort("students")}
+                className="inline-flex items-center gap-1 hover:text-foreground"
+              >
+                Students / yr{" "}
+                {sortKey === "students" &&
+                  (sortDir === "asc" ? (
+                    <ArrowUp className="h-3 w-3" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3" />
+                  ))}
+              </button>
+            </th>
+            <th className="px-3 py-2 text-right">
+              <button
+                type="button"
+                onClick={() => toggleSort("tuition")}
+                className="inline-flex items-center gap-1 hover:text-foreground"
+              >
+                Tuition / yr{" "}
+                {sortKey === "tuition" &&
+                  (sortDir === "asc" ? (
+                    <ArrowUp className="h-3 w-3" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3" />
+                  ))}
+              </button>
+            </th>
+            <th className="px-3 py-2">Assignment</th>
+            <th className="px-3 py-2 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {sorted.map((s) => {
+            const isApproved = s.approval_status === "approved";
+            const tuitionDisplay = s.tuition_out_state ?? s.tuition_in_state;
+            const tuitionIsOfficial = s.tuition_source === "ipeds";
+            return (
+              <tr
+                key={s.id}
+                className={`hover:bg-muted/30 ${s.archived ? "opacity-50" : ""}`}
+              >
+                <td className="px-3 py-3.5 align-top">
+                  <Checkbox
+                    checked={selectedIds.has(s.id)}
+                    onCheckedChange={(v) => onToggleSelect(s.id, !!v)}
+                  />
+                </td>
+                <td className="px-3 py-3.5 font-medium align-top">
+                  <span className="inline-flex items-center gap-1.5">
+                    {s.school_name}
+                    {s.is_sec && (
+                      <span title="SEC Conference" className="text-base leading-none">
+                        🏈
+                      </span>
+                    )}
+                    {s.archived && (
+                      <Badge variant="outline" className="text-[10px] h-4 px-1">
+                        archived
+                      </Badge>
+                    )}
+                  </span>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {s.state} · /{s.slug}
+                  </div>
+                </td>
+                <td className="px-3 py-3.5 text-xs align-top">
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/outreach/school/${s.slug}`;
+                        navigator.clipboard
+                          .writeText(url)
+                          .then(() => toast.success("Landing page URL copied"));
+                      }}
+                      className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground w-fit"
+                      title="Copy landing page URL"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span className="text-[11px]">Copy link</span>
+                    </button>
+                    <div className="inline-flex items-center gap-3 text-muted-foreground">
+                      <span
+                        className="inline-flex items-center gap-1"
+                        title="Visitors"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span className="tabular-nums text-[11px]">
+                          {s.landing_views}
+                        </span>
+                      </span>
+                      <span className="inline-flex items-center gap-1" title="Clicks">
+                        <MousePointerClick className="h-3.5 w-3.5" />
+                        <span className="tabular-nums text-[11px]">
+                          {s.landing_clicks}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-3 py-3.5 text-right text-xs tabular-nums align-top">
+                  {s.tam_total != null && s.tam_total > 0 ? (
+                    <span>
+                      {s.tam_total.toLocaleString()}
+                      {s.tam_confidence && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">
+                          ({s.tam_confidence})
+                        </span>
+                      )}
+                    </span>
+                  ) : s.total_enrollment != null ? (
+                    <span className="text-muted-foreground">
+                      <span className="text-[10px]">enroll</span>{" "}
+                      {s.total_enrollment.toLocaleString()}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-3.5 text-right text-xs tabular-nums align-top">
+                  {tuitionDisplay != null ? (
+                    <span className="inline-flex items-center gap-1">
+                      ${Math.round(tuitionDisplay).toLocaleString()}
+                      {tuitionIsOfficial ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] h-4 px-1 border-emerald-500/50 text-emerald-700"
+                          title="Official IPEDS data via College Scorecard"
+                        >
+                          IPEDS
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] h-4 px-1 border-amber-500/50 text-amber-700"
+                          title="AI estimate"
+                        >
+                          AI
+                        </Badge>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-3.5 align-top">
+                  <AssignCampusPopover
+                    campus={{
+                      id: s.id,
+                      name: s.school_name,
+                      assigned_to: s.assigned_to,
+                      due_date: s.due_date,
+                      assignment_status: s.assignment_status,
+                    }}
+                    onSave={(patch) => onAssignSave(s.id, patch)}
+                  >
+                    <button
+                      type="button"
+                      className="flex flex-col gap-0.5 text-xs text-left cursor-pointer group"
+                      title="Click to assign or edit"
+                    >
+                      <span
+                        className={`inline-flex w-fit items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition group-hover:ring-2 group-hover:ring-[#14213D]/20 ${
+                          ASSIGNMENT_STATUS_BADGE[s.assignment_status]
+                        }`}
+                      >
+                        {ASSIGNMENT_STATUS_LABEL[s.assignment_status]}
+                      </span>
+                      {s.assigned_to && (
+                        <span className="text-[10px] text-muted-foreground capitalize">
+                          {s.assigned_to}
+                          {s.assignment_batch ? ` · ${s.assignment_batch}` : ""}
+                        </span>
+                      )}
+                      {s.due_date && (
+                        <span className="text-[10px] text-muted-foreground">
+                          Due {s.due_date}
+                        </span>
+                      )}
+                    </button>
+                  </AssignCampusPopover>
+                </td>
+                <td className="px-3 py-3.5 align-top min-w-[180px]">
+                  <div className="flex flex-col items-stretch gap-1.5 ml-auto w-[170px]">
+                    {isApproved ? (
+                      <Button
+                        size="sm"
+                        onClick={() => onReview(s)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white justify-center"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Approved
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => onReview(s)}
+                        className="justify-center"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Review
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      disabled={!isApproved}
+                      onClick={() => onImportLeads(s)}
+                      className={
+                        isApproved
+                          ? "bg-[#CE1126] hover:bg-[#CE1126]/90 text-white justify-center"
+                          : "justify-center"
+                      }
+                      variant={isApproved ? "default" : "outline"}
+                      title={isApproved ? "Import professor leads" : "Approve first"}
+                    >
+                      <Download className="h-3.5 w-3.5" /> Import Leads
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      className="justify-center"
+                      title="Coming soon"
+                    >
+                      <BarChart3 className="h-3.5 w-3.5" /> View Metrics
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
