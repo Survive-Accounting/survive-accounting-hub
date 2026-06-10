@@ -27,11 +27,18 @@ const DEFAULT_ORIGIN = "https://surviveaccounting.com";
 const DAILY_CAP = 50;
 
 type Body = {
-  lead_id: string;
+  lead_id?: string;
   include_landing_page?: boolean;
   follow_up?: 0 | 1 | 2 | 3;
   sender_email?: string; // honored for service-role calls (scheduler)
+  // Test mode: send a draft to one of the allowed test recipients.
+  test_to?: string;
+  test_subject?: string;
+  test_body?: string;
 };
+
+// Only these addresses can receive test sends — keeps the endpoint abuse-proof.
+const TEST_RECIPIENTS = ["lee@survivestudios.com", "jking.cim@gmail.com"];
 
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -65,6 +72,60 @@ Deno.serve(async (req) => {
     const isServiceRole = !!bearer && bearer === SERVICE_ROLE;
 
     const body = (await req.json()) as Body;
+
+    // ============ TEST MODE ============
+    if (body?.test_to) {
+      const to = body.test_to.trim().toLowerCase();
+      if (!TEST_RECIPIENTS.includes(to)) {
+        return new Response(JSON.stringify({ error: "test_to not in the allowed list" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const sampleFirst = "John";
+      const surviveLinkUrl = "https://surviveaccounting.com?utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
+      const rawBody = body.test_body ?? "";
+      const rawSubject = body.test_subject ?? "";
+      if (!rawSubject.trim() || !rawBody.trim()) {
+        return new Response(JSON.stringify({ error: "test_subject and test_body required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const mergedBody = rawBody
+        .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
+        .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
+        .replace(/\[First Name\]/g, sampleFirst)
+        .replace(/\[Booking Link\]/g, BOOKING_LINK)
+        .replace(/\[SurviveAccounting\.com\]/g, SA_LINK_TOKEN);
+      const subject = "[TEST] " + rawSubject
+        .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
+        .replace(/\[First Name\]/g, sampleFirst);
+      const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`);
+
+      const testRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: FROM,
+          to: [to],
+          reply_to: REPLY_TO,
+          subject,
+          html: renderHtml(mergedBody, surviveLinkUrl),
+          text: textBody,
+          tags: [{ name: "campaign", value: "test_send" }],
+        }),
+      });
+      const testJson = await testRes.json();
+      if (!testRes.ok) {
+        return new Response(JSON.stringify({ error: "Resend error", details: testJson }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, test: true, message_id: testJson?.id ?? null }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // ============ END TEST MODE ============
+
     if (!body?.lead_id) {
       return new Response(JSON.stringify({ error: "lead_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },

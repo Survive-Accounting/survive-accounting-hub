@@ -2,7 +2,7 @@
 // Templates are held in memory until Supabase is wired.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { Loader2, Pencil, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   MOCK_TEMPLATES,
@@ -26,7 +29,7 @@ import {
   type TemplateKind,
   type TemplateVariant,
 } from "@/lib/outreach-mock";
-import { fetchTemplates, saveTemplateDb } from "@/lib/outreach-api";
+import { fetchTemplates, saveTemplateDb, sendTestEmail, TEST_RECIPIENTS } from "@/lib/outreach-api";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -170,6 +173,19 @@ function TemplateFormDialog({
     subject: "", body: "", is_locked: true, is_active: true, kind, variant,
   });
   const [form, setForm] = useState<Partial<EmailTemplate>>(template ?? buildDefaults());
+  const [testTo, setTestTo] = useState<string>(TEST_RECIPIENTS[0]);
+  const [testSending, setTestSending] = useState(false);
+
+  const sendTest = async () => {
+    const subject = (form.subject ?? "").trim();
+    const bodyText = (form.body ?? "").trim();
+    if (!subject || !bodyText) { toast.error("Add a subject and body first"); return; }
+    setTestSending(true);
+    const res = await sendTestEmail(testTo, subject, bodyText);
+    setTestSending(false);
+    if (res.ok) toast.success(`Test sent to ${testTo} — check the inbox (and spam folder)`);
+    else toast.error(res.error ?? "Test send failed");
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -216,6 +232,24 @@ function TemplateFormDialog({
               <Label htmlFor="lock" className="text-xs">Locked (VAs cannot edit body when sending)</Label>
             </div>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-2.5">
+          <span className="text-xs font-medium text-muted-foreground">Send test email to</span>
+          <Select value={testTo} onValueChange={setTestTo}>
+            <SelectTrigger className="h-8 w-[240px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TEST_RECIPIENTS.map((e) => (
+                <SelectItem key={e} value={e} className="text-xs">{e}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={sendTest} disabled={testSending} className="h-8">
+            {testSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            Send test
+          </Button>
+          <span className="text-[11px] text-muted-foreground">
+            Sends this draft as-is (saved or not) with sample merge values, subject prefixed [TEST].
+          </span>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>

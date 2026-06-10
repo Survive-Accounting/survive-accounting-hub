@@ -347,3 +347,24 @@ export function recordLandingEvent(kind: "view" | "click", campusId: string, tok
     .insert({ kind, campus_id: campusId, token: token ?? null, lead_id: leadId ?? null } as never)
     .then(({ error }) => { if (error) console.warn("landing event failed:", error.message); });
 }
+
+export const TEST_RECIPIENTS = ["lee@survivestudios.com", "jking.cim@gmail.com"] as const;
+
+/** Send the current template draft to an allowed test recipient. */
+export async function sendTestEmail(to: string, subject: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.functions.invoke("outreach-send-email", {
+    body: { test_to: to, test_subject: subject, test_body: body },
+  });
+  if (error) {
+    let message = error.message ?? "Test send failed";
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx) {
+        const j = await ctx.json();
+        message = j?.message ?? j?.error ?? message;
+      }
+    } catch { /* keep default */ }
+    return { ok: false, error: message };
+  }
+  return { ok: true };
+}
