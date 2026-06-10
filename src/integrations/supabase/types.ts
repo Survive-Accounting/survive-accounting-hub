@@ -14,6 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_aliases: {
+        Row: {
+          canonical_name: string | null
+          course_short: string | null
+          created_at: string
+          id: string
+          preferred_display_name: string | null
+        }
+        Insert: {
+          canonical_name?: string | null
+          course_short?: string | null
+          created_at?: string
+          id?: string
+          preferred_display_name?: string | null
+        }
+        Update: {
+          canonical_name?: string | null
+          course_short?: string | null
+          created_at?: string
+          id?: string
+          preferred_display_name?: string | null
+        }
+        Relationships: []
+      }
+      banked_questions: {
+        Row: {
+          ai_confidence_score: number | null
+          answer_a: string | null
+          answer_b: string | null
+          answer_c: string | null
+          answer_d: string | null
+          answer_e: string | null
+          asset_id: string | null
+          correct_answer: string | null
+          created_at: string
+          difficulty: number | null
+          id: string
+          question_text: string | null
+          question_type: string | null
+          rating: number | null
+          rejection_notes: string | null
+          review_status: string | null
+          short_explanation: string | null
+          teaching_asset_id: string | null
+        }
+        Insert: {
+          ai_confidence_score?: number | null
+          answer_a?: string | null
+          answer_b?: string | null
+          answer_c?: string | null
+          answer_d?: string | null
+          answer_e?: string | null
+          asset_id?: string | null
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          question_text?: string | null
+          question_type?: string | null
+          rating?: number | null
+          rejection_notes?: string | null
+          review_status?: string | null
+          short_explanation?: string | null
+          teaching_asset_id?: string | null
+        }
+        Update: {
+          ai_confidence_score?: number | null
+          answer_a?: string | null
+          answer_b?: string | null
+          answer_c?: string | null
+          answer_d?: string | null
+          answer_e?: string | null
+          asset_id?: string | null
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          question_text?: string | null
+          question_type?: string | null
+          rating?: number | null
+          rejection_notes?: string | null
+          review_status?: string | null
+          short_explanation?: string | null
+          teaching_asset_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "banked_questions_teaching_asset_id_fkey"
+            columns: ["teaching_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campus_courses: {
         Row: {
           campus_id: string | null
@@ -840,6 +935,901 @@ export type Database = {
         }
         Relationships: []
       }
+      ceq_concepts: {
+        Row: {
+          ceq_id: string
+          concept_id: string
+          created_at: string
+          id: string
+          is_primary: boolean
+        }
+        Insert: {
+          ceq_id: string
+          concept_id: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+        }
+        Update: {
+          ceq_id?: string
+          concept_id?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ceq_concepts_ceq_id_fkey"
+            columns: ["ceq_id"]
+            isOneToOne: false
+            referencedRelation: "ceqs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceq_concepts_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ceq_teaching_blocks: {
+        Row: {
+          block_type: string | null
+          body: string | null
+          chapter_id: string | null
+          created_at: string
+          id: string
+          sort_order: number | null
+          source_asset_id: string | null
+          source_note_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          block_type?: string | null
+          body?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+          source_asset_id?: string | null
+          source_note_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          block_type?: string | null
+          body?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+          source_asset_id?: string | null
+          source_note_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ceq_teaching_blocks_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceq_teaching_blocks_source_asset_id_fkey"
+            columns: ["source_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceq_teaching_blocks_source_note_id_fkey"
+            columns: ["source_note_id"]
+            isOneToOne: false
+            referencedRelation: "ceq_tutoring_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ceq_tutoring_notes: {
+        Row: {
+          chapter_id: string | null
+          created_at: string
+          file_name: string | null
+          id: string
+          ocr_error: string | null
+          ocr_status: string | null
+          ocr_text: string | null
+          page_count: number | null
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          ocr_error?: string | null
+          ocr_status?: string | null
+          ocr_text?: string | null
+          page_count?: number | null
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chapter_id?: string | null
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          ocr_error?: string | null
+          ocr_status?: string | null
+          ocr_text?: string | null
+          page_count?: number | null
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ceq_tutoring_notes_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ceqs: {
+        Row: {
+          admin_notes: string | null
+          answer: string | null
+          ceq_type: string | null
+          common_mistake: string | null
+          created_at: string
+          difficulty: string | null
+          draft_instruction: string | null
+          explanation: string | null
+          formula_block: string | null
+          id: string
+          include_common_mistake: boolean | null
+          include_formula: boolean | null
+          include_je: boolean | null
+          include_student_explanation: boolean | null
+          include_t_accounts: boolean | null
+          include_teaching_script: boolean | null
+          je_block: string | null
+          mc_choices: Json | null
+          progressive_reveal: boolean | null
+          status: string | null
+          student_explanation: string | null
+          student_prompt: string | null
+          t_account_block: string | null
+          teaching_asset_id: string | null
+          teaching_script: string | null
+          thinking: Json | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          answer?: string | null
+          ceq_type?: string | null
+          common_mistake?: string | null
+          created_at?: string
+          difficulty?: string | null
+          draft_instruction?: string | null
+          explanation?: string | null
+          formula_block?: string | null
+          id?: string
+          include_common_mistake?: boolean | null
+          include_formula?: boolean | null
+          include_je?: boolean | null
+          include_student_explanation?: boolean | null
+          include_t_accounts?: boolean | null
+          include_teaching_script?: boolean | null
+          je_block?: string | null
+          mc_choices?: Json | null
+          progressive_reveal?: boolean | null
+          status?: string | null
+          student_explanation?: string | null
+          student_prompt?: string | null
+          t_account_block?: string | null
+          teaching_asset_id?: string | null
+          teaching_script?: string | null
+          thinking?: Json | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          answer?: string | null
+          ceq_type?: string | null
+          common_mistake?: string | null
+          created_at?: string
+          difficulty?: string | null
+          draft_instruction?: string | null
+          explanation?: string | null
+          formula_block?: string | null
+          id?: string
+          include_common_mistake?: boolean | null
+          include_formula?: boolean | null
+          include_je?: boolean | null
+          include_student_explanation?: boolean | null
+          include_t_accounts?: boolean | null
+          include_teaching_script?: boolean | null
+          je_block?: string | null
+          mc_choices?: Json | null
+          progressive_reveal?: boolean | null
+          status?: string | null
+          student_explanation?: string | null
+          student_prompt?: string | null
+          t_account_block?: string | null
+          teaching_asset_id?: string | null
+          teaching_script?: string | null
+          thinking?: Json | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ceqs_teaching_asset_id_fkey"
+            columns: ["teaching_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_accounts: {
+        Row: {
+          account_description: string | null
+          account_name: string | null
+          account_type: string | null
+          balance_tooltip: string | null
+          chapter_id: string | null
+          contra_tooltip: string | null
+          created_at: string
+          credit_tooltip: string | null
+          debit_tooltip: string | null
+          example_beginning_balance: number | null
+          example_credit_amount: number | null
+          example_date_label: string | null
+          example_debit_amount: number | null
+          example_ending_balance: number | null
+          fs_placement_tooltip: string | null
+          generated_at: string | null
+          id: string
+          is_approved: boolean | null
+          is_rejected: boolean | null
+          normal_balance: string | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          account_description?: string | null
+          account_name?: string | null
+          account_type?: string | null
+          balance_tooltip?: string | null
+          chapter_id?: string | null
+          contra_tooltip?: string | null
+          created_at?: string
+          credit_tooltip?: string | null
+          debit_tooltip?: string | null
+          example_beginning_balance?: number | null
+          example_credit_amount?: number | null
+          example_date_label?: string | null
+          example_debit_amount?: number | null
+          example_ending_balance?: number | null
+          fs_placement_tooltip?: string | null
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          normal_balance?: string | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          account_description?: string | null
+          account_name?: string | null
+          account_type?: string | null
+          balance_tooltip?: string | null
+          chapter_id?: string | null
+          contra_tooltip?: string | null
+          created_at?: string
+          credit_tooltip?: string | null
+          debit_tooltip?: string | null
+          example_beginning_balance?: number | null
+          example_credit_amount?: number | null
+          example_date_label?: string | null
+          example_debit_amount?: number | null
+          example_ending_balance?: number | null
+          fs_placement_tooltip?: string | null
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          normal_balance?: string | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_accounts_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_exam_mistakes: {
+        Row: {
+          chapter_id: string | null
+          created_at: string
+          example_text: string | null
+          explanation: string | null
+          generated_at: string | null
+          id: string
+          is_approved: boolean | null
+          is_rejected: boolean | null
+          mistake: string | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          created_at?: string
+          example_text?: string | null
+          explanation?: string | null
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          mistake?: string | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chapter_id?: string | null
+          created_at?: string
+          example_text?: string | null
+          explanation?: string | null
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          mistake?: string | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_exam_mistakes_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_formulas: {
+        Row: {
+          chapter_id: string | null
+          components: Json | null
+          created_at: string
+          formula_explanation: string | null
+          formula_expression: string | null
+          formula_name: string | null
+          generated_at: string | null
+          id: string
+          image_url: string | null
+          is_approved: boolean | null
+          is_rejected: boolean | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          components?: Json | null
+          created_at?: string
+          formula_explanation?: string | null
+          formula_expression?: string | null
+          formula_name?: string | null
+          generated_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chapter_id?: string | null
+          components?: Json | null
+          created_at?: string
+          formula_explanation?: string | null
+          formula_expression?: string | null
+          formula_name?: string | null
+          generated_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_formulas_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_je_categories: {
+        Row: {
+          category_name: string | null
+          chapter_id: string | null
+          created_at: string
+          id: string
+          sort_order: number | null
+        }
+        Insert: {
+          category_name?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+        }
+        Update: {
+          category_name?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_je_categories_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_journal_entries: {
+        Row: {
+          category_id: string | null
+          chapter_id: string | null
+          created_at: string
+          generated_at: string | null
+          id: string
+          is_approved: boolean | null
+          is_rejected: boolean | null
+          je_lines: Json | null
+          sort_order: number | null
+          source: string | null
+          transaction_label: string | null
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          je_lines?: Json | null
+          sort_order?: number | null
+          source?: string | null
+          transaction_label?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          je_lines?: Json | null
+          sort_order?: number | null
+          source?: string | null
+          transaction_label?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_journal_entries_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "chapter_je_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chapter_journal_entries_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_key_terms: {
+        Row: {
+          category: string | null
+          chapter_id: string | null
+          created_at: string
+          definition: string | null
+          generated_at: string | null
+          id: string
+          is_approved: boolean | null
+          is_rejected: boolean | null
+          sort_order: number | null
+          term: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          definition?: string | null
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          sort_order?: number | null
+          term?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          chapter_id?: string | null
+          created_at?: string
+          definition?: string | null
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_rejected?: boolean | null
+          sort_order?: number | null
+          term?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_key_terms_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_purpose: {
+        Row: {
+          chapter_id: string | null
+          consequence_bullets: Json | null
+          created_at: string
+          generated_at: string | null
+          id: string
+          is_approved: boolean | null
+          purpose_bullets: Json | null
+          updated_at: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          consequence_bullets?: Json | null
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          purpose_bullets?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          chapter_id?: string | null
+          consequence_bullets?: Json | null
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          is_approved?: boolean | null
+          purpose_bullets?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_purpose_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_topics: {
+        Row: {
+          asset_codes: string[] | null
+          chapter_id: string | null
+          course_id: string | null
+          created_at: string
+          display_order: number | null
+          generated_by_ai: boolean | null
+          id: string
+          is_active: boolean | null
+          is_supplementary: boolean | null
+          lw_imported: boolean | null
+          lw_imported_at: string | null
+          lw_imported_by: string | null
+          lw_quiz_link: string | null
+          lw_video_link: string | null
+          merged_into_topic_id: string | null
+          original_asset_codes: string[] | null
+          quiz_status: string | null
+          topic_description: string | null
+          topic_name: string | null
+          topic_number: number | null
+          topic_rationale: string | null
+          video_status: string | null
+        }
+        Insert: {
+          asset_codes?: string[] | null
+          chapter_id?: string | null
+          course_id?: string | null
+          created_at?: string
+          display_order?: number | null
+          generated_by_ai?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_supplementary?: boolean | null
+          lw_imported?: boolean | null
+          lw_imported_at?: string | null
+          lw_imported_by?: string | null
+          lw_quiz_link?: string | null
+          lw_video_link?: string | null
+          merged_into_topic_id?: string | null
+          original_asset_codes?: string[] | null
+          quiz_status?: string | null
+          topic_description?: string | null
+          topic_name?: string | null
+          topic_number?: number | null
+          topic_rationale?: string | null
+          video_status?: string | null
+        }
+        Update: {
+          asset_codes?: string[] | null
+          chapter_id?: string | null
+          course_id?: string | null
+          created_at?: string
+          display_order?: number | null
+          generated_by_ai?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_supplementary?: boolean | null
+          lw_imported?: boolean | null
+          lw_imported_at?: string | null
+          lw_imported_by?: string | null
+          lw_quiz_link?: string | null
+          lw_video_link?: string | null
+          merged_into_topic_id?: string | null
+          original_asset_codes?: string[] | null
+          quiz_status?: string | null
+          topic_description?: string | null
+          topic_name?: string | null
+          topic_number?: number | null
+          topic_rationale?: string | null
+          video_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_topics_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chapter_topics_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chapter_topics_merged_into_topic_id_fkey"
+            columns: ["merged_into_topic_id"]
+            isOneToOne: false
+            referencedRelation: "chapter_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapters: {
+        Row: {
+          chapter_name: string | null
+          chapter_number: number | null
+          course_id: string | null
+          created_at: string
+          id: string
+          je_only_mode: boolean | null
+          target_lessons: number | null
+          topics_locked: boolean | null
+          topics_locked_at: string | null
+          topics_locked_count: number | null
+        }
+        Insert: {
+          chapter_name?: string | null
+          chapter_number?: number | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          je_only_mode?: boolean | null
+          target_lessons?: number | null
+          topics_locked?: boolean | null
+          topics_locked_at?: string | null
+          topics_locked_count?: number | null
+        }
+        Update: {
+          chapter_name?: string | null
+          chapter_number?: number | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          je_only_mode?: boolean | null
+          target_lessons?: number | null
+          topics_locked?: boolean | null
+          topics_locked_at?: string | null
+          topics_locked_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapters_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chart_of_accounts: {
+        Row: {
+          account_type: string | null
+          canonical_name: string | null
+          created_at: string
+          id: string
+          is_global_default: boolean | null
+          keywords: string[] | null
+          normal_balance: string | null
+        }
+        Insert: {
+          account_type?: string | null
+          canonical_name?: string | null
+          created_at?: string
+          id?: string
+          is_global_default?: boolean | null
+          keywords?: string[] | null
+          normal_balance?: string | null
+        }
+        Update: {
+          account_type?: string | null
+          canonical_name?: string | null
+          created_at?: string
+          id?: string
+          is_global_default?: boolean | null
+          keywords?: string[] | null
+          normal_balance?: string | null
+        }
+        Relationships: []
+      }
+      company_names: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          id: string
+          name: string | null
+          notes: string | null
+          style: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          style?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          style?: string | null
+        }
+        Relationships: []
+      }
+      concepts: {
+        Row: {
+          course_area: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          parent_concept_id: string | null
+          slug: string
+        }
+        Insert: {
+          course_area?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          parent_concept_id?: string | null
+          slug: string
+        }
+        Update: {
+          course_area?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          parent_concept_id?: string | null
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concepts_parent_concept_id_fkey"
+            columns: ["parent_concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_textbooks: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          id: string
+          textbook_id: string | null
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          textbook_id?: string | null
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          textbook_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_textbooks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_textbooks_textbook_id_fkey"
+            columns: ["textbook_id"]
+            isOneToOne: false
+            referencedRelation: "textbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           code: string | null
@@ -866,6 +1856,393 @@ export type Database = {
           slug?: string | null
         }
         Relationships: []
+      }
+      dissector_problems: {
+        Row: {
+          chapter_id: string | null
+          completions: number | null
+          course_id: string | null
+          created_at: string
+          highlights: Json | null
+          id: string
+          plays: number | null
+          problem_text: string | null
+          status: string | null
+          teaching_asset_id: string | null
+        }
+        Insert: {
+          chapter_id?: string | null
+          completions?: number | null
+          course_id?: string | null
+          created_at?: string
+          highlights?: Json | null
+          id?: string
+          plays?: number | null
+          problem_text?: string | null
+          status?: string | null
+          teaching_asset_id?: string | null
+        }
+        Update: {
+          chapter_id?: string | null
+          completions?: number | null
+          course_id?: string | null
+          created_at?: string
+          highlights?: Json | null
+          id?: string
+          plays?: number | null
+          problem_text?: string | null
+          status?: string | null
+          teaching_asset_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dissector_problems_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dissector_problems_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dissector_problems_teaching_asset_id_fkey"
+            columns: ["teaching_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entry_builder_accounts: {
+        Row: {
+          account_name: string | null
+          account_type: string | null
+          chapter_id: string | null
+          id: string
+          normal_balance: string | null
+        }
+        Insert: {
+          account_name?: string | null
+          account_type?: string | null
+          chapter_id?: string | null
+          id?: string
+          normal_balance?: string | null
+        }
+        Update: {
+          account_name?: string | null
+          account_type?: string | null
+          chapter_id?: string | null
+          id?: string
+          normal_balance?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_builder_accounts_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entry_builder_items: {
+        Row: {
+          date_label: string | null
+          deleted: boolean | null
+          entries: Json | null
+          id: string
+          set_id: string | null
+          sort_order: number | null
+          source_asset_id: string | null
+          transaction_description: string | null
+        }
+        Insert: {
+          date_label?: string | null
+          deleted?: boolean | null
+          entries?: Json | null
+          id?: string
+          set_id?: string | null
+          sort_order?: number | null
+          source_asset_id?: string | null
+          transaction_description?: string | null
+        }
+        Update: {
+          date_label?: string | null
+          deleted?: boolean | null
+          entries?: Json | null
+          id?: string
+          set_id?: string | null
+          sort_order?: number | null
+          source_asset_id?: string | null
+          transaction_description?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_builder_items_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "entry_builder_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_builder_items_source_asset_id_fkey"
+            columns: ["source_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entry_builder_sets: {
+        Row: {
+          chapter_id: string | null
+          completions: number | null
+          course_id: string | null
+          created_at: string
+          id: string
+          plays: number | null
+          status: string | null
+        }
+        Insert: {
+          chapter_id?: string | null
+          completions?: number | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          plays?: number | null
+          status?: string | null
+        }
+        Update: {
+          chapter_id?: string | null
+          completions?: number | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          plays?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_builder_sets_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_builder_sets_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flashcard_decks: {
+        Row: {
+          chapter_id: string | null
+          chapter_number: number | null
+          completions: number | null
+          course_code: string | null
+          course_id: string | null
+          created_at: string
+          id: string
+          plays: number | null
+          status: string | null
+          total_cards: number | null
+          updated_at: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          chapter_number?: number | null
+          completions?: number | null
+          course_code?: string | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          plays?: number | null
+          status?: string | null
+          total_cards?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chapter_id?: string | null
+          chapter_number?: number | null
+          completions?: number | null
+          course_code?: string | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          plays?: number | null
+          status?: string | null
+          total_cards?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flashcard_decks_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flashcard_decks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flashcards: {
+        Row: {
+          back: string | null
+          card_type: string | null
+          created_at: string
+          deck_id: string | null
+          deleted: boolean | null
+          front: string | null
+          id: string
+          sort_order: number | null
+          source_asset_id: string | null
+        }
+        Insert: {
+          back?: string | null
+          card_type?: string | null
+          created_at?: string
+          deck_id?: string | null
+          deleted?: boolean | null
+          front?: string | null
+          id?: string
+          sort_order?: number | null
+          source_asset_id?: string | null
+        }
+        Update: {
+          back?: string | null
+          card_type?: string | null
+          created_at?: string
+          deck_id?: string | null
+          deleted?: boolean | null
+          front?: string | null
+          id?: string
+          sort_order?: number | null
+          source_asset_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flashcards_deck_id_fkey"
+            columns: ["deck_id"]
+            isOneToOne: false
+            referencedRelation: "flashcard_decks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flashcards_source_asset_id_fkey"
+            columns: ["source_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formula_items: {
+        Row: {
+          deleted: boolean | null
+          formula_name: string | null
+          formula_text: string | null
+          hint: string | null
+          id: string
+          set_id: string | null
+          sort_order: number | null
+          source_asset_id: string | null
+        }
+        Insert: {
+          deleted?: boolean | null
+          formula_name?: string | null
+          formula_text?: string | null
+          hint?: string | null
+          id?: string
+          set_id?: string | null
+          sort_order?: number | null
+          source_asset_id?: string | null
+        }
+        Update: {
+          deleted?: boolean | null
+          formula_name?: string | null
+          formula_text?: string | null
+          hint?: string | null
+          id?: string
+          set_id?: string | null
+          sort_order?: number | null
+          source_asset_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formula_items_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "formula_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formula_items_source_asset_id_fkey"
+            columns: ["source_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formula_sets: {
+        Row: {
+          chapter_id: string | null
+          completions: number | null
+          course_id: string | null
+          created_at: string
+          id: string
+          plays: number | null
+          status: string | null
+        }
+        Insert: {
+          chapter_id?: string | null
+          completions?: number | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          plays?: number | null
+          status?: string | null
+        }
+        Update: {
+          chapter_id?: string | null
+          completions?: number | null
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          plays?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formula_sets_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formula_sets_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       outreach_email_events: {
         Row: {
@@ -1297,6 +2674,296 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      teaching_asset_ceq_flags: {
+        Row: {
+          is_core: boolean | null
+          marked_at: string | null
+          marked_by: string | null
+          teaching_asset_id: string | null
+        }
+        Insert: {
+          is_core?: boolean | null
+          marked_at?: string | null
+          marked_by?: string | null
+          teaching_asset_id?: string | null
+        }
+        Update: {
+          is_core?: boolean | null
+          marked_at?: string | null
+          marked_by?: string | null
+          teaching_asset_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teaching_asset_ceq_flags_teaching_asset_id_fkey"
+            columns: ["teaching_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teaching_asset_ceq_part_focus: {
+        Row: {
+          created_at: string
+          id: string
+          part_index: number | null
+          part_label: string | null
+          teaching_asset_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          part_index?: number | null
+          part_label?: string | null
+          teaching_asset_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          part_index?: number | null
+          part_label?: string | null
+          teaching_asset_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teaching_asset_ceq_part_focus_teaching_asset_id_fkey"
+            columns: ["teaching_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teaching_asset_concepts: {
+        Row: {
+          concept_id: string
+          created_at: string
+          id: string
+          is_primary: boolean
+          teaching_asset_id: string
+        }
+        Insert: {
+          concept_id: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          teaching_asset_id: string
+        }
+        Update: {
+          concept_id?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          teaching_asset_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teaching_asset_concepts_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teaching_asset_concepts_teaching_asset_id_fkey"
+            columns: ["teaching_asset_id"]
+            isOneToOne: false
+            referencedRelation: "teaching_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teaching_assets: {
+        Row: {
+          admin_notes: Json | null
+          asset_approved_at: string | null
+          asset_name: string | null
+          asset_type: string | null
+          chapter_id: string | null
+          concept_notes: string | null
+          core_rank: number | null
+          course_id: string | null
+          created_at: string
+          difficulty: string | null
+          exam_traps: string | null
+          financial_statements_json: Json | null
+          id: string
+          important_formulas: string | null
+          instruction_1: string | null
+          instruction_2: string | null
+          instruction_3: string | null
+          instruction_4: string | null
+          instruction_5: string | null
+          instruction_list: string | null
+          journal_entry_block: string | null
+          journal_entry_completed_json: Json | null
+          journal_entry_template_json: Json | null
+          problem_context: string | null
+          problem_title: string | null
+          problem_type: string | null
+          source_number: string | null
+          source_ref: string | null
+          source_type: string | null
+          supplementary_je_json: Json | null
+          survive_problem_text: string | null
+          survive_solution_explanation_cache: Json | null
+          survive_solution_json: Json | null
+          survive_solution_text: string | null
+          t_accounts_json: Json | null
+          tables_json: Json | null
+          tags: string[] | null
+          topic_id: string | null
+          updated_at: string
+          uses_financial_statements: boolean | null
+          uses_t_accounts: boolean | null
+          uses_tables: boolean | null
+          worked_steps: string | null
+        }
+        Insert: {
+          admin_notes?: Json | null
+          asset_approved_at?: string | null
+          asset_name?: string | null
+          asset_type?: string | null
+          chapter_id?: string | null
+          concept_notes?: string | null
+          core_rank?: number | null
+          course_id?: string | null
+          created_at?: string
+          difficulty?: string | null
+          exam_traps?: string | null
+          financial_statements_json?: Json | null
+          id?: string
+          important_formulas?: string | null
+          instruction_1?: string | null
+          instruction_2?: string | null
+          instruction_3?: string | null
+          instruction_4?: string | null
+          instruction_5?: string | null
+          instruction_list?: string | null
+          journal_entry_block?: string | null
+          journal_entry_completed_json?: Json | null
+          journal_entry_template_json?: Json | null
+          problem_context?: string | null
+          problem_title?: string | null
+          problem_type?: string | null
+          source_number?: string | null
+          source_ref?: string | null
+          source_type?: string | null
+          supplementary_je_json?: Json | null
+          survive_problem_text?: string | null
+          survive_solution_explanation_cache?: Json | null
+          survive_solution_json?: Json | null
+          survive_solution_text?: string | null
+          t_accounts_json?: Json | null
+          tables_json?: Json | null
+          tags?: string[] | null
+          topic_id?: string | null
+          updated_at?: string
+          uses_financial_statements?: boolean | null
+          uses_t_accounts?: boolean | null
+          uses_tables?: boolean | null
+          worked_steps?: string | null
+        }
+        Update: {
+          admin_notes?: Json | null
+          asset_approved_at?: string | null
+          asset_name?: string | null
+          asset_type?: string | null
+          chapter_id?: string | null
+          concept_notes?: string | null
+          core_rank?: number | null
+          course_id?: string | null
+          created_at?: string
+          difficulty?: string | null
+          exam_traps?: string | null
+          financial_statements_json?: Json | null
+          id?: string
+          important_formulas?: string | null
+          instruction_1?: string | null
+          instruction_2?: string | null
+          instruction_3?: string | null
+          instruction_4?: string | null
+          instruction_5?: string | null
+          instruction_list?: string | null
+          journal_entry_block?: string | null
+          journal_entry_completed_json?: Json | null
+          journal_entry_template_json?: Json | null
+          problem_context?: string | null
+          problem_title?: string | null
+          problem_type?: string | null
+          source_number?: string | null
+          source_ref?: string | null
+          source_type?: string | null
+          supplementary_je_json?: Json | null
+          survive_problem_text?: string | null
+          survive_solution_explanation_cache?: Json | null
+          survive_solution_json?: Json | null
+          survive_solution_text?: string | null
+          t_accounts_json?: Json | null
+          tables_json?: Json | null
+          tags?: string[] | null
+          topic_id?: string | null
+          updated_at?: string
+          uses_financial_statements?: boolean | null
+          uses_t_accounts?: boolean | null
+          uses_tables?: boolean | null
+          worked_steps?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teaching_assets_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teaching_assets_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teaching_assets_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "chapter_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      textbooks: {
+        Row: {
+          created_at: string
+          edition: string | null
+          id: string
+          isbn: string | null
+          publisher: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          edition?: string | null
+          id?: string
+          isbn?: string | null
+          publisher?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          edition?: string | null
+          id?: string
+          isbn?: string | null
+          publisher?: string | null
+          title?: string | null
+        }
+        Relationships: []
       }
       va_accounts: {
         Row: {
