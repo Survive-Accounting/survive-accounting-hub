@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { Toaster } from "sonner";
 import SiteNavbar from "@/components/landing/SiteNavbar";
 import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
 import SiteFooter from "@/components/landing/SiteFooter";
+import BookTutoringModal from "@/components/landing/BookTutoringModal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,19 +34,26 @@ function scrollToId(id: string) {
 }
 
 function Home() {
+  const [bookOpen, setBookOpen] = useState(false);
+  const openBook = () => setBookOpen(true);
   const goToContact = () => scrollToId("contact-form");
   const goToReviews = () => scrollToId("reviews-section");
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <SiteNavbar />
-      <Hero onBookTutoring={goToContact} onReadReviews={goToReviews} />
+      <Hero onBookTutoring={openBook} onReadReviews={goToReviews} />
       <Reviews />
       <ContactForm />
       <SiteFooter
         onScrollToContact={goToContact}
         onScrollToReviews={goToReviews}
-        onBookTutoring={goToContact}
+        onBookTutoring={openBook}
+      />
+      <BookTutoringModal
+        open={bookOpen}
+        onOpenChange={setBookOpen}
+        onNotSeeingCourse={goToContact}
       />
       <Toaster position="top-center" richColors />
     </div>
