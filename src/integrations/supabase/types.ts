@@ -1794,6 +1794,33 @@ export type Database = {
           },
         ]
       }
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          message: string | null
+          name: string | null
+          subject: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string | null
+          name?: string | null
+          subject?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string | null
+          name?: string | null
+          subject?: string | null
+        }
+        Relationships: []
+      }
       course_textbooks: {
         Row: {
           course_id: string | null
@@ -2244,6 +2271,66 @@ export type Database = {
           },
         ]
       }
+      landing_page_leads: {
+        Row: {
+          campus_signup_number: number | null
+          course_slug: string | null
+          created_at: string
+          email: string | null
+          email_type: string | null
+          id: string
+          intent_tag: string | null
+          source: string | null
+          university_domain: string | null
+          university_name: string | null
+        }
+        Insert: {
+          campus_signup_number?: number | null
+          course_slug?: string | null
+          created_at?: string
+          email?: string | null
+          email_type?: string | null
+          id?: string
+          intent_tag?: string | null
+          source?: string | null
+          university_domain?: string | null
+          university_name?: string | null
+        }
+        Update: {
+          campus_signup_number?: number | null
+          course_slug?: string | null
+          created_at?: string
+          email?: string | null
+          email_type?: string | null
+          id?: string
+          intent_tag?: string | null
+          source?: string | null
+          university_domain?: string | null
+          university_name?: string | null
+        }
+        Relationships: []
+      }
+      newsletter_subscribers: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+        }
+        Relationships: []
+      }
       outreach_email_events: {
         Row: {
           created_at: string
@@ -2671,6 +2758,87 @@ export type Database = {
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "outreach_schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_prep_submissions: {
+        Row: {
+          appointment_at: string | null
+          course: string | null
+          created_at: string
+          email: string | null
+          file_paths: string[] | null
+          id: string
+          name: string | null
+          notes: string | null
+          school: string | null
+        }
+        Insert: {
+          appointment_at?: string | null
+          course?: string | null
+          created_at?: string
+          email?: string | null
+          file_paths?: string[] | null
+          id?: string
+          name?: string | null
+          notes?: string | null
+          school?: string | null
+        }
+        Update: {
+          appointment_at?: string | null
+          course?: string | null
+          created_at?: string
+          email?: string | null
+          file_paths?: string[] | null
+          id?: string
+          name?: string | null
+          notes?: string | null
+          school?: string | null
+        }
+        Relationships: []
+      }
+      student_emails: {
+        Row: {
+          attempted_at: string | null
+          chapter_id: string | null
+          converted: boolean | null
+          course_id: string | null
+          email: string | null
+          founding_student: boolean | null
+          id: string
+        }
+        Insert: {
+          attempted_at?: string | null
+          chapter_id?: string | null
+          converted?: boolean | null
+          course_id?: string | null
+          email?: string | null
+          founding_student?: boolean | null
+          id?: string
+        }
+        Update: {
+          attempted_at?: string | null
+          chapter_id?: string | null
+          converted?: boolean | null
+          course_id?: string | null
+          email?: string | null
+          founding_student?: boolean | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_emails_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_emails_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
             referencedColumns: ["id"]
           },
         ]
