@@ -1,182 +1,179 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { AdminShell, PageHeader } from "@/components/admin-shell";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/ceq")({
   head: () => ({ meta: [{ title: "CEQ Command Center — Survive Accounting" }] }),
   component: CeqRoute,
 });
 
-// ---------- Placeholder data (mirrors shape of old store) ----------
-const courses = [
+type Chapter = { n: number; name: string };
+type Course = { slug: string; title: string; code: string; chapters: Chapter[] };
+
+const COURSES: Course[] = [
   {
-    id: "acct201",
-    code: "ACCT 201",
-    course_name: "Principles of Financial Accounting",
+    slug: "ia1",
+    title: "Intermediate Accounting 1",
+    code: "IA1",
     chapters: [
-      { id: "c1", chapter_number: 1, chapter_name: "Intro to Accounting" },
-      { id: "c2", chapter_number: 2, chapter_name: "Recording Transactions" },
-      { id: "c3", chapter_number: 3, chapter_name: "Adjusting Entries" },
-      { id: "c4", chapter_number: 4, chapter_name: "Closing the Books" },
+      { n: 1, name: "The Conceptual Framework" },
+      { n: 2, name: "The Accounting System" },
+      { n: 3, name: "The Income Statement" },
+      { n: 4, name: "The Balance Sheet" },
+      { n: 5, name: "Time Value of Money" },
+      { n: 6, name: "Cash & Receivables" },
+      { n: 7, name: "Inventories, Cost Approach" },
+      { n: 8, name: "Inventories, Additional Issues" },
+      { n: 9, name: "Property, Plant, and Equipment" },
+      { n: 10, name: "Depreciation, Impairments, and Depletion" },
+      { n: 11, name: "Intangible Assets" },
+      { n: 12, name: "Current Liabilities" },
     ],
   },
   {
-    id: "acct202",
-    code: "ACCT 202",
-    course_name: "Managerial Accounting",
+    slug: "ia2",
+    title: "Intermediate Accounting 2",
+    code: "IA2",
     chapters: [
-      { id: "c5", chapter_number: 1, chapter_name: "Managerial Overview" },
-      { id: "c6", chapter_number: 2, chapter_name: "Job Order Costing" },
-      { id: "c7", chapter_number: 3, chapter_name: "Process Costing" },
+      { n: 13, name: "Long Term Liabilities" },
+      { n: 14, name: "Stockholder's Equity" },
+      { n: 15, name: "Dilutive Securities and EPS" },
+      { n: 16, name: "Investments" },
+      { n: 17, name: "Revenue Recognition" },
+      { n: 18, name: "Income Taxes" },
+      { n: 19, name: "Pensions" },
+      { n: 20, name: "Leases" },
+      { n: 21, name: "Accounting Changes" },
+      { n: 22, name: "Statement of Cash Flows" },
     ],
   },
   {
-    id: "acct301",
-    code: "ACCT 301",
-    course_name: "Intermediate Accounting I",
+    slug: "intro1",
+    title: "Intro Accounting 1",
+    code: "INTRO1",
     chapters: [
-      { id: "c8", chapter_number: 7, chapter_name: "Cash & Receivables" },
-      { id: "c9", chapter_number: 8, chapter_name: "Inventory Valuation" },
-      { id: "c10", chapter_number: 14, chapter_name: "Long-Term Liabilities" },
+      { n: 1, name: "Accounting in Business" },
+      { n: 2, name: "Journalizing Transactions" },
+      { n: 3, name: "Adjusting Entries" },
+      { n: 4, name: "Merchandising" },
+      { n: 5, name: "FIFO/LIFO" },
+      { n: 6, name: "Cash & Internal Controls" },
+      { n: 7, name: "Receivables" },
+      { n: 8, name: "Long Term Assets" },
+      { n: 9, name: "Current Liabilities" },
+      { n: 10, name: "Long Term Liabilities" },
+      { n: 11, name: "Equity" },
+    ],
+  },
+  {
+    slug: "intro2",
+    title: "Intro Accounting 2",
+    code: "INTRO2",
+    chapters: [
+      { n: 12, name: "Cash Flow Statements" },
+      { n: 13, name: "Financial Statement Analysis" },
+      { n: 14, name: "Managerial Accounting Concepts" },
+      { n: 15, name: "Job Order Costing" },
+      { n: 16, name: "Process Costing" },
+      { n: 17, name: "Activity Based Costing" },
+      { n: 18, name: "Cost Volume Profit" },
+      { n: 19, name: "Variable Costing" },
+      { n: 20, name: "Master Budgets" },
+      { n: 21, name: "Standard Costing" },
+      { n: 22, name: "Performance Measures" },
+      { n: 23, name: "Relevant Costing" },
+      { n: 24, name: "Capital Budgeting" },
     ],
   },
 ];
-
-const recentCeqs = [
-  { id: "1", asset_id: "a1", title: "Adjusting entry for accrued interest", status: "drafted",        updated_at: "2026-06-09T14:22:00Z" },
-  { id: "2", asset_id: "a2", title: "FIFO vs LIFO under rising prices",     status: "approved",       updated_at: "2026-06-09T11:08:00Z" },
-  { id: "3", asset_id: "a3", title: "Bond issued at a discount — Y1 entry", status: "ready_to_tutor", updated_at: "2026-06-08T19:45:00Z" },
-  { id: "4", asset_id: "a4", title: "Bank reconciliation — outstanding checks", status: "ready_to_film", updated_at: "2026-06-08T16:01:00Z" },
-  { id: "5", asset_id: "a5", title: "Closing entries from adjusted trial balance", status: "published", updated_at: "2026-06-07T09:30:00Z" },
-];
-
-const STATUS_LABEL: Record<string, string> = {
-  drafted: "Drafted",
-  approved: "Approved",
-  ready_to_tutor: "Ready to Tutor",
-  ready_to_film: "Ready to Film",
-  published: "Published",
-};
 
 function CeqRoute() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   if (pathname !== "/ceq") return <Outlet />;
 
-  const stats = {
-    total: recentCeqs.length,
-    drafted: recentCeqs.filter((c) => c.status === "drafted").length,
-    approved: recentCeqs.filter((c) => c.status === "approved").length,
-    readyTutor: recentCeqs.filter((c) => c.status === "ready_to_tutor").length,
-    readyFilm: recentCeqs.filter((c) => c.status === "ready_to_film").length,
-    published: recentCeqs.filter((c) => c.status === "published").length,
-  };
+  const stats = { total: 0, drafted: 0, approved: 0, readyTutor: 0, readyFilm: 0, published: 0 };
 
   return (
-    <AdminShell>
-      <PageHeader
-        title="CEQ Command Center"
-        description="Build Common Exam Questions from textbook problems."
-        actions={
-          <Button asChild>
-            <Link to="/ceq/create">
-              <Plus className="size-4" /> New CEQ
-            </Link>
-          </Button>
-        }
-      />
+    <div className="min-h-screen bg-[hsl(210_20%_98%)]">
+      {/* Top header */}
+      <header className="border-b border-border bg-white">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4 sm:px-10">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-12 place-items-center rounded-md bg-blue-600 text-xs font-bold text-white">
+              CEQ
+            </span>
+            <span className="text-base font-semibold text-foreground">Common Exam Questions</span>
+          </div>
+          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+            Dashboard
+          </Link>
+        </div>
+      </header>
 
-      <div className="p-6 sm:p-10 space-y-8">
-        {/* Status pills */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          <StatPill label="Total" value={stats.total} />
-          <StatPill label="Drafted" value={stats.drafted} tone="amber" />
-          <StatPill label="Approved" value={stats.approved} tone="blue" />
-          <StatPill label="Ready to Tutor" value={stats.readyTutor} tone="violet" />
-          <StatPill label="Ready to Film" value={stats.readyFilm} tone="orange" />
-          <StatPill label="Published" value={stats.published} tone="emerald" />
+      <main className="mx-auto max-w-[1400px] px-6 py-8 sm:px-10">
+        {/* Title */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-black tracking-tight">CEQ Command Center</h1>
+          <p className="mt-1 text-muted-foreground">
+            Build Common Exam Questions from textbook problems.
+          </p>
         </div>
 
-        {/* Courses → chapters */}
-        <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Courses
-          </h2>
-          <div className="space-y-4">
-            {courses.map((course) => (
-              <Card key={course.id} className="p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold">{course.course_name}</h3>
-                    <p className="text-xs text-muted-foreground">
-                      {course.code} · {course.chapters.length} chapters
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {course.chapters.map((ch) => (
-                    <div
-                      key={ch.id}
-                      className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm hover:bg-accent/40 cursor-pointer"
-                    >
-                      <span className="truncate">
-                        <span className="font-mono text-xs text-muted-foreground">
-                          Ch {ch.chapter_number}
-                        </span>{" "}
-                        <span>{ch.chapter_name}</span>
+        {/* Stat tiles */}
+        <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <StatTile label="Total" value={stats.total} />
+          <StatTile label="Drafted" value={stats.drafted} tone="amber" />
+          <StatTile label="Approved" value={stats.approved} tone="blue" />
+          <StatTile label="Ready to Tutor" value={stats.readyTutor} tone="violet" />
+          <StatTile label="Ready to Film" value={stats.readyFilm} tone="orange" />
+          <StatTile label="Published" value={stats.published} tone="emerald" />
+        </div>
+
+        {/* Courses */}
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Courses
+        </h2>
+        <div className="space-y-4">
+          {COURSES.map((course) => (
+            <section key={course.slug} className="rounded-xl border border-border bg-white p-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-foreground">{course.title}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {course.code} · {course.chapters.length} chapters
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+                {course.chapters.map((ch) => (
+                  <a
+                    key={ch.n}
+                    href={`/ceq/${course.slug}/ch${ch.n}`}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border bg-white px-3 py-2 text-sm transition hover:border-foreground/30 hover:bg-accent/30"
+                  >
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">
+                        Ch <span className="tabular-nums">{ch.n}</span>
                       </span>
-                      <span className="ml-2 text-xs text-muted-foreground">→</span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
+                      <span className="truncate font-medium text-foreground">{ch.name}</span>
+                    </span>
+                    <span className="text-muted-foreground">→</span>
+                  </a>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
 
         {/* Recent CEQs */}
-        <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Recent CEQs
-          </h2>
-          <Card className="divide-y divide-border">
-            {recentCeqs.map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{c.title}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    Updated {new Date(c.updated_at).toLocaleString()}
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-[10px]">
-                  {STATUS_LABEL[c.status]}
-                </Badge>
-                <Link
-                  to="/ceq/$id/edit"
-                  params={{ id: c.id }}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Edit
-                </Link>
-                <Link
-                  to="/ceq/$id/tutor"
-                  params={{ id: c.id }}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Tutor
-                </Link>
-              </div>
-            ))}
-          </Card>
-        </section>
-      </div>
-    </AdminShell>
+        <h2 className="mb-3 mt-10 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Recent CEQs
+        </h2>
+        <div className="rounded-xl border border-border bg-white px-6 py-10 text-center text-sm text-muted-foreground">
+          No CEQs yet. Pick a chapter above, mark which textbook problems are core, then build CEQs from them.
+        </div>
+      </main>
+    </div>
   );
 }
 
-function StatPill({
+function StatTile({
   label,
   value,
   tone,
@@ -186,18 +183,18 @@ function StatPill({
   tone?: "amber" | "blue" | "violet" | "orange" | "emerald";
 }) {
   const color =
-    tone === "amber" ? "text-amber-600"
+    tone === "amber" ? "text-amber-500"
     : tone === "blue" ? "text-blue-600"
     : tone === "violet" ? "text-violet-600"
-    : tone === "orange" ? "text-orange-600"
+    : tone === "orange" ? "text-orange-500"
     : tone === "emerald" ? "text-emerald-600"
     : "text-foreground";
   return (
-    <Card className="px-3 py-2">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-xl border border-border bg-white px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <div className={`text-xl font-semibold ${color}`}>{value}</div>
-    </Card>
+      <div className={`mt-1 text-3xl font-bold ${color}`}>{value}</div>
+    </div>
   );
 }
