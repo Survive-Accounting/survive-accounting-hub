@@ -187,3 +187,66 @@ export async function fetchCampusIdsForDate(dateISO: string): Promise<string[]> 
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => r.campus_id).filter(Boolean);
 }
+
+// ----- Professor leads -----
+export interface Lead {
+  id: string;
+  campus_id: string | null;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  is_phd: boolean;
+  status: string | null;
+  created_at: string | null;
+}
+
+export async function fetchLeads(): Promise<Lead[]> {
+  const { data, error } = await supabase
+    .from("outreach_leads")
+    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((l: any) => ({
+    id: l.id,
+    campus_id: l.campus_id ?? null,
+    email: l.email ?? "",
+    first_name: l.first_name ?? null,
+    last_name: l.last_name ?? null,
+    is_phd: !!l.is_phd,
+    status: l.status ?? null,
+    created_at: l.created_at ?? null,
+  }));
+}
+
+/**
+ * Insert leads for one campus, deduping by email across all existing leads.
+ * Note: leads link by campus_id only — the legacy outreach_schools table is
+ * not used in the new app (campuses absorbed it).
+ */
+export async function importLeads(
+  campusId: string,
+  rows: { email: string; first_name: string; last_name: string; is_phd: boolean }[],
+): Promise<{ imported: number; duplicates: number }> {
+  const { data: existing, error: exErr } = await supabase.from("outreach_leads").select("email");
+  if (exErr) throw exErr;
+  const existingSet = new Set<string>(((existing ?? []) as any[]).map((x) => (x.email ?? "").toLowerCase()));
+
+  let imported = 0, duplicates = 0;
+  for (const r of rows) {
+    const email = r.email.trim().toLowerCase();
+    if (!email) continue;
+    if (existingSet.has(email)) { duplicates++; continue; }
+    const { error } = await supabase.from("outreach_leads").insert({
+      email,
+      first_name: r.first_name.trim() || null,
+      last_name: r.last_name.trim() || null,
+      is_phd: r.is_phd,
+      campus_id: campusId,
+      status: "pending",
+    } as never);
+    if (error) throw error;
+    existingSet.add(email);
+    imported++;
+  }
+  return { imported, duplicates };
+}

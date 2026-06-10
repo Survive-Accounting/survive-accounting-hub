@@ -2,7 +2,7 @@
 // Reads the real database; falls back to mock data if the backend is unreachable.
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +12,8 @@ import { TodayChecklist } from "@/components/outreach/TodayChecklist";
 import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
+import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
+import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -46,6 +48,9 @@ function OutreachPage() {
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importCampusId, setImportCampusId] = useState<string | null>(null);
+  const qc = useQueryClient();
   const [tab, setTab] = useState("home");
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const today = manilaTodayISO();
@@ -141,7 +146,7 @@ function OutreachPage() {
               campuses={campuses}
               todaysCampuses={todaysCampuses}
               onFocusCampus={handleFocusCampus}
-              onImportProfessors={() => toast.info("Professor lead import lands in the next pass")}
+              onImportProfessors={() => { setImportCampusId(null); setImportOpen(true); }}
               onOpenEmailQueue={() => setTab("templates")}
             />
           </TabsContent>
@@ -157,7 +162,7 @@ function OutreachPage() {
                 filters={filters}
                 onFiltersChange={setFilters}
                 onReview={(c) => setReviewing(c)}
-                onImportLeads={() => toast.info("Professor lead import lands in the next pass")}
+                onImportLeads={(c) => { setImportCampusId(c.id); setImportOpen(true); }}
                 onAssignPatch={handleAssignPatch}
                 selectedIds={selectedIds}
                 onToggleSelect={(id, value) =>
@@ -172,6 +177,7 @@ function OutreachPage() {
                 }
               />
             )}
+            <LeadsPanel campuses={campuses} />
           </TabsContent>
 
           <TabsContent value="templates" className="mt-8 space-y-8">
@@ -180,6 +186,14 @@ function OutreachPage() {
         </Tabs>
       </div>
 
+      <ImportLeadsDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        campuses={campuses}
+        defaultCampusId={importCampusId}
+        usingMock={usingMock}
+        onImported={() => qc.invalidateQueries({ queryKey: ["outreach-leads"] })}
+      />
       <ApproveCampusModal
         campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
         onClose={() => setReviewing(null)}
