@@ -1,1 +1,4 @@
 project_id = "dhlzorresurzlcpuplkv"
+# Resend calls this webhook unauthenticated — JWT verification must be off.
+[functions.outreach-resend-webhook]
+verify_jwt = false

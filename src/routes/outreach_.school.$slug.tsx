@@ -12,7 +12,7 @@ import Reviews from "@/components/landing/Reviews";
 import SiteFooter from "@/components/landing/SiteFooter";
 import BookTutoringModal from "@/components/landing/BookTutoringModal";
 import { buildSchoolPalette, DEFAULT_PALETTE, type SchoolPalette } from "@/lib/schoolColorSafety";
-import { fetchCampusBySlug, fetchLeadByToken } from "@/lib/outreach-api";
+import { fetchCampusBySlug, fetchLeadByToken, recordLandingEvent } from "@/lib/outreach-api";
 
 const NAVY = "#14213D";
 
@@ -180,6 +180,20 @@ function SchoolLandingPage() {
     if (campus?.name) document.title = `Accounting Help for ${campus.name} — Survive Accounting`;
   }, [campus?.name]);
 
+  // Record one view per visit (attributed to the professor when a token is present).
+  const viewRecorded = useState(() => ({ done: false }))[0];
+  useEffect(() => {
+    if (!campus?.id || viewRecorded.done) return;
+    viewRecorded.done = true;
+    recordLandingEvent("view", campus.id, token, leadQuery.data?.id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campus?.id]);
+
+  const openBooking = () => {
+    if (campus?.id) recordLandingEvent("click", campus.id, token, leadQuery.data?.id ?? null);
+    setBookOpen(true);
+  };
+
   if (campusQuery.isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -220,12 +234,12 @@ function SchoolLandingPage() {
     <div className="min-h-screen bg-background">
       <SchoolEyebrowBar schoolName={campus.name} palette={palette} />
       {profName && <ProfessorRecommendBar name={profName} palette={palette} />}
-      <Hero onBookTutoring={() => setBookOpen(true)} onReadReviews={() => scrollToId("reviews-section")} />
+      <Hero onBookTutoring={openBooking} onReadReviews={() => scrollToId("reviews-section")} />
       <CourseCodesStrip codes={campus.course_codes} palette={palette} />
       <Reviews />
       <SiteFooter
         onScrollToReviews={() => scrollToId("reviews-section")}
-        onBookTutoring={() => setBookOpen(true)}
+        onBookTutoring={openBooking}
       />
       <BookTutoringModal open={bookOpen} onOpenChange={setBookOpen} />
     </div>

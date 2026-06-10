@@ -2,7 +2,7 @@
 // (send/notes actions arrive with the Resend integration).
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Loader2, RefreshCw } from "lucide-react";
+import { Copy, Loader2, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import type { Campus } from "@/lib/outreach-mock";
-import { fetchLeads } from "@/lib/outreach-api";
+import { fetchLeads, sendOutreachEmail } from "@/lib/outreach-api";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
   const { data: leads = [], isLoading, isError, refetch, isRefetching } = useQuery({
@@ -23,6 +24,21 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
   });
   const [search, setSearch] = useState("");
   const [campusFilter, setCampusFilter] = useState("_all");
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const qc = useQueryClient();
+
+  const handleSend = async (leadId: string, email: string) => {
+    if (!window.confirm(`Send the initial outreach email to ${email}?`)) return;
+    setSendingId(leadId);
+    const res = await sendOutreachEmail(leadId, 0);
+    setSendingId(null);
+    if (res.ok) {
+      toast.success(`Sent (${res.variant ?? "default"} template)`);
+      qc.invalidateQueries({ queryKey: ["outreach-leads"] });
+    } else {
+      toast.error(res.error ?? "Send failed");
+    }
+  };
 
   const campusById = useMemo(() => new Map(campuses.map((c) => [c.id, c])), [campuses]);
   const campusesWithLeads = useMemo(() => {
@@ -92,7 +108,10 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
                 <th className="px-2.5 py-2">PhD</th>
                 <th className="px-2.5 py-2">Status</th>
                 <th className="px-2.5 py-2">Landing Link</th>
+                <th className="px-2.5 py-2 text-right">Opens</th>
+                <th className="px-2.5 py-2 text-right">Clicks</th>
                 <th className="px-2.5 py-2 text-right">Added</th>
+                <th className="px-2.5 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -130,8 +149,23 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </td>
+                    <td className="px-2.5 py-1.5 text-right tabular-nums">{l.opens_count || "—"}</td>
+                    <td className="px-2.5 py-1.5 text-right tabular-nums">{l.clicks_count || "—"}</td>
                     <td className="px-2.5 py-1.5 text-right tabular-nums text-muted-foreground">
                       {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
+                    </td>
+                    <td className="px-2.5 py-1.5 text-right">
+                      <Button
+                        size="sm"
+                        variant={l.sent_at ? "outline" : "default"}
+                        className="h-7 text-xs"
+                        disabled={sendingId === l.id}
+                        onClick={() => handleSend(l.id, l.email)}
+                        title={l.sent_at ? `Initial sent ${new Date(l.sent_at).toLocaleDateString()} — send again` : "Send the initial outreach email"}
+                      >
+                        {sendingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                        {l.sent_at ? "Resend" : "Send"}
+                      </Button>
                     </td>
                   </tr>
                 );

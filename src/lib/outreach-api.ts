@@ -61,6 +61,21 @@ export async function fetchCampuses(): Promise<Campus[]> {
     // TAM is decorative — keep going without it.
   }
 
+  // Landing-page view/click counts per campus (best-effort).
+  const landingCounts = new Map<string, { views: number; clicks: number }>();
+  try {
+    const { data: events } = await supabase
+      .from("landing_page_events" as never)
+      .select("campus_id,kind") as { data: { campus_id: string | null; kind: string }[] | null };
+    for (const e of events ?? []) {
+      if (!e.campus_id) continue;
+      const cur = landingCounts.get(e.campus_id) ?? { views: 0, clicks: 0 };
+      if (e.kind === "view") cur.views++;
+      else if (e.kind === "click") cur.clicks++;
+      landingCounts.set(e.campus_id, cur);
+    }
+  } catch { /* table may not exist yet */ }
+
   return rows.map((c): Campus => {
     const tam = tamById.get(c.id);
     const approval = APPROVAL_VALUES.includes(c.approval_status) ? c.approval_status : "not_reviewed";
@@ -87,8 +102,8 @@ export async function fetchCampuses(): Promise<Campus[]> {
       assigned_to: c.assigned_to ?? null,
       assignment_batch: c.assignment_batch ?? null,
       due_date: c.due_date ?? null,
-      landing_views: 0,
-      landing_clicks: 0,
+      landing_views: landingCounts.get(c.id)?.views ?? 0,
+      landing_clicks: landingCounts.get(c.id)?.clicks ?? 0,
       course_codes: extractCourseCodes(c.course_codes_json),
       course_family_codes_json: asRecord(c.course_family_codes_json),
       course_family_titles_json: asRecord(c.course_family_titles_json),
@@ -201,12 +216,15 @@ export interface Lead {
   status: string | null;
   created_at: string | null;
   landing_token: string | null;
+  sent_at: string | null;
+  opens_count: number;
+  clicks_count: number;
 }
 
 export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
     .from("outreach_leads")
-    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at,landing_token")
+    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at,landing_token,sent_at,opens_count,clicks_count")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((l: any) => ({
@@ -219,6 +237,9 @@ export async function fetchLeads(): Promise<Lead[]> {
     status: l.status ?? null,
     created_at: l.created_at ?? null,
     landing_token: l.landing_token ?? null,
+    sent_at: l.sent_at ?? null,
+    opens_count: Number(l.opens_count ?? 0),
+    clicks_count: Number(l.clicks_count ?? 0),
   }));
 }
 
@@ -271,6 +292,7 @@ export async function fetchLeadByToken(token: string): Promise<Lead | null> {
     first_name: l.first_name ?? null, last_name: l.last_name ?? null,
     is_phd: !!l.is_phd, status: l.status ?? null, created_at: l.created_at ?? null,
     landing_token: l.landing_token ?? null,
+    sent_at: null, opens_count: 0, clicks_count: 0,
   };
 }
 
@@ -296,4 +318,32 @@ export async function fetchCampusBySlug(slug: string): Promise<{
     color_secondary: c.color_secondary ?? null,
     use_school_colors: c.use_school_colors === true,
   };
+}
+
+// ----- Sending -----
+export async function sendOutreachEmail(leadId: string, followUp: 0 | 1 | 2 | 3 = 0): Promise<{ ok: boolean; variant?: string; error?: string }> {
+  const { data, error } = await supabase.functions.invoke("outreach-send-email", {
+    body: { lead_id: leadId, follow_up: followUp },
+  });
+  if (error) {
+    // Surface the function's JSON error body when available.
+    let message = error.message ?? "Send failed";
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx) {
+        const j = await ctx.json();
+        message = j?.message ?? j?.error ?? message;
+      }
+    } catch { /* keep default */ }
+    return { ok: false, error: message };
+  }
+  return { ok: true, variant: (data as { variant?: string } | null)?.variant };
+}
+
+// ----- Landing-page event tracking (fire-and-forget) -----
+export function recordLandingEvent(kind: "view" | "click", campusId: string, token?: string | null, leadId?: string | null) {
+  supabase
+    .from("landing_page_events" as never)
+    .insert({ kind, campus_id: campusId, token: token ?? null, lead_id: leadId ?? null } as never)
+    .then(({ error }) => { if (error) console.warn("landing event failed:", error.message); });
 }
