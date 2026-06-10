@@ -14,6 +14,7 @@ import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
+import { TextsPanel } from "@/components/outreach/TextsPanel";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -27,9 +28,11 @@ import {
 } from "@/lib/outreach-mock";
 import {
   fetchCampusIdsForDate,
+  fetchCampusPhones,
   fetchCampuses,
   fetchWeekCounts,
   patchCampusDb,
+  provisionCampusNumber,
 } from "@/lib/outreach-api";
 
 export const Route = createFileRoute("/outreach")({
@@ -62,6 +65,17 @@ function OutreachPage() {
 
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
+  const phonesQuery = useQuery({ queryKey: ["campus-phones"], queryFn: fetchCampusPhones, retry: 1 });
+  const qcMain = useQueryClient();
+
+  const handleProvisionNumber = async (campusId: string) => {
+    toast.info("Finding a local number…");
+    const res = await provisionCampusNumber(campusId);
+    if (res.ok) {
+      toast.success(`Number ready: ${res.phone}`);
+      qcMain.invalidateQueries({ queryKey: ["campus-phones"] });
+    } else toast.error(res.error ?? "Provisioning failed");
+  };
   useEffect(() => {
     if (campusQuery.data) {
       setCampuses(campusQuery.data);
@@ -133,10 +147,11 @@ function OutreachPage() {
         </header>
 
         <Tabs value={tab} onValueChange={setTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-3 h-12 gap-2 bg-muted/40 p-1.5">
+          <TabsList className="grid w-full grid-cols-4 h-12 gap-2 bg-muted/40 p-1.5">
             <TabsTrigger value="home" className="text-sm font-medium">Home</TabsTrigger>
             <TabsTrigger value="schools" className="text-sm font-medium">Campuses</TabsTrigger>
             <TabsTrigger value="templates" className="text-sm font-medium">Email Queue</TabsTrigger>
+            <TabsTrigger value="texts" className="text-sm font-medium">Texts</TabsTrigger>
           </TabsList>
 
           <TabsContent value="home" className="mt-8 space-y-8">
@@ -164,6 +179,8 @@ function OutreachPage() {
                 onReview={(c) => setReviewing(c)}
                 onImportLeads={(c) => { setImportCampusId(c.id); setImportOpen(true); }}
                 onAssignPatch={handleAssignPatch}
+                campusPhones={phonesQuery.data}
+                onProvisionNumber={handleProvisionNumber}
                 selectedIds={selectedIds}
                 onToggleSelect={(id, value) =>
                   setSelectedIds((prev) => {
@@ -182,6 +199,10 @@ function OutreachPage() {
 
           <TabsContent value="templates" className="mt-8 space-y-8">
             <EmailTemplatesPanel />
+          </TabsContent>
+
+          <TabsContent value="texts" className="mt-8 space-y-8">
+            <TextsPanel campuses={campuses} />
           </TabsContent>
         </Tabs>
       </div>

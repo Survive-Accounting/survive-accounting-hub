@@ -1,0 +1,67 @@
+// Buys a Twilio local number for an approved campus (matching the campus's
+// state when possible), wires it to the SMS + voice webhooks, and records it.
+// Invoke: { campus_id }
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
+const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
+const PROJECT_FN = `${SUPABASE_URL}/functions/v1`;
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+const twilioAuth = "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`);
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  try {
+    if (!TWILIO_SID || !TWILIO_TOKEN) {
+      return new Response(JSON.stringify({ error: "Twilio secrets not set" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+    const { campus_id } = await req.json();
+    if (!campus_id) return new Response(JSON.stringify({ error: "campus_id required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+
+    const { data: existing } = await admin.from("campus_phone_numbers").select("phone_e164").eq("campus_id", campus_id).maybeSingle();
+    if (existing) return new Response(JSON.stringify({ ok: true, phone: existing.phone_e164, existing: true }), { headers: { ...cors, "Content-Type": "application/json" } });
+
+    const { data: campus } = await admin.from("campuses").select("name,state").eq("id", campus_id).single();
+    if (!campus) return new Response(JSON.stringify({ error: "campus not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+
+    // Find a local number in the campus's state; fall back to any US local.
+    const search = async (qs: string) => {
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/AvailablePhoneNumbers/US/Local.json?SmsEnabled=true&VoiceEnabled=true&PageSize=1${qs}`,
+        { headers: { Authorization: twilioAuth } });
+      const j = await r.json().catch(() => ({}));
+      return j?.available_phone_numbers?.[0]?.phone_number ?? null;
+    };
+    const candidate = (campus.state ? await search(`&InRegion=${encodeURIComponent(campus.state)}`) : null) ?? (await search(""));
+    if (!candidate) return new Response(JSON.stringify({ error: "No numbers available right now" }), { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
+
+    const buy = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/IncomingPhoneNumbers.json`, {
+      method: "POST",
+      headers: { Authorization: twilioAuth, "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        PhoneNumber: candidate,
+        FriendlyName: `SA — ${campus.name}`.slice(0, 64),
+        SmsUrl: `${PROJECT_FN}/twilio-sms-webhook`,
+        SmsMethod: "POST",
+        VoiceUrl: `${PROJECT_FN}/twilio-voice-webhook`,
+        VoiceMethod: "POST",
+      }),
+    });
+    const bought = await buy.json().catch(() => ({}));
+    if (!buy.ok) return new Response(JSON.stringify({ error: "Twilio purchase failed", details: bought }), { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
+
+    await admin.from("campus_phone_numbers").insert({
+      campus_id, phone_e164: bought.phone_number, twilio_sid: bought.sid,
+    });
+    return new Response(JSON.stringify({ ok: true, phone: bought.phone_number }), { headers: { ...cors, "Content-Type": "application/json" } });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String((e as any)?.message ?? e) }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+  }
+});

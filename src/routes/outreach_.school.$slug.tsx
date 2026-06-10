@@ -12,13 +12,16 @@ import Reviews from "@/components/landing/Reviews";
 import SiteFooter from "@/components/landing/SiteFooter";
 import BookTutoringModal from "@/components/landing/BookTutoringModal";
 import { buildSchoolPalette, DEFAULT_PALETTE, type SchoolPalette } from "@/lib/schoolColorSafety";
-import { fetchCampusBySlug, fetchLeadByToken, recordLandingEvent } from "@/lib/outreach-api";
+import { fetchCampusBySlug, fetchLeadByToken, formatPhonePretty, recordLandingEvent } from "@/lib/outreach-api";
+import { supabase } from "@/integrations/supabase/client";
 
 const NAVY = "#14213D";
 
 export const Route = createFileRoute("/outreach_/school/$slug")({
   validateSearch: (search: Record<string, unknown>) => ({
     p: typeof search.p === "string" ? search.p : undefined,
+    book: typeof search.book === "string" ? search.book : undefined,
+    src: typeof search.src === "string" ? search.src : undefined,
   }),
   head: () => ({
     meta: [{ title: "Accounting Help — Survive Accounting" }],
@@ -158,8 +161,9 @@ function scrollToId(id: string) {
 
 function SchoolLandingPage() {
   const { slug } = Route.useParams();
-  const { p: token } = Route.useSearch();
+  const { p: token, book } = Route.useSearch();
   const [bookOpen, setBookOpen] = useState(false);
+  const [campusPhone, setCampusPhone] = useState<string | null>(null);
 
   const campusQuery = useQuery({
     queryKey: ["campus-landing", slug],
@@ -179,6 +183,21 @@ function SchoolLandingPage() {
   useEffect(() => {
     if (campus?.name) document.title = `Accounting Help for ${campus.name} — Survive Accounting`;
   }, [campus?.name]);
+
+  // Auto-open the booking flow for short-link arrivals (/t/{slug}).
+  useEffect(() => {
+    if (book === "1") setBookOpen(true);
+  }, [book]);
+
+  // Campus texting number, when provisioned.
+  useEffect(() => {
+    if (!campus?.id) return;
+    (supabase.from("campus_phone_numbers" as never) as any)
+      .select("phone_e164").eq("campus_id", campus.id).maybeSingle()
+      .then(({ data }: { data: { phone_e164: string } | null }) => {
+        if (data?.phone_e164) setCampusPhone(data.phone_e164);
+      });
+  }, [campus?.id]);
 
   // Record one view per visit (attributed to the professor when a token is present).
   const viewRecorded = useState(() => ({ done: false }))[0];
@@ -234,6 +253,24 @@ function SchoolLandingPage() {
     <div className="min-h-screen bg-background">
       <SchoolEyebrowBar schoolName={campus.name} palette={palette} />
       {profName && <ProfessorRecommendBar name={profName} palette={palette} />}
+      {campusPhone && (
+        <div
+          style={{
+            background: "#FFFFFF", padding: "10px 16px", textAlign: "center",
+            fontFamily: "Inter, sans-serif", fontSize: 14, color: "#1f2937",
+            borderBottom: "1px solid #E5E7EB",
+          }}
+        >
+          📱 Questions? Text Lee:{" "}
+          <a
+            href={`sms:${campusPhone}`}
+            style={{ fontWeight: 700, color: "#14213D", textDecoration: "underline" }}
+            onClick={() => recordLandingEvent("click", campus.id, token, leadQuery.data?.id ?? null)}
+          >
+            {formatPhonePretty(campusPhone)}
+          </a>
+        </div>
+      )}
       <Hero onBookTutoring={openBooking} onReadReviews={() => scrollToId("reviews-section")} />
       <CourseCodesStrip codes={campus.course_codes} palette={palette} />
       <Reviews />

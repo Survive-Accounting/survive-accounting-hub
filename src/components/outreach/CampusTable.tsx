@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import {
   ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign, Download,
-  Eye, MousePointerClick, RefreshCw, Upload, Users,
+  Eye, MousePointerClick, Phone, RefreshCw, Upload, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +34,8 @@ export default function CampusTable({
   onReview,
   onImportLeads,
   onAssignPatch,
+  campusPhones,
+  onProvisionNumber,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -44,6 +46,8 @@ export default function CampusTable({
   onReview: (c: Campus) => void;
   onImportLeads: (c: Campus) => void;
   onAssignPatch: (id: string, patch: { assigned_to: string | null; due_date: string | null; assignment_status: AssignmentStatus }) => void;
+  campusPhones?: Map<string, string>;
+  onProvisionNumber?: (campusId: string) => void;
   selectedIds: Set<string>;
   onToggleSelect: (id: string, value: boolean) => void;
   onToggleSelectAll: (ids: string[], value: boolean) => void;
@@ -185,6 +189,29 @@ export default function CampusTable({
                           <Copy className="h-3.5 w-3.5" />
                           <span className="text-[11px]">Copy link</span>
                         </button>
+                        {campusPhones?.get(s.id) ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(campusPhones.get(s.id)!).then(() => toast.success("Number copied"));
+                            }}
+                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground w-fit"
+                            title="Campus texting number — click to copy"
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                            <span className="text-[11px] tabular-nums">{campusPhones.get(s.id)}</span>
+                          </button>
+                        ) : isApproved && onProvisionNumber ? (
+                          <button
+                            type="button"
+                            onClick={() => onProvisionNumber(s.id)}
+                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground w-fit"
+                            title="Buy a local Twilio number for this campus"
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                            <span className="text-[11px]">Get number</span>
+                          </button>
+                        ) : null}
                         <div className="inline-flex items-center gap-3 text-muted-foreground">
                           <span className="inline-flex items-center gap-1" title="Visitors (coming soon)">
                             <Eye className="h-3.5 w-3.5" />

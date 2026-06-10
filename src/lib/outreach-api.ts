@@ -370,3 +370,84 @@ export async function sendTestEmail(to: string, subject: string, body: string): 
   }
   return { ok: true };
 }
+
+// ----- SMS intake -----
+export interface SmsConversation {
+  id: string;
+  short_ref: number;
+  student_phone: string;
+  campus_number: string;
+  campus_id: string | null;
+  course: string | null;
+  exam_date: string | null;
+  struggles: string | null;
+  major: string | null;
+  sentiment: string | null;
+  status: string;
+  last_message_at: string;
+}
+export interface SmsMessage {
+  id: string;
+  direction: "in" | "out";
+  author: string | null;
+  body: string;
+  created_at: string;
+}
+
+export async function fetchSmsConversations(): Promise<SmsConversation[]> {
+  const { data, error } = await (supabase.from("sms_conversations" as never) as any)
+    .select("id,short_ref,student_phone,campus_number,campus_id,course,exam_date,struggles,major,sentiment,status,last_message_at")
+    .order("last_message_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []) as SmsConversation[];
+}
+
+export async function fetchSmsMessages(conversationId: string): Promise<SmsMessage[]> {
+  const { data, error } = await (supabase.from("sms_messages" as never) as any)
+    .select("id,direction,author,body,created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SmsMessage[];
+}
+
+/** Queue a dashboard reply for immediate send, then nudge the processor. */
+export async function sendSmsReply(conversationId: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await (supabase.from("sms_outbox" as never) as any).insert({
+    conversation_id: conversationId,
+    body,
+    author: "lee",
+    send_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: error.message };
+  supabase.functions.invoke("sms-process-outbox", { body: {} }).catch(() => { /* cron will catch it */ });
+  return { ok: true };
+}
+
+export async function fetchCampusPhones(): Promise<Map<string, string>> {
+  const { data } = await (supabase.from("campus_phone_numbers" as never) as any)
+    .select("campus_id,phone_e164");
+  const m = new Map<string, string>();
+  for (const r of (data ?? []) as { campus_id: string; phone_e164: string }[]) m.set(r.campus_id, r.phone_e164);
+  return m;
+}
+
+export async function provisionCampusNumber(campusId: string): Promise<{ ok: boolean; phone?: string; error?: string }> {
+  const { data, error } = await supabase.functions.invoke("provision-campus-number", { body: { campus_id: campusId } });
+  if (error) {
+    let message = error.message ?? "Provisioning failed";
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx) { const j = await ctx.json(); message = j?.error ?? message; }
+    } catch { /* keep */ }
+    return { ok: false, error: message };
+  }
+  return { ok: true, phone: (data as { phone?: string } | null)?.phone };
+}
+
+export function formatPhonePretty(e164: string): string {
+  const d = e164.replace(/[^\d]/g, "");
+  if (d.length === 11 && d.startsWith("1")) return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  return e164;
+}

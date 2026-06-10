@@ -2,3 +2,14 @@ project_id = "dhlzorresurzlcpuplkv"
 # Resend calls this webhook unauthenticated — JWT verification must be off.
 [functions.outreach-resend-webhook]
 verify_jwt = false
+
+# Twilio calls these unauthenticated.
+[functions.twilio-sms-webhook]
+verify_jwt = false
+
+[functions.twilio-voice-webhook]
+verify_jwt = false
+
+# Called by pg_cron with x-cron-secret.
+[functions.sms-process-outbox]
+verify_jwt = false
