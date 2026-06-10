@@ -46,6 +46,13 @@ function escapeHtml(s: string) {
 
 const SA_LINK_TOKEN = "@@SA_LINK@@";
 
+/** "ACCY 201, ACCY 202 and ACCY 303" from a codes array. */
+function joinCourses(codes: string[]): string {
+  if (codes.length === 0) return "";
+  if (codes.length === 1) return codes[0];
+  return codes.slice(0, -1).join(", ") + " and " + codes[codes.length - 1];
+}
+
 function renderHtml(body: string, surviveLinkUrl: string) {
   const paras = body.split(/\n\n+/).map((p) => {
     const parts = p.split(SA_LINK_TOKEN);
@@ -82,6 +89,8 @@ Deno.serve(async (req) => {
         });
       }
       const sampleFirst = "John";
+      const samplePogram = "School of Accountancy";
+      const sampleCourses = "ACCY 201, ACCY 202 and ACCY 303";
       const surviveLinkUrl = "https://surviveaccounting.com?utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
       const rawBody = body.test_body ?? "";
       const rawSubject = body.test_subject ?? "";
@@ -92,6 +101,8 @@ Deno.serve(async (req) => {
       }
       const mergedBody = rawBody
         .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
+        .replace(/\{\s*program\s*\}/gi, samplePogram)
+        .replace(/\{\s*courses\s*\}/gi, sampleCourses)
         .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
         .replace(/\[First Name\]/g, sampleFirst)
         .replace(/\[Booking Link\]/g, BOOKING_LINK)
@@ -168,10 +179,12 @@ Deno.serve(async (req) => {
     let landingUrl: string | null = null;
     let campusApproved = false;
     let courseFamilyStatus: Record<string, string> = {};
+    let programName = "";
+    let coursesText = "";
     if (lead.campus_id) {
       const { data: campus } = await admin
         .from("campuses")
-        .select("slug, approval_status, course_family_status_json")
+        .select("slug, approval_status, course_family_status_json, accounting_department_name, course_codes_json")
         .eq("id", lead.campus_id)
         .single();
       if (campus?.approval_status === "approved" && campus?.slug) {
@@ -183,7 +196,16 @@ Deno.serve(async (req) => {
       if (campus?.course_family_status_json && typeof campus.course_family_status_json === "object") {
         courseFamilyStatus = campus.course_family_status_json as Record<string, string>;
       }
+      programName = (campus?.accounting_department_name ?? "").trim();
+      if (Array.isArray(campus?.course_codes_json)) {
+        coursesText = joinCourses(
+          (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string"),
+        );
+      }
     }
+    // Graceful fallbacks when research hasn't captured these yet.
+    const programMerge = programName || "accounting program";
+    const coursesMerge = coursesText || "Intro and Intermediate Accounting";
 
     const baseSurviveUrl = landingUrl ?? "https://surviveaccounting.com";
     const refQs = "utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
@@ -233,6 +255,8 @@ Deno.serve(async (req) => {
     const greetingName = lead.is_phd ? `Dr. ${(lead.last_name ?? "").trim() || firstName}` : firstName;
     let mergedBody = template.body
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
+      .replace(/\{\s*program\s*\}/gi, programMerge)
+      .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
       .replace(/\[First Name\]/g, greetingName)
       .replace(/\[Booking Link\]/g, BOOKING_LINK)
@@ -244,6 +268,8 @@ Deno.serve(async (req) => {
 
     const subject = template.subject
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
+      .replace(/\{\s*program\s*\}/gi, programMerge)
+      .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\[First Name\]/g, greetingName);
 
     const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`);

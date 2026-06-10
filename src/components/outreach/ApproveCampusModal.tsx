@@ -101,6 +101,8 @@ export default function ApproveCampusModal({
   const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
   const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
   const [familyBooks, setFamilyBooks] = useState<Record<string, FamilyBook>>({});
+  const [programName, setProgramName] = useState("");
+  const programTimer = useRef<number | null>(null);
   const [isbnLookup, setIsbnLookup] = useState<Record<string, "idle" | "loading" | "found" | "notfound">>({});
   const bookTimer = useRef<number | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
@@ -141,6 +143,7 @@ export default function ApproveCampusModal({
     });
     setFamilyBooks(initBooks);
     setIsbnLookup({});
+    setProgramName(campus.accounting_department_name ?? "");
     setLastSavedAt(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus?.id]);
@@ -447,6 +450,35 @@ export default function ApproveCampusModal({
           <Tabs value={step} onValueChange={setStep} className="mt-2">
             {/* STEP 1 — Course Details */}
             <TabsContent value="1" className="space-y-4 pt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="grid gap-1 min-w-[280px] flex-1">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Accounting program / department name <span className="font-normal">(optional — used in emails as {"{program}"})</span>
+                  </span>
+                  <Input
+                    value={programName}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setProgramName(v);
+                      if (programTimer.current) window.clearTimeout(programTimer.current);
+                      programTimer.current = window.setTimeout(() => {
+                        writePatch({ accounting_department_name: v.trim() || null });
+                      }, 700);
+                    }}
+                    placeholder="e.g. Patterson School of Accountancy"
+                    className="h-8"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs self-end"
+                  onClick={() => openExternal(googleUrl(`${campus.school_name} accounting department name`))}
+                >
+                  🔍 Find it
+                </Button>
+              </div>
               <div className="overflow-hidden rounded-md border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
