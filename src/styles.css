@@ -129,3 +129,8 @@
     font-feature-settings: "ss01", "cv11";
   }
 }
+
+@keyframes sheenSweep {
+  0%, 100% { transform: translateX(0) skewX(-12deg); }
+  50% { transform: translateX(400%) skewX(-12deg); }
+}
