@@ -21,7 +21,17 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Info } from "lucide-react";
 import type { Campus } from "@/lib/outreach-mock";
 
-type FamilyStatus = "matches" | "different" | "not_viewable" | "not_offered" | "not_checked";
+type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
+
+/** Legacy values from the old app collapse into the simplified set. */
+function normalizeStatus(v: string | undefined): FamilyStatus {
+  if (v === "matches" || v === "different" || v === "not_found") return v;
+  if (v === "not_viewable" || v === "not_offered") return "not_found";
+  return "not_checked";
+}
+
+type FamilyBook = { isbn13: string; title: string; authors: string; publisher: string };
+const EMPTY_BOOK = (): FamilyBook => ({ isbn13: "", title: "", authors: "", publisher: "" });
 type TextbookStatus = "same_textbook_confirmed" | "different_textbook" | "textbook_not_viewable" | "not_checked";
 
 const FAMILIES = [
@@ -34,16 +44,14 @@ const FAMILIES = [
 const FAMILY_STATUS_LABELS: Record<FamilyStatus, string> = {
   matches: "Matches Our Textbook",
   different: "Different Textbook",
-  not_viewable: "Textbook Not Viewable",
-  not_offered: "Not Offered",
+  not_found: "Textbook Not Found",
   not_checked: "Not Checked",
 };
 
 const STATUS_BADGE: Record<FamilyStatus, string> = {
   matches: "bg-emerald-600 text-white",
   different: "bg-red-600 text-white",
-  not_viewable: "bg-amber-500 text-white",
-  not_offered: "bg-muted text-muted-foreground",
+  not_found: "bg-amber-500 text-white",
   not_checked: "bg-muted text-muted-foreground",
 };
 
@@ -92,6 +100,9 @@ export default function ApproveCampusModal({
   const [familyCodes, setFamilyCodes] = useState<Record<string, string>>({});
   const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
   const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
+  const [familyBooks, setFamilyBooks] = useState<Record<string, FamilyBook>>({});
+  const [isbnLookup, setIsbnLookup] = useState<Record<string, "idle" | "loading" | "found" | "notfound">>({});
+  const bookTimer = useRef<number | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -113,10 +124,23 @@ export default function ApproveCampusModal({
     const existing = campus.course_family_status_json ?? {};
     const init: Record<string, FamilyStatus> = {};
     FAMILIES.forEach((f) => {
-      const v = existing[f.key] as FamilyStatus | undefined;
-      init[f.key] = v ?? "not_checked";
+      init[f.key] = normalizeStatus(existing[f.key]);
     });
     setFamilyStatus(init);
+
+    const existingBooks = campus.course_family_textbooks_json ?? {};
+    const initBooks: Record<string, FamilyBook> = {};
+    FAMILIES.forEach((f) => {
+      const b = existingBooks[f.key];
+      initBooks[f.key] = {
+        isbn13: b?.isbn13 ?? "",
+        title: b?.title ?? "",
+        authors: b?.authors ?? "",
+        publisher: b?.publisher ?? "",
+      };
+    });
+    setFamilyBooks(initBooks);
+    setIsbnLookup({});
     setLastSavedAt(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus?.id]);
@@ -134,9 +158,68 @@ export default function ApproveCampusModal({
   const aggregateTextbookStatus = (status: Record<string, FamilyStatus>): TextbookStatus => {
     const vals = FAMILIES.map((f) => status[f.key] ?? "not_checked");
     if (vals.some((v) => v === "different")) return "different_textbook";
-    if (vals.every((v) => v === "not_viewable" || v === "not_offered")) return "textbook_not_viewable";
+    if (vals.every((v) => v === "not_found")) return "textbook_not_viewable";
     if (vals.some((v) => v === "matches")) return "same_textbook_confirmed";
     return "not_checked";
+  };
+
+  // ============ Textbook capture (Different Textbook) ============
+  const booksToJson = (books: Record<string, FamilyBook>) => {
+    const out: Record<string, FamilyBook> = {};
+    for (const f of FAMILIES) {
+      const b = books[f.key];
+      if (b && (b.isbn13 || b.title || b.authors || b.publisher)) out[f.key] = b;
+    }
+    return out;
+  };
+
+  const debouncedSaveBooks = (books: Record<string, FamilyBook>) => {
+    if (bookTimer.current) window.clearTimeout(bookTimer.current);
+    bookTimer.current = window.setTimeout(() => {
+      writePatch({ course_family_textbooks_json: booksToJson(books) });
+    }, 700);
+  };
+
+  const updateBook = (key: string, field: keyof FamilyBook, val: string) => {
+    setFamilyBooks((prev) => {
+      const next = { ...prev, [key]: { ...(prev[key] ?? EMPTY_BOOK()), [field]: val } };
+      debouncedSaveBooks(next);
+      return next;
+    });
+    if (field === "isbn13") maybeLookupIsbn(key, val);
+  };
+
+  /** ISBN-13 lookup via Google Books — fills title/authors/publisher automatically. */
+  const maybeLookupIsbn = (key: string, raw: string) => {
+    const isbn = raw.replace(/[^0-9Xx]/g, "");
+    if (isbn.length !== 13 && isbn.length !== 10) return;
+    setIsbnLookup((p) => ({ ...p, [key]: "loading" }));
+    fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const info = data?.items?.[0]?.volumeInfo;
+        if (!info) {
+          setIsbnLookup((p) => ({ ...p, [key]: "notfound" }));
+          return;
+        }
+        setIsbnLookup((p) => ({ ...p, [key]: "found" }));
+        setFamilyBooks((prev) => {
+          const cur = prev[key] ?? EMPTY_BOOK();
+          const next = {
+            ...prev,
+            [key]: {
+              ...cur,
+              title: info.title ?? cur.title,
+              authors: Array.isArray(info.authors) ? info.authors.join(", ") : cur.authors,
+              publisher: info.publisher ?? cur.publisher,
+            },
+          };
+          debouncedSaveBooks(next);
+          return next;
+        });
+        toast.success(`Found: ${info.title ?? "textbook"}`);
+      })
+      .catch(() => setIsbnLookup((p) => ({ ...p, [key]: "notfound" })));
   };
 
   // ============ Autosave (to parent state) ============
@@ -193,6 +276,7 @@ export default function ApproveCampusModal({
       course_family_titles_json: familyTitles,
       course_codes: codesArray,
       course_family_status_json: familyStatus,
+      course_family_textbooks_json: booksToJson(familyBooks),
       approval_status: "approved",
       ready_for_outreach: true,
     });
@@ -467,6 +551,55 @@ export default function ApproveCampusModal({
                           🔍 Google
                         </Button>
                       </div>
+                      {v === "different" && (() => {
+                        const b = familyBooks[f.key] ?? EMPTY_BOOK();
+                        const lk = isbnLookup[f.key] ?? "idle";
+                        return (
+                          <div className="rounded-md border border-red-200/70 bg-red-50/40 p-2.5 space-y-2 dark:border-red-900/40 dark:bg-red-950/10">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                What are they using instead? <span className="font-normal normal-case">(optional)</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Input
+                                value={b.isbn13}
+                                onChange={(e) => updateBook(f.key, "isbn13", e.target.value)}
+                                placeholder="ISBN-13 — e.g. 9781264229734"
+                                className="h-8 w-[220px] font-mono text-xs"
+                              />
+                              {lk === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                              {lk === "found" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                              {lk === "notfound" && (
+                                <span className="text-[11px] text-muted-foreground">No match — fill in manually</span>
+                              )}
+                              <span className="text-[11px] text-muted-foreground">
+                                Paste the ISBN from the bookstore listing — details fill automatically.
+                              </span>
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <Input
+                                value={b.title}
+                                onChange={(e) => updateBook(f.key, "title", e.target.value)}
+                                placeholder="Title"
+                                className="h-8 text-xs sm:col-span-3"
+                              />
+                              <Input
+                                value={b.authors}
+                                onChange={(e) => updateBook(f.key, "authors", e.target.value)}
+                                placeholder="Author(s)"
+                                className="h-8 text-xs sm:col-span-2"
+                              />
+                              <Input
+                                value={b.publisher}
+                                onChange={(e) => updateBook(f.key, "publisher", e.target.value)}
+                                placeholder="Publisher"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -498,9 +631,17 @@ export default function ApproveCampusModal({
                           <span className="text-xs text-muted-foreground italic">no code</span>
                         )}
                       </div>
-                      <Badge className={`text-[11px] ${STATUS_BADGE[v]}`}>
-                        {FAMILY_STATUS_LABELS[v]}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {v === "different" && (familyBooks[f.key]?.title || familyBooks[f.key]?.isbn13) && (
+                          <span className="max-w-[260px] truncate text-[11px] text-muted-foreground">
+                            {familyBooks[f.key]?.title || familyBooks[f.key]?.isbn13}
+                            {familyBooks[f.key]?.publisher ? ` · ${familyBooks[f.key]?.publisher}` : ""}
+                          </span>
+                        )}
+                        <Badge className={`text-[11px] ${STATUS_BADGE[v]}`}>
+                          {FAMILY_STATUS_LABELS[v]}
+                        </Badge>
+                      </div>
                     </div>
                   );
                 })}

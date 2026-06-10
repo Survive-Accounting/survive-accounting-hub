@@ -2,7 +2,8 @@
 // (send/notes actions arrive with the Resend integration).
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Copy, Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +91,7 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
                 <th className="px-2.5 py-2">Email</th>
                 <th className="px-2.5 py-2">PhD</th>
                 <th className="px-2.5 py-2">Status</th>
+                <th className="px-2.5 py-2">Landing Link</th>
                 <th className="px-2.5 py-2 text-right">Added</th>
               </tr>
             </thead>
@@ -110,6 +112,24 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
                       {l.is_phd && <Badge variant="outline" className="text-[10px] h-4 px-1">PhD</Badge>}
                     </td>
                     <td className="px-2.5 py-1.5 capitalize">{l.status ?? "pending"}</td>
+                    <td className="px-2.5 py-1.5">
+                      {c?.slug && l.landing_token ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `${window.location.origin}/outreach/school/${c.slug}?p=${l.landing_token}`;
+                            navigator.clipboard.writeText(url).then(() => toast.success("Professor link copied"));
+                          }}
+                          className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                          title="Copy this professor's personalized landing link"
+                        >
+                          <Copy className="h-3 w-3" />
+                          <span className="text-[11px]">Copy link</span>
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="px-2.5 py-1.5 text-right tabular-nums text-muted-foreground">
                       {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
                     </td>

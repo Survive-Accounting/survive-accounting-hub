@@ -14,7 +14,7 @@ const APPROVAL_VALUES: ApprovalStatus[] = ["not_reviewed", "needs_review", "appr
 const ASSIGNMENT_VALUES: AssignmentStatus[] = ["not_assigned", "assigned", "in_progress", "approved", "blocked"];
 
 const CAMPUS_SELECT =
-  "id,name,slug,state,region,is_sec,archived_at,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,use_school_colors,landing_page_reviewed";
+  "id,name,slug,state,region,is_sec,archived_at,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,course_family_textbooks_json,use_school_colors,landing_page_reviewed";
 
 function extractCourseCodes(json: unknown): string[] {
   if (Array.isArray(json)) return json.filter((x): x is string => typeof x === "string");
@@ -93,6 +93,7 @@ export async function fetchCampuses(): Promise<Campus[]> {
       course_family_codes_json: asRecord(c.course_family_codes_json),
       course_family_titles_json: asRecord(c.course_family_titles_json),
       course_family_status_json: asRecord(c.course_family_status_json),
+      course_family_textbooks_json: (c.course_family_textbooks_json ?? undefined) as Campus["course_family_textbooks_json"],
       use_school_colors: c.use_school_colors ?? true,
       landing_page_reviewed: !!c.landing_page_reviewed,
     };
@@ -105,6 +106,7 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
   if ("course_family_codes_json" in patch) db.course_family_codes_json = patch.course_family_codes_json ?? {};
   if ("course_family_titles_json" in patch) db.course_family_titles_json = patch.course_family_titles_json ?? {};
   if ("course_family_status_json" in patch) db.course_family_status_json = patch.course_family_status_json ?? {};
+  if ("course_family_textbooks_json" in patch) db.course_family_textbooks_json = patch.course_family_textbooks_json ?? {};
   if ("course_codes" in patch) {
     db.course_codes_json = patch.course_codes ?? [];
     db.course_codes_reviewed = (patch.course_codes ?? []).length > 0;
@@ -198,12 +200,13 @@ export interface Lead {
   is_phd: boolean;
   status: string | null;
   created_at: string | null;
+  landing_token: string | null;
 }
 
 export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
     .from("outreach_leads")
-    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at")
+    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at,landing_token")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((l: any) => ({
@@ -215,6 +218,7 @@ export async function fetchLeads(): Promise<Lead[]> {
     is_phd: !!l.is_phd,
     status: l.status ?? null,
     created_at: l.created_at ?? null,
+    landing_token: l.landing_token ?? null,
   }));
 }
 
@@ -243,10 +247,53 @@ export async function importLeads(
       is_phd: r.is_phd,
       campus_id: campusId,
       status: "pending",
+      // Per-professor landing URL token: /outreach/school/{slug}?p={token}
+      landing_token: crypto.randomUUID().replace(/-/g, "").slice(0, 10),
     } as never);
     if (error) throw error;
     existingSet.add(email);
     imported++;
   }
   return { imported, duplicates };
+}
+
+/** Look up a lead by its landing token (for personalized landing pages). */
+export async function fetchLeadByToken(token: string): Promise<Lead | null> {
+  // Cast: landing_token is added by migration 0007; regenerated types catch up on next sync.
+  const { data, error } = await (supabase.from("outreach_leads") as any)
+    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at,landing_token")
+    .eq("landing_token", token)
+    .maybeSingle();
+  if (error || !data) return null;
+  const l = data as any;
+  return {
+    id: l.id, campus_id: l.campus_id ?? null, email: l.email ?? "",
+    first_name: l.first_name ?? null, last_name: l.last_name ?? null,
+    is_phd: !!l.is_phd, status: l.status ?? null, created_at: l.created_at ?? null,
+    landing_token: l.landing_token ?? null,
+  };
+}
+
+/** Load a campus landing page by slug (public, anon-readable). */
+export async function fetchCampusBySlug(slug: string): Promise<{
+  id: string; name: string; slug: string; course_codes: string[];
+  color_primary: string | null; color_secondary: string | null; use_school_colors: boolean;
+} | null> {
+  const { data, error } = await supabase
+    .from("campuses")
+    .select("id,name,slug,course_codes_json,color_primary,color_secondary,use_school_colors")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error || !data) return null;
+  const c = data as any;
+  const codes = Array.isArray(c.course_codes_json)
+    ? c.course_codes_json.filter((x: unknown): x is string => typeof x === "string")
+    : [];
+  return {
+    id: c.id, name: c.name ?? "", slug: c.slug ?? "",
+    course_codes: codes,
+    color_primary: c.color_primary ?? null,
+    color_secondary: c.color_secondary ?? null,
+    use_school_colors: c.use_school_colors === true,
+  };
 }

@@ -13,6 +13,7 @@ import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
+import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 
@@ -36,6 +37,11 @@ const CeqCreateRoute = CeqCreateRouteImport.update({
   path: '/create',
   getParentRoute: () => CeqRoute,
 } as any)
+const OutreachSchoolSlugRoute = OutreachSchoolSlugRouteImport.update({
+  id: '/outreach_/school/$slug',
+  path: '/outreach/school/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CeqIdTutorRoute = CeqIdTutorRouteImport.update({
   id: '/$id/tutor',
   path: '/$id/tutor',
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/ceq/create': typeof CeqCreateRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/ceq/create': typeof CeqCreateRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/ceq/create': typeof CeqCreateRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/school/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/school/$slug'
   id:
     | '__root__'
     | '/'
@@ -97,12 +108,14 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach_/school/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CeqRoute: typeof CeqRouteWithChildren
   OutreachRoute: typeof OutreachRoute
+  OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -134,6 +147,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/ceq/create'
       preLoaderRoute: typeof CeqCreateRouteImport
       parentRoute: typeof CeqRoute
+    }
+    '/outreach_/school/$slug': {
+      id: '/outreach_/school/$slug'
+      path: '/outreach/school/$slug'
+      fullPath: '/outreach/school/$slug'
+      preLoaderRoute: typeof OutreachSchoolSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/ceq/$id/tutor': {
       id: '/ceq/$id/tutor'
@@ -170,7 +190,18 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CeqRoute: CeqRouteWithChildren,
   OutreachRoute: OutreachRoute,
+  OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
