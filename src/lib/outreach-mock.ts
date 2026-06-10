@@ -39,6 +39,13 @@ export interface Campus {
   landing_views: number;
   landing_clicks: number;
   course_codes: string[];
+  // Course-family research (Approve Campus modal)
+  course_family_codes_json?: Record<string, string>;
+  course_family_titles_json?: Record<string, string>;
+  course_family_status_json?: Record<string, string>;
+  use_school_colors?: boolean;
+  landing_page_reviewed?: boolean;
+  tuition_notes?: string | null;
 }
 
 export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
@@ -389,3 +396,113 @@ export function exportCampusesCsv(campuses: Campus[]): void {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// ============================================================
+// Additions ported from the original app (ProfessorOutreach.tsx)
+// so the faithful UI components have everything they need.
+// ============================================================
+
+// ----- Date helpers (Manila-anchored work week) -----
+export function manilaTodayISO(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+export function isoToLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+export function localDateToISO(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+export function addDaysISO(iso: string, n: number): string {
+  const d = isoToLocalDate(iso);
+  d.setDate(d.getDate() + n);
+  return localDateToISO(d);
+}
+export function formatPretty(iso: string): { weekday: string; full: string; short: string; dayNum: string } {
+  const d = isoToLocalDate(iso);
+  return {
+    weekday: d.toLocaleDateString("en-US", { weekday: "long" }),
+    full: d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+    short: d.toLocaleDateString("en-US", { weekday: "short" }),
+    dayNum: String(d.getDate()),
+  };
+}
+export function mondayOfISO(iso: string): string {
+  const d = isoToLocalDate(iso);
+  const dow = d.getDay();
+  const offset = dow === 0 ? -6 : 1 - dow;
+  return addDaysISO(iso, offset);
+}
+
+// ----- Mock weekly assignment counts (Tue–Sat get 5 campuses) -----
+export function mockWeekCounts(weekDays: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  weekDays.forEach((iso, idx) => {
+    if (idx === 0 || idx === 6) return; // Mon = Discord, Sun = off
+    counts[iso] = idx === 1 ? 0 : 5;
+  });
+  return counts;
+}
+
+// ----- Mock "due today" campuses (links to the Campuses tab) -----
+export function mockCampusesForDate(dateISO: string, all: Campus[]): Campus[] {
+  void dateISO;
+  return all.filter((c) => (c.assigned_to ?? "").toLowerCase() === "king" && !c.archived).slice(0, 5);
+}
+
+// ----- Email templates (in-memory until Supabase is wired) -----
+export type TemplateKind = "initial" | "follow_up_1" | "follow_up_2" | "follow_up_3";
+export type TemplateVariant =
+  | "default" | "phd" | "intro1_only" | "intro2_only" | "intermediate1_only" | "intermediate2_only";
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  is_locked: boolean;
+  is_active: boolean;
+  kind: TemplateKind;
+  variant: TemplateVariant;
+}
+export const TEMPLATE_KIND_META: Record<TemplateKind, { label: string; helper: string }> = {
+  initial: { label: "Initial Email", helper: "First touch — sent manually from this tab." },
+  follow_up_1: { label: "Follow-up 1", helper: "Sent automatically 7 days after the initial." },
+  follow_up_2: { label: "Follow-up 2", helper: "Sent automatically 14 days after the initial." },
+  follow_up_3: { label: "Follow-up 3 (final)", helper: "Sent automatically 21 days after the initial. No more sends after this." },
+};
+export const TEMPLATE_KIND_ORDER: TemplateKind[] = ["initial"];
+export const TEMPLATE_VARIANT_ORDER: TemplateVariant[] = [
+  "default", "phd", "intro1_only", "intro2_only", "intermediate1_only", "intermediate2_only",
+];
+export const TEMPLATE_VARIANT_LABEL: Record<TemplateVariant, string> = {
+  default: "Default",
+  phd: "If PhD",
+  intro1_only: "If only Intro 1 textbook match",
+  intro2_only: "If only Intro 2 textbook match",
+  intermediate1_only: "If only Intermediate textbook match",
+  intermediate2_only: "If only Intermediate 2 textbook match",
+};
+export const MOCK_TEMPLATES: EmailTemplate[] = [
+  {
+    id: "t1",
+    name: "Initial Email — Default",
+    kind: "initial",
+    variant: "default",
+    is_active: true,
+    is_locked: true,
+    subject: "Tutor recommendation for accounting students",
+    body: `Hi [First Name],
+
+I provide virtual tutoring and exam-prep support for Introductory and Intermediate Accounting students.
+
+If a student ever asks you for a tutor recommendation this summer, I'd appreciate you sharing my booking page:
+
+[SurviveAccounting.com]
+
+Thanks,
+Lee Ingram`,
+  },
+];

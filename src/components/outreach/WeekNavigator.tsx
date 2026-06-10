@@ -1,71 +1,52 @@
-import { useMemo, useState } from "react";
+// Ported from the original app (ProfessorOutreach.tsx — ScheduleDateNavigator).
+// Counts come in as a prop; Supabase wiring lands later.
+import { useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-function startOfWeekMonday(d: Date): Date {
-  const out = new Date(d);
-  const dow = out.getDay(); // 0=Sun..6=Sat
-  const offset = dow === 0 ? -6 : 1 - dow;
-  out.setDate(out.getDate() + offset);
-  out.setHours(0, 0, 0, 0);
-  return out;
-}
-
-function addDays(d: Date, n: number): Date {
-  const out = new Date(d);
-  out.setDate(out.getDate() + n);
-  return out;
-}
-
-const SHORT = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+import {
+  addDaysISO,
+  formatPretty,
+  isoToLocalDate,
+  manilaTodayISO,
+  mondayOfISO,
+} from "@/lib/outreach-mock";
 
 export function WeekNavigator({
-  selected,
+  selectedDate,
   onChange,
-  counts = {},
+  counts,
 }: {
-  selected?: Date;
-  onChange?: (d: Date) => void;
-  counts?: Record<string, number>;
+  selectedDate: string;
+  onChange: (iso: string) => void;
+  counts: Record<string, number>;
 }) {
-  const today = useMemo(() => {
-    const t = new Date();
-    t.setHours(0, 0, 0, 0);
-    return t;
-  }, []);
-
-  const [internalSel, setInternalSel] = useState<Date>(selected ?? today);
-  const sel = selected ?? internalSel;
-  const setSel = (d: Date) => {
-    setInternalSel(d);
-    onChange?.(d);
-  };
-
-  const weekMonday = useMemo(() => startOfWeekMonday(sel), [sel]);
-  const days = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(weekMonday, i)),
+  const todayISO = manilaTodayISO();
+  const weekMonday = useMemo(() => mondayOfISO(selectedDate), [selectedDate]);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDaysISO(weekMonday, i)),
     [weekMonday],
   );
 
-  const todayWeekMonday = startOfWeekMonday(today);
-  const isCurrentWeek = weekMonday.getTime() === todayWeekMonday.getTime();
-  const monLabel = days[0].toLocaleDateString("en-US", { month: "long", day: "numeric" });
-  const sunLabel = days[6].toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  const todayWeekMonday = mondayOfISO(todayISO);
+  const isCurrentWeek = weekMonday === todayWeekMonday;
+  const mondayPretty = formatPretty(weekMonday);
+  const sundayPretty = formatPretty(weekDays[6]);
 
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-
-  const isoKey = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const goPrevWeek = () => onChange(addDaysISO(weekMonday, -7 + 1)); // Tue of prev week
+  const goNextWeek = () => onChange(addDaysISO(weekMonday, 7 + 1)); // Tue of next week
+  const jumpToToday = () => {
+    const tDow = isoToLocalDate(todayISO).getDay();
+    if (tDow === 0) onChange(addDaysISO(todayISO, -1)); // Sun -> Sat
+    else if (tDow === 1) onChange(addDaysISO(todayISO, 1)); // Mon -> Tue
+    else onChange(todayISO);
+  };
 
   return (
-    <Card className="overflow-hidden border-border/60">
+    <Card className="overflow-hidden border-border/60 py-0 gap-0">
       <div className="flex items-center justify-between gap-4 px-5 py-3 border-b border-border/60 bg-muted/30">
         <button
-          onClick={() => setSel(addDays(weekMonday, -6))}
+          onClick={goPrevWeek}
           className="grid h-7 w-7 place-items-center rounded-full border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
           aria-label="Previous week"
         >
@@ -73,20 +54,27 @@ export function WeekNavigator({
         </button>
 
         <div className="flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {isCurrentWeek
-              ? "This week"
-              : weekMonday < todayWeekMonday
-                ? "Past week"
-                : "Upcoming week"}
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {isCurrentWeek ? "This week" : weekMonday < todayWeekMonday ? "Past week" : "Upcoming week"}
+            </div>
+            {!isCurrentWeek && (
+              <button
+                onClick={jumpToToday}
+                className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Jump to today
+              </button>
+            )}
           </div>
           <div className="mt-0.5 text-sm font-semibold tracking-tight text-foreground">
-            Week of Mon {monLabel} – Sun {sunLabel}
+            Week of Mon {mondayPretty.full.split(", ").slice(1).join(", ").replace(/, \d{4}$/, "")} – Sun{" "}
+            {sundayPretty.full.split(", ").slice(1).join(", ").replace(/, \d{4}$/, "")}
           </div>
         </div>
 
         <button
-          onClick={() => setSel(addDays(weekMonday, 8))}
+          onClick={goNextWeek}
           className="grid h-7 w-7 place-items-center rounded-full border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
           aria-label="Next week"
         >
@@ -95,33 +83,35 @@ export function WeekNavigator({
       </div>
 
       <div className="grid grid-cols-7 gap-1 px-2 py-2">
-        {days.map((d, idx) => {
-          const isSel = sameDay(d, sel);
-          const isTodayCell = sameDay(d, today);
+        {weekDays.map((iso, idx) => {
+          const p = formatPretty(iso);
+          const count = counts[iso] ?? 0;
+          const isSel = iso === selectedDate;
+          const isTodayCell = iso === todayISO;
           const isMonday = idx === 0;
           const isSunday = idx === 6;
-          const count = counts[isoKey(d)] ?? 0;
+          const isMarketing = !isMonday && !isSunday;
 
           if (isMonday || isSunday) {
             return (
               <div
-                key={idx}
+                key={iso}
                 aria-disabled
                 className={cn(
                   "relative flex flex-col items-center rounded-md border px-2 py-1.5 cursor-not-allowed select-none",
                   isMonday
-                    ? "border-indigo-200/60 bg-indigo-50/40"
+                    ? "border-indigo-200/60 bg-indigo-50/40 dark:bg-indigo-950/20"
                     : "border-dashed border-border/60 bg-muted/40 opacity-60",
                 )}
               >
                 <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {SHORT[idx]}
+                  {p.short}
                 </span>
                 <span className="mt-0.5 text-sm font-semibold tabular-nums text-muted-foreground">
-                  {d.getDate()}
+                  {p.dayNum}
                 </span>
                 {isMonday ? (
-                  <span className="mt-1 inline-block -rotate-12 whitespace-nowrap text-[9px] font-semibold uppercase tracking-wider text-indigo-600">
+                  <span className="mt-1 inline-block -rotate-12 whitespace-nowrap text-[9px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-300">
                     Meet on Discord
                   </span>
                 ) : (
@@ -138,13 +128,15 @@ export function WeekNavigator({
 
           return (
             <button
-              key={idx}
-              onClick={() => setSel(d)}
+              key={iso}
+              onClick={() => onChange(iso)}
               className={cn(
                 "group relative flex flex-col items-center rounded-md border px-2 py-1.5 transition",
                 isSel
                   ? "border-[#14213D]/70 bg-[#14213D]/5 text-foreground"
-                  : "border-[#CE1126]/20 bg-[#CE1126]/5 hover:border-[#CE1126]/40 hover:bg-[#CE1126]/10",
+                  : isMarketing
+                    ? "border-[#CE1126]/20 bg-[#CE1126]/5 hover:border-[#CE1126]/40 hover:bg-[#CE1126]/10"
+                    : "border-transparent hover:border-border hover:bg-muted/60",
               )}
             >
               <span
@@ -153,7 +145,7 @@ export function WeekNavigator({
                   isSel ? "text-[#14213D]" : "text-[#CE1126]/80",
                 )}
               >
-                {SHORT[idx]}
+                {p.short}
               </span>
               <span
                 className={cn(
@@ -161,7 +153,7 @@ export function WeekNavigator({
                   isSel ? "text-[#14213D]" : "text-foreground",
                 )}
               >
-                {d.getDate()}
+                {p.dayNum}
               </span>
               <span
                 className={cn(
@@ -175,9 +167,7 @@ export function WeekNavigator({
               >
                 {count}
               </span>
-              {isTodayCell && !isSel && (
-                <span className="mt-0.5 h-1 w-1 rounded-full bg-[#CE1126]" />
-              )}
+              {isTodayCell && !isSel && <span className="mt-0.5 h-1 w-1 rounded-full bg-[#CE1126]" />}
             </button>
           );
         })}
@@ -185,3 +175,5 @@ export function WeekNavigator({
     </Card>
   );
 }
+
+export default WeekNavigator;

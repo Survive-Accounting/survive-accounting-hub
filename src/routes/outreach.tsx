@@ -1,24 +1,24 @@
-import { useMemo, useState } from "react";
+// /outreach — ported faithfully from the original app (ProfessorOutreach.tsx).
+// Runs on mock data until Supabase is wired.
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster, toast } from "sonner";
-import { Upload, UserPlus, Users } from "lucide-react";
-import { AdminShell } from "@/components/admin-shell";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import CampusFilterBar from "@/components/outreach/CampusFilterBar";
-import CampusTable from "@/components/outreach/CampusTable";
-import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
-import AssignToKingModal from "@/components/outreach/AssignToKingModal";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { WeekNavigator } from "@/components/outreach/WeekNavigator";
 import { TodayChecklist } from "@/components/outreach/TodayChecklist";
 import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
+import CampusTable from "@/components/outreach/CampusTable";
+import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import {
-  applyFilters,
   DEFAULT_CAMPUS_FILTERS,
-  exportCampusesCsv,
   MOCK_CAMPUSES,
+  addDaysISO,
+  manilaTodayISO,
+  mockWeekCounts,
+  mondayOfISO,
+  type AssignmentStatus,
   type Campus,
   type CampusFilters,
 } from "@/lib/outreach-mock";
@@ -38,194 +38,96 @@ function OutreachPage() {
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
-  const [assignOpen, setAssignOpen] = useState<null | "self" | "king">(null);
   const [tab, setTab] = useState("home");
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = manilaTodayISO();
+    const dow = new Date(today + "T00:00:00").getDay();
+    if (dow === 0) return addDaysISO(today, -1);
+    if (dow === 1) return addDaysISO(today, 1);
+    return today;
+  });
 
-  const filtered = useMemo(() => applyFilters(campuses, filters), [campuses, filters]);
+  const weekMonday = mondayOfISO(selectedDate);
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDaysISO(weekMonday, i));
+  const counts = mockWeekCounts(weekDays);
 
-  const states = useMemo(
-    () => Array.from(new Set(campuses.map((c) => c.state))).sort(),
-    [campuses],
-  );
-  const batches = useMemo(
-    () =>
-      Array.from(
-        new Set(campuses.map((c) => c.assignment_batch).filter(Boolean) as string[]),
-      ).sort(),
-    [campuses],
-  );
-
-  const toggleSelect = (id: string, value: boolean) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (value) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-
-  const toggleSelectAll = (value: boolean) => {
-    if (value) setSelectedIds(new Set(filtered.map((c) => c.id)));
-    else setSelectedIds(new Set());
-  };
-
-  const handleApprove = (id: string) => {
-    setCampuses((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              approval_status: "approved",
-              ready_for_outreach: true,
-              assignment_status: "approved",
-            }
-          : c,
-      ),
-    );
-  };
-
-  const handleAssignSave = (
-    id: string,
-    patch: {
-      assigned_to: string | null;
-      due_date: string | null;
-      assignment_status: Campus["assignment_status"];
-    },
-  ) => {
+  const patchCampus = (id: string, patch: Partial<Campus>) =>
     setCampuses((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-    toast.success("Assignment updated");
-  };
 
-  const handleBulkAssigned = (ids: string[], batch: string, dueDate: string | null) => {
-    const assignee = assignOpen === "self" ? "lee" : "king";
-    setCampuses((prev) =>
-      prev.map((c) =>
-        ids.includes(c.id)
-          ? {
-              ...c,
-              assigned_to: assignee,
-              assignment_batch: batch,
-              due_date: dueDate,
-              assignment_status:
-                c.assignment_status === "approved" ? "approved" : "assigned",
-            }
-          : c,
-      ),
-    );
-    setSelectedIds(new Set());
-  };
+  const handleAssignPatch = (
+    id: string,
+    patch: { assigned_to: string | null; due_date: string | null; assignment_status: AssignmentStatus },
+  ) => patchCampus(id, patch);
 
-  const handleImportLeads = (campus: Campus) => {
-    toast.info(`Lead import for ${campus.school_name} — coming soon`);
+  const handleFocusCampus = (name: string) => {
+    setFilters((f) => ({ ...f, search: name }));
+    setTab("schools");
   };
-
-  const selectedCampuses = filtered.filter((c) => selectedIds.has(c.id));
 
   return (
-    <AdminShell>
-      <div className="p-6 sm:p-10">
+    <div className="min-h-screen bg-background">
+      <Toaster richColors position="top-center" />
+      <div className="mx-auto max-w-7xl px-6 py-8">
         <OutreachBanner />
-
-        <div className="mb-6">
-          <h1 className="font-display text-3xl text-foreground">Outreach Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+        <header className="mb-8 mt-2">
+          <h1 className="text-2xl font-bold tracking-tight font-sans">Outreach Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage leads, campuses, templates, and outreach campaigns.
           </p>
-        </div>
+        </header>
 
-        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-8">
           <TabsList className="grid w-full grid-cols-3 h-12 gap-2 bg-muted/40 p-1.5">
-            <TabsTrigger value="home" className="text-sm font-medium">
-              Home
-            </TabsTrigger>
-            <TabsTrigger value="schools" className="text-sm font-medium">
-              Campuses
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="text-sm font-medium">
-              Email Queue
-            </TabsTrigger>
+            <TabsTrigger value="home" className="text-sm font-medium">Home</TabsTrigger>
+            <TabsTrigger value="schools" className="text-sm font-medium">Campuses</TabsTrigger>
+            <TabsTrigger value="templates" className="text-sm font-medium">Email Queue</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="home" className="space-y-6">
-            <WeekNavigator />
+          <TabsContent value="home" className="mt-8 space-y-8">
+            <WeekNavigator selectedDate={selectedDate} onChange={setSelectedDate} counts={counts} />
             <TodayChecklist
+              dateISO={selectedDate}
+              campuses={campuses}
+              onFocusCampus={handleFocusCampus}
+              onImportProfessors={() => toast.info("Connect Supabase to import professor leads")}
               onOpenEmailQueue={() => setTab("templates")}
-              onOpenCampus={() => setTab("schools")}
             />
           </TabsContent>
 
-          <TabsContent value="schools" className="space-y-4">
-            <Card className="overflow-hidden">
-              <CampusFilterBar
-                filters={filters}
-                onChange={setFilters}
-                states={states}
-                batches={batches}
-                filteredCount={filtered.length}
-                totalCount={campuses.length}
-                rightSlot={
-                  <div className="flex items-center gap-2">
-                    {selectedIds.size > 0 && (
-                      <>
-                        <span className="text-xs text-muted-foreground">
-                          {selectedIds.size} selected
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setAssignOpen("self")}
-                        >
-                          <UserPlus className="h-3.5 w-3.5" /> Assign to me
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setAssignOpen("king")}
-                        >
-                          <Users className="h-3.5 w-3.5" /> Assign to King
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => exportCampusesCsv(filtered)}
-                    >
-                      <Upload className="h-3.5 w-3.5" /> Export CSV
-                    </Button>
-                  </div>
-                }
-              />
-              <CampusTable
-                campuses={filtered}
-                selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
-                onToggleSelectAll={toggleSelectAll}
-                onReview={setReviewing}
-                onImportLeads={handleImportLeads}
-                onAssignSave={handleAssignSave}
-              />
-            </Card>
+          <TabsContent value="schools" className="mt-8 space-y-8">
+            <CampusTable
+              campuses={campuses}
+              filters={filters}
+              onFiltersChange={setFilters}
+              onReview={(c) => setReviewing(c)}
+              onImportLeads={() => toast.info("Connect Supabase to import professor leads")}
+              onAssignPatch={handleAssignPatch}
+              selectedIds={selectedIds}
+              onToggleSelect={(id, value) =>
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  if (value) next.add(id); else next.delete(id);
+                  return next;
+                })
+              }
+              onToggleSelectAll={(ids, value) =>
+                setSelectedIds(value ? new Set(ids) : new Set())
+              }
+            />
           </TabsContent>
 
-          <TabsContent value="templates">
+          <TabsContent value="templates" className="mt-8 space-y-8">
             <EmailTemplatesPanel />
           </TabsContent>
         </Tabs>
       </div>
 
       <ApproveCampusModal
-        campus={reviewing}
+        campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
         onClose={() => setReviewing(null)}
-        onApprove={handleApprove}
+        onPatch={patchCampus}
+        onApprove={(id, patch) => patchCampus(id, patch)}
       />
-      <AssignToKingModal
-        open={assignOpen !== null}
-        onClose={() => setAssignOpen(null)}
-        campuses={selectedCampuses.map((c) => ({ id: c.id, name: c.school_name }))}
-        assignee={assignOpen ?? "king"}
-        onAssigned={handleBulkAssigned}
-      />
-      <Toaster position="top-center" richColors />
-    </AdminShell>
+    </div>
   );
 }

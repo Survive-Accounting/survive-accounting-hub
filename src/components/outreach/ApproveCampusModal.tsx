@@ -1,168 +1,534 @@
-import { useEffect, useState } from "react";
-import { Check, ExternalLink } from "lucide-react";
-import { toast } from "sonner";
+// Ported from the original app (components/outreach/ApproveCampusModal.tsx).
+// Autosave patches go to the parent via onPatch; Supabase wiring lands later.
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertTriangle, BookOpen, CheckCircle2, FileText, Loader2, Save, Sparkles, Store,
+} from "lucide-react";
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Info } from "lucide-react";
 import type { Campus } from "@/lib/outreach-mock";
 
-interface Props {
-  campus: Campus | null;
-  onClose: () => void;
-  onApprove: (id: string, notes: string) => void;
+type FamilyStatus = "matches" | "different" | "not_viewable" | "not_offered" | "not_checked";
+type TextbookStatus = "same_textbook_confirmed" | "different_textbook" | "textbook_not_viewable" | "not_checked";
+
+const FAMILIES = [
+  { key: "intro_1", label: "Intro 1 — Financial Accounting Principles", shortLabel: "Intro 1", textbook: "McGraw Hill — Financial and Managerial Accounting (Wild/Shaw)", sampleCode: "ACCY 201", sampleTitle: "Principles of Financial Accounting" },
+  { key: "intro_2", label: "Intro 2 — Managerial Accounting Principles", shortLabel: "Intro 2", textbook: "McGraw Hill — Financial and Managerial Accounting (Wild/Shaw)", sampleCode: "ACCY 202", sampleTitle: "Principles of Managerial Accounting" },
+  { key: "intermediate_1", label: "Intermediate Accounting I", shortLabel: "IA1", textbook: "Wiley — Intermediate Accounting, Kieso/Weygandt/Warfield", sampleCode: "ACCY 303", sampleTitle: "Intermediate Accounting I" },
+  { key: "intermediate_2", label: "Intermediate Accounting II", shortLabel: "IA2", textbook: "Wiley — Intermediate Accounting, Kieso/Weygandt/Warfield", sampleCode: "ACCY 304", sampleTitle: "Intermediate Accounting II" },
+];
+
+const FAMILY_STATUS_LABELS: Record<FamilyStatus, string> = {
+  matches: "Matches Our Textbook",
+  different: "Different Textbook",
+  not_viewable: "Textbook Not Viewable",
+  not_offered: "Not Offered",
+  not_checked: "Not Checked",
+};
+
+const STATUS_BADGE: Record<FamilyStatus, string> = {
+  matches: "bg-emerald-600 text-white",
+  different: "bg-red-600 text-white",
+  not_viewable: "bg-amber-500 text-white",
+  not_offered: "bg-muted text-muted-foreground",
+  not_checked: "bg-muted text-muted-foreground",
+};
+
+function googleUrl(q: string) {
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
 }
 
-export default function ApproveCampusModal({ campus, onClose, onApprove }: Props) {
-  const [colorsOk, setColorsOk] = useState(false);
-  const [codesOk, setCodesOk] = useState(false);
-  const [landingOk, setLandingOk] = useState(false);
-  const [textbookOk, setTextbookOk] = useState(false);
-  const [notes, setNotes] = useState("");
+function openExternal(url: string) {
+  const fallbackCopy = () => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const done = () => toast.success("Link copied — paste into a new tab");
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(() => {
+      if (fallbackCopy()) done();
+      else toast.error("Couldn't copy link");
+    });
+  } else if (fallbackCopy()) {
+    done();
+  } else {
+    toast.error("Couldn't copy link");
+  }
+}
+
+export default function ApproveCampusModal({
+  campus, onClose, onPatch, onApprove,
+}: {
+  campus: Campus | null;
+  onClose: () => void;
+  onPatch: (id: string, patch: Partial<Campus>) => void;
+  onApprove: (id: string, patch: Partial<Campus>) => void;
+}) {
+  const [step, setStep] = useState("1");
+  const [familyCodes, setFamilyCodes] = useState<Record<string, string>>({});
+  const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
+  const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const saveTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!campus) return;
-    const approved = campus.approval_status === "approved";
-    setColorsOk(approved);
-    setCodesOk(approved && campus.course_codes.length > 0);
-    setLandingOk(approved);
-    setTextbookOk(approved);
-    setNotes("");
-  }, [campus]);
+    setStep("1");
+    const existingCodes = campus.course_family_codes_json ?? {};
+    const existingTitles = campus.course_family_titles_json ?? {};
+    const initCodes: Record<string, string> = {};
+    const initTitles: Record<string, string> = {};
+    FAMILIES.forEach((f) => {
+      initCodes[f.key] = existingCodes[f.key] ?? "";
+      initTitles[f.key] = existingTitles[f.key] ?? "";
+    });
+    setFamilyCodes(initCodes);
+    setFamilyTitles(initTitles);
 
-  const allChecked = colorsOk && codesOk && landingOk && textbookOk;
-  const open = !!campus;
+    const existing = campus.course_family_status_json ?? {};
+    const init: Record<string, FamilyStatus> = {};
+    FAMILIES.forEach((f) => {
+      const v = existing[f.key] as FamilyStatus | undefined;
+      init[f.key] = v ?? "not_checked";
+    });
+    setFamilyStatus(init);
+    setLastSavedAt(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campus?.id]);
 
-  const handleApprove = () => {
+  const codesArray = useMemo(
+    () => Object.values(familyCodes).map((s) => s.trim()).filter(Boolean),
+    [familyCodes],
+  );
+
+  const hasAtLeastOneMatch = FAMILIES.some((f) => (familyStatus[f.key] ?? "not_checked") === "matches");
+  const step1Done = codesArray.length > 0;
+  const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked") && hasAtLeastOneMatch;
+  const canApprove = step1Done && step2Done;
+
+  const aggregateTextbookStatus = (status: Record<string, FamilyStatus>): TextbookStatus => {
+    const vals = FAMILIES.map((f) => status[f.key] ?? "not_checked");
+    if (vals.some((v) => v === "different")) return "different_textbook";
+    if (vals.every((v) => v === "not_viewable" || v === "not_offered")) return "textbook_not_viewable";
+    if (vals.some((v) => v === "matches")) return "same_textbook_confirmed";
+    return "not_checked";
+  };
+
+  // ============ Autosave (to parent state) ============
+  const writePatch = (patch: Partial<Campus>) => {
     if (!campus) return;
-    onApprove(campus.id, notes);
-    toast.success(`Approved ${campus.school_name}`);
+    setAutoSaving(true);
+    onPatch(campus.id, patch);
+    window.setTimeout(() => {
+      setAutoSaving(false);
+      setLastSavedAt(Date.now());
+    }, 250);
+  };
+
+  const debouncedSaveCourseDetails = (codes: Record<string, string>, titles: Record<string, string>) => {
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      const codesArr = Object.values(codes).map((s) => s.trim()).filter(Boolean);
+      writePatch({
+        course_family_codes_json: codes,
+        course_family_titles_json: titles,
+        course_codes: codesArr,
+      });
+    }, 700);
+  };
+
+  const updateFamilyCode = (key: string, val: string) => {
+    setFamilyCodes((prev) => {
+      const next = { ...prev, [key]: val };
+      debouncedSaveCourseDetails(next, familyTitles);
+      return next;
+    });
+  };
+
+  const updateFamilyTitle = (key: string, val: string) => {
+    setFamilyTitles((prev) => {
+      const next = { ...prev, [key]: val };
+      debouncedSaveCourseDetails(familyCodes, next);
+      return next;
+    });
+  };
+
+  const updateFamilyStatus = (key: string, val: FamilyStatus) => {
+    setFamilyStatus((prev) => {
+      const next = { ...prev, [key]: val };
+      writePatch({ course_family_status_json: next });
+      return next;
+    });
+  };
+
+  const approve = () => {
+    if (!campus) return;
+    onApprove(campus.id, {
+      course_family_codes_json: familyCodes,
+      course_family_titles_json: familyTitles,
+      course_codes: codesArray,
+      course_family_status_json: familyStatus,
+      approval_status: "approved",
+      ready_for_outreach: true,
+    });
+    toast.success("Campus approved & ready for outreach");
     onClose();
   };
 
+  if (!campus) return null;
+
+  const steps = [
+    { id: "1", label: "Course Details", done: step1Done },
+    { id: "2", label: "Textbook Research", done: step2Done },
+    { id: "3", label: "Approval", done: canApprove },
+  ];
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Review campus</DialogTitle>
-          <DialogDescription>
-            {campus?.school_name} · {campus?.state}
-          </DialogDescription>
-        </DialogHeader>
-
-        {campus && (
-          <div className="space-y-4">
-            <a
-              href={`/outreach/school/${campus.slug}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-[#CE1126] hover:underline"
-            >
-              Preview landing page <ExternalLink className="h-3 w-3" />
-            </a>
-
-            <div className="space-y-3 rounded-md border border-border p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Review checklist
+    <TooltipProvider delayDuration={150}>
+      <Dialog open={!!campus} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-4xl sm:max-w-4xl max-h-[94vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <span>Approve Campus — {campus.school_name}</span>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                  {autoSaving ? (
+                    <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
+                  ) : lastSavedAt ? (
+                    <><Save className="h-3 w-3 text-emerald-600" /> Auto-saved</>
+                  ) : null}
+                </span>
               </div>
+            </DialogTitle>
+            <DialogDescription>
+              Course Details → Textbook Match → Approve. Changes save automatically.
+            </DialogDescription>
+          </DialogHeader>
 
-              <label className="flex items-start gap-2.5 text-sm cursor-pointer">
-                <Checkbox
-                  checked={colorsOk}
-                  onCheckedChange={(v) => setColorsOk(!!v)}
-                  className="mt-0.5"
-                />
-                <div>
-                  <div>School colors look right</div>
-                  <div className="text-xs text-muted-foreground">
-                    Primary / secondary / tertiary match the school's brand.
-                  </div>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-2.5 text-sm cursor-pointer">
-                <Checkbox
-                  checked={codesOk}
-                  onCheckedChange={(v) => setCodesOk(!!v)}
-                  className="mt-0.5"
-                />
-                <div>
-                  <div>
-                    Course codes confirmed
-                    {campus.course_codes.length > 0 && (
-                      <span className="ml-1 text-muted-foreground text-xs">
-                        ({campus.course_codes.join(", ")})
+          {/* Single Stepper */}
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-2">
+            {steps.map((s, i) => {
+              const isCurrent = step === s.id;
+              const isDone = s.done && !isCurrent;
+              return (
+                <div key={s.id} className="flex flex-1 items-center gap-1">
+                  <button
+                    onClick={() => setStep(s.id)}
+                    className={`flex flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs transition ${
+                      isCurrent
+                        ? "bg-background border border-primary shadow-sm font-semibold text-foreground"
+                        : isDone
+                        ? "text-emerald-700 hover:bg-background/60"
+                        : "text-muted-foreground hover:bg-background/60"
+                    }`}
+                  >
+                    {isDone ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                    ) : (
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                          isCurrent ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
+                        }`}
+                      >
+                        {s.id}
                       </span>
                     )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Verified against this school's catalog.
-                  </div>
+                    <span className="leading-tight">{s.label}</span>
+                  </button>
+                  {i < steps.length - 1 && <span className="h-px w-3 shrink-0 bg-border" />}
                 </div>
-              </label>
+              );
+            })}
+          </div>
 
-              <label className="flex items-start gap-2.5 text-sm cursor-pointer">
-                <Checkbox
-                  checked={textbookOk}
-                  onCheckedChange={(v) => setTextbookOk(!!v)}
-                  className="mt-0.5"
-                />
-                <div>
-                  <div>Textbook match confirmed</div>
-                  <div className="text-xs text-muted-foreground">
-                    At least one course uses a textbook we cover.
-                  </div>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-2.5 text-sm cursor-pointer">
-                <Checkbox
-                  checked={landingOk}
-                  onCheckedChange={(v) => setLandingOk(!!v)}
-                  className="mt-0.5"
-                />
-                <div>
-                  <div>Landing page ready for outreach</div>
-                  <div className="text-xs text-muted-foreground">
-                    Copy reads cleanly, no broken links, mascot/colors look right.
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Notes (optional)</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anything Lee should know before sending…"
-                rows={3}
+          {/* Research Tools — hero CTA */}
+          <div className="mt-8 mb-2 flex justify-center">
+            <div className="relative inline-block">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -inset-2 rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-600 opacity-60 blur-xl animate-pulse"
               />
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button
+                    type="button"
+                    className="relative h-11 rounded-full px-7 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 via-red-500 to-rose-600 shadow-[0_0_24px_-4px_rgba(244,63,94,0.65),0_0_48px_-12px_rgba(249,115,22,0.55)] hover:brightness-110 hover:scale-[1.02] transition border-0"
+                  >
+                    <Sparkles className="h-4 w-4 drop-shadow" />
+                    Research Tools
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle className="text-base">🔍 Research Tools</SheetTitle>
+                    <p className="text-xs text-muted-foreground font-normal">
+                      Quick Google searches for {campus.school_name}. Opens in new tabs.
+                    </p>
+                  </SheetHeader>
+                  <div className="mt-4 space-y-4 px-4 pb-6">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                        Campus-wide
+                      </p>
+                      <div className="flex flex-col gap-1.5">
+                        {[
+                          { emoji: "📚", label: "Course Catalog", q: `${campus.school_name} course catalog accounting` },
+                          { emoji: "🎓", label: "Accounting Degree Plan", q: `${campus.school_name} accounting degree plan` },
+                          { emoji: "🧾", label: "Accounting Courses", q: `${campus.school_name} accounting courses` },
+                          { emoji: "📖", label: "Undergraduate Catalog", q: `${campus.school_name} undergraduate catalog accounting` },
+                          { emoji: "🏫", label: "Accounting Department", q: `${campus.school_name} accounting department` },
+                          { emoji: "📋", label: "Accounting Curriculum", q: `${campus.school_name} accounting curriculum` },
+                          { emoji: "🛒", label: "Bookstore", q: `${campus.school_name} bookstore accounting` },
+                        ].map((b) => (
+                          <Button
+                            key={b.label}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="w-full justify-start h-8 text-xs gap-2 font-normal"
+                            onClick={() => openExternal(googleUrl(b.q))}
+                          >
+                            <span>{b.emoji}</span> {b.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {FAMILIES.some((f) => (familyCodes[f.key] ?? "").trim()) && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                          Per-Course
+                        </p>
+                        <div className="space-y-2">
+                          {FAMILIES.map((f) => {
+                            const code = (familyCodes[f.key] ?? "").trim();
+                            if (!code) return null;
+                            return (
+                              <div key={f.key} className="rounded-md border bg-background/60 p-2 space-y-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium">{f.shortLabel}</span>
+                                  <Badge variant="outline" className="font-mono text-[10px]">{code}</Badge>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} textbook`))}>
+                                    🔍 Textbook
+                                  </Button>
+                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} syllabus`))}>
+                                    🔍 Syllabus
+                                  </Button>
+                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} bookstore ${code}`))}>
+                                    🔍 Bookstore
+                                  </Button>
+                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code}`))}>
+                                    🔍 Google
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
-        )}
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!allChecked}
-            onClick={handleApprove}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Check className="h-3.5 w-3.5" /> Approve for outreach
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <Tabs value={step} onValueChange={setStep} className="mt-2">
+            {/* STEP 1 — Course Details */}
+            <TabsContent value="1" className="space-y-4 pt-4">
+              <div className="overflow-hidden rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left font-medium px-3 py-2 w-[34%]">Course Family</th>
+                      <th className="text-left font-medium px-3 py-2 w-[22%]">Course Code</th>
+                      <th className="text-left font-medium px-3 py-2">Course Title</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {FAMILIES.map((f) => (
+                      <tr key={f.key}>
+                        <td className="px-3 py-2">{f.label}</td>
+                        <td className="px-3 py-2">
+                          <Input
+                            value={familyCodes[f.key] ?? ""}
+                            onChange={(e) => updateFamilyCode(f.key, e.target.value)}
+                            placeholder={`e.g. ${f.sampleCode}`}
+                            className="h-8"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            value={familyTitles[f.key] ?? ""}
+                            onChange={(e) => updateFamilyTitle(f.key, e.target.value)}
+                            placeholder={`e.g. ${f.sampleTitle}`}
+                            className="h-8"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  {autoSaving ? (
+                    <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
+                  ) : lastSavedAt ? (
+                    <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Saved</>
+                  ) : (
+                    <>Auto-saves as you type</>
+                  )}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" disabled>Previous</Button>
+                  <Button onClick={() => setStep("2")}>Next Step</Button>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* STEP 2 — Textbook Research */}
+            <TabsContent value="2" className="space-y-3 pt-4">
+              <p className="text-xs text-muted-foreground">
+                Research each course's textbook. Use the quick-search buttons, then set status.
+              </p>
+              <div className="space-y-2">
+                {FAMILIES.map((f) => {
+                  const v = (familyStatus[f.key] ?? "not_checked") as FamilyStatus;
+                  const code = (familyCodes[f.key] ?? "").trim();
+                  const searchTerm = code || f.shortLabel;
+                  return (
+                    <div key={f.key} className="rounded-md border p-2.5 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm font-medium truncate">{f.label}</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 shrink-0 cursor-help text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="text-xs font-semibold mb-0.5">Our supported textbook:</p>
+                              <p className="text-xs">{f.textbook}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          {code && <Badge variant="outline" className="font-mono text-[10px]">{code}</Badge>}
+                        </div>
+                        <Select value={v} onValueChange={(val) => updateFamilyStatus(f.key, val as FamilyStatus)}>
+                          <SelectTrigger className={`h-8 w-[200px] text-xs ${v !== "not_checked" ? STATUS_BADGE[v] + " border-0" : ""}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(Object.keys(FAMILY_STATUS_LABELS) as FamilyStatus[]).map((k) => (
+                              <SelectItem key={k} value={k} className="text-xs">
+                                {FAMILY_STATUS_LABELS[k]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${searchTerm} textbook`))}>
+                          <BookOpen className="h-3 w-3" /> Textbook Search
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${searchTerm} syllabus`))}>
+                          <FileText className="h-3 w-3" /> Syllabus Search
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} bookstore ${searchTerm}`))}>
+                          <Store className="h-3 w-3" /> Bookstore Search
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${searchTerm}`))}>
+                          🔍 Google
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {aggregateTextbookStatus(familyStatus) === "different_textbook" && (
+                <div className="flex items-start gap-2 rounded-md border border-blue-500/40 bg-blue-500/10 p-2 text-xs text-blue-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Courses marked "Different Textbook" will show a "Join Waitlist" email capture instead of a booking link. Campus will still be approved.
+                  </span>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* STEP 3 — Approval Summary */}
+            <TabsContent value="3" className="space-y-3 pt-4">
+              <p className="text-xs text-muted-foreground">Review your decisions, then approve.</p>
+              <div className="rounded-lg border divide-y">
+                {FAMILIES.map((f) => {
+                  const v = (familyStatus[f.key] ?? "not_checked") as FamilyStatus;
+                  const code = (familyCodes[f.key] ?? "").trim();
+                  return (
+                    <div key={f.key} className="flex items-center justify-between gap-3 p-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium">{f.shortLabel}</span>
+                        {code ? (
+                          <Badge variant="outline" className="font-mono text-[10px]">{code}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">no code</span>
+                        )}
+                      </div>
+                      <Badge className={`text-[11px] ${STATUS_BADGE[v]}`}>
+                        {FAMILY_STATUS_LABELS[v]}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+              {!canApprove && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Complete all steps before approving: at least one course code and all families researched (with at least one match).
+                  </span>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={onClose}>Close</Button>
+            <Button
+              disabled={!canApprove}
+              onClick={approve}
+              title={!canApprove ? "Complete all steps to approve" : ""}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Approve Campus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </TooltipProvider>
   );
 }

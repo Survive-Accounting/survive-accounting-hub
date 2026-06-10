@@ -17,7 +17,7 @@ function getParts(now: Date, tz: string) {
     return acc;
   }, {});
   const hourNum = Number(
-    new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(now),
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(now)
   );
   const isDay = hourNum >= 6 && hourNum < 18;
   const dateKey = `${parts.year}-${parts.month}-${parts.day}`;
@@ -37,16 +37,21 @@ export function DualClock() {
     return () => clearInterval(id);
   }, []);
 
+  // Puerto Vallarta is in Jalisco — America/Mexico_City (Central, no DST).
   const mx = getParts(now, "America/Mexico_City");
   const ph = getParts(now, "Asia/Manila");
+
+  // Day-ahead detection: compare calendar dates as strings.
   const phAhead = ph.dateKey > mx.dateKey;
 
   const Cell = ({
+    label,
     flag,
     time,
     weekday,
     isDay,
   }: {
+    label: string;
     flag: string;
     time: string;
     weekday: string;
@@ -55,7 +60,9 @@ export function DualClock() {
     <div className="flex items-center gap-1.5">
       <span className="text-[11px]">{flag}</span>
       <div className="flex flex-col leading-tight">
-        <span className="text-[9px] uppercase tracking-wider opacity-60">{weekday}</span>
+        <span className="text-[9px] uppercase tracking-wider opacity-60">
+          {weekday}
+        </span>
         <span className="flex items-center gap-1 font-mono text-[11px] text-white/90">
           {isDay ? (
             <Sun className="h-2.5 w-2.5 text-amber-300" />
@@ -70,7 +77,7 @@ export function DualClock() {
 
   return (
     <div className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-white">
-      <Cell flag="MX" time={mx.time} weekday={mx.weekday} isDay={mx.isDay} />
+      <Cell label="MX" flag="🇲🇽" time={mx.time} weekday={mx.weekday} isDay={mx.isDay} />
       <div className="flex flex-col items-center px-0.5">
         <ArrowRight className="h-3 w-3 opacity-50" />
         {phAhead && (
@@ -79,7 +86,7 @@ export function DualClock() {
           </span>
         )}
       </div>
-      <Cell flag="PH" time={ph.time} weekday={ph.weekday} isDay={ph.isDay} />
+      <Cell label="PH" flag="🇵🇭" time={ph.time} weekday={ph.weekday} isDay={ph.isDay} />
     </div>
   );
 }
