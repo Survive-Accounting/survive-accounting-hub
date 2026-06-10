@@ -2274,6 +2274,48 @@ export type Database = {
           },
         ]
       }
+      landing_page_events: {
+        Row: {
+          campus_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          lead_id: string | null
+          token: string | null
+        }
+        Insert: {
+          campus_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          lead_id?: string | null
+          token?: string | null
+        }
+        Update: {
+          campus_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          lead_id?: string | null
+          token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_events_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landing_page_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       landing_page_leads: {
         Row: {
           campus_signup_number: number | null
