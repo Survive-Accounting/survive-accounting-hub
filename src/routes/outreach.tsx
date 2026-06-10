@@ -2,14 +2,18 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster, toast } from "sonner";
 import { Upload, UserPlus, Users } from "lucide-react";
-import { AdminShell, PageHeader } from "@/components/admin-shell";
+import { AdminShell } from "@/components/admin-shell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CampusFilterBar from "@/components/outreach/CampusFilterBar";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import AssignToKingModal from "@/components/outreach/AssignToKingModal";
+import { OutreachBanner } from "@/components/outreach/OutreachBanner";
+import { WeekNavigator } from "@/components/outreach/WeekNavigator";
+import { TodayChecklist } from "@/components/outreach/TodayChecklist";
+import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
 import {
   applyFilters,
   DEFAULT_CAMPUS_FILTERS,
@@ -35,7 +39,7 @@ function OutreachPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
   const [assignOpen, setAssignOpen] = useState<null | "self" | "king">(null);
-  const [tab, setTab] = useState("schools");
+  const [tab, setTab] = useState("home");
 
   const filtered = useMemo(() => applyFilters(campuses, filters), [campuses, filters]);
 
@@ -87,17 +91,11 @@ function OutreachPage() {
       assignment_status: Campus["assignment_status"];
     },
   ) => {
-    setCampuses((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    );
+    setCampuses((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     toast.success("Assignment updated");
   };
 
-  const handleBulkAssigned = (
-    ids: string[],
-    batch: string,
-    dueDate: string | null,
-  ) => {
+  const handleBulkAssigned = (ids: string[], batch: string, dueDate: string | null) => {
     const assignee = assignOpen === "self" ? "lee" : "king";
     setCampuses((prev) =>
       prev.map((c) =>
@@ -124,19 +122,18 @@ function OutreachPage() {
 
   return (
     <AdminShell>
-      <PageHeader
-        title="Outreach Dashboard"
-        description="Review campuses, assign work, and run the professor outreach pipeline."
-        actions={
-          <Button variant="outline" onClick={() => exportCampusesCsv(filtered)}>
-            <Upload className="h-4 w-4" /> Export CSV
-          </Button>
-        }
-      />
-
       <div className="p-6 sm:p-10">
+        <OutreachBanner />
+
+        <div className="mb-6">
+          <h1 className="font-display text-3xl text-foreground">Outreach Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage leads, campuses, templates, and outreach campaigns.
+          </p>
+        </div>
+
         <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-xl grid-cols-3 h-12 gap-2 bg-muted/40 p-1.5">
+          <TabsList className="grid w-full grid-cols-3 h-12 gap-2 bg-muted/40 p-1.5">
             <TabsTrigger value="home" className="text-sm font-medium">
               Home
             </TabsTrigger>
@@ -149,48 +146,11 @@ function OutreachPage() {
           </TabsList>
 
           <TabsContent value="home" className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
-              {[
-                {
-                  label: "Approved campuses",
-                  value: campuses.filter((c) => c.approval_status === "approved")
-                    .length,
-                },
-                {
-                  label: "Awaiting review",
-                  value: campuses.filter(
-                    (c) =>
-                      c.approval_status !== "approved" &&
-                      c.assignment_status !== "not_assigned",
-                  ).length,
-                },
-                {
-                  label: "Emails sent",
-                  value: campuses.filter((c) => c.emails_sent).length,
-                },
-              ].map((s) => (
-                <Card key={s.label}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-muted-foreground font-normal">
-                      {s.label}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="font-display text-4xl">{s.value}</div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-display text-xl">Today's queue</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Schedule grid + activity feed land here once Lovable Cloud is enabled.
-                For now, use the <strong>Campuses</strong> tab to review, assign, and
-                export.
-              </CardContent>
-            </Card>
+            <WeekNavigator />
+            <TodayChecklist
+              onOpenEmailQueue={() => setTab("templates")}
+              onOpenCampus={() => setTab("schools")}
+            />
           </TabsContent>
 
           <TabsContent value="schools" className="space-y-4">
@@ -247,16 +207,8 @@ function OutreachPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="templates" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-display text-xl">Email templates</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Initial, follow-up 1, follow-up 2, and follow-up 3 templates land here
-                once Lovable Cloud is enabled.
-              </CardContent>
-            </Card>
+          <TabsContent value="templates">
+            <EmailTemplatesPanel />
           </TabsContent>
         </Tabs>
       </div>
