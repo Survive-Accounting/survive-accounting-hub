@@ -9,38 +9,118 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as OutreachRouteImport } from './routes/outreach'
+import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CeqCreateRouteImport } from './routes/ceq.create'
+import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
+import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 
+const OutreachRoute = OutreachRouteImport.update({
+  id: '/outreach',
+  path: '/outreach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CeqRoute = CeqRouteImport.update({
+  id: '/ceq',
+  path: '/ceq',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CeqCreateRoute = CeqCreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => CeqRoute,
+} as any)
+const CeqIdTutorRoute = CeqIdTutorRouteImport.update({
+  id: '/$id/tutor',
+  path: '/$id/tutor',
+  getParentRoute: () => CeqRoute,
+} as any)
+const CeqIdEditRoute = CeqIdEditRouteImport.update({
+  id: '/$id/edit',
+  path: '/$id/edit',
+  getParentRoute: () => CeqRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ceq': typeof CeqRouteWithChildren
+  '/outreach': typeof OutreachRoute
+  '/ceq/create': typeof CeqCreateRoute
+  '/ceq/$id/edit': typeof CeqIdEditRoute
+  '/ceq/$id/tutor': typeof CeqIdTutorRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ceq': typeof CeqRouteWithChildren
+  '/outreach': typeof OutreachRoute
+  '/ceq/create': typeof CeqCreateRoute
+  '/ceq/$id/edit': typeof CeqIdEditRoute
+  '/ceq/$id/tutor': typeof CeqIdTutorRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ceq': typeof CeqRouteWithChildren
+  '/outreach': typeof OutreachRoute
+  '/ceq/create': typeof CeqCreateRoute
+  '/ceq/$id/edit': typeof CeqIdEditRoute
+  '/ceq/$id/tutor': typeof CeqIdTutorRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/ceq'
+    | '/outreach'
+    | '/ceq/create'
+    | '/ceq/$id/edit'
+    | '/ceq/$id/tutor'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/ceq'
+    | '/outreach'
+    | '/ceq/create'
+    | '/ceq/$id/edit'
+    | '/ceq/$id/tutor'
+  id:
+    | '__root__'
+    | '/'
+    | '/ceq'
+    | '/outreach'
+    | '/ceq/create'
+    | '/ceq/$id/edit'
+    | '/ceq/$id/tutor'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CeqRoute: typeof CeqRouteWithChildren
+  OutreachRoute: typeof OutreachRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/outreach': {
+      id: '/outreach'
+      path: '/outreach'
+      fullPath: '/outreach'
+      preLoaderRoute: typeof OutreachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ceq': {
+      id: '/ceq'
+      path: '/ceq'
+      fullPath: '/ceq'
+      preLoaderRoute: typeof CeqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +128,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ceq/create': {
+      id: '/ceq/create'
+      path: '/create'
+      fullPath: '/ceq/create'
+      preLoaderRoute: typeof CeqCreateRouteImport
+      parentRoute: typeof CeqRoute
+    }
+    '/ceq/$id/tutor': {
+      id: '/ceq/$id/tutor'
+      path: '/$id/tutor'
+      fullPath: '/ceq/$id/tutor'
+      preLoaderRoute: typeof CeqIdTutorRouteImport
+      parentRoute: typeof CeqRoute
+    }
+    '/ceq/$id/edit': {
+      id: '/ceq/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/ceq/$id/edit'
+      preLoaderRoute: typeof CeqIdEditRouteImport
+      parentRoute: typeof CeqRoute
+    }
   }
 }
 
+interface CeqRouteChildren {
+  CeqCreateRoute: typeof CeqCreateRoute
+  CeqIdEditRoute: typeof CeqIdEditRoute
+  CeqIdTutorRoute: typeof CeqIdTutorRoute
+}
+
+const CeqRouteChildren: CeqRouteChildren = {
+  CeqCreateRoute: CeqCreateRoute,
+  CeqIdEditRoute: CeqIdEditRoute,
+  CeqIdTutorRoute: CeqIdTutorRoute,
+}
+
+const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CeqRoute: CeqRouteWithChildren,
+  OutreachRoute: OutreachRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
