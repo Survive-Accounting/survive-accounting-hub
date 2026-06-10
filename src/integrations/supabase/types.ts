@@ -620,6 +620,7 @@ export type Database = {
           course_codes_reviewed: boolean | null
           course_family_codes_json: Json | null
           course_family_status_json: Json | null
+          course_family_textbooks_json: Json | null
           course_family_titles_json: Json | null
           created_at: string
           domains: string[] | null
@@ -739,6 +740,7 @@ export type Database = {
           course_codes_reviewed?: boolean | null
           course_family_codes_json?: Json | null
           course_family_status_json?: Json | null
+          course_family_textbooks_json?: Json | null
           course_family_titles_json?: Json | null
           created_at?: string
           domains?: string[] | null
@@ -858,6 +860,7 @@ export type Database = {
           course_codes_reviewed?: boolean | null
           course_family_codes_json?: Json | null
           course_family_status_json?: Json | null
+          course_family_textbooks_json?: Json | null
           course_family_titles_json?: Json | null
           created_at?: string
           domains?: string[] | null
@@ -2425,6 +2428,7 @@ export type Database = {
           follow_up_3_sent_at: string | null
           id: string
           is_phd: boolean | null
+          landing_token: string | null
           last_message_id: string | null
           last_name: string | null
           notes: string | null
@@ -2458,6 +2462,7 @@ export type Database = {
           follow_up_3_sent_at?: string | null
           id?: string
           is_phd?: boolean | null
+          landing_token?: string | null
           last_message_id?: string | null
           last_name?: string | null
           notes?: string | null
@@ -2491,6 +2496,7 @@ export type Database = {
           follow_up_3_sent_at?: string | null
           id?: string
           is_phd?: boolean | null
+          landing_token?: string | null
           last_message_id?: string | null
           last_name?: string | null
           notes?: string | null
