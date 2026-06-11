@@ -202,6 +202,7 @@ function OutreachPage() {
           </TabsContent>
 
           <TabsContent value="templates" className="mt-8 space-y-4">
+            <UpcomingSendsPanel campuses={campuses} />
             <BroadcastsPanel campuses={campuses} />
             <EmailTemplatesPanel />
           </TabsContent>
