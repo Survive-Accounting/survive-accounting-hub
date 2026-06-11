@@ -165,6 +165,7 @@ function OutreachPage() {
               onFocusCampus={handleFocusCampus}
               onImportProfessors={() => { setImportCampusId(null); setImportOpen(true); }}
               onOpenEmailQueue={() => setTab("templates")}
+              onOpenTexts={() => setTab("texts")}
             />
           </TabsContent>
 
