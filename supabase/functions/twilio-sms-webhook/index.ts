@@ -52,7 +52,12 @@ function openerBody(slug: string | null): string {
 }
 
 const FOLLOWUP_BODY =
-  "Also, which course are you in, and how's it going so far? When is your next exam? What chapters/topics are you struggling with most?\n\nLooking forward to hearing back!\nLee";
+  "Also, a few quick questions so I can help you best...\n\n" +
+  "* Which course are you in?\n" +
+  "* How's it going so far?\n" +
+  "* When is your next exam?\n" +
+  "* What chapters/topics are you struggling with most?\n\n" +
+  "Looking forward to hearing back!\nLee";
 
 /** Claude extraction — fills course/exam_date/struggles/major/sentiment. */
 async function extract(conversationText: string, courseCodes: string[]): Promise<Record<string, string | null> | null> {
