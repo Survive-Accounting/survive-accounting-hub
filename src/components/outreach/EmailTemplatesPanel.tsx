@@ -24,7 +24,6 @@ import {
   TEMPLATE_KIND_META,
   TEMPLATE_KIND_ORDER,
   TEMPLATE_VARIANT_LABEL,
-  TEMPLATE_VARIANT_ORDER,
   type EmailTemplate,
   type TemplateKind,
   type TemplateVariant,
