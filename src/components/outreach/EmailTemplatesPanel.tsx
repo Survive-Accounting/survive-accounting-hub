@@ -62,6 +62,7 @@ export function EmailTemplatesPanel() {
 
   const handleSave = (payload: Omit<EmailTemplate, "id">, existingId?: string) => {
     if (!usingMock) {
+      // Keep the locked state as-is (user can toggle it in the dialog).
       saveTemplateDb(payload, existingId)
         .then(() => {
           qc.invalidateQueries({ queryKey: ["outreach-templates"] });
@@ -107,9 +108,9 @@ export function EmailTemplatesPanel() {
             const variantMap = grouped.get(kind) ?? new Map<TemplateVariant, EmailTemplate>();
             return (
               <div key={kind}>
-                <div className="mb-2 flex items-center gap-2">
+                <div className="mb-2 flex items-center gap-2 flex-wrap">
                   <div className="text-sm font-semibold">{meta.label}</div>
-                  <div className="text-[11px] text-muted-foreground">— click a version to open its draft</div>
+                  <div className="text-[11px] text-muted-foreground">— {meta.helper}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {TEMPLATE_VARIANT_ORDER.map((variant) => {

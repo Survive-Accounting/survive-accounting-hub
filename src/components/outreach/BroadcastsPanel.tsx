@@ -1,8 +1,7 @@
-// Custom batch emails ("broadcasts") — pick campuses, draft with merge tags,
-// test-send, then schedule. The 15-min scheduler delivers, suppression-aware.
-import { useMemo, useState } from "react";
+// Custom batch emails — grouped by semester, edit + test + cancel.
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, ChevronDown, Loader2, Megaphone, Send, X } from "lucide-react";
+import { CalendarClock, Loader2, Megaphone, Pencil, Send, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
@@ -32,12 +31,30 @@ const STATUS_BADGE: Record<string, string> = {
   failed: "border-red-400 text-red-700",
 };
 
+function semesterKey(name: string) {
+  return name.match(/^((?:Fall|Spring|Summer) \d{4})/)?.[1] ?? "Other";
+}
+
 export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
   const qc = useQueryClient();
   const { data: broadcasts = [], isError } = useQuery({
     queryKey: ["outreach-broadcasts"], queryFn: fetchBroadcasts, retry: 1, refetchInterval: 60_000,
   });
-  const [open, setOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+  const [editing, setEditing] = useState<Broadcast | null>(null);
+
+  const grouped = new Map<string, Broadcast[]>();
+  for (const b of broadcasts) {
+    const k = semesterKey(b.name);
+    if (!grouped.has(k)) grouped.set(k, []);
+    grouped.get(k)!.push(b);
+  }
+
+  const onCancel = async (id: string) => {
+    await cancelBroadcast(id);
+    qc.invalidateQueries({ queryKey: ["outreach-broadcasts"] });
+    toast.success("Canceled");
+  };
 
   return (
     <Card className="overflow-hidden py-0 gap-0">
@@ -45,60 +62,104 @@ export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
         <Megaphone className="h-4 w-4 text-muted-foreground" />
         <h2 className="text-sm font-semibold">Custom Emails</h2>
         <span className="text-[11px] text-muted-foreground">— pick campuses, write once, send in batch</span>
-        <Button size="sm" className="ml-auto h-8" onClick={() => setOpen(true)} disabled={isError}>
+        <Button size="sm" className="ml-auto h-8" onClick={() => setNewOpen(true)} disabled={isError}>
           <Send className="h-3.5 w-3.5" /> New custom email
         </Button>
       </div>
+
       {isError ? (
         <div className="p-4 text-xs text-muted-foreground">Run migration 0012 to enable custom emails.</div>
       ) : broadcasts.length === 0 ? (
         <div className="p-4 text-xs text-muted-foreground">
-          Nothing scheduled. Use these for warm campuses (like Ole Miss) or seasonal pushes — they skip the cold sequence entirely.
+          Nothing scheduled. Use these for warm campuses (like Ole Miss) or seasonal pushes.
         </div>
       ) : (
-        <BroadcastGroups broadcasts={broadcasts} onCancel={async (id) => {
-          await cancelBroadcast(id);
-          qc.invalidateQueries({ queryKey: ["outreach-broadcasts"] });
-          toast.success("Canceled");
-        }} />
+        <div>
+          {Array.from(grouped.entries()).map(([sem, items], idx) => (
+            <details key={sem} open={idx === 0}>
+              <summary className="flex cursor-pointer select-none items-center gap-2 border-b border-border px-3 py-2 hover:bg-muted/30">
+                <span className="text-xs font-semibold">{sem}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {items.length} email{items.length !== 1 ? "s" : ""} · {items.filter(b => b.status === "scheduled").length} scheduled
+                </span>
+              </summary>
+              {items.map((b) => (
+                <div key={b.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 px-3 py-2.5 last:border-0">
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    {b.name.replace(/^(?:Fall|Spring|Summer) \d{4} — /, "")}
+                  </span>
+                  <Badge variant="outline" className={`shrink-0 text-[10px] h-4 px-1 ${STATUS_BADGE[b.status] ?? ""}`}>
+                    {b.status}
+                  </Badge>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {b.campus_ids?.length ? `${b.campus_ids.length} campus${b.campus_ids.length === 1 ? "" : "es"}` : "all campuses"}
+                    {" · "}
+                    {new Date(b.send_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    {b.status !== "scheduled" && ` · ${b.sent_count} sent`}
+                  </span>
+                  <div className="ml-auto flex shrink-0 items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(b)}>
+                      <Pencil className="h-3 w-3" /> Edit
+                    </Button>
+                    {b.status === "scheduled" && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => onCancel(b.id)}>
+                        <X className="h-3 w-3" /> Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </details>
+          ))}
+        </div>
       )}
-      <BroadcastDialog open={open} onClose={() => setOpen(false)} campuses={campuses} onSaved={() => {
-        setOpen(false);
-        qc.invalidateQueries({ queryKey: ["outreach-broadcasts"] });
-      }} />
+
+      <BroadcastDialog
+        key="new"
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        campuses={campuses}
+        onSaved={() => { setNewOpen(false); qc.invalidateQueries({ queryKey: ["outreach-broadcasts"] }); }}
+      />
+      <BroadcastDialog
+        key={editing?.id ?? "editing"}
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        campuses={campuses}
+        existing={editing}
+        onSaved={() => { setEditing(null); qc.invalidateQueries({ queryKey: ["outreach-broadcasts"] }); }}
+      />
     </Card>
   );
 }
 
-function BroadcastDialog({ open, onClose, campuses, onSaved }: {
-  open: boolean; onClose: () => void; campuses: Campus[]; onSaved: () => void;
+function BroadcastDialog({ open, onClose, campuses, existing, onSaved }: {
+  open: boolean; onClose: () => void; campuses: Campus[];
+  existing?: Broadcast | null; onSaved: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [name, setName] = useState(existing?.name ?? "");
+  const [subject, setSubject] = useState(existing?.subject ?? "");
+  const [body, setBody] = useState(existing?.body ?? "");
   const [campusSearch, setCampusSearch] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [includeReplied, setIncludeReplied] = useState(true);
-  const [when, setWhen] = useState<"now" | "pick">("now");
-  const [sendAtLocal, setSendAtLocal] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set(existing?.campus_ids ?? []));
+  const [includeReplied, setIncludeReplied] = useState(existing?.include_replied ?? true);
+  const [when, setWhen] = useState<"now" | "pick">(existing ? "pick" : "now");
+  const [sendAtLocal, setSendAtLocal] = useState(
+    existing ? new Date(existing.send_at).toISOString().slice(0, 16) : ""
+  );
   const [testTo, setTestTo] = useState<string>(TEST_RECIPIENTS[0]);
   const [busy, setBusy] = useState<"" | "test" | "save">("");
 
-  const selectable = useMemo(
-    () => campuses.filter((c) => !c.archived).sort((a, b) => a.school_name.localeCompare(b.school_name)),
-    [campuses],
-  );
-  const filtered = useMemo(() => {
-    const q = campusSearch.trim().toLowerCase();
-    return q ? selectable.filter((c) => c.school_name.toLowerCase().includes(q)) : selectable;
-  }, [selectable, campusSearch]);
+  const selectable = [...campuses].filter((c) => !c.archived).sort((a, b) => a.school_name.localeCompare(b.school_name));
+  const filtered = campusSearch.trim()
+    ? selectable.filter((c) => c.school_name.toLowerCase().includes(campusSearch.trim().toLowerCase()))
+    : selectable;
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  const toggle = (id: string) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const test = async () => {
     if (!subject.trim() || !body.trim()) { toast.error("Add a subject and body first"); return; }
@@ -122,10 +183,10 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
         campus_ids: selected.size ? Array.from(selected) : null,
         include_replied: includeReplied,
         send_at: sendAt.toISOString(),
-      });
-      toast.success(when === "now" ? "Queued — the scheduler sends within ~15 minutes" : "Scheduled");
+      }, existing?.id);
+      toast.success(existing ? "Saved" : when === "now" ? "Queued — sends within ~15 min" : "Scheduled");
+      if (!existing) { setName(""); setSubject(""); setBody(""); setSelected(new Set()); }
       onSaved();
-      setName(""); setSubject(""); setBody(""); setSelected(new Set());
     } catch (e: any) {
       toast.error(e?.message ?? "Save failed");
     } finally {
@@ -137,39 +198,28 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New custom email</DialogTitle>
+          <DialogTitle>{existing ? `Edit — ${existing.name.replace(/^(?:Fall|Spring|Summer) \d{4} — /, "")}` : "New custom email"}</DialogTitle>
           <DialogDescription>
-            Goes only to professors you've already emailed (suppressing bounces, spam complaints, and stops).
-            Merge tags: <code>{"{recipient name}"}</code> (auto "Dr. Lastname" for PhDs, first name otherwise),{" "}
-            <code>{"{course prefix}"}</code> (e.g. "ACCY"), <code>{"{courses}"}</code>, <code>{"{program}"}</code>,{" "}
-            <code>{"{phone}"}</code> (campus number, else your main line), <code>{"{surviveaccounting.com}"}</code>.
-            The opt-out line is added automatically if you forget it.
+            Merge tags: <code>{"{recipient name}"}</code> (auto "Dr. Lastname" for PhDs),{" "}
+            <code>{"{course prefix}"}</code>, <code>{"{courses}"}</code>, <code>{"{program}"}</code>,{" "}
+            <code>{"{phone}"}</code>, <code>{"{surviveaccounting.com}"}</code>.
+            The opt-out line is appended automatically.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label className="text-xs">Internal name (only you see this)</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Ole Miss warm push — fall slots"' className="h-9" />
+            <Label className="text-xs">Internal name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Fall 2026 — Syllabus week"' className="h-9" />
           </div>
 
           <div className="grid gap-1.5">
             <div className="flex items-center gap-2">
-              <Label className="text-xs">Campuses ({selected.size === 0 ? "all — every lead" : `${selected.size} selected`})</Label>
-              <button
-                type="button"
-                className="ml-auto text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                onClick={() => setSelected(new Set(filtered.map((c) => c.id)))}
-              >
-                Select all{campusSearch.trim() ? " (filtered)" : ""}
-              </button>
-              <button
-                type="button"
-                className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                onClick={() => setSelected(new Set())}
-              >
-                Clear
-              </button>
+              <Label className="text-xs">Campuses ({selected.size === 0 ? "all leads" : `${selected.size} selected`})</Label>
+              <button type="button" className="ml-auto text-[11px] underline text-muted-foreground hover:text-foreground"
+                onClick={() => setSelected(new Set(filtered.map((c) => c.id)))}>Select all{campusSearch.trim() ? " (filtered)" : ""}</button>
+              <button type="button" className="text-[11px] underline text-muted-foreground hover:text-foreground"
+                onClick={() => setSelected(new Set())}>Clear</button>
             </div>
             <Input value={campusSearch} onChange={(e) => setCampusSearch(e.target.value)} placeholder="Filter campuses…" className="h-9" />
             <div className="max-h-36 overflow-auto rounded-md border border-border p-1">
@@ -181,9 +231,6 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
                 </label>
               ))}
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Leaving none selected sends to <strong>all leads</strong> at every campus — that's the "select all leads" mode.
-            </p>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Checkbox checked={includeReplied} onCheckedChange={(v) => setIncludeReplied(!!v)} />
               Include professors who replied before (warm contacts)
@@ -196,7 +243,7 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs">Body</Label>
-            <Textarea rows={9} value={body} onChange={(e) => setBody(e.target.value)} className="font-mono text-xs" />
+            <Textarea rows={10} value={body} onChange={(e) => setBody(e.target.value)} className="font-mono text-xs" />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-2.5">
@@ -232,7 +279,7 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={save} disabled={busy === "save"}>
             {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
-            {when === "now" ? "Queue it" : "Schedule"}
+            {existing ? "Save changes" : when === "now" ? "Queue it" : "Schedule"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -241,85 +288,3 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
 }
 
 export default BroadcastsPanel;
-
-function semesterKey(b: Broadcast): { key: string; label: string; sort: number } {
-  const m = b.name.match(/^(Fall|Spring|Summer|Winter)\s+(\d{4})/i);
-  if (m) {
-    const term = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
-    const year = parseInt(m[2], 10);
-    const termOrder = { Spring: 0, Summer: 1, Fall: 2, Winter: 3 }[term] ?? 4;
-    return { key: `${year}-${termOrder}`, label: `${term} ${year}`, sort: year * 10 + termOrder };
-  }
-  const d = new Date(b.send_at);
-  const y = d.getUTCFullYear();
-  const term = d.getUTCMonth() < 5 ? "Spring" : d.getUTCMonth() < 7 ? "Summer" : "Fall";
-  const termOrder = { Spring: 0, Summer: 1, Fall: 2 }[term] ?? 4;
-  return { key: `${y}-${termOrder}-other`, label: `${term} ${y}`, sort: y * 10 + termOrder };
-}
-
-function BroadcastGroups({ broadcasts, onCancel }: { broadcasts: Broadcast[]; onCancel: (id: string) => Promise<void> | void }) {
-  const groups = useMemo(() => {
-    const m = new Map<string, { label: string; sort: number; items: Broadcast[] }>();
-    for (const b of broadcasts) {
-      const { key, label, sort } = semesterKey(b);
-      if (!m.has(key)) m.set(key, { label, sort, items: [] });
-      m.get(key)!.items.push(b);
-    }
-    return Array.from(m.entries())
-      .map(([key, v]) => ({ key, ...v, items: v.items.slice().sort((a, b) => +new Date(a.send_at) - +new Date(b.send_at)) }))
-      .sort((a, b) => a.sort - b.sort);
-  }, [broadcasts]);
-
-  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
-  const toggle = (k: string) =>
-    setOpenKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k); else next.add(k);
-      return next;
-    });
-
-  return (
-    <div className="divide-y divide-border">
-      {groups.map((g) => {
-        const isOpen = openKeys.has(g.key);
-        const scheduledCount = g.items.filter((b) => b.status === "scheduled").length;
-        return (
-          <div key={g.key}>
-            <button
-              type="button"
-              onClick={() => toggle(g.key)}
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted/40"
-            >
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-              <span className="font-semibold">{g.label}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {g.items.length} email{g.items.length === 1 ? "" : "s"}
-                {scheduledCount > 0 && ` · ${scheduledCount} scheduled`}
-              </span>
-            </button>
-            {isOpen && (
-              <div className="divide-y divide-border border-t border-border bg-muted/20">
-                {g.items.map((b) => (
-                  <div key={b.id} className="flex flex-wrap items-center gap-2 px-3 py-2.5 pl-9 text-sm">
-                    <span className="font-medium">{b.name}</span>
-                    <Badge variant="outline" className={`text-[10px] h-4 px-1 ${STATUS_BADGE[b.status] ?? ""}`}>{b.status}</Badge>
-                    <span className="text-[11px] text-muted-foreground">
-                      {b.campus_ids?.length ? `${b.campus_ids.length} campus${b.campus_ids.length === 1 ? "" : "es"}` : "all campuses"}
-                      {" · "}{new Date(b.send_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                      {b.status !== "scheduled" && ` · ${b.sent_count} sent${b.skipped_count ? `, ${b.skipped_count} skipped` : ""}`}
-                    </span>
-                    {b.status === "scheduled" && (
-                      <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={() => onCancel(b.id)}>
-                        <X className="h-3 w-3" /> Cancel
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
