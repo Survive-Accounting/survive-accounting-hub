@@ -145,7 +145,7 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
 export async function fetchTemplates(): Promise<EmailTemplate[]> {
   const { data, error } = await supabase
     .from("outreach_email_templates")
-    .select("id,name,subject,body,is_locked,is_active,kind,variant");
+    .select("id,name,subject,body,is_locked,is_active,kind,variant,lead_type");
   if (error) throw error;
   return (data ?? []).map((t: any): EmailTemplate => ({
     id: t.id,
@@ -156,6 +156,7 @@ export async function fetchTemplates(): Promise<EmailTemplate[]> {
     is_active: !!t.is_active,
     kind: (t.kind ?? "initial") as TemplateKind,
     variant: (t.variant ?? "default") as TemplateVariant,
+    lead_type: (t as any).lead_type ?? "professors",
   }));
 }
 
@@ -163,7 +164,8 @@ export async function saveTemplateDb(
   payload: Omit<EmailTemplate, "id">,
   existingId?: string,
 ): Promise<void> {
-  if (payload.is_active) {
+  const { lead_type: _lt, ...payloadForDb } = payload as typeof payload & { lead_type?: string };
+  if (payloadForDb.is_active) {
     // Single active row per (kind, variant) — same rule as the original app.
     let q = supabase
       .from("outreach_email_templates")
@@ -174,10 +176,10 @@ export async function saveTemplateDb(
     await q;
   }
   if (existingId) {
-    const { error } = await supabase.from("outreach_email_templates").update(payload).eq("id", existingId);
+    const { error } = await supabase.from("outreach_email_templates").update(payloadForDb as never).eq("id", existingId);
     if (error) throw error;
   } else {
-    const { error } = await supabase.from("outreach_email_templates").insert(payload);
+    const { error } = await supabase.from("outreach_email_templates").insert(payloadForDb as never);
     if (error) throw error;
   }
 }
@@ -529,12 +531,13 @@ export interface Broadcast {
   status: string;
   sent_count: number;
   skipped_count: number;
+  lead_type: string;
   created_at: string;
 }
 
 export async function fetchBroadcasts(): Promise<Broadcast[]> {
   const { data, error } = await (supabase.from("outreach_broadcasts" as never) as any)
-    .select("*").order("send_at", { ascending: true });
+    .select("id,name,subject,body,campus_ids,include_replied,send_at,status,sent_count,skipped_count,lead_type,created_at").order("send_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as Broadcast[];
 }

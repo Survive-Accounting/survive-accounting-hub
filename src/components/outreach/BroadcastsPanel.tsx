@@ -35,11 +35,11 @@ function semesterKey(name: string) {
   return name.match(/^((?:Fall|Spring|Summer) \d{4})/)?.[1] ?? "Other";
 }
 
-export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
+export function BroadcastsPanel({ campuses, leadType = "professors" }: { campuses: Campus[]; leadType?: string }) {
   const qc = useQueryClient();
-  const { data: broadcasts = [], isError } = useQuery({
-    queryKey: ["outreach-broadcasts"], queryFn: fetchBroadcasts, retry: 1, refetchInterval: 60_000,
-  });
+  const allBroadcasts = useQuery({ queryKey: ["outreach-broadcasts"], queryFn: fetchBroadcasts, retry: 1, refetchInterval: 60_000 });
+  const { data: allData = [], isError } = allBroadcasts;
+  const broadcasts = allData.filter((b) => (b.lead_type ?? "professors") === leadType);
   const [newOpen, setNewOpen] = useState(false);
   const [editing, setEditing] = useState<Broadcast | null>(null);
 
@@ -122,6 +122,7 @@ export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
 
       <BroadcastDialog
         key="new"
+        leadType={leadType}
         open={newOpen}
         onClose={() => setNewOpen(false)}
         campuses={campuses}
@@ -129,6 +130,7 @@ export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
       />
       <BroadcastDialog
         key={editing?.id ?? "editing"}
+        leadType={editing?.lead_type ?? leadType}
         open={!!editing}
         onClose={() => setEditing(null)}
         campuses={campuses}
@@ -139,9 +141,9 @@ export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
   );
 }
 
-function BroadcastDialog({ open, onClose, campuses, existing, onSaved }: {
+function BroadcastDialog({ open, onClose, campuses, existing, onSaved, leadType = "professors" }: {
   open: boolean; onClose: () => void; campuses: Campus[];
-  existing?: Broadcast | null; onSaved: () => void;
+  existing?: Broadcast | null; onSaved: () => void; leadType?: string;
 }) {
   const [name, setName] = useState(existing?.name ?? "");
   const [subject, setSubject] = useState(existing?.subject ?? "");
@@ -183,6 +185,7 @@ function BroadcastDialog({ open, onClose, campuses, existing, onSaved }: {
     setBusy("save");
     try {
       await saveBroadcast({
+        lead_type: leadType,
         name: name.trim() || subject.trim().slice(0, 60),
         subject: subject.trim(),
         body: body.trim(),

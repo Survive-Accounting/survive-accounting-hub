@@ -9,16 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { WeekNavigator } from "@/components/outreach/WeekNavigator";
 import { TodayChecklist } from "@/components/outreach/TodayChecklist";
-import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
 import { WaitlistCard } from "@/components/outreach/WaitlistCard";
-import { BroadcastsPanel } from "@/components/outreach/BroadcastsPanel";
-import { ScheduleAndSettingsPanel } from "@/components/outreach/ScheduleAndSettingsPanel";
-import { UpcomingSendsPanel } from "@/components/outreach/UpcomingSendsPanel";
+import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -203,9 +200,7 @@ function OutreachPage() {
           </TabsContent>
 
           <TabsContent value="templates" className="mt-8 space-y-4">
-            <UpcomingSendsPanel campuses={campuses} />
-            <BroadcastsPanel campuses={campuses} />
-            <EmailTemplatesPanel />
+            <EmailQueueShell campuses={campuses} />
           </TabsContent>
 
           <TabsContent value="texts" className="mt-8 space-y-4">

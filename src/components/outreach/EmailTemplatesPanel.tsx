@@ -39,12 +39,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function EmailTemplatesPanel() {
+export function EmailTemplatesPanel({ leadType = "professors" }: { leadType?: string }) {
   const qc = useQueryClient();
   const templatesQuery = useQuery({ queryKey: ["outreach-templates"], queryFn: fetchTemplates, retry: 1 });
   const usingMock = templatesQuery.isError;
   const [localTemplates, setLocalTemplates] = useState<EmailTemplate[]>(MOCK_TEMPLATES);
-  const templates = usingMock ? localTemplates : (templatesQuery.data ?? []);
+  const allTemplates = usingMock ? localTemplates : (templatesQuery.data ?? []);
+  const templates = allTemplates.filter((t) => (t.lead_type ?? "professors") === leadType);
   const setTemplates = setLocalTemplates;
   const [editing, setEditing] = useState<{ kind: TemplateKind; variant: TemplateVariant; template?: EmailTemplate } | null>(null);
 
