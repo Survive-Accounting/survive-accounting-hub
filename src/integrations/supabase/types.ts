@@ -417,6 +417,41 @@ export type Database = {
         }
         Relationships: []
       }
+      campus_phone_numbers: {
+        Row: {
+          campus_id: string
+          created_at: string
+          id: string
+          phone_e164: string
+          status: string
+          twilio_sid: string | null
+        }
+        Insert: {
+          campus_id: string
+          created_at?: string
+          id?: string
+          phone_e164: string
+          status?: string
+          twilio_sid?: string | null
+        }
+        Update: {
+          campus_id?: string
+          created_at?: string
+          id?: string
+          phone_e164?: string
+          status?: string
+          twilio_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_phone_numbers_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: true
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campus_tam_estimates: {
         Row: {
           accounting_completions: number | null
@@ -2845,6 +2880,144 @@ export type Database = {
           school?: string | null
         }
         Relationships: []
+      }
+      sms_conversations: {
+        Row: {
+          campus_id: string | null
+          campus_number: string
+          course: string | null
+          created_at: string
+          exam_date: string | null
+          id: string
+          last_message_at: string
+          major: string | null
+          opener_sent: boolean
+          sentiment: string | null
+          short_ref: number
+          status: string
+          struggles: string | null
+          student_phone: string
+        }
+        Insert: {
+          campus_id?: string | null
+          campus_number: string
+          course?: string | null
+          created_at?: string
+          exam_date?: string | null
+          id?: string
+          last_message_at?: string
+          major?: string | null
+          opener_sent?: boolean
+          sentiment?: string | null
+          short_ref?: number
+          status?: string
+          struggles?: string | null
+          student_phone: string
+        }
+        Update: {
+          campus_id?: string | null
+          campus_number?: string
+          course?: string | null
+          created_at?: string
+          exam_date?: string | null
+          id?: string
+          last_message_at?: string
+          major?: string | null
+          opener_sent?: boolean
+          sentiment?: string | null
+          short_ref?: number
+          status?: string
+          struggles?: string | null
+          student_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_conversations_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_messages: {
+        Row: {
+          author: string | null
+          body: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          id: string
+          twilio_sid: string | null
+        }
+        Insert: {
+          author?: string | null
+          body: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          id?: string
+          twilio_sid?: string | null
+        }
+        Update: {
+          author?: string | null
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          twilio_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "sms_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_outbox: {
+        Row: {
+          author: string
+          body: string
+          conversation_id: string
+          created_at: string
+          error: string | null
+          id: string
+          send_at: string
+          status: string
+        }
+        Insert: {
+          author?: string
+          body: string
+          conversation_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          send_at: string
+          status?: string
+        }
+        Update: {
+          author?: string
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          send_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_outbox_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "sms_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_emails: {
         Row: {
