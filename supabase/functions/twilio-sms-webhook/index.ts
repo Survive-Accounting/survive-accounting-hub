@@ -45,7 +45,9 @@ async function twilioSend(from: string, to: string, body: string): Promise<strin
 }
 
 function openerBody(slug: string | null): string {
-  const link = slug ? `${SITE_ORIGIN}/t/${slug}` : `${SITE_ORIGIN}/t/book`;
+  // Campus-specific numbers link straight to that campus page; the main line
+  // links to the campus selector at /start.
+  const link = slug ? `${SITE_ORIGIN}/t/${slug}` : `${SITE_ORIGIN}/start`;
   return `Hey! Thanks for reaching out. I'd be happy to help you. You can book with me here: ${link}`;
 }
 

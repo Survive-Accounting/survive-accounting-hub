@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { Campus } from "@/lib/outreach-mock";
 import {
-  fetchSmsConversations, fetchSmsMessages, formatPhonePretty, sendSmsReply,
+  fetchCampusPhones, fetchSmsConversations, fetchSmsMessages, formatPhonePretty,
+  provisionCampusNumber, sendSmsReply,
   type SmsConversation,
 } from "@/lib/outreach-api";
 
@@ -33,6 +34,18 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
     retry: 1,
     refetchInterval: 30_000,
   });
+  const phonesQuery = useQuery({ queryKey: ["campus-phones"], queryFn: fetchCampusPhones, retry: 1 });
+  const mainLine = phonesQuery.data?.get("__main__");
+  const [provisioning, setProvisioning] = useState(false);
+  const getMainLine = async () => {
+    setProvisioning(true);
+    const res = await provisionCampusNumber(null);
+    setProvisioning(false);
+    if (res.ok) {
+      toast.success(`Main line ready: ${res.phone}`);
+      qc.invalidateQueries({ queryKey: ["campus-phones"] });
+    } else toast.error(res.error ?? "Provisioning failed");
+  };
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
@@ -76,15 +89,37 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
       <Card className="p-10 text-center">
         <MessageSquare className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
         <div className="text-sm font-medium">No texts yet</div>
-        <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-          Provision a number for an approved campus (Campuses tab), put it on the landing page,
-          and student texts will appear here. You'll also get a summary text on your phone for every message.
-        </p>
+        {mainLine ? (
+          <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+            Your main line is <span className="font-semibold text-foreground">{formatPhonePretty(mainLine)}</span> — it's
+            on every campus landing page. Student texts will appear here, and you'll get a summary text for each one.
+          </p>
+        ) : (
+          <>
+            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+              Set up your main texting line — one number shared across all campuses. It goes on every landing page,
+              and texted students get sent to the campus selector at /start.
+            </p>
+            <Button size="sm" className="mt-3" onClick={getMainLine} disabled={provisioning}>
+              {provisioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+              Get main line number
+            </Button>
+          </>
+        )}
       </Card>
     );
   }
 
   return (
+    <div className="space-y-3">
+      {mainLine && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="font-medium">Main line:</span>
+          <span className="tabular-nums font-semibold">{formatPhonePretty(mainLine)}</span>
+          <span className="text-muted-foreground">— on every campus page · texted students get the /start selector</span>
+        </div>
+      )}
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       {/* Conversation list */}
       <Card className="overflow-hidden py-0 gap-0">
@@ -115,7 +150,7 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
                     {new Date(c.last_message_at).toLocaleDateString()}
                   </span>
                 </div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">{campus?.school_name ?? c.campus_number}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">{campus?.school_name ?? "Main line"}</div>
                 <div className="mt-1 flex flex-wrap gap-1">
                   <FactChip label="Course" value={c.course} />
                   <FactChip label="Exam" value={c.exam_date} />
@@ -193,6 +228,7 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
           <div className="p-10 text-center text-sm text-muted-foreground">Select a conversation</div>
         )}
       </Card>
+    </div>
     </div>
   );
 }

@@ -13,6 +13,10 @@ function ShortBookingLink() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
   useEffect(() => {
+    if (slug === "book" || slug === "start") {
+      navigate({ to: "/start", replace: true });
+      return;
+    }
     navigate({
       to: "/outreach/school/$slug",
       params: { slug },

@@ -425,16 +425,21 @@ export async function sendSmsReply(conversationId: string, body: string): Promis
   return { ok: true };
 }
 
+/** campus_id -> phone; the main line (campus_id null) is under "__main__". */
 export async function fetchCampusPhones(): Promise<Map<string, string>> {
   const { data } = await (supabase.from("campus_phone_numbers" as never) as any)
     .select("campus_id,phone_e164");
   const m = new Map<string, string>();
-  for (const r of (data ?? []) as { campus_id: string; phone_e164: string }[]) m.set(r.campus_id, r.phone_e164);
+  for (const r of (data ?? []) as { campus_id: string | null; phone_e164: string }[]) {
+    m.set(r.campus_id ?? "__main__", r.phone_e164);
+  }
   return m;
 }
 
-export async function provisionCampusNumber(campusId: string): Promise<{ ok: boolean; phone?: string; error?: string }> {
-  const { data, error } = await supabase.functions.invoke("provision-campus-number", { body: { campus_id: campusId } });
+export async function provisionCampusNumber(campusId: string | null): Promise<{ ok: boolean; phone?: string; error?: string }> {
+  const { data, error } = await supabase.functions.invoke("provision-campus-number", {
+    body: campusId ? { campus_id: campusId } : { global: true },
+  });
   if (error) {
     let message = error.message ?? "Provisioning failed";
     try {

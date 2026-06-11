@@ -193,9 +193,14 @@ function SchoolLandingPage() {
   useEffect(() => {
     if (!campus?.id) return;
     (supabase.from("campus_phone_numbers" as never) as any)
-      .select("phone_e164").eq("campus_id", campus.id).maybeSingle()
-      .then(({ data }: { data: { phone_e164: string } | null }) => {
-        if (data?.phone_e164) setCampusPhone(data.phone_e164);
+      .select("phone_e164,campus_id").or(`campus_id.eq.${campus.id},campus_id.is.null`)
+      .then(({ data }: { data: { phone_e164: string; campus_id: string | null }[] | null }) => {
+        const rows = data ?? [];
+        // Campus-specific number wins; otherwise the main line.
+        const specific = rows.find((r) => r.campus_id === campus.id);
+        const main = rows.find((r) => r.campus_id === null);
+        if (specific?.phone_e164) setCampusPhone(specific.phone_e164);
+        else if (main?.phone_e164) setCampusPhone(main.phone_e164);
       });
   }, [campus?.id]);
 

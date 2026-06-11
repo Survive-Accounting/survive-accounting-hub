@@ -23,14 +23,22 @@ Deno.serve(async (req) => {
     if (!TWILIO_SID || !TWILIO_TOKEN) {
       return new Response(JSON.stringify({ error: "Twilio secrets not set" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
     }
-    const { campus_id } = await req.json();
-    if (!campus_id) return new Response(JSON.stringify({ error: "campus_id required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+    const { campus_id, global: isGlobal } = await req.json();
+    if (!campus_id && !isGlobal) return new Response(JSON.stringify({ error: "campus_id or global required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
 
-    const { data: existing } = await admin.from("campus_phone_numbers").select("phone_e164").eq("campus_id", campus_id).maybeSingle();
+    let q = admin.from("campus_phone_numbers").select("phone_e164");
+    q = campus_id ? q.eq("campus_id", campus_id) : q.is("campus_id", null);
+    const { data: existing } = await q.maybeSingle();
     if (existing) return new Response(JSON.stringify({ ok: true, phone: existing.phone_e164, existing: true }), { headers: { ...cors, "Content-Type": "application/json" } });
 
-    const { data: campus } = await admin.from("campuses").select("name,state").eq("id", campus_id).single();
-    if (!campus) return new Response(JSON.stringify({ error: "campus not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+    let campus: { name: string; state: string | null } | null = null;
+    if (campus_id) {
+      const { data } = await admin.from("campuses").select("name,state").eq("id", campus_id).single();
+      if (!data) return new Response(JSON.stringify({ error: "campus not found" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
+      campus = data as any;
+    } else {
+      campus = { name: "Main Line", state: "MS" }; // Lee's home turf for the area code
+    }
 
     // Find a local number in the campus's state; fall back to any US local.
     const search = async (qs: string) => {
@@ -39,7 +47,7 @@ Deno.serve(async (req) => {
       const j = await r.json().catch(() => ({}));
       return j?.available_phone_numbers?.[0]?.phone_number ?? null;
     };
-    const candidate = (campus.state ? await search(`&InRegion=${encodeURIComponent(campus.state)}`) : null) ?? (await search(""));
+    const candidate = (campus!.state ? await search(`&InRegion=${encodeURIComponent(campus!.state)}`) : null) ?? (await search(""));
     if (!candidate) return new Response(JSON.stringify({ error: "No numbers available right now" }), { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
 
     const buy = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/IncomingPhoneNumbers.json`, {
@@ -47,7 +55,7 @@ Deno.serve(async (req) => {
       headers: { Authorization: twilioAuth, "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         PhoneNumber: candidate,
-        FriendlyName: `SA — ${campus.name}`.slice(0, 64),
+        FriendlyName: `SA — ${campus!.name}`.slice(0, 64),
         SmsUrl: `${PROJECT_FN}/twilio-sms-webhook`,
         SmsMethod: "POST",
         VoiceUrl: `${PROJECT_FN}/twilio-voice-webhook`,
@@ -58,7 +66,7 @@ Deno.serve(async (req) => {
     if (!buy.ok) return new Response(JSON.stringify({ error: "Twilio purchase failed", details: bought }), { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
 
     await admin.from("campus_phone_numbers").insert({
-      campus_id, phone_e164: bought.phone_number, twilio_sid: bought.sid,
+      campus_id: campus_id ?? null, phone_e164: bought.phone_number, twilio_sid: bought.sid,
     });
     return new Response(JSON.stringify({ ok: true, phone: bought.phone_number }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
