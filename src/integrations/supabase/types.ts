@@ -419,7 +419,7 @@ export type Database = {
       }
       campus_phone_numbers: {
         Row: {
-          campus_id: string
+          campus_id: string | null
           created_at: string
           id: string
           phone_e164: string
@@ -427,7 +427,7 @@ export type Database = {
           twilio_sid: string | null
         }
         Insert: {
-          campus_id: string
+          campus_id?: string | null
           created_at?: string
           id?: string
           phone_e164: string
@@ -435,7 +435,7 @@ export type Database = {
           twilio_sid?: string | null
         }
         Update: {
-          campus_id?: string
+          campus_id?: string | null
           created_at?: string
           id?: string
           phone_e164?: string
@@ -609,6 +609,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      campus_waitlist: {
+        Row: {
+          campus_text: string | null
+          course_text: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          phone: string | null
+          source: string | null
+          wants_call: boolean
+          wants_text: boolean
+        }
+        Insert: {
+          campus_text?: string | null
+          course_text?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          phone?: string | null
+          source?: string | null
+          wants_call?: boolean
+          wants_text?: boolean
+        }
+        Update: {
+          campus_text?: string | null
+          course_text?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          phone?: string | null
+          source?: string | null
+          wants_call?: boolean
+          wants_text?: boolean
+        }
+        Relationships: []
       }
       campuses: {
         Row: {
