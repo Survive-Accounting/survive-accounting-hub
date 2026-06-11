@@ -557,3 +557,95 @@ export async function cancelBroadcast(id: string): Promise<void> {
     .update({ status: "canceled" }).eq("id", id);
   if (error) throw error;
 }
+
+// ----- Upcoming email sends (initial + follow-ups + broadcasts) -----
+export type UpcomingKind = "initial" | "follow_up_1" | "follow_up_2" | "follow_up_3" | "broadcast";
+export interface UpcomingSend {
+  id: string;
+  kind: UpcomingKind;
+  send_at: string;
+  campus_id: string | null;
+  recipient: string;     // professor name or "(broadcast)"
+  email: string;         // recipient email, or broadcast subject
+  detail?: string;       // e.g. broadcast name
+}
+
+export async function fetchUpcomingSends(): Promise<UpcomingSend[]> {
+  const out: UpcomingSend[] = [];
+  const now = Date.now();
+
+  // Initial scheduled sends + follow-up windows derived from sent_at
+  const { data: leads } = await (supabase.from("outreach_leads") as any)
+    .select("id,campus_id,email,first_name,last_name,is_phd,status,scheduled_send_at,sent_at,sequence_stopped_at,follow_up_1_sent_at,follow_up_2_sent_at,follow_up_3_sent_at");
+
+  // Which follow-up kinds have an active template?
+  let activeFollowups = new Set<UpcomingKind>(["follow_up_1", "follow_up_2", "follow_up_3"]);
+  try {
+    const tpls = await fetchTemplates();
+    activeFollowups = new Set(
+      tpls.filter((t) => t.is_active && (t.kind === "follow_up_1" || t.kind === "follow_up_2" || t.kind === "follow_up_3"))
+        .map((t) => t.kind as UpcomingKind),
+    );
+  } catch { /* keep default */ }
+
+  const nameOf = (l: any) => {
+    const fn = (l.first_name ?? "").trim();
+    const ln = (l.last_name ?? "").trim();
+    if (l.is_phd && ln) return `Dr. ${ln}`;
+    return [fn, ln].filter(Boolean).join(" ") || l.email;
+  };
+
+  for (const l of (leads ?? []) as any[]) {
+    if (l.sequence_stopped_at) continue;
+    if (l.status === "replied") continue;
+    // Initial
+    if (!l.sent_at && l.scheduled_send_at) {
+      const t = new Date(l.scheduled_send_at).getTime();
+      if (t > now) {
+        out.push({
+          id: `init-${l.id}`, kind: "initial", send_at: l.scheduled_send_at,
+          campus_id: l.campus_id, recipient: nameOf(l), email: l.email,
+        });
+      }
+    }
+    // Follow-ups (sent_at + 7 / 14 / 21 days)
+    if (l.sent_at) {
+      const base = new Date(l.sent_at).getTime();
+      const steps: { kind: UpcomingKind; days: number; sentCol: string }[] = [
+        { kind: "follow_up_1", days: 7, sentCol: "follow_up_1_sent_at" },
+        { kind: "follow_up_2", days: 14, sentCol: "follow_up_2_sent_at" },
+        { kind: "follow_up_3", days: 21, sentCol: "follow_up_3_sent_at" },
+      ];
+      for (const s of steps) {
+        if (!activeFollowups.has(s.kind)) continue;
+        if (l[s.sentCol]) continue;
+        const at = base + s.days * 24 * 60 * 60 * 1000;
+        if (at > now) {
+          out.push({
+            id: `${s.kind}-${l.id}`, kind: s.kind, send_at: new Date(at).toISOString(),
+            campus_id: l.campus_id, recipient: nameOf(l), email: l.email,
+          });
+        }
+      }
+    }
+  }
+
+  // Broadcasts
+  try {
+    const bs = await fetchBroadcasts();
+    for (const b of bs) {
+      if (b.status !== "scheduled") continue;
+      if (new Date(b.send_at).getTime() <= now) continue;
+      const ids = b.campus_ids ?? [null];
+      for (const cid of ids) {
+        out.push({
+          id: `bcast-${b.id}-${cid ?? "all"}`, kind: "broadcast", send_at: b.send_at,
+          campus_id: cid, recipient: "(broadcast)", email: b.subject, detail: b.name,
+        });
+      }
+    }
+  } catch { /* table may not exist */ }
+
+  out.sort((a, b) => a.send_at.localeCompare(b.send_at));
+  return out;
+}
