@@ -95,51 +95,49 @@ export function EmailTemplatesPanel() {
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden py-0 gap-0">
-        <div className="flex items-center gap-2 border-b border-border p-3">
-          <h2 className="text-sm font-semibold">Email Templates</h2>
-        </div>
-        <div className="space-y-6 p-3">
-          {TEMPLATE_KIND_ORDER.map((kind) => {
-            const meta = TEMPLATE_KIND_META[kind];
-            const variantMap = grouped.get(kind) ?? new Map<TemplateVariant, EmailTemplate>();
-            return (
-              <div key={kind}>
-                <div className="mb-2 flex items-center gap-2 flex-wrap">
-                  <div className="text-sm font-semibold">{meta.label}</div>
-                  <div className="text-[11px] text-muted-foreground">— {meta.helper}</div>
+        <details className="group">
+          <summary className="flex cursor-pointer select-none items-center gap-2 border-b border-border p-3 hover:bg-muted/30">
+            <h2 className="text-sm font-semibold">Email Templates</h2>
+            <span className="ml-auto text-[11px] text-muted-foreground group-open:hidden">Click to expand</span>
+            <span className="ml-auto hidden text-[11px] text-muted-foreground group-open:inline">Click to collapse</span>
+          </summary>
+          <div className="space-y-4 p-3">
+            {TEMPLATE_KIND_ORDER.map((kind) => {
+              const meta = TEMPLATE_KIND_META[kind];
+              const variantMap = grouped.get(kind) ?? new Map<TemplateVariant, EmailTemplate>();
+              const variant: TemplateVariant = "default";
+              const t = variantMap.get(variant);
+              const active = !!t?.is_active;
+              return (
+                <div key={kind} className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-[180px]">
+                    <div className="text-sm font-semibold">{meta.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{meta.helper}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditing({ kind, variant, template: t })}
+                    className={cn(
+                      "group/btn inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                      active
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted/60",
+                    )}
+                    title={t ? "Open draft" : "Create draft"}
+                  >
+                    <span className="font-medium">{t ? "Edit template" : "Create template"}</span>
+                    {active ? (
+                      <Badge className="text-[10px] px-1.5 py-0">Active</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{t ? "Inactive" : "Empty"}</Badge>
+                    )}
+                    <Pencil className="h-3 w-3 opacity-60 group-hover/btn:opacity-100" />
+                  </button>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {TEMPLATE_VARIANT_ORDER.map((variant) => {
-                    const t = variantMap.get(variant);
-                    const active = !!t?.is_active;
-                    return (
-                      <button
-                        key={variant}
-                        type="button"
-                        onClick={() => setEditing({ kind, variant, template: t })}
-                        className={cn(
-                          "group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                          active
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border bg-background text-muted-foreground hover:bg-muted/60",
-                        )}
-                        title={t ? "Open draft" : "Create draft"}
-                      >
-                        <span className="font-medium">{TEMPLATE_VARIANT_LABEL[variant]}</span>
-                        {active ? (
-                          <Badge className="text-[10px] px-1.5 py-0">Active</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{t ? "Inactive" : "Empty"}</Badge>
-                        )}
-                        <Pencil className="h-3 w-3 opacity-60 group-hover:opacity-100" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </details>
         <TemplateFormDialog
           open={!!editing}
           kind={editing?.kind ?? "initial"}
