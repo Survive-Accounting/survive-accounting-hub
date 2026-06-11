@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StartRouteImport } from './routes/start'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,9 +21,19 @@ import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.schoo
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StartRoute = StartRouteImport.update({
   id: '/start',
   path: '/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachRoute = OutreachRouteImport.update({
@@ -69,7 +81,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
   '/outreach': typeof OutreachRoute
+  '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
+  '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -80,7 +94,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
   '/outreach': typeof OutreachRoute
+  '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
+  '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -92,7 +108,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
   '/outreach': typeof OutreachRoute
+  '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
+  '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -105,7 +123,9 @@ export interface FileRouteTypes {
     | '/'
     | '/ceq'
     | '/outreach'
+    | '/privacy'
     | '/start'
+    | '/terms'
     | '/ceq/create'
     | '/t/$slug'
     | '/ceq/$id/edit'
@@ -116,7 +136,9 @@ export interface FileRouteTypes {
     | '/'
     | '/ceq'
     | '/outreach'
+    | '/privacy'
     | '/start'
+    | '/terms'
     | '/ceq/create'
     | '/t/$slug'
     | '/ceq/$id/edit'
@@ -127,7 +149,9 @@ export interface FileRouteTypes {
     | '/'
     | '/ceq'
     | '/outreach'
+    | '/privacy'
     | '/start'
+    | '/terms'
     | '/ceq/create'
     | '/t/$slug'
     | '/ceq/$id/edit'
@@ -139,18 +163,34 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CeqRoute: typeof CeqRouteWithChildren
   OutreachRoute: typeof OutreachRoute
+  PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
+  TermsRoute: typeof TermsRoute
   TSlugRoute: typeof TSlugRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/start': {
       id: '/start'
       path: '/start'
       fullPath: '/start'
       preLoaderRoute: typeof StartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach': {
@@ -230,7 +270,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CeqRoute: CeqRouteWithChildren,
   OutreachRoute: OutreachRoute,
+  PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
+  TermsRoute: TermsRoute,
   TSlugRoute: TSlugRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
 }
