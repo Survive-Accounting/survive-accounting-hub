@@ -60,10 +60,10 @@ export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
     <Card className="overflow-hidden py-0 gap-0">
       <div className="flex items-center gap-2 border-b border-border p-3">
         <Megaphone className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Custom Emails</h2>
+        <h2 className="text-sm font-semibold">Broadcasts</h2>
         <span className="text-[11px] text-muted-foreground">— pick campuses, write once, send in batch</span>
         <Button size="sm" className="ml-auto h-8" onClick={() => setNewOpen(true)} disabled={isError}>
-          <Send className="h-3.5 w-3.5" /> New custom email
+          <Send className="h-3.5 w-3.5" /> New Broadcast
         </Button>
       </div>
 
@@ -198,7 +198,7 @@ function BroadcastDialog({ open, onClose, campuses, existing, onSaved }: {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{existing ? `Edit — ${existing.name.replace(/^(?:Fall|Spring|Summer) \d{4} — /, "")}` : "New custom email"}</DialogTitle>
+          <DialogTitle>{existing ? `Edit — ${existing.name.replace(/^(?:Fall|Spring|Summer) \d{4} — /, "")}` : "New Broadcast"}</DialogTitle>
           <DialogDescription>
             Merge tags: <code>{"{recipient name}"}</code> (auto "Dr. Lastname" for PhDs),{" "}
             <code>{"{course prefix}"}</code>, <code>{"{courses}"}</code>, <code>{"{program}"}</code>,{" "}
