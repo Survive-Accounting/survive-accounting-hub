@@ -160,8 +160,10 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
           <DialogTitle>New custom email</DialogTitle>
           <DialogDescription>
             Goes only to professors you've already emailed (suppressing bounces, spam complaints, and stops).
-            Merge tags work: <code>{"{first name}"}</code> <code>{"{program}"}</code> <code>{"{courses}"}</code>{" "}
-            <code>{"{phone}"}</code> <code>{"{surviveaccounting.com}"}</code>. The opt-out line is added automatically if you forget it.
+            Merge tags: <code>{"{recipient name}"}</code> (auto "Dr. Lastname" for PhDs, first name otherwise),{" "}
+            <code>{"{course prefix}"}</code> (e.g. "ACCY"), <code>{"{courses}"}</code>, <code>{"{program}"}</code>,{" "}
+            <code>{"{phone}"}</code> (campus number, else your main line), <code>{"{surviveaccounting.com}"}</code>.
+            The opt-out line is added automatically if you forget it.
           </DialogDescription>
         </DialogHeader>
 
@@ -172,7 +174,23 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
           </div>
 
           <div className="grid gap-1.5">
-            <Label className="text-xs">Campuses ({selected.size === 0 ? "all" : `${selected.size} selected`})</Label>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Campuses ({selected.size === 0 ? "all — every lead" : `${selected.size} selected`})</Label>
+              <button
+                type="button"
+                className="ml-auto text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                onClick={() => setSelected(new Set(filtered.map((c) => c.id)))}
+              >
+                Select all{campusSearch.trim() ? " (filtered)" : ""}
+              </button>
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </button>
+            </div>
             <Input value={campusSearch} onChange={(e) => setCampusSearch(e.target.value)} placeholder="Filter campuses…" className="h-9" />
             <div className="max-h-36 overflow-auto rounded-md border border-border p-1">
               {filtered.map((c) => (
@@ -183,6 +201,9 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
                 </label>
               ))}
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Leaving none selected sends to <strong>all leads</strong> at every campus — that's the "select all leads" mode.
+            </p>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Checkbox checked={includeReplied} onCheckedChange={(v) => setIncludeReplied(!!v)} />
               Include professors who replied before (warm contacts)

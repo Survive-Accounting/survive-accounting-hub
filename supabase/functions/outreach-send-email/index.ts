@@ -53,6 +53,18 @@ function escapeHtml(s: string) {
 
 const SA_LINK_TOKEN = "@@SA_LINK@@";
 
+/** "ACCY 201" -> "ACCY"; most common prefix across a campus's codes. */
+function coursePrefix(codes: string[]): string {
+  const counts = new Map<string, number>();
+  for (const c of codes) {
+    const m = c.trim().match(/^([A-Za-z&-]+)/);
+    if (m) counts.set(m[1].toUpperCase(), (counts.get(m[1].toUpperCase()) ?? 0) + 1);
+  }
+  let best = "", n = 0;
+  for (const [k, v] of counts) if (v > n) { best = k; n = v; }
+  return best;
+}
+
 function prettyPhone(e164: string): string {
   const d = e164.replace(/[^\d]/g, "");
   if (d.length === 11 && d.startsWith("1")) return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
@@ -105,6 +117,7 @@ Deno.serve(async (req) => {
       const samplePogram = "School of Accountancy";
       const sampleCourses = "ACCY 201, ACCY 202 and ACCY 303";
       const samplePhone = "(662) 555-0142";
+      const samplePrefix = "ACCY";
       const surviveLinkUrl = "https://surviveaccounting.com?utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
       const rawBody = body.test_body ?? "";
       const rawSubject = body.test_subject ?? "";
@@ -115,6 +128,8 @@ Deno.serve(async (req) => {
       }
       const mergedBody = rawBody
         .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
+        .replace(/\{\s*recipient\s*name\s*\}/gi, "Dr. Smith")
+        .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, samplePrefix)
         .replace(/\{\s*program\s*\}/gi, samplePogram)
         .replace(/\{\s*courses\s*\}/gi, sampleCourses)
         .replace(/\{\s*phone\s*\}/gi, samplePhone)
@@ -124,6 +139,8 @@ Deno.serve(async (req) => {
         .replace(/\[SurviveAccounting\.com\]/g, SA_LINK_TOKEN);
       const subject = "[TEST] " + rawSubject
         .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
+        .replace(/\{\s*recipient\s*name\s*\}/gi, "Dr. Smith")
+        .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, samplePrefix)
         .replace(/\[First Name\]/g, sampleFirst);
       const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`);
 
@@ -196,6 +213,7 @@ Deno.serve(async (req) => {
     let courseFamilyStatus: Record<string, string> = {};
     let programName = "";
     let coursesText = "";
+    let prefixText = "";
     if (lead.campus_id) {
       const { data: campus } = await admin
         .from("campuses")
@@ -213,24 +231,27 @@ Deno.serve(async (req) => {
       }
       programName = (campus?.accounting_department_name ?? "").trim();
       if (Array.isArray(campus?.course_codes_json)) {
-        coursesText = joinCourses(
-          (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string"),
-        );
+        const codes = (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string");
+        coursesText = joinCourses(codes);
+        prefixText = coursePrefix(codes);
       }
     }
     // Graceful fallbacks when research hasn't captured these yet.
     const programMerge = programName || "accounting program";
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
+    const prefixMerge = prefixText || "accounting";
 
-    // Campus texting number (for the {phone} merge tag).
+    // Campus texting number for {phone} — campus-specific wins, else the main line.
     let campusPhone = "";
-    if (lead.campus_id) {
-      const { data: phoneRow } = await admin
+    {
+      const { data: phoneRows } = await admin
         .from("campus_phone_numbers")
-        .select("phone_e164")
-        .eq("campus_id", lead.campus_id)
-        .maybeSingle();
-      if (phoneRow?.phone_e164) campusPhone = prettyPhone(phoneRow.phone_e164);
+        .select("phone_e164,campus_id");
+      const rows = phoneRows ?? [];
+      const specific = lead.campus_id ? rows.find((r: any) => r.campus_id === lead.campus_id) : null;
+      const main = rows.find((r: any) => r.campus_id === null);
+      const pick = specific ?? main;
+      if (pick?.phone_e164) campusPhone = prettyPhone(pick.phone_e164);
     }
 
     const baseSurviveUrl = landingUrl ?? "https://surviveaccounting.com";
@@ -300,6 +321,8 @@ Deno.serve(async (req) => {
 
     let mergedBody = template.body
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
+      .replace(/\{\s*recipient\s*name\s*\}/gi, greetingName)
+      .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, prefixMerge)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
@@ -319,6 +342,8 @@ Deno.serve(async (req) => {
 
     const subject = template.subject
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
+      .replace(/\{\s*recipient\s*name\s*\}/gi, greetingName)
+      .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, prefixMerge)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
