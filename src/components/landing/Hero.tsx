@@ -6,9 +6,13 @@ const RED = "#CE1126";
 interface HeroProps {
   onBookTutoring?: () => void;
   onReadReviews?: () => void;
+  /** Optional overrides (used by /start) — defaults keep the homepage exactly as-is. */
+  headline?: string;
+  subtext?: string;
+  ctaSlot?: React.ReactNode;
 }
 
-export default function Hero({ onBookTutoring, onReadReviews }: HeroProps) {
+export default function Hero({ onBookTutoring, onReadReviews, headline, subtext, ctaSlot }: HeroProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
@@ -211,7 +215,7 @@ export default function Hero({ onBookTutoring, onReadReviews }: HeroProps) {
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
-            Let's Make Accounting Simple
+            {headline ?? "Let's Make Accounting Simple"}
           </h1>
 
           <p
@@ -225,11 +229,12 @@ export default function Hero({ onBookTutoring, onReadReviews }: HeroProps) {
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
-            Get virtual tutoring and study support that helps you understand the material,
-            build confidence, and perform better on exams.
+            {subtext ??
+              "Get virtual tutoring and study support that helps you understand the material, build confidence, and perform better on exams."}
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-4">
+            {ctaSlot ?? (
             <div className="flex flex-col sm:flex-row items-center gap-3">
               <button
                 onClick={onBookTutoring}
@@ -260,6 +265,7 @@ export default function Hero({ onBookTutoring, onReadReviews }: HeroProps) {
                 Read Reviews
               </button>
             </div>
+            )}
           </div>
         </div>
       </div>

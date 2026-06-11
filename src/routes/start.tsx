@@ -1,12 +1,17 @@
-// /start — where texted students land: a slick campus search that routes to
-// the campus page, with a waitlist form for campuses not in the system yet.
-// Kept human: waitlist submissions go straight to Lee, no automation.
-import { useMemo, useState } from "react";
+// /start — where texted students land. Same homepage UI (hero, reviews,
+// contact, footer), with the campus search as the hero CTA.
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, GraduationCap, Loader2, Search } from "lucide-react";
-import { toast } from "sonner";
+import { ChevronRight, Loader2, Search } from "lucide-react";
+import { Toaster, toast } from "sonner";
 
+import SiteNavbar from "@/components/landing/SiteNavbar";
+import Hero from "@/components/landing/Hero";
+import Reviews from "@/components/landing/Reviews";
+import ContactForm from "@/components/landing/ContactForm";
+import SiteFooter from "@/components/landing/SiteFooter";
+import BookTutoringModal from "@/components/landing/BookTutoringModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,87 +45,106 @@ async function fetchSelectableCampuses(): Promise<CampusOption[]> {
     .map((c: any) => ({ id: c.id, name: c.name ?? "", slug: c.slug, state: c.state ?? null }));
 }
 
+function scrollToId(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+}
+
 function StartPage() {
+  const [bookOpen, setBookOpen] = useState(false);
+  return (
+    <div className="min-h-screen bg-background">
+      <SiteNavbar />
+      <Hero
+        headline="Need Help in Accounting?"
+        subtext="Pick your campus and I'll show you exactly how I can help with your course."
+        ctaSlot={<CampusSearch />}
+      />
+      <Reviews />
+      <ContactForm />
+      <SiteFooter
+        onScrollToContact={() => scrollToId("contact-form")}
+        onScrollToReviews={() => scrollToId("reviews-section")}
+        onBookTutoring={() => setBookOpen(true)}
+      />
+      <BookTutoringModal open={bookOpen} onOpenChange={setBookOpen} />
+      <Toaster position="top-center" richColors />
+    </div>
+  );
+}
+
+function CampusSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
   const campusesQuery = useQuery({ queryKey: ["selectable-campuses"], queryFn: fetchSelectableCampuses, retry: 1 });
 
   const campuses = campusesQuery.data ?? [];
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return campuses.slice(0, 8);
+    if (!q) return [];
     return campuses
       .filter((c) => c.name.toLowerCase().includes(q) || (c.state ?? "").toLowerCase() === q)
-      .slice(0, 8);
+      .slice(0, 6);
   }, [campuses, query]);
 
-  const noMatches = query.trim().length > 1 && filtered.length === 0;
+  const typed = query.trim().length > 1;
+  const noMatches = typed && filtered.length === 0;
+  const open = (typed && filtered.length > 0) || showWaitlist || noMatches;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Eyebrow */}
-      <div style={{ background: NAVY }} className="px-4 py-2.5 text-center">
-        <span className="font-sans text-[12px] font-bold uppercase tracking-[0.14em] text-white">
-          <span aria-hidden className="mr-2 inline-block h-[7px] w-[7px] rounded-full align-middle" style={{ background: RED }} />
-          Survive<span className="opacity-70">Accounting</span>
-        </span>
+    <div ref={boxRef} className="hero-anim-btn relative w-full" style={{ maxWidth: 480 }}>
+      <div
+        className="flex items-center gap-2 rounded-xl bg-white px-4 transition-shadow"
+        style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6), 0 10px 28px rgba(0,0,0,0.28)" }}
+      >
+        <Search className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setShowWaitlist(false); }}
+          placeholder="Start typing your school — e.g. Ole Miss…"
+          className="h-[56px] w-full bg-transparent text-[16px] outline-none placeholder:text-gray-400"
+          style={{ fontFamily: "Inter, sans-serif", color: "#111827" }}
+        />
+        {campusesQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
       </div>
 
-      <div className="mx-auto max-w-xl px-5 py-10 sm:py-14">
-        <div className="text-center">
-          <GraduationCap className="mx-auto h-8 w-8" style={{ color: NAVY }} />
-          <h1 className="mt-3 font-sans text-2xl font-bold tracking-tight sm:text-3xl">
-            What school are you at?
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Pick your campus and I'll show you exactly how I can help with your accounting course.
-          </p>
-        </div>
+      {!showWaitlist && (
+        <button
+          onClick={() => setShowWaitlist(true)}
+          className="mt-3 text-[13px] underline decoration-white/40 underline-offset-2 transition hover:decoration-white"
+          style={{ color: "rgba(255,255,255,0.78)", fontFamily: "Inter, sans-serif" }}
+        >
+          Not seeing your campus?
+        </button>
+      )}
 
-        <div className="relative mt-6">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            autoFocus
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setShowWaitlist(false); }}
-            placeholder="Start typing — e.g. Ole Miss, Auburn…"
-            className="h-12 pl-9 text-base"
-          />
-        </div>
-
-        {campusesQuery.isLoading ? (
-          <div className="mt-6 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {filtered.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => navigate({ to: "/outreach/school/$slug", params: { slug: c.slug }, search: { src: "start" } as never })}
-                className="group flex w-full items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition hover:border-[#14213D]/40 hover:bg-muted/40"
-              >
-                <span className="text-sm font-semibold">{c.name}</span>
-                {c.state && <span className="text-xs text-muted-foreground">{c.state}</span>}
-                <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5" style={{ color: undefined }} />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Not seeing your campus */}
-        <div className="mt-6 text-center">
-          {!showWaitlist && (
+      {open && (
+        <div
+          className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl bg-white text-left"
+          style={{ boxShadow: "0 18px 50px rgba(0,0,0,0.35)" }}
+        >
+          {filtered.map((c) => (
             <button
-              onClick={() => setShowWaitlist(true)}
-              className="text-sm text-muted-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground"
+              key={c.id}
+              onClick={() =>
+                navigate({ to: "/outreach/school/$slug", params: { slug: c.slug }, search: { src: "start" } as never })
+              }
+              className="group flex w-full items-center gap-2 border-b border-gray-100 px-4 py-3 text-left transition hover:bg-gray-50"
             >
-              {noMatches ? "Can't find your school? I can still help →" : "Not seeing your campus?"}
+              <span className="text-[15px] font-semibold" style={{ color: "#111827", fontFamily: "Inter, sans-serif" }}>
+                {c.name}
+              </span>
+              {c.state && <span className="text-xs text-gray-400">{c.state}</span>}
+              <ChevronRight className="ml-auto h-4 w-4 text-gray-300 transition group-hover:translate-x-0.5 group-hover:text-gray-500" />
             </button>
+          ))}
+          {(noMatches || showWaitlist) && (
+            <WaitlistForm prefillCampus={noMatches ? query.trim() : ""} />
           )}
         </div>
-
-        {(showWaitlist || noMatches) && <WaitlistForm prefillCampus={noMatches ? query.trim() : ""} />}
-      </div>
+      )}
     </div>
   );
 }
@@ -141,7 +165,7 @@ function WaitlistForm({ prefillCampus }: { prefillCampus: string }) {
       name: form.name.trim() || null,
       email,
       phone: form.phone.trim() || null,
-      campus_text: form.campus_text.trim() || null,
+      campus_text: (form.campus_text || prefillCampus).trim() || null,
       course_text: form.course_text.trim() || null,
       wants_text: form.wants_text,
       wants_call: form.wants_call,
@@ -154,11 +178,10 @@ function WaitlistForm({ prefillCampus }: { prefillCampus: string }) {
 
   if (done) {
     return (
-      <div className="mt-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-5 text-center">
-        <div className="text-sm font-semibold">Got it — I'll reach out personally. 🤝</div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          I read every one of these myself. Expect to hear from me soon{form.wants_text && form.phone ? " by text" : ""}.
-          — Lee
+      <div className="p-5 text-center">
+        <div className="text-sm font-semibold" style={{ color: "#111827" }}>Got it — I'll reach out personally. 🤝</div>
+        <p className="mt-1 text-xs text-gray-500">
+          I read every one of these myself. Expect to hear from me soon{form.wants_text && form.phone ? " by text" : ""}. — Lee
         </p>
       </div>
     );
@@ -168,29 +191,31 @@ function WaitlistForm({ prefillCampus }: { prefillCampus: string }) {
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
-    <div className="mt-4 rounded-lg border border-border bg-card p-5">
-      <div className="text-sm font-semibold">Tell me where you are — I'll reach out personally.</div>
-      <div className="mt-3 grid gap-2.5">
-        <Input placeholder="Your name" value={form.name} onChange={set("name")} className="h-10" />
-        <Input placeholder="Email (required)" type="email" value={form.email} onChange={set("email")} className="h-10" />
-        <Input placeholder="Phone (optional)" type="tel" value={form.phone} onChange={set("phone")} className="h-10" />
-        <div className="grid grid-cols-2 gap-2.5">
-          <Input placeholder="Your school" value={form.campus_text} onChange={set("campus_text")} className="h-10" />
-          <Input placeholder="Course (e.g. ACC 201)" value={form.course_text} onChange={set("course_text")} className="h-10" />
+    <div className="p-4 text-left" style={{ fontFamily: "Inter, sans-serif" }}>
+      <div className="text-sm font-semibold" style={{ color: "#111827" }}>
+        Tell me where you are — I'll reach out personally.
+      </div>
+      <div className="mt-3 grid gap-2">
+        <Input placeholder="Your name" value={form.name} onChange={set("name")} className="h-10 bg-white text-gray-900" />
+        <Input placeholder="Email (required)" type="email" value={form.email} onChange={set("email")} className="h-10 bg-white text-gray-900" />
+        <Input placeholder="Phone (optional)" type="tel" value={form.phone} onChange={set("phone")} className="h-10 bg-white text-gray-900" />
+        <div className="grid grid-cols-2 gap-2">
+          <Input placeholder="Your school" value={form.campus_text} onChange={set("campus_text")} className="h-10 bg-white text-gray-900" />
+          <Input placeholder="Course (e.g. ACC 201)" value={form.course_text} onChange={set("course_text")} className="h-10 bg-white text-gray-900" />
         </div>
         <div className="flex items-center gap-5 pt-1">
-          <label className="flex items-center gap-2 text-xs">
+          <label className="flex items-center gap-2 text-xs text-gray-700">
             <Checkbox checked={form.wants_text} onCheckedChange={(v) => setForm((f) => ({ ...f, wants_text: !!v }))} />
             Text me back
           </label>
-          <label className="flex items-center gap-2 text-xs">
+          <label className="flex items-center gap-2 text-xs text-gray-700">
             <Checkbox checked={form.wants_call} onCheckedChange={(v) => setForm((f) => ({ ...f, wants_call: !!v }))} />
             Call me back
           </label>
         </div>
-        <Button onClick={submit} disabled={submitting} className="mt-1 h-10" style={{ background: NAVY }}>
+        <Button onClick={submit} disabled={submitting} className="mt-1 h-10 font-bold text-white" style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}>
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Send to Lee
+          Send to Lee →
         </Button>
       </div>
     </div>
