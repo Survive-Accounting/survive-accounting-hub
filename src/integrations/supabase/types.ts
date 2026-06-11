@@ -2450,6 +2450,51 @@ export type Database = {
         }
         Relationships: []
       }
+      outreach_broadcasts: {
+        Row: {
+          body: string
+          campus_ids: string[] | null
+          created_at: string
+          error: string | null
+          id: string
+          include_replied: boolean
+          name: string
+          send_at: string
+          sent_count: number
+          skipped_count: number
+          status: string
+          subject: string
+        }
+        Insert: {
+          body: string
+          campus_ids?: string[] | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          include_replied?: boolean
+          name: string
+          send_at: string
+          sent_count?: number
+          skipped_count?: number
+          status?: string
+          subject: string
+        }
+        Update: {
+          body?: string
+          campus_ids?: string[] | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          include_replied?: boolean
+          name?: string
+          send_at?: string
+          sent_count?: number
+          skipped_count?: number
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       outreach_email_events: {
         Row: {
           created_at: string
@@ -2550,6 +2595,7 @@ export type Database = {
           notes: string | null
           opens_count: number | null
           replied_at: string | null
+          scheduled_send_at: string | null
           school_id: string | null
           sent_at: string | null
           sequence_stopped_at: string | null
@@ -2584,6 +2630,7 @@ export type Database = {
           notes?: string | null
           opens_count?: number | null
           replied_at?: string | null
+          scheduled_send_at?: string | null
           school_id?: string | null
           sent_at?: string | null
           sequence_stopped_at?: string | null
@@ -2618,6 +2665,7 @@ export type Database = {
           notes?: string | null
           opens_count?: number | null
           replied_at?: string | null
+          scheduled_send_at?: string | null
           school_id?: string | null
           sent_at?: string | null
           sequence_stopped_at?: string | null
