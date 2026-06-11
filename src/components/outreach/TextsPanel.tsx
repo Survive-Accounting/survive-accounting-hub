@@ -2,13 +2,16 @@
 // the campus number). Lee can also reply from his phone to the summary texts.
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MessageSquare, Phone, RefreshCw, Send } from "lucide-react";
+import { Copy, Link2, Loader2, MessageSquare, Phone, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { Campus } from "@/lib/outreach-mock";
 import {
@@ -25,6 +28,10 @@ function FactChip({ label, value }: { label: string; value: string | null }) {
     </span>
   );
 }
+
+// Public site origin for links pasted to students. If the new app isn't live
+// on this domain yet, tell Claude where it's published and this updates.
+const SITE_ORIGIN = "https://surviveaccounting.com";
 
 export function TextsPanel({ campuses }: { campuses: Campus[] }) {
   const qc = useQueryClient();
@@ -218,6 +225,39 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Send
                 </Button>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium text-muted-foreground inline-flex items-center gap-1">
+                  <Link2 className="h-3 w-3" /> Quick links:
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => navigator.clipboard.writeText(`${SITE_ORIGIN}/start`).then(() => toast.success("Copied /start link"))}
+                >
+                  <Copy className="h-3 w-3" /> Campus selector
+                </Button>
+                <Select
+                  value=""
+                  onValueChange={(slug) => {
+                    navigator.clipboard
+                      .writeText(`${SITE_ORIGIN}/outreach/school/${slug}`)
+                      .then(() => toast.success("Campus page link copied"));
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-[230px] text-xs">
+                    <SelectValue placeholder="Copy a campus page link…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {campuses
+                      .filter((c) => c.approval_status === "approved" && !c.archived && c.slug)
+                      .sort((a, b) => a.school_name.localeCompare(b.school_name))
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.slug} className="text-xs">{c.school_name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
               <p className="mt-1.5 text-[10px] text-muted-foreground">
                 Sends from the campus number. You can also reply from your phone to the summary texts — start with #{selected.short_ref} if multiple students are active.
