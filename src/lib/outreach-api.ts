@@ -456,3 +456,33 @@ export function formatPhonePretty(e164: string): string {
   if (d.length === 11 && d.startsWith("1")) return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
   return e164;
 }
+
+// ----- Campus waitlist -----
+export interface WaitlistSignup {
+  id: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  campus_text: string | null;
+  course_text: string | null;
+  wants_text: boolean;
+  wants_call: boolean;
+  contacted_at: string | null;
+  created_at: string;
+}
+
+export async function fetchWaitlist(): Promise<WaitlistSignup[]> {
+  const { data, error } = await (supabase.from("campus_waitlist" as never) as any)
+    .select("id,name,email,phone,campus_text,course_text,wants_text,wants_call,contacted_at,created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return (data ?? []) as WaitlistSignup[];
+}
+
+export async function markWaitlistContacted(id: string, contacted: boolean): Promise<void> {
+  const { error } = await (supabase.from("campus_waitlist" as never) as any)
+    .update({ contacted_at: contacted ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw error;
+}

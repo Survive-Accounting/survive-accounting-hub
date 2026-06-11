@@ -15,6 +15,7 @@ import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
+import { WaitlistCard } from "@/components/outreach/WaitlistCard";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -164,6 +165,7 @@ function OutreachPage() {
               onImportProfessors={() => { setImportCampusId(null); setImportOpen(true); }}
               onOpenEmailQueue={() => setTab("templates")}
             />
+            <WaitlistCard />
           </TabsContent>
 
           <TabsContent value="schools" className="mt-8 space-y-8">
