@@ -56,31 +56,11 @@ export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
           Nothing scheduled. Use these for warm campuses (like Ole Miss) or seasonal pushes — they skip the cold sequence entirely.
         </div>
       ) : (
-        <div className="divide-y divide-border">
-          {broadcasts.map((b) => (
-            <div key={b.id} className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm">
-              <span className="font-medium">{b.name}</span>
-              <Badge variant="outline" className={`text-[10px] h-4 px-1 ${STATUS_BADGE[b.status] ?? ""}`}>{b.status}</Badge>
-              <span className="text-[11px] text-muted-foreground">
-                {b.campus_ids?.length ? `${b.campus_ids.length} campus${b.campus_ids.length === 1 ? "" : "es"}` : "all campuses"}
-                {" · "}{new Date(b.send_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                {b.status !== "scheduled" && ` · ${b.sent_count} sent${b.skipped_count ? `, ${b.skipped_count} skipped` : ""}`}
-              </span>
-              {b.status === "scheduled" && (
-                <Button
-                  size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs"
-                  onClick={async () => {
-                    await cancelBroadcast(b.id);
-                    qc.invalidateQueries({ queryKey: ["outreach-broadcasts"] });
-                    toast.success("Canceled");
-                  }}
-                >
-                  <X className="h-3 w-3" /> Cancel
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
+        <BroadcastGroups broadcasts={broadcasts} onCancel={async (id) => {
+          await cancelBroadcast(id);
+          qc.invalidateQueries({ queryKey: ["outreach-broadcasts"] });
+          toast.success("Canceled");
+        }} />
       )}
       <BroadcastDialog open={open} onClose={() => setOpen(false)} campuses={campuses} onSaved={() => {
         setOpen(false);
