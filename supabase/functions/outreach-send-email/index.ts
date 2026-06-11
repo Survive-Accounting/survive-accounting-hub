@@ -46,6 +46,12 @@ function escapeHtml(s: string) {
 
 const SA_LINK_TOKEN = "@@SA_LINK@@";
 
+function prettyPhone(e164: string): string {
+  const d = e164.replace(/[^\d]/g, "");
+  if (d.length === 11 && d.startsWith("1")) return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  return e164;
+}
+
 /** "ACCY 201, ACCY 202 and ACCY 303" from a codes array. */
 function joinCourses(codes: string[]): string {
   if (codes.length === 0) return "";
@@ -91,6 +97,7 @@ Deno.serve(async (req) => {
       const sampleFirst = "John";
       const samplePogram = "School of Accountancy";
       const sampleCourses = "ACCY 201, ACCY 202 and ACCY 303";
+      const samplePhone = "(662) 555-0142";
       const surviveLinkUrl = "https://surviveaccounting.com?utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
       const rawBody = body.test_body ?? "";
       const rawSubject = body.test_subject ?? "";
@@ -103,6 +110,7 @@ Deno.serve(async (req) => {
         .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
         .replace(/\{\s*program\s*\}/gi, samplePogram)
         .replace(/\{\s*courses\s*\}/gi, sampleCourses)
+        .replace(/\{\s*phone\s*\}/gi, samplePhone)
         .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
         .replace(/\[First Name\]/g, sampleFirst)
         .replace(/\[Booking Link\]/g, BOOKING_LINK)
@@ -207,6 +215,17 @@ Deno.serve(async (req) => {
     const programMerge = programName || "accounting program";
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
 
+    // Campus texting number (for the {phone} merge tag).
+    let campusPhone = "";
+    if (lead.campus_id) {
+      const { data: phoneRow } = await admin
+        .from("campus_phone_numbers")
+        .select("phone_e164")
+        .eq("campus_id", lead.campus_id)
+        .maybeSingle();
+      if (phoneRow?.phone_e164) campusPhone = prettyPhone(phoneRow.phone_e164);
+    }
+
     const baseSurviveUrl = landingUrl ?? "https://surviveaccounting.com";
     const refQs = "utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
     const surviveLinkUrl = baseSurviveUrl + (baseSurviveUrl.includes("?") ? "&" : "?") + refQs;
@@ -253,10 +272,20 @@ Deno.serve(async (req) => {
     const firstName = (lead.first_name ?? "").trim() || "there";
     // PhD rule: never address PhDs by first name.
     const greetingName = lead.is_phd ? `Dr. ${(lead.last_name ?? "").trim() || firstName}` : firstName;
+    // Safety: never send a broken sentence — if the template uses {phone}
+    // but this campus has no texting number, refuse with a clear error.
+    if (/\{\s*phone\s*\}/i.test(template.body + " " + template.subject) && !campusPhone) {
+      return new Response(JSON.stringify({
+        error: "template_uses_phone_without_number",
+        message: "This template uses {phone}, but this campus has no texting number yet. Provision one first (Campuses tab) or use a template without {phone}.",
+      }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     let mergedBody = template.body
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
+      .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
       .replace(/\[First Name\]/g, greetingName)
       .replace(/\[Booking Link\]/g, BOOKING_LINK)
@@ -270,6 +299,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
+      .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\[First Name\]/g, greetingName);
 
     const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`);
