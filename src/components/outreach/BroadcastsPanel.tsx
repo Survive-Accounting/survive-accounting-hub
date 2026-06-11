@@ -2,7 +2,7 @@
 // test-send, then schedule. The 15-min scheduler delivers, suppression-aware.
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Loader2, Megaphone, Send, X } from "lucide-react";
+import { CalendarClock, ChevronDown, Loader2, Megaphone, Send, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
