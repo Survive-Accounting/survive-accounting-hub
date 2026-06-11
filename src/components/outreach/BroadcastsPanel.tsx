@@ -241,3 +241,85 @@ function BroadcastDialog({ open, onClose, campuses, onSaved }: {
 }
 
 export default BroadcastsPanel;
+
+function semesterKey(b: Broadcast): { key: string; label: string; sort: number } {
+  const m = b.name.match(/^(Fall|Spring|Summer|Winter)\s+(\d{4})/i);
+  if (m) {
+    const term = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
+    const year = parseInt(m[2], 10);
+    const termOrder = { Spring: 0, Summer: 1, Fall: 2, Winter: 3 }[term] ?? 4;
+    return { key: `${year}-${termOrder}`, label: `${term} ${year}`, sort: year * 10 + termOrder };
+  }
+  const d = new Date(b.send_at);
+  const y = d.getUTCFullYear();
+  const term = d.getUTCMonth() < 5 ? "Spring" : d.getUTCMonth() < 7 ? "Summer" : "Fall";
+  const termOrder = { Spring: 0, Summer: 1, Fall: 2 }[term] ?? 4;
+  return { key: `${y}-${termOrder}-other`, label: `${term} ${y}`, sort: y * 10 + termOrder };
+}
+
+function BroadcastGroups({ broadcasts, onCancel }: { broadcasts: Broadcast[]; onCancel: (id: string) => Promise<void> | void }) {
+  const groups = useMemo(() => {
+    const m = new Map<string, { label: string; sort: number; items: Broadcast[] }>();
+    for (const b of broadcasts) {
+      const { key, label, sort } = semesterKey(b);
+      if (!m.has(key)) m.set(key, { label, sort, items: [] });
+      m.get(key)!.items.push(b);
+    }
+    return Array.from(m.entries())
+      .map(([key, v]) => ({ key, ...v, items: v.items.slice().sort((a, b) => +new Date(a.send_at) - +new Date(b.send_at)) }))
+      .sort((a, b) => a.sort - b.sort);
+  }, [broadcasts]);
+
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  const toggle = (k: string) =>
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+
+  return (
+    <div className="divide-y divide-border">
+      {groups.map((g) => {
+        const isOpen = openKeys.has(g.key);
+        const scheduledCount = g.items.filter((b) => b.status === "scheduled").length;
+        return (
+          <div key={g.key}>
+            <button
+              type="button"
+              onClick={() => toggle(g.key)}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted/40"
+            >
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+              <span className="font-semibold">{g.label}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {g.items.length} email{g.items.length === 1 ? "" : "s"}
+                {scheduledCount > 0 && ` · ${scheduledCount} scheduled`}
+              </span>
+            </button>
+            {isOpen && (
+              <div className="divide-y divide-border border-t border-border bg-muted/20">
+                {g.items.map((b) => (
+                  <div key={b.id} className="flex flex-wrap items-center gap-2 px-3 py-2.5 pl-9 text-sm">
+                    <span className="font-medium">{b.name}</span>
+                    <Badge variant="outline" className={`text-[10px] h-4 px-1 ${STATUS_BADGE[b.status] ?? ""}`}>{b.status}</Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      {b.campus_ids?.length ? `${b.campus_ids.length} campus${b.campus_ids.length === 1 ? "" : "es"}` : "all campuses"}
+                      {" · "}{new Date(b.send_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {b.status !== "scheduled" && ` · ${b.sent_count} sent${b.skipped_count ? `, ${b.skipped_count} skipped` : ""}`}
+                    </span>
+                    {b.status === "scheduled" && (
+                      <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={() => onCancel(b.id)}>
+                        <X className="h-3 w-3" /> Cancel
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
