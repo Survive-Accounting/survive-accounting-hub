@@ -58,61 +58,67 @@ export function BroadcastsPanel({ campuses }: { campuses: Campus[] }) {
 
   return (
     <Card className="overflow-hidden py-0 gap-0">
-      <div className="flex items-center gap-2 border-b border-border p-3">
-        <Megaphone className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Broadcasts</h2>
-        <span className="text-[11px] text-muted-foreground">— pick campuses, write once, send in batch</span>
-        <Button size="sm" className="ml-auto h-8" onClick={() => setNewOpen(true)} disabled={isError}>
-          <Send className="h-3.5 w-3.5" /> New Broadcast
-        </Button>
-      </div>
+      <details className="group">
+        <summary className="flex cursor-pointer select-none items-center gap-2 border-b border-border p-3 hover:bg-muted/30">
+          <Megaphone className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Broadcasts</h2>
+          <span className="text-[11px] text-muted-foreground">— pick campuses, write once, send in batch</span>
+          <span className="ml-auto text-[11px] text-muted-foreground group-open:hidden">Click to expand</span>
+          <span className="ml-auto hidden text-[11px] text-muted-foreground group-open:inline">Click to collapse</span>
+        </summary>
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <Button size="sm" className="ml-auto h-8" onClick={() => setNewOpen(true)} disabled={isError}>
+            <Send className="h-3.5 w-3.5" /> New Broadcast
+          </Button>
+        </div>
 
-      {isError ? (
-        <div className="p-4 text-xs text-muted-foreground">Run migration 0012 to enable custom emails.</div>
-      ) : broadcasts.length === 0 ? (
-        <div className="p-4 text-xs text-muted-foreground">
-          Nothing scheduled. Use these for warm campuses (like Ole Miss) or seasonal pushes.
-        </div>
-      ) : (
-        <div>
-          {Array.from(grouped.entries()).map(([sem, items], idx) => (
-            <details key={sem} open={idx === 0}>
-              <summary className="flex cursor-pointer select-none items-center gap-2 border-b border-border px-3 py-2 hover:bg-muted/30">
-                <span className="text-xs font-semibold">{sem}</span>
-                <span className="text-[11px] text-muted-foreground">
-                  {items.length} email{items.length !== 1 ? "s" : ""} · {items.filter(b => b.status === "scheduled").length} scheduled
-                </span>
-              </summary>
-              {items.map((b) => (
-                <div key={b.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 px-3 py-2.5 last:border-0">
-                  <span className="min-w-0 truncate text-sm font-medium">
-                    {b.name.replace(/^(?:Fall|Spring|Summer) \d{4} — /, "")}
+        {isError ? (
+          <div className="p-4 text-xs text-muted-foreground">Run migration 0012 to enable broadcasts.</div>
+        ) : broadcasts.length === 0 ? (
+          <div className="p-4 text-xs text-muted-foreground">
+            Nothing scheduled. Use these for warm campuses (like Ole Miss) or seasonal pushes.
+          </div>
+        ) : (
+          <div>
+            {Array.from(grouped.entries()).map(([sem, items], idx) => (
+              <details key={sem} open={idx === 0}>
+                <summary className="flex cursor-pointer select-none items-center gap-2 border-b border-border px-3 py-2 hover:bg-muted/30">
+                  <span className="text-xs font-semibold">{sem}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {items.length} email{items.length !== 1 ? "s" : ""} · {items.filter(b => b.status === "scheduled").length} scheduled
                   </span>
-                  <Badge variant="outline" className={`shrink-0 text-[10px] h-4 px-1 ${STATUS_BADGE[b.status] ?? ""}`}>
-                    {b.status}
-                  </Badge>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {b.campus_ids?.length ? `${b.campus_ids.length} campus${b.campus_ids.length === 1 ? "" : "es"}` : "all campuses"}
-                    {" · "}
-                    {new Date(b.send_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                    {b.status !== "scheduled" && ` · ${b.sent_count} sent`}
-                  </span>
-                  <div className="ml-auto flex shrink-0 items-center gap-1">
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(b)}>
-                      <Pencil className="h-3 w-3" /> Edit
-                    </Button>
-                    {b.status === "scheduled" && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => onCancel(b.id)}>
-                        <X className="h-3 w-3" /> Cancel
+                </summary>
+                {items.map((b) => (
+                  <div key={b.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 px-3 py-2.5 last:border-0">
+                    <span className="min-w-0 truncate text-sm font-medium">
+                      {b.name.replace(/^(?:Fall|Spring|Summer) \d{4} — /, "")}
+                    </span>
+                    <Badge variant="outline" className={`shrink-0 text-[10px] h-4 px-1 ${STATUS_BADGE[b.status] ?? ""}`}>
+                      {b.status}
+                    </Badge>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {b.campus_ids?.length ? `${b.campus_ids.length} campus${b.campus_ids.length === 1 ? "" : "es"}` : "all campuses"}
+                      {" · "}
+                      {new Date(b.send_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {b.status !== "scheduled" && ` · ${b.sent_count} sent`}
+                    </span>
+                    <div className="ml-auto flex shrink-0 items-center gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(b)}>
+                        <Pencil className="h-3 w-3" /> Edit
                       </Button>
-                    )}
+                      {b.status === "scheduled" && (
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => onCancel(b.id)}>
+                          <X className="h-3 w-3" /> Cancel
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </details>
-          ))}
-        </div>
-      )}
+                ))}
+              </details>
+            ))}
+          </div>
+        )}
+      </details>
 
       <BroadcastDialog
         key="new"
