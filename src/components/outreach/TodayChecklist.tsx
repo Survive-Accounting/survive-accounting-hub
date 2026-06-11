@@ -1,6 +1,6 @@
 // Ported from the original app (ProfessorOutreach.tsx — DueTodayChecklist).
 import { useMemo } from "react";
-import { CheckCircle2, ChevronRight, Circle, Send, Upload } from "lucide-react";
+import { CheckCircle2, ChevronRight, Circle, MessageSquare, Send, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ export function TodayChecklist({
   onFocusCampus,
   onImportProfessors,
   onOpenEmailQueue,
+  onOpenTexts,
 }: {
   dateISO: string;
   campuses: Campus[];
@@ -28,6 +29,7 @@ export function TodayChecklist({
   onFocusCampus: (name: string) => void;
   onImportProfessors: () => void;
   onOpenEmailQueue: () => void;
+  onOpenTexts: () => void;
 }) {
   const todaysCampuses = useMemo(
     () => todaysCampusesProp ?? mockCampusesForDate(dateISO, campuses),
@@ -136,7 +138,7 @@ export function TodayChecklist({
         <div className="flex items-start gap-3">
           <StepBadge n={3} />
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-semibold leading-tight">Schedule Outreach Emails 🚧</h3>
+            <h3 className="text-base font-semibold leading-tight">Manage Outgoing Emails</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {readyCount} ready · {todaySent} sent today
             </p>
@@ -148,6 +150,29 @@ export function TodayChecklist({
             className="shrink-0 border-[#14213D]/30 text-[#14213D] hover:bg-[#14213D]/5"
           >
             <Send className="h-3.5 w-3.5" /> Open Email Queue <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="h-px bg-border" />
+
+      {/* STEP 4 */}
+      <div>
+        <div className="flex items-start gap-3">
+          <StepBadge n={4} />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-semibold leading-tight">Manage Incoming Texts</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Reply to student questions from campus numbers
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onOpenTexts}
+            className="shrink-0 border-[#14213D]/30 text-[#14213D] hover:bg-[#14213D]/5"
+          >
+            <MessageSquare className="h-3.5 w-3.5" /> Open Texts Tab <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
