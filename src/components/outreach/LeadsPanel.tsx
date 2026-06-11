@@ -2,7 +2,7 @@
 // (send/notes actions arrive with the Resend integration).
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Loader2, RefreshCw, Send } from "lucide-react";
+import { Ban, Copy, Loader2, RefreshCw, Send, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import type { Campus } from "@/lib/outreach-mock";
-import { fetchLeads, sendOutreachEmail } from "@/lib/outreach-api";
+import { fetchLeads, sendOutreachEmail, setLeadStopped } from "@/lib/outreach-api";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
@@ -130,7 +130,19 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
                     <td className="px-2.5 py-1.5">
                       {l.is_phd && <Badge variant="outline" className="text-[10px] h-4 px-1">PhD</Badge>}
                     </td>
-                    <td className="px-2.5 py-1.5 capitalize">{l.status ?? "pending"}</td>
+                    <td className="px-2.5 py-1.5">
+                      {l.sequence_stopped_at ? (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-red-300 text-red-700">stopped</Badge>
+                      ) : l.sent_at ? (
+                        <span className="capitalize">{l.status ?? "sent"}</span>
+                      ) : l.scheduled_send_at ? (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-400 text-amber-700" title={new Date(l.scheduled_send_at).toLocaleString()}>
+                          queued · {new Date(l.scheduled_send_at).toLocaleDateString([], { month: "short", day: "numeric" })}
+                        </Badge>
+                      ) : (
+                        <span className="capitalize">{l.status ?? "pending"}</span>
+                      )}
+                    </td>
                     <td className="px-2.5 py-1.5">
                       {c?.slug && l.landing_token ? (
                         <button
@@ -155,17 +167,34 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
                       {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-2.5 py-1.5 text-right">
-                      <Button
-                        size="sm"
-                        variant={l.sent_at ? "outline" : "default"}
-                        className="h-7 text-xs"
-                        disabled={sendingId === l.id}
-                        onClick={() => handleSend(l.id, l.email)}
-                        title={l.sent_at ? `Initial sent ${new Date(l.sent_at).toLocaleDateString()} — send again` : "Send the initial outreach email"}
-                      >
-                        {sendingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                        {l.sent_at ? "Resend" : "Send"}
-                      </Button>
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant={l.sent_at ? "outline" : "default"}
+                          className="h-7 text-xs"
+                          disabled={sendingId === l.id || !!l.sequence_stopped_at}
+                          onClick={() => handleSend(l.id, l.email)}
+                          title={l.sent_at ? `Initial sent ${new Date(l.sent_at).toLocaleDateString()} — send again` : "Send the initial email now (skips the queue)"}
+                        >
+                          {sendingId === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                          {l.sent_at ? "Resend" : "Send now"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-1.5"
+                          title={l.sequence_stopped_at ? "Resume emails to this professor" : "Stop all emails to this professor (e.g. they replied asking to stop)"}
+                          onClick={async () => {
+                            try {
+                              await setLeadStopped(l.id, !l.sequence_stopped_at);
+                              toast.success(l.sequence_stopped_at ? "Resumed" : "Stopped — no more emails to them");
+                              qc.invalidateQueries({ queryKey: ["outreach-leads"] });
+                            } catch (e: any) { toast.error(e?.message ?? "Failed"); }
+                          }}
+                        >
+                          {l.sequence_stopped_at ? <Undo2 className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Campus } from "@/lib/outreach-mock";
-import { importLeads } from "@/lib/outreach-api";
+import { importLeads, importSendTime } from "@/lib/outreach-api";
 
 type LeadType = "professors" | "bap_advisors" | "accounting_depts" | "cpa_alumni";
 
@@ -191,7 +191,7 @@ function ManualEntryPanel({
     try {
       const { imported, duplicates } = await importLeads(selectedCampusId, validRows);
       setSummary({ imported, duplicates });
-      toast.success(`Imported ${imported} lead${imported === 1 ? "" : "s"}`);
+      toast.success(`Nice work! ${imported} professor${imported === 1 ? "" : "s"} queued 🎉`);
       setRows(Array.from({ length: 5 }, EMPTY_ROW));
       onImported?.();
     } catch (e: any) {
@@ -360,8 +360,21 @@ function ManualEntryPanel({
         </div>
 
         {summary && (
-          <div className="mt-4 rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-            Saved <strong>{summary.imported}</strong> · Duplicates skipped <strong>{summary.duplicates}</strong>
+          <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
+            <div className="text-base font-bold">Nice work! 🎉</div>
+            <div className="mt-1">
+              <strong>{summary.imported}</strong> professor{summary.imported === 1 ? "" : "s"} imported
+              {summary.duplicates > 0 && <> · {summary.duplicates} duplicate{summary.duplicates === 1 ? "" : "s"} skipped</>}
+            </div>
+            {summary.imported > 0 && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Their intro emails are in the queue — going out{" "}
+                <strong className="text-foreground">
+                  {importSendTime().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })} around 9:30 AM
+                </strong>{" "}
+                (2 business days). No extra steps needed.
+              </div>
+            )}
           </div>
         )}
       </Card>

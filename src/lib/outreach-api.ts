@@ -221,12 +221,14 @@ export interface Lead {
   sent_at: string | null;
   opens_count: number;
   clicks_count: number;
+  scheduled_send_at: string | null;
+  sequence_stopped_at: string | null;
 }
 
 export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
     .from("outreach_leads")
-    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at,landing_token,sent_at,opens_count,clicks_count")
+    .select("id,campus_id,email,first_name,last_name,is_phd,status,created_at,landing_token,sent_at,opens_count,clicks_count,scheduled_send_at,sequence_stopped_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((l: any) => ({
@@ -242,13 +244,29 @@ export async function fetchLeads(): Promise<Lead[]> {
     sent_at: l.sent_at ?? null,
     opens_count: Number(l.opens_count ?? 0),
     clicks_count: Number(l.clicks_count ?? 0),
+    scheduled_send_at: l.scheduled_send_at ?? null,
+    sequence_stopped_at: l.sequence_stopped_at ?? null,
   }));
+}
+
+/** Two business days out, at 9:30 AM Central (15:30 UTC during DST). */
+export function importSendTime(): Date {
+  const d = new Date();
+  let added = 0;
+  while (added < 2) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  d.setUTCHours(15, 30, 0, 0);
+  return d;
 }
 
 /**
  * Insert leads for one campus, deduping by email across all existing leads.
- * Note: leads link by campus_id only — the legacy outreach_schools table is
- * not used in the new app (campuses absorbed it).
+ * Importing a lead QUEUES their intro email automatically (+2 business days);
+ * the scheduler sends it. Note: leads link by campus_id only — the legacy
+ * outreach_schools table is not used in the new app (campuses absorbed it).
  */
 export async function importLeads(
   campusId: string,
@@ -269,7 +287,8 @@ export async function importLeads(
       last_name: r.last_name.trim() || null,
       is_phd: r.is_phd,
       campus_id: campusId,
-      status: "pending",
+      status: "queued",
+      scheduled_send_at: importSendTime().toISOString(),
       // Per-professor landing URL token: /outreach/school/{slug}?p={token}
       landing_token: crypto.randomUUID().replace(/-/g, "").slice(0, 10),
     } as never);
@@ -295,6 +314,7 @@ export async function fetchLeadByToken(token: string): Promise<Lead | null> {
     is_phd: !!l.is_phd, status: l.status ?? null, created_at: l.created_at ?? null,
     landing_token: l.landing_token ?? null,
     sent_at: null, opens_count: 0, clicks_count: 0,
+    scheduled_send_at: null, sequence_stopped_at: null,
   };
 }
 
@@ -484,5 +504,56 @@ export async function markWaitlistContacted(id: string, contacted: boolean): Pro
   const { error } = await (supabase.from("campus_waitlist" as never) as any)
     .update({ contacted_at: contacted ? new Date().toISOString() : null })
     .eq("id", id);
+  if (error) throw error;
+}
+
+/** Stop (or resume) all automated emails to a lead. */
+export async function setLeadStopped(leadId: string, stopped: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("outreach_leads")
+    .update({ sequence_stopped_at: stopped ? new Date().toISOString() : null } as never)
+    .eq("id", leadId);
+  if (error) throw error;
+}
+
+// ----- Broadcasts (custom batch emails) -----
+export interface Broadcast {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  campus_ids: string[] | null;
+  include_replied: boolean;
+  send_at: string;
+  status: string;
+  sent_count: number;
+  skipped_count: number;
+  created_at: string;
+}
+
+export async function fetchBroadcasts(): Promise<Broadcast[]> {
+  const { data, error } = await (supabase.from("outreach_broadcasts" as never) as any)
+    .select("*").order("send_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Broadcast[];
+}
+
+export async function saveBroadcast(
+  b: Omit<Broadcast, "id" | "status" | "sent_count" | "skipped_count" | "created_at">,
+  existingId?: string,
+): Promise<void> {
+  if (existingId) {
+    const { error } = await (supabase.from("outreach_broadcasts" as never) as any)
+      .update({ ...b, status: "scheduled" }).eq("id", existingId);
+    if (error) throw error;
+  } else {
+    const { error } = await (supabase.from("outreach_broadcasts" as never) as any).insert(b);
+    if (error) throw error;
+  }
+}
+
+export async function cancelBroadcast(id: string): Promise<void> {
+  const { error } = await (supabase.from("outreach_broadcasts" as never) as any)
+    .update({ status: "canceled" }).eq("id", id);
   if (error) throw error;
 }

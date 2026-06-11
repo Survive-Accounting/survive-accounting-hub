@@ -35,7 +35,14 @@ type Body = {
   test_to?: string;
   test_subject?: string;
   test_body?: string;
+  // Broadcast mode (service-role only): send custom subject/body to a lead,
+  // with full merge-tag support.
+  custom_subject?: string;
+  custom_body?: string;
+  broadcast_id?: string;
 };
+
+const OPT_OUT_LINE = "If you'd rather not get these, just reply and I'll stop.";
 
 // Only these addresses can receive test sends — keeps the endpoint abuse-proof.
 const TEST_RECIPIENTS = ["lee@survivestudios.com", "jking.cim@gmail.com"];
@@ -230,15 +237,25 @@ Deno.serve(async (req) => {
     const refQs = "utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
     const surviveLinkUrl = baseSurviveUrl + (baseSurviveUrl.includes("?") ? "&" : "?") + refQs;
 
+    // Custom broadcast content (service-role only) overrides template lookup.
+    const isCustom = !!(body.custom_subject && body.custom_body);
+    if (isCustom && !isServiceRole) {
+      return new Response(JSON.stringify({ error: "custom sends are service-role only" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Resolve template — pick the best active variant for this lead.
     const step = Math.max(0, Math.min(3, Number(body.follow_up ?? 0))) as 0 | 1 | 2 | 3;
-    const kind = step === 0 ? "initial" : `follow_up_${step}`;
-    const { data: candidates, error: tplErr } = await admin
-      .from("outreach_email_templates")
-      .select("subject, body, variant")
-      .eq("is_active", true)
-      .eq("kind", kind);
-    if (tplErr || !candidates || candidates.length === 0) {
+    const kind = isCustom ? "broadcast" : step === 0 ? "initial" : `follow_up_${step}`;
+    const candidates = isCustom
+      ? [{ subject: body.custom_subject!, body: body.custom_body!, variant: "default" }]
+      : (await admin
+          .from("outreach_email_templates")
+          .select("subject, body, variant")
+          .eq("is_active", true)
+          .eq("kind", kind)).data ?? [];
+    if (candidates.length === 0) {
       return new Response(JSON.stringify({ error: `No active template for ${kind}` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -295,6 +312,11 @@ Deno.serve(async (req) => {
       mergedBody += `\n\nA quick landing page made for your students:\n${landingUrl}`;
     }
 
+    // Every outreach email carries the human opt-out line — append if missing.
+    if (!/reply.{0,30}(stop|let me know)/i.test(mergedBody)) {
+      mergedBody += `\n\n${OPT_OUT_LINE}`;
+    }
+
     const subject = template.subject
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*program\s*\}/gi, programMerge)
@@ -338,10 +360,11 @@ Deno.serve(async (req) => {
       last_message_id: messageId,
       status: "sent",
     };
-    if (step === 1) patch.follow_up_1_sent_at = now;
+    if (isCustom) { /* broadcasts don't advance the follow-up sequence */ }
+    else if (step === 1) patch.follow_up_1_sent_at = now;
     else if (step === 2) patch.follow_up_2_sent_at = now;
     else if (step === 3) patch.follow_up_3_sent_at = now;
-    else patch.sent_at = now;
+    else { patch.sent_at = now; patch.scheduled_send_at = null; }
 
     await admin.from("outreach_leads").update(patch).eq("id", lead.id);
     await admin.from("outreach_send_log").insert({ sender_email: senderEmail, lead_id: lead.id, sent_at: now });
@@ -349,7 +372,7 @@ Deno.serve(async (req) => {
       lead_id: lead.id,
       message_id: messageId,
       event_type: "sent",
-      payload: { subject, follow_up: body.follow_up ?? 0, sender: senderEmail, variant: chosenVariant },
+      payload: { subject, follow_up: body.follow_up ?? 0, sender: senderEmail, variant: chosenVariant, broadcast_id: body.broadcast_id ?? null, kind },
     });
 
     return new Response(JSON.stringify({ ok: true, message_id: messageId, variant: chosenVariant }), {

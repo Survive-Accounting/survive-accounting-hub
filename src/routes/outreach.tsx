@@ -16,6 +16,7 @@ import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
 import { WaitlistCard } from "@/components/outreach/WaitlistCard";
+import { BroadcastsPanel } from "@/components/outreach/BroadcastsPanel";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -198,7 +199,8 @@ function OutreachPage() {
             <LeadsPanel campuses={campuses} />
           </TabsContent>
 
-          <TabsContent value="templates" className="mt-8 space-y-8">
+          <TabsContent value="templates" className="mt-8 space-y-4">
+            <BroadcastsPanel campuses={campuses} />
             <EmailTemplatesPanel />
           </TabsContent>
 

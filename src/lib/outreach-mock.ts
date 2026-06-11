@@ -471,11 +471,11 @@ export interface EmailTemplate {
 }
 export const TEMPLATE_KIND_META: Record<TemplateKind, { label: string; helper: string }> = {
   initial: { label: "Initial Email", helper: "First touch — sent manually from this tab." },
-  follow_up_1: { label: "Follow-up 1", helper: "Sent automatically 7 days after the initial." },
-  follow_up_2: { label: "Follow-up 2", helper: "Sent automatically 14 days after the initial." },
-  follow_up_3: { label: "Follow-up 3 (final)", helper: "Sent automatically 21 days after the initial. No more sends after this." },
+  follow_up_1: { label: "Follow-up 1 (+7 days)", helper: "Sends automatically 7 days after the initial — only once an Active template exists here." },
+  follow_up_2: { label: "Follow-up 2 (+14 days)", helper: "Sends automatically 14 days after the initial — only once an Active template exists here." },
+  follow_up_3: { label: "Follow-up 3 (+21 days)", helper: "Sends automatically 21 days after the initial — only once an Active template exists here." },
 };
-export const TEMPLATE_KIND_ORDER: TemplateKind[] = ["initial"];
+export const TEMPLATE_KIND_ORDER: TemplateKind[] = ["initial", "follow_up_1", "follow_up_2", "follow_up_3"];
 export const TEMPLATE_VARIANT_ORDER: TemplateVariant[] = [
   "default", "phd", "intro1_only", "intro2_only", "intermediate1_only", "intermediate2_only",
 ];

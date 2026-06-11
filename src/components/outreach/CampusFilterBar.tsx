@@ -157,7 +157,7 @@ export default function CampusFilterBar({
                   <SelectTrigger className="mt-1 h-8"><SelectValue placeholder="All states" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_all">All states</SelectItem>
-                    {states.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                    {states.filter(Boolean).map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
@@ -170,7 +170,7 @@ export default function CampusFilterBar({
                   <SelectTrigger className="mt-1 h-8"><SelectValue placeholder="All batches" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_all">All batches</SelectItem>
-                    {batches.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                    {batches.filter(Boolean).map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>

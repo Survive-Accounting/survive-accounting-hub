@@ -17,3 +17,7 @@ verify_jwt = false
 # Called by the campus_waitlist DB trigger with x-cron-secret.
 [functions.notify-waitlist]
 verify_jwt = false
+
+# Called by pg_cron with x-cron-secret.
+[functions.outreach-scheduler]
+verify_jwt = false

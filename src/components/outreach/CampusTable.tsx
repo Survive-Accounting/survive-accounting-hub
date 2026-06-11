@@ -70,9 +70,12 @@ export default function CampusTable({
     return [...rows].sort((a, b) => (val(a) < val(b) ? -dir : val(a) > val(b) ? dir : 0));
   }, [campuses, filters, sortKey, sortDir]);
 
-  const states = useMemo(() => Array.from(new Set(campuses.map((c) => c.state))).sort(), [campuses]);
+  const states = useMemo(
+    () => Array.from(new Set(campuses.map((c) => (c.state ?? "").trim()).filter(Boolean))).sort(),
+    [campuses],
+  );
   const batches = useMemo(
-    () => Array.from(new Set(campuses.map((c) => c.assignment_batch).filter(Boolean) as string[])).sort(),
+    () => Array.from(new Set(campuses.map((c) => (c.assignment_batch ?? "").trim()).filter(Boolean))).sort(),
     [campuses],
   );
   const archivedCount = campuses.filter((c) => c.archived).length;
