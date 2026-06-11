@@ -2799,6 +2799,24 @@ export type Database = {
           },
         ]
       }
+      outreach_settings: {
+        Row: {
+          auto_schedule_on_import: boolean
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          auto_schedule_on_import?: boolean
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_schedule_on_import?: boolean
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       outreach_student_leads: {
         Row: {
           campus_id: string | null
