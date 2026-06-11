@@ -264,14 +264,15 @@ export function importSendTime(): Date {
 
 /**
  * Insert leads for one campus, deduping by email across all existing leads.
- * Importing a lead QUEUES their intro email automatically (+2 business days);
- * the scheduler sends it. Note: leads link by campus_id only — the legacy
- * outreach_schools table is not used in the new app (campuses absorbed it).
+ * Auto-scheduling on import is admin-controlled (Email Queue → Settings).
+ * When OFF, leads land as "ready"; you batch-schedule from the Leads table.
  */
 export async function importLeads(
   campusId: string,
   rows: { email: string; first_name: string; last_name: string; is_phd: boolean }[],
-): Promise<{ imported: number; duplicates: number }> {
+): Promise<{ imported: number; duplicates: number; autoScheduled: boolean }> {
+  const autoSchedule = await fetchAutoScheduleSetting();
+  const scheduledISO = autoSchedule ? importSendTime().toISOString() : null;
   const { data: existing, error: exErr } = await supabase.from("outreach_leads").select("email");
   if (exErr) throw exErr;
   const existingSet = new Set<string>(((existing ?? []) as any[]).map((x) => (x.email ?? "").toLowerCase()));
@@ -287,8 +288,8 @@ export async function importLeads(
       last_name: r.last_name.trim() || null,
       is_phd: r.is_phd,
       campus_id: campusId,
-      status: "queued",
-      scheduled_send_at: importSendTime().toISOString(),
+      status: autoSchedule ? "queued" : "ready",
+      scheduled_send_at: scheduledISO,
       // Per-professor landing URL token: /outreach/school/{slug}?p={token}
       landing_token: crypto.randomUUID().replace(/-/g, "").slice(0, 10),
     } as never);
@@ -296,7 +297,7 @@ export async function importLeads(
     existingSet.add(email);
     imported++;
   }
-  return { imported, duplicates };
+  return { imported, duplicates, autoScheduled: autoSchedule };
 }
 
 /** Look up a lead by its landing token (for personalized landing pages). */
@@ -648,4 +649,42 @@ export async function fetchUpcomingSends(): Promise<UpcomingSend[]> {
 
   out.sort((a, b) => a.send_at.localeCompare(b.send_at));
   return out;
+}
+
+// ----- Outreach settings (singleton row) -----
+export async function fetchAutoScheduleSetting(): Promise<boolean> {
+  const { data } = await (supabase.from("outreach_settings" as never) as any)
+    .select("auto_schedule_on_import").eq("id", 1).maybeSingle();
+  return !!(data as { auto_schedule_on_import?: boolean } | null)?.auto_schedule_on_import;
+}
+export async function setAutoScheduleSetting(on: boolean): Promise<void> {
+  const { error } = await (supabase.from("outreach_settings" as never) as any)
+    .update({ auto_schedule_on_import: on, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) throw error;
+}
+
+// ----- Batch scheduling for unsent leads -----
+export async function scheduleLeadsBatch(leadIds: string[], sendAt: Date): Promise<number> {
+  if (leadIds.length === 0) return 0;
+  const { error, count } = await (supabase.from("outreach_leads") as any)
+    .update({ scheduled_send_at: sendAt.toISOString() }, { count: "exact" })
+    .in("id", leadIds)
+    .is("sent_at", null)
+    .is("sequence_stopped_at", null);
+  if (error) throw error;
+  return count ?? leadIds.length;
+}
+
+/** Two business days out, at 3:30 PM Central (20:30 UTC). */
+export function defaultBatchSendTime(): Date {
+  const d = new Date();
+  let added = 0;
+  while (added < 2) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  d.setUTCHours(20, 30, 0, 0);
+  return d;
 }

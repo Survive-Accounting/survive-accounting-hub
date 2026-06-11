@@ -139,6 +139,8 @@ export function LeadsPanel({ campuses }: { campuses: Campus[] }) {
                         <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-400 text-amber-700" title={new Date(l.scheduled_send_at).toLocaleString()}>
                           queued · {new Date(l.scheduled_send_at).toLocaleDateString([], { month: "short", day: "numeric" })}
                         </Badge>
+                      ) : l.status === "ready" ? (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-emerald-500 text-emerald-700">ready</Badge>
                       ) : (
                         <span className="capitalize">{l.status ?? "pending"}</span>
                       )}

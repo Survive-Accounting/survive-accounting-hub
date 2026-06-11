@@ -130,7 +130,7 @@ function ManualEntryPanel({
     [campuses],
   );
   const [rows, setRows] = useState<EntryRow[]>(() => Array.from({ length: 5 }, EMPTY_ROW));
-  const [summary, setSummary] = useState<{ imported: number; duplicates: number } | null>(null);
+  const [summary, setSummary] = useState<{ imported: number; duplicates: number; autoScheduled: boolean } | null>(null);
   const [importing, setImporting] = useState(false);
   const [selectedCampusId, setSelectedCampusId] = useState<string>("");
 
@@ -189,9 +189,9 @@ function ManualEntryPanel({
     if (usingMock) { toast.error("Database unreachable — can't save leads right now."); return; }
     setImporting(true);
     try {
-      const { imported, duplicates } = await importLeads(selectedCampusId, validRows);
-      setSummary({ imported, duplicates });
-      toast.success(`Nice work! ${imported} professor${imported === 1 ? "" : "s"} queued 🎉`);
+      const { imported, duplicates, autoScheduled } = await importLeads(selectedCampusId, validRows);
+      setSummary({ imported, duplicates, autoScheduled });
+      toast.success(`Nice work! ${imported} professor${imported === 1 ? "" : "s"} imported 🎉`);
       setRows(Array.from({ length: 5 }, EMPTY_ROW));
       onImported?.();
     } catch (e: any) {
@@ -368,11 +368,19 @@ function ManualEntryPanel({
             </div>
             {summary.imported > 0 && (
               <div className="mt-1 text-xs text-muted-foreground">
-                Their intro emails are in the queue — going out{" "}
-                <strong className="text-foreground">
-                  {importSendTime().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })} around 9:30 AM
-                </strong>{" "}
-                (2 business days). No extra steps needed.
+                {summary.autoScheduled ? (
+                  <>
+                    Their intro emails are queued — going out{" "}
+                    <strong className="text-foreground">
+                      {importSendTime().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })} around 9:30 AM
+                    </strong>{" "}
+                    (2 business days). No extra steps needed.
+                  </>
+                ) : (
+                  <>
+                    They're marked <strong className="text-foreground">ready</strong> — head to the Email Queue tab to batch-schedule when you're set.
+                  </>
+                )}
               </div>
             )}
           </div>
