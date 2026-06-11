@@ -165,7 +165,6 @@ function OutreachPage() {
               onImportProfessors={() => { setImportCampusId(null); setImportOpen(true); }}
               onOpenEmailQueue={() => setTab("templates")}
             />
-            <WaitlistCard />
           </TabsContent>
 
           <TabsContent value="schools" className="mt-8 space-y-8">
@@ -203,7 +202,8 @@ function OutreachPage() {
             <EmailTemplatesPanel />
           </TabsContent>
 
-          <TabsContent value="texts" className="mt-8 space-y-8">
+          <TabsContent value="texts" className="mt-8 space-y-4">
+            <WaitlistCard />
             <TextsPanel campuses={campuses} />
           </TabsContent>
         </Tabs>
