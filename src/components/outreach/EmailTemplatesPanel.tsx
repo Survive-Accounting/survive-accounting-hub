@@ -94,10 +94,6 @@ export function EmailTemplatesPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-muted/40 p-6 text-center">
-        <div className="text-xl font-semibold">🚧 Email scheduling tools coming this week</div>
-        <div className="mt-1 text-sm text-muted-foreground">For now, manage your template drafts below.</div>
-      </div>
       <Card className="overflow-hidden py-0 gap-0">
         <div className="flex items-center gap-2 border-b border-border p-3">
           <h2 className="text-sm font-semibold">Email Templates</h2>

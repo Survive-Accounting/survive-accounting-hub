@@ -17,6 +17,7 @@ import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
 import { WaitlistCard } from "@/components/outreach/WaitlistCard";
 import { BroadcastsPanel } from "@/components/outreach/BroadcastsPanel";
+import { UpcomingSendsPanel } from "@/components/outreach/UpcomingSendsPanel";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -165,6 +166,7 @@ function OutreachPage() {
               onFocusCampus={handleFocusCampus}
               onImportProfessors={() => { setImportCampusId(null); setImportOpen(true); }}
               onOpenEmailQueue={() => setTab("templates")}
+              onOpenTexts={() => setTab("texts")}
             />
           </TabsContent>
 
@@ -200,6 +202,7 @@ function OutreachPage() {
           </TabsContent>
 
           <TabsContent value="templates" className="mt-8 space-y-4">
+            <UpcomingSendsPanel campuses={campuses} />
             <BroadcastsPanel campuses={campuses} />
             <EmailTemplatesPanel />
           </TabsContent>
