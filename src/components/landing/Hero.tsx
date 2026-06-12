@@ -13,7 +13,7 @@ interface HeroProps {
   showBottomFade?: boolean;
 }
 
-export default function Hero({ onBookTutoring, onReadReviews, headline, subtext, ctaSlot }: HeroProps) {
+export default function Hero({ onBookTutoring, onReadReviews, headline, subtext, ctaSlot, showBottomFade = true }: HeroProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
