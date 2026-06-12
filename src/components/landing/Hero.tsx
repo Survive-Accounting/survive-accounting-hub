@@ -31,7 +31,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
         <div className="ribbon ribbon-7" />
       </div>
 
-      <div className="staging-hero-overlay-bottom" aria-hidden="true" />
+      {showBottomFade && <div className="staging-hero-overlay-bottom" aria-hidden="true" />}
 
       <style>{`
         .staging-hero { min-height: 88vh; display: flex; align-items: center; }
