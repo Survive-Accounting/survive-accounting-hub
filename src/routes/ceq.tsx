@@ -1,3 +1,4 @@
+import { AdminGate } from "@/components/AdminGate";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/ceq")({
@@ -92,6 +93,8 @@ function CeqRoute() {
   const stats = { total: 0, drafted: 0, approved: 0, readyTutor: 0, readyFilm: 0, published: 0 };
 
   return (
+    <AdminGate>
+
     <div className="min-h-screen bg-[hsl(210_20%_98%)]">
       {/* Top header */}
       <header className="border-b border-border bg-white">
@@ -170,6 +173,7 @@ function CeqRoute() {
         </div>
       </main>
     </div>
+    </AdminGate>
   );
 }
 

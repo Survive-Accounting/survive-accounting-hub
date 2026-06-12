@@ -1,5 +1,6 @@
 // /outreach — ported faithfully from the original app (ProfessorOutreach.tsx).
 // Reads the real database; falls back to mock data if the backend is unreachable.
+import { AdminGate } from "@/components/AdminGate";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -133,6 +134,8 @@ function OutreachPage() {
   };
 
   return (
+    <AdminGate>
+
     <div className="min-h-screen bg-background">
       <Toaster richColors position="top-center" />
       <div className="mx-auto max-w-7xl px-6 py-8">
@@ -225,5 +228,6 @@ function OutreachPage() {
         onApprove={(id, patch) => patchCampus(id, patch)}
       />
     </div>
+    </AdminGate>
   );
 }
