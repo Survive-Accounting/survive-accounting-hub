@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { formatPhonePretty } from "@/lib/outreach-api";
+import { useEffect } from "react";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -51,6 +53,14 @@ function scrollToId(id: string) {
 
 function StartPage() {
   const [bookOpen, setBookOpen] = useState(false);
+  const [mainLine, setMainLine] = useState<string | null>(null);
+  useEffect(() => {
+    (supabase.from("campus_phone_numbers" as never) as any)
+      .select("phone_e164").is("campus_id", null).maybeSingle()
+      .then(({ data }: { data: { phone_e164: string } | null }) => {
+        if (data?.phone_e164) setMainLine(data.phone_e164);
+      });
+  }, []);
   return (
     <div className="min-h-screen bg-background">
       <SiteNavbar />
@@ -60,6 +70,20 @@ function StartPage() {
         ctaSlot={<CampusSearch />}
       />
       <Reviews />
+      {mainLine && (
+        <section className="border-y border-border bg-white px-6 py-8 text-center" style={{ fontFamily: "Inter, sans-serif" }}>
+          <div className="text-lg font-bold" style={{ color: NAVY }}>
+            📱 Prefer to text? Text Lee:{" "}
+            <a href={`sms:${mainLine}`} className="underline">{formatPhonePretty(mainLine)}</a>
+          </div>
+          <p className="mx-auto mt-2 max-w-xl text-[11px] leading-relaxed text-gray-500">
+            By texting, you agree to receive replies about your tutoring inquiry. Message frequency varies.
+            Message &amp; data rates may apply. Reply STOP to opt out, HELP for help.{" "}
+            <a href="/privacy" className="underline">Privacy Policy</a> ·{" "}
+            <a href="/terms" className="underline">Terms</a>
+          </p>
+        </section>
+      )}
       <ContactForm />
       <SiteFooter
         onScrollToContact={() => scrollToId("contact-form")}
