@@ -10,6 +10,7 @@ interface HeroProps {
   headline?: string;
   subtext?: string;
   ctaSlot?: React.ReactNode;
+  showBottomFade?: boolean;
 }
 
 export default function Hero({ onBookTutoring, onReadReviews, headline, subtext, ctaSlot }: HeroProps) {
