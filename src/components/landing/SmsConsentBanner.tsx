@@ -31,7 +31,7 @@ export function SmsConsentBanner() {
         borderBottom: "1px solid #E5E7EB",
       }}
     >
-      📱 Questions? Text Lee:{" "}
+      📱 Need help in your course? Text Lee:{" "}
       <a
         href={`sms:${phone}`}
         style={{ fontWeight: 700, color: "#14213D", textDecoration: "underline" }}
