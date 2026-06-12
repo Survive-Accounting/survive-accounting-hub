@@ -143,9 +143,15 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
 
 // ----- Email templates -----
 export async function fetchTemplates(): Promise<EmailTemplate[]> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("outreach_email_templates")
-    .select("id,name,subject,body,is_locked,is_active,kind,variant,lead_type");
+    .select("id,name,subject,body,is_locked,is_active,kind,variant,lead_type" as never);
+  if (error && /lead_type/.test(error.message ?? "")) {
+    // Migration 0017 not applied yet - read without the column, default it.
+    ({ data, error } = await supabase
+      .from("outreach_email_templates")
+      .select("id,name,subject,body,is_locked,is_active,kind,variant" as never));
+  }
   if (error) throw error;
   return (data ?? []).map((t: any): EmailTemplate => ({
     id: t.id,
@@ -546,12 +552,24 @@ export async function saveBroadcast(
   b: Omit<Broadcast, "id" | "status" | "sent_count" | "skipped_count" | "created_at">,
   existingId?: string,
 ): Promise<void> {
+  const stripLeadType = (obj: Record<string, unknown>) => {
+    const copy = { ...obj };
+    delete copy.lead_type;
+    return copy;
+  };
   if (existingId) {
-    const { error } = await (supabase.from("outreach_broadcasts" as never) as any)
+    let { error } = await (supabase.from("outreach_broadcasts" as never) as any)
       .update({ ...b, status: "scheduled" }).eq("id", existingId);
+    if (error && /lead_type/.test(error.message ?? "")) {
+      ({ error } = await (supabase.from("outreach_broadcasts" as never) as any)
+        .update({ ...stripLeadType(b as Record<string, unknown>), status: "scheduled" }).eq("id", existingId));
+    }
     if (error) throw error;
   } else {
-    const { error } = await (supabase.from("outreach_broadcasts" as never) as any).insert(b);
+    let { error } = await (supabase.from("outreach_broadcasts" as never) as any).insert(b);
+    if (error && /lead_type/.test(error.message ?? "")) {
+      ({ error } = await (supabase.from("outreach_broadcasts" as never) as any).insert(stripLeadType(b as Record<string, unknown>)));
+    }
     if (error) throw error;
   }
 }
