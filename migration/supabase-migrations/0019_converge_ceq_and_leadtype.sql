@@ -1,11 +1,11 @@
--- 0019: CONVERGE — fully idempotent repair migration.
--- Safely brings the database to the combined end-state of 0017 + 0018,
--- regardless of which parts were previously applied. Every statement is
--- guarded: columns use IF NOT EXISTS, tables use IF NOT EXISTS, policies
--- are DROP IF EXISTS + CREATE, seeds use WHERE NOT EXISTS / ON CONFLICT.
--- Running it twice in a row is harmless.
+-- 0019: CONVERGE — fully idempotent repair migration (v2, syntax-fixed).
+-- Brings the database to the combined end-state of 0017 + 0018 regardless
+-- of partial application. Policies are DROP IF EXISTS + CREATE; tables,
+-- columns, and seeds are guarded. Safe to run repeatedly.
 
 -- ====================== From 0017 (lead_type) ======================
+-- 0017: Add lead_type to templates and broadcasts for the lead-type-card UI.
+-- Existing rows get 'professors' (the only live lead type so far).
 
 alter table public.outreach_email_templates
   add column if not exists lead_type text not null default 'professors';
@@ -17,8 +17,11 @@ alter table public.outreach_broadcasts
 update public.outreach_email_templates set lead_type = 'professors' where lead_type is null or lead_type = '';
 update public.outreach_broadcasts       set lead_type = 'professors' where lead_type is null or lead_type = '';
 
-
 -- ====================== From 0018 (concepts/CEQ) ======================
+-- 0018: Concept-centric CEQ schema — concepts spine, mappings, structured
+-- teaching blocks, dictation sessions, chart-of-accounts seed.
+
+create table if not exists public.concepts (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
   name text not null,
