@@ -42,7 +42,7 @@ function Home() {
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <SiteNavbar />
       <SmsConsentBanner />
-      <Hero onBookTutoring={goToBooking} onReadReviews={goToReviews} showBottomFade={false} />
+      <Hero onBookTutoring={goToBooking} onReadReviews={goToReviews} />
       <SquareBookingSection />
       <Reviews />
       <ContactForm />
