@@ -192,37 +192,70 @@ export default function ApproveCampusModal({
     if (field === "isbn13") maybeLookupIsbn(key, val);
   };
 
-  /** ISBN-13 lookup via Google Books — fills title/authors/publisher automatically. */
-  const maybeLookupIsbn = (key: string, raw: string) => {
+  /** ISBN lookup — Google Books first, Open Library as fallback. Fills title/authors/publisher. */
+  const maybeLookupIsbn = async (key: string, raw: string) => {
     const isbn = raw.replace(/[^0-9Xx]/g, "");
     if (isbn.length !== 13 && isbn.length !== 10) return;
     setIsbnLookup((p) => ({ ...p, [key]: "loading" }));
-    fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`)
-      .then((r) => r.json())
-      .then((data) => {
+
+    type Found = { title?: string; authors?: string; publisher?: string };
+    let found: Found | null = null;
+
+    // Google Books
+    try {
+      const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+      if (r.ok) {
+        const data = await r.json();
         const info = data?.items?.[0]?.volumeInfo;
-        if (!info) {
-          setIsbnLookup((p) => ({ ...p, [key]: "notfound" }));
-          return;
-        }
-        setIsbnLookup((p) => ({ ...p, [key]: "found" }));
-        setFamilyBooks((prev) => {
-          const cur = prev[key] ?? EMPTY_BOOK();
-          const next = {
-            ...prev,
-            [key]: {
-              ...cur,
-              title: info.title ?? cur.title,
-              authors: Array.isArray(info.authors) ? info.authors.join(", ") : cur.authors,
-              publisher: info.publisher ?? cur.publisher,
-            },
+        if (info) {
+          found = {
+            title: info.title,
+            authors: Array.isArray(info.authors) ? info.authors.join(", ") : undefined,
+            publisher: info.publisher,
           };
-          debouncedSaveBooks(next);
-          return next;
-        });
-        toast.success(`Found: ${info.title ?? "textbook"}`);
-      })
-      .catch(() => setIsbnLookup((p) => ({ ...p, [key]: "notfound" })));
+        }
+      }
+    } catch { /* fall through */ }
+
+    // Open Library fallback
+    if (!found) {
+      try {
+        const r = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+        if (r.ok) {
+          const data = await r.json();
+          const info = data?.[`ISBN:${isbn}`];
+          if (info) {
+            found = {
+              title: info.title,
+              authors: Array.isArray(info.authors) ? info.authors.map((a: any) => a.name).filter(Boolean).join(", ") : undefined,
+              publisher: Array.isArray(info.publishers) ? info.publishers.map((p: any) => p.name).filter(Boolean).join(", ") : undefined,
+            };
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (!found) {
+      setIsbnLookup((p) => ({ ...p, [key]: "notfound" }));
+      return;
+    }
+
+    setIsbnLookup((p) => ({ ...p, [key]: "found" }));
+    setFamilyBooks((prev) => {
+      const cur = prev[key] ?? EMPTY_BOOK();
+      const next = {
+        ...prev,
+        [key]: {
+          ...cur,
+          title: found!.title ?? cur.title,
+          authors: found!.authors ?? cur.authors,
+          publisher: found!.publisher ?? cur.publisher,
+        },
+      };
+      debouncedSaveBooks(next);
+      return next;
+    });
+    toast.success(`Found: ${found.title ?? "textbook"}`);
   };
 
   // ============ Autosave (to parent state) ============
