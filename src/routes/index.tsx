@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 import SiteNavbar from "@/components/landing/SiteNavbar";
 import Hero from "@/components/landing/Hero";
+import SmsConsentBanner from "@/components/landing/SmsConsentBanner";
 import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
 import SiteFooter from "@/components/landing/SiteFooter";
@@ -42,6 +43,7 @@ function Home() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <SiteNavbar />
+      <SmsConsentBanner />
       <Hero onBookTutoring={openBook} onReadReviews={goToReviews} />
       <Reviews />
       <ContactForm />
