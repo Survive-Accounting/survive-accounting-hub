@@ -2458,6 +2458,7 @@ export type Database = {
           error: string | null
           id: string
           include_replied: boolean
+          lead_type: string
           name: string
           send_at: string
           sent_count: number
@@ -2472,6 +2473,7 @@ export type Database = {
           error?: string | null
           id?: string
           include_replied?: boolean
+          lead_type?: string
           name: string
           send_at: string
           sent_count?: number
@@ -2486,6 +2488,7 @@ export type Database = {
           error?: string | null
           id?: string
           include_replied?: boolean
+          lead_type?: string
           name?: string
           send_at?: string
           sent_count?: number
