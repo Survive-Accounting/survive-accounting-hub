@@ -1,0 +1,1 @@
+ALTER TABLE public.outreach_broadcasts ADD COLUMN IF NOT EXISTS lead_type text NOT NULL DEFAULT 'professors';
