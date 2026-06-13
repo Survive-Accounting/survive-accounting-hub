@@ -400,6 +400,63 @@ export async function sendTestEmail(to: string, subject: string, body: string): 
   return { ok: true };
 }
 
+// ----- AI campus research (Approve Campus modal) -----
+export type AiConfidence = "high" | "medium" | "low";
+export interface AiField {
+  value: string | null;
+  confidence: AiConfidence;
+  source: string | null;
+}
+export interface AiFamilyBook {
+  isbn13: string | null;
+  title: string | null;
+  authors: string | null;
+  publisher: string | null;
+  confidence: AiConfidence;
+  source: string | null;
+}
+export interface AiFamilyResearch {
+  code: AiField;
+  title: AiField;
+  textbook_status: { value: "matches" | "different" | "not_found" | null; confidence: AiConfidence; source: string | null };
+  book: AiFamilyBook;
+}
+export interface CampusResearchResult {
+  program: AiField;
+  families: Record<string, AiFamilyResearch>;
+}
+
+/**
+ * Ask Claude (web-search-grounded) to suggest the program name, course
+ * codes/titles, and per-family textbook for a campus. Suggestions only —
+ * a human reviews & edits before approving. Never fabricates: blank = not found.
+ */
+export async function researchCampusAI(
+  campus: { school_name: string; state?: string; course_codes?: string[] },
+): Promise<{ ok: boolean; result?: CampusResearchResult; error?: string }> {
+  const { data, error } = await supabase.functions.invoke("research-campus", {
+    body: {
+      school_name: campus.school_name,
+      state: campus.state ?? "",
+      course_codes: campus.course_codes ?? [],
+    },
+  });
+  if (error) {
+    let message = error.message ?? "Research failed";
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx) {
+        const j = await ctx.json();
+        message = j?.detail ?? j?.error ?? message;
+      }
+    } catch { /* keep default */ }
+    return { ok: false, error: message };
+  }
+  const d = data as { ok?: boolean; result?: CampusResearchResult; error?: string } | null;
+  if (!d?.ok || !d.result) return { ok: false, error: d?.error ?? "No result returned" };
+  return { ok: true, result: d.result };
+}
+
 // ----- SMS intake -----
 export interface SmsConversation {
   id: string;
