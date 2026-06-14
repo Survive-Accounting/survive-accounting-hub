@@ -1,24 +1,17 @@
-## Shift campus due dates forward by 6 days
+## Changes
 
-Update the `due_date` on all 36 currently-assigned campuses in the `campuses` table by adding 6 days. None of the new dates land on Sunday or Monday, so no skip logic is required.
+### 1. Swap section order on the homepage
+In `src/routes/index.tsx`, render `<Reviews />` before `<SquareBookingSection />` so the page flow becomes: Hero → Reviews → Booking → Contact → Footer.
 
-### Date mapping
+The existing scroll handlers already target the correct element IDs (`reviews-section` and `book-tutoring`), so the Hero's "Book Tutoring" and "Read Reviews" buttons and the footer links keep working after the swap — they'll just scroll up/down to the new positions.
 
-| Current (count) | New |
-|---|---|
-| Wed Jun 10 (5) | Tue Jun 16 |
-| Thu Jun 11 (21) | Wed Jun 17 |
-| Fri Jun 12 (5) | Thu Jun 18 |
-| Sat Jun 13 (5) | Fri Jun 19 |
+### 2. Replace "Log in" with a Book Tutoring button in the navbar
+In `src/components/landing/SiteNavbar.tsx`:
+- Rename the `onLoginClick` prop to `onBookTutoring`.
+- Change the button label from "Log in" to "Book Tutoring".
+- Restyle it as a primary CTA (red gradient pill matching the Hero's Book Tutoring button) so it reads as an action, not a text link.
 
-### Change
+In `src/routes/index.tsx`, pass `onBookTutoring={goToBooking}` to `<SiteNavbar />` so clicking it smooth-scrolls to the `#book-tutoring` Square booking section.
 
-Single SQL update via the insert tool:
-
-```sql
-UPDATE public.campuses
-SET due_date = due_date + INTERVAL '6 days'
-WHERE due_date IS NOT NULL;
-```
-
-No code changes; the Outreach UI reads `due_date` directly and will reflect the new dates immediately.
+### Out of scope
+No changes to `/start`, `/outreach`, Reviews, SquareBookingSection, or ContactForm internals.

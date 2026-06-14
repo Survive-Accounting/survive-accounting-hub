@@ -40,11 +40,11 @@ function Home() {
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
-      <SiteNavbar />
+      <SiteNavbar onBookTutoring={goToBooking} />
       <SmsConsentBanner />
       <Hero onBookTutoring={goToBooking} onReadReviews={goToReviews} />
-      <SquareBookingSection />
       <Reviews />
+      <SquareBookingSection />
       <ContactForm />
       <SiteFooter
         onScrollToContact={goToContact}
