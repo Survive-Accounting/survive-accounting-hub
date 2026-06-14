@@ -13,9 +13,8 @@
 // not a hunch. Not found => value null, confidence "low", no source. The UI shows
 // a red/amber/green meter from this; it never invents data.
 //
-// Secrets required: ANTHROPIC_API_KEY
-// Model: claude-sonnet-4-6 (research/tool-use quality; cost is trivial per campus.
-//        Haiku is too weak for multi-source reconciliation here.)
+// Secrets required: LOVABLE_API_KEY (auto-provisioned)
+// Model: openai/gpt-5 via Lovable AI Gateway.
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +22,7 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
 
 type Confidence = "high" | "medium" | "low";
 
@@ -130,7 +129,7 @@ function extractJson(text: string): any {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
-  if (!ANTHROPIC_KEY) return json({ error: "ANTHROPIC_API_KEY not set" }, 500);
+  if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
 
   let body: { school_name?: string; state?: string; course_codes?: string[] };
   try {
@@ -144,31 +143,26 @@ Deno.serve(async (req) => {
   if (!school) return json({ error: "school_name required" }, 400);
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
+        "Lovable-API-Key": LOVABLE_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 3000,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }],
+        model: "openai/gpt-5",
         messages: [{ role: "user", content: buildPrompt(school, state, knownCodes) }],
+        response_format: { type: "json_object" },
       }),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      return json({ error: "Anthropic request failed", status: res.status, detail: detail.slice(0, 500) }, 502);
+      if (res.status === 429) return json({ error: "Rate limit exceeded, please try again later.", status: 429 }, 429);
+      if (res.status === 402) return json({ error: "AI credits exhausted. Please add credits to your workspace.", status: 402 }, 402);
+      return json({ error: "AI gateway request failed", status: res.status, detail: detail.slice(0, 500) }, 502);
     }
     const j = await res.json();
-    // With web_search, content holds server_tool_use + web_search_tool_result + text
-    // blocks. Concatenate all text blocks; the JSON lives in the final one.
-    const text = (j?.content ?? [])
-      .filter((b: any) => b?.type === "text")
-      .map((b: any) => b.text ?? "")
-      .join("\n");
+    const text: string = j?.choices?.[0]?.message?.content ?? "";
     if (!text.trim()) return json({ error: "empty model response" }, 502);
     const result = sanitize(extractJson(text));
     return json({ ok: true, school_name: school, result });
