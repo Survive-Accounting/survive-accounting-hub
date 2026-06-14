@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
 interface SiteNavbarProps {
-  onLoginClick?: () => void;
+  onBookTutoring?: () => void;
 }
 
 const LOGO_URL =
   "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 
-export default function SiteNavbar({ onLoginClick }: SiteNavbarProps) {
+export default function SiteNavbar({ onBookTutoring }: SiteNavbarProps) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -60,15 +60,18 @@ export default function SiteNavbar({ onLoginClick }: SiteNavbarProps) {
         <div className="relative flex items-center gap-3 sm:gap-5">
           <button
             type="button"
-            onClick={onLoginClick}
-            className="text-[13px] font-medium"
+            onClick={onBookTutoring}
+            className="inline-flex items-center justify-center rounded-full px-4 sm:px-5 h-9 text-[13px] font-semibold text-white hover:brightness-110 active:scale-[0.98]"
             style={{
-              color: "rgba(255,255,255,0.85)",
               fontFamily: "Inter, sans-serif",
-              transition: `color ${TRANSITION}`,
+              background:
+                "linear-gradient(180deg, #E94B4B 0%, #C9302C 100%)",
+              boxShadow:
+                "0 6px 18px rgba(201,48,44,0.35), 0 1px 0 rgba(255,255,255,0.18) inset",
+              transition: `filter ${TRANSITION}, transform 150ms ease`,
             }}
           >
-            Log in
+            Book Tutoring
           </button>
         </div>
       </nav>
