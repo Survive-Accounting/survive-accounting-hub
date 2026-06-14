@@ -1,20 +1,6 @@
 // research-campus — AI-assisted campus research for the Approve Campus modal.
 //
-// Given a school name + state, Claude searches the web (server-side web_search
-// tool) and returns SUGGESTIONS a human reviews before saving:
-//   - accounting program / department name
-//   - per course-family: course code, course title
-//   - per course-family: the required textbook (ISBN-13, title, authors, publisher)
-//   - per course-family: textbook_status vs OUR supported book (matches/different/not_found)
-//
-// HARD RULE baked into the prompt: never guess. A field is only returned with a
-// value if it was found in a real source. Confidence reflects SOURCE QUALITY
-// (official catalog/registrar/bookstore = high; secondary/older/ambiguous = low),
-// not a hunch. Not found => value null, confidence "low", no source. The UI shows
-// a red/amber/green meter from this; it never invents data.
-//
-// Secrets required: LOVABLE_API_KEY (auto-provisioned)
-// Model: openai/gpt-5 via Lovable AI Gateway.
+// Calls OpenAI directly using the project's OPENAI_API_KEY.
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -22,12 +8,11 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
+const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o";
 
 type Confidence = "high" | "medium" | "low";
 
-// Mirror of the four families in ApproveCampusModal, with OUR supported textbook
-// so Claude can decide matches/different per family.
 const FAMILIES = [
   { key: "intro_1", label: "Intro 1 — Financial Accounting Principles", ourBook: "McGraw Hill — Financial and Managerial Accounting (Wild/Shaw)" },
   { key: "intro_2", label: "Intro 2 — Managerial Accounting Principles", ourBook: "McGraw Hill — Financial and Managerial Accounting (Wild/Shaw)" },
@@ -55,15 +40,15 @@ For the textbook of each family, decide a status by comparing what the school us
   - "different"  = the school uses a clearly different textbook
   - "not_found"  = you could not determine the textbook from any source
 
-Search the web. Prefer, in order: the university's official course catalog / bulletin / registrar, the academic department page, the campus bookstore (e.g. bkstr.com / school store), then verified syllabi. ISBNs: only report an ISBN-13 you actually saw on a source; ISBNs are easy to get wrong, so default their confidence to "low" or "medium" unless it came straight from the bookstore listing.
+Prefer, in order: the university's official course catalog / bulletin / registrar, the academic department page, the campus bookstore (e.g. bkstr.com / school store), then verified syllabi. ISBNs: only report an ISBN-13 you actually have a source for; ISBNs are easy to get wrong, so default their confidence to "low" or "medium" unless it came straight from the bookstore listing.
 
 ABSOLUTE RULES — these matter more than completeness:
-1. NEVER guess or fabricate. If you did not find a value in a real source, return null for it. A blank is correct and useful; an invented value is harmful.
+1. NEVER guess or fabricate. If you do not have a real source for a value, return null. A blank is correct and useful; an invented value is harmful.
 2. Confidence reflects SOURCE QUALITY, not your feeling:
    - "high"   = stated explicitly on an official/authoritative source (catalog, registrar, department, bookstore).
    - "medium" = found, but on a secondary source, an older page, or requiring light inference.
-   - "low"    = found something weak/ambiguous/conflicting that a human must verify. (Still source-backed — not a guess.)
-3. Every non-null value MUST include a "source" URL you actually used. No URL => return null instead.
+   - "low"    = found something weak/ambiguous/conflicting that a human must verify.
+3. Every non-null value MUST include a "source" URL. No URL => return null instead.
 4. Do not assume all four families exist or are numbered like a template. Report only what the catalog shows.
 
 Respond with ONLY a single JSON object, no prose and no markdown fences, in EXACTLY this shape (use null for any value not found; confidence is always one of "high"|"medium"|"low"):
@@ -82,7 +67,6 @@ Respond with ONLY a single JSON object, no prose and no markdown fences, in EXAC
 const VALID_CONF = new Set<Confidence>(["high", "medium", "low"]);
 const VALID_STATUS = new Set(["matches", "different", "not_found"]);
 
-/** Coerce model output into a safe, predictable shape. Drops anything malformed. */
 function sanitize(raw: any) {
   const conf = (c: any): Confidence => (VALID_CONF.has(c) ? c : "low");
   const field = (f: any) =>
@@ -117,7 +101,6 @@ function sanitize(raw: any) {
   return { program: field(raw?.program), families };
 }
 
-/** Pull the last balanced JSON object out of the model's text blocks. */
 function extractJson(text: string): any {
   const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
   const start = cleaned.indexOf("{");
@@ -129,7 +112,7 @@ function extractJson(text: string): any {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
-  if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
+  if (!OPENAI_API_KEY) return json({ error: "OPENAI_API_KEY not set" }, 500);
 
   let body: { school_name?: string; state?: string; course_codes?: string[] };
   try {
@@ -143,23 +126,21 @@ Deno.serve(async (req) => {
   if (!school) return json({ error: "school_name required" }, 400);
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Lovable-API-Key": LOVABLE_API_KEY,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5",
+        model: OPENAI_MODEL,
         messages: [{ role: "user", content: buildPrompt(school, state, knownCodes) }],
         response_format: { type: "json_object" },
       }),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      if (res.status === 429) return json({ error: "Rate limit exceeded, please try again later.", status: 429 }, 429);
-      if (res.status === 402) return json({ error: "AI credits exhausted. Please add credits to your workspace.", status: 402 }, 402);
-      return json({ error: "AI gateway request failed", status: res.status, detail: detail.slice(0, 500) }, 502);
+      return json({ error: "OpenAI request failed", status: res.status, detail: detail.slice(0, 500) }, 502);
     }
     const j = await res.json();
     const text: string = j?.choices?.[0]?.message?.content ?? "";
