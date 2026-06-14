@@ -13,9 +13,8 @@
 // not a hunch. Not found => value null, confidence "low", no source. The UI shows
 // a red/amber/green meter from this; it never invents data.
 //
-// Secrets required: ANTHROPIC_API_KEY
-// Model: claude-sonnet-4-6 (research/tool-use quality; cost is trivial per campus.
-//        Haiku is too weak for multi-source reconciliation here.)
+// Secrets required: LOVABLE_API_KEY (auto-provisioned)
+// Model: openai/gpt-5 via Lovable AI Gateway.
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +22,7 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
 
 type Confidence = "high" | "medium" | "low";
 
