@@ -1,34 +1,24 @@
-# Broadcasts not showing — root cause and fix
+## Shift campus due dates forward by 6 days
 
-## What's actually happening
+Update the `due_date` on all 36 currently-assigned campuses in the `campuses` table by adding 6 days. None of the new dates land on Sunday or Monday, so no skip logic is required.
 
-Your data is fine. There are **25 scheduled broadcasts** sitting in `outreach_broadcasts` right now. The UI is showing the "Run migration 0012" fallback because `fetchBroadcasts()` is throwing an error, and the panel treats any error as "table missing".
+### Date mapping
 
-## Root cause
+| Current (count) | New |
+|---|---|
+| Wed Jun 10 (5) | Tue Jun 16 |
+| Thu Jun 11 (21) | Wed Jun 17 |
+| Fri Jun 12 (5) | Thu Jun 18 |
+| Sat Jun 13 (5) | Fri Jun 19 |
 
-`src/lib/outreach-api.ts` (line 546) selects this column list:
+### Change
 
-```
-id, name, subject, body, campus_ids, include_replied, send_at, status,
-sent_count, skipped_count, lead_type, created_at
-```
-
-But the `outreach_broadcasts` table has **no `lead_type` column** (confirmed via `\d outreach_broadcasts`). Migration 0017 added `lead_type` to leads/templates but skipped broadcasts. So the select 400s, React Query marks it `isError`, and the panel renders the "Run migration 0012" message — misleading, since 0012 already ran.
-
-The save path already defends against this (it retries without `lead_type` on error), but the read path doesn't.
-
-## Fix
-
-One small migration to add the column, defaulting existing rows to `'professors'` so they appear in the Professors tab where the panel currently lives:
+Single SQL update via the insert tool:
 
 ```sql
-ALTER TABLE public.outreach_broadcasts
-  ADD COLUMN IF NOT EXISTS lead_type text NOT NULL DEFAULT 'professors';
+UPDATE public.campuses
+SET due_date = due_date + INTERVAL '6 days'
+WHERE due_date IS NOT NULL;
 ```
 
-That's it. No code changes needed — `fetchBroadcasts` will succeed, the 25 scheduled broadcasts will populate, grouped by semester (Fall 2026 → Fall 2028), and the existing filter `(b.lead_type ?? "professors") === leadType` will match.
-
-## Verification after migration
-
-- Reload `/outreach` → Broadcasts panel shows 25 scheduled items grouped by semester.
-- "New Broadcast" still works (save path is already lead_type-aware).
+No code changes; the Outreach UI reads `due_date` directly and will reflect the new dates immediately.
