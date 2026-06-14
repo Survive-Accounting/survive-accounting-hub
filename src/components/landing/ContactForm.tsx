@@ -89,7 +89,7 @@ export default function ContactForm() {
             }}
           >
             Send me a note about your class, your exam, or anything else. I read
-            every message.
+            and reply to every message.
           </p>
         </div>
 
