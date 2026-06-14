@@ -216,7 +216,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
-            {headline ?? "Let's Make Accounting Simple"}
+            {headline ?? "Let's Make Accounting Exams Simple"}
           </h1>
 
           <p
