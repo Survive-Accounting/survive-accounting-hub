@@ -2,7 +2,7 @@
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, BookOpen, CheckCircle2, FileText, Loader2, Save, Sparkles, Store,
+  AlertTriangle, BookOpen, Check, CheckCircle2, ExternalLink, FileText, Loader2, Save, Sparkles, Store, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,6 +20,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Info } from "lucide-react";
 import type { Campus } from "@/lib/outreach-mock";
+import { researchCampusAI, type CampusResearchResult, type AiConfidence } from "@/lib/outreach-api";
 
 type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
 
@@ -88,6 +89,45 @@ function openExternal(url: string) {
   }
 }
 
+const CONF_META: Record<AiConfidence, { label: string; bar: string; text: string; segs: number }> = {
+  high:   { label: "high confidence",        bar: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-400", segs: 3 },
+  medium: { label: "medium — double-check",  bar: "bg-amber-500",   text: "text-amber-700 dark:text-amber-400",   segs: 2 },
+  low:    { label: "low — verify",           bar: "bg-red-500",     text: "text-red-700 dark:text-red-400",       segs: 1 },
+};
+
+/** Red/amber/green meter for an AI-suggested field. No numbers — just a bar + source. */
+function ConfidenceMeter({
+  confidence, source, touched,
+}: { confidence: AiConfidence; source: string | null; touched?: boolean }) {
+  if (touched) {
+    return (
+      <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400">
+        <Check className="h-3 w-3" /> Edited by you
+      </span>
+    );
+  }
+  const m = CONF_META[confidence];
+  return (
+    <span className="mt-1 flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-px" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span key={i} className={`h-1.5 w-3 rounded-sm ${i < m.segs ? m.bar : "bg-muted"}`} />
+        ))}
+      </span>
+      <span className={`text-[10px] font-medium ${m.text}`}>AI · {m.label}</span>
+      {source && (
+        <button
+          type="button"
+          onClick={() => openExternal(source)}
+          className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          <ExternalLink className="h-2.5 w-2.5" /> source
+        </button>
+      )}
+    </span>
+  );
+}
+
 export default function ApproveCampusModal({
   campus, onClose, onPatch, onApprove,
 }: {
@@ -108,6 +148,12 @@ export default function ApproveCampusModal({
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const [aiResearching, setAiResearching] = useState(false);
+  const [aiResult, setAiResult] = useState<CampusResearchResult | null>(null);
+  const [aiTouched, setAiTouched] = useState<Set<string>>(new Set());
+
+  const markTouched = (fieldId: string) =>
+    setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
 
   useEffect(() => {
     if (!campus) return;
@@ -145,6 +191,9 @@ export default function ApproveCampusModal({
     setIsbnLookup({});
     setProgramName(campus.accounting_department_name ?? "");
     setLastSavedAt(null);
+    setAiResult(null);
+    setAiResearching(false);
+    setAiTouched(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus?.id]);
 
@@ -184,6 +233,7 @@ export default function ApproveCampusModal({
   };
 
   const updateBook = (key: string, field: keyof FamilyBook, val: string) => {
+    markTouched(`book:${key}`);
     setFamilyBooks((prev) => {
       const next = { ...prev, [key]: { ...(prev[key] ?? EMPTY_BOOK()), [field]: val } };
       debouncedSaveBooks(next);
@@ -282,6 +332,7 @@ export default function ApproveCampusModal({
   };
 
   const updateFamilyCode = (key: string, val: string) => {
+    markTouched(`code:${key}`);
     setFamilyCodes((prev) => {
       const next = { ...prev, [key]: val };
       debouncedSaveCourseDetails(next, familyTitles);
@@ -290,6 +341,7 @@ export default function ApproveCampusModal({
   };
 
   const updateFamilyTitle = (key: string, val: string) => {
+    markTouched(`title:${key}`);
     setFamilyTitles((prev) => {
       const next = { ...prev, [key]: val };
       debouncedSaveCourseDetails(familyCodes, next);
@@ -298,11 +350,80 @@ export default function ApproveCampusModal({
   };
 
   const updateFamilyStatus = (key: string, val: FamilyStatus) => {
+    markTouched(`status:${key}`);
     setFamilyStatus((prev) => {
       const next = { ...prev, [key]: val };
       writePatch({ course_family_status_json: next });
       return next;
     });
+  };
+
+  // ============ AI research (suggestions only — human reviews) ============
+  /** Fill ONLY empty fields from AI suggestions; never clobber human-entered data. */
+  const applySuggestions = (res: CampusResearchResult) => {
+    if (!programName.trim() && res.program.value) {
+      setProgramName(res.program.value);
+      writePatch({ accounting_department_name: res.program.value });
+    }
+    const nextCodes = { ...familyCodes };
+    const nextTitles = { ...familyTitles };
+    const nextStatus = { ...familyStatus };
+    const nextBooks = { ...familyBooks };
+    for (const f of FAMILIES) {
+      const fam = res.families[f.key];
+      if (!fam) continue;
+      if (!(nextCodes[f.key] ?? "").trim() && fam.code.value) nextCodes[f.key] = fam.code.value;
+      if (!(nextTitles[f.key] ?? "").trim() && fam.title.value) nextTitles[f.key] = fam.title.value;
+      if ((nextStatus[f.key] ?? "not_checked") === "not_checked" && fam.textbook_status.value) {
+        nextStatus[f.key] = fam.textbook_status.value as FamilyStatus;
+      }
+      const b = fam.book;
+      const cur = nextBooks[f.key] ?? EMPTY_BOOK();
+      const bookEmpty = !cur.isbn13 && !cur.title && !cur.authors && !cur.publisher;
+      if (bookEmpty && (b.isbn13 || b.title || b.authors || b.publisher)) {
+        nextBooks[f.key] = {
+          isbn13: b.isbn13 ?? "",
+          title: b.title ?? "",
+          authors: b.authors ?? "",
+          publisher: b.publisher ?? "",
+        };
+      }
+    }
+    setFamilyCodes(nextCodes);
+    setFamilyTitles(nextTitles);
+    setFamilyStatus(nextStatus);
+    setFamilyBooks(nextBooks);
+    const codesArr = Object.values(nextCodes).map((s) => s.trim()).filter(Boolean);
+    writePatch({
+      course_family_codes_json: nextCodes,
+      course_family_titles_json: nextTitles,
+      course_codes: codesArr,
+      course_family_status_json: nextStatus,
+      course_family_textbooks_json: booksToJson(nextBooks),
+    });
+  };
+
+  const runAiResearch = async () => {
+    if (!campus || aiResearching) return;
+    setAiResearching(true);
+    const t = toast.loading("Researching the web — this can take up to a minute…");
+    try {
+      const r = await researchCampusAI({
+        school_name: campus.school_name,
+        state: campus.state,
+        course_codes: campus.course_codes,
+      });
+      if (!r.ok || !r.result) {
+        toast.error(r.error ?? "Research failed", { id: t });
+        return;
+      }
+      setAiResult(r.result);
+      setAiTouched(new Set());
+      applySuggestions(r.result);
+      toast.success("AI suggestions added — review every field before approving.", { id: t });
+    } finally {
+      setAiResearching(false);
+    }
   };
 
   const approve = () => {
@@ -386,8 +507,20 @@ export default function ApproveCampusModal({
             })}
           </div>
 
-          {/* Research Tools — hero CTA */}
-          <div className="mt-8 mb-2 flex justify-center">
+          {/* Research — hero CTAs */}
+          <div className="mt-8 mb-2 flex flex-wrap items-center justify-center gap-3">
+            <Button
+              type="button"
+              onClick={runAiResearch}
+              disabled={aiResearching}
+              className="h-11 rounded-full px-6 text-sm font-semibold gap-2"
+            >
+              {aiResearching ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
+              ) : (
+                <><Wand2 className="h-4 w-4" /> Auto-Research with AI</>
+              )}
+            </Button>
             <div className="relative inline-block">
               <div
                 aria-hidden
@@ -480,6 +613,20 @@ export default function ApproveCampusModal({
             </div>
           </div>
 
+          {aiResult && (
+            <div className="mx-auto -mt-1 flex max-w-2xl items-start gap-2 rounded-md border border-blue-500/30 bg-blue-500/5 p-2 text-[11px] text-blue-800 dark:text-blue-300">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                AI filled the blank fields below from web sources, each with a confidence meter
+                (<span className="text-red-600 dark:text-red-400 font-medium">red</span> = verify,
+                <span className="text-amber-600 dark:text-amber-400 font-medium"> amber</span> = double-check,
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium"> green</span> = solid).
+                A blank field means nothing was found — research it manually. Nothing is approved automatically;
+                review everything, then click Approve.
+              </span>
+            </div>
+          )}
+
           <Tabs value={step} onValueChange={setStep} className="mt-2">
             {/* STEP 1 — Course Details */}
             <TabsContent value="1" className="space-y-4 pt-4">
@@ -492,6 +639,7 @@ export default function ApproveCampusModal({
                     value={programName}
                     onChange={(e) => {
                       const v = e.target.value;
+                      markTouched("program");
                       setProgramName(v);
                       if (programTimer.current) window.clearTimeout(programTimer.current);
                       programTimer.current = window.setTimeout(() => {
@@ -501,6 +649,13 @@ export default function ApproveCampusModal({
                     placeholder="e.g. Patterson School of Accountancy"
                     className="h-8"
                   />
+                  {aiResult?.program.value && (
+                    <ConfidenceMeter
+                      confidence={aiResult.program.confidence}
+                      source={aiResult.program.source}
+                      touched={aiTouched.has("program")}
+                    />
+                  )}
                 </div>
                 <Button
                   type="button"
@@ -532,6 +687,13 @@ export default function ApproveCampusModal({
                             placeholder={`e.g. ${f.sampleCode}`}
                             className="h-8"
                           />
+                          {aiResult?.families[f.key]?.code.value && (
+                            <ConfidenceMeter
+                              confidence={aiResult.families[f.key].code.confidence}
+                              source={aiResult.families[f.key].code.source}
+                              touched={aiTouched.has(`code:${f.key}`)}
+                            />
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <Input
@@ -540,6 +702,13 @@ export default function ApproveCampusModal({
                             placeholder={`e.g. ${f.sampleTitle}`}
                             className="h-8"
                           />
+                          {aiResult?.families[f.key]?.title.value && (
+                            <ConfidenceMeter
+                              confidence={aiResult.families[f.key].title.confidence}
+                              source={aiResult.families[f.key].title.source}
+                              touched={aiTouched.has(`title:${f.key}`)}
+                            />
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -602,6 +771,13 @@ export default function ApproveCampusModal({
                           </SelectContent>
                         </Select>
                       </div>
+                      {aiResult?.families[f.key]?.textbook_status.value && (
+                        <ConfidenceMeter
+                          confidence={aiResult.families[f.key].textbook_status.confidence}
+                          source={aiResult.families[f.key].textbook_status.source}
+                          touched={aiTouched.has(`status:${f.key}`)}
+                        />
+                      )}
                       <div className="flex flex-wrap gap-1.5">
                         <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${searchTerm} textbook`))}>
                           <BookOpen className="h-3 w-3" /> Textbook Search
@@ -662,6 +838,17 @@ export default function ApproveCampusModal({
                                 className="h-8 text-xs"
                               />
                             </div>
+                            {aiResult?.families[f.key]?.book &&
+                              (aiResult.families[f.key].book.isbn13 ||
+                                aiResult.families[f.key].book.title ||
+                                aiResult.families[f.key].book.authors ||
+                                aiResult.families[f.key].book.publisher) && (
+                                <ConfidenceMeter
+                                  confidence={aiResult.families[f.key].book.confidence}
+                                  source={aiResult.families[f.key].book.source}
+                                  touched={aiTouched.has(`book:${f.key}`)}
+                                />
+                              )}
                           </div>
                         );
                       })()}
