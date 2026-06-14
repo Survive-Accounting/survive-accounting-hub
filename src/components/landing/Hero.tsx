@@ -231,7 +231,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
             }}
           >
             {subtext ??
-              "Get virtual tutoring and study support that helps you understand the material, build confidence, and perform better on exams."}
+              "Get laid-back virtual tutoring from a pro. Simplify difficult concepts, build confidence, and perform better on exams."}
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-4">
