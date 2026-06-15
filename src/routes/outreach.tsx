@@ -13,6 +13,7 @@ import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
+import AddCampusModal from "@/components/outreach/AddCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
