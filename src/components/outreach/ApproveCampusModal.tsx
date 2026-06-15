@@ -553,8 +553,8 @@ export default function ApproveCampusModal({
       <Dialog open={!!campus} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="max-w-4xl sm:max-w-4xl max-h-[94vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between gap-3">
-              <span>Approve Campus — {campus.school_name}</span>
+            <DialogTitle className="flex items-center justify-between gap-3 text-base">
+              <span>Research &amp; Approve Campus — {campus.school_name}</span>
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                   {autoSaving ? (
@@ -565,8 +565,8 @@ export default function ApproveCampusModal({
                 </span>
               </div>
             </DialogTitle>
-            <DialogDescription>
-              Course Details → Textbook Match → Lead Review → Approve. Changes save automatically.
+            <DialogDescription className="text-xs">
+              Review course codes, textbook matches, and suggested leads before approving outreach.
             </DialogDescription>
           </DialogHeader>
 
