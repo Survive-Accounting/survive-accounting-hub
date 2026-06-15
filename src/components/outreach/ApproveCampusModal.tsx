@@ -20,7 +20,18 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Info } from "lucide-react";
 import type { Campus } from "@/lib/outreach-mock";
-import { researchCampusAI, type CampusResearchResult, type AiConfidence } from "@/lib/outreach-api";
+import {
+  researchCampusAI,
+  type CampusResearchResult,
+  type AiConfidence,
+  getCampusCourseAvailability,
+  getCourseFamilyDefaults,
+  upsertCampusCourseAvailability,
+  type CourseFamily,
+  type CourseFamilyDefaults,
+  type TutoringAvailability,
+  type TextbookMatchStatus,
+} from "@/lib/outreach-api";
 
 type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
 
