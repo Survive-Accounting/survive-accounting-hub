@@ -33,12 +33,29 @@ const TYPE_OPTIONS: LeadSuggestionType[] = [
 ];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export type LeadSuggestionsSummary = {
+  total: number;
+  pending: number;
+  accepted: number;
+  rejected: number;
+  needs_lee: number;
+};
+
 export default function LeadSuggestionsPanel({
   campusId,
   onImported,
+  compact = false,
+  showManualImportHelp = true,
+  onSummaryChange,
 }: {
   campusId: string | null;
   onImported?: () => void;
+  /** Tighter padding + shorter scroll area for embedding inside other modals. */
+  compact?: boolean;
+  /** Toggle the helper line under the heading. */
+  showManualImportHelp?: boolean;
+  /** Notifies the parent of suggestion counts (used by Approve modal for gating + summary). */
+  onSummaryChange?: (s: LeadSuggestionsSummary) => void;
 }) {
   const [rows, setRows] = useState<LeadSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
