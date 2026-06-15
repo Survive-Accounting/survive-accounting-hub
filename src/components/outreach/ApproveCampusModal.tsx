@@ -2,7 +2,7 @@
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, BookOpen, Check, CheckCircle2, ExternalLink, FileText, Loader2, Save, Sparkles, Store, Wand2,
+  AlertTriangle, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Wand2, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
