@@ -919,6 +919,66 @@ export default function ApproveCampusModal({
                             />
                           )}
                         </td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            const t = familyTerms[f.key] ?? {};
+                            const aiTerms = aiResult?.families[f.key]?.terms;
+                            const touched = aiTouched.has(`terms:${f.key}`);
+                            const showAiBadge = !!aiTerms?.terms_text?.value && !touched;
+                            const toggle = (k: "fall" | "spring" | "summer") => {
+                              const cur = t[k];
+                              updateFamilyTerms(f.key, { [k]: cur === true ? false : true });
+                            };
+                            const chip = (k: "fall" | "spring" | "summer", label: string) => {
+                              const on = t[k] === true;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => toggle(k)}
+                                  className={`h-6 rounded border px-2 text-[10px] font-medium transition ${
+                                    on
+                                      ? "border-emerald-600 bg-emerald-600 text-white"
+                                      : "border-border bg-background text-muted-foreground hover:bg-muted"
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            };
+                            return (
+                              <div className="space-y-1.5">
+                                <Input
+                                  value={t.terms_text ?? ""}
+                                  onChange={(e) => updateFamilyTerms(f.key, { terms_text: e.target.value || null })}
+                                  placeholder="e.g. Fall or Spring"
+                                  className="h-8 text-xs"
+                                />
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {chip("fall", "Fall")}
+                                  {chip("spring", "Spring")}
+                                  {chip("summer", "Summer")}
+                                  {showAiBadge && (
+                                    <Badge variant="outline" className="ml-1 gap-1 border-blue-500/40 text-[9px] text-blue-700 dark:text-blue-300">
+                                      <Sparkles className="h-2.5 w-2.5" /> AI Suggested
+                                    </Badge>
+                                  )}
+                                </div>
+                                {aiTerms?.terms_text?.value ? (
+                                  <ConfidenceMeter
+                                    confidence={aiTerms.terms_text.confidence}
+                                    source={aiTerms.terms_text.source}
+                                    touched={touched}
+                                  />
+                                ) : (
+                                  <NotFoundHint
+                                    show={!!aiResult && !t.terms_text && !touched}
+                                    message="AI couldn't determine — fill in manually"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
