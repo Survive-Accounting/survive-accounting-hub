@@ -1,68 +1,120 @@
-# Fix: AI Research debug never persists + crash after leads succeed
+## Goal
+1) Tighten the **AI Suggested Leads** table (sort by last name, drop status column, reorder).
+2) Add a new **Phase 4C — Class Schedule Intelligence** pass that scrapes public registrar/business-school class schedules for accounting + business‑core courses, persists sections to a new table, and back-fills/creates lead suggestions when an instructor is visible.
 
-## What we know from the USC run
+No dashboard redesign. No auto-approval. No auto-import into `outreach_leads`.
 
-- `research-campus-leads` succeeded server-side (13 leads inserted into DB).
-- The modal "crashed" after that.
-- `campuses.ai_research_debug_json` is still `null` ("no runs recorded").
+---
 
-## Root cause
+## Part A — Leads panel UI tweaks (`LeadSuggestionsPanel.tsx`)
 
-`ApproveCampusModal.runAiResearch()` only writes the debug blob **once, at the very end** via `persistDebug → writePatch → onPatch → patchCampusDb`. That single save is fragile:
+- Remove the **Status** column entirely from the table (status is still editable via the bulk action buttons + Accept/Reject/Needs‑Lee, and the per-row Select goes away).
+- New column order: **checkbox · Type · Email · First · Last · Title · Teaches · PhD · CPA · Conf. · Source · Notes**.
+- Default sort = **last_name ASC** (case‑insensitive, nulls last). Teaching‑priority sort becomes opt‑in via a new "Sort" dropdown next to the teaching filter: `Last name (A→Z)` (default) | `Teaching priority` (current behavior).
+- Keep the teaching filter, counts, and bulk actions exactly as they are.
 
-1. `writePatch` silently no-ops if `campus` is null. If the modal closes or the parent swaps `reviewing` mid-run, the debug is dropped.
-2. `patchCampusDb` errors are caught in `routes/outreach.tsx` and only `console.error`'d — no toast, no retry.
-3. If the React tree throws while re-rendering after 13 new leads come back (a common cause of "it crashed"), the line after `await runLeadResearch()` never executes and `persistDebug` is never called.
-4. There's no `ErrorBoundary` around the modal, so a render crash kills the whole screen with no breadcrumb.
+No changes to API or types.
 
-Net effect: every failure mode produces the exact symptom you're seeing — leads exist in DB, debug blob is still `null`.
+---
 
-## Fix plan (minimal, surgical)
+## Part B — Phase 4C: Class Schedule Intelligence
 
-### 1. Persist debug incrementally, directly to DB
+### New table — `campus_course_sections`
 
-In `src/components/outreach/ApproveCampusModal.tsx`:
+Migration creates it with the columns you listed plus the standard `id / created_at / updated_at` + GRANTs + RLS (admin-only via `has_role`, service_role full access — same pattern as `campus_lead_suggestions`). Indexes on `campus_id`, `course_family`, `course_code`, `instructor_name`, `term`. `updated_at` trigger using the existing `public.set_updated_at()`.
 
-- Replace `persistDebug` so it (a) updates local state, (b) `await`s `patchCampusDb(campusId, { ai_research_debug_json: next })` directly using the captured `campus.id` (not the possibly-null `campus` ref), and (c) on failure shows a toast like "Couldn't save debug log: …" so silent drops become visible.
-- Write a debug snapshot **at three points**, not one:
-  - **Start of `runAiResearch`**: `{ last_run_at: now, course: { status: "running", started_at }, leads: { status: "pending" } }` so a crash mid-run still leaves a trace.
-  - **Immediately after `runCourseResearch` returns** (before starting leads).
-  - **Immediately after `runLeadResearch` returns**.
-- Same for `rerunCourseOnly` / `rerunLeadsOnly`.
+`course_family` allowed values:
+`intro_1 | intro_2 | intermediate_1 | intermediate_2 | finance | business_stats | business_analytics | microeconomics | macroeconomics | other`
 
-### 2. Make `runAiResearch` crash-proof
+### New edge function — `research-campus-sections`
 
-Wrap the body in `try/catch/finally`:
-- `catch` records `{ status: "failed", error: String(e), ... }` into whichever phase was active and persists it.
-- `finally` always persists the final snapshot and clears `setAiResearching(false)`.
+Separate function (keeps `research-campus-leads` reliable; schedule scraping is best‑effort and slow). Same Lovable AI Gateway + `google_search` pattern.
 
-### 3. Surface DB write failures globally
+Prompt instructs the model to:
+- Open public **registrar / class search / business school schedule** pages (not just the accounting department). Try common prefixes: `ACCT, ACC, AC, BUAD, BUS, BUSA, FIN, ECON, STAT, BA, BANA, BUSN`.
+- Capture sections for the four accounting families **plus** finance, stats/analytics, micro, macro when easily visible.
+- For each section, return: `course_family, course_code, course_title, term, section_number, instructor_name, instructor_email, meeting_days, meeting_time, location, enrollment_current, enrollment_capacity, waitlist_count, source_url, confidence`.
+- **Never hallucinate** — null any field without a real source URL. Return an empty `sections: []` if nothing public is found. Do NOT fail.
 
-In `src/routes/outreach.tsx` `patchCampus`, replace the silent `.catch((e) => …)` with a `toast.error` so any future "debug not saving" issue is loud.
+Sanitizer drops rows without `course_family` + `source_url`, clamps integers, and stores the full model object in `raw_payload`.
 
-### 4. Wrap the modal in an ErrorBoundary
+### Lead linkage (server-side, inside the same function after sections insert)
 
-Add a tiny `ResearchErrorBoundary` around `<ApproveCampusModal …/>` in `src/routes/outreach.tsx` that:
-- Catches render-time exceptions.
-- Renders a fallback with the error message + a "Copy details" button.
-- Logs `error.stack` to console so we can see what blew up after the 13 leads landed.
+For each section row with an `instructor_name`:
+1. Try to match an existing `campus_lead_suggestions` row for this campus by normalized `lower(first||' '||last)` containment of `instructor_name`.
+2. **Match found** → merge into that suggestion:
+   - Append the section to `courses_found` (dedup on `course_code + term + section_number`).
+   - Flip the matching `teaches_intro_1/2/intermediate_1/2` boolean true (only for the four accounting families).
+   - Set `teaching_evidence_url` / `teaching_evidence_notes` if currently null.
+3. **No match** + `instructor_email` visible → insert a new `campus_lead_suggestions` row, `status='pending'`, `lead_type='professor'`, with the teaching booleans + `courses_found` populated.
+4. **No match** + no email → insert pending suggestion with `email = null`, `notes = "Instructor found in class schedule; email not visible."`.
 
-This is what will actually tell us why USC crashed.
+Run logs go into the existing `ai_research_debug_json` on `campuses` under a new `sections` key (so the Research & Approve modal's debug panel keeps working).
 
-### 5. Diagnose the USC crash post-deploy
+### Approve modal — new "Class Schedule Intelligence" section
 
-After the above ships:
-- Re-run AI research on USC.
-- If it crashes again, the ErrorBoundary will show the real error and the partial debug blob will already be in `ai_research_debug_json` (course done, leads either `running` or with full payload), so we can pinpoint the failing render path (most likely a malformed lead object in Step 3 / leads table).
+In `ApproveCampusModal.tsx`, below the existing Lead Review block:
+- New button **"Find class sections"** that invokes `research-campus-sections`.
+- Summary line: `N sections · M intro accounting sections · K instructors · [source links]`.
+- Collapsible table (read‑only): Course | Section | Instructor | Term | Meeting Time | Enrollment / Capacity | Source.
+- Loaded via a tiny `getCampusSections(campusId)` helper added to `outreach-api.ts`.
+- Not required for approval.
 
-### 6. Out of scope for this turn
+### Sort tweak (Part A interaction)
 
-- The "batch run across 170 campuses" goal. Once the per-campus flow stops dropping debug and we know what was crashing, we'll add a small admin "Run AI research for queue" action in a follow-up — it depends on this flow being trustworthy first.
+`LeadSuggestionsPanel` "Teaching priority" sort gets a tie-breaker bump: leads whose `courses_found` came from `campus_course_sections` (we'll add a transient `has_section_evidence` boolean derived in the panel by joining via a second fetch — small `getCampusSectionsByInstructor(campusId)` call) rank above leads with only model-asserted teaching. If that join would slow things down on the first build, fall back to ranking by current `teaches_*` flags only and leave a TODO. Default sort stays last‑name as in Part A.
 
-## Files changed
+---
 
-- `src/components/outreach/ApproveCampusModal.tsx` — incremental persist, try/catch/finally in `runAiResearch`, direct `patchCampusDb` from `persistDebug`.
-- `src/routes/outreach.tsx` — toast on `patchCampus` failure, wrap modal in `ResearchErrorBoundary`.
-- `src/components/outreach/ResearchErrorBoundary.tsx` *(new, ~40 lines)* — minimal class boundary with copy-details fallback.
+## Files changed / created
 
-No DB schema changes. No edge function changes. No UI redesign.
+- `supabase/migrations/<ts>_campus_course_sections.sql` *(new)*
+- `supabase/functions/research-campus-sections/index.ts` *(new)*
+- `src/lib/outreach-api.ts` — add `getCampusSections`, `runCampusSectionsResearch`, types
+- `src/components/outreach/LeadSuggestionsPanel.tsx` — drop Status col, reorder, last‑name sort, sort dropdown
+- `src/components/outreach/ApproveCampusModal.tsx` — Class Schedule Intelligence section
+- `src/integrations/supabase/types.ts` — auto-regenerated after migration
+
+---
+
+## Example `campus_course_sections` row
+```json
+{
+  "campus_id": "…usc…",
+  "course_family": "intro_1",
+  "course_code": "BUAD 280",
+  "course_title": "Introduction to Financial Accounting",
+  "term": "Fall 2025",
+  "section_number": "14213",
+  "instructor_name": "Smrity Randhawa",
+  "instructor_email": null,
+  "meeting_days": "MW",
+  "meeting_time": "10:00–11:50",
+  "location": "JKP 104",
+  "enrollment_current": 38,
+  "enrollment_capacity": 40,
+  "waitlist_count": 3,
+  "source_url": "https://classes.usc.edu/term-20253/classes/buad/",
+  "confidence": "high"
+}
+```
+
+## Updated AI output shape (sections function)
+```json
+{
+  "success": true,
+  "campus_id": "…",
+  "sections_inserted": 47,
+  "leads_updated": 6,
+  "leads_created": 2,
+  "debug": { "model": "...", "sources": [...], "raw_text": "..." },
+  "sections": [ /* rows as above */ ]
+}
+```
+
+## Guarantees
+- Missing schedule data → `sections_inserted: 0`, function returns `success: true`. Never throws to the modal.
+- No writes to `outreach_leads` from any of this.
+- No new RLS allowance for `anon`.
+
+Once you approve, I'll run the migration first, then ship the function + UI in a second pass and we'll re-test against USC.
