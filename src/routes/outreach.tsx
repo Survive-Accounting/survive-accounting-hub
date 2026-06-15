@@ -179,10 +179,22 @@ function OutreachPage() {
       />
       <ApproveCampusModal
         campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
-        onClose={() => setReviewing(null)}
-        onPatch={patchCampus}
-        onApprove={(id, patch) => patchCampus(id, patch)}
+        onClose={() => {
+          if (reviewing) refreshClaim(reviewing.id).catch(() => {});
+          setReviewing(null);
+        }}
+        onPatch={(id, patch) => {
+          patchCampus(id, patch);
+          refreshClaim(id).catch(() => {});
+        }}
+        onApprove={(id, patch) => {
+          patchCampus(id, patch);
+          markClaimApproved(id)
+            .catch(() => {})
+            .finally(() => qc.invalidateQueries({ queryKey: ["campus-queue"] }));
+        }}
       />
+
     </div>
     </AdminGate>
   );
