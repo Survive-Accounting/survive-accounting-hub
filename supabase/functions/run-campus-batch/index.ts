@@ -65,21 +65,30 @@ async function processItem(db: any, item: any) {
   if (!profile_done) {
     const { data: campus } = await db
       .from("campuses")
-      .select("school_name, state, course_codes")
+      .select("name, state, course_codes_json")
       .eq("id", campus_id)
       .maybeSingle();
-    if (!campus?.school_name) {
+    const schoolName = campus?.name ?? null;
+    if (!schoolName) {
       failed_step = "profile";
-      error = `profile: campus ${campus_id} not found or missing school_name`;
+      error = `profile: campus ${campus_id} not found or missing name`;
     } else {
+      // course_codes_json is { family: { local_course_code, ... } } — flatten to a string[]
+      const codes: string[] = [];
+      const cj = campus?.course_codes_json ?? {};
+      if (cj && typeof cj === "object") {
+        for (const k of Object.keys(cj)) {
+          const v = (cj as any)[k]?.local_course_code;
+          if (typeof v === "string" && v.trim()) codes.push(v.trim());
+        }
+      }
       const r = await step("profile", () => invokeFn("research-campus", {
-        school_name: campus.school_name,
+        school_name: schoolName,
         state: campus.state ?? "",
-        course_codes: campus.course_codes ?? [],
+        course_codes: codes,
       }));
       if (r.ok) {
         profile_done = true;
-        // Stash the raw research payload so it's reviewable later from the modal.
         await db.from("campuses").update({
           ai_research_debug_json: r.data,
           ai_enrichment_status: "researched",
