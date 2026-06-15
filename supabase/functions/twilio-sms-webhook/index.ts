@@ -21,10 +21,20 @@ const LEE_PHONE = (Deno.env.get("LEE_PERSONAL_PHONE") ?? "").replace(/[^+\d]/g, 
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const SITE_ORIGIN = Deno.env.get("SITE_ORIGIN") ?? "https://surviveaccounting.com";
 
-// Human-feel delay for the scripted opener (Lee-approved range).
-const OPENER_DELAY_MIN_SECONDS = 4 * 60;
-const OPENER_DELAY_MAX_SECONDS = 9 * 60;
-const FOLLOWUP_GAP_SECONDS = 90;
+const QUESTIONS_BODY =
+  "Hey! This is Lee's automated assistant.\n\n" +
+  "Before meeting with students, Lee likes to learn a little about where they're getting stuck.\n\n" +
+  "A few quick questions:\n\n" +
+  "• Which course are you in?\n" +
+  "• When is your next exam?\n" +
+  "• What chapters/topics are giving you the most trouble?\n\n" +
+  "Reply with your answers and I'll send over Lee's booking link.";
+
+const BOOKING_REPLY_BODY =
+  "Thanks!\n\n" +
+  "Here's Lee's booking page:\n\n" +
+  "SurviveAccounting.com/start\n\n" +
+  "He'll also personally review your answers and follow up when he gets a chance.";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -43,21 +53,6 @@ async function twilioSend(from: string, to: string, body: string): Promise<strin
   const j = await res.json().catch(() => ({}));
   return res.ok ? (j?.sid ?? null) : null;
 }
-
-function openerBody(slug: string | null): string {
-  // Campus-specific numbers link straight to that campus page; the main line
-  // links to the campus selector at /start.
-  const link = slug ? `${SITE_ORIGIN}/t/${slug}` : `${SITE_ORIGIN}/start`;
-  return `Hey! Thanks for reaching out. I'd be happy to help you. You can book with me here: ${link}`;
-}
-
-const FOLLOWUP_BODY =
-  "Also, a few quick questions so I can help you best...\n\n" +
-  "* Which course are you in?\n" +
-  "* How's it going so far?\n" +
-  "* When is your next exam?\n" +
-  "* What chapters/topics are you struggling with most?\n\n" +
-  "Looking forward to hearing back!\nLee";
 
 /** Claude extraction — fills course/exam_date/struggles/major/sentiment. */
 async function extract(conversationText: string, courseCodes: string[]): Promise<Record<string, string | null> | null> {
