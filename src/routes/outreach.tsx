@@ -11,6 +11,7 @@ import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
 import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
+import { BatchResearchPanel } from "@/components/outreach/BatchResearchPanel";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
 import AddCampusModal from "@/components/outreach/AddCampusModal";
