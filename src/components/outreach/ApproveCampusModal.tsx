@@ -534,7 +534,7 @@ export default function ApproveCampusModal({
   };
 
   // ============ Debug capture for Research Debug Panel ============
-  type RunStatus = "success" | "failed";
+  type RunStatus = "success" | "failed" | "running" | "pending";
   type ResearchRunDebug = {
     status: RunStatus;
     started_at: string;
