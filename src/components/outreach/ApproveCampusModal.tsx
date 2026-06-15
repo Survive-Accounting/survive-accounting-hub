@@ -186,6 +186,12 @@ export default function ApproveCampusModal({
   });
   const [globalDefaults, setGlobalDefaults] = useState<CourseFamilyDefaults | null>(null);
 
+  // Phase 4 — lead review gating
+  const [leadSummary, setLeadSummary] = useState<LeadSuggestionsSummary>({
+    total: 0, pending: 0, accepted: 0, rejected: 0, needs_lee: 0,
+  });
+  const [skipLeadImport, setSkipLeadImport] = useState(false);
+
   const markTouched = (fieldId: string) =>
     setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
 
