@@ -114,6 +114,7 @@ export async function fetchCampuses(): Promise<Campus[]> {
       accounting_department_name: c.accounting_department_name ?? null,
       use_school_colors: c.use_school_colors ?? true,
       landing_page_reviewed: !!c.landing_page_reviewed,
+      use_personal_phone: !!c.use_personal_phone,
     };
   });
 }
