@@ -566,7 +566,7 @@ export default function ApproveCampusModal({
               </div>
             </DialogTitle>
             <DialogDescription>
-              Course Details → Textbook Match → Approve. Changes save automatically.
+              Course Details → Textbook Match → Lead Review → Approve. Changes save automatically.
             </DialogDescription>
           </DialogHeader>
 
