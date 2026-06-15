@@ -2875,27 +2875,39 @@ export type Database = {
           assigned_by_email: string | null
           assigned_for_date: string | null
           campus_id: string | null
+          claim_expires_at: string | null
+          claimed_at: string | null
           created_at: string
           id: string
           notes: string | null
+          released_at: string | null
+          status: string
           va_account_id: string | null
         }
         Insert: {
           assigned_by_email?: string | null
           assigned_for_date?: string | null
           campus_id?: string | null
+          claim_expires_at?: string | null
+          claimed_at?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          released_at?: string | null
+          status?: string
           va_account_id?: string | null
         }
         Update: {
           assigned_by_email?: string | null
           assigned_for_date?: string | null
           campus_id?: string | null
+          claim_expires_at?: string | null
+          claimed_at?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          released_at?: string | null
+          status?: string
           va_account_id?: string | null
         }
         Relationships: [
