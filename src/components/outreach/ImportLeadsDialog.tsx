@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Campus } from "@/lib/outreach-mock";
 import { importLeads, importSendTime } from "@/lib/outreach-api";
+import LeadSuggestionsPanel from "./LeadSuggestionsPanel";
 
 type LeadType = "professors" | "bap_advisors" | "accounting_depts" | "cpa_alumni";
 
