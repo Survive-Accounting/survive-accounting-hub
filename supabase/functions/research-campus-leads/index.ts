@@ -169,6 +169,9 @@ Deno.serve(async (req) => {
 
   // Call Lovable AI
   let text = "";
+  let finishReason: string | null = null;
+  let usage: any = null;
+  const prompt = buildPrompt(campus);
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -179,46 +182,76 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        messages: [{ role: "user", content: buildPrompt(campus) }],
+        messages: [{ role: "user", content: prompt }],
         tools: [{ type: "google_search" }],
       }),
     });
-    if (res.status === 429) return json({ error: "AI is rate-limited, try again in a moment" }, 429);
+    if (res.status === 429)
+      return json({ success: false, error: "AI is rate-limited, try again in a moment", debug: { model: MODEL, prompt_chars: prompt.length, http_status: 429 } }, 429);
     if (res.status === 402)
-      return json({ error: "Workspace AI credits exhausted — add credits in Settings → Workspace → Usage" }, 402);
+      return json({ success: false, error: "Workspace AI credits exhausted — add credits in Settings → Workspace → Usage", debug: { model: MODEL, prompt_chars: prompt.length, http_status: 402 } }, 402);
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      return json({ error: "AI request failed", status: res.status, detail: detail.slice(0, 800) }, 502);
+      return json({ success: false, error: "AI request failed", debug: { model: MODEL, prompt_chars: prompt.length, http_status: res.status, http_body: detail.slice(0, 2000) } }, 502);
     }
     const j = await res.json();
     const choice = j?.choices?.[0];
     text = choice?.message?.content ?? "";
-    if (choice?.finish_reason === "length") {
-      return json({ error: "AI response was truncated — try again" }, 502);
+    finishReason = choice?.finish_reason ?? null;
+    usage = j?.usage ?? null;
+    console.log("[research-campus-leads] finish_reason=", finishReason, "chars=", text.length, "usage=", usage);
+    if (!text.trim()) {
+      return json({
+        success: false,
+        error: finishReason === "length"
+          ? "AI hit output token limit before producing any text — try again or shorten the campus context"
+          : `Empty AI response (finish_reason=${finishReason ?? "unknown"})`,
+        debug: { model: MODEL, prompt_chars: prompt.length, finish_reason: finishReason, usage, raw_text: "", raw_text_chars: 0 },
+      }, 502);
     }
-    if (!text.trim()) return json({ error: "empty model response" }, 502);
   } catch (e) {
-    return json({ error: "AI call failed", detail: String((e as Error)?.message ?? e) }, 500);
+    return json({ success: false, error: "AI call failed", detail: String((e as Error)?.message ?? e), debug: { model: MODEL, prompt_chars: prompt.length } }, 500);
   }
 
   let parsed: any;
   try {
     parsed = extractJson(text);
   } catch (e) {
-    return json({ error: "AI returned malformed JSON — try again", detail: String((e as Error)?.message ?? e) }, 502);
+    return json({
+      success: false,
+      error: "AI returned malformed JSON — try again",
+      detail: String((e as Error)?.message ?? e),
+      debug: { model: MODEL, prompt_chars: prompt.length, finish_reason: finishReason, usage, raw_text: text.slice(0, 60000), raw_text_chars: text.length, parse_error: String((e as Error)?.message ?? e) },
+    }, 502);
   }
 
-  const cleaned = sanitize(parsed);
+  const { rows: cleaned, rejected } = sanitize(parsed);
+  const rawSuggestionCount = Array.isArray(parsed?.suggestions) ? parsed.suggestions.length : 0;
   const sources = Array.from(new Set(cleaned.map((s: any) => s.source_url).filter((u: any) => typeof u === "string")));
-  const debug = {
+  const debug: any = {
     model: MODEL,
+    prompt_chars: prompt.length,
+    finish_reason: finishReason,
+    usage,
     raw_text: text.length > 60000 ? text.slice(0, 60000) + "…[truncated]" : text,
     raw_text_chars: text.length,
+    raw_suggestion_count: rawSuggestionCount,
     parsed_lead_count: cleaned.length,
+    rejected_count: rejected.length,
+    rejected_samples: rejected.slice(0, 5),
     sources,
   };
+  console.log("[research-campus-leads] parsed=", { rawSuggestionCount, cleaned: cleaned.length, rejected: rejected.length });
+
   if (cleaned.length === 0) {
-    return json({ success: true, campus_id, inserted_count: 0, skipped_duplicate_count: 0, suggestions: [], debug });
+    return json({
+      success: true,
+      campus_id,
+      inserted_count: 0,
+      skipped_duplicate_count: 0,
+      suggestions: [],
+      debug: { ...debug, note: rawSuggestionCount === 0 ? "AI returned a valid JSON object but with zero suggestions — the model could not find people on the sources it visited." : "All suggestions were rejected by sanitize() — see rejected_samples." },
+    });
   }
 
   // Load existing suggestions for this campus to dedupe.
@@ -226,7 +259,8 @@ Deno.serve(async (req) => {
     .from("campus_lead_suggestions")
     .select("email, first_name, last_name")
     .eq("campus_id", campus_id);
-  if (existingErr) return json({ error: "existing lookup failed", detail: existingErr.message }, 500);
+  if (existingErr)
+    return json({ success: false, error: "existing lookup failed", detail: existingErr.message, debug }, 500);
 
   const seenEmail = new Set<string>();
   const seenName = new Set<string>();
@@ -240,31 +274,27 @@ Deno.serve(async (req) => {
   let skipped = 0;
   for (const s of cleaned) {
     if (s.email) {
-      if (seenEmail.has(s.email)) {
-        skipped++;
-        continue;
-      }
+      if (seenEmail.has(s.email)) { skipped++; continue; }
       seenEmail.add(s.email);
     } else {
       const key = `${(s.first_name ?? "").toLowerCase()}|${(s.last_name ?? "").toLowerCase()}`;
-      if (!key.replace("|", "") || seenName.has(key)) {
-        skipped++;
-        continue;
-      }
+      if (!key.replace("|", "") || seenName.has(key)) { skipped++; continue; }
       seenName.add(key);
     }
     toInsert.push({ campus_id, status: "pending", ...s });
   }
 
   let inserted: any[] = [];
+  const insertErrors: string[] = [];
   if (toInsert.length) {
     const { data: ins, error: insErr } = await db
       .from("campus_lead_suggestions")
       .insert(toInsert)
       .select();
     if (insErr) {
+      console.error("[research-campus-leads] batch insert failed:", insErr.message);
+      insertErrors.push(`batch: ${insErr.message}`);
       // Partial save: try one-by-one so a single bad row doesn't kill the batch.
-      let partial = 0;
       const okRows: any[] = [];
       for (const row of toInsert) {
         const { data: one, error: oneErr } = await db
@@ -272,20 +302,18 @@ Deno.serve(async (req) => {
           .insert(row)
           .select()
           .maybeSingle();
-        if (!oneErr && one) {
-          okRows.push(one);
-          partial++;
-        }
+        if (!oneErr && one) okRows.push(one);
+        else if (oneErr) insertErrors.push(`row(${row.email ?? row.first_name ?? "?"}): ${oneErr.message}`);
       }
       return json({
-        success: partial > 0,
+        success: okRows.length > 0,
         campus_id,
-        inserted_count: partial,
+        inserted_count: okRows.length,
         skipped_duplicate_count: skipped,
         partial: true,
         insert_error: insErr.message,
         suggestions: okRows,
-        debug,
+        debug: { ...debug, insert_attempted: toInsert.length, insert_errors: insertErrors.slice(0, 10), insert_error_sample_row: toInsert[0] },
       });
     }
     inserted = ins ?? [];
@@ -297,6 +325,6 @@ Deno.serve(async (req) => {
     inserted_count: inserted.length,
     skipped_duplicate_count: skipped,
     suggestions: inserted,
-    debug,
+    debug: { ...debug, insert_attempted: toInsert.length, inserted: inserted.length },
   });
 });
