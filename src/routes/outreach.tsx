@@ -8,8 +8,7 @@ import { Toaster, toast } from "sonner";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
-import { WeekNavigator } from "@/components/outreach/WeekNavigator";
-import { TodayChecklist } from "@/components/outreach/TodayChecklist";
+import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
