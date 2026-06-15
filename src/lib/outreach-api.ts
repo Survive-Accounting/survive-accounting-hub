@@ -126,6 +126,7 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
   if ("course_family_status_json" in patch) db.course_family_status_json = patch.course_family_status_json ?? {};
   if ("course_family_textbooks_json" in patch) db.course_family_textbooks_json = patch.course_family_textbooks_json ?? {};
   if ("course_family_terms_json" in patch) db.course_family_terms_json = patch.course_family_terms_json ?? {};
+  if ("ai_research_debug_json" in patch) db.ai_research_debug_json = patch.ai_research_debug_json ?? null;
   if ("accounting_department_name" in patch) db.accounting_department_name = patch.accounting_department_name;
   if ("course_codes" in patch) {
     db.course_codes_json = patch.course_codes ?? [];
