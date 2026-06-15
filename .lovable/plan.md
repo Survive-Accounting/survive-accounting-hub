@@ -1,120 +1,65 @@
-## Goal
-1) Tighten the **AI Suggested Leads** table (sort by last name, drop status column, reorder).
-2) Add a new **Phase 4C — Class Schedule Intelligence** pass that scrapes public registrar/business-school class schedules for accounting + business‑core courses, persists sections to a new table, and back-fills/creates lead suggestions when an instructor is visible.
+## Problem
 
-No dashboard redesign. No auto-approval. No auto-import into `outreach_leads`.
+USC's BUAD 280 has ~13 sections this term, but Class Schedule Intelligence only captured Merle Hopkins. The single-shot Gemini call with Google Search is **summarizing** the catalog page instead of **enumerating** every section row. Same risk for BUAD 281, ACCT 370/385, ECON 203/205, BUAD 306.
 
----
-
-## Part A — Leads panel UI tweaks (`LeadSuggestionsPanel.tsx`)
-
-- Remove the **Status** column entirely from the table (status is still editable via the bulk action buttons + Accept/Reject/Needs‑Lee, and the per-row Select goes away).
-- New column order: **checkbox · Type · Email · First · Last · Title · Teaches · PhD · CPA · Conf. · Source · Notes**.
-- Default sort = **last_name ASC** (case‑insensitive, nulls last). Teaching‑priority sort becomes opt‑in via a new "Sort" dropdown next to the teaching filter: `Last name (A→Z)` (default) | `Teaching priority` (current behavior).
-- Keep the teaching filter, counts, and bulk actions exactly as they are.
-
-No changes to API or types.
+Two things to fix:
+1. Make the scrape exhaustive and per-family (not one prompt that has to balance 9 families).
+2. In the UI, make CERTAIN Intro 1 / Intro 2 instructors visually unmissable.
 
 ---
 
-## Part B — Phase 4C: Class Schedule Intelligence
+## Fix 1 — Per-family enumeration in `research-campus-sections`
 
-### New table — `campus_course_sections`
+Replace the single Gemini call with a **fan-out loop, one call per course family** (intro_1, intro_2, intermediate_1, intermediate_2, finance, business_stats, business_analytics, microeconomics, macroeconomics). Each call:
 
-Migration creates it with the columns you listed plus the standard `id / created_at / updated_at` + GRANTs + RLS (admin-only via `has_role`, service_role full access — same pattern as `campus_lead_suggestions`). Indexes on `campus_id`, `course_family`, `course_code`, `instructor_name`, `term`. `updated_at` trigger using the existing `public.set_updated_at()`.
+- Targets that family only, with explicit course-prefix hints (`ACCT`, `ACCY`, `BUAD`, `BUS`, `FIN`, `ECON`, `STAT`).
+- Instructs the model: *"Return EVERY section row visible on the schedule page. Do not summarize. Do not return only the first 1–3. If you see 13 BUAD 280 sections, return 13 entries — one per section_number. If you cannot enumerate all rows, return an empty array rather than a partial sample."*
+- Requires `section_number` to be non-null (filters out summary rows).
+- Logs per-family counts to `debug.per_family` so we can see "intro_1: 1 section" and know it under-pulled.
 
-`course_family` allowed values:
-`intro_1 | intro_2 | intermediate_1 | intermediate_2 | finance | business_stats | business_analytics | microeconomics | macroeconomics | other`
+When a family returns 0 sections, retry that family once with a stricter prompt before giving up. Continue other families on failure — missing data still returns `success: true` per existing contract.
 
-### New edge function — `research-campus-sections`
+Add a per-section dedupe **inside the run** and a DB-level unique index on `(campus_id, course_code, section_number, term)` to prevent dupes across re-runs (so re-running the search is safe).
 
-Separate function (keeps `research-campus-leads` reliable; schedule scraping is best‑effort and slow). Same Lovable AI Gateway + `google_search` pattern.
+## Fix 2 — Confirmed Intro Instructor highlight
 
-Prompt instructs the model to:
-- Open public **registrar / class search / business school schedule** pages (not just the accounting department). Try common prefixes: `ACCT, ACC, AC, BUAD, BUS, BUSA, FIN, ECON, STAT, BA, BANA, BUSN`.
-- Capture sections for the four accounting families **plus** finance, stats/analytics, micro, macro when easily visible.
-- For each section, return: `course_family, course_code, course_title, term, section_number, instructor_name, instructor_email, meeting_days, meeting_time, location, enrollment_current, enrollment_capacity, waitlist_count, source_url, confidence`.
-- **Never hallucinate** — null any field without a real source URL. Return an empty `sections: []` if nothing public is found. Do NOT fail.
+In `LeadSuggestionsPanel`:
 
-Sanitizer drops rows without `course_family` + `source_url`, clamps integers, and stores the full model object in `raw_payload`.
+- Add a "⭐ Confirmed Intro" treatment (gold star + tinted row background) whenever a lead has `teaches_intro_1` OR `teaches_intro_2` set to `true` AND a non-null `teaching_evidence_url`. This is the "we are CERTAIN" rule — the flag was set by the schedule scraper from an actual public class-schedule page, not by lead AI inference.
+- Add a "Confirmed Intro only" filter toggle at the top of the panel.
+- The default "Teaching Priority" sort already buckets these to the top; tighten so Confirmed Intro 1/2 (with evidence URL) sits above Inferred Intro 1/2 (no evidence URL).
 
-### Lead linkage (server-side, inside the same function after sections insert)
+In `ClassScheduleIntelligencePanel`:
 
-For each section row with an `instructor_name`:
-1. Try to match an existing `campus_lead_suggestions` row for this campus by normalized `lower(first||' '||last)` containment of `instructor_name`.
-2. **Match found** → merge into that suggestion:
-   - Append the section to `courses_found` (dedup on `course_code + term + section_number`).
-   - Flip the matching `teaches_intro_1/2/intermediate_1/2` boolean true (only for the four accounting families).
-   - Set `teaching_evidence_url` / `teaching_evidence_notes` if currently null.
-3. **No match** + `instructor_email` visible → insert a new `campus_lead_suggestions` row, `status='pending'`, `lead_type='professor'`, with the teaching booleans + `courses_found` populated.
-4. **No match** + no email → insert pending suggestion with `email = null`, `notes = "Instructor found in class schedule; email not visible."`.
+- Header counts per family (e.g. "intro_1: 13 · intro_2: 9 · ia1: 4 …"), so a thin result like "intro_1: 1" is immediately visible and signals "re-run."
+- A small ⚠️ chip next to a family count below 2 with a tooltip: *"Suspiciously low — re-run Find class sections."*
 
-Run logs go into the existing `ai_research_debug_json` on `campuses` under a new `sections` key (so the Research & Approve modal's debug panel keeps working).
+## Fix 3 — Assessment surface (so we can see what went wrong)
 
-### Approve modal — new "Class Schedule Intelligence" section
+Expose the per-family debug from the edge function in an expandable "Why these results?" section in `ClassScheduleIntelligencePanel`:
 
-In `ApproveCampusModal.tsx`, below the existing Lead Review block:
-- New button **"Find class sections"** that invokes `research-campus-sections`.
-- Summary line: `N sections · M intro accounting sections · K instructors · [source links]`.
-- Collapsible table (read‑only): Course | Section | Instructor | Term | Meeting Time | Enrollment / Capacity | Source.
-- Loaded via a tiny `getCampusSections(campusId)` helper added to `outreach-api.ts`.
-- Not required for approval.
-
-### Sort tweak (Part A interaction)
-
-`LeadSuggestionsPanel` "Teaching priority" sort gets a tie-breaker bump: leads whose `courses_found` came from `campus_course_sections` (we'll add a transient `has_section_evidence` boolean derived in the panel by joining via a second fetch — small `getCampusSectionsByInstructor(campusId)` call) rank above leads with only model-asserted teaching. If that join would slow things down on the first build, fall back to ranking by current `teaches_*` flags only and leave a TODO. Default sort stays last‑name as in Part A.
+- Per family: requested vs returned count, source URLs hit, finish_reason, rejected sample reasons.
+- A "Re-run this family" button per family (calls the function with a single-family override).
 
 ---
 
-## Files changed / created
+## Technical notes
 
-- `supabase/migrations/<ts>_campus_course_sections.sql` *(new)*
-- `supabase/functions/research-campus-sections/index.ts` *(new)*
-- `src/lib/outreach-api.ts` — add `getCampusSections`, `runCampusSectionsResearch`, types
-- `src/components/outreach/LeadSuggestionsPanel.tsx` — drop Status col, reorder, last‑name sort, sort dropdown
-- `src/components/outreach/ApproveCampusModal.tsx` — Class Schedule Intelligence section
-- `src/integrations/supabase/types.ts` — auto-regenerated after migration
+- Migration: `CREATE UNIQUE INDEX … ON public.campus_course_sections (campus_id, course_code, section_number, term) WHERE section_number IS NOT NULL;` and switch the inserts to `upsert(..., { onConflict: ... })`.
+- Edge function: add optional `families?: string[]` param to `research-campus-sections` body so the per-family retry button can target one family.
+- `outreach-api.ts`: extend `runCampusSectionsResearch(campusId, families?)`.
+- No changes to `outreach_leads` or to `research-campus-leads`; star/highlight is purely a UI read of existing fields.
+- Rate My Professors still excluded.
 
----
+## Out of scope (call out, don't build)
 
-## Example `campus_course_sections` row
-```json
-{
-  "campus_id": "…usc…",
-  "course_family": "intro_1",
-  "course_code": "BUAD 280",
-  "course_title": "Introduction to Financial Accounting",
-  "term": "Fall 2025",
-  "section_number": "14213",
-  "instructor_name": "Smrity Randhawa",
-  "instructor_email": null,
-  "meeting_days": "MW",
-  "meeting_time": "10:00–11:50",
-  "location": "JKP 104",
-  "enrollment_current": 38,
-  "enrollment_capacity": 40,
-  "waitlist_count": 3,
-  "source_url": "https://classes.usc.edu/term-20253/classes/buad/",
-  "confidence": "high"
-}
-```
+- HTML fetch/parse of USC `classes.usc.edu` directly (would be most reliable but is per-school engineering — propose as a Phase 4D if per-family enumeration still misses on USC after this fix).
+- Outreach scoring.
 
-## Updated AI output shape (sections function)
-```json
-{
-  "success": true,
-  "campus_id": "…",
-  "sections_inserted": 47,
-  "leads_updated": 6,
-  "leads_created": 2,
-  "debug": { "model": "...", "sources": [...], "raw_text": "..." },
-  "sections": [ /* rows as above */ ]
-}
-```
+## Files changed
 
-## Guarantees
-- Missing schedule data → `sections_inserted: 0`, function returns `success: true`. Never throws to the modal.
-- No writes to `outreach_leads` from any of this.
-- No new RLS allowance for `anon`.
-
-Once you approve, I'll run the migration first, then ship the function + UI in a second pass and we'll re-test against USC.
+- `supabase/functions/research-campus-sections/index.ts` — per-family loop, stricter prompt, retry, per-family debug, optional `families` param.
+- `supabase/migrations/<ts>_campus_sections_unique_idx.sql` — unique index.
+- `src/lib/outreach-api.ts` — `families?` arg, surface per-family debug.
+- `src/components/outreach/ClassScheduleIntelligencePanel.tsx` — family counts, low-count warning, per-family re-run, "Why these results?" panel.
+- `src/components/outreach/LeadSuggestionsPanel.tsx` — Confirmed Intro star/row highlight, "Confirmed Intro only" filter, tighter priority sort.
