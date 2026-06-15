@@ -84,12 +84,13 @@ function applyBold(html: string): string {
 }
 
 function renderHtml(body: string, surviveLinkUrl: string) {
+  const anchor = `<a href="${escapeHtml(surviveLinkUrl)}" style="color:#CE1126;text-decoration:underline;">SurviveAccounting.com</a>`;
   const paras = body.split(/\n\n+/).map((p) => {
-    const parts = p.split(SA_LINK_TOKEN);
-    const escaped = parts.map((piece) => applyBold(escapeHtml(piece).replace(/\n/g, "<br/>")));
-    const anchor = `<a href="${escapeHtml(surviveLinkUrl)}" style="color:#CE1126;text-decoration:underline;">SurviveAccounting.com</a>`;
-    const joined = escaped.join(anchor);
-    return `<p style="margin:0 0 14px;line-height:1.55;color:#1f2937;font-size:15px;">${joined}</p>`;
+    // Escape + linebreaks + bold across the WHOLE paragraph first so that
+    // **bold spans crossing the {surviveaccounting.com} token still pair up.
+    const rendered = applyBold(escapeHtml(p).replace(/\n/g, "<br/>"));
+    const withLinks = rendered.split(SA_LINK_TOKEN).join(anchor);
+    return `<p style="margin:0 0 14px;line-height:1.55;color:#1f2937;font-size:15px;">${withLinks}</p>`;
   }).join("");
   return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:600px;">${paras}</div>`;
 }
