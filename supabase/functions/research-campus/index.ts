@@ -100,6 +100,21 @@ function sanitize(raw: any) {
         confidence: conf(book?.confidence),
         source: typeof book?.source === "string" && book.source.startsWith("http") ? book.source : null,
       },
+      terms: (() => {
+        const t = r?.terms ?? {};
+        const tt = t?.terms_text ?? {};
+        const bool = (v: any) => (typeof v === "boolean" ? v : null);
+        return {
+          terms_text: {
+            value: typeof tt?.value === "string" && tt.value.trim() ? tt.value.trim() : null,
+            confidence: conf(tt?.confidence),
+            source: typeof tt?.source === "string" && tt.source.startsWith("http") ? tt.source : null,
+          },
+          offered_fall: bool(t?.offered_fall),
+          offered_spring: bool(t?.offered_spring),
+          offered_summer: bool(t?.offered_summer),
+        };
+      })(),
     };
   }
   return { program: field(raw?.program), families };
