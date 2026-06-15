@@ -505,7 +505,8 @@ export default function LeadSuggestionsPanel({
                 </td>
                 <td className="px-2 py-1 max-w-[260px] text-muted-foreground">{r.notes ?? ""}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
