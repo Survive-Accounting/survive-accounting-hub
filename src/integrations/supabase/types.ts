@@ -153,6 +153,83 @@ export type Database = {
           },
         ]
       }
+      campus_course_sections: {
+        Row: {
+          campus_id: string
+          confidence: string | null
+          course_code: string | null
+          course_family: string | null
+          course_title: string | null
+          created_at: string
+          enrollment_capacity: number | null
+          enrollment_current: number | null
+          id: string
+          instructor_email: string | null
+          instructor_name: string | null
+          location: string | null
+          meeting_days: string | null
+          meeting_time: string | null
+          raw_payload: Json | null
+          section_number: string | null
+          source_url: string | null
+          term: string | null
+          updated_at: string
+          waitlist_count: number | null
+        }
+        Insert: {
+          campus_id: string
+          confidence?: string | null
+          course_code?: string | null
+          course_family?: string | null
+          course_title?: string | null
+          created_at?: string
+          enrollment_capacity?: number | null
+          enrollment_current?: number | null
+          id?: string
+          instructor_email?: string | null
+          instructor_name?: string | null
+          location?: string | null
+          meeting_days?: string | null
+          meeting_time?: string | null
+          raw_payload?: Json | null
+          section_number?: string | null
+          source_url?: string | null
+          term?: string | null
+          updated_at?: string
+          waitlist_count?: number | null
+        }
+        Update: {
+          campus_id?: string
+          confidence?: string | null
+          course_code?: string | null
+          course_family?: string | null
+          course_title?: string | null
+          created_at?: string
+          enrollment_capacity?: number | null
+          enrollment_current?: number | null
+          id?: string
+          instructor_email?: string | null
+          instructor_name?: string | null
+          location?: string | null
+          meeting_days?: string | null
+          meeting_time?: string | null
+          raw_payload?: Json | null
+          section_number?: string | null
+          source_url?: string | null
+          term?: string | null
+          updated_at?: string
+          waitlist_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_course_sections_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campus_courses: {
         Row: {
           campus_id: string | null

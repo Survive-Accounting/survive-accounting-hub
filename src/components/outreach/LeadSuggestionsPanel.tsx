@@ -27,7 +27,7 @@ import {
   type LeadSuggestionType,
 } from "@/lib/outreach-api";
 
-const STATUS_OPTIONS: LeadSuggestionStatus[] = ["pending", "accepted", "rejected", "needs_lee"];
+// Status column removed from table; bulk action buttons remain the way to change status.
 const TYPE_OPTIONS: LeadSuggestionType[] = [
   "professor",
   "admin_staff",
@@ -120,6 +120,7 @@ export default function LeadSuggestionsPanel({
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [teachingFilter, setTeachingFilter] = useState<TeachingFilter>("all");
+  const [sortMode, setSortMode] = useState<"last_name" | "priority">("last_name");
 
   async function refresh(id = campusId) {
     if (!id) { setRows([]); return; }
@@ -157,11 +158,21 @@ export default function LeadSuggestionsPanel({
         break;
     }
     return [...filtered].sort((a, b) => {
+      if (sortMode === "last_name") {
+        const al = (a.last_name ?? "").toLowerCase();
+        const bl = (b.last_name ?? "").toLowerCase();
+        if (!al && bl) return 1;
+        if (al && !bl) return -1;
+        if (al !== bl) return al < bl ? -1 : 1;
+        const af = (a.first_name ?? "").toLowerCase();
+        const bf = (b.first_name ?? "").toLowerCase();
+        return af < bf ? -1 : af > bf ? 1 : 0;
+      }
       const pr = priorityRank(a) - priorityRank(b);
       if (pr !== 0) return pr;
       return (b.confidence ?? 0) - (a.confidence ?? 0);
     });
-  }, [rows, teachingFilter]);
+  }, [rows, teachingFilter, sortMode]);
 
   const allChecked = visibleRows.length > 0 && visibleRows.every((r) => selected.has(r.id));
   const toggleAll = () => {
@@ -310,6 +321,13 @@ export default function LeadSuggestionsPanel({
               · Intro 1: {teachingCounts.intro_1} · Intro 2: {teachingCounts.intro_2} · IA1: {teachingCounts.ia_1} · IA2: {teachingCounts.ia_2}
             </span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as "last_name" | "priority")}>
+                <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="last_name">Sort: Last name (A→Z)</SelectItem>
+                  <SelectItem value="priority">Sort: Teaching priority</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={teachingFilter} onValueChange={(v) => setTeachingFilter(v as TeachingFilter)}>
                 <SelectTrigger className="h-7 w-[200px] text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -337,7 +355,6 @@ export default function LeadSuggestionsPanel({
               <th className="px-2 py-2 w-[28px]">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-3.5 w-3.5" />
               </th>
-              <th className="px-2 py-2 text-left">Status</th>
               <th className="px-2 py-2 text-left">Type</th>
               <th className="px-2 py-2 text-left">Email</th>
               <th className="px-2 py-2 text-left">First</th>
@@ -354,7 +371,7 @@ export default function LeadSuggestionsPanel({
           <tbody className="divide-y divide-border">
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">
                   {loading
                     ? "Loading suggestions…"
                     : !campusId
@@ -374,14 +391,6 @@ export default function LeadSuggestionsPanel({
                     onChange={() => toggleOne(r.id)}
                     className="h-3.5 w-3.5"
                   />
-                </td>
-                <td className="px-1 py-1">
-                  <Select value={r.status} onValueChange={(v) => patchRow(r.id, { status: v as LeadSuggestionStatus })}>
-                    <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
                 </td>
                 <td className="px-1 py-1">
                   <Select value={r.lead_type} onValueChange={(v) => patchRow(r.id, { lead_type: v as LeadSuggestionType })}>

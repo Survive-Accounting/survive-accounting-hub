@@ -35,6 +35,7 @@ import {
   patchCampusDb,
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
+import ClassScheduleIntelligencePanel from "./ClassScheduleIntelligencePanel";
 import { supabase } from "@/integrations/supabase/client";
 
 type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
@@ -204,6 +205,7 @@ export default function ApproveCampusModal({
     total: 0, pending: 0, accepted: 0, rejected: 0, needs_lee: 0,
   });
   const [skipLeadImport, setSkipLeadImport] = useState(false);
+  const [leadsRefreshKey, setLeadsRefreshKey] = useState(0);
 
   const markTouched = (fieldId: string) =>
     setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
@@ -1400,10 +1402,16 @@ export default function ApproveCampusModal({
 
 
               <LeadSuggestionsPanel
+                key={`${campus.id}-${leadsRefreshKey}`}
                 campusId={campus.id}
                 compact
                 showManualImportHelp={false}
                 onSummaryChange={setLeadSummary}
+              />
+
+              <ClassScheduleIntelligencePanel
+                campusId={campus.id}
+                onLeadsChanged={() => setLeadsRefreshKey((k) => k + 1)}
               />
 
               <label className="flex items-start gap-2 rounded-md border bg-muted/20 p-2.5 text-xs">
