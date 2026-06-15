@@ -220,10 +220,11 @@ Deno.serve(async (req) => {
     let programName = "";
     let coursesText = "";
     let prefixText = "";
+    let usePersonalPhone = false;
     if (lead.campus_id) {
       const { data: campus } = await admin
         .from("campuses")
-        .select("slug, approval_status, course_family_status_json, accounting_department_name, course_codes_json")
+        .select("slug, approval_status, course_family_status_json, accounting_department_name, course_codes_json, use_personal_phone")
         .eq("id", lead.campus_id)
         .single();
       if (campus?.approval_status === "approved" && campus?.slug) {
@@ -241,23 +242,26 @@ Deno.serve(async (req) => {
         coursesText = joinCourses(codes);
         prefixText = coursePrefix(codes);
       }
+      usePersonalPhone = !!campus?.use_personal_phone;
     }
     // Graceful fallbacks when research hasn't captured these yet.
     const programMerge = programName || "accounting program";
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
     const prefixMerge = prefixText || "accounting";
 
-    // Campus texting number for {phone} — campus-specific wins, else the main line.
+    // {phone} merge — personal cell override per campus, else the main line.
     let campusPhone = "";
-    {
-      const { data: phoneRows } = await admin
+    if (usePersonalPhone) {
+      const personal = (Deno.env.get("LEE_PERSONAL_PHONE") ?? "").trim();
+      if (personal) campusPhone = prettyPhone(personal);
+    }
+    if (!campusPhone) {
+      const { data: mainRow } = await admin
         .from("campus_phone_numbers")
-        .select("phone_e164,campus_id");
-      const rows = phoneRows ?? [];
-      const specific = lead.campus_id ? rows.find((r: any) => r.campus_id === lead.campus_id) : null;
-      const main = rows.find((r: any) => r.campus_id === null);
-      const pick = specific ?? main;
-      if (pick?.phone_e164) campusPhone = prettyPhone(pick.phone_e164);
+        .select("phone_e164")
+        .is("campus_id", null)
+        .maybeSingle();
+      if (mainRow?.phone_e164) campusPhone = prettyPhone(mainRow.phone_e164);
     }
 
     // Use the bare URL (no UTM params) — query strings on links tend to
