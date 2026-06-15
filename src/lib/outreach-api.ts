@@ -425,9 +425,9 @@ export interface AiFamilyBook {
 }
 export interface AiFamilyTerms {
   terms_text: { value: string | null; confidence: AiConfidence; source: string | null };
-  fall: boolean | null;
-  spring: boolean | null;
-  summer: boolean | null;
+  offered_fall: boolean | null;
+  offered_spring: boolean | null;
+  offered_summer: boolean | null;
 }
 export interface AiFamilyResearch {
   code: AiField;
