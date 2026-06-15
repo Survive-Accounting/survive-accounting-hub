@@ -371,7 +371,7 @@ export default function LeadSuggestionsPanel({
           <tbody className="divide-y divide-border">
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">
                   {loading
                     ? "Loading suggestions…"
                     : !campusId
@@ -391,14 +391,6 @@ export default function LeadSuggestionsPanel({
                     onChange={() => toggleOne(r.id)}
                     className="h-3.5 w-3.5"
                   />
-                </td>
-                <td className="px-1 py-1">
-                  <Select value={r.status} onValueChange={(v) => patchRow(r.id, { status: v as LeadSuggestionStatus })}>
-                    <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
                 </td>
                 <td className="px-1 py-1">
                   <Select value={r.lead_type} onValueChange={(v) => patchRow(r.id, { lead_type: v as LeadSuggestionType })}>
