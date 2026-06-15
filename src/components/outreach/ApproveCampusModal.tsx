@@ -1069,7 +1069,7 @@ export default function ApproveCampusModal({
             </TabsContent>
 
             {/* STEP 4 — Approval Summary */}
-            <TabsContent value="4" className="space-y-3 pt-4">
+            <TabsContent value="4" className="space-y-2 pt-3">
               <p className="text-xs text-muted-foreground">Review your decisions, then approve.</p>
 
               <div className="rounded-lg border divide-y">
