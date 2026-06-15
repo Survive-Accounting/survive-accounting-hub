@@ -456,6 +456,7 @@ export default function ApproveCampusModal({
     const nextTitles = { ...familyTitles };
     const nextStatus = { ...familyStatus };
     const nextBooks = { ...familyBooks };
+    const nextTerms = { ...familyTerms };
     for (const f of FAMILIES) {
       const fam = res.families[f.key];
       if (!fam) continue;
@@ -475,11 +476,26 @@ export default function ApproveCampusModal({
           publisher: b.publisher ?? "",
         };
       }
+      // Course offering terms — only fill if user hasn't touched the field.
+      const t = fam.terms;
+      const curTerms = nextTerms[f.key] ?? {};
+      const termsEmpty =
+        !curTerms.terms_text &&
+        curTerms.fall == null && curTerms.spring == null && curTerms.summer == null;
+      if (t && termsEmpty) {
+        nextTerms[f.key] = {
+          terms_text: t.terms_text?.value ?? null,
+          fall: t.offered_fall,
+          spring: t.offered_spring,
+          summer: t.offered_summer,
+        };
+      }
     }
     setFamilyCodes(nextCodes);
     setFamilyTitles(nextTitles);
     setFamilyStatus(nextStatus);
     setFamilyBooks(nextBooks);
+    setFamilyTerms(nextTerms);
     const codesArr = Object.values(nextCodes).map((s) => s.trim()).filter(Boolean);
     writePatch({
       course_family_codes_json: nextCodes,
@@ -487,6 +503,7 @@ export default function ApproveCampusModal({
       course_codes: codesArr,
       course_family_status_json: nextStatus,
       course_family_textbooks_json: booksToJson(nextBooks),
+      course_family_terms_json: nextTerms,
     });
   };
 
