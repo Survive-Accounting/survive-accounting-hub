@@ -213,9 +213,8 @@ export default function ApproveCampusModal({
     [familyCodes],
   );
 
-  const hasAtLeastOneMatch = FAMILIES.some((f) => (familyStatus[f.key] ?? "not_checked") === "matches");
   const step1Done = codesArray.length > 0;
-  const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked") && hasAtLeastOneMatch;
+  const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked");
   const canApprove = step1Done && step2Done;
 
   const aggregateTextbookStatus = (status: Record<string, FamilyStatus>): TextbookStatus => {
@@ -933,7 +932,7 @@ export default function ApproveCampusModal({
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    Complete all steps before approving: at least one course code and all families researched (with at least one match).
+                    Complete all steps before approving: at least one course code and a status set for every family.
                   </span>
                 </div>
               )}
