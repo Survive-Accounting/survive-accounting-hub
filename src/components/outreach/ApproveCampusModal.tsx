@@ -237,6 +237,20 @@ export default function ApproveCampusModal({
       };
     });
     setFamilyBooks(initBooks);
+
+    const existingTerms = campus.course_family_terms_json ?? {};
+    const initTerms: Record<string, CourseFamilyTerms> = {};
+    FAMILIES.forEach((f) => {
+      const t = existingTerms[f.key];
+      initTerms[f.key] = {
+        terms_text: t?.terms_text ?? null,
+        fall: t?.fall ?? null,
+        spring: t?.spring ?? null,
+        summer: t?.summer ?? null,
+      };
+    });
+    setFamilyTerms(initTerms);
+
     setIsbnLookup({});
     setProgramName(campus.accounting_department_name ?? "");
     setLastSavedAt(null);
