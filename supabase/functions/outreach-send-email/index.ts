@@ -260,9 +260,9 @@ Deno.serve(async (req) => {
       if (pick?.phone_e164) campusPhone = prettyPhone(pick.phone_e164);
     }
 
-    const baseSurviveUrl = landingUrl ?? "https://surviveaccounting.com";
-    const refQs = "utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
-    const surviveLinkUrl = baseSurviveUrl + (baseSurviveUrl.includes("?") ? "&" : "?") + refQs;
+    // Use the bare URL (no UTM params) — query strings on links tend to
+    // trip Gmail's promotions-tab heuristics for cold outreach.
+    const surviveLinkUrl = "https://surviveaccounting.com";
 
     // Custom broadcast content (service-role only) overrides template lookup.
     const isCustom = !!(body.custom_subject && body.custom_body);
