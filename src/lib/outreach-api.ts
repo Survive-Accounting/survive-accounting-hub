@@ -931,7 +931,7 @@ export async function bulkUpdateLeadSuggestions(
 
 export type CourseFamily = "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2";
 export type TutoringAvailability = "available" | "waitlist" | "unavailable";
-export type TextbookMatchStatus = "matched" | "likely_match" | "not_matched" | "unknown";
+export type TextbookMatchStatus = "matched" | "likely_match" | "not_matched" | "not_offered" | "unknown";
 
 export const COURSE_FAMILIES: { key: CourseFamily; label: string; shortLabel: string }[] = [
   { key: "intro_1", label: "Intro 1 — Financial Accounting Principles", shortLabel: "Intro 1" },
