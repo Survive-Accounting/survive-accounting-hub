@@ -316,9 +316,9 @@ export default function CampusTable({
                               : "justify-center"
                           }
                           variant={isApproved ? "default" : "outline"}
-                          title={isApproved ? "Import professor leads for this campus" : "Approve the campus first"}
+                          title={isApproved ? "Review leads for this campus" : "Approve the campus first"}
                         >
-                          <Download className="h-3.5 w-3.5" /> Import Leads
+                          <Users className="h-3.5 w-3.5" /> Leads
                         </Button>
                         <Button size="sm" variant="outline" disabled className="justify-center" title="Coming soon">
                           <BarChart3 className="h-3.5 w-3.5" /> View Metrics
