@@ -54,7 +54,7 @@ function OutreachPage() {
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
   const phonesQuery = useQuery({ queryKey: ["campus-phones"], queryFn: fetchCampusPhones, retry: 1 });
-  const qcMain = useQueryClient();
+  
 
   const handleTogglePersonalPhone = (campusId: string, next: boolean) => {
     patchCampus(campusId, { use_personal_phone: next });
