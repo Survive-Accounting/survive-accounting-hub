@@ -14,7 +14,7 @@ const APPROVAL_VALUES: ApprovalStatus[] = ["not_reviewed", "needs_review", "appr
 const ASSIGNMENT_VALUES: AssignmentStatus[] = ["not_assigned", "assigned", "in_progress", "approved", "blocked"];
 
 const CAMPUS_SELECT =
-  "id,name,slug,state,region,is_sec,archived_at,accounting_department_name,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,course_family_textbooks_json,use_school_colors,landing_page_reviewed";
+  "id,name,slug,state,region,is_sec,archived_at,accounting_department_name,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,course_family_textbooks_json,course_family_terms_json,use_school_colors,landing_page_reviewed";
 
 function extractCourseCodes(json: unknown): string[] {
   if (Array.isArray(json)) return json.filter((x): x is string => typeof x === "string");
@@ -109,6 +109,7 @@ export async function fetchCampuses(): Promise<Campus[]> {
       course_family_titles_json: asRecord(c.course_family_titles_json),
       course_family_status_json: asRecord(c.course_family_status_json),
       course_family_textbooks_json: (c.course_family_textbooks_json ?? undefined) as Campus["course_family_textbooks_json"],
+      course_family_terms_json: (c.course_family_terms_json ?? undefined) as Campus["course_family_terms_json"],
       accounting_department_name: c.accounting_department_name ?? null,
       use_school_colors: c.use_school_colors ?? true,
       landing_page_reviewed: !!c.landing_page_reviewed,
@@ -123,6 +124,7 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
   if ("course_family_titles_json" in patch) db.course_family_titles_json = patch.course_family_titles_json ?? {};
   if ("course_family_status_json" in patch) db.course_family_status_json = patch.course_family_status_json ?? {};
   if ("course_family_textbooks_json" in patch) db.course_family_textbooks_json = patch.course_family_textbooks_json ?? {};
+  if ("course_family_terms_json" in patch) db.course_family_terms_json = patch.course_family_terms_json ?? {};
   if ("accounting_department_name" in patch) db.accounting_department_name = patch.accounting_department_name;
   if ("course_codes" in patch) {
     db.course_codes_json = patch.course_codes ?? [];
@@ -421,11 +423,18 @@ export interface AiFamilyBook {
   confidence: AiConfidence;
   source: string | null;
 }
+export interface AiFamilyTerms {
+  terms_text: { value: string | null; confidence: AiConfidence; source: string | null };
+  offered_fall: boolean | null;
+  offered_spring: boolean | null;
+  offered_summer: boolean | null;
+}
 export interface AiFamilyResearch {
   code: AiField;
   title: AiField;
   textbook_status: { value: "matches" | "different" | "not_found" | null; confidence: AiConfidence; source: string | null };
   book: AiFamilyBook;
+  terms?: AiFamilyTerms;
 }
 export interface CampusResearchResult {
   program: AiField;

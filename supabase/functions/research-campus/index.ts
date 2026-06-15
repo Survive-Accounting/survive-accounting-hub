@@ -33,7 +33,7 @@ function buildPrompt(school: string, state: string, knownCodes: string[]) {
 
   return `You are researching the undergraduate accounting program at "${school}" in ${state}, USA, to help a tutoring business decide how to reach its students. USE GOOGLE SEARCH AGGRESSIVELY — open the actual catalog, registrar, department, and bookstore pages. Do not rely on memory.${known}
 
-Find these four course families and, for each, the catalog course code, the official course title, and the REQUIRED textbook currently used:
+Find these four course families and, for each, the catalog course code, the official course title, the REQUIRED textbook currently used, AND which academic terms the course is typically offered in (Fall / Spring / Summer):
 
 ${familyLines}
 
@@ -41,6 +41,8 @@ For the textbook of each family, decide a status by comparing what the school us
   - "matches"   = the school uses the same textbook (same publisher + author family; edition differences still count as a match)
   - "different"  = the school uses a clearly different textbook
   - "not_found"  = you could not determine the textbook from any source
+
+For COURSE OFFERING TERMS, look at the course catalog / degree plan / registrar / accounting department / business school pages. Catalogs often state phrases like "Fall or Spring", "Fall, Spring, and Summer", "Offered Irregularly", "Every Other Spring", etc. Capture the literal phrasing in terms_text AND set the three booleans (offered_fall / offered_spring / offered_summer). If you cannot confidently determine offering terms, return null for terms_text and null for all three booleans — do NOT guess.
 
 Prefer, in order: the university's official course catalog / bulletin / registrar, the academic department page, the campus bookstore (e.g. bkstr.com / school store), then verified syllabi. ISBNs: only report an ISBN-13 you actually have a source for; default their confidence to "low" or "medium" unless it came straight from the bookstore listing.
 
@@ -58,7 +60,7 @@ Respond with ONLY a single JSON object, no prose and no markdown fences, in EXAC
 {
   "program": { "value": string|null, "confidence": "high"|"medium"|"low", "source": string|null },
   "families": {
-    "intro_1":        { "code": {"value":string|null,"confidence":...,"source":string|null}, "title": {"value":string|null,"confidence":...,"source":string|null}, "textbook_status": {"value":"matches"|"different"|"not_found"|null,"confidence":...,"source":string|null}, "book": {"isbn13":string|null,"title":string|null,"authors":string|null,"publisher":string|null,"confidence":...,"source":string|null} },
+    "intro_1":        { "code": {"value":string|null,"confidence":...,"source":string|null}, "title": {"value":string|null,"confidence":...,"source":string|null}, "textbook_status": {"value":"matches"|"different"|"not_found"|null,"confidence":...,"source":string|null}, "book": {"isbn13":string|null,"title":string|null,"authors":string|null,"publisher":string|null,"confidence":...,"source":string|null}, "terms": {"terms_text":{"value":string|null,"confidence":...,"source":string|null}, "offered_fall": true|false|null, "offered_spring": true|false|null, "offered_summer": true|false|null} },
     "intro_2":        { ...same shape... },
     "intermediate_1": { ...same shape... },
     "intermediate_2": { ...same shape... }
@@ -98,6 +100,21 @@ function sanitize(raw: any) {
         confidence: conf(book?.confidence),
         source: typeof book?.source === "string" && book.source.startsWith("http") ? book.source : null,
       },
+      terms: (() => {
+        const t = r?.terms ?? {};
+        const tt = t?.terms_text ?? {};
+        const bool = (v: any) => (typeof v === "boolean" ? v : null);
+        return {
+          terms_text: {
+            value: typeof tt?.value === "string" && tt.value.trim() ? tt.value.trim() : null,
+            confidence: conf(tt?.confidence),
+            source: typeof tt?.source === "string" && tt.source.startsWith("http") ? tt.source : null,
+          },
+          offered_fall: bool(t?.offered_fall),
+          offered_spring: bool(t?.offered_spring),
+          offered_summer: bool(t?.offered_summer),
+        };
+      })(),
     };
   }
   return { program: field(raw?.program), families };

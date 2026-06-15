@@ -44,10 +44,18 @@ export interface Campus {
   course_family_titles_json?: Record<string, string>;
   course_family_status_json?: Record<string, string>;
   course_family_textbooks_json?: Record<string, { isbn13?: string; title?: string; authors?: string; publisher?: string }>;
+  course_family_terms_json?: Record<string, CourseFamilyTerms>;
   accounting_department_name?: string | null;
   use_school_colors?: boolean;
   landing_page_reviewed?: boolean;
   tuition_notes?: string | null;
+}
+
+export interface CourseFamilyTerms {
+  terms_text?: string | null;
+  fall?: boolean | null;
+  spring?: boolean | null;
+  summer?: boolean | null;
 }
 
 export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {

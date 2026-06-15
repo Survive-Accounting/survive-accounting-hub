@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Info } from "lucide-react";
-import type { Campus } from "@/lib/outreach-mock";
+import type { Campus, CourseFamilyTerms } from "@/lib/outreach-mock";
 import {
   researchCampusAI,
   type CampusResearchResult,
@@ -172,6 +172,7 @@ export default function ApproveCampusModal({
   const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
   const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
   const [familyBooks, setFamilyBooks] = useState<Record<string, FamilyBook>>({});
+  const [familyTerms, setFamilyTerms] = useState<Record<string, CourseFamilyTerms>>({});
   const [programName, setProgramName] = useState("");
   const programTimer = useRef<number | null>(null);
   const [isbnLookup, setIsbnLookup] = useState<Record<string, "idle" | "loading" | "found" | "notfound">>({});
@@ -236,6 +237,20 @@ export default function ApproveCampusModal({
       };
     });
     setFamilyBooks(initBooks);
+
+    const existingTerms = campus.course_family_terms_json ?? {};
+    const initTerms: Record<string, CourseFamilyTerms> = {};
+    FAMILIES.forEach((f) => {
+      const t = existingTerms[f.key];
+      initTerms[f.key] = {
+        terms_text: t?.terms_text ?? null,
+        fall: t?.fall ?? null,
+        spring: t?.spring ?? null,
+        summer: t?.summer ?? null,
+      };
+    });
+    setFamilyTerms(initTerms);
+
     setIsbnLookup({});
     setProgramName(campus.accounting_department_name ?? "");
     setLastSavedAt(null);
@@ -430,6 +445,30 @@ export default function ApproveCampusModal({
     });
   };
 
+  const termsTimer = useRef<number | null>(null);
+  const updateFamilyTerms = (key: string, patch: Partial<CourseFamilyTerms>) => {
+    markTouched(`terms:${key}`);
+    setFamilyTerms((prev) => {
+      const cur = prev[key] ?? {};
+      const merged: CourseFamilyTerms = { ...cur, ...patch };
+      // Keep booleans in sync when the text is edited and matches obvious keywords.
+      if ("terms_text" in patch) {
+        const t = (patch.terms_text ?? "").toLowerCase();
+        if (t) {
+          merged.fall = /fall/.test(t) ? true : merged.fall;
+          merged.spring = /spring/.test(t) ? true : merged.spring;
+          merged.summer = /summer/.test(t) ? true : merged.summer;
+        }
+      }
+      const next = { ...prev, [key]: merged };
+      if (termsTimer.current) window.clearTimeout(termsTimer.current);
+      termsTimer.current = window.setTimeout(() => {
+        writePatch({ course_family_terms_json: next });
+      }, 700);
+      return next;
+    });
+  };
+
   // ============ AI research (suggestions only — human reviews) ============
   /** Fill ONLY empty fields from AI suggestions; never clobber human-entered data. */
   const applySuggestions = (res: CampusResearchResult) => {
@@ -441,6 +480,7 @@ export default function ApproveCampusModal({
     const nextTitles = { ...familyTitles };
     const nextStatus = { ...familyStatus };
     const nextBooks = { ...familyBooks };
+    const nextTerms = { ...familyTerms };
     for (const f of FAMILIES) {
       const fam = res.families[f.key];
       if (!fam) continue;
@@ -460,11 +500,26 @@ export default function ApproveCampusModal({
           publisher: b.publisher ?? "",
         };
       }
+      // Course offering terms — only fill if user hasn't touched the field.
+      const t = fam.terms;
+      const curTerms = nextTerms[f.key] ?? {};
+      const termsEmpty =
+        !curTerms.terms_text &&
+        curTerms.fall == null && curTerms.spring == null && curTerms.summer == null;
+      if (t && termsEmpty) {
+        nextTerms[f.key] = {
+          terms_text: t.terms_text?.value ?? null,
+          fall: t.offered_fall,
+          spring: t.offered_spring,
+          summer: t.offered_summer,
+        };
+      }
     }
     setFamilyCodes(nextCodes);
     setFamilyTitles(nextTitles);
     setFamilyStatus(nextStatus);
     setFamilyBooks(nextBooks);
+    setFamilyTerms(nextTerms);
     const codesArr = Object.values(nextCodes).map((s) => s.trim()).filter(Boolean);
     writePatch({
       course_family_codes_json: nextCodes,
@@ -472,6 +527,7 @@ export default function ApproveCampusModal({
       course_codes: codesArr,
       course_family_status_json: nextStatus,
       course_family_textbooks_json: booksToJson(nextBooks),
+      course_family_terms_json: nextTerms,
     });
   };
 
@@ -555,6 +611,7 @@ export default function ApproveCampusModal({
       course_codes: codesArray,
       course_family_status_json: familyStatus,
       course_family_textbooks_json: booksToJson(familyBooks),
+      course_family_terms_json: familyTerms,
       approval_status: "approved",
       ready_for_outreach: true,
     });
@@ -812,9 +869,10 @@ export default function ApproveCampusModal({
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="text-left font-medium px-3 py-2 w-[34%]">Course Family</th>
-                      <th className="text-left font-medium px-3 py-2 w-[22%]">Course Code</th>
+                      <th className="text-left font-medium px-3 py-2 w-[26%]">Course Family</th>
+                      <th className="text-left font-medium px-3 py-2 w-[18%]">Course Code</th>
                       <th className="text-left font-medium px-3 py-2">Course Title</th>
+                      <th className="text-left font-medium px-3 py-2 w-[22%]">Offered Terms</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -860,6 +918,66 @@ export default function ApproveCampusModal({
                               message="AI couldn't find this — use the search buttons"
                             />
                           )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            const t = familyTerms[f.key] ?? {};
+                            const aiTerms = aiResult?.families[f.key]?.terms;
+                            const touched = aiTouched.has(`terms:${f.key}`);
+                            const showAiBadge = !!aiTerms?.terms_text?.value && !touched;
+                            const toggle = (k: "fall" | "spring" | "summer") => {
+                              const cur = t[k];
+                              updateFamilyTerms(f.key, { [k]: cur === true ? false : true });
+                            };
+                            const chip = (k: "fall" | "spring" | "summer", label: string) => {
+                              const on = t[k] === true;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => toggle(k)}
+                                  className={`h-6 rounded border px-2 text-[10px] font-medium transition ${
+                                    on
+                                      ? "border-emerald-600 bg-emerald-600 text-white"
+                                      : "border-border bg-background text-muted-foreground hover:bg-muted"
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            };
+                            return (
+                              <div className="space-y-1.5">
+                                <Input
+                                  value={t.terms_text ?? ""}
+                                  onChange={(e) => updateFamilyTerms(f.key, { terms_text: e.target.value || null })}
+                                  placeholder="e.g. Fall or Spring"
+                                  className="h-8 text-xs"
+                                />
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {chip("fall", "Fall")}
+                                  {chip("spring", "Spring")}
+                                  {chip("summer", "Summer")}
+                                  {showAiBadge && (
+                                    <Badge variant="outline" className="ml-1 gap-1 border-blue-500/40 text-[9px] text-blue-700 dark:text-blue-300">
+                                      <Sparkles className="h-2.5 w-2.5" /> AI Suggested
+                                    </Badge>
+                                  )}
+                                </div>
+                                {aiTerms?.terms_text?.value ? (
+                                  <ConfidenceMeter
+                                    confidence={aiTerms.terms_text.confidence}
+                                    source={aiTerms.terms_text.source}
+                                    touched={touched}
+                                  />
+                                ) : (
+                                  <NotFoundHint
+                                    show={!!aiResult && !t.terms_text && !touched}
+                                    message="AI couldn't determine — fill in manually"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}
