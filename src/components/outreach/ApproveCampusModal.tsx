@@ -486,6 +486,21 @@ export default function ApproveCampusModal({
       setAiTouched(new Set());
       applySuggestions(r.result);
       toast.success("AI suggestions added — review every field before approving.", { id: t });
+
+      // Best-effort: also kick off lead research. The LeadSuggestionsPanel on Step 3
+      // re-reads from the staging table when the user navigates there.
+      try {
+        const { data, error } = await supabase.functions.invoke("research-campus-leads", {
+          body: { campus_id: campus.id },
+        });
+        if (error) throw error;
+        const d = data as any;
+        if (d?.inserted_count != null) {
+          toast.success(`Added ${d.inserted_count} suggested lead${d.inserted_count === 1 ? "" : "s"} for review on Step 3.`);
+        }
+      } catch (e: any) {
+        toast.message("Lead research couldn't run automatically — open Step 3 to run it manually.");
+      }
     } finally {
       setAiResearching(false);
     }
