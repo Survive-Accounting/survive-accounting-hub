@@ -11,6 +11,7 @@ import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
 import SiteFooter from "@/components/landing/SiteFooter";
 import BookTutoringModal from "@/components/landing/BookTutoringModal";
+import CourseCtaList from "@/components/landing/CourseCtaList";
 import { buildSchoolPalette, DEFAULT_PALETTE, type SchoolPalette } from "@/lib/schoolColorSafety";
 import { fetchCampusBySlug, fetchLeadByToken, formatPhonePretty, recordLandingEvent } from "@/lib/outreach-api";
 import { supabase } from "@/integrations/supabase/client";
