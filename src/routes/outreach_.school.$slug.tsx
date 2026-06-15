@@ -285,6 +285,12 @@ function SchoolLandingPage() {
       )}
       <Hero onBookTutoring={openBooking} onReadReviews={() => scrollToId("reviews-section")} />
       <CourseCodesStrip codes={campus.course_codes} palette={palette} />
+      <CourseCtaList
+        campusId={campus.id}
+        schoolName={campus.name}
+        familyCodes={campus.course_family_codes}
+        onBookTutoring={() => openBooking()}
+      />
       <Reviews />
       <SiteFooter
         onScrollToReviews={() => scrollToId("reviews-section")}

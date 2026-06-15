@@ -330,11 +330,12 @@ export async function fetchLeadByToken(token: string): Promise<Lead | null> {
 /** Load a campus landing page by slug (public, anon-readable). */
 export async function fetchCampusBySlug(slug: string): Promise<{
   id: string; name: string; slug: string; course_codes: string[];
+  course_family_codes: Record<string, string>;
   color_primary: string | null; color_secondary: string | null; use_school_colors: boolean;
 } | null> {
   const { data, error } = await supabase
     .from("campuses")
-    .select("id,name,slug,course_codes_json,color_primary,color_secondary,use_school_colors")
+    .select("id,name,slug,course_codes_json,course_family_codes_json,color_primary,color_secondary,use_school_colors")
     .eq("slug", slug)
     .maybeSingle();
   if (error || !data) return null;
@@ -342,9 +343,14 @@ export async function fetchCampusBySlug(slug: string): Promise<{
   const codes = Array.isArray(c.course_codes_json)
     ? c.course_codes_json.filter((x: unknown): x is string => typeof x === "string")
     : [];
+  const familyCodes: Record<string, string> =
+    c.course_family_codes_json && typeof c.course_family_codes_json === "object" && !Array.isArray(c.course_family_codes_json)
+      ? (c.course_family_codes_json as Record<string, string>)
+      : {};
   return {
     id: c.id, name: c.name ?? "", slug: c.slug ?? "",
     course_codes: codes,
+    course_family_codes: familyCodes,
     color_primary: c.color_primary ?? null,
     color_secondary: c.color_secondary ?? null,
     use_school_colors: c.use_school_colors === true,
