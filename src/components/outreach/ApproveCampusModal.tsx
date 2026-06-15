@@ -749,7 +749,23 @@ export default function ApproveCampusModal({
 
           <Tabs value={step} onValueChange={setStep} className="mt-2">
             {/* STEP 1 — Course Details */}
-            <TabsContent value="1" className="space-y-4 pt-4">
+            <TabsContent value="1" className="space-y-3 pt-3">
+              {(() => {
+                const found = FAMILIES.filter((f) => (familyCodes[f.key] ?? "").trim());
+                const missing = FAMILIES.filter((f) => !(familyCodes[f.key] ?? "").trim());
+                return (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs">
+                    <span className="font-semibold">Course codes found: {found.length}/4</span>
+                    {missing.length > 0 ? (
+                      <span className="text-muted-foreground">
+                        Missing: {missing.map((m) => m.shortLabel).join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-700">All four families have a code.</span>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="grid gap-1 min-w-[280px] flex-1">
                   <span className="text-xs font-medium text-muted-foreground">
