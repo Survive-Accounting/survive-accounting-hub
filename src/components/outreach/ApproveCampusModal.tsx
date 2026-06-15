@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Info } from "lucide-react";
-import type { Campus } from "@/lib/outreach-mock";
+import type { Campus, CourseFamilyTerms } from "@/lib/outreach-mock";
 import {
   researchCampusAI,
   type CampusResearchResult,
