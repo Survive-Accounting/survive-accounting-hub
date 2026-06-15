@@ -259,12 +259,12 @@ async function callAi(prompt: string): Promise<{ text: string; finishReason: str
   };
 }
 
-async function researchFamily(campus: Record<string, any>, family: Family) {
+async function researchFamily(campus: Record<string, any>, family: Family, overridePrefixes?: string[]) {
   const debug: any = { family, attempts: [] as any[] };
   let cleaned: any[] = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt = buildFamilyPrompt(campus, family, attempt > 0);
+    const prompt = buildFamilyPrompt(campus, family, attempt > 0, overridePrefixes);
     const { text, finishReason, usage, httpStatus, httpBody } = await callAi(prompt);
     const att: any = { strict: attempt > 0, http_status: httpStatus, finish_reason: finishReason, usage, raw_text_chars: text.length };
     if (httpStatus === 429 || httpStatus === 402) {
