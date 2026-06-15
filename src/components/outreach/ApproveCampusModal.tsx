@@ -32,6 +32,7 @@ import {
   type TutoringAvailability,
   type TextbookMatchStatus,
 } from "@/lib/outreach-api";
+import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
 
 type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
 
