@@ -51,6 +51,13 @@ export interface Campus {
   tuition_notes?: string | null;
 }
 
+export interface CourseFamilyTerms {
+  terms_text?: string | null;
+  fall?: boolean | null;
+  spring?: boolean | null;
+  summer?: boolean | null;
+}
+
 export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_assigned: "Not Assigned",
   assigned: "Assigned",
