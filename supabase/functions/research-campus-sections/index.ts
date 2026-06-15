@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
   if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Supabase env not configured" }, 500);
 
-  let body: { campus_id?: string; families?: string[] };
+  let body: { campus_id?: string; families?: string[]; prefix_overrides?: Record<string, string[]> };
   try { body = await req.json(); } catch { return json({ error: "invalid JSON body" }, 400); }
   const campus_id = (body.campus_id ?? "").trim();
   if (!campus_id) return json({ error: "campus_id required" }, 400);
@@ -326,17 +326,23 @@ Deno.serve(async (req) => {
 
   const { data: campus, error: campusErr } = await db
     .from("campuses")
-    .select("id, name, state, website_url")
+    .select("id, name, state, website_url, discovered_course_prefixes")
     .eq("id", campus_id)
     .maybeSingle();
   if (campusErr) return json({ error: "campus lookup failed", detail: campusErr.message }, 500);
   if (!campus) return json({ error: "campus not found" }, 404);
 
+  // Merge prefix overrides: explicit body param > campus.discovered_course_prefixes > generic hints.
+  const cachedPrefixes = (campus as any).discovered_course_prefixes ?? {};
+  const explicitOverrides = body.prefix_overrides ?? {};
+  const resolvedOverrides: Record<string, string[]> = { ...cachedPrefixes, ...explicitOverrides };
+
   // Per-family fan-out (sequential to keep load + cost predictable).
   const perFamily: Record<string, any> = {};
   const allCleaned: any[] = [];
   for (const fam of requestedFamilies) {
-    const { cleaned, debug } = await researchFamily(campus, fam);
+    const famOverride = Array.isArray(resolvedOverrides[fam]) ? resolvedOverrides[fam] : undefined;
+    const { cleaned, debug } = await researchFamily(campus, fam, famOverride);
     perFamily[fam] = debug;
     for (const row of cleaned) allCleaned.push(row);
   }
