@@ -60,7 +60,7 @@ export function BatchResearchPanel({ campuses }: { campuses: Campus[] }) {
   const pending = items.filter((i) => i.status === "pending");
 
   async function handleStartAll() {
-    const candidates = campuses.filter((c) => !c.archived_at);
+    const candidates = campuses.filter((c) => !c.archived);
     if (!candidates.length) return;
     const estCost = (candidates.length * 0.04).toFixed(2);
     const ok = window.confirm(
@@ -108,7 +108,7 @@ export function BatchResearchPanel({ campuses }: { campuses: Campus[] }) {
             disabled={starting}
             className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90 disabled:opacity-50"
           >
-            {starting ? "Starting…" : `Run on all ${campuses.filter((c) => !c.archived_at).length} campuses`}
+            {starting ? "Starting…" : `Run on all ${campuses.filter((c) => !c.archived).length} campuses`}
           </button>
         </div>
       </div>
@@ -185,7 +185,7 @@ export function BatchResearchPanel({ campuses }: { campuses: Campus[] }) {
           <ul className="space-y-1 text-xs">
             {running.map((i) => (
               <li key={i.id} className="flex items-center justify-between">
-                <span>{campusById.get(i.campus_id)?.name ?? i.campus_id.slice(0, 8)}</span>
+                <span>{campusById.get(i.campus_id)?.school_name ?? i.campus_id.slice(0, 8)}</span>
                 <span className="text-muted-foreground">{i.current_step ?? "…"}</span>
               </li>
             ))}
@@ -209,7 +209,7 @@ export function BatchResearchPanel({ campuses }: { campuses: Campus[] }) {
               {failed.map((i) => (
                 <li key={i.id} className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-medium">{campusById.get(i.campus_id)?.name ?? i.campus_id.slice(0, 8)}</div>
+                    <div className="font-medium">{campusById.get(i.campus_id)?.school_name ?? i.campus_id.slice(0, 8)}</div>
                     <div className="text-muted-foreground truncate" title={i.error ?? undefined}>
                       {i.failed_step}: {i.error?.slice(0, 120)}
                     </div>
@@ -234,7 +234,7 @@ export function BatchResearchPanel({ campuses }: { campuses: Campus[] }) {
             <ul className="mt-2 space-y-1 text-xs max-h-72 overflow-y-auto">
               {done.slice().reverse().map((i) => (
                 <li key={i.id} className="flex items-center justify-between gap-2">
-                  <span className="truncate">{campusById.get(i.campus_id)?.name ?? i.campus_id.slice(0, 8)}</span>
+                  <span className="truncate">{campusById.get(i.campus_id)?.school_name ?? i.campus_id.slice(0, 8)}</span>
                   <span className="shrink-0 text-muted-foreground">
                     {i.leads_count} leads · {i.sections_count} sections
                     {i.families_with_zero.length > 0 && (
