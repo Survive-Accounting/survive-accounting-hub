@@ -213,9 +213,8 @@ export default function ApproveCampusModal({
     [familyCodes],
   );
 
-  const hasAtLeastOneMatch = FAMILIES.some((f) => (familyStatus[f.key] ?? "not_checked") === "matches");
   const step1Done = codesArray.length > 0;
-  const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked") && hasAtLeastOneMatch;
+  const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked");
   const canApprove = step1Done && step2Done;
 
   const aggregateTextbookStatus = (status: Record<string, FamilyStatus>): TextbookStatus => {
