@@ -159,6 +159,17 @@ function sanitize(raw: any): { rows: any[]; rejected: { reason: string; sample: 
       rejected.push({ reason: "no_identity_fields", sample: { first_name: s.first_name, last_name: s.last_name, email: s.email } });
       continue;
     }
+    const VALID_FAMILY = new Set(["intro_1", "intro_2", "intermediate_1", "intermediate_2", "other"]);
+    const coursesRaw = Array.isArray(s.courses_found) ? s.courses_found : [];
+    const courses_found = coursesRaw
+      .filter((c: any) => c && typeof c === "object")
+      .map((c: any) => ({
+        course_code: str(c.course_code),
+        course_title: str(c.course_title),
+        course_family: VALID_FAMILY.has(c.course_family) ? c.course_family : "other",
+        term: str(c.term),
+        source_url: urlOrNull(c.source_url),
+      }));
     rows.push({
       first_name, last_name, email,
       title: str(s.title),
@@ -169,6 +180,13 @@ function sanitize(raw: any): { rows: any[]; rejected: { reason: string; sample: 
       source_url: urlOrNull(s.source_url),
       confidence,
       notes: str(s.notes),
+      teaches_intro_1: !!s.teaches_intro_1,
+      teaches_intro_2: !!s.teaches_intro_2,
+      teaches_intermediate_1: !!s.teaches_intermediate_1,
+      teaches_intermediate_2: !!s.teaches_intermediate_2,
+      courses_found: courses_found.length ? courses_found : null,
+      teaching_evidence_url: urlOrNull(s.teaching_evidence_url),
+      teaching_evidence_notes: str(s.teaching_evidence_notes),
       raw_payload: { ...s, _confidence_label: confLabel },
     });
   }
