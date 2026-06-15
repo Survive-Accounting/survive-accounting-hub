@@ -932,7 +932,7 @@ export default function ApproveCampusModal({
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    Complete all steps before approving: at least one course code and all families researched (with at least one match).
+                    Complete all steps before approving: at least one course code and a status set for every family.
                   </span>
                 </div>
               )}
