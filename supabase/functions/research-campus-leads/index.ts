@@ -280,6 +280,7 @@ Deno.serve(async (req) => {
         partial: true,
         insert_error: insErr.message,
         suggestions: okRows,
+        debug,
       });
     }
     inserted = ins ?? [];
@@ -291,5 +292,6 @@ Deno.serve(async (req) => {
     inserted_count: inserted.length,
     skipped_duplicate_count: skipped,
     suggestions: inserted,
+    debug,
   });
 });
