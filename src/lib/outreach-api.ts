@@ -141,6 +141,7 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
   if ("assigned_to" in patch) db.assigned_to = patch.assigned_to;
   if ("due_date" in patch) db.due_date = patch.due_date;
   if ("assignment_status" in patch) db.assignment_status = patch.assignment_status;
+  if ("use_personal_phone" in patch) db.use_personal_phone = !!patch.use_personal_phone;
   if (Object.keys(db).length === 0) return;
   const { error } = await supabase.from("campuses").update(db as never).eq("id", id);
   if (error) throw error;
