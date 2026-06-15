@@ -903,3 +903,198 @@ export async function bulkUpdateLeadSuggestions(
     .in("id", ids);
   if (error) throw error;
 }
+
+// ============================================================
+// Course Availability Engine (Phase 4)
+// Global defaults live on outreach_settings (singleton row).
+// Per-campus overrides live in campus_course_availability — one row
+// per (campus, course_family). A NULL tutoring_availability means
+// "inherit the global default" for that family.
+// ============================================================
+
+export type CourseFamily = "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2";
+export type TutoringAvailability = "available" | "waitlist" | "unavailable";
+export type TextbookMatchStatus = "matched" | "likely_match" | "not_matched" | "unknown";
+
+export const COURSE_FAMILIES: { key: CourseFamily; label: string; shortLabel: string }[] = [
+  { key: "intro_1", label: "Intro 1 — Financial Accounting Principles", shortLabel: "Intro 1" },
+  { key: "intro_2", label: "Intro 2 — Managerial Accounting Principles", shortLabel: "Intro 2" },
+  { key: "intermediate_1", label: "Intermediate Accounting I", shortLabel: "IA1" },
+  { key: "intermediate_2", label: "Intermediate Accounting II", shortLabel: "IA2" },
+];
+
+export interface CourseFamilyDefaults {
+  intro_1: TutoringAvailability;
+  intro_2: TutoringAvailability;
+  intermediate_1: TutoringAvailability;
+  intermediate_2: TutoringAvailability;
+}
+
+export interface CampusCourseAvailability {
+  id: string;
+  campus_id: string;
+  course_family: CourseFamily;
+  textbook_match_status: TextbookMatchStatus;
+  /** NULL = inherit global default. */
+  tutoring_availability: TutoringAvailability | null;
+  requires_syllabus_review: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EffectiveCourseAvailability {
+  family: CourseFamily;
+  effective: TutoringAvailability;
+  override: TutoringAvailability | null;
+  textbook_match_status: TextbookMatchStatus;
+  requires_syllabus_review: boolean;
+}
+
+const SETTINGS_DEFAULTS: CourseFamilyDefaults = {
+  intro_1: "available",
+  intro_2: "available",
+  intermediate_1: "waitlist",
+  intermediate_2: "waitlist",
+};
+
+/** Fetch the singleton settings row (or sensible defaults if it isn't readable). */
+export async function getCourseFamilyDefaults(): Promise<CourseFamilyDefaults> {
+  const { data } = await (supabase.from("outreach_settings" as never) as any)
+    .select(
+      "intro_1_availability,intro_2_availability,intermediate_1_availability,intermediate_2_availability",
+    )
+    .eq("id", 1)
+    .maybeSingle();
+  const row = (data ?? {}) as Partial<Record<string, TutoringAvailability>>;
+  return {
+    intro_1: row.intro_1_availability ?? SETTINGS_DEFAULTS.intro_1,
+    intro_2: row.intro_2_availability ?? SETTINGS_DEFAULTS.intro_2,
+    intermediate_1: row.intermediate_1_availability ?? SETTINGS_DEFAULTS.intermediate_1,
+    intermediate_2: row.intermediate_2_availability ?? SETTINGS_DEFAULTS.intermediate_2,
+  };
+}
+
+/** Update a single global default. */
+export async function updateCourseFamilyDefault(
+  family: CourseFamily,
+  value: TutoringAvailability,
+): Promise<void> {
+  const patch: Record<string, unknown> = {
+    [`${family}_availability`]: value,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await (supabase.from("outreach_settings" as never) as any)
+    .update(patch)
+    .eq("id", 1);
+  if (error) throw error;
+}
+
+function mapAvailabilityRow(row: any): CampusCourseAvailability {
+  return {
+    id: row.id,
+    campus_id: row.campus_id,
+    course_family: row.course_family as CourseFamily,
+    textbook_match_status: (row.textbook_match_status ?? "unknown") as TextbookMatchStatus,
+    tutoring_availability: (row.tutoring_availability ?? null) as TutoringAvailability | null,
+    requires_syllabus_review: !!row.requires_syllabus_review,
+    notes: row.notes ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+/** Per-campus override rows (may be empty — missing rows mean "inherit"). */
+export async function getCampusCourseAvailability(
+  campusId: string,
+): Promise<CampusCourseAvailability[]> {
+  const { data, error } = await supabase
+    .from("campus_course_availability" as never)
+    .select("*")
+    .eq("campus_id", campusId);
+  if (error) throw error;
+  return ((data ?? []) as any[]).map(mapAvailabilityRow);
+}
+
+/** Upsert the override row for one (campus, family). */
+export async function upsertCampusCourseAvailability(
+  campusId: string,
+  family: CourseFamily,
+  patch: Partial<Omit<CampusCourseAvailability, "id" | "campus_id" | "course_family" | "created_at" | "updated_at">>,
+): Promise<void> {
+  const row: Record<string, unknown> = {
+    campus_id: campusId,
+    course_family: family,
+  };
+  if ("textbook_match_status" in patch) row.textbook_match_status = patch.textbook_match_status;
+  if ("tutoring_availability" in patch) row.tutoring_availability = patch.tutoring_availability;
+  if ("requires_syllabus_review" in patch) row.requires_syllabus_review = !!patch.requires_syllabus_review;
+  if ("notes" in patch) row.notes = patch.notes;
+  const { error } = await (supabase.from("campus_course_availability" as never) as any)
+    .upsert(row, { onConflict: "campus_id,course_family" });
+  if (error) throw error;
+}
+
+/** Merge global defaults with per-campus overrides into the effective view. */
+export async function getEffectiveCourseAvailability(
+  campusId: string,
+): Promise<EffectiveCourseAvailability[]> {
+  const [defaults, rows] = await Promise.all([
+    getCourseFamilyDefaults(),
+    getCampusCourseAvailability(campusId),
+  ]);
+  const byFamily = new Map(rows.map((r) => [r.course_family, r]));
+  return COURSE_FAMILIES.map(({ key }) => {
+    const r = byFamily.get(key);
+    const override = r?.tutoring_availability ?? null;
+    return {
+      family: key,
+      effective: override ?? defaults[key],
+      override,
+      textbook_match_status: r?.textbook_match_status ?? "unknown",
+      requires_syllabus_review: !!r?.requires_syllabus_review,
+    };
+  });
+}
+
+// ----- Course-level waitlist submissions (public landing page) -----
+
+export interface CourseWaitlistInput {
+  campus_id: string;
+  course_family: CourseFamily;
+  name: string;
+  email: string;
+  phone?: string | null;
+  school?: string | null;
+  course?: string | null;
+  notes?: string | null;
+  syllabus_file?: File | null;
+}
+
+/** Upload a syllabus to the private `course-syllabi` bucket and write the waitlist row. */
+export async function submitCourseWaitlist(input: CourseWaitlistInput): Promise<void> {
+  let syllabus_file_path: string | null = null;
+  if (input.syllabus_file) {
+    const f = input.syllabus_file;
+    const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
+    const path = `${input.campus_id}/${input.course_family}/${Date.now()}-${safeName}`;
+    const { error: upErr } = await supabase.storage
+      .from("course-syllabi")
+      .upload(path, f, { cacheControl: "3600", upsert: false });
+    if (upErr) throw upErr;
+    syllabus_file_path = path;
+  }
+  const row: Record<string, unknown> = {
+    campus_id: input.campus_id,
+    course_family: input.course_family,
+    name: input.name.trim() || null,
+    email: input.email.trim().toLowerCase() || null,
+    phone: input.phone?.trim() || null,
+    course: input.course?.trim() || null,
+    notes: input.notes?.trim() || null,
+    syllabus_file_path,
+  };
+  const { error } = await (supabase.from("outreach_waitlist_signups" as never) as any).insert(row);
+  if (error) throw error;
+}
+
