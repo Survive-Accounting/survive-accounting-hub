@@ -1,6 +1,8 @@
 // research-campus — AI-assisted campus research for the Approve Campus modal.
 //
-// Calls OpenAI directly using the project's OPENAI_API_KEY.
+// Calls Lovable AI Gateway (google/gemini-3-flash-preview) with the
+// google_search grounding tool so the model can actually browse the catalog,
+// department, and bookstore pages instead of hallucinating from training data.
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -8,8 +10,8 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o";
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+const MODEL = Deno.env.get("RESEARCH_MODEL") ?? "google/gemini-3-flash-preview";
 
 type Confidence = "high" | "medium" | "low";
 
@@ -29,7 +31,7 @@ function buildPrompt(school: string, state: string, knownCodes: string[]) {
   ).join("\n");
   const known = knownCodes.length ? `\nCourse codes already on file (may be partial/unverified): ${knownCodes.join(", ")}` : "";
 
-  return `You are researching the undergraduate accounting program at "${school}" in ${state}, USA, to help a tutoring business decide how to reach its students.${known}
+  return `You are researching the undergraduate accounting program at "${school}" in ${state}, USA, to help a tutoring business decide how to reach its students. USE GOOGLE SEARCH AGGRESSIVELY — open the actual catalog, registrar, department, and bookstore pages. Do not rely on memory.${known}
 
 Find these four course families and, for each, the catalog course code, the official course title, and the REQUIRED textbook currently used:
 
@@ -40,9 +42,9 @@ For the textbook of each family, decide a status by comparing what the school us
   - "different"  = the school uses a clearly different textbook
   - "not_found"  = you could not determine the textbook from any source
 
-Prefer, in order: the university's official course catalog / bulletin / registrar, the academic department page, the campus bookstore (e.g. bkstr.com / school store), then verified syllabi. ISBNs: only report an ISBN-13 you actually have a source for; ISBNs are easy to get wrong, so default their confidence to "low" or "medium" unless it came straight from the bookstore listing.
+Prefer, in order: the university's official course catalog / bulletin / registrar, the academic department page, the campus bookstore (e.g. bkstr.com / school store), then verified syllabi. ISBNs: only report an ISBN-13 you actually have a source for; default their confidence to "low" or "medium" unless it came straight from the bookstore listing.
 
-ABSOLUTE RULES — these matter more than completeness:
+ABSOLUTE RULES:
 1. NEVER guess or fabricate. If you do not have a real source for a value, return null. A blank is correct and useful; an invented value is harmful.
 2. Confidence reflects SOURCE QUALITY, not your feeling:
    - "high"   = stated explicitly on an official/authoritative source (catalog, registrar, department, bookstore).
@@ -112,7 +114,7 @@ function extractJson(text: string): any {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
-  if (!OPENAI_API_KEY) return json({ error: "OPENAI_API_KEY not set" }, 500);
+  if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
 
   let body: { school_name?: string; state?: string; course_codes?: string[] };
   try {
@@ -126,26 +128,44 @@ Deno.serve(async (req) => {
   if (!school) return json({ error: "school_name required" }, 400);
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Lovable-API-Key": LOVABLE_API_KEY,
         "Content-Type": "application/json",
+        "X-Lovable-AIG-SDK": "research-campus",
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
+        model: MODEL,
         messages: [{ role: "user", content: buildPrompt(school, state, knownCodes) }],
-        response_format: { type: "json_object" },
+        tools: [{ type: "google_search" }],
       }),
     });
+    if (res.status === 429) {
+      return json({ error: "AI is rate-limited, try again in a moment" }, 429);
+    }
+    if (res.status === 402) {
+      return json({ error: "Workspace AI credits exhausted — add credits in Settings → Workspace → Usage" }, 402);
+    }
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      return json({ error: "OpenAI request failed", status: res.status, detail: detail.slice(0, 500) }, 502);
+      return json({ error: "AI request failed", status: res.status, detail: detail.slice(0, 800) }, 502);
     }
     const j = await res.json();
-    const text: string = j?.choices?.[0]?.message?.content ?? "";
+    const choice = j?.choices?.[0];
+    const text: string = choice?.message?.content ?? "";
+    const finishReason: string | undefined = choice?.finish_reason;
     if (!text.trim()) return json({ error: "empty model response" }, 502);
-    const result = sanitize(extractJson(text));
+    if (finishReason === "length") {
+      return json({ error: "AI response was truncated — try again" }, 502);
+    }
+    let parsed: any;
+    try {
+      parsed = extractJson(text);
+    } catch (e) {
+      return json({ error: "AI returned malformed JSON — try again", detail: String((e as Error)?.message ?? e) }, 502);
+    }
+    const result = sanitize(parsed);
     return json({ ok: true, school_name: school, result });
   } catch (e) {
     return json({ error: "research failed", detail: String((e as Error)?.message ?? e) }, 500);
