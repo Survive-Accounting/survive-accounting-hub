@@ -286,6 +286,8 @@ export default function LeadSuggestionsPanel({
     intro_2: rows.filter((r) => r.teaches_intro_2).length,
     ia_1: rows.filter((r) => r.teaches_intermediate_1).length,
     ia_2: rows.filter((r) => r.teaches_intermediate_2).length,
+    confirmed_intro: rows.filter(isConfirmedIntro).length,
+    confirmed_ia: rows.filter(isConfirmedIA).length,
   }), [rows]);
 
   useEffect(() => {
@@ -336,6 +338,11 @@ export default function LeadSuggestionsPanel({
             <span className="text-[11px] text-muted-foreground">
               · Intro 1: {teachingCounts.intro_1} · Intro 2: {teachingCounts.intro_2} · IA1: {teachingCounts.ia_1} · IA2: {teachingCounts.ia_2}
             </span>
+            {teachingCounts.confirmed_intro > 0 && (
+              <span className="text-[11px] font-semibold text-amber-700 inline-flex items-center gap-1">
+                · <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {teachingCounts.confirmed_intro} CONFIRMED Intro 1/2
+              </span>
+            )}
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <Select value={sortMode} onValueChange={(v) => setSortMode(v as "last_name" | "priority")}>
                 <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue /></SelectTrigger>
@@ -398,8 +405,10 @@ export default function LeadSuggestionsPanel({
                 </td>
               </tr>
             )}
-            {visibleRows.map((r) => (
-              <tr key={r.id} className="hover:bg-muted/20 align-top">
+            {visibleRows.map((r) => {
+              const confirmed = isConfirmedIntro(r);
+              return (
+              <tr key={r.id} className={`hover:bg-muted/20 align-top ${confirmed ? "bg-amber-50/70 border-l-2 border-l-amber-400" : ""}`}>
                 <td className="px-2 py-1">
                   <input
                     type="checkbox"
