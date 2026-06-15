@@ -764,6 +764,7 @@ export type Database = {
       campuses: {
         Row: {
           accounting_department_name: string | null
+          accounting_department_url: string | null
           adoption_count_intermediate: number | null
           adoption_count_intro: number | null
           adoption_count_total: number | null
@@ -887,6 +888,7 @@ export type Database = {
         }
         Insert: {
           accounting_department_name?: string | null
+          accounting_department_url?: string | null
           adoption_count_intermediate?: number | null
           adoption_count_intro?: number | null
           adoption_count_total?: number | null
@@ -1010,6 +1012,7 @@ export type Database = {
         }
         Update: {
           accounting_department_name?: string | null
+          accounting_department_url?: string | null
           adoption_count_intermediate?: number | null
           adoption_count_intro?: number | null
           adoption_count_total?: number | null
