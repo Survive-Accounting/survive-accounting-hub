@@ -789,6 +789,19 @@ export default function ApproveCampusModal({
     }
   };
 
+  // Auto-start full AI research once when the modal is opened from the
+  // "Add Campus → Create & Run AI Research" flow.
+  const autoStartedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!campus || !autoStartResearch) return;
+    if (autoStartResearch !== campus.id) return;
+    if (autoStartedRef.current === campus.id) return;
+    autoStartedRef.current = campus.id;
+    // Fire and forget — runAiResearch handles its own toasts and persistence.
+    runAiResearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campus?.id, autoStartResearch]);
+
   // Map the existing per-family textbook status to the Phase 4 textbook_match_status enum.
   const mapTextbookMatch = (s: FamilyStatus): TextbookMatchStatus => {
     if (s === "matches") return "matched";
