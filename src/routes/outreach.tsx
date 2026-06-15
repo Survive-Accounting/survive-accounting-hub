@@ -50,13 +50,6 @@ function OutreachPage() {
   const [importCampusId, setImportCampusId] = useState<string | null>(null);
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const today = manilaTodayISO();
-    const dow = new Date(today + "T00:00:00").getDay();
-    if (dow === 0) return addDaysISO(today, -1);
-    if (dow === 1) return addDaysISO(today, 1);
-    return today;
-  });
 
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
@@ -81,31 +74,6 @@ function OutreachPage() {
     }
   }, [campusQuery.data, campusQuery.isError]);
 
-  // ----- Week strip counts -----
-  const weekMonday = mondayOfISO(selectedDate);
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDaysISO(weekMonday, i)),
-    [weekMonday],
-  );
-  const countsQuery = useQuery({
-    queryKey: ["week-counts", weekDays[0], weekDays[6]],
-    queryFn: () => fetchWeekCounts(weekDays[0], weekDays[6]),
-    retry: 1,
-  });
-  const counts = countsQuery.data ?? (usingMock ? mockWeekCounts(weekDays) : {});
-
-  // ----- Today's assigned campuses (checklist step 1) -----
-  const dayIdsQuery = useQuery({
-    queryKey: ["day-campus-ids", selectedDate],
-    queryFn: () => fetchCampusIdsForDate(selectedDate),
-    retry: 1,
-  });
-  const todaysCampuses = useMemo(() => {
-    if (!dayIdsQuery.data) return undefined;
-    const byId = new Map(campuses.map((c) => [c.id, c]));
-    return dayIdsQuery.data.map((id) => byId.get(id)).filter(Boolean) as Campus[];
-  }, [dayIdsQuery.data, campuses]);
-
   // ----- Patching: local state immediately, database in the background -----
   const patchCampus = (id: string, patch: Partial<Campus>) => {
     setCampuses((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -121,10 +89,7 @@ function OutreachPage() {
     patch: { assigned_to: string | null; due_date: string | null; assignment_status: AssignmentStatus },
   ) => patchCampus(id, patch);
 
-  const handleFocusCampus = (name: string) => {
-    setFilters((f) => ({ ...f, search: name }));
-    setTab("schools");
-  };
+
 
   return (
     <AdminGate>
