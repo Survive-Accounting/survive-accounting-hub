@@ -417,6 +417,74 @@ export type Database = {
         }
         Relationships: []
       }
+      campus_lead_suggestions: {
+        Row: {
+          campus_id: string
+          confidence: number | null
+          created_at: string
+          department: string | null
+          email: string | null
+          first_name: string | null
+          id: string
+          is_cpa: boolean
+          is_phd: boolean
+          last_name: string | null
+          lead_type: string
+          notes: string | null
+          raw_payload: Json | null
+          source_url: string | null
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          campus_id: string
+          confidence?: number | null
+          created_at?: string
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_cpa?: boolean
+          is_phd?: boolean
+          last_name?: string | null
+          lead_type?: string
+          notes?: string | null
+          raw_payload?: Json | null
+          source_url?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campus_id?: string
+          confidence?: number | null
+          created_at?: string
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_cpa?: boolean
+          is_phd?: boolean
+          last_name?: string | null
+          lead_type?: string
+          notes?: string | null
+          raw_payload?: Json | null
+          source_url?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_lead_suggestions_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campus_phone_numbers: {
         Row: {
           campus_id: string | null

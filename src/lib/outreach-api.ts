@@ -766,3 +766,140 @@ export function defaultBatchSendTime(): Date {
   d.setUTCHours(20, 30, 0, 0);
   return d;
 }
+
+// ============================================================
+// AI Lead Suggestions (staging) — see migration campus_lead_suggestions.
+// These NEVER write into outreach_leads. A human must accept a suggestion
+// (in a later phase) before it becomes a real lead via importLeads().
+// ============================================================
+
+export type LeadSuggestionStatus = "pending" | "accepted" | "rejected" | "needs_lee";
+export type LeadSuggestionType =
+  | "professor"
+  | "admin_staff"
+  | "bap_advisor"
+  | "tutoring_center"
+  | "other";
+
+export interface LeadSuggestion {
+  id: string;
+  campus_id: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  title: string | null;
+  department: string | null;
+  lead_type: LeadSuggestionType;
+  is_phd: boolean;
+  is_cpa: boolean;
+  source_url: string | null;
+  confidence: number | null;
+  notes: string | null;
+  status: LeadSuggestionStatus;
+  raw_payload: unknown | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type LeadSuggestionInput = Partial<
+  Omit<LeadSuggestion, "id" | "campus_id" | "created_at" | "updated_at">
+>;
+
+const SUGGESTION_TABLE = "campus_lead_suggestions" as never;
+
+function mapSuggestion(row: any): LeadSuggestion {
+  return {
+    id: row.id,
+    campus_id: row.campus_id,
+    email: row.email ?? null,
+    first_name: row.first_name ?? null,
+    last_name: row.last_name ?? null,
+    title: row.title ?? null,
+    department: row.department ?? null,
+    lead_type: (row.lead_type ?? "professor") as LeadSuggestionType,
+    is_phd: !!row.is_phd,
+    is_cpa: !!row.is_cpa,
+    source_url: row.source_url ?? null,
+    confidence: row.confidence != null ? Number(row.confidence) : null,
+    notes: row.notes ?? null,
+    status: (row.status ?? "pending") as LeadSuggestionStatus,
+    raw_payload: row.raw_payload ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+/** List AI-suggested leads for a campus, newest first. */
+export async function getLeadSuggestions(campusId: string): Promise<LeadSuggestion[]> {
+  const { data, error } = await supabase
+    .from(SUGGESTION_TABLE)
+    .select("*")
+    .eq("campus_id", campusId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map(mapSuggestion);
+}
+
+/** Insert a batch of AI suggestions for a campus. Returns inserted rows. */
+export async function insertLeadSuggestions(
+  campusId: string,
+  suggestions: LeadSuggestionInput[],
+): Promise<LeadSuggestion[]> {
+  if (!suggestions.length) return [];
+  const rows = suggestions.map((s) => ({
+    campus_id: campusId,
+    email: s.email?.trim().toLowerCase() || null,
+    first_name: s.first_name?.trim() || null,
+    last_name: s.last_name?.trim() || null,
+    title: s.title?.trim() || null,
+    department: s.department?.trim() || null,
+    lead_type: s.lead_type ?? "professor",
+    is_phd: !!s.is_phd,
+    is_cpa: !!s.is_cpa,
+    source_url: s.source_url ?? null,
+    confidence: s.confidence ?? null,
+    notes: s.notes ?? null,
+    status: s.status ?? "pending",
+    raw_payload: s.raw_payload ?? null,
+  }));
+  const { data, error } = await supabase
+    .from(SUGGESTION_TABLE)
+    .insert(rows as never)
+    .select("*");
+  if (error) throw error;
+  return ((data ?? []) as any[]).map(mapSuggestion);
+}
+
+/** Patch a single suggestion (e.g. edit fields or change status). */
+export async function updateLeadSuggestion(
+  id: string,
+  patch: LeadSuggestionInput,
+): Promise<void> {
+  const db: Record<string, unknown> = {};
+  for (const k of [
+    "email","first_name","last_name","title","department","lead_type",
+    "is_phd","is_cpa","source_url","confidence","notes","status","raw_payload",
+  ] as const) {
+    if (k in patch) db[k] = (patch as any)[k];
+  }
+  if (typeof db.email === "string") db.email = (db.email as string).trim().toLowerCase() || null;
+  if (!Object.keys(db).length) return;
+  const { error } = await supabase
+    .from(SUGGESTION_TABLE)
+    .update(db as never)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Bulk-update the status of many suggestions at once. */
+export async function bulkUpdateLeadSuggestions(
+  ids: string[],
+  status: LeadSuggestionStatus,
+): Promise<void> {
+  if (!ids.length) return;
+  const { error } = await supabase
+    .from(SUGGESTION_TABLE)
+    .update({ status } as never)
+    .in("id", ids);
+  if (error) throw error;
+}
