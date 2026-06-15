@@ -183,7 +183,24 @@ Deno.serve(async (req) => {
       return json({ error: "AI returned malformed JSON — try again", detail: String((e as Error)?.message ?? e) }, 502);
     }
     const result = sanitize(parsed);
-    return json({ ok: true, school_name: school, result });
+    // Collect source URLs out of the sanitized result for the admin debug panel.
+    const sources: string[] = [];
+    const push = (u: any) => { if (typeof u === "string" && u.startsWith("http")) sources.push(u); };
+    push(result.program.source);
+    for (const k of Object.keys(result.families)) {
+      const fam: any = (result.families as any)[k];
+      push(fam?.code?.source); push(fam?.title?.source);
+      push(fam?.textbook_status?.source); push(fam?.book?.source);
+      push(fam?.terms?.terms_text?.source);
+    }
+    const debug = {
+      model: MODEL,
+      finish_reason: finishReason ?? null,
+      raw_text: text.length > 60000 ? text.slice(0, 60000) + "…[truncated]" : text,
+      raw_text_chars: text.length,
+      sources: Array.from(new Set(sources)),
+    };
+    return json({ ok: true, school_name: school, result, debug });
   } catch (e) {
     return json({ error: "research failed", detail: String((e as Error)?.message ?? e) }, 500);
   }
