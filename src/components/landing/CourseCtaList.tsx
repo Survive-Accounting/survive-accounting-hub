@@ -1,7 +1,13 @@
 // Per-course-family CTA list driven by getEffectiveCourseAvailability().
-// matched + available → Book Tutoring
-// waitlist            → Join Waitlist + Upload Syllabus
-// unavailable         → hidden
+//
+// CTA decision tree (per course family):
+//   effective === "unavailable"                         → hidden
+//   textbook_match_status === "not_offered"             → hidden (campus does not offer it)
+//   effective === "available" && match === "matched"    → Book Tutoring (+ syllabus upload helper copy)
+//   all other visible cases (incl. likely_match,
+//     unknown, not_matched, waitlist)                   → Join Waitlist (+ syllabus upload)
+//
+// Note: "likely_match" is intentionally NOT bookable yet — only confirmed "matched".
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -33,7 +39,11 @@ export default function CourseCtaList({ campusId, schoolName, familyCodes, onBoo
   const [waitlistOpen, setWaitlistOpen] = useState<{ family: CourseFamily; label: string; code: string | null } | null>(null);
 
   const visible = useMemo<EffectiveCourseAvailability[]>(
-    () => (data ?? []).filter((d) => d.effective !== "unavailable"),
+    () =>
+      (data ?? []).filter(
+        // Hide unavailable courses, and hide anything the campus does not actually offer.
+        (d) => d.effective !== "unavailable" && d.textbook_match_status !== "not_offered",
+      ),
     [data],
   );
 
@@ -85,17 +95,22 @@ export default function CourseCtaList({ campusId, schoolName, familyCodes, onBoo
                   </div>
                 </div>
                 {isBookable ? (
-                  <button
-                    onClick={() => onBookTutoring(row.family, code)}
-                    style={{
-                      width: "100%", padding: "10px 16px", borderRadius: 10,
-                      background: NAVY, color: "#FFFFFF", border: "none",
-                      fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Book Tutoring →
-                  </button>
+                  <>
+                    <button
+                      onClick={() => onBookTutoring(row.family, code)}
+                      style={{
+                        width: "100%", padding: "10px 16px", borderRadius: 10,
+                        background: NAVY, color: "#FFFFFF", border: "none",
+                        fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Book Tutoring →
+                    </button>
+                    <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.4 }}>
+                      You'll upload your syllabus so Lee can prep for your course.
+                    </p>
+                  </>
                 ) : isWaitlist ? (
                   <div className="flex flex-col gap-2">
                     <button
@@ -109,17 +124,9 @@ export default function CourseCtaList({ campusId, schoolName, familyCodes, onBoo
                     >
                       Join Waitlist
                     </button>
-                    <button
-                      onClick={() => setWaitlistOpen({ family: row.family, label: meta.shortLabel, code })}
-                      style={{
-                        width: "100%", padding: "9px 16px", borderRadius: 10,
-                        background: "#FFFFFF", color: NAVY, border: `1.5px solid ${NAVY}`,
-                        fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 13,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Upload Syllabus
-                    </button>
+                    <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.4 }}>
+                      Upload your syllabus so Lee can review whether this course is a fit.
+                    </p>
                   </div>
                 ) : null}
               </div>

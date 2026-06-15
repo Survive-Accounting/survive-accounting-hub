@@ -726,7 +726,8 @@ export default function ApproveCampusModal({
     if (s === "matches") return "matched";
     if (s === "likely_match") return "likely_match";
     if (s === "different") return "not_matched";
-    return "unknown"; // not_found, not_offered, not_checked
+    if (s === "not_offered") return "not_offered";
+    return "unknown"; // not_found, not_checked
   };
 
   const persistAvailability = async () => {
