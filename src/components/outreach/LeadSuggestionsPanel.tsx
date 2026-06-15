@@ -433,6 +433,16 @@ export default function LeadSuggestionsPanel({
                 <td className="px-2 py-1">{r.title ?? ""}</td>
                 <td className="px-2 py-1">
                   <div className="flex items-center gap-1">
+                    {confirmed && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500 shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs max-w-xs">
+                          CONFIRMED Intro instructor — verified via the public class schedule.
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                     <TeachingBadges r={r} />
                     {(r.teaching_evidence_url || r.teaching_evidence_notes || (r.courses_found && r.courses_found.length)) && (
                       <Tooltip>
