@@ -1023,17 +1023,29 @@ export default function ApproveCampusModal({
             </TabsContent>
 
             {/* STEP 3 — Lead Review (Phase 4) */}
-            <TabsContent value="3" className="space-y-3 pt-4">
+            <TabsContent value="3" className="space-y-2 pt-3">
               <div className="flex items-start justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  Run AI research, then accept the leads you want to import into the outreach queue.
-                  AI suggestions never become real leads until you import them.
-                </p>
-                <div className="flex items-center gap-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Run AI research, then accept the leads you want in the outreach queue.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Accepting a lead does <strong>not</strong> email them. <strong>Import Accepted Leads</strong> moves them into the outreach lead list.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => setStep("2")}>Previous</Button>
                   <Button size="sm" onClick={() => setStep("4")}>Next Step</Button>
                 </div>
               </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
+                <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
+                <Badge variant="outline" className="font-normal border-amber-500/40 text-amber-700">Needs Lee: {leadSummary.needs_lee}</Badge>
+                <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
+              </div>
+
 
               <LeadSuggestionsPanel
                 campusId={campus.id}
