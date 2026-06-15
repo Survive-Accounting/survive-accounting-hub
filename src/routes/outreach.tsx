@@ -1,15 +1,15 @@
 // /outreach — ported faithfully from the original app (ProfessorOutreach.tsx).
 // Reads the real database; falls back to mock data if the backend is unreachable.
 import { AdminGate } from "@/components/AdminGate";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
-import { WeekNavigator } from "@/components/outreach/WeekNavigator";
-import { TodayChecklist } from "@/components/outreach/TodayChecklist";
+import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
+import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
@@ -20,19 +20,13 @@ import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
-  addDaysISO,
-  manilaTodayISO,
-  mockWeekCounts,
-  mondayOfISO,
   type AssignmentStatus,
   type Campus,
   type CampusFilters,
 } from "@/lib/outreach-mock";
 import {
-  fetchCampusIdsForDate,
   fetchCampusPhones,
   fetchCampuses,
-  fetchWeekCounts,
   patchCampusDb,
   provisionCampusNumber,
 } from "@/lib/outreach-api";
@@ -57,13 +51,6 @@ function OutreachPage() {
   const [importCampusId, setImportCampusId] = useState<string | null>(null);
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const today = manilaTodayISO();
-    const dow = new Date(today + "T00:00:00").getDay();
-    if (dow === 0) return addDaysISO(today, -1);
-    if (dow === 1) return addDaysISO(today, 1);
-    return today;
-  });
 
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
@@ -88,31 +75,6 @@ function OutreachPage() {
     }
   }, [campusQuery.data, campusQuery.isError]);
 
-  // ----- Week strip counts -----
-  const weekMonday = mondayOfISO(selectedDate);
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDaysISO(weekMonday, i)),
-    [weekMonday],
-  );
-  const countsQuery = useQuery({
-    queryKey: ["week-counts", weekDays[0], weekDays[6]],
-    queryFn: () => fetchWeekCounts(weekDays[0], weekDays[6]),
-    retry: 1,
-  });
-  const counts = countsQuery.data ?? (usingMock ? mockWeekCounts(weekDays) : {});
-
-  // ----- Today's assigned campuses (checklist step 1) -----
-  const dayIdsQuery = useQuery({
-    queryKey: ["day-campus-ids", selectedDate],
-    queryFn: () => fetchCampusIdsForDate(selectedDate),
-    retry: 1,
-  });
-  const todaysCampuses = useMemo(() => {
-    if (!dayIdsQuery.data) return undefined;
-    const byId = new Map(campuses.map((c) => [c.id, c]));
-    return dayIdsQuery.data.map((id) => byId.get(id)).filter(Boolean) as Campus[];
-  }, [dayIdsQuery.data, campuses]);
-
   // ----- Patching: local state immediately, database in the background -----
   const patchCampus = (id: string, patch: Partial<Campus>) => {
     setCampuses((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -128,10 +90,7 @@ function OutreachPage() {
     patch: { assigned_to: string | null; due_date: string | null; assignment_status: AssignmentStatus },
   ) => patchCampus(id, patch);
 
-  const handleFocusCampus = (name: string) => {
-    setFilters((f) => ({ ...f, search: name }));
-    setTab("schools");
-  };
+
 
   return (
     <AdminGate>
@@ -159,17 +118,14 @@ function OutreachPage() {
           </TabsList>
 
           <TabsContent value="home" className="mt-8 space-y-8">
-            <WeekNavigator selectedDate={selectedDate} onChange={setSelectedDate} counts={counts} />
-            <TodayChecklist
-              dateISO={selectedDate}
-              campuses={campuses}
-              todaysCampuses={todaysCampuses}
-              onFocusCampus={handleFocusCampus}
-              onImportProfessors={() => { setImportCampusId(null); setImportOpen(true); }}
-              onOpenEmailQueue={() => setTab("templates")}
-              onOpenTexts={() => setTab("texts")}
+            <CampusQueuePanel
+              onReview={(campusId) => {
+                const c = campuses.find((x) => x.id === campusId);
+                if (c) setReviewing(c);
+              }}
             />
           </TabsContent>
+
 
           <TabsContent value="schools" className="mt-8 space-y-8">
             {campusQuery.isLoading ? (
@@ -223,10 +179,22 @@ function OutreachPage() {
       />
       <ApproveCampusModal
         campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
-        onClose={() => setReviewing(null)}
-        onPatch={patchCampus}
-        onApprove={(id, patch) => patchCampus(id, patch)}
+        onClose={() => {
+          if (reviewing) refreshClaim(reviewing.id).catch(() => {});
+          setReviewing(null);
+        }}
+        onPatch={(id, patch) => {
+          patchCampus(id, patch);
+          refreshClaim(id).catch(() => {});
+        }}
+        onApprove={(id, patch) => {
+          patchCampus(id, patch);
+          markClaimApproved(id)
+            .catch(() => {})
+            .finally(() => qc.invalidateQueries({ queryKey: ["campus-queue"] }));
+        }}
       />
+
     </div>
     </AdminGate>
   );

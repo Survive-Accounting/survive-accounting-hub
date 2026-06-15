@@ -1,7 +1,6 @@
-// Lightweight passcode gate for admin surfaces (/outreach, /ceq) while the
-// app is in playground mode (no real auth yet). This is a deterrent, not
-// real security — replace with Supabase auth before storing anything truly
-// sensitive. Passcode lives in ADMIN_PASSCODE below.
+// Lightweight passcode + identity gate for admin surfaces (/outreach, /ceq).
+// Identity (Lee vs King) is stored in localStorage and used for claim
+// attribution in the campus queue. This is a deterrent, not real security.
 import { useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,28 +8,41 @@ import { Input } from "@/components/ui/input";
 
 const ADMIN_PASSCODE = "1000students";
 const STORAGE_KEY = "sa-admin-unlocked";
+const WHO_KEY = "sa-admin-who";
+
+export type AdminWho = "lee" | "king";
+
+export function getAdminWho(): AdminWho | null {
+  try {
+    const v = localStorage.getItem(WHO_KEY);
+    return v === "lee" || v === "king" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function adminEmailFor(who: AdminWho): string {
+  return who === "lee" ? "lee@surviveaccounting.com" : "king@surviveaccounting.com";
+}
 
 export function AdminGate({ children }: { children: React.ReactNode }) {
-  // Start "not mounted" so SSR + first client paint match. localStorage is only
-  // read after mount to avoid hydration mismatch.
   const [mounted, setMounted] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [who, setWho] = useState<AdminWho | null>(null);
   const [code, setCode] = useState("");
   const [shake, setShake] = useState(false);
 
   useEffect(() => {
     try {
       setUnlocked(localStorage.getItem(STORAGE_KEY) === "yes");
+      setWho(getAdminWho());
     } catch { /* ignore */ }
     setMounted(true);
   }, []);
 
   if (!mounted) {
-    // Stable shell that matches SSR output. One-frame placeholder.
     return <div className="min-h-[70vh]" suppressHydrationWarning />;
   }
-
-  if (unlocked) return <>{children}</>;
 
   const tryUnlock = () => {
     if (code.trim() === ADMIN_PASSCODE) {
@@ -41,6 +53,28 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
       setTimeout(() => setShake(false), 400);
     }
   };
+
+  const pickWho = (w: AdminWho) => {
+    try { localStorage.setItem(WHO_KEY, w); } catch { /* ignore */ }
+    setWho(w);
+  };
+
+  if (unlocked && who) return <>{children}</>;
+
+  if (unlocked && !who) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center px-6">
+        <div className="w-full max-w-xs rounded-xl border border-border bg-card p-6 text-center shadow-sm">
+          <h1 className="text-sm font-semibold">Who's working?</h1>
+          <p className="mt-1 text-xs text-muted-foreground">Used to attribute campus claims.</p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button variant="outline" onClick={() => pickWho("lee")}>Lee</Button>
+            <Button variant="outline" onClick={() => pickWho("king")}>King</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-6">

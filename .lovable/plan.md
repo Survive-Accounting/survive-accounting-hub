@@ -1,45 +1,43 @@
-## What's actually happening
+## Goal
 
-Two separate bugs combine into the "it crashed and the modal is empty" symptom:
+Replace the daily/weekly campus assignment calendar with a single **priority queue** sorted by highest annual tuition (out-of-state, falling back to in-state). Lee and King work the queue in parallel without overlap via a **claim** mechanic — no per-day caps.
 
-1. **The red "crash" overlay** on `/outreach` is a React hydration mismatch. `AdminGate` reads `localStorage` during the very first render — server renders the locked screen, client renders the unlocked dashboard, React throws.
-2. **The empty modal after the success toast** is real. `supabase/functions/research-campus/index.ts` calls OpenAI `gpt-4o` with no web-search tool, even though the code comment claims "Claude (web-search-grounded)." For schools the model doesn't already know (Alabama State University is a good example), it returns mostly `null`. `applySuggestions` then fills nothing, the toast still says success, and every field stays blank.
+## How it behaves
 
-## The fix
+- **Queue view** shows every campus that still needs approval, ordered by `annual_tuition_out_state_cents` desc (nulls last). Approved campuses are hidden. Campuses claimed by the *other* person are visible but locked (greyed, "Claimed by king@…, 47m left").
+- **Claim flow:** click **Claim** on the top item (or any unclaimed row) → row becomes yours → **Approve / Research** opens the existing `ApproveCampusModal`. Approving releases the claim and removes the row from the queue.
+- **Auto-release:** claim expires 2 hours after the last activity. Any save/edit inside the modal, or the explicit **Release** button, refreshes/clears it.
+- **No daily quota, no calendar, no week navigator.** Existing `AssignCampusPopover`, `AssignToKingModal`, `WeekNavigator`, `TodayChecklist` come off the outreach page.
 
-### 1. Stop the hydration crash in `src/components/AdminGate.tsx`
-Read `localStorage` in a `useEffect` after mount, not during initial state. Render a stable shell on the first paint (matches SSR), then swap to children once the unlocked flag is read. No visual change for someone already unlocked beyond a one-frame flash.
+## Data model
 
-### 2. Rewrite Auto-Research on top of Lovable AI Gateway with Google Search grounding
-Replace the OpenAI call in `supabase/functions/research-campus/index.ts` with a Lovable AI Gateway call to `google/gemini-3-flash-preview` and enable the Google Search grounding tool so the model actually browses for catalog/bookstore/syllabus pages.
+Repurpose `outreach_va_campus_assignments` as the claims table (it's already wired through `outreach-api.ts` and types). Migration:
 
-- Auth: `Lovable-API-Key: ${LOVABLE_API_KEY}` header, `baseURL` `https://ai.gateway.lovable.dev/v1`, endpoint `/chat/completions`.
-- Request body: `model: "google/gemini-3-flash-preview"`, `messages: [...]`, `tools: [{ type: "google_search" }]`, `response_format: { type: "json_object" }`.
-- Keep the existing prompt, `sanitize()`, and `extractJson()` helpers. Add a truncation guard: if `choices[0].finish_reason === "length"` or the output token count is at the ceiling, return a clear `"AI response was truncated, try again"` error instead of half-parsed JSON.
-- Map gateway-specific errors: 429 → `"AI is rate-limited, try again in a moment"`, 402 → `"Workspace AI credits exhausted — add credits in Settings → Workspace → Usage"`.
-- OpenAI keeps working as a fallback path is **not** included — we cut over fully to Lovable AI.
+- Add `claimed_at timestamptz`, `claim_expires_at timestamptz`, `released_at timestamptz`, `status text check in ('claimed','approved','released')`.
+- Drop the per-day uniqueness assumption by making `assigned_for_date` nullable; add a **partial unique index** on `campus_id` where `status = 'claimed'` so only one active claim per campus exists.
+- Index `(status, claim_expires_at)` for the sweeper.
+- Keep RLS as-is (already 5 policies); add policy that a user can only `UPDATE` rows where `assigned_by_email = auth.email()` OR the claim has expired.
 
-### 3. Show "AI couldn't find this" hints on blank fields
-In `src/components/outreach/ApproveCampusModal.tsx`, after `runAiResearch` succeeds, render a small muted note under each field where `aiResult` returned `value: null` and the field is still blank and the user hasn't touched it. The note sits in the same slot as `ConfidenceMeter` so layouts don't shift. Examples:
+Sweeper: pg_cron every 5 min sets `status='released', released_at=now()` where `status='claimed' AND claim_expires_at < now()`. Pure SQL, no edge function.
 
-- Program name: `"AI couldn't find this — try the 'Find it' button →"`
-- Course code / title: `"AI couldn't find this — use the search buttons below"`
-- Textbook status: `"AI couldn't determine — use the search buttons"`
+## Server functions (`src/lib/outreach-queue.functions.ts`, new)
 
-Fields the user has already edited (`aiTouched.has(...)`) skip the hint, same as confidence meters.
+- `listQueue()` — returns campuses needing approval joined with active claim (if any), ordered by tuition desc. Used by the queue panel.
+- `claimCampus({ campusId })` — inserts a claim row with `claim_expires_at = now() + 2h`; relies on the partial unique index to reject if someone else has it. Returns the claim.
+- `refreshClaim({ campusId })` — bumps `claim_expires_at` (called from modal save/edit).
+- `releaseClaim({ campusId })` — sets `status='released'`.
+- `approveCampus({ campusId, … })` — wraps the existing approval write + marks claim `status='approved'`.
 
-### 4. Verify
-- After deploy, run Auto-Research against Alabama State University and one well-known SEC school (e.g. University of Alabama). Confirm: no overlay, suggestions populate at least partially, blank fields show the "couldn't find" hint, sources are clickable on populated fields.
-- Check `research-campus` edge function logs for any 402/429/truncation paths surfaced cleanly.
+All four use `requireSupabaseAuth` so claims are attributed to the signed-in admin.
 
-## Files touched
+## UI changes
 
-- `src/components/AdminGate.tsx` — SSR-safe localStorage read.
-- `supabase/functions/research-campus/index.ts` — swap to Lovable AI Gateway + Google Search grounding + truncation guard + better error mapping.
-- `src/components/outreach/ApproveCampusModal.tsx` — render "AI couldn't find this" hint slot in the five places `ConfidenceMeter` already renders.
+- New `src/components/outreach/CampusQueuePanel.tsx`: virtualized list (or simple table) with columns *Rank · Campus · State · Tuition · Status · Action*. Top of list highlighted as "Next up". "Mine" filter chip. Auto-refreshes every 60s + on focus.
+- `src/routes/outreach.tsx`: swap the calendar/checklist section for `<CampusQueuePanel />`. Leave Broadcasts, Leads, Templates, Texts panels alone.
+- `ApproveCampusModal.tsx`: on open, call `refreshClaim`; on close without approval, leave claim intact (still expires in 2h); add a small "Release claim" link in the footer.
+- Delete (or unmount) `WeekNavigator`, `TodayChecklist`, `AssignCampusPopover`, `AssignToKingModal` from the outreach route. Files can stay on disk for now to keep the diff small.
 
 ## Out of scope
 
-- No changes to `applySuggestions` semantics (still fills only blank fields, never overwrites human input).
-- No changes to the approval flow, autosave, or the rest of the outreach dashboard.
-- No removal of `OPENAI_API_KEY` from project secrets — it stays available for any other code paths, just not used by this function anymore.
+- Recomputing tuition values. Rows missing `annual_tuition_out_state_cents` will sort last; if many are null we can address in a follow-up.
+- Changing the AI research flow itself (already fixed last turn).
