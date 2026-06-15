@@ -1,7 +1,7 @@
 // /outreach — ported faithfully from the original app (ProfessorOutreach.tsx).
 // Reads the real database; falls back to mock data if the backend is unreachable.
 import { AdminGate } from "@/components/AdminGate";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
