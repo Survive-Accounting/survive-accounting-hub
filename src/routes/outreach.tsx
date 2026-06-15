@@ -28,7 +28,6 @@ import {
   fetchCampusPhones,
   fetchCampuses,
   patchCampusDb,
-  provisionCampusNumber,
 } from "@/lib/outreach-api";
 
 export const Route = createFileRoute("/outreach")({
