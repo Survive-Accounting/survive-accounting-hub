@@ -89,17 +89,22 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
-function buildFamilyPrompt(campus: Record<string, any>, family: Family, strict = false): string {
+function buildFamilyPrompt(campus: Record<string, any>, family: Family, strict = false, overridePrefixes?: string[]): string {
   const name = campus.name ?? "";
   const state = campus.state ?? "";
   const site = campus.website_url ?? "";
   const h = FAMILY_HINTS[family];
+  const prefixes = (overridePrefixes && overridePrefixes.length) ? overridePrefixes : h.prefixes;
+  const prefixLine = (overridePrefixes && overridePrefixes.length)
+    ? `KNOWN course prefixes at THIS school for this family: ${prefixes.join(", ")} (verified by prior research — focus on these first).`
+    : `Likely course prefixes at this school: ${prefixes.join(", ")} (${h.examples}).`;
   return `You are a meticulous research assistant. Goal: find PUBLIC class
 schedule / registrar / course-offerings data for "${name}"${state ? `, ${state}` : ""}, USA, for the upcoming or most recent term.
 
 TARGET COURSE FAMILY: ${family} — ${h.label}.
-Likely course prefixes at this school: ${h.prefixes.join(", ")} (${h.examples}).
+${prefixLine}
 Many schools list intro accounting under the business-school prefix (BUAD/BUS/BA) — do NOT skip those.
+Skip any URL that requires login (sign-in walls, SSO, student portals). Public catalog and public schedule pages only.
 
 USE GOOGLE SEARCH AGGRESSIVELY. Open the actual schedule pages. Search the
 school's class schedule / registrar (e.g. classes.usc.edu, courses.<school>.edu,
