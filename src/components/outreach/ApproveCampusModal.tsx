@@ -606,110 +606,107 @@ export default function ApproveCampusModal({
             })}
           </div>
 
-          {/* Research — hero CTAs */}
-          <div className="mt-8 mb-2 flex flex-wrap items-center justify-center gap-3">
-            <Button
-              type="button"
-              onClick={runAiResearch}
-              disabled={aiResearching}
-              className="h-11 rounded-full px-6 text-sm font-semibold gap-2"
-            >
-              {aiResearching ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
-              ) : (
-                <><Wand2 className="h-4 w-4" /> Auto-Research with AI</>
-              )}
-            </Button>
-            <div className="relative inline-block">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -inset-2 rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-600 opacity-60 blur-xl animate-pulse"
-              />
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button
-                    type="button"
-                    className="relative h-11 rounded-full px-7 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 via-red-500 to-rose-600 shadow-[0_0_24px_-4px_rgba(244,63,94,0.65),0_0_48px_-12px_rgba(249,115,22,0.55)] hover:brightness-110 hover:scale-[1.02] transition border-0"
-                  >
-                    <Sparkles className="h-4 w-4 drop-shadow" />
-                    Research Tools
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
-                  <SheetHeader>
-                    <SheetTitle className="text-base">🔍 Research Tools</SheetTitle>
-                    <p className="text-xs text-muted-foreground font-normal">
-                      Quick Google searches for {campus.school_name}. Opens in new tabs.
+          {/* Research — single primary action + secondary tools */}
+          <div className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-2.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                type="button"
+                onClick={runAiResearch}
+                disabled={aiResearching}
+                size="sm"
+                className="h-9 gap-2 font-semibold"
+              >
+                {aiResearching ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
+                ) : (
+                  <><Wand2 className="h-4 w-4" /> Run Full AI Research</>
+                )}
+              </Button>
+              <span className="text-[11px] text-muted-foreground">
+                Finds course codes, textbook matches, and suggested leads. You’ll review everything before saving.
+              </span>
+            </div>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Open Research Tools
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle className="text-base">🔍 Research Tools</SheetTitle>
+                  <p className="text-xs text-muted-foreground font-normal">
+                    Quick Google searches for {campus.school_name}. Opens in new tabs.
+                  </p>
+                </SheetHeader>
+                <div className="mt-4 space-y-4 px-4 pb-6">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Campus-wide
                     </p>
-                  </SheetHeader>
-                  <div className="mt-4 space-y-4 px-4 pb-6">
+                    <div className="flex flex-col gap-1.5">
+                      {[
+                        { emoji: "📚", label: "Course Catalog", q: `${campus.school_name} course catalog accounting` },
+                        { emoji: "🎓", label: "Accounting Degree Plan", q: `${campus.school_name} accounting degree plan` },
+                        { emoji: "🧾", label: "Accounting Courses", q: `${campus.school_name} accounting courses` },
+                        { emoji: "📖", label: "Undergraduate Catalog", q: `${campus.school_name} undergraduate catalog accounting` },
+                        { emoji: "🏫", label: "Accounting Department", q: `${campus.school_name} accounting department` },
+                        { emoji: "📋", label: "Accounting Curriculum", q: `${campus.school_name} accounting curriculum` },
+                        { emoji: "🛒", label: "Bookstore", q: `${campus.school_name} bookstore accounting` },
+                      ].map((b) => (
+                        <Button
+                          key={b.label}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-start h-8 text-xs gap-2 font-normal"
+                          onClick={() => openExternal(googleUrl(b.q))}
+                        >
+                          <span>{b.emoji}</span> {b.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {FAMILIES.some((f) => (familyCodes[f.key] ?? "").trim()) && (
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                        Campus-wide
+                        Per-Course
                       </p>
-                      <div className="flex flex-col gap-1.5">
-                        {[
-                          { emoji: "📚", label: "Course Catalog", q: `${campus.school_name} course catalog accounting` },
-                          { emoji: "🎓", label: "Accounting Degree Plan", q: `${campus.school_name} accounting degree plan` },
-                          { emoji: "🧾", label: "Accounting Courses", q: `${campus.school_name} accounting courses` },
-                          { emoji: "📖", label: "Undergraduate Catalog", q: `${campus.school_name} undergraduate catalog accounting` },
-                          { emoji: "🏫", label: "Accounting Department", q: `${campus.school_name} accounting department` },
-                          { emoji: "📋", label: "Accounting Curriculum", q: `${campus.school_name} accounting curriculum` },
-                          { emoji: "🛒", label: "Bookstore", q: `${campus.school_name} bookstore accounting` },
-                        ].map((b) => (
-                          <Button
-                            key={b.label}
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="w-full justify-start h-8 text-xs gap-2 font-normal"
-                            onClick={() => openExternal(googleUrl(b.q))}
-                          >
-                            <span>{b.emoji}</span> {b.label}
-                          </Button>
-                        ))}
+                      <div className="space-y-2">
+                        {FAMILIES.map((f) => {
+                          const code = (familyCodes[f.key] ?? "").trim();
+                          if (!code) return null;
+                          return (
+                            <div key={f.key} className="rounded-md border bg-background/60 p-2 space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium">{f.shortLabel}</span>
+                                <Badge variant="outline" className="font-mono text-[10px]">{code}</Badge>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} textbook`))}>
+                                  🔍 Textbook
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} syllabus`))}>
+                                  🔍 Syllabus
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} bookstore ${code}`))}>
+                                  🔍 Bookstore
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code}`))}>
+                                  🔍 Google
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    {FAMILIES.some((f) => (familyCodes[f.key] ?? "").trim()) && (
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                          Per-Course
-                        </p>
-                        <div className="space-y-2">
-                          {FAMILIES.map((f) => {
-                            const code = (familyCodes[f.key] ?? "").trim();
-                            if (!code) return null;
-                            return (
-                              <div key={f.key} className="rounded-md border bg-background/60 p-2 space-y-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-medium">{f.shortLabel}</span>
-                                  <Badge variant="outline" className="font-mono text-[10px]">{code}</Badge>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} textbook`))}>
-                                    🔍 Textbook
-                                  </Button>
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} syllabus`))}>
-                                    🔍 Syllabus
-                                  </Button>
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} bookstore ${code}`))}>
-                                    🔍 Bookstore
-                                  </Button>
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code}`))}>
-                                    🔍 Google
-                                  </Button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
 
           {aiResult && (
