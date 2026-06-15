@@ -158,17 +158,14 @@ function OutreachPage() {
           </TabsList>
 
           <TabsContent value="home" className="mt-8 space-y-8">
-            <WeekNavigator selectedDate={selectedDate} onChange={setSelectedDate} counts={counts} />
-            <TodayChecklist
-              dateISO={selectedDate}
-              campuses={campuses}
-              todaysCampuses={todaysCampuses}
-              onFocusCampus={handleFocusCampus}
-              onImportProfessors={() => { setImportCampusId(null); setImportOpen(true); }}
-              onOpenEmailQueue={() => setTab("templates")}
-              onOpenTexts={() => setTab("texts")}
+            <CampusQueuePanel
+              onReview={(campusId) => {
+                const c = campuses.find((x) => x.id === campusId);
+                if (c) setReviewing(c);
+              }}
             />
           </TabsContent>
+
 
           <TabsContent value="schools" className="mt-8 space-y-8">
             {campusQuery.isLoading ? (
