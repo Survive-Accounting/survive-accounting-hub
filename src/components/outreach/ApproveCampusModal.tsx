@@ -1114,15 +1114,52 @@ export default function ApproveCampusModal({
                 </div>
               </div>
 
+              {/* Phase 4 — Approval summary checklist */}
+              {(() => {
+                const textbooksReviewed = step2Done;
+                const recommendation =
+                  step1Done && textbooksReviewed && leadSummary.accepted > 0
+                    ? { label: "Ready for outreach", cls: "bg-emerald-600 text-white" }
+                    : leadSummary.needs_lee > 0
+                    ? { label: "Needs Lee", cls: "bg-amber-500 text-white" }
+                    : { label: "Needs more research", cls: "bg-muted text-muted-foreground" };
+                return (
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold">Approval Summary</div>
+                      <Badge className={`text-[11px] ${recommendation.cls}`}>{recommendation.label}</Badge>
+                    </div>
+                    <ul className="space-y-1">
+                      <li>
+                        <span className="font-medium">Course Details:</span>{" "}
+                        {step1Done ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
+                        {" — "}{codesArray.length} course code{codesArray.length === 1 ? "" : "s"}
+                      </li>
+                      <li>
+                        <span className="font-medium">Textbooks:</span>{" "}
+                        {textbooksReviewed ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
+                      </li>
+                      <li>
+                        <span className="font-medium">Leads:</span>{" "}
+                        {leadSummary.total} suggested · {leadSummary.accepted} accepted · {leadSummary.needs_lee} needs Lee
+                        {skipLeadImport && <span className="ml-1 text-muted-foreground">(skipped for now)</span>}
+                      </li>
+                    </ul>
+                  </div>
+                );
+              })()}
+
               {!canApprove && (
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    Complete all steps before approving: at least one course code and a status set for every family.
+                    Complete all steps before approving: at least one course code, a status set for every textbook family,
+                    and either accept at least one AI-suggested lead or check the “skip lead import” box on Lead Review.
                   </span>
                 </div>
               )}
             </TabsContent>
+
           </Tabs>
 
           <DialogFooter className="gap-2 sm:gap-2">
