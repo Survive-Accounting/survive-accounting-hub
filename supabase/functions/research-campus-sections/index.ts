@@ -89,17 +89,22 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
-function buildFamilyPrompt(campus: Record<string, any>, family: Family, strict = false): string {
+function buildFamilyPrompt(campus: Record<string, any>, family: Family, strict = false, overridePrefixes?: string[]): string {
   const name = campus.name ?? "";
   const state = campus.state ?? "";
   const site = campus.website_url ?? "";
   const h = FAMILY_HINTS[family];
+  const prefixes = (overridePrefixes && overridePrefixes.length) ? overridePrefixes : h.prefixes;
+  const prefixLine = (overridePrefixes && overridePrefixes.length)
+    ? `KNOWN course prefixes at THIS school for this family: ${prefixes.join(", ")} (verified by prior research — focus on these first).`
+    : `Likely course prefixes at this school: ${prefixes.join(", ")} (${h.examples}).`;
   return `You are a meticulous research assistant. Goal: find PUBLIC class
 schedule / registrar / course-offerings data for "${name}"${state ? `, ${state}` : ""}, USA, for the upcoming or most recent term.
 
 TARGET COURSE FAMILY: ${family} — ${h.label}.
-Likely course prefixes at this school: ${h.prefixes.join(", ")} (${h.examples}).
+${prefixLine}
 Many schools list intro accounting under the business-school prefix (BUAD/BUS/BA) — do NOT skip those.
+Skip any URL that requires login (sign-in walls, SSO, student portals). Public catalog and public schedule pages only.
 
 USE GOOGLE SEARCH AGGRESSIVELY. Open the actual schedule pages. Search the
 school's class schedule / registrar (e.g. classes.usc.edu, courses.<school>.edu,
@@ -254,12 +259,12 @@ async function callAi(prompt: string): Promise<{ text: string; finishReason: str
   };
 }
 
-async function researchFamily(campus: Record<string, any>, family: Family) {
+async function researchFamily(campus: Record<string, any>, family: Family, overridePrefixes?: string[]) {
   const debug: any = { family, attempts: [] as any[] };
   let cleaned: any[] = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt = buildFamilyPrompt(campus, family, attempt > 0);
+    const prompt = buildFamilyPrompt(campus, family, attempt > 0, overridePrefixes);
     const { text, finishReason, usage, httpStatus, httpBody } = await callAi(prompt);
     const att: any = { strict: attempt > 0, http_status: httpStatus, finish_reason: finishReason, usage, raw_text_chars: text.length };
     if (httpStatus === 429 || httpStatus === 402) {
@@ -308,7 +313,7 @@ Deno.serve(async (req) => {
   if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Supabase env not configured" }, 500);
 
-  let body: { campus_id?: string; families?: string[] };
+  let body: { campus_id?: string; families?: string[]; prefix_overrides?: Record<string, string[]> };
   try { body = await req.json(); } catch { return json({ error: "invalid JSON body" }, 400); }
   const campus_id = (body.campus_id ?? "").trim();
   if (!campus_id) return json({ error: "campus_id required" }, 400);
@@ -321,17 +326,23 @@ Deno.serve(async (req) => {
 
   const { data: campus, error: campusErr } = await db
     .from("campuses")
-    .select("id, name, state, website_url")
+    .select("id, name, state, website_url, discovered_course_prefixes")
     .eq("id", campus_id)
     .maybeSingle();
   if (campusErr) return json({ error: "campus lookup failed", detail: campusErr.message }, 500);
   if (!campus) return json({ error: "campus not found" }, 404);
 
+  // Merge prefix overrides: explicit body param > campus.discovered_course_prefixes > generic hints.
+  const cachedPrefixes = (campus as any).discovered_course_prefixes ?? {};
+  const explicitOverrides = body.prefix_overrides ?? {};
+  const resolvedOverrides: Record<string, string[]> = { ...cachedPrefixes, ...explicitOverrides };
+
   // Per-family fan-out (sequential to keep load + cost predictable).
   const perFamily: Record<string, any> = {};
   const allCleaned: any[] = [];
   for (const fam of requestedFamilies) {
-    const { cleaned, debug } = await researchFamily(campus, fam);
+    const famOverride = Array.isArray(resolvedOverrides[fam]) ? resolvedOverrides[fam] : undefined;
+    const { cleaned, debug } = await researchFamily(campus, fam, famOverride);
     perFamily[fam] = debug;
     for (const row of cleaned) allCleaned.push(row);
   }

@@ -1,65 +1,90 @@
-## Problem
+# Batch Campus Research — Run All 170 In Background
 
-USC's BUAD 280 has ~13 sections this term, but Class Schedule Intelligence only captured Merle Hopkins. The single-shot Gemini call with Google Search is **summarizing** the catalog page instead of **enumerating** every section row. Same risk for BUAD 281, ACCT 370/385, ECON 203/205, BUAD 306.
+## Goal
+Kick off a background job from the Campuses tab that runs the full research pipeline (profile → suggested leads → class sections) across every campus, 3 in parallel, while you're away. Add a smarter "course prefix discovery" step so non-USC schools get better section coverage. Surface a simple progress panel so you can see X/170 done and which campuses failed when you return.
 
-Two things to fix:
-1. Make the scrape exhaustive and per-family (not one prompt that has to balance 9 families).
-2. In the UI, make CERTAIN Intro 1 / Intro 2 instructors visually unmissable.
-
----
-
-## Fix 1 — Per-family enumeration in `research-campus-sections`
-
-Replace the single Gemini call with a **fan-out loop, one call per course family** (intro_1, intro_2, intermediate_1, intermediate_2, finance, business_stats, business_analytics, microeconomics, macroeconomics). Each call:
-
-- Targets that family only, with explicit course-prefix hints (`ACCT`, `ACCY`, `BUAD`, `BUS`, `FIN`, `ECON`, `STAT`).
-- Instructs the model: *"Return EVERY section row visible on the schedule page. Do not summarize. Do not return only the first 1–3. If you see 13 BUAD 280 sections, return 13 entries — one per section_number. If you cannot enumerate all rows, return an empty array rather than a partial sample."*
-- Requires `section_number` to be non-null (filters out summary rows).
-- Logs per-family counts to `debug.per_family` so we can see "intro_1: 1 section" and know it under-pulled.
-
-When a family returns 0 sections, retry that family once with a stricter prompt before giving up. Continue other families on failure — missing data still returns `success: true` per existing contract.
-
-Add a per-section dedupe **inside the run** and a DB-level unique index on `(campus_id, course_code, section_number, term)` to prevent dupes across re-runs (so re-running the search is safe).
-
-## Fix 2 — Confirmed Intro Instructor highlight
-
-In `LeadSuggestionsPanel`:
-
-- Add a "⭐ Confirmed Intro" treatment (gold star + tinted row background) whenever a lead has `teaches_intro_1` OR `teaches_intro_2` set to `true` AND a non-null `teaching_evidence_url`. This is the "we are CERTAIN" rule — the flag was set by the schedule scraper from an actual public class-schedule page, not by lead AI inference.
-- Add a "Confirmed Intro only" filter toggle at the top of the panel.
-- The default "Teaching Priority" sort already buckets these to the top; tighten so Confirmed Intro 1/2 (with evidence URL) sits above Inferred Intro 1/2 (no evidence URL).
-
-In `ClassScheduleIntelligencePanel`:
-
-- Header counts per family (e.g. "intro_1: 13 · intro_2: 9 · ia1: 4 …"), so a thin result like "intro_1: 1" is immediately visible and signals "re-run."
-- A small ⚠️ chip next to a family count below 2 with a tooltip: *"Suspiciously low — re-run Find class sections."*
-
-## Fix 3 — Assessment surface (so we can see what went wrong)
-
-Expose the per-family debug from the edge function in an expandable "Why these results?" section in `ClassScheduleIntelligencePanel`:
-
-- Per family: requested vs returned count, source URLs hit, finish_reason, rejected sample reasons.
-- A "Re-run this family" button per family (calls the function with a single-family override).
+**Expected cost:** ~$5–$15 in Lovable AI credits total (~14–15 calls/campus × 170 ≈ 2,500 calls on Gemini Flash with Google Search).
+**Expected runtime:** ~1–1.5 hours at 3-in-parallel.
 
 ---
 
-## Technical notes
+## How it will work
 
-- Migration: `CREATE UNIQUE INDEX … ON public.campus_course_sections (campus_id, course_code, section_number, term) WHERE section_number IS NOT NULL;` and switch the inserts to `upsert(..., { onConflict: ... })`.
-- Edge function: add optional `families?: string[]` param to `research-campus-sections` body so the per-family retry button can target one family.
-- `outreach-api.ts`: extend `runCampusSectionsResearch(campusId, families?)`.
-- No changes to `outreach_leads` or to `research-campus-leads`; star/highlight is purely a UI read of existing fields.
-- Rate My Professors still excluded.
+### 1. Job tracking table
+A new `campus_research_jobs` table tracks each run end-to-end and a `campus_research_job_items` table tracks per-campus status. This makes the batch resumable and observable — if a campus fails, you can retry just that one, and a crashed worker picks up where it left off.
 
-## Out of scope (call out, don't build)
+Per-campus status flow:
+```
+pending → running → done
+                 ↘ failed (with error message + which step failed)
+```
 
-- HTML fetch/parse of USC `classes.usc.edu` directly (would be most reliable but is per-school engineering — propose as a Phase 4D if per-family enumeration still misses on USC after this fix).
-- Outreach scoring.
+Each item also stores per-step results: profile_done, leads_count, sections_count, families_with_zero (so you can see at a glance which schools need manual cleanup).
 
-## Files changed
+### 2. Adaptive course-prefix probe (new mini-step)
+Before running `research-campus-sections`, a cheap one-shot Gemini call asks: *"At {school}, what course prefixes are used for intro accounting, intro finance, business stats, and econ? Return JSON."* That answer feeds into the per-family prompts so schools with weird codes (e.g. ACCY 200 at one school, BA 211 at another, AC 201 at a community college) get a much better hit rate. Result is cached on the campus row so re-runs skip the probe.
 
-- `supabase/functions/research-campus-sections/index.ts` — per-family loop, stricter prompt, retry, per-family debug, optional `families` param.
-- `supabase/migrations/<ts>_campus_sections_unique_idx.sql` — unique index.
-- `src/lib/outreach-api.ts` — `families?` arg, surface per-family debug.
-- `src/components/outreach/ClassScheduleIntelligencePanel.tsx` — family counts, low-count warning, per-family re-run, "Why these results?" panel.
-- `src/components/outreach/LeadSuggestionsPanel.tsx` — Confirmed Intro star/row highlight, "Confirmed Intro only" filter, tighter priority sort.
+### 3. Background worker (cron-driven)
+A new `/api/public/hooks/run-campus-batch` endpoint, called every minute by pg_cron with the anon key, does:
+- Pick up to 3 `pending` campus job items
+- Mark them `running`
+- For each: call research-campus → leads → prefix probe → sections (sequential per campus, 3 campuses in parallel)
+- Update status + per-step counts
+- On failure: store error message, mark `failed`, continue with others
+
+This pattern avoids edge-function timeout (Lovable Cloud functions have ~150s caps) and gives natural rate-limit relief — only 3 campuses × ~15 calls = ~45 calls per minute, well under gateway caps.
+
+### 4. UI — minimal progress panel
+A new "Batch research" card at the top of the Campuses tab with:
+- **Start batch** button (with cost estimate + confirmation)
+- Live progress bar: "47 / 170 done · 3 running · 2 failed"
+- Collapsible "Failed campuses" list with retry button per row
+- Collapsible "Recently completed" list with leads_count and sections_count per campus
+- Pause / Resume / Cancel batch buttons
+
+Polls every 5 seconds while a batch is active.
+
+### 5. Versatility improvements for the section scraper
+Beyond the prefix probe, three small additions to `research-campus-sections`:
+- **Faculty fallback**: if a family returns 0 sections, log a `no_schedule_found` note on the campus so we know to capture leads via the faculty-directory path instead (no extra cost — just better visibility).
+- **Term auto-detection**: ask the AI to also return what term it found data for, so mismatched semesters are visible in debug.
+- **Resilience to login walls**: explicit prompt instruction to skip any URL behind a login (already partially there, made stricter).
+
+---
+
+## Files to add / change
+
+**New:**
+- `supabase/migrations/[ts]_campus_research_jobs.sql` — `campus_research_jobs`, `campus_research_job_items` tables + GRANTs + RLS
+- `supabase/functions/discover-campus-prefixes/index.ts` — small Gemini call, caches result on `campuses.discovered_course_prefixes` (jsonb column added in migration)
+- `src/routes/api/public/hooks/run-campus-batch.ts` — TanStack server route, called by pg_cron, processes up to 3 pending items per tick
+- `src/components/outreach/BatchResearchPanel.tsx` — the progress card UI
+- pg_cron schedule (via `supabase--insert` after deploy) — runs every minute with anon key
+
+**Edit:**
+- `supabase/functions/research-campus-sections/index.ts` — accept optional `prefix_overrides` param, use them in family prompts when present; add term auto-detect + login-wall instruction
+- `src/lib/outreach-api.ts` — add `startCampusBatch()`, `getBatchStatus()`, `retryBatchItem()`, `cancelBatch()` helpers
+- `src/routes/outreach.tsx` — render `<BatchResearchPanel />` at top of Campuses tab
+
+---
+
+## What I'm NOT changing
+- The existing per-campus "Approve / Research" buttons stay; batch is additive.
+- No changes to suggested leads UI, lead scoring, or outreach scheduling.
+- No Rate My Professors integration.
+- No new secrets needed (uses existing `LOVABLE_API_KEY` + `SUPABASE_ANON_KEY` for cron auth).
+
+---
+
+## What you can do when you come back
+- Check the panel: see X/170 done, failure list with reasons
+- Click "Retry" on any failed campus (or "Retry all failed")
+- Browse new suggested leads + sections per campus normally
+- Families showing 0 sections will be flagged in the campus row so you can decide whether to manually point research at a specific URL later
+
+---
+
+## Risks / honest caveats
+- **170 schools is heterogeneous.** Expect 10–20% to produce thin section data (private schools with gated schedules, community colleges with PDF-only schedules). Suggested leads should still work for ~95%.
+- **Cost could go higher** if many campuses retry — capped at 2 retries per step. Worst case still under ~$25.
+- **First batch is the learning batch.** After you review the first 30–40 results we'll likely tune the family prompts further. Plan to do that next session.

@@ -21,3 +21,7 @@ verify_jwt = false
 # Called by pg_cron with x-cron-secret.
 [functions.outreach-scheduler]
 verify_jwt = false
+
+# Called by pg_cron to drive the batch campus research worker.
+[functions.run-campus-batch]
+verify_jwt = false

@@ -1102,6 +1102,107 @@ export async function runCampusSectionsResearch(
 }
 
 // ============================================================
+// Batch Campus Research
+// ============================================================
+
+export interface CampusResearchJob {
+  id: string;
+  status: "running" | "paused" | "done" | "canceled";
+  total_count: number;
+  done_count: number;
+  failed_count: number;
+  notes: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+export interface CampusResearchJobItem {
+  id: string;
+  job_id: string;
+  campus_id: string;
+  status: "pending" | "running" | "done" | "failed" | "skipped";
+  current_step: string | null;
+  profile_done: boolean;
+  leads_count: number;
+  sections_count: number;
+  families_with_zero: string[];
+  retries: number;
+  error: string | null;
+  failed_step: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+/** Start a batch — creates a job and one item per provided campus, then triggers the first tick. */
+export async function startCampusBatch(campusIds: string[], notes?: string): Promise<CampusResearchJob> {
+  if (!campusIds.length) throw new Error("no campuses selected");
+  const { data: job, error: jobErr } = await (supabase.from("campus_research_jobs" as never) as any)
+    .insert({ status: "running", total_count: campusIds.length, notes: notes ?? null })
+    .select()
+    .single();
+  if (jobErr) throw jobErr;
+
+  const items = campusIds.map((cid) => ({ job_id: job.id, campus_id: cid, status: "pending" }));
+  const { error: itemsErr } = await (supabase.from("campus_research_job_items" as never) as any).insert(items);
+  if (itemsErr) throw itemsErr;
+
+  // Fire and forget — kick off the first batch immediately.
+  supabase.functions.invoke("run-campus-batch", { body: { job_id: job.id, batch_size: 3 } }).catch(() => {});
+  return job as CampusResearchJob;
+}
+
+/** Get the most recent job, with items. */
+export async function getLatestCampusBatch(): Promise<
+  { job: CampusResearchJob; items: CampusResearchJobItem[] } | null
+> {
+  const { data: jobs } = await (supabase.from("campus_research_jobs" as never) as any)
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const job = (jobs ?? [])[0];
+  if (!job) return null;
+  const { data: items } = await (supabase.from("campus_research_job_items" as never) as any)
+    .select("*")
+    .eq("job_id", job.id)
+    .order("created_at", { ascending: true });
+  return { job: job as CampusResearchJob, items: (items ?? []) as CampusResearchJobItem[] };
+}
+
+export async function pauseCampusBatch(jobId: string): Promise<void> {
+  await (supabase.from("campus_research_jobs" as never) as any).update({ status: "paused" }).eq("id", jobId);
+}
+export async function resumeCampusBatch(jobId: string): Promise<void> {
+  await (supabase.from("campus_research_jobs" as never) as any).update({ status: "running" }).eq("id", jobId);
+  supabase.functions.invoke("run-campus-batch", { body: { job_id: jobId, batch_size: 3 } }).catch(() => {});
+}
+export async function cancelCampusBatch(jobId: string): Promise<void> {
+  await (supabase.from("campus_research_jobs" as never) as any)
+    .update({ status: "canceled", finished_at: new Date().toISOString() })
+    .eq("id", jobId);
+}
+
+/** Retry failed items (all if itemIds omitted). */
+export async function retryCampusBatchItems(jobId: string, itemIds?: string[]): Promise<void> {
+  let updater = (supabase.from("campus_research_job_items" as never) as any)
+    .update({ status: "pending", error: null, failed_step: null })
+    .eq("job_id", jobId)
+    .eq("status", "failed");
+  if (itemIds && itemIds.length) updater = updater.in("id", itemIds);
+  await updater;
+  await (supabase.from("campus_research_jobs" as never) as any)
+    .update({ status: "running", finished_at: null })
+    .eq("id", jobId);
+  supabase.functions.invoke("run-campus-batch", { body: { job_id: jobId, batch_size: 3 } }).catch(() => {});
+}
+
+/** Manual tick to kick the worker. */
+export async function tickCampusBatch(jobId?: string): Promise<void> {
+  await supabase.functions.invoke("run-campus-batch", {
+    body: jobId ? { job_id: jobId, batch_size: 3 } : { batch_size: 3 },
+  });
+}
+
+// ============================================================
 // Course Availability Engine (Phase 4)
 // Global defaults live on outreach_settings (singleton row).
 // Per-campus overrides live in campus_course_availability — one row

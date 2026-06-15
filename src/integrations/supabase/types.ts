@@ -662,6 +662,117 @@ export type Database = {
           },
         ]
       }
+      campus_research_job_items: {
+        Row: {
+          campus_id: string
+          created_at: string
+          current_step: string | null
+          error: string | null
+          failed_step: string | null
+          families_with_zero: string[]
+          finished_at: string | null
+          id: string
+          job_id: string
+          leads_count: number
+          profile_done: boolean
+          retries: number
+          sections_count: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campus_id: string
+          created_at?: string
+          current_step?: string | null
+          error?: string | null
+          failed_step?: string | null
+          families_with_zero?: string[]
+          finished_at?: string | null
+          id?: string
+          job_id: string
+          leads_count?: number
+          profile_done?: boolean
+          retries?: number
+          sections_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campus_id?: string
+          created_at?: string
+          current_step?: string | null
+          error?: string | null
+          failed_step?: string | null
+          families_with_zero?: string[]
+          finished_at?: string | null
+          id?: string
+          job_id?: string
+          leads_count?: number
+          profile_done?: boolean
+          retries?: number
+          sections_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_research_job_items_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campus_research_job_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "campus_research_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campus_research_jobs: {
+        Row: {
+          created_at: string
+          done_count: number
+          failed_count: number
+          finished_at: string | null
+          id: string
+          notes: string | null
+          options: Json
+          status: string
+          total_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          done_count?: number
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          options?: Json
+          status?: string
+          total_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          done_count?: number
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          options?: Json
+          status?: string
+          total_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campus_tam_estimates: {
         Row: {
           accounting_completions: number | null
@@ -910,6 +1021,7 @@ export type Database = {
           course_family_textbooks_json: Json | null
           course_family_titles_json: Json | null
           created_at: string
+          discovered_course_prefixes: Json | null
           domains: string[] | null
           due_date: string | null
           email_domain: string | null
@@ -1034,6 +1146,7 @@ export type Database = {
           course_family_textbooks_json?: Json | null
           course_family_titles_json?: Json | null
           created_at?: string
+          discovered_course_prefixes?: Json | null
           domains?: string[] | null
           due_date?: string | null
           email_domain?: string | null
@@ -1158,6 +1271,7 @@ export type Database = {
           course_family_textbooks_json?: Json | null
           course_family_titles_json?: Json | null
           created_at?: string
+          discovered_course_prefixes?: Json | null
           domains?: string[] | null
           due_date?: string | null
           email_domain?: string | null
