@@ -27,7 +27,7 @@ import {
   type LeadSuggestionType,
 } from "@/lib/outreach-api";
 
-const STATUS_OPTIONS: LeadSuggestionStatus[] = ["pending", "accepted", "rejected", "needs_lee"];
+// Status column removed from table; bulk action buttons remain the way to change status.
 const TYPE_OPTIONS: LeadSuggestionType[] = [
   "professor",
   "admin_staff",
