@@ -35,12 +35,15 @@ import {
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
 import { supabase } from "@/integrations/supabase/client";
 
-type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
+type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
 
 /** Legacy values from the old app collapse into the simplified set. */
 function normalizeStatus(v: string | undefined): FamilyStatus {
-  if (v === "matches" || v === "different" || v === "not_found") return v;
-  if (v === "not_viewable" || v === "not_offered") return "not_found";
+  if (
+    v === "matches" || v === "likely_match" || v === "different" ||
+    v === "not_found" || v === "not_offered"
+  ) return v;
+  if (v === "not_viewable") return "not_found";
   return "not_checked";
 }
 
@@ -56,16 +59,20 @@ const FAMILIES = [
 ];
 
 const FAMILY_STATUS_LABELS: Record<FamilyStatus, string> = {
-  matches: "Matches Our Textbook",
-  different: "Different Textbook",
-  not_found: "Textbook Not Found",
+  matches: "Matched",
+  likely_match: "Likely Match",
+  different: "Not Matched",
+  not_found: "Unknown",
+  not_offered: "Not Offered / Skip",
   not_checked: "Not Checked",
 };
 
 const STATUS_BADGE: Record<FamilyStatus, string> = {
   matches: "bg-emerald-600 text-white",
+  likely_match: "bg-teal-500 text-white",
   different: "bg-red-600 text-white",
   not_found: "bg-amber-500 text-white",
+  not_offered: "bg-slate-500 text-white",
   not_checked: "bg-muted text-muted-foreground",
 };
 
