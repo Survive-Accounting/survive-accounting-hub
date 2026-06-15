@@ -2,7 +2,7 @@
 // app is in playground mode (no real auth yet). This is a deterrent, not
 // real security — replace with Supabase auth before storing anything truly
 // sensitive. Passcode lives in ADMIN_PASSCODE below.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,24 @@ const ADMIN_PASSCODE = "1000students";
 const STORAGE_KEY = "sa-admin-unlocked";
 
 export function AdminGate({ children }: { children: React.ReactNode }) {
-  const [unlocked, setUnlocked] = useState<boolean>(() => {
-    try { return localStorage.getItem(STORAGE_KEY) === "yes"; } catch { return false; }
-  });
+  // Start "not mounted" so SSR + first client paint match. localStorage is only
+  // read after mount to avoid hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
   const [code, setCode] = useState("");
   const [shake, setShake] = useState(false);
+
+  useEffect(() => {
+    try {
+      setUnlocked(localStorage.getItem(STORAGE_KEY) === "yes");
+    } catch { /* ignore */ }
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    // Stable shell that matches SSR output. One-frame placeholder.
+    return <div className="min-h-[70vh]" suppressHydrationWarning />;
+  }
 
   if (unlocked) return <>{children}</>;
 

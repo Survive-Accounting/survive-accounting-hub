@@ -128,6 +128,17 @@ function ConfidenceMeter({
   );
 }
 
+/** Shown under a field when AI was run but returned null for it (and the user hasn't filled it in). */
+function NotFoundHint({ show, message }: { show: boolean; message: string }) {
+  if (!show) return null;
+  return (
+    <span className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+      <AlertTriangle className="h-3 w-3 text-amber-500" />
+      {message}
+    </span>
+  );
+}
+
 export default function ApproveCampusModal({
   campus, onClose, onPatch, onApprove,
 }: {
@@ -649,11 +660,16 @@ export default function ApproveCampusModal({
                     placeholder="e.g. Patterson School of Accountancy"
                     className="h-8"
                   />
-                  {aiResult?.program.value && (
+                  {aiResult?.program.value ? (
                     <ConfidenceMeter
                       confidence={aiResult.program.confidence}
                       source={aiResult.program.source}
                       touched={aiTouched.has("program")}
+                    />
+                  ) : (
+                    <NotFoundHint
+                      show={!!aiResult && !programName.trim() && !aiTouched.has("program")}
+                      message="AI couldn't find this — try the 'Find it' button →"
                     />
                   )}
                 </div>
@@ -687,11 +703,16 @@ export default function ApproveCampusModal({
                             placeholder={`e.g. ${f.sampleCode}`}
                             className="h-8"
                           />
-                          {aiResult?.families[f.key]?.code.value && (
+                          {aiResult?.families[f.key]?.code.value ? (
                             <ConfidenceMeter
                               confidence={aiResult.families[f.key].code.confidence}
                               source={aiResult.families[f.key].code.source}
                               touched={aiTouched.has(`code:${f.key}`)}
+                            />
+                          ) : (
+                            <NotFoundHint
+                              show={!!aiResult && !(familyCodes[f.key] ?? "").trim() && !aiTouched.has(`code:${f.key}`)}
+                              message="AI couldn't find this — use the search buttons"
                             />
                           )}
                         </td>
@@ -702,11 +723,16 @@ export default function ApproveCampusModal({
                             placeholder={`e.g. ${f.sampleTitle}`}
                             className="h-8"
                           />
-                          {aiResult?.families[f.key]?.title.value && (
+                          {aiResult?.families[f.key]?.title.value ? (
                             <ConfidenceMeter
                               confidence={aiResult.families[f.key].title.confidence}
                               source={aiResult.families[f.key].title.source}
                               touched={aiTouched.has(`title:${f.key}`)}
+                            />
+                          ) : (
+                            <NotFoundHint
+                              show={!!aiResult && !(familyTitles[f.key] ?? "").trim() && !aiTouched.has(`title:${f.key}`)}
+                              message="AI couldn't find this — use the search buttons"
                             />
                           )}
                         </td>
@@ -771,11 +797,16 @@ export default function ApproveCampusModal({
                           </SelectContent>
                         </Select>
                       </div>
-                      {aiResult?.families[f.key]?.textbook_status.value && (
+                      {aiResult?.families[f.key]?.textbook_status.value ? (
                         <ConfidenceMeter
                           confidence={aiResult.families[f.key].textbook_status.confidence}
                           source={aiResult.families[f.key].textbook_status.source}
                           touched={aiTouched.has(`status:${f.key}`)}
+                        />
+                      ) : (
+                        <NotFoundHint
+                          show={!!aiResult && (familyStatus[f.key] ?? "not_checked") === "not_checked" && !aiTouched.has(`status:${f.key}`)}
+                          message="AI couldn't determine — use the search buttons"
                         />
                       )}
                       <div className="flex flex-wrap gap-1.5">
