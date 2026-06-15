@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Campus } from "@/lib/outreach-mock";
 import { importLeads, importSendTime } from "@/lib/outreach-api";
+import LeadSuggestionsPanel from "./LeadSuggestionsPanel";
 
 type LeadType = "professors" | "bap_advisors" | "accounting_depts" | "cpa_alumni";
 
@@ -259,6 +260,10 @@ function ManualEntryPanel({
             </div>
           );
         })()}
+
+        <div className="mt-4">
+          <LeadSuggestionsPanel campusId={selectedCampusId || null} onImported={onImported} />
+        </div>
 
         {noCampuses && (
           <div className="mt-4 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">
