@@ -128,6 +128,17 @@ function ConfidenceMeter({
   );
 }
 
+/** Shown under a field when AI was run but returned null for it (and the user hasn't filled it in). */
+function NotFoundHint({ show, message }: { show: boolean; message: string }) {
+  if (!show) return null;
+  return (
+    <span className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+      <AlertTriangle className="h-3 w-3 text-amber-500" />
+      {message}
+    </span>
+  );
+}
+
 export default function ApproveCampusModal({
   campus, onClose, onPatch, onApprove,
 }: {
