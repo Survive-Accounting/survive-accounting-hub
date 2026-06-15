@@ -127,6 +127,14 @@ function OutreachPage() {
 
 
           <TabsContent value="schools" className="mt-8 space-y-8">
+            <div className="flex items-center justify-end">
+              <button
+                onClick={() => setAddOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
+              >
+                + Add Campus
+              </button>
+            </div>
             {campusQuery.isLoading ? (
               <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
                 Loading campuses…
