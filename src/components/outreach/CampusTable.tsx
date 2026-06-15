@@ -1,7 +1,7 @@
 // Ported from the original app (ProfessorOutreach.tsx — SchoolsPanel table).
 import { useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign, Download,
+  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign,
   Eye, MousePointerClick, Phone, RefreshCw, Upload, Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -316,9 +316,9 @@ export default function CampusTable({
                               : "justify-center"
                           }
                           variant={isApproved ? "default" : "outline"}
-                          title={isApproved ? "Import professor leads for this campus" : "Approve the campus first"}
+                          title={isApproved ? "Review leads for this campus" : "Approve the campus first"}
                         >
-                          <Download className="h-3.5 w-3.5" /> Import Leads
+                          <Users className="h-3.5 w-3.5" /> Leads
                         </Button>
                         <Button size="sm" variant="outline" disabled className="justify-center" title="Coming soon">
                           <BarChart3 className="h-3.5 w-3.5" /> View Metrics

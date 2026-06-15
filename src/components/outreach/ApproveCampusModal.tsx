@@ -32,6 +32,7 @@ import {
   type TutoringAvailability,
   type TextbookMatchStatus,
 } from "@/lib/outreach-api";
+import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
 
 type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
 
@@ -185,6 +186,12 @@ export default function ApproveCampusModal({
   });
   const [globalDefaults, setGlobalDefaults] = useState<CourseFamilyDefaults | null>(null);
 
+  // Phase 4 — lead review gating
+  const [leadSummary, setLeadSummary] = useState<LeadSuggestionsSummary>({
+    total: 0, pending: 0, accepted: 0, rejected: 0, needs_lee: 0,
+  });
+  const [skipLeadImport, setSkipLeadImport] = useState(false);
+
   const markTouched = (fieldId: string) =>
     setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
 
@@ -227,6 +234,8 @@ export default function ApproveCampusModal({
     setAiResult(null);
     setAiResearching(false);
     setAiTouched(new Set());
+    setSkipLeadImport(false);
+    setLeadSummary({ total: 0, pending: 0, accepted: 0, rejected: 0, needs_lee: 0 });
 
     // Load Phase 4 availability rows + global defaults
     getCourseFamilyDefaults().then(setGlobalDefaults).catch(() => setGlobalDefaults(null));
@@ -259,7 +268,8 @@ export default function ApproveCampusModal({
 
   const step1Done = codesArray.length > 0;
   const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked");
-  const canApprove = step1Done && step2Done;
+  const step3Done = skipLeadImport || leadSummary.accepted > 0;
+  const canApprove = step1Done && step2Done && step3Done;
 
   const aggregateTextbookStatus = (status: Record<string, FamilyStatus>): TextbookStatus => {
     const vals = FAMILIES.map((f) => status[f.key] ?? "not_checked");
@@ -534,7 +544,8 @@ export default function ApproveCampusModal({
   const steps = [
     { id: "1", label: "Course Details", done: step1Done },
     { id: "2", label: "Textbook Research", done: step2Done },
-    { id: "3", label: "Approval", done: canApprove },
+    { id: "3", label: "Lead Review", done: step3Done },
+    { id: "4", label: "Approval", done: canApprove },
   ];
 
   return (
@@ -555,7 +566,7 @@ export default function ApproveCampusModal({
               </div>
             </DialogTitle>
             <DialogDescription>
-              Course Details → Textbook Match → Approve. Changes save automatically.
+              Course Details → Textbook Match → Lead Review → Approve. Changes save automatically.
             </DialogDescription>
           </DialogHeader>
 
@@ -974,9 +985,44 @@ export default function ApproveCampusModal({
               )}
             </TabsContent>
 
-            {/* STEP 3 — Approval Summary */}
+            {/* STEP 3 — Lead Review (Phase 4) */}
             <TabsContent value="3" className="space-y-3 pt-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  Run AI research, then accept the leads you want to import into the outreach queue.
+                  AI suggestions never become real leads until you import them.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setStep("2")}>Previous</Button>
+                  <Button size="sm" onClick={() => setStep("4")}>Next Step</Button>
+                </div>
+              </div>
+
+              <LeadSuggestionsPanel
+                campusId={campus.id}
+                compact
+                showManualImportHelp={false}
+                onSummaryChange={setLeadSummary}
+              />
+
+              <label className="flex items-start gap-2 rounded-md border bg-muted/20 p-2.5 text-xs">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-3.5 w-3.5"
+                  checked={skipLeadImport}
+                  onChange={(e) => setSkipLeadImport(e.target.checked)}
+                />
+                <span>
+                  <strong>No usable leads found / skip lead import for now.</strong>{" "}
+                  Approve the campus without importing AI-suggested leads — Lee or a VA can add leads manually later.
+                </span>
+              </label>
+            </TabsContent>
+
+            {/* STEP 4 — Approval Summary */}
+            <TabsContent value="4" className="space-y-3 pt-4">
               <p className="text-xs text-muted-foreground">Review your decisions, then approve.</p>
+
               <div className="rounded-lg border divide-y">
                 {FAMILIES.map((f) => {
                   const v = (familyStatus[f.key] ?? "not_checked") as FamilyStatus;
@@ -1068,15 +1114,52 @@ export default function ApproveCampusModal({
                 </div>
               </div>
 
+              {/* Phase 4 — Approval summary checklist */}
+              {(() => {
+                const textbooksReviewed = step2Done;
+                const recommendation =
+                  step1Done && textbooksReviewed && leadSummary.accepted > 0
+                    ? { label: "Ready for outreach", cls: "bg-emerald-600 text-white" }
+                    : leadSummary.needs_lee > 0
+                    ? { label: "Needs Lee", cls: "bg-amber-500 text-white" }
+                    : { label: "Needs more research", cls: "bg-muted text-muted-foreground" };
+                return (
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold">Approval Summary</div>
+                      <Badge className={`text-[11px] ${recommendation.cls}`}>{recommendation.label}</Badge>
+                    </div>
+                    <ul className="space-y-1">
+                      <li>
+                        <span className="font-medium">Course Details:</span>{" "}
+                        {step1Done ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
+                        {" — "}{codesArray.length} course code{codesArray.length === 1 ? "" : "s"}
+                      </li>
+                      <li>
+                        <span className="font-medium">Textbooks:</span>{" "}
+                        {textbooksReviewed ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
+                      </li>
+                      <li>
+                        <span className="font-medium">Leads:</span>{" "}
+                        {leadSummary.total} suggested · {leadSummary.accepted} accepted · {leadSummary.needs_lee} needs Lee
+                        {skipLeadImport && <span className="ml-1 text-muted-foreground">(skipped for now)</span>}
+                      </li>
+                    </ul>
+                  </div>
+                );
+              })()}
+
               {!canApprove && (
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    Complete all steps before approving: at least one course code and a status set for every family.
+                    Complete all steps before approving: at least one course code, a status set for every textbook family,
+                    and either accept at least one AI-suggested lead or check the “skip lead import” box on Lead Review.
                   </span>
                 </div>
               )}
             </TabsContent>
+
           </Tabs>
 
           <DialogFooter className="gap-2 sm:gap-2">
