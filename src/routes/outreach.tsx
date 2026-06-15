@@ -184,12 +184,14 @@ function OutreachPage() {
         usingMock={usingMock}
         onImported={() => qc.invalidateQueries({ queryKey: ["outreach-leads"] })}
       />
-      <ResearchErrorBoundary onReset={() => setReviewing(null)}>
+      <ResearchErrorBoundary onReset={() => { setReviewing(null); setAutoResearchId(null); }}>
         <ApproveCampusModal
           campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
+          autoStartResearch={autoResearchId}
           onClose={() => {
             if (reviewing) refreshClaim(reviewing.id).catch(() => {});
             setReviewing(null);
+            setAutoResearchId(null);
           }}
           onPatch={(id, patch) => {
             patchCampus(id, patch);
@@ -203,6 +205,24 @@ function OutreachPage() {
           }}
         />
       </ResearchErrorBoundary>
+
+      <AddCampusModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={async (created, autoResearch) => {
+          // Refresh the campuses list so the new row appears, then open
+          // the approval modal (auto-triggering AI research if requested).
+          const refreshed = await campusQuery.refetch();
+          const fresh = refreshed.data?.find((c) => c.id === created.id);
+          if (fresh) {
+            setReviewing(fresh);
+            if (autoResearch) setAutoResearchId(created.id);
+          } else {
+            // Fallback: at least invalidate so the table updates.
+            qc.invalidateQueries({ queryKey: ["campuses"] });
+          }
+        }}
+      />
 
     </div>
     </AdminGate>
