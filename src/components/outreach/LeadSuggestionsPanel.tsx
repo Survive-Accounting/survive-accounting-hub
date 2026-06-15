@@ -170,16 +170,29 @@ export default function LeadSuggestionsPanel({
     return c;
   }, [rows]);
 
+  useEffect(() => {
+    onSummaryChange?.({
+      total: rows.length,
+      pending: counts.pending,
+      accepted: counts.accepted,
+      rejected: counts.rejected,
+      needs_lee: counts.needs_lee,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, counts.pending, counts.accepted, counts.rejected, counts.needs_lee]);
+
   return (
-    <Card className="p-4">
+    <Card className={compact ? "p-3" : "p-4"}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="h-4 w-4 text-violet-500" /> AI Suggested Leads
           </div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">
-            AI suggestions must be reviewed before they become real outreach leads.
-          </div>
+          {showManualImportHelp && (
+            <div className="mt-0.5 text-[11px] text-muted-foreground">
+              AI suggestions must be reviewed before they become real outreach leads.
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -212,7 +225,8 @@ export default function LeadSuggestionsPanel({
         </div>
       )}
 
-      <div className="mt-3 max-h-[40vh] overflow-auto rounded border border-border">
+      <div className={`mt-3 ${compact ? "max-h-[32vh]" : "max-h-[40vh]"} overflow-auto rounded border border-border`}>
+
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
             <tr>
