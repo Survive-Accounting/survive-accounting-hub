@@ -127,6 +127,7 @@ function OutreachPage() {
 
 
           <TabsContent value="schools" className="mt-8 space-y-8">
+            <BatchResearchPanel campuses={campuses} />
             <div className="flex items-center justify-end">
               <button
                 onClick={() => setAddOpen(true)}
