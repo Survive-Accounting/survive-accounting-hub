@@ -1,7 +1,13 @@
 // Per-course-family CTA list driven by getEffectiveCourseAvailability().
-// matched + available → Book Tutoring
-// waitlist            → Join Waitlist + Upload Syllabus
-// unavailable         → hidden
+//
+// CTA decision tree (per course family):
+//   effective === "unavailable"                         → hidden
+//   textbook_match_status === "not_offered"             → hidden (campus does not offer it)
+//   effective === "available" && match === "matched"    → Book Tutoring (+ syllabus upload helper copy)
+//   all other visible cases (incl. likely_match,
+//     unknown, not_matched, waitlist)                   → Join Waitlist (+ syllabus upload)
+//
+// Note: "likely_match" is intentionally NOT bookable yet — only confirmed "matched".
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -33,7 +39,11 @@ export default function CourseCtaList({ campusId, schoolName, familyCodes, onBoo
   const [waitlistOpen, setWaitlistOpen] = useState<{ family: CourseFamily; label: string; code: string | null } | null>(null);
 
   const visible = useMemo<EffectiveCourseAvailability[]>(
-    () => (data ?? []).filter((d) => d.effective !== "unavailable"),
+    () =>
+      (data ?? []).filter(
+        // Hide unavailable courses, and hide anything the campus does not actually offer.
+        (d) => d.effective !== "unavailable" && d.textbook_match_status !== "not_offered",
+      ),
     [data],
   );
 
