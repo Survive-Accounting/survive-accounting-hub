@@ -321,6 +321,13 @@ export default function LeadSuggestionsPanel({
               · Intro 1: {teachingCounts.intro_1} · Intro 2: {teachingCounts.intro_2} · IA1: {teachingCounts.ia_1} · IA2: {teachingCounts.ia_2}
             </span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as "last_name" | "priority")}>
+                <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="last_name">Sort: Last name (A→Z)</SelectItem>
+                  <SelectItem value="priority">Sort: Teaching priority</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={teachingFilter} onValueChange={(v) => setTeachingFilter(v as TeachingFilter)}>
                 <SelectTrigger className="h-7 w-[200px] text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -348,7 +355,6 @@ export default function LeadSuggestionsPanel({
               <th className="px-2 py-2 w-[28px]">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-3.5 w-3.5" />
               </th>
-              <th className="px-2 py-2 text-left">Status</th>
               <th className="px-2 py-2 text-left">Type</th>
               <th className="px-2 py-2 text-left">Email</th>
               <th className="px-2 py-2 text-left">First</th>
