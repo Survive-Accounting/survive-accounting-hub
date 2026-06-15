@@ -516,8 +516,9 @@ export default function ApproveCampusModal({
   // Map the existing per-family textbook status to the Phase 4 textbook_match_status enum.
   const mapTextbookMatch = (s: FamilyStatus): TextbookMatchStatus => {
     if (s === "matches") return "matched";
+    if (s === "likely_match") return "likely_match";
     if (s === "different") return "not_matched";
-    return "unknown"; // not_found, not_checked
+    return "unknown"; // not_found, not_offered, not_checked
   };
 
   const persistAvailability = async () => {
