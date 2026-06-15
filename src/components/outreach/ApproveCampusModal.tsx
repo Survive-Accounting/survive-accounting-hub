@@ -32,6 +32,7 @@ import {
   type CourseFamilyDefaults,
   type TutoringAvailability,
   type TextbookMatchStatus,
+  patchCampusDb,
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
 import { supabase } from "@/integrations/supabase/client";
@@ -533,7 +534,7 @@ export default function ApproveCampusModal({
   };
 
   // ============ Debug capture for Research Debug Panel ============
-  type RunStatus = "success" | "failed";
+  type RunStatus = "success" | "failed" | "running" | "pending";
   type ResearchRunDebug = {
     status: RunStatus;
     started_at: string;
@@ -561,9 +562,20 @@ export default function ApproveCampusModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus?.id]);
 
-  const persistDebug = (next: ResearchDebugBlob) => {
+  const persistDebug = async (next: ResearchDebugBlob) => {
     setDebugBlob(next);
-    writePatch({ ai_research_debug_json: next });
+    if (!campus?.id) return;
+    // Optimistic patch into parent state too (so re-open shows it immediately).
+    onPatch(campus.id, { ai_research_debug_json: next });
+    // Belt-and-suspenders: also write directly to DB using the captured id,
+    // so a parent state swap / unmount can't silently drop the debug log.
+    try {
+      await patchCampusDb(campus.id, { ai_research_debug_json: next });
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error("[persistDebug] direct save failed:", e);
+      toast.error(`Couldn't save debug log: ${e?.message ?? "unknown error"}`);
+    }
   };
 
   const [courseRunning, setCourseRunning] = useState(false);
@@ -687,9 +699,16 @@ export default function ApproveCampusModal({
 
   const rerunCourseOnly = async () => {
     const t = toast.loading("Re-running course research…");
+    // Stamp a "running" snapshot up front so a crash mid-run still leaves evidence.
+    const startedAt = new Date().toISOString();
+    await persistDebug({
+      ...debugBlob,
+      last_run_at: startedAt,
+      course: { status: "running" as any, started_at: startedAt, duration_ms: 0, error: null, model: null, finish_reason: null, raw_text: null, raw_text_chars: 0, sources: [], counts: {} },
+    });
     const d = await runCourseResearch();
     if (!d) { toast.dismiss(t); return; }
-    persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), course: d });
+    await persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), course: d });
     d.status === "success"
       ? toast.success("Course research updated", { id: t })
       : toast.error(d.error ?? "Course research failed", { id: t });
@@ -697,9 +716,15 @@ export default function ApproveCampusModal({
 
   const rerunLeadsOnly = async () => {
     const t = toast.loading("Re-running lead research…");
+    const startedAt = new Date().toISOString();
+    await persistDebug({
+      ...debugBlob,
+      last_run_at: startedAt,
+      leads: { status: "running" as any, started_at: startedAt, duration_ms: 0, error: null, model: null, finish_reason: null, raw_text: null, raw_text_chars: 0, sources: [], counts: {} },
+    });
     const d = await runLeadResearch();
     if (!d) { toast.dismiss(t); return; }
-    persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), leads: d });
+    await persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), leads: d });
     d.status === "success"
       ? toast.success(`Leads updated — ${d.counts.saved_lead_count ?? 0} new`, { id: t })
       : toast.error(d.error ?? "Lead research failed", { id: t });
@@ -709,12 +734,31 @@ export default function ApproveCampusModal({
     if (!campus || aiResearching) return;
     setAiResearching(true);
     const t = toast.loading("Researching the web — this can take up to a minute…");
+    const startedAt = new Date().toISOString();
+    // 1) Persist a "running" snapshot immediately so even a hard crash leaves a trace.
+    let snapshot: ResearchDebugBlob = {
+      ...debugBlob,
+      last_run_at: startedAt,
+      course: { status: "running" as any, started_at: startedAt, duration_ms: 0, error: null, model: null, finish_reason: null, raw_text: null, raw_text_chars: 0, sources: [], counts: {} },
+      leads: { status: "pending" as any, started_at: startedAt, duration_ms: 0, error: null, model: null, finish_reason: null, raw_text: null, raw_text_chars: 0, sources: [], counts: {} },
+    };
+    await persistDebug(snapshot);
+
     try {
+      // 2) Course phase — persist immediately after it returns.
       const courseDebug = await runCourseResearch();
-      let leadDebug: ResearchRunDebug | null = null;
+      snapshot = { ...snapshot, last_run_at: new Date().toISOString(), course: courseDebug ?? snapshot.course };
+      await persistDebug(snapshot);
+
       if (courseDebug?.status === "success") {
         toast.success("AI suggestions added — review every field before approving.", { id: t });
-        leadDebug = await runLeadResearch();
+
+        // 3) Leads phase — persist immediately after it returns, BEFORE any UI re-render
+        //    that might crash (e.g., rendering 13 new leads in Step 3).
+        const leadDebug = await runLeadResearch();
+        snapshot = { ...snapshot, last_run_at: new Date().toISOString(), leads: leadDebug ?? snapshot.leads };
+        await persistDebug(snapshot);
+
         if (leadDebug?.status === "success") {
           const n = leadDebug.counts.saved_lead_count ?? 0;
           toast.success(`Added ${n} suggested lead${n === 1 ? "" : "s"} for review on Step 3.`);
@@ -724,11 +768,20 @@ export default function ApproveCampusModal({
       } else if (courseDebug) {
         toast.error(courseDebug.error ?? "Research failed", { id: t });
       }
-      persistDebug({
-        last_run_at: new Date().toISOString(),
-        course: courseDebug ?? debugBlob.course,
-        leads: leadDebug ?? debugBlob.leads,
+    } catch (e: any) {
+      // 4) Any unexpected exception → record it on whichever phase was active.
+      const errMsg = String(e?.message ?? e);
+      // eslint-disable-next-line no-console
+      console.error("[runAiResearch] unexpected error:", e);
+      toast.error(`Research crashed: ${errMsg}`, { id: t });
+      const failedStub = (started_at: string) => ({
+        status: "failed" as const, started_at, duration_ms: 0, error: errMsg,
+        model: null, finish_reason: null, raw_text: null, raw_text_chars: 0, sources: [], counts: {},
       });
+      const courseStatus = (snapshot.course as any)?.status;
+      const phase = courseStatus === "success" ? "leads" : "course";
+      snapshot = { ...snapshot, last_run_at: new Date().toISOString(), [phase]: failedStub(startedAt) } as ResearchDebugBlob;
+      try { await persistDebug(snapshot); } catch { /* already toasted */ }
     } finally {
       setAiResearching(false);
     }
