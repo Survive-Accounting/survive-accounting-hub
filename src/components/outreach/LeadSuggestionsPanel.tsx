@@ -4,7 +4,7 @@
 // importLeads() path, preserving dedupe / scheduled_send_at / landing_token.
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Sparkles, Upload, ExternalLink, BookOpen } from "lucide-react";
+import { Loader2, Sparkles, Star, Upload, ExternalLink, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type TeachingFilter =
   | "all"
+  | "confirmed_intro"
   | "intro_1"
   | "intro_2"
   | "intro_either"
@@ -48,6 +49,7 @@ type TeachingFilter =
 
 const TEACHING_FILTER_LABELS: Record<TeachingFilter, string> = {
   all: "All suggested leads",
+  confirmed_intro: "⭐ Confirmed Intro 1/2 only",
   intro_1: "Teaches Intro 1",
   intro_2: "Teaches Intro 2",
   intro_either: "Teaches Intro 1 or Intro 2",
@@ -64,15 +66,27 @@ export type LeadSuggestionsSummary = {
   needs_lee: number;
 };
 
-/** Lower number = higher priority. Intro 1 > Intro 2 > IA1 > IA2 > BAP advisor > admin staff > other. */
+/** "Confirmed" = teaching flag set by class-schedule scraper with an evidence URL. */
+function isConfirmedIntro(r: LeadSuggestion): boolean {
+  return !!r.teaching_evidence_url && (!!r.teaches_intro_1 || !!r.teaches_intro_2);
+}
+function isConfirmedIA(r: LeadSuggestion): boolean {
+  return !!r.teaching_evidence_url && (!!r.teaches_intermediate_1 || !!r.teaches_intermediate_2);
+}
+
+/** Lower number = higher priority. Confirmed Intro 1/2 sits above inferred. */
 function priorityRank(r: LeadSuggestion): number {
-  if (r.teaches_intro_1) return 0;
-  if (r.teaches_intro_2) return 1;
-  if (r.teaches_intermediate_1) return 2;
-  if (r.teaches_intermediate_2) return 3;
-  if (r.lead_type === "bap_advisor") return 4;
-  if (r.lead_type === "admin_staff") return 5;
-  return 6;
+  if (r.teaches_intro_1 && r.teaching_evidence_url) return 0;
+  if (r.teaches_intro_2 && r.teaching_evidence_url) return 1;
+  if (r.teaches_intro_1) return 2;
+  if (r.teaches_intro_2) return 3;
+  if (r.teaches_intermediate_1 && r.teaching_evidence_url) return 4;
+  if (r.teaches_intermediate_2 && r.teaching_evidence_url) return 5;
+  if (r.teaches_intermediate_1) return 6;
+  if (r.teaches_intermediate_2) return 7;
+  if (r.lead_type === "bap_advisor") return 8;
+  if (r.lead_type === "admin_staff") return 9;
+  return 10;
 }
 
 function TeachingBadges({ r }: { r: LeadSuggestion }) {
@@ -140,6 +154,8 @@ export default function LeadSuggestionsPanel({
   const visibleRows = useMemo(() => {
     let filtered = rows;
     switch (teachingFilter) {
+      case "confirmed_intro":
+        filtered = rows.filter(isConfirmedIntro); break;
       case "intro_1":
         filtered = rows.filter((r) => r.teaches_intro_1); break;
       case "intro_2":
