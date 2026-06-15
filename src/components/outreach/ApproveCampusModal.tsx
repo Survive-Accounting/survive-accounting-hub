@@ -797,11 +797,16 @@ export default function ApproveCampusModal({
                           </SelectContent>
                         </Select>
                       </div>
-                      {aiResult?.families[f.key]?.textbook_status.value && (
+                      {aiResult?.families[f.key]?.textbook_status.value ? (
                         <ConfidenceMeter
                           confidence={aiResult.families[f.key].textbook_status.confidence}
                           source={aiResult.families[f.key].textbook_status.source}
                           touched={aiTouched.has(`status:${f.key}`)}
+                        />
+                      ) : (
+                        <NotFoundHint
+                          show={!!aiResult && (familyStatus[f.key] ?? "not_checked") === "not_checked" && !aiTouched.has(`status:${f.key}`)}
+                          message="AI couldn't determine — use the search buttons"
                         />
                       )}
                       <div className="flex flex-wrap gap-1.5">
