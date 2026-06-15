@@ -19,19 +19,13 @@ import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
-  addDaysISO,
-  manilaTodayISO,
-  mockWeekCounts,
-  mondayOfISO,
   type AssignmentStatus,
   type Campus,
   type CampusFilters,
 } from "@/lib/outreach-mock";
 import {
-  fetchCampusIdsForDate,
   fetchCampusPhones,
   fetchCampuses,
-  fetchWeekCounts,
   patchCampusDb,
   provisionCampusNumber,
 } from "@/lib/outreach-api";
