@@ -261,6 +261,10 @@ function ManualEntryPanel({
           );
         })()}
 
+        <div className="mt-4">
+          <LeadSuggestionsPanel campusId={selectedCampusId || null} onImported={onImported} />
+        </div>
+
         {noCampuses && (
           <div className="mt-4 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">
             No approved campuses yet. Approve a campus from the Campuses tab first.
