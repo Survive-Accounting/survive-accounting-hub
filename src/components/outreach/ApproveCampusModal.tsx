@@ -35,6 +35,7 @@ import {
   patchCampusDb,
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
+import ClassScheduleIntelligencePanel from "./ClassScheduleIntelligencePanel";
 import { supabase } from "@/integrations/supabase/client";
 
 type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
@@ -1405,6 +1406,8 @@ export default function ApproveCampusModal({
                 showManualImportHelp={false}
                 onSummaryChange={setLeadSummary}
               />
+
+              <ClassScheduleIntelligencePanel campusId={campus.id} />
 
               <label className="flex items-start gap-2 rounded-md border bg-muted/20 p-2.5 text-xs">
                 <input
