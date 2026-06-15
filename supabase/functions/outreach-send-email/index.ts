@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       const sampleCourses = "ACCY 201, ACCY 202 and ACCY 303";
       const samplePhone = "(662) 555-0142";
       const samplePrefix = "ACCY";
-      const surviveLinkUrl = "https://surviveaccounting.com?utm_source=cold_email&utm_medium=email&utm_campaign=professor_outreach";
+      const surviveLinkUrl = "https://surviveaccounting.com";
       const rawBody = body.test_body ?? "";
       const rawSubject = body.test_subject ?? "";
       if (!rawSubject.trim() || !rawBody.trim()) {
