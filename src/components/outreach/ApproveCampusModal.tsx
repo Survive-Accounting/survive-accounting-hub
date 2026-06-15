@@ -268,7 +268,8 @@ export default function ApproveCampusModal({
 
   const step1Done = codesArray.length > 0;
   const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked");
-  const canApprove = step1Done && step2Done;
+  const step3Done = skipLeadImport || leadSummary.accepted > 0;
+  const canApprove = step1Done && step2Done && step3Done;
 
   const aggregateTextbookStatus = (status: Record<string, FamilyStatus>): TextbookStatus => {
     const vals = FAMILIES.map((f) => status[f.key] ?? "not_checked");
