@@ -4,11 +4,15 @@
 // importLeads() path, preserving dedupe / scheduled_send_at / landing_token.
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Sparkles, Upload, ExternalLink } from "lucide-react";
+import { Loader2, Sparkles, Upload, ExternalLink, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -33,6 +37,25 @@ const TYPE_OPTIONS: LeadSuggestionType[] = [
 ];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+type TeachingFilter =
+  | "all"
+  | "intro_1"
+  | "intro_2"
+  | "intro_either"
+  | "ia_either"
+  | "none_found"
+  | "admin_advisor";
+
+const TEACHING_FILTER_LABELS: Record<TeachingFilter, string> = {
+  all: "All suggested leads",
+  intro_1: "Teaches Intro 1",
+  intro_2: "Teaches Intro 2",
+  intro_either: "Teaches Intro 1 or Intro 2",
+  ia_either: "Teaches IA1 or IA2",
+  none_found: "No teaching assignment found",
+  admin_advisor: "Admin / Advisor only",
+};
+
 export type LeadSuggestionsSummary = {
   total: number;
   pending: number;
@@ -40,6 +63,43 @@ export type LeadSuggestionsSummary = {
   rejected: number;
   needs_lee: number;
 };
+
+/** Lower number = higher priority. Intro 1 > Intro 2 > IA1 > IA2 > BAP advisor > admin staff > other. */
+function priorityRank(r: LeadSuggestion): number {
+  if (r.teaches_intro_1) return 0;
+  if (r.teaches_intro_2) return 1;
+  if (r.teaches_intermediate_1) return 2;
+  if (r.teaches_intermediate_2) return 3;
+  if (r.lead_type === "bap_advisor") return 4;
+  if (r.lead_type === "admin_staff") return 5;
+  return 6;
+}
+
+function TeachingBadges({ r }: { r: LeadSuggestion }) {
+  const items: { key: string; label: string; on: boolean }[] = [
+    { key: "i1", label: "Intro 1", on: r.teaches_intro_1 },
+    { key: "i2", label: "Intro 2", on: r.teaches_intro_2 },
+    { key: "ia1", label: "IA1", on: r.teaches_intermediate_1 },
+    { key: "ia2", label: "IA2", on: r.teaches_intermediate_2 },
+  ];
+  const onItems = items.filter((i) => i.on);
+  if (onItems.length === 0) {
+    return <span className="text-[10px] text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {onItems.map((i) => (
+        <Badge
+          key={i.key}
+          variant="secondary"
+          className="px-1.5 py-0 text-[10px] bg-emerald-100 text-emerald-800 border-emerald-200"
+        >
+          {i.label}
+        </Badge>
+      ))}
+    </div>
+  );
+}
 
 export default function LeadSuggestionsPanel({
   campusId,
@@ -50,11 +110,8 @@ export default function LeadSuggestionsPanel({
 }: {
   campusId: string | null;
   onImported?: () => void;
-  /** Tighter padding + shorter scroll area for embedding inside other modals. */
   compact?: boolean;
-  /** Toggle the helper line under the heading. */
   showManualImportHelp?: boolean;
-  /** Notifies the parent of suggestion counts (used by Approve modal for gating + summary). */
   onSummaryChange?: (s: LeadSuggestionsSummary) => void;
 }) {
   const [rows, setRows] = useState<LeadSuggestion[]>([]);
@@ -62,6 +119,7 @@ export default function LeadSuggestionsPanel({
   const [researching, setResearching] = useState(false);
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [teachingFilter, setTeachingFilter] = useState<TeachingFilter>("all");
 
   async function refresh(id = campusId) {
     if (!id) { setRows([]); return; }
@@ -78,10 +136,37 @@ export default function LeadSuggestionsPanel({
 
   useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId]);
 
-  const allChecked = rows.length > 0 && selected.size === rows.length;
+  const visibleRows = useMemo(() => {
+    let filtered = rows;
+    switch (teachingFilter) {
+      case "intro_1":
+        filtered = rows.filter((r) => r.teaches_intro_1); break;
+      case "intro_2":
+        filtered = rows.filter((r) => r.teaches_intro_2); break;
+      case "intro_either":
+        filtered = rows.filter((r) => r.teaches_intro_1 || r.teaches_intro_2); break;
+      case "ia_either":
+        filtered = rows.filter((r) => r.teaches_intermediate_1 || r.teaches_intermediate_2); break;
+      case "none_found":
+        filtered = rows.filter((r) =>
+          !r.teaches_intro_1 && !r.teaches_intro_2 &&
+          !r.teaches_intermediate_1 && !r.teaches_intermediate_2);
+        break;
+      case "admin_advisor":
+        filtered = rows.filter((r) => r.lead_type === "admin_staff" || r.lead_type === "bap_advisor");
+        break;
+    }
+    return [...filtered].sort((a, b) => {
+      const pr = priorityRank(a) - priorityRank(b);
+      if (pr !== 0) return pr;
+      return (b.confidence ?? 0) - (a.confidence ?? 0);
+    });
+  }, [rows, teachingFilter]);
+
+  const allChecked = visibleRows.length > 0 && visibleRows.every((r) => selected.has(r.id));
   const toggleAll = () => {
     if (allChecked) setSelected(new Set());
-    else setSelected(new Set(rows.map((r) => r.id)));
+    else setSelected(new Set(visibleRows.map((r) => r.id)));
   };
   const toggleOne = (id: string) => {
     setSelected((prev) => {
@@ -111,7 +196,6 @@ export default function LeadSuggestionsPanel({
   }
 
   async function patchRow(id: string, patch: Partial<LeadSuggestion>) {
-    // optimistic
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } as LeadSuggestion : r)));
     try {
       await updateLeadSuggestion(id, patch as any);
@@ -170,6 +254,13 @@ export default function LeadSuggestionsPanel({
     return c;
   }, [rows]);
 
+  const teachingCounts = useMemo(() => ({
+    intro_1: rows.filter((r) => r.teaches_intro_1).length,
+    intro_2: rows.filter((r) => r.teaches_intro_2).length,
+    ia_1: rows.filter((r) => r.teaches_intermediate_1).length,
+    ia_2: rows.filter((r) => r.teaches_intermediate_2).length,
+  }), [rows]);
+
   useEffect(() => {
     onSummaryChange?.({
       total: rows.length,
@@ -182,6 +273,7 @@ export default function LeadSuggestionsPanel({
   }, [rows, counts.pending, counts.accepted, counts.rejected, counts.needs_lee]);
 
   return (
+    <TooltipProvider delayDuration={150}>
     <Card className={compact ? "p-3" : "p-4"}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -209,24 +301,36 @@ export default function LeadSuggestionsPanel({
       </div>
 
       {rows.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">
-            {rows.length} total · {counts.pending} pending · {counts.accepted} accepted · {counts.rejected} rejected · {counts.needs_lee} needs Lee
-          </span>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" type="button" onClick={() => bulkSetStatus("accepted")} disabled={selected.size === 0}>Accept selected</Button>
-            <Button size="sm" variant="outline" type="button" onClick={() => bulkSetStatus("rejected")} disabled={selected.size === 0}>Reject selected</Button>
-            <Button size="sm" variant="outline" type="button" onClick={() => bulkSetStatus("needs_lee")} disabled={selected.size === 0}>Mark Needs Lee</Button>
-            <Button size="sm" type="button" onClick={importAccepted} disabled={importing || counts.accepted === 0}>
-              {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              Import Accepted Leads
-            </Button>
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">
+              {rows.length} total · {counts.pending} pending · {counts.accepted} accepted · {counts.rejected} rejected · {counts.needs_lee} needs Lee
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              · Intro 1: {teachingCounts.intro_1} · Intro 2: {teachingCounts.intro_2} · IA1: {teachingCounts.ia_1} · IA2: {teachingCounts.ia_2}
+            </span>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Select value={teachingFilter} onValueChange={(v) => setTeachingFilter(v as TeachingFilter)}>
+                <SelectTrigger className="h-7 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(TEACHING_FILTER_LABELS) as TeachingFilter[]).map((k) => (
+                    <SelectItem key={k} value={k}>{TEACHING_FILTER_LABELS[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" type="button" onClick={() => bulkSetStatus("accepted")} disabled={selected.size === 0}>Accept selected</Button>
+              <Button size="sm" variant="outline" type="button" onClick={() => bulkSetStatus("rejected")} disabled={selected.size === 0}>Reject selected</Button>
+              <Button size="sm" variant="outline" type="button" onClick={() => bulkSetStatus("needs_lee")} disabled={selected.size === 0}>Mark Needs Lee</Button>
+              <Button size="sm" type="button" onClick={importAccepted} disabled={importing || counts.accepted === 0}>
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Import Accepted Leads
+              </Button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       <div className={`mt-3 ${compact ? "max-h-[32vh]" : "max-h-[40vh]"} overflow-auto rounded border border-border`}>
-
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
             <tr>
@@ -239,6 +343,7 @@ export default function LeadSuggestionsPanel({
               <th className="px-2 py-2 text-left">First</th>
               <th className="px-2 py-2 text-left">Last</th>
               <th className="px-2 py-2 text-left">Title</th>
+              <th className="px-2 py-2 text-left">Teaches</th>
               <th className="px-2 py-2 w-[42px]">PhD</th>
               <th className="px-2 py-2 w-[42px]">CPA</th>
               <th className="px-2 py-2 text-left w-[72px]">Conf.</th>
@@ -247,18 +352,20 @@ export default function LeadSuggestionsPanel({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={13} className="px-3 py-6 text-center text-muted-foreground">
                   {loading
                     ? "Loading suggestions…"
                     : !campusId
                       ? "Pick a campus to see suggestions."
-                      : "No suggestions yet. Click Auto-Research Leads with AI."}
+                      : rows.length === 0
+                        ? "No suggestions yet. Click Auto-Research Leads with AI."
+                        : "No suggestions match this filter."}
                 </td>
               </tr>
             )}
-            {rows.map((r) => (
+            {visibleRows.map((r) => (
               <tr key={r.id} className="hover:bg-muted/20 align-top">
                 <td className="px-2 py-1">
                   <input
@@ -290,6 +397,54 @@ export default function LeadSuggestionsPanel({
                 <td className="px-2 py-1">{r.first_name ?? ""}</td>
                 <td className="px-2 py-1">{r.last_name ?? ""}</td>
                 <td className="px-2 py-1">{r.title ?? ""}</td>
+                <td className="px-2 py-1">
+                  <div className="flex items-center gap-1">
+                    <TeachingBadges r={r} />
+                    {(r.teaching_evidence_url || r.teaching_evidence_notes || (r.courses_found && r.courses_found.length)) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="text-muted-foreground hover:text-foreground">
+                            <BookOpen className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          {r.teaching_evidence_notes && <div className="mb-1">{r.teaching_evidence_notes}</div>}
+                          {r.courses_found && r.courses_found.length > 0 && (
+                            <ul className="mb-1 list-disc pl-4">
+                              {r.courses_found.map((c, i) => (
+                                <li key={i}>
+                                  {c.course_code ?? ""} {c.course_title ?? ""}
+                                  {c.term ? ` · ${c.term}` : ""}
+                                  {" · "}<span className="italic">{c.course_family}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {r.teaching_evidence_url && (
+                            <a
+                              href={r.teaching_evidence_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-300 hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" /> Teaching source
+                            </a>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  {r.teaching_evidence_url && (
+                    <a
+                      href={r.teaching_evidence_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
+                    >
+                      <ExternalLink className="h-2.5 w-2.5" /> Teaching source
+                    </a>
+                  )}
+                </td>
                 <td className="px-2 py-1 text-center">
                   <input
                     type="checkbox"
@@ -321,5 +476,6 @@ export default function LeadSuggestionsPanel({
         </table>
       </div>
     </Card>
+    </TooltipProvider>
   );
 }

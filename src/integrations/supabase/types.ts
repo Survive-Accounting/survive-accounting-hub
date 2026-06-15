@@ -465,6 +465,7 @@ export type Database = {
         Row: {
           campus_id: string
           confidence: number | null
+          courses_found: Json | null
           created_at: string
           department: string | null
           email: string | null
@@ -478,12 +479,19 @@ export type Database = {
           raw_payload: Json | null
           source_url: string | null
           status: string
+          teaches_intermediate_1: boolean | null
+          teaches_intermediate_2: boolean | null
+          teaches_intro_1: boolean | null
+          teaches_intro_2: boolean | null
+          teaching_evidence_notes: string | null
+          teaching_evidence_url: string | null
           title: string | null
           updated_at: string
         }
         Insert: {
           campus_id: string
           confidence?: number | null
+          courses_found?: Json | null
           created_at?: string
           department?: string | null
           email?: string | null
@@ -497,12 +505,19 @@ export type Database = {
           raw_payload?: Json | null
           source_url?: string | null
           status?: string
+          teaches_intermediate_1?: boolean | null
+          teaches_intermediate_2?: boolean | null
+          teaches_intro_1?: boolean | null
+          teaches_intro_2?: boolean | null
+          teaching_evidence_notes?: string | null
+          teaching_evidence_url?: string | null
           title?: string | null
           updated_at?: string
         }
         Update: {
           campus_id?: string
           confidence?: number | null
+          courses_found?: Json | null
           created_at?: string
           department?: string | null
           email?: string | null
@@ -516,6 +531,12 @@ export type Database = {
           raw_payload?: Json | null
           source_url?: string | null
           status?: string
+          teaches_intermediate_1?: boolean | null
+          teaches_intermediate_2?: boolean | null
+          teaches_intro_1?: boolean | null
+          teaches_intro_2?: boolean | null
+          teaching_evidence_notes?: string | null
+          teaching_evidence_url?: string | null
           title?: string | null
           updated_at?: string
         }

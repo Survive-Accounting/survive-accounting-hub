@@ -870,6 +870,14 @@ export type LeadSuggestionType =
   | "tutoring_center"
   | "other";
 
+export interface LeadCourseFound {
+  course_code: string | null;
+  course_title: string | null;
+  course_family: "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2" | "other";
+  term: string | null;
+  source_url: string | null;
+}
+
 export interface LeadSuggestion {
   id: string;
   campus_id: string;
@@ -886,6 +894,13 @@ export interface LeadSuggestion {
   notes: string | null;
   status: LeadSuggestionStatus;
   raw_payload: unknown | null;
+  teaches_intro_1: boolean;
+  teaches_intro_2: boolean;
+  teaches_intermediate_1: boolean;
+  teaches_intermediate_2: boolean;
+  courses_found: LeadCourseFound[] | null;
+  teaching_evidence_url: string | null;
+  teaching_evidence_notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -913,6 +928,13 @@ function mapSuggestion(row: any): LeadSuggestion {
     notes: row.notes ?? null,
     status: (row.status ?? "pending") as LeadSuggestionStatus,
     raw_payload: row.raw_payload ?? null,
+    teaches_intro_1: !!row.teaches_intro_1,
+    teaches_intro_2: !!row.teaches_intro_2,
+    teaches_intermediate_1: !!row.teaches_intermediate_1,
+    teaches_intermediate_2: !!row.teaches_intermediate_2,
+    courses_found: Array.isArray(row.courses_found) ? (row.courses_found as LeadCourseFound[]) : null,
+    teaching_evidence_url: row.teaching_evidence_url ?? null,
+    teaching_evidence_notes: row.teaching_evidence_notes ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
