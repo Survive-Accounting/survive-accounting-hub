@@ -32,6 +32,7 @@ import {
   type CourseFamilyDefaults,
   type TutoringAvailability,
   type TextbookMatchStatus,
+  patchCampusDb,
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
 import { supabase } from "@/integrations/supabase/client";
