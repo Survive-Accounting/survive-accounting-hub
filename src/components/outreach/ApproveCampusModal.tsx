@@ -1163,56 +1163,77 @@ export default function ApproveCampusModal({
                 </div>
               </div>
 
-              {/* Phase 4 — Approval summary checklist */}
+              {/* Phase 5 — Final checklist + missing reasons */}
               {(() => {
                 const textbooksReviewed = step2Done;
-                const recommendation =
-                  step1Done && textbooksReviewed && leadSummary.accepted > 0
-                    ? { label: "Ready for outreach", cls: "bg-emerald-600 text-white" }
-                    : leadSummary.needs_lee > 0
-                    ? { label: "Needs Lee", cls: "bg-amber-500 text-white" }
-                    : { label: "Needs more research", cls: "bg-muted text-muted-foreground" };
+                const leadsReviewed = step3Done;
+                const landingPageReady = !!campus.landing_page_reviewed;
+                const readyForOutreach = step1Done && textbooksReviewed && leadsReviewed;
+                const checklist: Array<{ label: string; done: boolean; tone: "ok" | "todo" | "info" }> = [
+                  { label: "Course codes reviewed", done: step1Done, tone: step1Done ? "ok" : "todo" },
+                  { label: "Textbooks reviewed", done: textbooksReviewed, tone: textbooksReviewed ? "ok" : "todo" },
+                  { label: "Leads reviewed", done: leadsReviewed, tone: leadsReviewed ? "ok" : "todo" },
+                  { label: "Landing page ready", done: landingPageReady, tone: landingPageReady ? "ok" : "info" },
+                  { label: "Ready for outreach", done: readyForOutreach, tone: readyForOutreach ? "ok" : "todo" },
+                ];
+
+                const missing: string[] = [];
+                if (!step1Done) missing.push("At least one course code is required.");
+                for (const f of FAMILIES) {
+                  const s = (familyStatus[f.key] ?? "not_checked") as FamilyStatus;
+                  if (s === "not_checked") missing.push(`${f.shortLabel} textbook status is still Not Checked.`);
+                }
+                if (!step3Done) missing.push("Lead review not finished — accept at least one lead or tick the “skip lead import” box on Lead Review.");
+
                 return (
                   <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold">Approval Summary</div>
-                      <Badge className={`text-[11px] ${recommendation.cls}`}>{recommendation.label}</Badge>
-                    </div>
-                    <ul className="space-y-1">
-                      <li>
-                        <span className="font-medium">Course Details:</span>{" "}
-                        {step1Done ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
-                        {" — "}{codesArray.length} course code{codesArray.length === 1 ? "" : "s"}
-                      </li>
-                      <li>
-                        <span className="font-medium">Textbooks:</span>{" "}
-                        {textbooksReviewed ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
-                      </li>
-                      <li>
-                        <span className="font-medium">Leads:</span>{" "}
-                        {leadSummary.total} suggested · {leadSummary.accepted} accepted · {leadSummary.needs_lee} needs Lee
-                        {skipLeadImport && <span className="ml-1 text-muted-foreground">(skipped for now)</span>}
-                      </li>
+                    <div className="text-sm font-semibold">Final Checklist</div>
+                    <ul className="grid gap-1 sm:grid-cols-2">
+                      {checklist.map((c) => (
+                        <li key={c.label} className="flex items-center gap-1.5">
+                          {c.done ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          ) : c.tone === "info" ? (
+                            <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          )}
+                          <span className={c.done ? "" : c.tone === "info" ? "text-muted-foreground" : "text-amber-800"}>
+                            {c.label}
+                          </span>
+                        </li>
+                      ))}
                     </ul>
+                    {missing.length > 0 && (
+                      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800">
+                        <div className="font-semibold mb-0.5">Cannot approve yet:</div>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {missing.map((m) => <li key={m}>{m}</li>)}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
-
-              {!canApprove && (
-                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    Complete all steps before approving: at least one course code, a status set for every textbook family,
-                    and either accept at least one AI-suggested lead or check the “skip lead import” box on Lead Review.
-                  </span>
-                </div>
-              )}
             </TabsContent>
 
           </Tabs>
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={onClose}>Close</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!campus) return;
+                onPatch(campus.id, { approval_status: "needs_fix" });
+                toast.success("Flagged for Lee's review");
+                onClose();
+              }}
+              className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Mark Needs Lee
+            </Button>
             <Button
               disabled={!canApprove}
               onClick={approve}
@@ -1222,6 +1243,7 @@ export default function ApproveCampusModal({
               Approve Campus
             </Button>
           </DialogFooter>
+
         </DialogContent>
       </Dialog>
     </TooltipProvider>
