@@ -649,17 +649,30 @@ export default function ApproveCampusModal({
       }
       const d = data as any;
       const dbg = d?.debug ?? {};
+      const succeeded = d?.success !== false;
+      const errMsg = !succeeded
+        ? (d?.error ?? d?.insert_error ?? "Lead research reported failure")
+        : null;
       return {
-        status: "success", started_at: startedAt, duration_ms: dur, error: null,
-        model: dbg.model ?? null, finish_reason: null,
+        status: succeeded ? "success" : "failed",
+        started_at: startedAt, duration_ms: dur, error: errMsg,
+        model: dbg.model ?? null,
+        finish_reason: dbg.finish_reason ?? null,
         raw_text: dbg.raw_text ?? null,
         raw_text_chars: dbg.raw_text_chars ?? 0,
         sources: dbg.sources ?? [],
         counts: {
+          raw_suggestion_count: dbg.raw_suggestion_count ?? 0,
           parsed_lead_count: dbg.parsed_lead_count ?? 0,
+          rejected_count: dbg.rejected_count ?? 0,
+          insert_attempted: dbg.insert_attempted ?? 0,
           saved_lead_count: d?.inserted_count ?? 0,
           skipped_duplicate_count: d?.skipped_duplicate_count ?? 0,
         },
+        // stash extra fields into raw_text if not already set so the debug panel surfaces them
+        ...(dbg.insert_errors || dbg.rejected_samples || dbg.note || dbg.usage
+          ? { raw_text: `${dbg.note ? `NOTE: ${dbg.note}\n\n` : ""}${dbg.insert_errors?.length ? `INSERT ERRORS:\n${dbg.insert_errors.join("\n")}\n\n` : ""}${dbg.rejected_samples?.length ? `REJECTED SAMPLES:\n${JSON.stringify(dbg.rejected_samples, null, 2)}\n\n` : ""}${dbg.usage ? `USAGE: ${JSON.stringify(dbg.usage)}\n\n` : ""}---RAW AI RESPONSE---\n${dbg.raw_text ?? ""}` }
+          : {}),
       };
     } catch (e: any) {
       return {
