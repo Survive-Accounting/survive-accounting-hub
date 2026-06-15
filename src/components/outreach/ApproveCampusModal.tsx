@@ -1489,6 +1489,117 @@ export default function ApproveCampusModal({
 
           </Tabs>
 
+          {/* ============ Research Debug (admin-only — modal is already AdminGate'd) ============ */}
+          <Collapsible className="mt-3 rounded-md border border-dashed bg-muted/20">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-xs font-medium hover:bg-muted/40"
+              >
+                <span className="flex items-center gap-2">
+                  <Bug className="h-3.5 w-3.5 text-muted-foreground" />
+                  Research Debug
+                  {debugBlob.last_run_at && (
+                    <span className="text-[10px] font-normal text-muted-foreground">
+                      · last run {new Date(debugBlob.last_run_at).toLocaleString()}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 border-t px-3 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={rerunCourseOnly} disabled={courseRunning}>
+                  {courseRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Re-run Course Research
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={rerunLeadsOnly} disabled={leadsRunning}>
+                  {leadsRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Re-run Lead Research
+                </Button>
+                <Button
+                  type="button" size="sm" variant="outline" className="h-7 text-xs gap-1.5"
+                  onClick={() => {
+                    const payload = JSON.stringify(debugBlob, null, 2);
+                    navigator.clipboard?.writeText(payload).then(
+                      () => toast.success("Debug data copied"),
+                      () => toast.error("Couldn't copy"),
+                    );
+                  }}
+                >
+                  <Clipboard className="h-3 w-3" /> Copy Debug Data
+                </Button>
+                <span className="text-[10px] text-muted-foreground">
+                  Internal troubleshooting only. API keys are never exposed.
+                </span>
+              </div>
+
+              {(["course", "leads"] as const).map((kind) => {
+                const run = debugBlob[kind];
+                const title = kind === "course" ? "Course Research" : "Lead Research";
+                if (!run) {
+                  return (
+                    <div key={kind} className="rounded-md border bg-background p-2.5 text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-foreground">{title}</span> — no runs recorded.
+                    </div>
+                  );
+                }
+                return (
+                  <div key={kind} className="rounded-md border bg-background p-2.5 space-y-2 text-[11px]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold">{title}</span>
+                      <Badge className={run.status === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}>
+                        {run.status === "success" ? <Check className="mr-1 h-3 w-3" /> : <XCircle className="mr-1 h-3 w-3" />}
+                        {run.status}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-muted-foreground sm:grid-cols-4">
+                      <div><span className="text-foreground/70">Last run:</span> {new Date(run.started_at).toLocaleString()}</div>
+                      <div><span className="text-foreground/70">Duration:</span> {run.duration_ms} ms</div>
+                      <div><span className="text-foreground/70">Model:</span> {run.model ?? "—"}</div>
+                      <div><span className="text-foreground/70">Raw chars:</span> {run.raw_text_chars}</div>
+                      {Object.entries(run.counts).map(([k, v]) => (
+                        <div key={k}><span className="text-foreground/70">{k}:</span> {v as number}</div>
+                      ))}
+                    </div>
+                    {run.error && (
+                      <div className="rounded border border-red-500/40 bg-red-500/5 px-2 py-1 text-red-700 dark:text-red-300">
+                        <span className="font-semibold">Error:</span> {run.error}
+                      </div>
+                    )}
+                    {run.sources.length > 0 && (
+                      <details>
+                        <summary className="cursor-pointer text-foreground/80 hover:text-foreground">
+                          Source URLs ({run.sources.length})
+                        </summary>
+                        <ul className="mt-1 space-y-0.5 pl-3">
+                          {run.sources.map((s) => (
+                            <li key={s}>
+                              <a href={s} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">
+                                {s}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {run.raw_text && (
+                      <details>
+                        <summary className="cursor-pointer text-foreground/80 hover:text-foreground">
+                          Raw AI response
+                        </summary>
+                        <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-2 font-mono text-[10px] leading-snug">
+                          {run.raw_text}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={onClose}>Close</Button>
             <Button
