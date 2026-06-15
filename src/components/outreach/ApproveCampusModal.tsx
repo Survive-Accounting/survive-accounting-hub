@@ -531,39 +531,190 @@ export default function ApproveCampusModal({
     });
   };
 
-  const runAiResearch = async () => {
-    if (!campus || aiResearching) return;
-    setAiResearching(true);
-    const t = toast.loading("Researching the web — this can take up to a minute…");
+  // ============ Debug capture for Research Debug Panel ============
+  type RunStatus = "success" | "failed";
+  type ResearchRunDebug = {
+    status: RunStatus;
+    started_at: string;
+    duration_ms: number;
+    error: string | null;
+    model: string | null;
+    finish_reason: string | null;
+    raw_text: string | null;
+    raw_text_chars: number;
+    sources: string[];
+    counts: Record<string, number>;
+  };
+  type ResearchDebugBlob = {
+    last_run_at: string | null;
+    course?: ResearchRunDebug;
+    leads?: ResearchRunDebug;
+  };
+  const [debugBlob, setDebugBlob] = useState<ResearchDebugBlob>({ last_run_at: null });
+
+  // Hydrate debug from existing campus row when modal opens
+  useEffect(() => {
+    if (!campus) return;
+    const existing = (campus.ai_research_debug_json ?? null) as ResearchDebugBlob | null;
+    setDebugBlob(existing ?? { last_run_at: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campus?.id]);
+
+  const persistDebug = (next: ResearchDebugBlob) => {
+    setDebugBlob(next);
+    writePatch({ ai_research_debug_json: next });
+  };
+
+  const [courseRunning, setCourseRunning] = useState(false);
+  const [leadsRunning, setLeadsRunning] = useState(false);
+
+  const runCourseResearch = async (): Promise<ResearchRunDebug | null> => {
+    if (!campus) return null;
+    setCourseRunning(true);
+    const startedAt = new Date().toISOString();
+    const t0 = performance.now();
     try {
       const r = await researchCampusAI({
         school_name: campus.school_name,
         state: campus.state,
         course_codes: campus.course_codes,
       });
+      const dur = Math.round(performance.now() - t0);
       if (!r.ok || !r.result) {
-        toast.error(r.error ?? "Research failed", { id: t });
-        return;
+        const d: ResearchRunDebug = {
+          status: "failed", started_at: startedAt, duration_ms: dur,
+          error: r.error ?? "Research failed",
+          model: r.debug?.model ?? null,
+          finish_reason: r.debug?.finish_reason ?? null,
+          raw_text: r.debug?.raw_text ?? null,
+          raw_text_chars: r.debug?.raw_text_chars ?? 0,
+          sources: r.debug?.sources ?? [],
+          counts: {},
+        };
+        return d;
       }
       setAiResult(r.result);
       setAiTouched(new Set());
       applySuggestions(r.result);
-      toast.success("AI suggestions added — review every field before approving.", { id: t });
+      const fams = Object.values(r.result.families) as any[];
+      const counts = {
+        parsed_course_count: fams.filter((f) => f?.code?.value || f?.title?.value).length,
+        parsed_textbook_count: fams.filter((f) => f?.textbook_status?.value).length,
+      };
+      return {
+        status: "success", started_at: startedAt, duration_ms: dur, error: null,
+        model: r.debug?.model ?? null,
+        finish_reason: r.debug?.finish_reason ?? null,
+        raw_text: r.debug?.raw_text ?? null,
+        raw_text_chars: r.debug?.raw_text_chars ?? 0,
+        sources: r.debug?.sources ?? [],
+        counts,
+      };
+    } catch (e: any) {
+      return {
+        status: "failed", started_at: startedAt, duration_ms: Math.round(performance.now() - t0),
+        error: String(e?.message ?? e), model: null, finish_reason: null,
+        raw_text: null, raw_text_chars: 0, sources: [], counts: {},
+      };
+    } finally {
+      setCourseRunning(false);
+    }
+  };
 
-      // Best-effort: also kick off lead research. The LeadSuggestionsPanel on Step 3
-      // re-reads from the staging table when the user navigates there.
-      try {
-        const { data, error } = await supabase.functions.invoke("research-campus-leads", {
-          body: { campus_id: campus.id },
-        });
-        if (error) throw error;
-        const d = data as any;
-        if (d?.inserted_count != null) {
-          toast.success(`Added ${d.inserted_count} suggested lead${d.inserted_count === 1 ? "" : "s"} for review on Step 3.`);
-        }
-      } catch (e: any) {
-        toast.message("Lead research couldn't run automatically — open Step 3 to run it manually.");
+  const runLeadResearch = async (): Promise<ResearchRunDebug | null> => {
+    if (!campus) return null;
+    setLeadsRunning(true);
+    const startedAt = new Date().toISOString();
+    const t0 = performance.now();
+    try {
+      const { data, error } = await supabase.functions.invoke("research-campus-leads", {
+        body: { campus_id: campus.id },
+      });
+      const dur = Math.round(performance.now() - t0);
+      if (error) {
+        let msg = error.message ?? "Lead research failed";
+        try {
+          const ctx = (error as any).context;
+          if (ctx) {
+            const j = await ctx.json();
+            msg = j?.detail ?? j?.error ?? msg;
+          }
+        } catch { /* keep */ }
+        return {
+          status: "failed", started_at: startedAt, duration_ms: dur, error: msg,
+          model: null, finish_reason: null, raw_text: null, raw_text_chars: 0,
+          sources: [], counts: {},
+        };
       }
+      const d = data as any;
+      const dbg = d?.debug ?? {};
+      return {
+        status: "success", started_at: startedAt, duration_ms: dur, error: null,
+        model: dbg.model ?? null, finish_reason: null,
+        raw_text: dbg.raw_text ?? null,
+        raw_text_chars: dbg.raw_text_chars ?? 0,
+        sources: dbg.sources ?? [],
+        counts: {
+          parsed_lead_count: dbg.parsed_lead_count ?? 0,
+          saved_lead_count: d?.inserted_count ?? 0,
+          skipped_duplicate_count: d?.skipped_duplicate_count ?? 0,
+        },
+      };
+    } catch (e: any) {
+      return {
+        status: "failed", started_at: startedAt, duration_ms: Math.round(performance.now() - t0),
+        error: String(e?.message ?? e), model: null, finish_reason: null,
+        raw_text: null, raw_text_chars: 0, sources: [], counts: {},
+      };
+    } finally {
+      setLeadsRunning(false);
+    }
+  };
+
+  const rerunCourseOnly = async () => {
+    const t = toast.loading("Re-running course research…");
+    const d = await runCourseResearch();
+    if (!d) { toast.dismiss(t); return; }
+    persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), course: d });
+    d.status === "success"
+      ? toast.success("Course research updated", { id: t })
+      : toast.error(d.error ?? "Course research failed", { id: t });
+  };
+
+  const rerunLeadsOnly = async () => {
+    const t = toast.loading("Re-running lead research…");
+    const d = await runLeadResearch();
+    if (!d) { toast.dismiss(t); return; }
+    persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), leads: d });
+    d.status === "success"
+      ? toast.success(`Leads updated — ${d.counts.saved_lead_count ?? 0} new`, { id: t })
+      : toast.error(d.error ?? "Lead research failed", { id: t });
+  };
+
+  const runAiResearch = async () => {
+    if (!campus || aiResearching) return;
+    setAiResearching(true);
+    const t = toast.loading("Researching the web — this can take up to a minute…");
+    try {
+      const courseDebug = await runCourseResearch();
+      let leadDebug: ResearchRunDebug | null = null;
+      if (courseDebug?.status === "success") {
+        toast.success("AI suggestions added — review every field before approving.", { id: t });
+        leadDebug = await runLeadResearch();
+        if (leadDebug?.status === "success") {
+          const n = leadDebug.counts.saved_lead_count ?? 0;
+          toast.success(`Added ${n} suggested lead${n === 1 ? "" : "s"} for review on Step 3.`);
+        } else if (leadDebug) {
+          toast.message("Lead research couldn't run automatically — open Research Debug for details.");
+        }
+      } else if (courseDebug) {
+        toast.error(courseDebug.error ?? "Research failed", { id: t });
+      }
+      persistDebug({
+        last_run_at: new Date().toISOString(),
+        course: courseDebug ?? debugBlob.course,
+        leads: leadDebug ?? debugBlob.leads,
+      });
     } finally {
       setAiResearching(false);
     }
