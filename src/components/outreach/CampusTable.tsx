@@ -192,29 +192,35 @@ export default function CampusTable({
                           <Copy className="h-3.5 w-3.5" />
                           <span className="text-[11px]">Copy link</span>
                         </button>
-                        {campusPhones?.get(s.id) ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(campusPhones.get(s.id)!).then(() => toast.success("Number copied"));
-                            }}
-                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground w-fit"
-                            title="Campus texting number — click to copy"
-                          >
-                            <Phone className="h-3.5 w-3.5" />
-                            <span className="text-[11px] tabular-nums">{campusPhones.get(s.id)}</span>
-                          </button>
-                        ) : isApproved && onProvisionNumber ? (
-                          <button
-                            type="button"
-                            onClick={() => onProvisionNumber(s.id)}
-                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground w-fit"
-                            title="Buy a local Twilio number for this campus"
-                          >
-                            <Phone className="h-3.5 w-3.5" />
-                            <span className="text-[11px]">Get number</span>
-                          </button>
-                        ) : null}
+                        {(() => {
+                          const mainNum = campusPhones?.get("__main__") ?? "+16625658818";
+                          const personal = "+16012018759";
+                          const usingPersonal = !!s.use_personal_phone;
+                          const shown = usingPersonal ? personal : mainNum;
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => navigator.clipboard.writeText(shown).then(() => toast.success("Number copied"))}
+                                className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                                title={usingPersonal ? "Personal cell (override)" : "Main line"}
+                              >
+                                <Phone className="h-3.5 w-3.5" />
+                                <span className="text-[11px] tabular-nums">{shown}</span>
+                              </button>
+                              {onTogglePersonalPhone && (
+                                <button
+                                  type="button"
+                                  onClick={() => onTogglePersonalPhone(s.id, !usingPersonal)}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded border ${usingPersonal ? "bg-amber-50 border-amber-300 text-amber-800" : "border-border text-muted-foreground hover:text-foreground"}`}
+                                  title="Toggle: send from personal cell for this campus"
+                                >
+                                  {usingPersonal ? "personal" : "main"}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div className="inline-flex items-center gap-3 text-muted-foreground">
                           <span className="inline-flex items-center gap-1" title="Visitors (coming soon)">
                             <Eye className="h-3.5 w-3.5" />
