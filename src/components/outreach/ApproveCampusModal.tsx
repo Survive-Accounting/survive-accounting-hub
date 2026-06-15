@@ -445,6 +445,30 @@ export default function ApproveCampusModal({
     });
   };
 
+  const termsTimer = useRef<number | null>(null);
+  const updateFamilyTerms = (key: string, patch: Partial<CourseFamilyTerms>) => {
+    markTouched(`terms:${key}`);
+    setFamilyTerms((prev) => {
+      const cur = prev[key] ?? {};
+      const merged: CourseFamilyTerms = { ...cur, ...patch };
+      // Keep booleans in sync when the text is edited and matches obvious keywords.
+      if ("terms_text" in patch) {
+        const t = (patch.terms_text ?? "").toLowerCase();
+        if (t) {
+          merged.fall = /fall/.test(t) ? true : merged.fall;
+          merged.spring = /spring/.test(t) ? true : merged.spring;
+          merged.summer = /summer/.test(t) ? true : merged.summer;
+        }
+      }
+      const next = { ...prev, [key]: merged };
+      if (termsTimer.current) window.clearTimeout(termsTimer.current);
+      termsTimer.current = window.setTimeout(() => {
+        writePatch({ course_family_terms_json: next });
+      }, 700);
+      return next;
+    });
+  };
+
   // ============ AI research (suggestions only — human reviews) ============
   /** Fill ONLY empty fields from AI suggestions; never clobber human-entered data. */
   const applySuggestions = (res: CampusResearchResult) => {
