@@ -47,7 +47,7 @@ export function CampusQueuePanel({ onReview }: CampusQueuePanelProps) {
     queryKey: ["campus-queue"],
     queryFn: fetchQueue,
     refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   // Tick every 30s so "47m left" labels stay fresh without refetching.
