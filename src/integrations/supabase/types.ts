@@ -880,6 +880,7 @@ export type Database = {
           tuition_source_url: string | null
           undergrad_enrollment: number | null
           updated_at: string
+          use_personal_phone: boolean
           use_school_colors: boolean | null
           warm_connection_notes: string | null
           website_url: string | null
@@ -1002,6 +1003,7 @@ export type Database = {
           tuition_source_url?: string | null
           undergrad_enrollment?: number | null
           updated_at?: string
+          use_personal_phone?: boolean
           use_school_colors?: boolean | null
           warm_connection_notes?: string | null
           website_url?: string | null
@@ -1124,6 +1126,7 @@ export type Database = {
           tuition_source_url?: string | null
           undergrad_enrollment?: number | null
           updated_at?: string
+          use_personal_phone?: boolean
           use_school_colors?: boolean | null
           warm_connection_notes?: string | null
           website_url?: string | null
