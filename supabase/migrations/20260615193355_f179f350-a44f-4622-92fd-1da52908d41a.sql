@@ -1,0 +1,1 @@
+ALTER TABLE public.campuses ADD COLUMN IF NOT EXISTS ai_research_debug_json jsonb;

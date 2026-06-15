@@ -775,6 +775,7 @@ export type Database = {
           adoption_tracks: Json | null
           ai_enrichment_raw_json: Json | null
           ai_enrichment_status: string | null
+          ai_research_debug_json: Json | null
           annual_tuition_in_state_cents: number | null
           annual_tuition_out_state_cents: number | null
           approval_status: string | null
@@ -896,6 +897,7 @@ export type Database = {
           adoption_tracks?: Json | null
           ai_enrichment_raw_json?: Json | null
           ai_enrichment_status?: string | null
+          ai_research_debug_json?: Json | null
           annual_tuition_in_state_cents?: number | null
           annual_tuition_out_state_cents?: number | null
           approval_status?: string | null
@@ -1017,6 +1019,7 @@ export type Database = {
           adoption_tracks?: Json | null
           ai_enrichment_raw_json?: Json | null
           ai_enrichment_status?: string | null
+          ai_research_debug_json?: Json | null
           annual_tuition_in_state_cents?: number | null
           annual_tuition_out_state_cents?: number | null
           approval_status?: string | null
