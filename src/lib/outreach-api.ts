@@ -1016,6 +1016,67 @@ export async function bulkUpdateLeadSuggestions(
 }
 
 // ============================================================
+// Campus Course Sections (Phase 4C — Class Schedule Intelligence)
+// ============================================================
+
+export type CourseSectionFamily =
+  | "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2"
+  | "finance" | "business_stats" | "business_analytics"
+  | "microeconomics" | "macroeconomics" | "other";
+
+export interface CampusCourseSection {
+  id: string;
+  campus_id: string;
+  course_family: CourseSectionFamily | null;
+  course_code: string | null;
+  course_title: string | null;
+  term: string | null;
+  section_number: string | null;
+  instructor_name: string | null;
+  instructor_email: string | null;
+  meeting_days: string | null;
+  meeting_time: string | null;
+  location: string | null;
+  enrollment_current: number | null;
+  enrollment_capacity: number | null;
+  waitlist_count: number | null;
+  source_url: string | null;
+  confidence: "high" | "medium" | "low" | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const SECTIONS_TABLE = "campus_course_sections" as never;
+
+export async function getCampusSections(campusId: string): Promise<CampusCourseSection[]> {
+  const { data, error } = await supabase
+    .from(SECTIONS_TABLE)
+    .select("*")
+    .eq("campus_id", campusId)
+    .order("course_family", { ascending: true })
+    .order("course_code", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as CampusCourseSection[];
+}
+
+export async function runCampusSectionsResearch(campusId: string): Promise<{
+  success: boolean;
+  sections_inserted: number;
+  leads_updated: number;
+  leads_created: number;
+  error?: string;
+  debug?: unknown;
+}> {
+  const { data, error } = await supabase.functions.invoke("research-campus-sections", {
+    body: { campus_id: campusId },
+  });
+  if (error) throw error;
+  const d = data as any;
+  if (d?.error && !d?.success) throw new Error(d.error);
+  return d;
+}
+
+// ============================================================
 // Course Availability Engine (Phase 4)
 // Global defaults live on outreach_settings (singleton row).
 // Per-campus overrides live in campus_course_availability — one row
