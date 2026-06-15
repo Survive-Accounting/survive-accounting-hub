@@ -660,11 +660,16 @@ export default function ApproveCampusModal({
                     placeholder="e.g. Patterson School of Accountancy"
                     className="h-8"
                   />
-                  {aiResult?.program.value && (
+                  {aiResult?.program.value ? (
                     <ConfidenceMeter
                       confidence={aiResult.program.confidence}
                       source={aiResult.program.source}
                       touched={aiTouched.has("program")}
+                    />
+                  ) : (
+                    <NotFoundHint
+                      show={!!aiResult && !programName.trim() && !aiTouched.has("program")}
+                      message="AI couldn't find this — try the 'Find it' button →"
                     />
                   )}
                 </div>
