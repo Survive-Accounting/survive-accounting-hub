@@ -137,7 +137,7 @@ function OutreachPage() {
                 onImportLeads={(c) => { setImportCampusId(c.id); setImportOpen(true); }}
                 onAssignPatch={handleAssignPatch}
                 campusPhones={phonesQuery.data}
-                onProvisionNumber={handleProvisionNumber}
+                onTogglePersonalPhone={handleTogglePersonalPhone}
                 selectedIds={selectedIds}
                 onToggleSelect={(id, value) =>
                   setSelectedIds((prev) => {
