@@ -985,9 +985,44 @@ export default function ApproveCampusModal({
               )}
             </TabsContent>
 
-            {/* STEP 3 — Approval Summary */}
+            {/* STEP 3 — Lead Review (Phase 4) */}
             <TabsContent value="3" className="space-y-3 pt-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  Run AI research, then accept the leads you want to import into the outreach queue.
+                  AI suggestions never become real leads until you import them.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setStep("2")}>Previous</Button>
+                  <Button size="sm" onClick={() => setStep("4")}>Next Step</Button>
+                </div>
+              </div>
+
+              <LeadSuggestionsPanel
+                campusId={campus.id}
+                compact
+                showManualImportHelp={false}
+                onSummaryChange={setLeadSummary}
+              />
+
+              <label className="flex items-start gap-2 rounded-md border bg-muted/20 p-2.5 text-xs">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-3.5 w-3.5"
+                  checked={skipLeadImport}
+                  onChange={(e) => setSkipLeadImport(e.target.checked)}
+                />
+                <span>
+                  <strong>No usable leads found / skip lead import for now.</strong>{" "}
+                  Approve the campus without importing AI-suggested leads — Lee or a VA can add leads manually later.
+                </span>
+              </label>
+            </TabsContent>
+
+            {/* STEP 4 — Approval Summary */}
+            <TabsContent value="4" className="space-y-3 pt-4">
               <p className="text-xs text-muted-foreground">Review your decisions, then approve.</p>
+
               <div className="rounded-lg border divide-y">
                 {FAMILIES.map((f) => {
                   const v = (familyStatus[f.key] ?? "not_checked") as FamilyStatus;
