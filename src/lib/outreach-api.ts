@@ -1059,17 +1059,42 @@ export async function getCampusSections(campusId: string): Promise<CampusCourseS
   return (data ?? []) as unknown as CampusCourseSection[];
 }
 
-export async function runCampusSectionsResearch(campusId: string): Promise<{
+export interface SectionsResearchDebug {
+  model?: string;
+  per_family?: Record<string, {
+    family: string;
+    final_count: number;
+    attempts: Array<{
+      strict?: boolean;
+      http_status?: number;
+      returned?: number;
+      rejected_count?: number;
+      rejected_samples?: unknown[];
+      sources?: string[];
+      finish_reason?: string | null;
+      error?: string;
+      note?: string;
+      parse_error?: string;
+      raw_text_chars?: number;
+    }>;
+  }>;
+  per_family_counts?: Record<string, number>;
+}
+
+export async function runCampusSectionsResearch(
+  campusId: string,
+  families?: string[],
+): Promise<{
   success: boolean;
   sections_inserted: number;
   leads_updated: number;
   leads_created: number;
   error?: string;
-  debug?: unknown;
+  debug?: SectionsResearchDebug;
 }> {
-  const { data, error } = await supabase.functions.invoke("research-campus-sections", {
-    body: { campus_id: campusId },
-  });
+  const body: Record<string, unknown> = { campus_id: campusId };
+  if (families && families.length) body.families = families;
+  const { data, error } = await supabase.functions.invoke("research-campus-sections", { body });
   if (error) throw error;
   const d = data as any;
   if (d?.error && !d?.success) throw new Error(d.error);

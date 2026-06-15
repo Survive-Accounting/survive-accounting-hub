@@ -4,7 +4,7 @@
 // importLeads() path, preserving dedupe / scheduled_send_at / landing_token.
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Sparkles, Upload, ExternalLink, BookOpen } from "lucide-react";
+import { Loader2, Sparkles, Star, Upload, ExternalLink, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type TeachingFilter =
   | "all"
+  | "confirmed_intro"
   | "intro_1"
   | "intro_2"
   | "intro_either"
@@ -48,6 +49,7 @@ type TeachingFilter =
 
 const TEACHING_FILTER_LABELS: Record<TeachingFilter, string> = {
   all: "All suggested leads",
+  confirmed_intro: "⭐ Confirmed Intro 1/2 only",
   intro_1: "Teaches Intro 1",
   intro_2: "Teaches Intro 2",
   intro_either: "Teaches Intro 1 or Intro 2",
@@ -64,15 +66,27 @@ export type LeadSuggestionsSummary = {
   needs_lee: number;
 };
 
-/** Lower number = higher priority. Intro 1 > Intro 2 > IA1 > IA2 > BAP advisor > admin staff > other. */
+/** "Confirmed" = teaching flag set by class-schedule scraper with an evidence URL. */
+function isConfirmedIntro(r: LeadSuggestion): boolean {
+  return !!r.teaching_evidence_url && (!!r.teaches_intro_1 || !!r.teaches_intro_2);
+}
+function isConfirmedIA(r: LeadSuggestion): boolean {
+  return !!r.teaching_evidence_url && (!!r.teaches_intermediate_1 || !!r.teaches_intermediate_2);
+}
+
+/** Lower number = higher priority. Confirmed Intro 1/2 sits above inferred. */
 function priorityRank(r: LeadSuggestion): number {
-  if (r.teaches_intro_1) return 0;
-  if (r.teaches_intro_2) return 1;
-  if (r.teaches_intermediate_1) return 2;
-  if (r.teaches_intermediate_2) return 3;
-  if (r.lead_type === "bap_advisor") return 4;
-  if (r.lead_type === "admin_staff") return 5;
-  return 6;
+  if (r.teaches_intro_1 && r.teaching_evidence_url) return 0;
+  if (r.teaches_intro_2 && r.teaching_evidence_url) return 1;
+  if (r.teaches_intro_1) return 2;
+  if (r.teaches_intro_2) return 3;
+  if (r.teaches_intermediate_1 && r.teaching_evidence_url) return 4;
+  if (r.teaches_intermediate_2 && r.teaching_evidence_url) return 5;
+  if (r.teaches_intermediate_1) return 6;
+  if (r.teaches_intermediate_2) return 7;
+  if (r.lead_type === "bap_advisor") return 8;
+  if (r.lead_type === "admin_staff") return 9;
+  return 10;
 }
 
 function TeachingBadges({ r }: { r: LeadSuggestion }) {
@@ -140,6 +154,8 @@ export default function LeadSuggestionsPanel({
   const visibleRows = useMemo(() => {
     let filtered = rows;
     switch (teachingFilter) {
+      case "confirmed_intro":
+        filtered = rows.filter(isConfirmedIntro); break;
       case "intro_1":
         filtered = rows.filter((r) => r.teaches_intro_1); break;
       case "intro_2":
@@ -270,6 +286,8 @@ export default function LeadSuggestionsPanel({
     intro_2: rows.filter((r) => r.teaches_intro_2).length,
     ia_1: rows.filter((r) => r.teaches_intermediate_1).length,
     ia_2: rows.filter((r) => r.teaches_intermediate_2).length,
+    confirmed_intro: rows.filter(isConfirmedIntro).length,
+    confirmed_ia: rows.filter(isConfirmedIA).length,
   }), [rows]);
 
   useEffect(() => {
@@ -320,6 +338,11 @@ export default function LeadSuggestionsPanel({
             <span className="text-[11px] text-muted-foreground">
               · Intro 1: {teachingCounts.intro_1} · Intro 2: {teachingCounts.intro_2} · IA1: {teachingCounts.ia_1} · IA2: {teachingCounts.ia_2}
             </span>
+            {teachingCounts.confirmed_intro > 0 && (
+              <span className="text-[11px] font-semibold text-amber-700 inline-flex items-center gap-1">
+                · <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {teachingCounts.confirmed_intro} CONFIRMED Intro 1/2
+              </span>
+            )}
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <Select value={sortMode} onValueChange={(v) => setSortMode(v as "last_name" | "priority")}>
                 <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue /></SelectTrigger>
@@ -382,8 +405,10 @@ export default function LeadSuggestionsPanel({
                 </td>
               </tr>
             )}
-            {visibleRows.map((r) => (
-              <tr key={r.id} className="hover:bg-muted/20 align-top">
+            {visibleRows.map((r) => {
+              const confirmed = isConfirmedIntro(r);
+              return (
+              <tr key={r.id} className={`hover:bg-muted/20 align-top ${confirmed ? "bg-amber-50/70 border-l-2 border-l-amber-400" : ""}`}>
                 <td className="px-2 py-1">
                   <input
                     type="checkbox"
@@ -408,6 +433,16 @@ export default function LeadSuggestionsPanel({
                 <td className="px-2 py-1">{r.title ?? ""}</td>
                 <td className="px-2 py-1">
                   <div className="flex items-center gap-1">
+                    {confirmed && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500 shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs max-w-xs">
+                          CONFIRMED Intro instructor — verified via the public class schedule.
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                     <TeachingBadges r={r} />
                     {(r.teaching_evidence_url || r.teaching_evidence_notes || (r.courses_found && r.courses_found.length)) && (
                       <Tooltip>
@@ -480,7 +515,8 @@ export default function LeadSuggestionsPanel({
                 </td>
                 <td className="px-2 py-1 max-w-[260px] text-muted-foreground">{r.notes ?? ""}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
