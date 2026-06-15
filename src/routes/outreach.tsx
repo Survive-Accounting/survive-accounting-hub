@@ -48,8 +48,10 @@ function OutreachPage() {
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
+  const [autoResearchId, setAutoResearchId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importCampusId, setImportCampusId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
 
