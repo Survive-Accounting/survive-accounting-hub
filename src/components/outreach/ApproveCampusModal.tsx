@@ -174,6 +174,17 @@ export default function ApproveCampusModal({
   const [aiResult, setAiResult] = useState<CampusResearchResult | null>(null);
   const [aiTouched, setAiTouched] = useState<Set<string>>(new Set());
 
+  // Phase 4 — per-campus course availability overrides + global defaults
+  type AvailabilityOverride = "inherit" | TutoringAvailability;
+  const FAMILY_KEYS: CourseFamily[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
+  const [familyAvail, setFamilyAvail] = useState<Record<CourseFamily, AvailabilityOverride>>({
+    intro_1: "inherit", intro_2: "inherit", intermediate_1: "inherit", intermediate_2: "inherit",
+  });
+  const [familyReqSyllabus, setFamilyReqSyllabus] = useState<Record<CourseFamily, boolean>>({
+    intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false,
+  });
+  const [globalDefaults, setGlobalDefaults] = useState<CourseFamilyDefaults | null>(null);
+
   const markTouched = (fieldId: string) =>
     setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
 
@@ -216,6 +227,28 @@ export default function ApproveCampusModal({
     setAiResult(null);
     setAiResearching(false);
     setAiTouched(new Set());
+
+    // Load Phase 4 availability rows + global defaults
+    getCourseFamilyDefaults().then(setGlobalDefaults).catch(() => setGlobalDefaults(null));
+    getCampusCourseAvailability(campus.id)
+      .then((rows) => {
+        const avail: Record<CourseFamily, AvailabilityOverride> = {
+          intro_1: "inherit", intro_2: "inherit", intermediate_1: "inherit", intermediate_2: "inherit",
+        };
+        const req: Record<CourseFamily, boolean> = {
+          intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false,
+        };
+        for (const r of rows) {
+          avail[r.course_family] = (r.tutoring_availability ?? "inherit") as AvailabilityOverride;
+          req[r.course_family] = !!r.requires_syllabus_review;
+        }
+        setFamilyAvail(avail);
+        setFamilyReqSyllabus(req);
+      })
+      .catch(() => {
+        setFamilyAvail({ intro_1: "inherit", intro_2: "inherit", intermediate_1: "inherit", intermediate_2: "inherit" });
+        setFamilyReqSyllabus({ intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false });
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus?.id]);
 
