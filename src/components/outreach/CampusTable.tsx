@@ -35,7 +35,7 @@ export default function CampusTable({
   onImportLeads,
   onAssignPatch,
   campusPhones,
-  onProvisionNumber,
+  onTogglePersonalPhone,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -47,7 +47,7 @@ export default function CampusTable({
   onImportLeads: (c: Campus) => void;
   onAssignPatch: (id: string, patch: { assigned_to: string | null; due_date: string | null; assignment_status: AssignmentStatus }) => void;
   campusPhones?: Map<string, string>;
-  onProvisionNumber?: (campusId: string) => void;
+  onTogglePersonalPhone?: (campusId: string, next: boolean) => void;
   selectedIds: Set<string>;
   onToggleSelect: (id: string, value: boolean) => void;
   onToggleSelectAll: (ids: string[], value: boolean) => void;
