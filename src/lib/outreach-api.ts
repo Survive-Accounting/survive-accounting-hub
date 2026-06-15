@@ -147,6 +147,76 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
   if (error) throw error;
 }
 
+// ----- Create campus -----
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+export async function findCampusBySlug(
+  slug: string,
+): Promise<{ id: string; name: string; slug: string } | null> {
+  const { data, error } = await supabase
+    .from("campuses")
+    .select("id,name,slug")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as any) ?? null;
+}
+
+export interface CreateCampusInput {
+  name: string;
+  state?: string | null;
+  website_url?: string | null;
+  accounting_department_url?: string | null;
+}
+
+/**
+ * Insert a new campus row with safe defaults (needs_review, not assigned,
+ * not ready for outreach). Returns the new id and slug.
+ */
+export async function createCampus(
+  input: CreateCampusInput,
+): Promise<{ id: string; slug: string; name: string }> {
+  const name = input.name.trim();
+  if (!name) throw new Error("Campus name is required");
+  let slug = slugify(name);
+  if (!slug) slug = `campus-${Date.now().toString(36)}`;
+
+  // Make slug unique (append -2, -3, …) if a collision exists.
+  // eslint-disable-next-line no-constant-condition
+  for (let i = 1; ; i++) {
+    const candidate = i === 1 ? slug : `${slug}-${i}`;
+    const existing = await findCampusBySlug(candidate);
+    if (!existing) { slug = candidate; break; }
+    if (i > 25) { slug = `${slug}-${Date.now().toString(36)}`; break; }
+  }
+
+  const row: Record<string, unknown> = {
+    name,
+    slug,
+    state: input.state?.trim() || null,
+    website_url: input.website_url?.trim() || null,
+    accounting_department_url: input.accounting_department_url?.trim() || null,
+    approval_status: "needs_review",
+    ready_for_outreach: false,
+    assignment_status: "not_assigned",
+  };
+  const { data, error } = await supabase
+    .from("campuses")
+    .insert(row as never)
+    .select("id,slug,name")
+    .single();
+  if (error) throw error;
+  return data as { id: string; slug: string; name: string };
+}
+
 // ----- Email templates -----
 export async function fetchTemplates(): Promise<EmailTemplate[]> {
   let { data, error } = await supabase
