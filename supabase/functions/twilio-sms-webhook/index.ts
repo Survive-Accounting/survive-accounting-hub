@@ -178,7 +178,23 @@ Deno.serve(async (req) => {
     return twiml();
   }
 
-  // Subsequent reply: extract structured data, then summarize to Lee.
+  // Subsequent reply: send the booking-link reply once (only after the
+  // questions message, and only if we haven't sent it already), then
+  // extract structured data and summarize to Lee.
+  const { data: history } = await admin.from("sms_messages")
+    .select("direction,author,body").eq("conversation_id", convo.id)
+    .order("created_at", { ascending: true }).limit(30);
+
+  const alreadySentBooking = (history ?? []).some(
+    (m: any) => m.direction === "out" && m.author === "auto" && typeof m.body === "string" && m.body.includes("SurviveAccounting.com/start"),
+  );
+  if (convo.opener_sent && !alreadySentBooking) {
+    const sentSid = await twilioSend(to, from, BOOKING_REPLY_BODY);
+    await admin.from("sms_messages").insert({
+      conversation_id: convo.id, direction: "out", author: "auto", body: BOOKING_REPLY_BODY, twilio_sid: sentSid,
+    });
+  }
+
   const { data: history } = await admin.from("sms_messages")
     .select("direction,author,body").eq("conversation_id", convo.id)
     .order("created_at", { ascending: true }).limit(30);
