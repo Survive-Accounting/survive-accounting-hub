@@ -1006,6 +1006,68 @@ export default function ApproveCampusModal({
                   );
                 })}
               </div>
+
+              {/* Phase 4 — Course Availability */}
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold">Course Availability</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Drives Book / Waitlist / Hide buttons on the landing page. Leave on
+                      <strong> Inherit</strong> to use the global default. Saving will auto-set any
+                      family with a non-matching textbook to <strong>Waitlist</strong> — you can flip back later.
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-md border bg-background">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium">Family</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Availability</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Needs syllabus review</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {FAMILY_KEYS.map((fam) => {
+                        const meta = FAMILIES.find((f) => f.key === fam)!;
+                        const inheritLabel = globalDefaults ? globalDefaults[fam] : "—";
+                        return (
+                          <tr key={fam}>
+                            <td className="px-2 py-1.5">{meta.shortLabel}</td>
+                            <td className="px-2 py-1.5">
+                              <Select
+                                value={familyAvail[fam]}
+                                onValueChange={(v) =>
+                                  setFamilyAvail((p) => ({ ...p, [fam]: v as "inherit" | TutoringAvailability }))
+                                }
+                              >
+                                <SelectTrigger className="h-8 w-[220px] text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="inherit" className="text-xs">Inherit ({inheritLabel})</SelectItem>
+                                  <SelectItem value="available" className="text-xs">Available — Book Tutoring</SelectItem>
+                                  <SelectItem value="waitlist" className="text-xs">Waitlist</SelectItem>
+                                  <SelectItem value="unavailable" className="text-xs">Unavailable — hide</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <input
+                                type="checkbox"
+                                checked={familyReqSyllabus[fam]}
+                                onChange={(e) =>
+                                  setFamilyReqSyllabus((p) => ({ ...p, [fam]: e.target.checked }))
+                                }
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {!canApprove && (
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
