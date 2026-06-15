@@ -33,6 +33,7 @@ import {
   type TextbookMatchStatus,
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
+import { supabase } from "@/integrations/supabase/client";
 
 type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
 
