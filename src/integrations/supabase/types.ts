@@ -806,6 +806,7 @@ export type Database = {
           course_codes_reviewed: boolean | null
           course_family_codes_json: Json | null
           course_family_status_json: Json | null
+          course_family_terms_json: Json | null
           course_family_textbooks_json: Json | null
           course_family_titles_json: Json | null
           created_at: string
@@ -926,6 +927,7 @@ export type Database = {
           course_codes_reviewed?: boolean | null
           course_family_codes_json?: Json | null
           course_family_status_json?: Json | null
+          course_family_terms_json?: Json | null
           course_family_textbooks_json?: Json | null
           course_family_titles_json?: Json | null
           created_at?: string
@@ -1046,6 +1048,7 @@ export type Database = {
           course_codes_reviewed?: boolean | null
           course_family_codes_json?: Json | null
           course_family_status_json?: Json | null
+          course_family_terms_json?: Json | null
           course_family_textbooks_json?: Json | null
           course_family_titles_json?: Json | null
           created_at?: string

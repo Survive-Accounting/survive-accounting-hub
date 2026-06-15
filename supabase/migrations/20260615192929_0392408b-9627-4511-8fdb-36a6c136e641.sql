@@ -1,0 +1,1 @@
+ALTER TABLE public.campuses ADD COLUMN IF NOT EXISTS course_family_terms_json jsonb;
