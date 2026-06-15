@@ -12,6 +12,7 @@ import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
 import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
+import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
@@ -172,23 +173,25 @@ function OutreachPage() {
         usingMock={usingMock}
         onImported={() => qc.invalidateQueries({ queryKey: ["outreach-leads"] })}
       />
-      <ApproveCampusModal
-        campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
-        onClose={() => {
-          if (reviewing) refreshClaim(reviewing.id).catch(() => {});
-          setReviewing(null);
-        }}
-        onPatch={(id, patch) => {
-          patchCampus(id, patch);
-          refreshClaim(id).catch(() => {});
-        }}
-        onApprove={(id, patch) => {
-          patchCampus(id, patch);
-          markClaimApproved(id)
-            .catch(() => {})
-            .finally(() => qc.invalidateQueries({ queryKey: ["campus-queue"] }));
-        }}
-      />
+      <ResearchErrorBoundary onReset={() => setReviewing(null)}>
+        <ApproveCampusModal
+          campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
+          onClose={() => {
+            if (reviewing) refreshClaim(reviewing.id).catch(() => {});
+            setReviewing(null);
+          }}
+          onPatch={(id, patch) => {
+            patchCampus(id, patch);
+            refreshClaim(id).catch(() => {});
+          }}
+          onApprove={(id, patch) => {
+            patchCampus(id, patch);
+            markClaimApproved(id)
+              .catch(() => {})
+              .finally(() => qc.invalidateQueries({ queryKey: ["campus-queue"] }));
+          }}
+        />
+      </ResearchErrorBoundary>
 
     </div>
     </AdminGate>
