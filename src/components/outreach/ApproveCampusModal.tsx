@@ -33,13 +33,17 @@ import {
   type TextbookMatchStatus,
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
+import { supabase } from "@/integrations/supabase/client";
 
-type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
+type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
 
 /** Legacy values from the old app collapse into the simplified set. */
 function normalizeStatus(v: string | undefined): FamilyStatus {
-  if (v === "matches" || v === "different" || v === "not_found") return v;
-  if (v === "not_viewable" || v === "not_offered") return "not_found";
+  if (
+    v === "matches" || v === "likely_match" || v === "different" ||
+    v === "not_found" || v === "not_offered"
+  ) return v;
+  if (v === "not_viewable") return "not_found";
   return "not_checked";
 }
 
@@ -55,16 +59,20 @@ const FAMILIES = [
 ];
 
 const FAMILY_STATUS_LABELS: Record<FamilyStatus, string> = {
-  matches: "Matches Our Textbook",
-  different: "Different Textbook",
-  not_found: "Textbook Not Found",
+  matches: "Matched",
+  likely_match: "Likely Match",
+  different: "Not Matched",
+  not_found: "Unknown",
+  not_offered: "Not Offered / Skip",
   not_checked: "Not Checked",
 };
 
 const STATUS_BADGE: Record<FamilyStatus, string> = {
   matches: "bg-emerald-600 text-white",
+  likely_match: "bg-teal-500 text-white",
   different: "bg-red-600 text-white",
   not_found: "bg-amber-500 text-white",
+  not_offered: "bg-slate-500 text-white",
   not_checked: "bg-muted text-muted-foreground",
 };
 
@@ -485,6 +493,21 @@ export default function ApproveCampusModal({
       setAiTouched(new Set());
       applySuggestions(r.result);
       toast.success("AI suggestions added — review every field before approving.", { id: t });
+
+      // Best-effort: also kick off lead research. The LeadSuggestionsPanel on Step 3
+      // re-reads from the staging table when the user navigates there.
+      try {
+        const { data, error } = await supabase.functions.invoke("research-campus-leads", {
+          body: { campus_id: campus.id },
+        });
+        if (error) throw error;
+        const d = data as any;
+        if (d?.inserted_count != null) {
+          toast.success(`Added ${d.inserted_count} suggested lead${d.inserted_count === 1 ? "" : "s"} for review on Step 3.`);
+        }
+      } catch (e: any) {
+        toast.message("Lead research couldn't run automatically — open Step 3 to run it manually.");
+      }
     } finally {
       setAiResearching(false);
     }
@@ -493,8 +516,9 @@ export default function ApproveCampusModal({
   // Map the existing per-family textbook status to the Phase 4 textbook_match_status enum.
   const mapTextbookMatch = (s: FamilyStatus): TextbookMatchStatus => {
     if (s === "matches") return "matched";
+    if (s === "likely_match") return "likely_match";
     if (s === "different") return "not_matched";
-    return "unknown"; // not_found, not_checked
+    return "unknown"; // not_found, not_offered, not_checked
   };
 
   const persistAvailability = async () => {
@@ -553,8 +577,8 @@ export default function ApproveCampusModal({
       <Dialog open={!!campus} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="max-w-4xl sm:max-w-4xl max-h-[94vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between gap-3">
-              <span>Approve Campus — {campus.school_name}</span>
+            <DialogTitle className="flex items-center justify-between gap-3 text-base">
+              <span>Research &amp; Approve Campus — {campus.school_name}</span>
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                   {autoSaving ? (
@@ -565,8 +589,8 @@ export default function ApproveCampusModal({
                 </span>
               </div>
             </DialogTitle>
-            <DialogDescription>
-              Course Details → Textbook Match → Lead Review → Approve. Changes save automatically.
+            <DialogDescription className="text-xs">
+              Review course codes, textbook matches, and suggested leads before approving outreach.
             </DialogDescription>
           </DialogHeader>
 
@@ -606,110 +630,107 @@ export default function ApproveCampusModal({
             })}
           </div>
 
-          {/* Research — hero CTAs */}
-          <div className="mt-8 mb-2 flex flex-wrap items-center justify-center gap-3">
-            <Button
-              type="button"
-              onClick={runAiResearch}
-              disabled={aiResearching}
-              className="h-11 rounded-full px-6 text-sm font-semibold gap-2"
-            >
-              {aiResearching ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
-              ) : (
-                <><Wand2 className="h-4 w-4" /> Auto-Research with AI</>
-              )}
-            </Button>
-            <div className="relative inline-block">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -inset-2 rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-600 opacity-60 blur-xl animate-pulse"
-              />
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button
-                    type="button"
-                    className="relative h-11 rounded-full px-7 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 via-red-500 to-rose-600 shadow-[0_0_24px_-4px_rgba(244,63,94,0.65),0_0_48px_-12px_rgba(249,115,22,0.55)] hover:brightness-110 hover:scale-[1.02] transition border-0"
-                  >
-                    <Sparkles className="h-4 w-4 drop-shadow" />
-                    Research Tools
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
-                  <SheetHeader>
-                    <SheetTitle className="text-base">🔍 Research Tools</SheetTitle>
-                    <p className="text-xs text-muted-foreground font-normal">
-                      Quick Google searches for {campus.school_name}. Opens in new tabs.
+          {/* Research — single primary action + secondary tools */}
+          <div className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-2.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                type="button"
+                onClick={runAiResearch}
+                disabled={aiResearching}
+                size="sm"
+                className="h-9 gap-2 font-semibold"
+              >
+                {aiResearching ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
+                ) : (
+                  <><Wand2 className="h-4 w-4" /> Run Full AI Research</>
+                )}
+              </Button>
+              <span className="text-[11px] text-muted-foreground">
+                Finds course codes, textbook matches, and suggested leads. You’ll review everything before saving.
+              </span>
+            </div>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Open Research Tools
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle className="text-base">🔍 Research Tools</SheetTitle>
+                  <p className="text-xs text-muted-foreground font-normal">
+                    Quick Google searches for {campus.school_name}. Opens in new tabs.
+                  </p>
+                </SheetHeader>
+                <div className="mt-4 space-y-4 px-4 pb-6">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Campus-wide
                     </p>
-                  </SheetHeader>
-                  <div className="mt-4 space-y-4 px-4 pb-6">
+                    <div className="flex flex-col gap-1.5">
+                      {[
+                        { emoji: "📚", label: "Course Catalog", q: `${campus.school_name} course catalog accounting` },
+                        { emoji: "🎓", label: "Accounting Degree Plan", q: `${campus.school_name} accounting degree plan` },
+                        { emoji: "🧾", label: "Accounting Courses", q: `${campus.school_name} accounting courses` },
+                        { emoji: "📖", label: "Undergraduate Catalog", q: `${campus.school_name} undergraduate catalog accounting` },
+                        { emoji: "🏫", label: "Accounting Department", q: `${campus.school_name} accounting department` },
+                        { emoji: "📋", label: "Accounting Curriculum", q: `${campus.school_name} accounting curriculum` },
+                        { emoji: "🛒", label: "Bookstore", q: `${campus.school_name} bookstore accounting` },
+                      ].map((b) => (
+                        <Button
+                          key={b.label}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-start h-8 text-xs gap-2 font-normal"
+                          onClick={() => openExternal(googleUrl(b.q))}
+                        >
+                          <span>{b.emoji}</span> {b.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {FAMILIES.some((f) => (familyCodes[f.key] ?? "").trim()) && (
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                        Campus-wide
+                        Per-Course
                       </p>
-                      <div className="flex flex-col gap-1.5">
-                        {[
-                          { emoji: "📚", label: "Course Catalog", q: `${campus.school_name} course catalog accounting` },
-                          { emoji: "🎓", label: "Accounting Degree Plan", q: `${campus.school_name} accounting degree plan` },
-                          { emoji: "🧾", label: "Accounting Courses", q: `${campus.school_name} accounting courses` },
-                          { emoji: "📖", label: "Undergraduate Catalog", q: `${campus.school_name} undergraduate catalog accounting` },
-                          { emoji: "🏫", label: "Accounting Department", q: `${campus.school_name} accounting department` },
-                          { emoji: "📋", label: "Accounting Curriculum", q: `${campus.school_name} accounting curriculum` },
-                          { emoji: "🛒", label: "Bookstore", q: `${campus.school_name} bookstore accounting` },
-                        ].map((b) => (
-                          <Button
-                            key={b.label}
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="w-full justify-start h-8 text-xs gap-2 font-normal"
-                            onClick={() => openExternal(googleUrl(b.q))}
-                          >
-                            <span>{b.emoji}</span> {b.label}
-                          </Button>
-                        ))}
+                      <div className="space-y-2">
+                        {FAMILIES.map((f) => {
+                          const code = (familyCodes[f.key] ?? "").trim();
+                          if (!code) return null;
+                          return (
+                            <div key={f.key} className="rounded-md border bg-background/60 p-2 space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium">{f.shortLabel}</span>
+                                <Badge variant="outline" className="font-mono text-[10px]">{code}</Badge>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} textbook`))}>
+                                  🔍 Textbook
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} syllabus`))}>
+                                  🔍 Syllabus
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} bookstore ${code}`))}>
+                                  🔍 Bookstore
+                                </Button>
+                                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code}`))}>
+                                  🔍 Google
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    {FAMILIES.some((f) => (familyCodes[f.key] ?? "").trim()) && (
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                          Per-Course
-                        </p>
-                        <div className="space-y-2">
-                          {FAMILIES.map((f) => {
-                            const code = (familyCodes[f.key] ?? "").trim();
-                            if (!code) return null;
-                            return (
-                              <div key={f.key} className="rounded-md border bg-background/60 p-2 space-y-1.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-medium">{f.shortLabel}</span>
-                                  <Badge variant="outline" className="font-mono text-[10px]">{code}</Badge>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} textbook`))}>
-                                    🔍 Textbook
-                                  </Button>
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code} syllabus`))}>
-                                    🔍 Syllabus
-                                  </Button>
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} bookstore ${code}`))}>
-                                    🔍 Bookstore
-                                  </Button>
-                                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openExternal(googleUrl(`${campus.school_name} ${code}`))}>
-                                    🔍 Google
-                                  </Button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
 
           {aiResult && (
@@ -728,7 +749,23 @@ export default function ApproveCampusModal({
 
           <Tabs value={step} onValueChange={setStep} className="mt-2">
             {/* STEP 1 — Course Details */}
-            <TabsContent value="1" className="space-y-4 pt-4">
+            <TabsContent value="1" className="space-y-3 pt-3">
+              {(() => {
+                const found = FAMILIES.filter((f) => (familyCodes[f.key] ?? "").trim());
+                const missing = FAMILIES.filter((f) => !(familyCodes[f.key] ?? "").trim());
+                return (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs">
+                    <span className="font-semibold">Course codes found: {found.length}/4</span>
+                    {missing.length > 0 ? (
+                      <span className="text-muted-foreground">
+                        Missing: {missing.map((m) => m.shortLabel).join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-700">All four families have a code.</span>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="grid gap-1 min-w-[280px] flex-1">
                   <span className="text-xs font-medium text-muted-foreground">
@@ -847,7 +884,7 @@ export default function ApproveCampusModal({
             </TabsContent>
 
             {/* STEP 2 — Textbook Research */}
-            <TabsContent value="2" className="space-y-3 pt-4">
+            <TabsContent value="2" className="space-y-2 pt-3">
               <p className="text-xs text-muted-foreground">
                 Research each course's textbook. Use the quick-search buttons, then set status.
               </p>
@@ -986,17 +1023,29 @@ export default function ApproveCampusModal({
             </TabsContent>
 
             {/* STEP 3 — Lead Review (Phase 4) */}
-            <TabsContent value="3" className="space-y-3 pt-4">
+            <TabsContent value="3" className="space-y-2 pt-3">
               <div className="flex items-start justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  Run AI research, then accept the leads you want to import into the outreach queue.
-                  AI suggestions never become real leads until you import them.
-                </p>
-                <div className="flex items-center gap-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Run AI research, then accept the leads you want in the outreach queue.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Accepting a lead does <strong>not</strong> email them. <strong>Import Accepted Leads</strong> moves them into the outreach lead list.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => setStep("2")}>Previous</Button>
                   <Button size="sm" onClick={() => setStep("4")}>Next Step</Button>
                 </div>
               </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
+                <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
+                <Badge variant="outline" className="font-normal border-amber-500/40 text-amber-700">Needs Lee: {leadSummary.needs_lee}</Badge>
+                <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
+              </div>
+
 
               <LeadSuggestionsPanel
                 campusId={campus.id}
@@ -1020,7 +1069,7 @@ export default function ApproveCampusModal({
             </TabsContent>
 
             {/* STEP 4 — Approval Summary */}
-            <TabsContent value="4" className="space-y-3 pt-4">
+            <TabsContent value="4" className="space-y-2 pt-3">
               <p className="text-xs text-muted-foreground">Review your decisions, then approve.</p>
 
               <div className="rounded-lg border divide-y">
@@ -1114,56 +1163,77 @@ export default function ApproveCampusModal({
                 </div>
               </div>
 
-              {/* Phase 4 — Approval summary checklist */}
+              {/* Phase 5 — Final checklist + missing reasons */}
               {(() => {
                 const textbooksReviewed = step2Done;
-                const recommendation =
-                  step1Done && textbooksReviewed && leadSummary.accepted > 0
-                    ? { label: "Ready for outreach", cls: "bg-emerald-600 text-white" }
-                    : leadSummary.needs_lee > 0
-                    ? { label: "Needs Lee", cls: "bg-amber-500 text-white" }
-                    : { label: "Needs more research", cls: "bg-muted text-muted-foreground" };
+                const leadsReviewed = step3Done;
+                const landingPageReady = !!campus.landing_page_reviewed;
+                const readyForOutreach = step1Done && textbooksReviewed && leadsReviewed;
+                const checklist: Array<{ label: string; done: boolean; tone: "ok" | "todo" | "info" }> = [
+                  { label: "Course codes reviewed", done: step1Done, tone: step1Done ? "ok" : "todo" },
+                  { label: "Textbooks reviewed", done: textbooksReviewed, tone: textbooksReviewed ? "ok" : "todo" },
+                  { label: "Leads reviewed", done: leadsReviewed, tone: leadsReviewed ? "ok" : "todo" },
+                  { label: "Landing page ready", done: landingPageReady, tone: landingPageReady ? "ok" : "info" },
+                  { label: "Ready for outreach", done: readyForOutreach, tone: readyForOutreach ? "ok" : "todo" },
+                ];
+
+                const missing: string[] = [];
+                if (!step1Done) missing.push("At least one course code is required.");
+                for (const f of FAMILIES) {
+                  const s = (familyStatus[f.key] ?? "not_checked") as FamilyStatus;
+                  if (s === "not_checked") missing.push(`${f.shortLabel} textbook status is still Not Checked.`);
+                }
+                if (!step3Done) missing.push("Lead review not finished — accept at least one lead or tick the “skip lead import” box on Lead Review.");
+
                 return (
                   <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold">Approval Summary</div>
-                      <Badge className={`text-[11px] ${recommendation.cls}`}>{recommendation.label}</Badge>
-                    </div>
-                    <ul className="space-y-1">
-                      <li>
-                        <span className="font-medium">Course Details:</span>{" "}
-                        {step1Done ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
-                        {" — "}{codesArray.length} course code{codesArray.length === 1 ? "" : "s"}
-                      </li>
-                      <li>
-                        <span className="font-medium">Textbooks:</span>{" "}
-                        {textbooksReviewed ? <span className="text-emerald-700">reviewed</span> : <span className="text-amber-700">missing</span>}
-                      </li>
-                      <li>
-                        <span className="font-medium">Leads:</span>{" "}
-                        {leadSummary.total} suggested · {leadSummary.accepted} accepted · {leadSummary.needs_lee} needs Lee
-                        {skipLeadImport && <span className="ml-1 text-muted-foreground">(skipped for now)</span>}
-                      </li>
+                    <div className="text-sm font-semibold">Final Checklist</div>
+                    <ul className="grid gap-1 sm:grid-cols-2">
+                      {checklist.map((c) => (
+                        <li key={c.label} className="flex items-center gap-1.5">
+                          {c.done ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          ) : c.tone === "info" ? (
+                            <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          )}
+                          <span className={c.done ? "" : c.tone === "info" ? "text-muted-foreground" : "text-amber-800"}>
+                            {c.label}
+                          </span>
+                        </li>
+                      ))}
                     </ul>
+                    {missing.length > 0 && (
+                      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800">
+                        <div className="font-semibold mb-0.5">Cannot approve yet:</div>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {missing.map((m) => <li key={m}>{m}</li>)}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
-
-              {!canApprove && (
-                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    Complete all steps before approving: at least one course code, a status set for every textbook family,
-                    and either accept at least one AI-suggested lead or check the “skip lead import” box on Lead Review.
-                  </span>
-                </div>
-              )}
             </TabsContent>
 
           </Tabs>
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={onClose}>Close</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!campus) return;
+                onPatch(campus.id, { approval_status: "needs_fix" });
+                toast.success("Flagged for Lee's review");
+                onClose();
+              }}
+              className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Mark Needs Lee
+            </Button>
             <Button
               disabled={!canApprove}
               onClick={approve}
@@ -1173,6 +1243,7 @@ export default function ApproveCampusModal({
               Approve Campus
             </Button>
           </DialogFooter>
+
         </DialogContent>
       </Dialog>
     </TooltipProvider>
