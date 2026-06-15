@@ -884,7 +884,7 @@ export default function ApproveCampusModal({
             </TabsContent>
 
             {/* STEP 2 — Textbook Research */}
-            <TabsContent value="2" className="space-y-3 pt-4">
+            <TabsContent value="2" className="space-y-2 pt-3">
               <p className="text-xs text-muted-foreground">
                 Research each course's textbook. Use the quick-search buttons, then set status.
               </p>
