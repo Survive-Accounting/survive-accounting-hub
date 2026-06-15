@@ -1,117 +1,68 @@
-## Phase 4 — Course Availability Engine
+# Fix: AI Research debug never persists + crash after leads succeed
 
-Drive landing-page CTAs (Book / Waitlist / Hide) from course-family availability + textbook match status, with global defaults Lee can flip each semester and per-campus overrides.
+## What we know from the USC run
 
----
+- `research-campus-leads` succeeded server-side (13 leads inserted into DB).
+- The modal "crashed" after that.
+- `campuses.ai_research_debug_json` is still `null` ("no runs recorded").
 
-### 1. Database changes (one migration)
+## Root cause
 
-**a. Extend `outreach_settings`** (singleton row) with global course-family defaults:
+`ApproveCampusModal.runAiResearch()` only writes the debug blob **once, at the very end** via `persistDebug → writePatch → onPatch → patchCampusDb`. That single save is fragile:
 
-- `intro_1_availability text not null default 'available'`
-- `intro_2_availability text not null default 'available'`
-- `intermediate_1_availability text not null default 'waitlist'`
-- `intermediate_2_availability text not null default 'waitlist'`
+1. `writePatch` silently no-ops if `campus` is null. If the modal closes or the parent swaps `reviewing` mid-run, the debug is dropped.
+2. `patchCampusDb` errors are caught in `routes/outreach.tsx` and only `console.error`'d — no toast, no retry.
+3. If the React tree throws while re-rendering after 13 new leads come back (a common cause of "it crashed"), the line after `await runLeadResearch()` never executes and `persistDebug` is never called.
+4. There's no `ErrorBoundary` around the modal, so a render crash kills the whole screen with no breadcrumb.
 
-CHECK each in `('available','waitlist','unavailable')`.
+Net effect: every failure mode produces the exact symptom you're seeing — leads exist in DB, debug blob is still `null`.
 
-**b. New table `public.campus_course_availability`** (one row per campus × course family — the per-campus override layer):
+## Fix plan (minimal, surgical)
 
-| column | type | notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `campus_id` | uuid FK → campuses(id) ON DELETE CASCADE | |
-| `course_family` | text | CHECK in (`intro_1`,`intro_2`,`intermediate_1`,`intermediate_2`) |
-| `textbook_match_status` | text | CHECK in (`matched`,`likely_match`,`not_matched`,`unknown`), default `unknown` |
-| `tutoring_availability` | text nullable | CHECK in (`available`,`waitlist`,`unavailable`); NULL = inherit global default |
-| `requires_syllabus_review` | boolean default false | |
-| `notes` | text | |
-| `created_at` / `updated_at` | timestamptz | `set_updated_at` trigger |
+### 1. Persist debug incrementally, directly to DB
 
-Unique `(campus_id, course_family)`. Index on `campus_id`. GRANTS: anon SELECT (landing page reads), authenticated full, service_role all. RLS: anon read, auth all.
+In `src/components/outreach/ApproveCampusModal.tsx`:
 
-**Effective availability = `coalesce(row.tutoring_availability, outreach_settings.<family>_availability)`** — computed in JS, no view needed.
+- Replace `persistDebug` so it (a) updates local state, (b) `await`s `patchCampusDb(campusId, { ai_research_debug_json: next })` directly using the captured `campus.id` (not the possibly-null `campus` ref), and (c) on failure shows a toast like "Couldn't save debug log: …" so silent drops become visible.
+- Write a debug snapshot **at three points**, not one:
+  - **Start of `runAiResearch`**: `{ last_run_at: now, course: { status: "running", started_at }, leads: { status: "pending" } }` so a crash mid-run still leaves a trace.
+  - **Immediately after `runCourseResearch` returns** (before starting leads).
+  - **Immediately after `runLeadResearch` returns**.
+- Same for `rerunCourseOnly` / `rerunLeadsOnly`.
 
-**c. Re-use `outreach_waitlist_signups`** for waitlist captures. Add columns if missing:
+### 2. Make `runAiResearch` crash-proof
 
-- `course_family text` (which family they joined)
-- `syllabus_file_path text` (Storage object key)
-- `notes text`
+Wrap the body in `try/catch/finally`:
+- `catch` records `{ status: "failed", error: String(e), ... }` into whichever phase was active and persists it.
+- `finally` always persists the final snapshot and clears `setAiResearching(false)`.
 
-(Name / email / phone / school / course already covered by existing columns — verify in migration and add only what's missing.)
+### 3. Surface DB write failures globally
 
-**d. Storage bucket** `course-syllabi` (public read off, anon insert allowed via signed-upload policy) for syllabus uploads from the landing page.
+In `src/routes/outreach.tsx` `patchCampus`, replace the silent `.catch((e) => …)` with a `toast.error` so any future "debug not saving" issue is loud.
 
----
+### 4. Wrap the modal in an ErrorBoundary
 
-### 2. API layer (`src/lib/outreach-api.ts`)
+Add a tiny `ResearchErrorBoundary` around `<ApproveCampusModal …/>` in `src/routes/outreach.tsx` that:
+- Catches render-time exceptions.
+- Renders a fallback with the error message + a "Copy details" button.
+- Logs `error.stack` to console so we can see what blew up after the 13 leads landed.
 
-Additive — no existing function changes:
+This is what will actually tell us why USC crashed.
 
-- `getOutreachSettings()` / `updateCourseFamilyDefault(family, value)`
-- `getCampusCourseAvailability(campusId)` → returns 4 rows (auto-seed missing families with defaults on first read)
-- `upsertCampusCourseAvailability(campusId, family, patch)`
-- `getEffectiveCourseAvailability(campusId)` — merges overrides with global defaults, returns `{ family, effective, textbook_match_status, requires_syllabus_review }[]`
-- `submitCourseWaitlist(payload)` — writes `outreach_waitlist_signups` + optional syllabus upload
+### 5. Diagnose the USC crash post-deploy
 
-TypeScript types: `CourseFamily`, `TutoringAvailability`, `TextbookMatchStatus`, `CampusCourseAvailability`.
+After the above ships:
+- Re-run AI research on USC.
+- If it crashes again, the ErrorBoundary will show the real error and the partial debug blob will already be in `ai_research_debug_json` (course done, leads either `running` or with full payload), so we can pinpoint the failing render path (most likely a malformed lead object in Step 3 / leads table).
 
----
+### 6. Out of scope for this turn
 
-### 3. Admin UI
+- The "batch run across 170 campuses" goal. Once the per-campus flow stops dropping debug and we know what was crashing, we'll add a small admin "Run AI research for queue" action in a follow-up — it depends on this flow being trustworthy first.
 
-**a. Outreach Settings → new "Course Availability" section** (new component `CourseAvailabilitySettings.tsx`, slotted into the existing settings area on the Email Queue tab via `ScheduleAndSettingsPanel`):
+## Files changed
 
-Four rows, each a 3-way segmented control (Available / Waitlist / Unavailable). Saves to `outreach_settings`. Helper copy: "Global defaults. Individual campuses can override."
+- `src/components/outreach/ApproveCampusModal.tsx` — incremental persist, try/catch/finally in `runAiResearch`, direct `patchCampusDb` from `persistDebug`.
+- `src/routes/outreach.tsx` — toast on `patchCampus` failure, wrap modal in `ResearchErrorBoundary`.
+- `src/components/outreach/ResearchErrorBoundary.tsx` *(new, ~40 lines)* — minimal class boundary with copy-details fallback.
 
-**b. `ApproveCampusModal.tsx` — new "Course Availability" sub-section**:
-
-For each of the 4 families show:
-- Textbook match status dropdown (matched / likely / not_matched / unknown)
-- Tutoring availability override (Inherit / Available / Waitlist / Unavailable) — Inherit shows the resolved global default inline
-- "Requires syllabus review" checkbox
-
-**Approval rule wired in:** when Lee saves the modal, any family where `textbook_match_status != 'matched'` AND override is still `Inherit` is auto-set to `waitlist` (override row written, not the global). He can manually flip back to Available afterward.
-
----
-
-### 4. Landing page logic (`src/routes/outreach_.school.$slug.tsx` + `Hero` / new `CourseCtaList`)
-
-Replace the current single "Book Tutoring" CTA with a per-course list driven by `getEffectiveCourseAvailability(campusId)`:
-
-For each family present on the campus:
-
-- `matched` + `available` → **Book Tutoring** button (opens existing `BookTutoringModal`, pre-fills course)
-- `waitlist` (any match status) → **Join Waitlist** + **Upload Syllabus** buttons (opens new `CourseWaitlistModal`)
-- `unavailable` → hide row entirely
-
-The existing course-codes strip stays. Hybrid campuses (Intro available, Intermediate waitlist) work naturally because each family is evaluated independently.
-
-**New component `CourseWaitlistModal.tsx`** — fields: name, email, phone (prefilled school + course family), syllabus file input (uploads to `course-syllabi`), notes. Posts via `submitCourseWaitlist`.
-
----
-
-### 5. Files touched
-
-**New**
-- `supabase/migrations/<ts>_course_availability_engine.sql`
-- `src/components/outreach/CourseAvailabilitySettings.tsx`
-- `src/components/landing/CourseCtaList.tsx`
-- `src/components/landing/CourseWaitlistModal.tsx`
-
-**Edited**
-- `src/lib/outreach-api.ts` — new functions + types
-- `src/components/outreach/ApproveCampusModal.tsx` — course availability section + auto-waitlist-on-save rule
-- `src/components/outreach/ScheduleAndSettingsPanel.tsx` — mount `CourseAvailabilitySettings`
-- `src/routes/outreach_.school.$slug.tsx` — render `CourseCtaList`, keep current Hero as fallback when no families configured
-
-**Untouched**
-- Existing `BookTutoringModal`, manual lead import, AI lead suggestion flow, campus-level booking — none of this changes.
-
----
-
-### 6. Open questions before I build
-
-1. **Where do the 4 course families live per campus today?** `campuses.course_codes` is a free-text array (e.g. `["ACCT 201", "ACCT 311"]`). Should I (a) ask Lee to tag each course code with a family in the Approve modal, or (b) auto-classify by keyword (201/2010 → intro_1, 311/3110 → intermediate_1, etc.) with a manual override? Option (b) is faster but fuzzy.
-2. **Waitlist storage bucket** — OK to enable anon uploads to a new `course-syllabi` bucket (size cap + mime filter)? Alternative is emailing the syllabus to Lee instead of storing it.
-3. **Should the global defaults section live on the Email Queue tab** (where `ScheduleAndSettingsPanel` already is) **or under a new Settings tab**? Defaulting to the existing panel to avoid a new tab.
+No DB schema changes. No edge function changes. No UI redesign.
