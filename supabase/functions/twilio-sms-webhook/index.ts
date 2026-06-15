@@ -164,19 +164,16 @@ Deno.serve(async (req) => {
   const campusLabel = campus?.name ?? to;
 
   if (isFirst && !convo.opener_sent) {
-    // Queue Lee's scripted opener with a human-feel delay, then the follow-up.
-    const delay = OPENER_DELAY_MIN_SECONDS + Math.floor(Math.random() * (OPENER_DELAY_MAX_SECONDS - OPENER_DELAY_MIN_SECONDS));
-    const t1 = new Date(Date.now() + delay * 1000).toISOString();
-    const t2 = new Date(Date.now() + (delay + FOLLOWUP_GAP_SECONDS) * 1000).toISOString();
-    await admin.from("sms_outbox").insert([
-      { conversation_id: convo.id, body: openerBody(campus?.slug ?? null), send_at: t1 },
-      { conversation_id: convo.id, body: FOLLOWUP_BODY, send_at: t2 },
-    ]);
+    // Send the scripted questions instantly (no delay, no follow-up).
+    const sentSid = await twilioSend(to, from, QUESTIONS_BODY);
+    await admin.from("sms_messages").insert({
+      conversation_id: convo.id, direction: "out", author: "auto", body: QUESTIONS_BODY, twilio_sid: sentSid,
+    });
     await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
 
     if (LEE_PHONE) {
       await twilioSend(to, LEE_PHONE,
-        `#${convo.short_ref} New student text — ${campusLabel}\nFrom ${from}: "${body}"\nAuto-reply queued (~${Math.round(delay / 60)} min). Reply to this thread to jump in yourself.`);
+        `#${convo.short_ref} New student text — ${campusLabel}\nFrom ${from}: "${body}"\nAuto-questions sent. Reply to this thread to jump in yourself.`);
     }
     return twiml();
   }
