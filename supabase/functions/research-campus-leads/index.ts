@@ -39,7 +39,7 @@ function buildPrompt(campus: Record<string, any>) {
   const site = campus.website_url ?? "";
   const domain = campus.email_domain ?? (Array.isArray(campus.domains) ? campus.domains[0] : "") ?? "";
 
-  return `You are researching the accounting department at "${name}"${state ? `, ${state}` : ""}, USA, to find faculty and staff a tutoring business should contact. USE GOOGLE SEARCH AGGRESSIVELY — open the actual department, faculty directory, and Beta Alpha Psi pages. Do NOT rely on memory.
+  return `You are researching the accounting department at "${name}"${state ? `, ${state}` : ""}, USA, to find faculty and staff a tutoring business should contact. USE GOOGLE SEARCH AGGRESSIVELY — open the actual department, faculty directory, course schedule, registrar class search, public syllabi, and Beta Alpha Psi pages. Do NOT rely on memory.
 
 Known context:
 - Department name (if known): ${dept || "unknown"}
@@ -64,12 +64,34 @@ Map each person to one of these "lead_type" values:
 - "tutoring_center"  — accounting/business tutoring or academic support contact
 - "other"            — anything else that still qualifies
 
-RULES (these matter — a careful blank beats a confident fabrication):
+TEACHING-ASSIGNMENT ENRICHMENT (HIGH PRIORITY):
+For each professor / instructor, try to determine whether they teach any of these
+four course families. Search PUBLIC pages only: faculty profile, accounting
+department, course schedule, registrar class search, public syllabi, business-school
+pages. Do NOT use Rate My Professors. Do NOT scrape pages requiring login.
+
+Course families:
+- "intro_1"          — Intro / Principles of Financial Accounting (ACCT 200/201/2010/2110 style)
+- "intro_2"          — Intro / Principles of Managerial Accounting (ACCT 202/2120 style)
+- "intermediate_1"   — Intermediate Accounting I (first semester intermediate financial)
+- "intermediate_2"   — Intermediate Accounting II (second semester intermediate financial)
+
+Rules for teaching assignment:
+- DO NOT GUESS. If you cannot confirm from a public page, leave the four booleans
+  false and explain the uncertainty in "teaching_evidence_notes".
+- Set "teaching_evidence_url" to the public page where the assignment was found.
+- "courses_found" is an array of objects you actually saw on a public page:
+    { "course_code": "ACCT 2010", "course_title": "Financial Accounting",
+      "course_family": "intro_1"|"intro_2"|"intermediate_1"|"intermediate_2"|"other",
+      "term": "Fall 2025"|null, "source_url": "https://..." }
+  Use "other" for accounting courses outside the four families.
+
+GENERAL RULES (a careful blank beats a confident fabrication):
 1. NEVER invent an email. If you can't see the actual email on a real source, leave email null and explain in "notes".
 2. Every non-null field MUST be supported by "source_url" (a URL you actually opened). No source => null + a note.
 3. is_phd / is_cpa: if uncertain, return false and say why in "notes".
 4. confidence: "high" = stated on an official department/faculty page; "medium" = secondary but plausible; "low" = weak/ambiguous, human must verify.
-5. Return AT MOST 25 people. Quality over quantity. Skip people you can't reasonably justify.
+5. Return AT MOST 25 people. Quality over quantity.
 
 Respond with ONLY a single JSON object (no prose, no markdown fences) in EXACTLY this shape:
 
@@ -86,7 +108,18 @@ Respond with ONLY a single JSON object (no prose, no markdown fences) in EXACTLY
       "is_cpa": boolean,
       "source_url": string|null,
       "confidence": "high"|"medium"|"low",
-      "notes": string|null
+      "notes": string|null,
+      "teaches_intro_1": boolean,
+      "teaches_intro_2": boolean,
+      "teaches_intermediate_1": boolean,
+      "teaches_intermediate_2": boolean,
+      "courses_found": [
+        { "course_code": string|null, "course_title": string|null,
+          "course_family": "intro_1"|"intro_2"|"intermediate_1"|"intermediate_2"|"other",
+          "term": string|null, "source_url": string|null }
+      ],
+      "teaching_evidence_url": string|null,
+      "teaching_evidence_notes": string|null
     }
   ]
 }`;
