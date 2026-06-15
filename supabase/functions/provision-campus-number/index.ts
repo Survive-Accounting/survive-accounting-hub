@@ -23,7 +23,38 @@ Deno.serve(async (req) => {
     if (!TWILIO_SID || !TWILIO_TOKEN) {
       return new Response(JSON.stringify({ error: "Twilio secrets not set" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
     }
-    const { campus_id, global: isGlobal } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { campus_id, global: isGlobal, release_sid, release_campus_id } = body as {
+      campus_id?: string; global?: boolean; release_sid?: string; release_campus_id?: string;
+    };
+
+    // Release mode — relinquish a Twilio number and drop its row.
+    if (release_sid || release_campus_id) {
+      let sid = release_sid ?? null;
+      let row: { id: string; twilio_sid: string; phone_e164: string } | null = null;
+      if (release_campus_id) {
+        const { data } = await admin.from("campus_phone_numbers")
+          .select("id,twilio_sid,phone_e164").eq("campus_id", release_campus_id).maybeSingle();
+        row = (data as any) ?? null;
+        sid = sid ?? row?.twilio_sid ?? null;
+      } else if (sid) {
+        const { data } = await admin.from("campus_phone_numbers")
+          .select("id,twilio_sid,phone_e164").eq("twilio_sid", sid).maybeSingle();
+        row = (data as any) ?? null;
+      }
+      if (!sid) return new Response(JSON.stringify({ error: "no twilio_sid to release" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+      const del = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/IncomingPhoneNumbers/${sid}.json`, {
+        method: "DELETE", headers: { Authorization: twilioAuth },
+      });
+      const twilioOk = del.status === 204 || del.status === 404;
+      const twilioBody = twilioOk ? null : await del.text().catch(() => "");
+      if (row?.id) await admin.from("campus_phone_numbers").delete().eq("id", row.id);
+      return new Response(JSON.stringify({
+        ok: twilioOk, released_sid: sid, released_phone: row?.phone_e164 ?? null,
+        twilio_status: del.status, twilio_error: twilioOk ? null : twilioBody,
+      }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
     if (!campus_id && !isGlobal) return new Response(JSON.stringify({ error: "campus_id or global required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
 
     let q = admin.from("campus_phone_numbers").select("phone_e164");
