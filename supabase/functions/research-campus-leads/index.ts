@@ -204,8 +204,16 @@ Deno.serve(async (req) => {
   }
 
   const cleaned = sanitize(parsed);
+  const sources = Array.from(new Set(cleaned.map((s: any) => s.source_url).filter((u: any) => typeof u === "string")));
+  const debug = {
+    model: MODEL,
+    raw_text: text.length > 60000 ? text.slice(0, 60000) + "…[truncated]" : text,
+    raw_text_chars: text.length,
+    parsed_lead_count: cleaned.length,
+    sources,
+  };
   if (cleaned.length === 0) {
-    return json({ success: true, campus_id, inserted_count: 0, skipped_duplicate_count: 0, suggestions: [] });
+    return json({ success: true, campus_id, inserted_count: 0, skipped_duplicate_count: 0, suggestions: [], debug });
   }
 
   // Load existing suggestions for this campus to dedupe.
@@ -272,6 +280,7 @@ Deno.serve(async (req) => {
         partial: true,
         insert_error: insErr.message,
         suggestions: okRows,
+        debug,
       });
     }
     inserted = ins ?? [];
@@ -283,5 +292,6 @@ Deno.serve(async (req) => {
     inserted_count: inserted.length,
     skipped_duplicate_count: skipped,
     suggestions: inserted,
+    debug,
   });
 });

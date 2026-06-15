@@ -2,7 +2,7 @@
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, BookOpen, Check, CheckCircle2, ExternalLink, FileText, Loader2, Save, Sparkles, Store, Wand2,
+  AlertTriangle, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Wand2, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Info } from "lucide-react";
 import type { Campus, CourseFamilyTerms } from "@/lib/outreach-mock";
@@ -531,39 +532,190 @@ export default function ApproveCampusModal({
     });
   };
 
-  const runAiResearch = async () => {
-    if (!campus || aiResearching) return;
-    setAiResearching(true);
-    const t = toast.loading("Researching the web — this can take up to a minute…");
+  // ============ Debug capture for Research Debug Panel ============
+  type RunStatus = "success" | "failed";
+  type ResearchRunDebug = {
+    status: RunStatus;
+    started_at: string;
+    duration_ms: number;
+    error: string | null;
+    model: string | null;
+    finish_reason: string | null;
+    raw_text: string | null;
+    raw_text_chars: number;
+    sources: string[];
+    counts: Record<string, number>;
+  };
+  type ResearchDebugBlob = {
+    last_run_at: string | null;
+    course?: ResearchRunDebug;
+    leads?: ResearchRunDebug;
+  };
+  const [debugBlob, setDebugBlob] = useState<ResearchDebugBlob>({ last_run_at: null });
+
+  // Hydrate debug from existing campus row when modal opens
+  useEffect(() => {
+    if (!campus) return;
+    const existing = (campus.ai_research_debug_json ?? null) as ResearchDebugBlob | null;
+    setDebugBlob(existing ?? { last_run_at: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campus?.id]);
+
+  const persistDebug = (next: ResearchDebugBlob) => {
+    setDebugBlob(next);
+    writePatch({ ai_research_debug_json: next });
+  };
+
+  const [courseRunning, setCourseRunning] = useState(false);
+  const [leadsRunning, setLeadsRunning] = useState(false);
+
+  const runCourseResearch = async (): Promise<ResearchRunDebug | null> => {
+    if (!campus) return null;
+    setCourseRunning(true);
+    const startedAt = new Date().toISOString();
+    const t0 = performance.now();
     try {
       const r = await researchCampusAI({
         school_name: campus.school_name,
         state: campus.state,
         course_codes: campus.course_codes,
       });
+      const dur = Math.round(performance.now() - t0);
       if (!r.ok || !r.result) {
-        toast.error(r.error ?? "Research failed", { id: t });
-        return;
+        const d: ResearchRunDebug = {
+          status: "failed", started_at: startedAt, duration_ms: dur,
+          error: r.error ?? "Research failed",
+          model: r.debug?.model ?? null,
+          finish_reason: r.debug?.finish_reason ?? null,
+          raw_text: r.debug?.raw_text ?? null,
+          raw_text_chars: r.debug?.raw_text_chars ?? 0,
+          sources: r.debug?.sources ?? [],
+          counts: {},
+        };
+        return d;
       }
       setAiResult(r.result);
       setAiTouched(new Set());
       applySuggestions(r.result);
-      toast.success("AI suggestions added — review every field before approving.", { id: t });
+      const fams = Object.values(r.result.families) as any[];
+      const counts = {
+        parsed_course_count: fams.filter((f) => f?.code?.value || f?.title?.value).length,
+        parsed_textbook_count: fams.filter((f) => f?.textbook_status?.value).length,
+      };
+      return {
+        status: "success", started_at: startedAt, duration_ms: dur, error: null,
+        model: r.debug?.model ?? null,
+        finish_reason: r.debug?.finish_reason ?? null,
+        raw_text: r.debug?.raw_text ?? null,
+        raw_text_chars: r.debug?.raw_text_chars ?? 0,
+        sources: r.debug?.sources ?? [],
+        counts,
+      };
+    } catch (e: any) {
+      return {
+        status: "failed", started_at: startedAt, duration_ms: Math.round(performance.now() - t0),
+        error: String(e?.message ?? e), model: null, finish_reason: null,
+        raw_text: null, raw_text_chars: 0, sources: [], counts: {},
+      };
+    } finally {
+      setCourseRunning(false);
+    }
+  };
 
-      // Best-effort: also kick off lead research. The LeadSuggestionsPanel on Step 3
-      // re-reads from the staging table when the user navigates there.
-      try {
-        const { data, error } = await supabase.functions.invoke("research-campus-leads", {
-          body: { campus_id: campus.id },
-        });
-        if (error) throw error;
-        const d = data as any;
-        if (d?.inserted_count != null) {
-          toast.success(`Added ${d.inserted_count} suggested lead${d.inserted_count === 1 ? "" : "s"} for review on Step 3.`);
-        }
-      } catch (e: any) {
-        toast.message("Lead research couldn't run automatically — open Step 3 to run it manually.");
+  const runLeadResearch = async (): Promise<ResearchRunDebug | null> => {
+    if (!campus) return null;
+    setLeadsRunning(true);
+    const startedAt = new Date().toISOString();
+    const t0 = performance.now();
+    try {
+      const { data, error } = await supabase.functions.invoke("research-campus-leads", {
+        body: { campus_id: campus.id },
+      });
+      const dur = Math.round(performance.now() - t0);
+      if (error) {
+        let msg = error.message ?? "Lead research failed";
+        try {
+          const ctx = (error as any).context;
+          if (ctx) {
+            const j = await ctx.json();
+            msg = j?.detail ?? j?.error ?? msg;
+          }
+        } catch { /* keep */ }
+        return {
+          status: "failed", started_at: startedAt, duration_ms: dur, error: msg,
+          model: null, finish_reason: null, raw_text: null, raw_text_chars: 0,
+          sources: [], counts: {},
+        };
       }
+      const d = data as any;
+      const dbg = d?.debug ?? {};
+      return {
+        status: "success", started_at: startedAt, duration_ms: dur, error: null,
+        model: dbg.model ?? null, finish_reason: null,
+        raw_text: dbg.raw_text ?? null,
+        raw_text_chars: dbg.raw_text_chars ?? 0,
+        sources: dbg.sources ?? [],
+        counts: {
+          parsed_lead_count: dbg.parsed_lead_count ?? 0,
+          saved_lead_count: d?.inserted_count ?? 0,
+          skipped_duplicate_count: d?.skipped_duplicate_count ?? 0,
+        },
+      };
+    } catch (e: any) {
+      return {
+        status: "failed", started_at: startedAt, duration_ms: Math.round(performance.now() - t0),
+        error: String(e?.message ?? e), model: null, finish_reason: null,
+        raw_text: null, raw_text_chars: 0, sources: [], counts: {},
+      };
+    } finally {
+      setLeadsRunning(false);
+    }
+  };
+
+  const rerunCourseOnly = async () => {
+    const t = toast.loading("Re-running course research…");
+    const d = await runCourseResearch();
+    if (!d) { toast.dismiss(t); return; }
+    persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), course: d });
+    d.status === "success"
+      ? toast.success("Course research updated", { id: t })
+      : toast.error(d.error ?? "Course research failed", { id: t });
+  };
+
+  const rerunLeadsOnly = async () => {
+    const t = toast.loading("Re-running lead research…");
+    const d = await runLeadResearch();
+    if (!d) { toast.dismiss(t); return; }
+    persistDebug({ ...debugBlob, last_run_at: new Date().toISOString(), leads: d });
+    d.status === "success"
+      ? toast.success(`Leads updated — ${d.counts.saved_lead_count ?? 0} new`, { id: t })
+      : toast.error(d.error ?? "Lead research failed", { id: t });
+  };
+
+  const runAiResearch = async () => {
+    if (!campus || aiResearching) return;
+    setAiResearching(true);
+    const t = toast.loading("Researching the web — this can take up to a minute…");
+    try {
+      const courseDebug = await runCourseResearch();
+      let leadDebug: ResearchRunDebug | null = null;
+      if (courseDebug?.status === "success") {
+        toast.success("AI suggestions added — review every field before approving.", { id: t });
+        leadDebug = await runLeadResearch();
+        if (leadDebug?.status === "success") {
+          const n = leadDebug.counts.saved_lead_count ?? 0;
+          toast.success(`Added ${n} suggested lead${n === 1 ? "" : "s"} for review on Step 3.`);
+        } else if (leadDebug) {
+          toast.message("Lead research couldn't run automatically — open Research Debug for details.");
+        }
+      } else if (courseDebug) {
+        toast.error(courseDebug.error ?? "Research failed", { id: t });
+      }
+      persistDebug({
+        last_run_at: new Date().toISOString(),
+        course: courseDebug ?? debugBlob.course,
+        leads: leadDebug ?? debugBlob.leads,
+      });
     } finally {
       setAiResearching(false);
     }
@@ -1336,6 +1488,117 @@ export default function ApproveCampusModal({
             </TabsContent>
 
           </Tabs>
+
+          {/* ============ Research Debug (admin-only — modal is already AdminGate'd) ============ */}
+          <Collapsible className="mt-3 rounded-md border border-dashed bg-muted/20">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-xs font-medium hover:bg-muted/40"
+              >
+                <span className="flex items-center gap-2">
+                  <Bug className="h-3.5 w-3.5 text-muted-foreground" />
+                  Research Debug
+                  {debugBlob.last_run_at && (
+                    <span className="text-[10px] font-normal text-muted-foreground">
+                      · last run {new Date(debugBlob.last_run_at).toLocaleString()}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 border-t px-3 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={rerunCourseOnly} disabled={courseRunning}>
+                  {courseRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Re-run Course Research
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={rerunLeadsOnly} disabled={leadsRunning}>
+                  {leadsRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Re-run Lead Research
+                </Button>
+                <Button
+                  type="button" size="sm" variant="outline" className="h-7 text-xs gap-1.5"
+                  onClick={() => {
+                    const payload = JSON.stringify(debugBlob, null, 2);
+                    navigator.clipboard?.writeText(payload).then(
+                      () => toast.success("Debug data copied"),
+                      () => toast.error("Couldn't copy"),
+                    );
+                  }}
+                >
+                  <Clipboard className="h-3 w-3" /> Copy Debug Data
+                </Button>
+                <span className="text-[10px] text-muted-foreground">
+                  Internal troubleshooting only. API keys are never exposed.
+                </span>
+              </div>
+
+              {(["course", "leads"] as const).map((kind) => {
+                const run = debugBlob[kind];
+                const title = kind === "course" ? "Course Research" : "Lead Research";
+                if (!run) {
+                  return (
+                    <div key={kind} className="rounded-md border bg-background p-2.5 text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-foreground">{title}</span> — no runs recorded.
+                    </div>
+                  );
+                }
+                return (
+                  <div key={kind} className="rounded-md border bg-background p-2.5 space-y-2 text-[11px]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold">{title}</span>
+                      <Badge className={run.status === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}>
+                        {run.status === "success" ? <Check className="mr-1 h-3 w-3" /> : <XCircle className="mr-1 h-3 w-3" />}
+                        {run.status}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-muted-foreground sm:grid-cols-4">
+                      <div><span className="text-foreground/70">Last run:</span> {new Date(run.started_at).toLocaleString()}</div>
+                      <div><span className="text-foreground/70">Duration:</span> {run.duration_ms} ms</div>
+                      <div><span className="text-foreground/70">Model:</span> {run.model ?? "—"}</div>
+                      <div><span className="text-foreground/70">Raw chars:</span> {run.raw_text_chars}</div>
+                      {Object.entries(run.counts).map(([k, v]) => (
+                        <div key={k}><span className="text-foreground/70">{k}:</span> {v as number}</div>
+                      ))}
+                    </div>
+                    {run.error && (
+                      <div className="rounded border border-red-500/40 bg-red-500/5 px-2 py-1 text-red-700 dark:text-red-300">
+                        <span className="font-semibold">Error:</span> {run.error}
+                      </div>
+                    )}
+                    {run.sources.length > 0 && (
+                      <details>
+                        <summary className="cursor-pointer text-foreground/80 hover:text-foreground">
+                          Source URLs ({run.sources.length})
+                        </summary>
+                        <ul className="mt-1 space-y-0.5 pl-3">
+                          {run.sources.map((s) => (
+                            <li key={s}>
+                              <a href={s} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">
+                                {s}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {run.raw_text && (
+                      <details>
+                        <summary className="cursor-pointer text-foreground/80 hover:text-foreground">
+                          Raw AI response
+                        </summary>
+                        <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-2 font-mono text-[10px] leading-snug">
+                          {run.raw_text}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+            </CollapsibleContent>
+          </Collapsible>
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={onClose}>Close</Button>

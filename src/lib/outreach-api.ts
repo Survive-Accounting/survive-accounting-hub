@@ -14,7 +14,7 @@ const APPROVAL_VALUES: ApprovalStatus[] = ["not_reviewed", "needs_review", "appr
 const ASSIGNMENT_VALUES: AssignmentStatus[] = ["not_assigned", "assigned", "in_progress", "approved", "blocked"];
 
 const CAMPUS_SELECT =
-  "id,name,slug,state,region,is_sec,archived_at,accounting_department_name,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,course_family_textbooks_json,course_family_terms_json,use_school_colors,landing_page_reviewed";
+  "id,name,slug,state,region,is_sec,archived_at,accounting_department_name,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,course_family_textbooks_json,course_family_terms_json,ai_research_debug_json,use_school_colors,landing_page_reviewed";
 
 function extractCourseCodes(json: unknown): string[] {
   if (Array.isArray(json)) return json.filter((x): x is string => typeof x === "string");
@@ -110,6 +110,7 @@ export async function fetchCampuses(): Promise<Campus[]> {
       course_family_status_json: asRecord(c.course_family_status_json),
       course_family_textbooks_json: (c.course_family_textbooks_json ?? undefined) as Campus["course_family_textbooks_json"],
       course_family_terms_json: (c.course_family_terms_json ?? undefined) as Campus["course_family_terms_json"],
+      ai_research_debug_json: (c.ai_research_debug_json ?? undefined) as Campus["ai_research_debug_json"],
       accounting_department_name: c.accounting_department_name ?? null,
       use_school_colors: c.use_school_colors ?? true,
       landing_page_reviewed: !!c.landing_page_reviewed,
@@ -125,6 +126,7 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
   if ("course_family_status_json" in patch) db.course_family_status_json = patch.course_family_status_json ?? {};
   if ("course_family_textbooks_json" in patch) db.course_family_textbooks_json = patch.course_family_textbooks_json ?? {};
   if ("course_family_terms_json" in patch) db.course_family_terms_json = patch.course_family_terms_json ?? {};
+  if ("ai_research_debug_json" in patch) db.ai_research_debug_json = patch.ai_research_debug_json ?? null;
   if ("accounting_department_name" in patch) db.accounting_department_name = patch.accounting_department_name;
   if ("course_codes" in patch) {
     db.course_codes_json = patch.course_codes ?? [];
@@ -448,7 +450,7 @@ export interface CampusResearchResult {
  */
 export async function researchCampusAI(
   campus: { school_name: string; state?: string; course_codes?: string[] },
-): Promise<{ ok: boolean; result?: CampusResearchResult; error?: string }> {
+): Promise<{ ok: boolean; result?: CampusResearchResult; error?: string; debug?: any }> {
   const { data, error } = await supabase.functions.invoke("research-campus", {
     body: {
       school_name: campus.school_name,
@@ -467,9 +469,9 @@ export async function researchCampusAI(
     } catch { /* keep default */ }
     return { ok: false, error: message };
   }
-  const d = data as { ok?: boolean; result?: CampusResearchResult; error?: string } | null;
-  if (!d?.ok || !d.result) return { ok: false, error: d?.error ?? "No result returned" };
-  return { ok: true, result: d.result };
+  const d = data as { ok?: boolean; result?: CampusResearchResult; error?: string; debug?: any } | null;
+  if (!d?.ok || !d.result) return { ok: false, error: d?.error ?? "No result returned", debug: d?.debug };
+  return { ok: true, result: d.result, debug: d.debug };
 }
 
 // ----- SMS intake -----
