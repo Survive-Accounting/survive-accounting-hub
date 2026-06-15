@@ -480,6 +480,39 @@ export default function ApproveCampusModal({
     }
   };
 
+  // Map the existing per-family textbook status to the Phase 4 textbook_match_status enum.
+  const mapTextbookMatch = (s: FamilyStatus): TextbookMatchStatus => {
+    if (s === "matches") return "matched";
+    if (s === "different") return "not_matched";
+    return "unknown"; // not_found, not_checked
+  };
+
+  const persistAvailability = async () => {
+    if (!campus) return;
+    for (const fam of FAMILY_KEYS) {
+      const tb = mapTextbookMatch((familyStatus[fam] ?? "not_checked") as FamilyStatus);
+      const userOverride = familyAvail[fam];
+      // Auto-rule: if textbook isn't matched and the admin left this on "inherit",
+      // record an explicit waitlist override (Lee can flip it back later).
+      const effectiveOverride: TutoringAvailability | null =
+        userOverride !== "inherit"
+          ? userOverride
+          : tb !== "matched"
+          ? "waitlist"
+          : null;
+      try {
+        await upsertCampusCourseAvailability(campus.id, fam, {
+          textbook_match_status: tb,
+          tutoring_availability: effectiveOverride,
+          requires_syllabus_review: familyReqSyllabus[fam],
+        });
+      } catch (e: any) {
+        // Don't block approval on availability persistence — surface and continue.
+        console.warn(`availability save failed for ${fam}`, e);
+      }
+    }
+  };
+
   const approve = () => {
     if (!campus) return;
     onApprove(campus.id, {
@@ -491,6 +524,7 @@ export default function ApproveCampusModal({
       approval_status: "approved",
       ready_for_outreach: true,
     });
+    persistAvailability();
     toast.success("Campus approved & ready for outreach");
     onClose();
   };
