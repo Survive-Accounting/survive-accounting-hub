@@ -110,6 +110,7 @@ export async function fetchCampuses(): Promise<Campus[]> {
       course_family_status_json: asRecord(c.course_family_status_json),
       course_family_textbooks_json: (c.course_family_textbooks_json ?? undefined) as Campus["course_family_textbooks_json"],
       course_family_terms_json: (c.course_family_terms_json ?? undefined) as Campus["course_family_terms_json"],
+      ai_research_debug_json: (c.ai_research_debug_json ?? undefined) as Campus["ai_research_debug_json"],
       accounting_department_name: c.accounting_department_name ?? null,
       use_school_colors: c.use_school_colors ?? true,
       landing_page_reviewed: !!c.landing_page_reviewed,
