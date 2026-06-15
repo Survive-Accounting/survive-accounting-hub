@@ -13,6 +13,7 @@ import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
+import AddCampusModal from "@/components/outreach/AddCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
@@ -47,8 +48,10 @@ function OutreachPage() {
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
+  const [autoResearchId, setAutoResearchId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importCampusId, setImportCampusId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
 
@@ -124,6 +127,14 @@ function OutreachPage() {
 
 
           <TabsContent value="schools" className="mt-8 space-y-8">
+            <div className="flex items-center justify-end">
+              <button
+                onClick={() => setAddOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
+              >
+                + Add Campus
+              </button>
+            </div>
             {campusQuery.isLoading ? (
               <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
                 Loading campuses…
@@ -173,12 +184,14 @@ function OutreachPage() {
         usingMock={usingMock}
         onImported={() => qc.invalidateQueries({ queryKey: ["outreach-leads"] })}
       />
-      <ResearchErrorBoundary onReset={() => setReviewing(null)}>
+      <ResearchErrorBoundary onReset={() => { setReviewing(null); setAutoResearchId(null); }}>
         <ApproveCampusModal
           campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
+          autoStartResearch={autoResearchId}
           onClose={() => {
             if (reviewing) refreshClaim(reviewing.id).catch(() => {});
             setReviewing(null);
+            setAutoResearchId(null);
           }}
           onPatch={(id, patch) => {
             patchCampus(id, patch);
@@ -192,6 +205,24 @@ function OutreachPage() {
           }}
         />
       </ResearchErrorBoundary>
+
+      <AddCampusModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={async (created, autoResearch) => {
+          // Refresh the campuses list so the new row appears, then open
+          // the approval modal (auto-triggering AI research if requested).
+          const refreshed = await campusQuery.refetch();
+          const fresh = refreshed.data?.find((c) => c.id === created.id);
+          if (fresh) {
+            setReviewing(fresh);
+            if (autoResearch) setAutoResearchId(created.id);
+          } else {
+            // Fallback: at least invalidate so the table updates.
+            qc.invalidateQueries({ queryKey: ["campuses"] });
+          }
+        }}
+      />
 
     </div>
     </AdminGate>

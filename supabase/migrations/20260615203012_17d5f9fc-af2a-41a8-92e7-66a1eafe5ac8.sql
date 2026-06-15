@@ -1,0 +1,1 @@
+ALTER TABLE public.campuses ADD COLUMN IF NOT EXISTS accounting_department_url text;

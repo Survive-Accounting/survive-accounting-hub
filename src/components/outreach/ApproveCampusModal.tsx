@@ -162,12 +162,14 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
 }
 
 export default function ApproveCampusModal({
-  campus, onClose, onPatch, onApprove,
+  campus, onClose, onPatch, onApprove, autoStartResearch,
 }: {
   campus: Campus | null;
   onClose: () => void;
   onPatch: (id: string, patch: Partial<Campus>) => void;
   onApprove: (id: string, patch: Partial<Campus>) => void;
+  /** When set to a campus id, automatically kick off full AI research once after the modal opens. */
+  autoStartResearch?: string | null;
 }) {
   const [step, setStep] = useState("1");
   const [familyCodes, setFamilyCodes] = useState<Record<string, string>>({});
@@ -786,6 +788,19 @@ export default function ApproveCampusModal({
       setAiResearching(false);
     }
   };
+
+  // Auto-start full AI research once when the modal is opened from the
+  // "Add Campus → Create & Run AI Research" flow.
+  const autoStartedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!campus || !autoStartResearch) return;
+    if (autoStartResearch !== campus.id) return;
+    if (autoStartedRef.current === campus.id) return;
+    autoStartedRef.current = campus.id;
+    // Fire and forget — runAiResearch handles its own toasts and persistence.
+    runAiResearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campus?.id, autoStartResearch]);
 
   // Map the existing per-family textbook status to the Phase 4 textbook_match_status enum.
   const mapTextbookMatch = (s: FamilyStatus): TextbookMatchStatus => {
