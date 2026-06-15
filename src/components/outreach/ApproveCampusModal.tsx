@@ -587,6 +587,7 @@ export default function ApproveCampusModal({
       course_codes: codesArray,
       course_family_status_json: familyStatus,
       course_family_textbooks_json: booksToJson(familyBooks),
+      course_family_terms_json: familyTerms,
       approval_status: "approved",
       ready_for_outreach: true,
     });
