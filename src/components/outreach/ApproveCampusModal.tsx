@@ -703,11 +703,16 @@ export default function ApproveCampusModal({
                             placeholder={`e.g. ${f.sampleCode}`}
                             className="h-8"
                           />
-                          {aiResult?.families[f.key]?.code.value && (
+                          {aiResult?.families[f.key]?.code.value ? (
                             <ConfidenceMeter
                               confidence={aiResult.families[f.key].code.confidence}
                               source={aiResult.families[f.key].code.source}
                               touched={aiTouched.has(`code:${f.key}`)}
+                            />
+                          ) : (
+                            <NotFoundHint
+                              show={!!aiResult && !(familyCodes[f.key] ?? "").trim() && !aiTouched.has(`code:${f.key}`)}
+                              message="AI couldn't find this — use the search buttons"
                             />
                           )}
                         </td>
@@ -718,11 +723,16 @@ export default function ApproveCampusModal({
                             placeholder={`e.g. ${f.sampleTitle}`}
                             className="h-8"
                           />
-                          {aiResult?.families[f.key]?.title.value && (
+                          {aiResult?.families[f.key]?.title.value ? (
                             <ConfidenceMeter
                               confidence={aiResult.families[f.key].title.confidence}
                               source={aiResult.families[f.key].title.source}
                               touched={aiTouched.has(`title:${f.key}`)}
+                            />
+                          ) : (
+                            <NotFoundHint
+                              show={!!aiResult && !(familyTitles[f.key] ?? "").trim() && !aiTouched.has(`title:${f.key}`)}
+                              message="AI couldn't find this — use the search buttons"
                             />
                           )}
                         </td>
