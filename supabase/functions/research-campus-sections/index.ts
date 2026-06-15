@@ -1,7 +1,7 @@
 // research-campus-sections — Phase 4C: Class Schedule Intelligence.
 //
-// Best-effort scrape of public registrar / business school class schedule
-// data for accounting + business-core courses. Persists rows to
+// Per-family fan-out: one AI call per course family with strict
+// "enumerate every section" instructions. Persists rows to
 // public.campus_course_sections and links instructors to existing or new
 // campus_lead_suggestions. NEVER writes to outreach_leads.
 //
@@ -21,12 +21,67 @@ const MODEL = Deno.env.get("RESEARCH_MODEL") ?? "google/gemini-3-flash-preview";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const VALID_FAMILY = new Set([
+type Family =
+  | "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2"
+  | "finance" | "business_stats" | "business_analytics"
+  | "microeconomics" | "macroeconomics";
+
+const ALL_FAMILIES: Family[] = [
   "intro_1", "intro_2", "intermediate_1", "intermediate_2",
   "finance", "business_stats", "business_analytics",
-  "microeconomics", "macroeconomics", "other",
-]);
+  "microeconomics", "macroeconomics",
+];
+
+const VALID_FAMILY = new Set<string>([...ALL_FAMILIES, "other"]);
 const VALID_CONF = new Set(["high", "medium", "low"]);
+
+const FAMILY_HINTS: Record<Family, { label: string; prefixes: string[]; examples: string }> = {
+  intro_1: {
+    label: "Intro / Principles of Financial Accounting",
+    prefixes: ["ACCT", "ACC", "ACCY", "AC", "BUAD", "BUS", "BUSA", "BUSN", "BU", "BA"],
+    examples: "e.g. ACCT 201, ACCY 200, BUAD 280, BUS 215, BA 211",
+  },
+  intro_2: {
+    label: "Intro / Principles of Managerial Accounting",
+    prefixes: ["ACCT", "ACC", "ACCY", "AC", "BUAD", "BUS", "BUSA", "BUSN", "BU", "BA"],
+    examples: "e.g. ACCT 202, ACCY 201, BUAD 281, BUS 216, BA 213",
+  },
+  intermediate_1: {
+    label: "Intermediate Accounting I",
+    prefixes: ["ACCT", "ACC", "ACCY", "AC"],
+    examples: "e.g. ACCT 301, ACCY 303, ACCT 370",
+  },
+  intermediate_2: {
+    label: "Intermediate Accounting II",
+    prefixes: ["ACCT", "ACC", "ACCY", "AC"],
+    examples: "e.g. ACCT 302, ACCY 304, ACCT 385",
+  },
+  finance: {
+    label: "Principles of Finance / Business Finance",
+    prefixes: ["FIN", "FNCE", "BUAD", "BUS", "BA"],
+    examples: "e.g. FIN 300, BUAD 306",
+  },
+  business_stats: {
+    label: "Business Statistics",
+    prefixes: ["STAT", "STATS", "BUAD", "BUS", "BA", "QBA", "OPIM", "DSCI"],
+    examples: "e.g. STAT 301, BUAD 310, QBA 237",
+  },
+  business_analytics: {
+    label: "Business Analytics",
+    prefixes: ["BUAD", "BUS", "BA", "BANA", "BUSA", "DSCI", "OPIM", "ISDS", "MIS"],
+    examples: "e.g. BUAD 311, BANA 200, DSCI 311",
+  },
+  microeconomics: {
+    label: "Principles of Microeconomics",
+    prefixes: ["ECON", "ECN", "EC"],
+    examples: "e.g. ECON 203, ECON 201",
+  },
+  macroeconomics: {
+    label: "Principles of Macroeconomics",
+    prefixes: ["ECON", "ECN", "EC"],
+    examples: "e.g. ECON 205, ECON 202",
+  },
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -34,38 +89,47 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
-function buildPrompt(campus: Record<string, any>) {
+function buildFamilyPrompt(campus: Record<string, any>, family: Family, strict = false): string {
   const name = campus.name ?? "";
   const state = campus.state ?? "";
   const site = campus.website_url ?? "";
+  const h = FAMILY_HINTS[family];
   return `You are a meticulous research assistant. Goal: find PUBLIC class
 schedule / registrar / course-offerings data for "${name}"${state ? `, ${state}` : ""}, USA, for the upcoming or most recent term.
 
-USE GOOGLE SEARCH AGGRESSIVELY. Open the actual pages. Do not rely on memory.
+TARGET COURSE FAMILY: ${family} — ${h.label}.
+Likely course prefixes at this school: ${h.prefixes.join(", ")} (${h.examples}).
+Many schools list intro accounting under the business-school prefix (BUAD/BUS/BA) — do NOT skip those.
 
-Search BOTH the accounting department AND the business school class schedules.
-At many schools, intro accounting is listed under the business-school prefix
-(BUAD, BUS, BUSA, BUSN, BU, BA, BANA) — not ACCT. Try these prefixes when
-looking for intro accounting: ACCT, ACC, ACCY, AC, BUAD, BUS, BUSA, BUSN, BU.
+USE GOOGLE SEARCH AGGRESSIVELY. Open the actual schedule pages. Search the
+school's class schedule / registrar (e.g. classes.usc.edu, courses.<school>.edu,
+schedule.<school>.edu, marshall.usc.edu/courses, business-school course pages,
+banner schedule pages). Do not rely on memory.
 
-Capture sections for these course families (only if visible on a public page):
-- intro_1            (Intro / Principles of Financial Accounting)
-- intro_2            (Intro / Principles of Managerial Accounting)
-- intermediate_1     (Intermediate Accounting I)
-- intermediate_2     (Intermediate Accounting II)
-- finance            (Principles of Finance / Business Finance)
-- business_stats     (Business Statistics)
-- business_analytics (Business Analytics)
-- microeconomics
-- macroeconomics
-- other              (other accounting/business-core sections worth recording)
+CRITICAL — ENUMERATE EVERY SECTION ROW:
+- If the schedule page lists 13 sections of the target course, return 13
+  entries — one entry per unique section_number.
+- DO NOT SUMMARIZE. DO NOT RETURN ONLY THE FIRST 1-3.
+- Each entry must have a non-null section_number (e.g. "14505", "001", "A").
+- If you cannot enumerate ALL rows from the page, return an empty array
+  rather than a partial sample. Missing data is OK; a partial sample is NOT.
+- Capture both lecture and discussion/lab sections if both have a distinct
+  instructor + section number, but a single course with multiple sections
+  means multiple entries.
+${strict ? `
+RETRY MODE — be even more thorough. Try alternate URLs:
+- classes.<domain>, courses.<domain>, schedule.<domain>, registrar.<domain>
+- the business school site directly
+- "site:<domain> ${h.prefixes[0]} section" Google queries
+Do NOT give up after one search. Try at least 3 different queries.
+` : ""}
 
 For EACH section, capture only what you actually see on a real public page.
 NEVER hallucinate instructors, section numbers, class sizes, or meeting
-times. If a field is not on the page, return null. If you cannot find any
-public schedule data at all, return an empty sections array — that is OK.
+times. If a field is not on the page, return null. Exclude Rate My Professors
+and login-walled pages.
 
-Known context (for grounding only):
+Known context:
 - Website: ${site || "unknown"}
 
 Respond with ONLY a single JSON object (no prose, no markdown fences):
@@ -73,11 +137,11 @@ Respond with ONLY a single JSON object (no prose, no markdown fences):
 {
   "sections": [
     {
-      "course_family": "intro_1"|"intro_2"|"intermediate_1"|"intermediate_2"|"finance"|"business_stats"|"business_analytics"|"microeconomics"|"macroeconomics"|"other",
-      "course_code": string|null,
+      "course_family": "${family}",
+      "course_code": string,
       "course_title": string|null,
       "term": string|null,
-      "section_number": string|null,
+      "section_number": string,
       "instructor_name": string|null,
       "instructor_email": string|null,
       "meeting_days": string|null,
@@ -86,7 +150,7 @@ Respond with ONLY a single JSON object (no prose, no markdown fences):
       "enrollment_current": number|null,
       "enrollment_capacity": number|null,
       "waitlist_count": number|null,
-      "source_url": string|null,
+      "source_url": string,
       "confidence": "high"|"medium"|"low"
     }
   ]
@@ -115,24 +179,25 @@ const emailOrNull = (v: any): string | null => {
   return s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s.toLowerCase() : null;
 };
 
-function sanitize(raw: any) {
+function sanitize(raw: any, expectedFamily: Family) {
   const arr = Array.isArray(raw?.sections) ? raw.sections : [];
   const rows: any[] = [];
   const rejected: { reason: string; sample: any }[] = [];
   for (const s of arr) {
     if (!s || typeof s !== "object") { rejected.push({ reason: "not_object", sample: s }); continue; }
-    const course_family = VALID_FAMILY.has(s.course_family) ? s.course_family : null;
+    const fam = VALID_FAMILY.has(s.course_family) ? s.course_family : expectedFamily;
     const source_url = url(s.source_url);
-    if (!course_family || !source_url) {
-      rejected.push({ reason: !course_family ? "bad_family" : "missing_source_url", sample: s });
-      continue;
-    }
+    const section_number = str(s.section_number);
+    const course_code = str(s.course_code);
+    if (!source_url) { rejected.push({ reason: "missing_source_url", sample: s }); continue; }
+    if (!section_number) { rejected.push({ reason: "missing_section_number", sample: s }); continue; }
+    if (!course_code) { rejected.push({ reason: "missing_course_code", sample: s }); continue; }
     rows.push({
-      course_family,
-      course_code: str(s.course_code),
+      course_family: fam,
+      course_code,
       course_title: str(s.course_title),
       term: str(s.term),
-      section_number: str(s.section_number),
+      section_number,
       instructor_name: str(s.instructor_name),
       instructor_email: emailOrNull(s.instructor_email),
       meeting_days: str(s.meeting_days),
@@ -161,16 +226,96 @@ function familyTeachKey(f: string): string | null {
   return null;
 }
 
+async function callAi(prompt: string): Promise<{ text: string; finishReason: string | null; usage: any; httpStatus: number; httpBody?: string }> {
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Lovable-API-Key": LOVABLE_API_KEY,
+      "Content-Type": "application/json",
+      "X-Lovable-AIG-SDK": "research-campus-sections",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [{ role: "user", content: prompt }],
+      tools: [{ type: "google_search" }],
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    return { text: "", finishReason: null, usage: null, httpStatus: res.status, httpBody: detail.slice(0, 2000) };
+  }
+  const j = await res.json();
+  const choice = j?.choices?.[0];
+  return {
+    text: choice?.message?.content ?? "",
+    finishReason: choice?.finish_reason ?? null,
+    usage: j?.usage ?? null,
+    httpStatus: res.status,
+  };
+}
+
+async function researchFamily(campus: Record<string, any>, family: Family) {
+  const debug: any = { family, attempts: [] as any[] };
+  let cleaned: any[] = [];
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const prompt = buildFamilyPrompt(campus, family, attempt > 0);
+    const { text, finishReason, usage, httpStatus, httpBody } = await callAi(prompt);
+    const att: any = { strict: attempt > 0, http_status: httpStatus, finish_reason: finishReason, usage, raw_text_chars: text.length };
+    if (httpStatus === 429 || httpStatus === 402) {
+      att.error = httpStatus === 429 ? "rate_limited" : "credits_exhausted";
+      att.http_body = httpBody;
+      debug.attempts.push(att);
+      break;
+    }
+    if (!httpStatus || httpStatus >= 400) {
+      att.error = "ai_http_error";
+      att.http_body = httpBody;
+      debug.attempts.push(att);
+      continue;
+    }
+    if (!text.trim()) {
+      att.note = "empty_response";
+      debug.attempts.push(att);
+      continue;
+    }
+    let parsed: any;
+    try { parsed = extractJson(text); } catch (e) {
+      att.parse_error = String((e as Error)?.message ?? e);
+      att.raw_text_sample = text.slice(0, 1000);
+      debug.attempts.push(att);
+      continue;
+    }
+    const { rows, rejected } = sanitize(parsed, family);
+    att.returned = rows.length;
+    att.rejected_count = rejected.length;
+    att.rejected_samples = rejected.slice(0, 3);
+    att.sources = Array.from(new Set(rows.map((r) => r.source_url)));
+    debug.attempts.push(att);
+    if (rows.length > 0) {
+      cleaned = rows;
+      break;
+    }
+  }
+
+  debug.final_count = cleaned.length;
+  return { cleaned, debug };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Supabase env not configured" }, 500);
 
-  let body: { campus_id?: string };
+  let body: { campus_id?: string; families?: string[] };
   try { body = await req.json(); } catch { return json({ error: "invalid JSON body" }, 400); }
   const campus_id = (body.campus_id ?? "").trim();
   if (!campus_id) return json({ error: "campus_id required" }, 400);
+
+  const requestedFamilies: Family[] = Array.isArray(body.families) && body.families.length
+    ? (body.families.filter((f) => (ALL_FAMILIES as string[]).includes(f)) as Family[])
+    : ALL_FAMILIES;
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -182,83 +327,47 @@ Deno.serve(async (req) => {
   if (campusErr) return json({ error: "campus lookup failed", detail: campusErr.message }, 500);
   if (!campus) return json({ error: "campus not found" }, 404);
 
-  // Call Lovable AI
-  let text = "";
-  let finishReason: string | null = null;
-  let usage: any = null;
-  const prompt = buildPrompt(campus);
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Lovable-API-Key": LOVABLE_API_KEY,
-        "Content-Type": "application/json",
-        "X-Lovable-AIG-SDK": "research-campus-sections",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        tools: [{ type: "google_search" }],
-      }),
-    });
-    if (res.status === 429) return json({ success: false, error: "AI is rate-limited, try again in a moment" }, 429);
-    if (res.status === 402) return json({ success: false, error: "Workspace AI credits exhausted" }, 402);
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      return json({ success: false, error: "AI request failed", debug: { http_status: res.status, http_body: detail.slice(0, 2000) } }, 502);
-    }
-    const j = await res.json();
-    const choice = j?.choices?.[0];
-    text = choice?.message?.content ?? "";
-    finishReason = choice?.finish_reason ?? null;
-    usage = j?.usage ?? null;
-  } catch (e) {
-    return json({ success: false, error: "AI call failed", detail: String((e as Error)?.message ?? e) }, 500);
+  // Per-family fan-out (sequential to keep load + cost predictable).
+  const perFamily: Record<string, any> = {};
+  const allCleaned: any[] = [];
+  for (const fam of requestedFamilies) {
+    const { cleaned, debug } = await researchFamily(campus, fam);
+    perFamily[fam] = debug;
+    for (const row of cleaned) allCleaned.push(row);
   }
 
-  if (!text.trim()) {
-    return json({
-      success: true, campus_id,
-      sections_inserted: 0, leads_updated: 0, leads_created: 0,
-      sections: [],
-      debug: { model: MODEL, finish_reason: finishReason, usage, raw_text: "", raw_text_chars: 0, note: "empty AI response" },
-    });
+  // De-dupe within this run by (course_code, section_number, term).
+  const seen = new Set<string>();
+  const deduped: any[] = [];
+  for (const r of allCleaned) {
+    const key = `${(r.course_code ?? "").toLowerCase()}|${(r.section_number ?? "").toLowerCase()}|${(r.term ?? "").toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(r);
   }
 
-  let parsed: any;
-  try { parsed = extractJson(text); } catch (e) {
-    return json({
-      success: true, campus_id,
-      sections_inserted: 0, leads_updated: 0, leads_created: 0,
-      sections: [],
-      debug: { model: MODEL, finish_reason: finishReason, usage, raw_text: text.slice(0, 60000), raw_text_chars: text.length, parse_error: String((e as Error)?.message ?? e) },
-    });
-  }
-
-  const { rows: cleaned, rejected } = sanitize(parsed);
-  const sources = Array.from(new Set(cleaned.map((r) => r.source_url).filter(Boolean) as string[]));
-
-  let inserted: any[] = [];
-  if (cleaned.length) {
-    const toInsert = cleaned.map((r) => ({ campus_id, ...r }));
+  let upserted: any[] = [];
+  if (deduped.length) {
+    const toInsert = deduped.map((r) => ({ campus_id, ...r }));
+    // Upsert against the (campus_id, course_code, section_number, term) unique index.
     const { data: ins, error: insErr } = await db
       .from("campus_course_sections")
-      .insert(toInsert)
+      .upsert(toInsert, { onConflict: "campus_id,course_code,section_number,term" })
       .select();
     if (insErr) {
       return json({
         success: false, error: "insert failed", detail: insErr.message,
-        debug: { model: MODEL, raw_text_chars: text.length, rejected_count: rejected.length, sources, attempted: toInsert.length },
+        debug: { model: MODEL, per_family: perFamily, attempted: toInsert.length },
       }, 500);
     }
-    inserted = ins ?? [];
+    upserted = ins ?? [];
   }
 
   // ---- Link instructors to lead suggestions ----
   let leads_updated = 0;
   let leads_created = 0;
 
-  if (inserted.length) {
+  if (upserted.length) {
     const { data: existing } = await db
       .from("campus_lead_suggestions")
       .select("id, first_name, last_name, courses_found, teaches_intro_1, teaches_intro_2, teaches_intermediate_1, teaches_intermediate_2, teaching_evidence_url, teaching_evidence_notes")
@@ -279,9 +388,8 @@ Deno.serve(async (req) => {
       if (key) suggByName.set(key, s);
     }
 
-    // Group sections by instructor
     const byInstructor = new Map<string, any[]>();
-    for (const sec of inserted) {
+    for (const sec of upserted) {
       if (!sec.instructor_name) continue;
       const k = normalizeName(sec.instructor_name);
       if (!k) continue;
@@ -291,7 +399,6 @@ Deno.serve(async (req) => {
     }
 
     for (const [normName, secs] of byInstructor) {
-      // Try to match by full-name containment in either direction
       let match: SuggRow | null = null;
       for (const [key, s] of suggByName) {
         if (key === normName || key.includes(normName) || normName.includes(key)) { match = s; break; }
@@ -316,10 +423,10 @@ Deno.serve(async (req) => {
       if (match) {
         const existingCourses = Array.isArray(match.courses_found) ? match.courses_found : [];
         const dedupKey = (c: any) => `${c.course_code ?? ""}|${c.term ?? ""}|${c.section_number ?? ""}`;
-        const seen = new Set(existingCourses.map(dedupKey));
+        const seenC = new Set(existingCourses.map(dedupKey));
         const merged = [...existingCourses];
         for (const c of sectionCourses) {
-          if (!seen.has(dedupKey(c))) { merged.push(c); seen.add(dedupKey(c)); }
+          if (!seenC.has(dedupKey(c))) { merged.push(c); seenC.add(dedupKey(c)); }
         }
         const patch: Record<string, unknown> = { courses_found: merged };
         for (const k of Object.keys(teachUpdates)) {
@@ -331,7 +438,6 @@ Deno.serve(async (req) => {
         const { error: upErr } = await db.from("campus_lead_suggestions").update(patch).eq("id", match.id);
         if (!upErr) leads_updated++;
       } else {
-        // Build a new pending suggestion. Split name into first/last best-effort.
         const parts = sampleSec.instructor_name.trim().split(/\s+/);
         const first_name = parts.slice(0, -1).join(" ") || parts[0];
         const last_name = parts.length > 1 ? parts[parts.length - 1] : null;
@@ -361,22 +467,25 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Per-family counts of what made it into the DB this run.
+  const perFamilyCounts: Record<string, number> = {};
+  for (const r of upserted) {
+    const f = r.course_family ?? "other";
+    perFamilyCounts[f] = (perFamilyCounts[f] ?? 0) + 1;
+  }
+
   return json({
     success: true,
     campus_id,
-    sections_inserted: inserted.length,
+    families: requestedFamilies,
+    sections_inserted: upserted.length,
     leads_updated,
     leads_created,
-    sections: inserted,
+    sections: upserted,
     debug: {
       model: MODEL,
-      finish_reason: finishReason,
-      usage,
-      raw_text_chars: text.length,
-      raw_text: text.length > 60000 ? text.slice(0, 60000) + "…[truncated]" : text,
-      rejected_count: rejected.length,
-      rejected_samples: rejected.slice(0, 5),
-      sources,
+      per_family: perFamily,
+      per_family_counts: perFamilyCounts,
     },
   });
 });
