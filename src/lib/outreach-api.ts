@@ -423,11 +423,18 @@ export interface AiFamilyBook {
   confidence: AiConfidence;
   source: string | null;
 }
+export interface AiFamilyTerms {
+  terms_text: { value: string | null; confidence: AiConfidence; source: string | null };
+  fall: boolean | null;
+  spring: boolean | null;
+  summer: boolean | null;
+}
 export interface AiFamilyResearch {
   code: AiField;
   title: AiField;
   textbook_status: { value: "matches" | "different" | "not_found" | null; confidence: AiConfidence; source: string | null };
   book: AiFamilyBook;
+  terms?: AiFamilyTerms;
 }
 export interface CampusResearchResult {
   program: AiField;
