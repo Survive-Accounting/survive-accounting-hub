@@ -450,7 +450,7 @@ export interface CampusResearchResult {
  */
 export async function researchCampusAI(
   campus: { school_name: string; state?: string; course_codes?: string[] },
-): Promise<{ ok: boolean; result?: CampusResearchResult; error?: string }> {
+): Promise<{ ok: boolean; result?: CampusResearchResult; error?: string; debug?: any }> {
   const { data, error } = await supabase.functions.invoke("research-campus", {
     body: {
       school_name: campus.school_name,
@@ -469,9 +469,9 @@ export async function researchCampusAI(
     } catch { /* keep default */ }
     return { ok: false, error: message };
   }
-  const d = data as { ok?: boolean; result?: CampusResearchResult; error?: string } | null;
-  if (!d?.ok || !d.result) return { ok: false, error: d?.error ?? "No result returned" };
-  return { ok: true, result: d.result };
+  const d = data as { ok?: boolean; result?: CampusResearchResult; error?: string; debug?: any } | null;
+  if (!d?.ok || !d.result) return { ok: false, error: d?.error ?? "No result returned", debug: d?.debug };
+  return { ok: true, result: d.result, debug: d.debug };
 }
 
 // ----- SMS intake -----
