@@ -120,6 +120,7 @@ export default function LeadSuggestionsPanel({
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [teachingFilter, setTeachingFilter] = useState<TeachingFilter>("all");
+  const [sortMode, setSortMode] = useState<"last_name" | "priority">("last_name");
 
   async function refresh(id = campusId) {
     if (!id) { setRows([]); return; }
@@ -157,11 +158,21 @@ export default function LeadSuggestionsPanel({
         break;
     }
     return [...filtered].sort((a, b) => {
+      if (sortMode === "last_name") {
+        const al = (a.last_name ?? "").toLowerCase();
+        const bl = (b.last_name ?? "").toLowerCase();
+        if (!al && bl) return 1;
+        if (al && !bl) return -1;
+        if (al !== bl) return al < bl ? -1 : 1;
+        const af = (a.first_name ?? "").toLowerCase();
+        const bf = (b.first_name ?? "").toLowerCase();
+        return af < bf ? -1 : af > bf ? 1 : 0;
+      }
       const pr = priorityRank(a) - priorityRank(b);
       if (pr !== 0) return pr;
       return (b.confidence ?? 0) - (a.confidence ?? 0);
     });
-  }, [rows, teachingFilter]);
+  }, [rows, teachingFilter, sortMode]);
 
   const allChecked = visibleRows.length > 0 && visibleRows.every((r) => selected.has(r.id));
   const toggleAll = () => {
