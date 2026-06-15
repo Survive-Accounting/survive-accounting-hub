@@ -28,7 +28,6 @@ import {
   fetchCampusPhones,
   fetchCampuses,
   patchCampusDb,
-  provisionCampusNumber,
 } from "@/lib/outreach-api";
 
 export const Route = createFileRoute("/outreach")({
@@ -55,15 +54,11 @@ function OutreachPage() {
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
   const phonesQuery = useQuery({ queryKey: ["campus-phones"], queryFn: fetchCampusPhones, retry: 1 });
-  const qcMain = useQueryClient();
+  
 
-  const handleProvisionNumber = async (campusId: string) => {
-    toast.info("Finding a local number…");
-    const res = await provisionCampusNumber(campusId);
-    if (res.ok) {
-      toast.success(`Number ready: ${res.phone}`);
-      qcMain.invalidateQueries({ queryKey: ["campus-phones"] });
-    } else toast.error(res.error ?? "Provisioning failed");
+  const handleTogglePersonalPhone = (campusId: string, next: boolean) => {
+    patchCampus(campusId, { use_personal_phone: next });
+    toast.success(next ? "Switched to personal cell for this campus" : "Reverted to main line");
   };
   useEffect(() => {
     if (campusQuery.data) {
@@ -141,7 +136,7 @@ function OutreachPage() {
                 onImportLeads={(c) => { setImportCampusId(c.id); setImportOpen(true); }}
                 onAssignPatch={handleAssignPatch}
                 campusPhones={phonesQuery.data}
-                onProvisionNumber={handleProvisionNumber}
+                onTogglePersonalPhone={handleTogglePersonalPhone}
                 selectedIds={selectedIds}
                 onToggleSelect={(id, value) =>
                   setSelectedIds((prev) => {

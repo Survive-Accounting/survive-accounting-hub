@@ -14,7 +14,7 @@ const APPROVAL_VALUES: ApprovalStatus[] = ["not_reviewed", "needs_review", "appr
 const ASSIGNMENT_VALUES: AssignmentStatus[] = ["not_assigned", "assigned", "in_progress", "approved", "blocked"];
 
 const CAMPUS_SELECT =
-  "id,name,slug,state,region,is_sec,archived_at,accounting_department_name,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,course_family_textbooks_json,course_family_terms_json,ai_research_debug_json,use_school_colors,landing_page_reviewed";
+  "id,name,slug,state,region,is_sec,archived_at,accounting_department_name,annual_tuition_in_state_cents,annual_tuition_out_state_cents,tuition_source,tuition_notes,total_enrollment,approval_status,ready_for_outreach,assignment_status,assigned_to,assignment_batch,due_date,course_codes_json,course_family_codes_json,course_family_titles_json,course_family_status_json,course_family_textbooks_json,course_family_terms_json,ai_research_debug_json,use_school_colors,landing_page_reviewed,use_personal_phone";
 
 function extractCourseCodes(json: unknown): string[] {
   if (Array.isArray(json)) return json.filter((x): x is string => typeof x === "string");
@@ -114,6 +114,7 @@ export async function fetchCampuses(): Promise<Campus[]> {
       accounting_department_name: c.accounting_department_name ?? null,
       use_school_colors: c.use_school_colors ?? true,
       landing_page_reviewed: !!c.landing_page_reviewed,
+      use_personal_phone: !!c.use_personal_phone,
     };
   });
 }
@@ -140,6 +141,7 @@ export async function patchCampusDb(id: string, patch: Partial<Campus>): Promise
   if ("assigned_to" in patch) db.assigned_to = patch.assigned_to;
   if ("due_date" in patch) db.due_date = patch.due_date;
   if ("assignment_status" in patch) db.assignment_status = patch.assignment_status;
+  if ("use_personal_phone" in patch) db.use_personal_phone = !!patch.use_personal_phone;
   if (Object.keys(db).length === 0) return;
   const { error } = await supabase.from("campuses").update(db as never).eq("id", id);
   if (error) throw error;

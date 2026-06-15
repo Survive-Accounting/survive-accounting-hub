@@ -1,0 +1,1 @@
+ALTER TABLE public.campuses ADD COLUMN IF NOT EXISTS use_personal_phone boolean NOT NULL DEFAULT false;

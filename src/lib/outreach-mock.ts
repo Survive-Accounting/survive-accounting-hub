@@ -49,6 +49,7 @@ export interface Campus {
   accounting_department_name?: string | null;
   use_school_colors?: boolean;
   landing_page_reviewed?: boolean;
+  use_personal_phone?: boolean;
   tuition_notes?: string | null;
 }
 
