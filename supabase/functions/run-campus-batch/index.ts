@@ -77,7 +77,14 @@ async function processItem(db: any, item: any) {
         state: campus.state ?? "",
         course_codes: campus.course_codes ?? [],
       }));
-      if (r.ok) profile_done = true;
+      if (r.ok) {
+        profile_done = true;
+        // Stash the raw research payload so it's reviewable later from the modal.
+        await db.from("campuses").update({
+          ai_research_debug_json: r.data,
+          ai_enrichment_status: "researched",
+        }).eq("id", campus_id);
+      }
     }
   }
 
