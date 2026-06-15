@@ -20,7 +20,18 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Info } from "lucide-react";
 import type { Campus } from "@/lib/outreach-mock";
-import { researchCampusAI, type CampusResearchResult, type AiConfidence } from "@/lib/outreach-api";
+import {
+  researchCampusAI,
+  type CampusResearchResult,
+  type AiConfidence,
+  getCampusCourseAvailability,
+  getCourseFamilyDefaults,
+  upsertCampusCourseAvailability,
+  type CourseFamily,
+  type CourseFamilyDefaults,
+  type TutoringAvailability,
+  type TextbookMatchStatus,
+} from "@/lib/outreach-api";
 
 type FamilyStatus = "matches" | "different" | "not_found" | "not_checked";
 
@@ -163,6 +174,17 @@ export default function ApproveCampusModal({
   const [aiResult, setAiResult] = useState<CampusResearchResult | null>(null);
   const [aiTouched, setAiTouched] = useState<Set<string>>(new Set());
 
+  // Phase 4 — per-campus course availability overrides + global defaults
+  type AvailabilityOverride = "inherit" | TutoringAvailability;
+  const FAMILY_KEYS: CourseFamily[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
+  const [familyAvail, setFamilyAvail] = useState<Record<CourseFamily, AvailabilityOverride>>({
+    intro_1: "inherit", intro_2: "inherit", intermediate_1: "inherit", intermediate_2: "inherit",
+  });
+  const [familyReqSyllabus, setFamilyReqSyllabus] = useState<Record<CourseFamily, boolean>>({
+    intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false,
+  });
+  const [globalDefaults, setGlobalDefaults] = useState<CourseFamilyDefaults | null>(null);
+
   const markTouched = (fieldId: string) =>
     setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
 
@@ -205,6 +227,28 @@ export default function ApproveCampusModal({
     setAiResult(null);
     setAiResearching(false);
     setAiTouched(new Set());
+
+    // Load Phase 4 availability rows + global defaults
+    getCourseFamilyDefaults().then(setGlobalDefaults).catch(() => setGlobalDefaults(null));
+    getCampusCourseAvailability(campus.id)
+      .then((rows) => {
+        const avail: Record<CourseFamily, AvailabilityOverride> = {
+          intro_1: "inherit", intro_2: "inherit", intermediate_1: "inherit", intermediate_2: "inherit",
+        };
+        const req: Record<CourseFamily, boolean> = {
+          intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false,
+        };
+        for (const r of rows) {
+          avail[r.course_family] = (r.tutoring_availability ?? "inherit") as AvailabilityOverride;
+          req[r.course_family] = !!r.requires_syllabus_review;
+        }
+        setFamilyAvail(avail);
+        setFamilyReqSyllabus(req);
+      })
+      .catch(() => {
+        setFamilyAvail({ intro_1: "inherit", intro_2: "inherit", intermediate_1: "inherit", intermediate_2: "inherit" });
+        setFamilyReqSyllabus({ intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false });
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus?.id]);
 
@@ -436,6 +480,39 @@ export default function ApproveCampusModal({
     }
   };
 
+  // Map the existing per-family textbook status to the Phase 4 textbook_match_status enum.
+  const mapTextbookMatch = (s: FamilyStatus): TextbookMatchStatus => {
+    if (s === "matches") return "matched";
+    if (s === "different") return "not_matched";
+    return "unknown"; // not_found, not_checked
+  };
+
+  const persistAvailability = async () => {
+    if (!campus) return;
+    for (const fam of FAMILY_KEYS) {
+      const tb = mapTextbookMatch((familyStatus[fam] ?? "not_checked") as FamilyStatus);
+      const userOverride = familyAvail[fam];
+      // Auto-rule: if textbook isn't matched and the admin left this on "inherit",
+      // record an explicit waitlist override (Lee can flip it back later).
+      const effectiveOverride: TutoringAvailability | null =
+        userOverride !== "inherit"
+          ? userOverride
+          : tb !== "matched"
+          ? "waitlist"
+          : null;
+      try {
+        await upsertCampusCourseAvailability(campus.id, fam, {
+          textbook_match_status: tb,
+          tutoring_availability: effectiveOverride,
+          requires_syllabus_review: familyReqSyllabus[fam],
+        });
+      } catch (e: any) {
+        // Don't block approval on availability persistence — surface and continue.
+        console.warn(`availability save failed for ${fam}`, e);
+      }
+    }
+  };
+
   const approve = () => {
     if (!campus) return;
     onApprove(campus.id, {
@@ -447,6 +524,7 @@ export default function ApproveCampusModal({
       approval_status: "approved",
       ready_for_outreach: true,
     });
+    persistAvailability();
     toast.success("Campus approved & ready for outreach");
     onClose();
   };
@@ -928,6 +1006,68 @@ export default function ApproveCampusModal({
                   );
                 })}
               </div>
+
+              {/* Phase 4 — Course Availability */}
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold">Course Availability</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Drives Book / Waitlist / Hide buttons on the landing page. Leave on
+                      <strong> Inherit</strong> to use the global default. Saving will auto-set any
+                      family with a non-matching textbook to <strong>Waitlist</strong> — you can flip back later.
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-md border bg-background">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium">Family</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Availability</th>
+                        <th className="px-2 py-1.5 text-left font-medium">Needs syllabus review</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {FAMILY_KEYS.map((fam) => {
+                        const meta = FAMILIES.find((f) => f.key === fam)!;
+                        const inheritLabel = globalDefaults ? globalDefaults[fam] : "—";
+                        return (
+                          <tr key={fam}>
+                            <td className="px-2 py-1.5">{meta.shortLabel}</td>
+                            <td className="px-2 py-1.5">
+                              <Select
+                                value={familyAvail[fam]}
+                                onValueChange={(v) =>
+                                  setFamilyAvail((p) => ({ ...p, [fam]: v as "inherit" | TutoringAvailability }))
+                                }
+                              >
+                                <SelectTrigger className="h-8 w-[220px] text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="inherit" className="text-xs">Inherit ({inheritLabel})</SelectItem>
+                                  <SelectItem value="available" className="text-xs">Available — Book Tutoring</SelectItem>
+                                  <SelectItem value="waitlist" className="text-xs">Waitlist</SelectItem>
+                                  <SelectItem value="unavailable" className="text-xs">Unavailable — hide</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <input
+                                type="checkbox"
+                                checked={familyReqSyllabus[fam]}
+                                onChange={(e) =>
+                                  setFamilyReqSyllabus((p) => ({ ...p, [fam]: e.target.checked }))
+                                }
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {!canApprove && (
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />

@@ -109,6 +109,50 @@ export type Database = {
           },
         ]
       }
+      campus_course_availability: {
+        Row: {
+          campus_id: string
+          course_family: string
+          created_at: string
+          id: string
+          notes: string | null
+          requires_syllabus_review: boolean
+          textbook_match_status: string
+          tutoring_availability: string | null
+          updated_at: string
+        }
+        Insert: {
+          campus_id: string
+          course_family: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          requires_syllabus_review?: boolean
+          textbook_match_status?: string
+          tutoring_availability?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campus_id?: string
+          course_family?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          requires_syllabus_review?: boolean
+          textbook_match_status?: string
+          tutoring_availability?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_course_availability_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campus_courses: {
         Row: {
           campus_id: string | null
@@ -2874,16 +2918,28 @@ export type Database = {
         Row: {
           auto_schedule_on_import: boolean
           id: number
+          intermediate_1_availability: string
+          intermediate_2_availability: string
+          intro_1_availability: string
+          intro_2_availability: string
           updated_at: string
         }
         Insert: {
           auto_schedule_on_import?: boolean
           id?: number
+          intermediate_1_availability?: string
+          intermediate_2_availability?: string
+          intro_1_availability?: string
+          intro_2_availability?: string
           updated_at?: string
         }
         Update: {
           auto_schedule_on_import?: boolean
           id?: number
+          intermediate_1_availability?: string
+          intermediate_2_availability?: string
+          intro_1_availability?: string
+          intro_2_availability?: string
           updated_at?: string
         }
         Relationships: []
@@ -2997,33 +3053,55 @@ export type Database = {
       }
       outreach_waitlist_signups: {
         Row: {
+          campus_id: string | null
           course: string | null
+          course_family: string | null
           created_at: string
           email: string | null
           id: string
           name: string | null
           need_help_with: string | null
+          notes: string | null
+          phone: string | null
           school_id: string | null
+          syllabus_file_path: string | null
         }
         Insert: {
+          campus_id?: string | null
           course?: string | null
+          course_family?: string | null
           created_at?: string
           email?: string | null
           id?: string
           name?: string | null
           need_help_with?: string | null
+          notes?: string | null
+          phone?: string | null
           school_id?: string | null
+          syllabus_file_path?: string | null
         }
         Update: {
+          campus_id?: string | null
           course?: string | null
+          course_family?: string | null
           created_at?: string
           email?: string | null
           id?: string
           name?: string | null
           need_help_with?: string | null
+          notes?: string | null
+          phone?: string | null
           school_id?: string | null
+          syllabus_file_path?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "outreach_waitlist_signups_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "outreach_waitlist_signups_school_id_fkey"
             columns: ["school_id"]

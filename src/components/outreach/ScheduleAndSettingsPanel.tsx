@@ -22,6 +22,7 @@ import {
   scheduleLeadsBatch,
   setAutoScheduleSetting,
 } from "@/lib/outreach-api";
+import { CourseAvailabilitySettings } from "./CourseAvailabilitySettings";
 
 const toLocalInput = (d: Date) => {
   const tz = d.getTimezoneOffset() * 60000;
@@ -102,6 +103,7 @@ export function ScheduleAndSettingsPanel({ campuses }: { campuses: Campus[] }) {
 
   return (
     <>
+      <CourseAvailabilitySettings />
       {/* Admin setting */}
       <Card className="overflow-hidden py-0 gap-0">
         <div className="flex flex-wrap items-center gap-3 p-3">
