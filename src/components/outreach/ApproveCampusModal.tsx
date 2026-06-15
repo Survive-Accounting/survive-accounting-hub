@@ -869,9 +869,10 @@ export default function ApproveCampusModal({
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="text-left font-medium px-3 py-2 w-[34%]">Course Family</th>
-                      <th className="text-left font-medium px-3 py-2 w-[22%]">Course Code</th>
+                      <th className="text-left font-medium px-3 py-2 w-[26%]">Course Family</th>
+                      <th className="text-left font-medium px-3 py-2 w-[18%]">Course Code</th>
                       <th className="text-left font-medium px-3 py-2">Course Title</th>
+                      <th className="text-left font-medium px-3 py-2 w-[22%]">Offered Terms</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
