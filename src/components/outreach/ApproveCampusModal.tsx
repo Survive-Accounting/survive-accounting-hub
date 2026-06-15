@@ -234,6 +234,8 @@ export default function ApproveCampusModal({
     setAiResult(null);
     setAiResearching(false);
     setAiTouched(new Set());
+    setSkipLeadImport(false);
+    setLeadSummary({ total: 0, pending: 0, accepted: 0, rejected: 0, needs_lee: 0 });
 
     // Load Phase 4 availability rows + global defaults
     getCourseFamilyDefaults().then(setGlobalDefaults).catch(() => setGlobalDefaults(null));
