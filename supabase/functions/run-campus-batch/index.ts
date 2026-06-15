@@ -61,10 +61,31 @@ async function processItem(db: any, item: any) {
     return r;
   };
 
-  // 1. Campus profile
+  // 1. Campus profile — research-campus expects school_name/state, not campus_id
   if (!profile_done) {
-    const r = await step("profile", () => invokeFn("research-campus", { campus_id }));
-    if (r.ok) profile_done = true;
+    const { data: campus } = await db
+      .from("campuses")
+      .select("school_name, state, course_codes")
+      .eq("id", campus_id)
+      .maybeSingle();
+    if (!campus?.school_name) {
+      failed_step = "profile";
+      error = `profile: campus ${campus_id} not found or missing school_name`;
+    } else {
+      const r = await step("profile", () => invokeFn("research-campus", {
+        school_name: campus.school_name,
+        state: campus.state ?? "",
+        course_codes: campus.course_codes ?? [],
+      }));
+      if (r.ok) {
+        profile_done = true;
+        // Stash the raw research payload so it's reviewable later from the modal.
+        await db.from("campuses").update({
+          ai_research_debug_json: r.data,
+          ai_enrichment_status: "researched",
+        }).eq("id", campus_id);
+      }
+    }
   }
 
   // 2. Suggested leads (continue even if profile failed)
