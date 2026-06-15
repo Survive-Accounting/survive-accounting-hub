@@ -107,22 +107,27 @@ function urlOrNull(v: any): string | null {
   return typeof v === "string" && /^https?:\/\//i.test(v.trim()) ? v.trim() : null;
 }
 
-function sanitize(raw: any): any[] {
+const CONF_TO_NUMERIC: Record<string, number> = { high: 0.9, medium: 0.6, low: 0.3 };
+
+function sanitize(raw: any): { rows: any[]; rejected: { reason: string; sample: any }[] } {
   const arr = Array.isArray(raw?.suggestions) ? raw.suggestions : [];
-  const out: any[] = [];
+  const rows: any[] = [];
+  const rejected: { reason: string; sample: any }[] = [];
   for (const s of arr) {
-    if (!s || typeof s !== "object") continue;
+    if (!s || typeof s !== "object") { rejected.push({ reason: "not_object", sample: s }); continue; }
     const lead_type = VALID_LEAD_TYPES.has(s.lead_type) ? s.lead_type : "other";
-    const confidence = VALID_CONF.has(s.confidence) ? s.confidence : "low";
+    const confLabel = VALID_CONF.has(s.confidence) ? s.confidence : "low";
+    const confidence = CONF_TO_NUMERIC[confLabel];
     const first_name = str(s.first_name);
     const last_name = str(s.last_name);
     const emailRaw = str(s.email);
     const email = emailRaw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw) ? emailRaw.toLowerCase() : null;
-    if (!first_name && !last_name && !email) continue;
-    out.push({
-      first_name,
-      last_name,
-      email,
+    if (!first_name && !last_name && !email) {
+      rejected.push({ reason: "no_identity_fields", sample: { first_name: s.first_name, last_name: s.last_name, email: s.email } });
+      continue;
+    }
+    rows.push({
+      first_name, last_name, email,
       title: str(s.title),
       department: str(s.department),
       lead_type,
@@ -131,10 +136,10 @@ function sanitize(raw: any): any[] {
       source_url: urlOrNull(s.source_url),
       confidence,
       notes: str(s.notes),
-      raw_payload: s,
+      raw_payload: { ...s, _confidence_label: confLabel },
     });
   }
-  return out;
+  return { rows, rejected };
 }
 
 Deno.serve(async (req) => {
