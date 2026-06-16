@@ -2010,6 +2010,8 @@ export interface CampaignAudienceFilters {
   includeOnlyTeachingAssignments?: boolean;
   textbookMatchOnly?: boolean;
   minConfidence?: number;
+  /** Which research run to pull suggestions from. Default: 'clean_professor_only'. */
+  researchMode?: "all" | "broad" | "clean_professor_only";
 }
 
 export interface CampaignAudiencePreviewLead {
