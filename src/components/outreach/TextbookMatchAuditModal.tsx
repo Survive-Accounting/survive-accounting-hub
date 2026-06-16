@@ -38,6 +38,7 @@ export function TextbookMatchAuditModal({
   const qc = useQueryClient();
   const [bulkBusy, setBulkBusy] = useState(false);
   const [enrichBusy, setEnrichBusy] = useState(false);
+  const [familyFilter, setFamilyFilter] = useState<string>("all");
 
   const q = useQuery({
     queryKey: ["textbook-audit", campuses.length],
@@ -131,13 +132,14 @@ export function TextbookMatchAuditModal({
   // Sort: matched first, then unmatched, then unknown; within each, by campus name.
   const sorted = useMemo(() => {
     const order = { matched: 0, unmatched: 1, unknown: 2 } as const;
-    return [...rows].sort((a, b) => {
+    const filtered = familyFilter === "all" ? rows : rows.filter((r) => r.course_family === familyFilter);
+    return [...filtered].sort((a, b) => {
       const s = order[a.new_status] - order[b.new_status];
       if (s !== 0) return s;
       return a.campus_name.localeCompare(b.campus_name)
         || a.course_family.localeCompare(b.course_family);
     });
-  }, [rows]);
+  }, [rows, familyFilter]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,15 +191,30 @@ export function TextbookMatchAuditModal({
           <Badge variant="outline" className="text-xs bg-amber-50">
             Newly matched (vs. old rule): <strong className="ml-1">{summary.upgraded}</strong>
           </Badge>
-          <Button
-            variant="outline" size="sm" className="ml-auto h-8"
-            disabled={!rows.length}
-            onClick={() => downloadAuditCsv(sorted)}
-          >
-            <Download className="h-3.5 w-3.5 mr-1" />
-            Download CSV
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-[11px] font-medium text-muted-foreground">Family:</label>
+            <select
+              value={familyFilter}
+              onChange={(e) => setFamilyFilter(e.target.value)}
+              className="h-8 rounded border bg-background px-2 text-xs"
+            >
+              <option value="all">All families ({rows.length})</option>
+              {(["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const).map((f) => {
+                const n = rows.filter((r) => r.course_family === f).length;
+                return <option key={f} value={f}>{FAMILY_LABEL[f]} ({n})</option>;
+              })}
+            </select>
+            <Button
+              variant="outline" size="sm" className="h-8"
+              disabled={!sorted.length}
+              onClick={() => downloadAuditCsv(sorted)}
+            >
+              <Download className="h-3.5 w-3.5 mr-1" />
+              Download CSV
+            </Button>
+          </div>
         </div>
+
 
         <div className="flex flex-wrap items-center gap-2 rounded border bg-amber-50/40 p-2 text-xs">
           <BookOpen className="h-4 w-4 text-amber-700" />
