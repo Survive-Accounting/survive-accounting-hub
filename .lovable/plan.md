@@ -1,53 +1,61 @@
-# Campus Stats — Clarity Fixes + Drill-Down Report
+## Why only 3 campuses match a textbook
 
-Three changes to the Campuses → Analyze Campus Leads panel. No backend schema changes; this is presentation + a new modal.
+Short version: **the matcher is working correctly. The bottleneck is research coverage, not matching logic.**
 
-## 1. Coverage denominator: exclude archived campuses
+Of 170 active campuses, only **4** have any textbook research stored in `campus_family_textbooks_json`. The other 166 are `unknown` (no data yet — not "unmatched"). Of those 4:
 
-Current behavior: "Coverage 4 / 455 campuses" uses the full `campuses` list, which includes 285 archived rows (verified: 455 total, 170 active where `archived_at IS NULL`).
+| Campus | Intro 1 | Intro 2 | Why |
+|---|---|---|---|
+| Southern Miss | matched (Wild/Shaw) | matched (Wild/Shaw) | full title + authors + publisher |
+| Penn | matched (Hanlon/Magee/Pfeiffer) | matched (Hartgraves/Morse) | full metadata |
+| USC | matched (Hanlon/Magee/Pfeiffer) | matched (Garrison/Noreen/Brewer) | full metadata |
+| UF | unmatched | unmatched | only an ISBN was researched; title/authors/publisher are blank, so the keyword matcher has nothing to score |
 
-Fix: in `aggregateCampusLeadStats` (`src/lib/outreach-api.ts`), set `totalCampusCount` to the count of campuses where `archived_at == null`. The headline will then read **"4 / 170 active campuses"**. Label updated in `CampusLeadsStatsPanel.tsx`.
+So the "3 matched" number is really `3 matched + 1 ISBN-only unmatched + 166 not-yet-researched`.
 
-## 2. Inline explanations for confusing metrics
+### How matching works today (`src/lib/textbook-matcher.ts`)
+1. Load all rows from `supported_textbook_families` (14 families across intro_1, intro_2, intermediate_1, intermediate_2).
+2. For each campus + course family, read the detected book (`title`, `authors`, `publisher`, `isbn13`) from `campuses.course_family_textbooks_json`.
+3. If all four fields are empty → status = `unknown`.
+4. Otherwise score against every family in that course slot:
+   - authors: 2+ keyword hits = 0.7, 1 hit = 0.5
+   - title: 2+ hits = 0.25, 1 hit = 0.15
+   - publisher: any hit = 0.2
+5. Best score ≥ 0.5 → `matched`. Editions are ignored unless a family sets `edition_sensitive`.
+6. ISBN is stored but **not** used for matching — that is the gap that hides UF.
 
-Add small `?` info tooltips (using existing `Tooltip` primitive) on three tiles + the headline:
+### Fixes proposed
 
-- **Course sections** — "A course section is one scheduled offering of a class for a specific term (e.g. ACCT 201 Section 03, Fall 2024). One professor teaching two sections of intro accounting in the same term = 2 sections. Pulled from each campus's class schedule by AI research. Currently 11,416 sections across 9 course families."
-- **Textbook match only** (filter label) — "Restricts to campuses where AI research found a confirmed adopted textbook (ISBN13) for at least one of the four course families. Today only a handful of campuses have textbook ISBNs stored, which is why this filter shrinks the list so aggressively. It does NOT check whether a specific lead teaches a course that uses our supported textbooks."
-- **Suggested leads** — "Distinct rows in `campus_lead_suggestions` matching the filters — people AI research surfaced as likely professors/staff for the four core accounting course families. Not yet imported into the outreach queue."
-- **Imported outreach leads** — "Suggested leads that have been promoted into `outreach_leads` and are eligible for campaign enrollment."
+**A. ISBN-13 lookup as a fallback signal.** Add an `isbn13_prefixes` column (or a small `supported_textbook_isbns` table) to each family. UF's `9781266670268` / `9781264290000` are McGraw-Hill ISBNs that Wild/Shaw and Garrison sit inside; we can match by ISBN even when the AI returns no title/author. This alone should flip UF from `unmatched` to `matched`.
 
-This addresses the user's "are we sure textbook match is working correctly?" — it is working, but the rule is "campus has any textbook ISBN on file", not "lead's course matches our books". The tooltip makes that explicit.
+**B. Re-research the missing 166.** Right now `Clean Professor Research` only does professor discovery — it intentionally skips textbook research. We need a way to actually populate `course_family_textbooks_json` for the rest.
 
-## 3. New "View detailed report" modal
+## What you asked for
 
-A new button next to "AI Research Settings" in the panel header: **"View detailed report"** (opens when the panel is expanded). Opens a large dialog (`max-w-6xl`) titled "Campus Leads Report" with the active filter summary at the top and three tabs:
+### 1. Textbook matching report (modal)
+New "How matching works" panel inside the existing **Textbook Match Audit** modal: explains the scoring, lists the 14 supported families, and adds a top-line breakdown:
+`170 active · 4 researched · 3 matched · 1 unmatched (UF — ISBN only) · 166 unknown (no research yet)`.
+Plus a one-click **"Re-run textbook research for unknown campuses"** button that kicks off `research-campus` (textbook step only) for the 166.
 
-**Tab 1 — Campuses** (covered by current filters)
-- Columns: Campus · State · # Suggested leads · # Imported leads · # Sections · Has textbook ISBN (Y/N) · Last researched
-- Sortable by lead count / section count. Row click → filters the parent panel to that single campus.
+### 2. Run Clean Professor Research on all 170
+This already works — open the green **Run Clean Professor Research** card, switch Scope to **All active campuses (170)**, click Run. I'll just make that path more obvious by:
+- Adding a "170" count badge directly on the button.
+- Adding a confirm dialog that estimates cost (~$5.10 at $0.03/campus) and warns it will take ~15–20 minutes.
 
-**Tab 2 — Leads** (filtered `campus_lead_suggestions`)
-- Columns: Name · Title · Email · Campus · Confidence · PhD · CPA · Teaches (I1/I2/IA1/IA2 chips) · Source URL · Imported? (Y/N)
-- Paginated 50/page; total count shown.
+### 3. Test a single campus first
+New **"Test on one campus"** control on the Clean Professor card:
+- Searchable campus picker (defaults to a textbook-matched campus so you see a fair test).
+- Runs the same `research-campus-leads-clean` edge function for just that one campus, synchronously.
+- Opens a results dialog showing: prompt used, raw model output, leads created, leads rejected + reason, sources cited.
+- Nothing is auto-imported — results land as pending suggestions tagged `research_label = 'Clean Professor Test — <campus> <timestamp>'` so they're easy to find or archive.
 
-**Tab 3 — Course sections** (filtered `campus_course_sections`)
-- Columns: Campus · Family · Course code · Title · Term · Section · Instructor · Enrollment · Source URL
-- Paginated 50/page; total count shown. Grouping toggle: "Group by campus" / "Group by family".
+### Technical changes
+- **Migration:** add `isbn13_prefixes text[]` to `supported_textbook_families` and seed prefixes for the 14 families.
+- **`src/lib/textbook-matcher.ts`:** new ISBN-prefix branch — if title/authors/publisher all blank but ISBN matches a family's prefix, return `matched` with reason `"isbn13 prefix match"` and confidence 0.6.
+- **`TextbookMatchAuditModal.tsx`:** add explanatory header section + coverage breakdown + "Re-run textbook research" action.
+- **`CleanProfessorResearchPanel.tsx`:** add single-campus picker + "Test one campus" button; show count badge + cost/time confirm on the bulk Run.
+- **New component `CleanRunTestResultModal.tsx`:** shows leads, rejections, sources for the test run.
+- **`supabase/functions/research-campus-leads-clean/index.ts`:** accept a `test_mode: true` flag → return the full result payload (prompt, raw output, accepted, rejected with reasons) instead of just persisting and returning a count.
+- **`src/lib/outreach-api.ts`:** add `runCleanProfessorTest(campusId)` and `triggerTextbookResearchForUnknown()`.
 
-Each tab has a "Download CSV" button that exports the filtered rows for that tab.
-
-The modal reads from the same already-fetched arrays the stats panel uses (no extra queries) — `fetchCampusLeadStats` will be extended to also return `filteredLeads`, `filteredSections`, and a `perCampus` enriched list, behind a new `includeDetail: true` option so the existing summary path stays lean. The modal calls a sibling `fetchCampusLeadReport(filters, campuses)` that reuses the same row-collection + filter helpers and returns the detailed arrays.
-
-## Technical notes
-
-Files touched:
-- `src/lib/outreach-api.ts` — fix `totalCampusCount` (exclude archived), add `fetchCampusLeadReport` reusing existing fetch + filter helpers.
-- `src/components/outreach/CampusLeadsStatsPanel.tsx` — add tooltips, "View detailed report" button, modal trigger; update coverage label to "active campuses".
-- `src/components/outreach/CampusLeadsReportModal.tsx` — new file: dialog + tabs + tables + CSV export.
-
-Not changed: filter bar, batch research, campaign builder, email sending.
-
-## Open question
-
-For the Campuses tab table itself (separate from this panel), should archived campuses also be hidden by default? Today the bottom table appears to include them. Out of scope for this change unless you say yes — flag it for a follow-up.
+No existing data is modified or deleted; ISBN matching only adds matches, never removes them.
