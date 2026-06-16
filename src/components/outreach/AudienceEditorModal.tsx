@@ -56,6 +56,8 @@ export function AudienceEditorModal({
   const [pinMode, setPinMode] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<"name" | "state" | "textbook">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // Reset when opening for a new audience or switching audiences.
   useEffect(() => {
