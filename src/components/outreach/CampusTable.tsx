@@ -177,21 +177,18 @@ export default function CampusTable({
                       />
                     </td>
                     <td className="px-3 py-3.5 font-medium align-top">
-                      <button
-                        type="button"
-                        onClick={() => toggleExpand(s.id)}
-                        className="inline-flex items-center gap-1.5 text-left hover:text-primary"
-                        title={expanded.has(s.id) ? "Hide faculty triage" : "Show faculty triage"}
-                      >
-                        {expanded.has(s.id) ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                      <div className="inline-flex items-center gap-1.5">
                         <span>{s.school_name}</span>
                         {s.is_sec && (
                           <span title="SEC Conference" className="text-base leading-none" aria-label="SEC">🏈</span>
                         )}
+                        {isApproved && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-emerald-500/40 text-emerald-700">approved</Badge>
+                        )}
                         {isArchived && (
                           <Badge variant="outline" className="text-[10px] h-4 px-1">archived</Badge>
                         )}
-                      </button>
+                      </div>
                       <div className="mt-0.5 text-[10px] font-normal text-muted-foreground">
                         {s.state} · /{s.slug}
                       </div>
