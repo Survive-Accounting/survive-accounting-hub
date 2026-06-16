@@ -38,6 +38,7 @@ export function CampusLeadsStatsPanel({
   }, [open]);
 
   const { filters, setFilters, reset } = useLeadFilters();
+  const [reportOpen, setReportOpen] = useState(false);
 
   const statsQ = useQuery({
     queryKey: ["campus-lead-stats", filters, campuses.length],
