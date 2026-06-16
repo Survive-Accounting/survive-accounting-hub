@@ -11,7 +11,8 @@ import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
 import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
-import { BatchResearchPanel } from "@/components/outreach/BatchResearchPanel";
+import { BatchResearchSettingsModal } from "@/components/outreach/BatchResearchSettingsModal";
+import { CampusLeadsStatsPanel } from "@/components/outreach/CampusLeadsStatsPanel";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
 import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
 import AddCampusModal from "@/components/outreach/AddCampusModal";
@@ -55,6 +56,7 @@ function OutreachPage() {
   const [addOpen, setAddOpen] = useState(false);
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
+  const [batchSettingsOpen, setBatchSettingsOpen] = useState(false);
 
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
@@ -127,8 +129,11 @@ function OutreachPage() {
           </TabsContent>
 
 
-          <TabsContent value="schools" className="mt-8 space-y-8">
-            <BatchResearchPanel campuses={campuses} />
+          <TabsContent value="schools" className="mt-8 space-y-6">
+            <CampusLeadsStatsPanel
+              campuses={campuses}
+              onOpenSettings={() => setBatchSettingsOpen(true)}
+            />
             <div className="flex items-center justify-end">
               <button
                 onClick={() => setAddOpen(true)}
