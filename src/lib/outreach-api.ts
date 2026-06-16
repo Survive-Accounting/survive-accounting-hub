@@ -1559,7 +1559,7 @@ export async function fetchCampusLeadStats(
   filters: LeadFilters,
   campuses: Campus[],
 ): Promise<CampusLeadStats> {
-  const [leads, sections, imported] = await Promise.all([
+  const [leads, sections, imported, supportedFamilies] = await Promise.all([
     fetchAllRows<RawLeadRow>(
       "campus_lead_suggestions",
       "id,campus_id,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,created_at",
@@ -1573,8 +1573,9 @@ export async function fetchCampusLeadStats(
       "outreach_leads",
       "id,campus_id,school_id,created_at",
     ),
+    getSupportedTextbookFamilies(),
   ]);
-  return aggregateCampusLeadStats({ leads, sections, imported, filters, campuses });
+  return aggregateCampusLeadStats({ leads, sections, imported, filters, campuses, supportedFamilies });
 }
 
 function aggregateCampusLeadStats(args: {
@@ -1583,22 +1584,17 @@ function aggregateCampusLeadStats(args: {
   imported: RawImportedLeadRow[];
   filters: LeadFilters;
   campuses: Campus[];
+  supportedFamilies: SupportedTextbookFamily[];
 }): CampusLeadStats {
-  const { leads, sections, imported, filters, campuses } = args;
+  const { leads, sections, imported, filters, campuses, supportedFamilies } = args;
   const campusSet = filters.campusIds.length ? new Set(filters.campusIds) : null;
   const campusById = new Map(campuses.map((c) => [c.id, c]));
 
-  // Campuses that satisfy the textbook-match filter.
+  // Campuses that satisfy the textbook-match filter — uses supported_textbook_families.
   const textbookCampusIds = filters.textbookMatchOnly
     ? new Set(
         campuses
-          .filter((c) => {
-            const tb = c.course_family_textbooks_json;
-            if (!tb || typeof tb !== "object") return false;
-            return Object.values(tb).some(
-              (v) => v && typeof v === "object" && (v as any).isbn13,
-            );
-          })
+          .filter((c) => campusHasSupportedTextbook(c, supportedFamilies, ["intro_1", "intro_2"]))
           .map((c) => c.id),
       )
     : null;
