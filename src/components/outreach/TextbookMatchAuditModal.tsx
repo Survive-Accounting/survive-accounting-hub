@@ -40,7 +40,29 @@ export function TextbookMatchAuditModal({
   const qc = useQueryClient();
   const [bulkBusy, setBulkBusy] = useState(false);
   const [enrichBusy, setEnrichBusy] = useState(false);
-  const [familyFilter, setFamilyFilter] = useState<string>("all");
+  const FAMILIES: CourseFamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
+  type CourseFamilyKey = "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2";
+  const [familySel, setFamilySel] = useState<Record<string, boolean>>({
+    intro_1: true, intro_2: true, intermediate_1: true, intermediate_2: true,
+  });
+  const [authorQ, setAuthorQ] = useState("");
+  const [publisherQ, setPublisherQ] = useState("");
+  type SortKey = "campus_name" | "course_family" | "course_code" | "detected_publisher" | "detected_authors" | "old_status" | "new_status" | "match_reason" | "source_url";
+  const [sortKey, setSortKey] = useState<SortKey>("new_status");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir("asc"); }
+  }
+  function SortHeader({ k, label }: { k: SortKey; label: string }) {
+    const active = sortKey === k;
+    const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+    return (
+      <button onClick={() => toggleSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
+        {label}<Icon className="h-3 w-3 opacity-60" />
+      </button>
+    );
+  }
 
   const q = useQuery({
     queryKey: ["textbook-audit", campuses.length],
