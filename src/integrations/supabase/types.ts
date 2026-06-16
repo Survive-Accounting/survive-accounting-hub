@@ -3773,6 +3773,107 @@ export type Database = {
           },
         ]
       }
+      student_intake_submissions: {
+        Row: {
+          booking_link_shown: boolean
+          campus_id: string | null
+          course_code_or_name: string | null
+          course_family: string | null
+          created_at: string
+          email: string | null
+          first_name: string | null
+          greek_org_name: string | null
+          how_did_you_hear_about_me: string | null
+          id: string
+          is_accounting_major: boolean | null
+          is_greek_member: boolean | null
+          last_name: string | null
+          next_exam_date: string | null
+          notes: string | null
+          phone: string | null
+          professor_name: string | null
+          routing_reason: string | null
+          routing_result: string | null
+          school_name: string | null
+          source: string | null
+          source_campaign_id: string | null
+          source_lead_id: string | null
+          source_url_params: Json
+          syllabus_file_url: string | null
+          syllabus_uploaded_at: string | null
+          updated_at: string
+          waitlist_joined: boolean
+        }
+        Insert: {
+          booking_link_shown?: boolean
+          campus_id?: string | null
+          course_code_or_name?: string | null
+          course_family?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          greek_org_name?: string | null
+          how_did_you_hear_about_me?: string | null
+          id?: string
+          is_accounting_major?: boolean | null
+          is_greek_member?: boolean | null
+          last_name?: string | null
+          next_exam_date?: string | null
+          notes?: string | null
+          phone?: string | null
+          professor_name?: string | null
+          routing_reason?: string | null
+          routing_result?: string | null
+          school_name?: string | null
+          source?: string | null
+          source_campaign_id?: string | null
+          source_lead_id?: string | null
+          source_url_params?: Json
+          syllabus_file_url?: string | null
+          syllabus_uploaded_at?: string | null
+          updated_at?: string
+          waitlist_joined?: boolean
+        }
+        Update: {
+          booking_link_shown?: boolean
+          campus_id?: string | null
+          course_code_or_name?: string | null
+          course_family?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          greek_org_name?: string | null
+          how_did_you_hear_about_me?: string | null
+          id?: string
+          is_accounting_major?: boolean | null
+          is_greek_member?: boolean | null
+          last_name?: string | null
+          next_exam_date?: string | null
+          notes?: string | null
+          phone?: string | null
+          professor_name?: string | null
+          routing_reason?: string | null
+          routing_result?: string | null
+          school_name?: string | null
+          source?: string | null
+          source_campaign_id?: string | null
+          source_lead_id?: string | null
+          source_url_params?: Json
+          syllabus_file_url?: string | null
+          syllabus_uploaded_at?: string | null
+          updated_at?: string
+          waitlist_joined?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_intake_submissions_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supported_textbook_families: {
         Row: {
           active: boolean
