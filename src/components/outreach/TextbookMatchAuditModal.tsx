@@ -40,8 +40,7 @@ export function TextbookMatchAuditModal({
   const qc = useQueryClient();
   const [bulkBusy, setBulkBusy] = useState(false);
   const [enrichBusy, setEnrichBusy] = useState(false);
-  const FAMILIES: CourseFamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
-  type CourseFamilyKey = "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2";
+  const FAMILIES = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const;
   const [familySel, setFamilySel] = useState<Record<string, boolean>>({
     intro_1: true, intro_2: true, intermediate_1: true, intermediate_2: true,
   });
