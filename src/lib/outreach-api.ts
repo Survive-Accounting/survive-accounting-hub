@@ -1563,6 +1563,7 @@ export async function fetchCampusLeadStats(
     fetchAllRows<RawLeadRow>(
       "campus_lead_suggestions",
       "id,campus_id,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,created_at",
+      { excludeArchived: true },
     ),
     fetchAllRows<RawSectionRow>(
       "campus_course_sections",
