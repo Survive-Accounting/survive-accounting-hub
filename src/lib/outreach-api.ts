@@ -1184,11 +1184,16 @@ export interface CampusResearchJobItem {
   finished_at: string | null;
 }
 
-/** Start a batch — creates a job and one item per provided campus, then triggers the first tick. */
-export async function startCampusBatch(campusIds: string[], notes?: string): Promise<CampusResearchJob> {
+/** Start a batch — creates a job and one item per provided campus, then triggers the first tick.
+ *  Pass researchMode='clean_professor_only' to run the strict professor-only flow. */
+export async function startCampusBatch(
+  campusIds: string[],
+  notes?: string,
+  researchMode: ResearchMode = "broad",
+): Promise<CampusResearchJob> {
   if (!campusIds.length) throw new Error("no campuses selected");
   const { data: job, error: jobErr } = await (supabase.from("campus_research_jobs" as never) as any)
-    .insert({ status: "running", total_count: campusIds.length, notes: notes ?? null })
+    .insert({ status: "running", total_count: campusIds.length, notes: notes ?? null, research_mode: researchMode })
     .select()
     .single();
   if (jobErr) throw jobErr;
@@ -1197,9 +1202,34 @@ export async function startCampusBatch(campusIds: string[], notes?: string): Pro
   const { error: itemsErr } = await (supabase.from("campus_research_job_items" as never) as any).insert(items);
   if (itemsErr) throw itemsErr;
 
-  // Fire and forget — kick off the first batch immediately.
   supabase.functions.invoke("run-campus-batch", { body: { job_id: job.id, batch_size: 3 } }).catch(() => {});
   return job as CampusResearchJob;
+}
+
+/** Clean professor-only run — convenience wrapper. */
+export async function startCleanProfessorBatch(
+  campusIds: string[],
+  notes?: string,
+): Promise<CampusResearchJob> {
+  return startCampusBatch(campusIds, notes ?? "Clean Professor Run", "clean_professor_only");
+}
+
+/** Returns the set of campus IDs whose Intro 1 OR Intro 2 textbook matches a
+ *  supported_textbook_family row. Used for the "textbook-matched scope" of
+ *  clean professor research. */
+export async function getTextbookMatchedCampusIds(): Promise<string[]> {
+  const [{ data: tb, error: tbErr }, supportedFamilies] = await Promise.all([
+    supabase.from("campuses").select("id,course_family_textbooks_json,archived_at"),
+    getSupportedTextbookFamilies(),
+  ]);
+  if (tbErr) throw tbErr;
+  return ((tb ?? []) as Array<{ id: string; course_family_textbooks_json: unknown; archived_at: string | null }>)
+    .filter((c) => !c.archived_at)
+    .filter((c) => {
+      const fake = { id: c.id, course_family_textbooks_json: c.course_family_textbooks_json } as unknown as Campus;
+      return campusHasSupportedTextbook(fake, supportedFamilies, ["intro_1", "intro_2"]);
+    })
+    .map((c) => c.id);
 }
 
 /** Get the most recent job, with items. */
