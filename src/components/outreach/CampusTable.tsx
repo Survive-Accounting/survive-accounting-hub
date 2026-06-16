@@ -1,7 +1,7 @@
 // Ported from the original app (ProfessorOutreach.tsx — SchoolsPanel table).
 import { Fragment, useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BarChart3, Check, Copy, DollarSign,
+  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign,
   Eye, MousePointerClick, Phone, RefreshCw, Upload, Users,
 } from "lucide-react";
 import { toast } from "sonner";
