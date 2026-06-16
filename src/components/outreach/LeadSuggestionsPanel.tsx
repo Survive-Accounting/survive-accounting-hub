@@ -21,6 +21,7 @@ import {
   getLeadSuggestions,
   updateLeadSuggestion,
   bulkUpdateLeadSuggestions,
+  archiveBroadRunSuggestions,
   importLeads,
   type LeadSuggestion,
   type LeadSuggestionStatus,
