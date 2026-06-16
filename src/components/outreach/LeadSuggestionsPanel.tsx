@@ -138,12 +138,16 @@ export default function LeadSuggestionsPanel({
   const [teachingFilter, setTeachingFilter] = useState<TeachingFilter>("all");
   const [sortMode, setSortMode] = useState<"last_name" | "priority">("last_name");
   const [showArchived, setShowArchived] = useState(false);
+  const [researchModeFilter, setResearchModeFilter] = useState<"all" | "broad" | "clean_professor_only">("all");
 
   async function refresh(id = campusId) {
     if (!id) { setRows([]); return; }
     setLoading(true);
     try {
-      const data = await getLeadSuggestions(id, { includeArchived: showArchived });
+      const data = await getLeadSuggestions(id, {
+        includeArchived: showArchived,
+        researchMode: researchModeFilter,
+      });
       setRows(data);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load suggestions");
@@ -152,7 +156,7 @@ export default function LeadSuggestionsPanel({
     }
   }
 
-  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId, showArchived]);
+  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId, showArchived, researchModeFilter]);
 
   const visibleRows = useMemo(() => {
     let filtered = rows;
