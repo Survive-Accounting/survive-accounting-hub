@@ -939,28 +939,18 @@ export default function ApproveCampusModal({
             })}
           </div>
 
-          {/* Research — single primary action + secondary tools */}
-          <div className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-2.5">
-            <div className="flex items-center gap-3 min-w-0">
-              <Button
-                type="button"
-                onClick={runAiResearch}
-                disabled={aiResearching}
-                size="sm"
-                className="h-9 gap-2 font-semibold"
-              >
-                {aiResearching ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
-                ) : (
-                  <><Wand2 className="h-4 w-4" /> Run Full AI Research</>
-                )}
-              </Button>
-            </div>
+          {/* Research — single primary action + secondary tools (top-right) */}
+          <div className="mt-3 mb-1 flex items-center justify-end gap-2">
             <Sheet>
               <SheetTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Open Research Tools
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10"
+                  title="Open Research Tools"
+                >
+                  <Wrench className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
