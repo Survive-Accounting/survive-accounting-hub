@@ -1803,7 +1803,7 @@ export async function fetchCampusLeadReport(
   filters: LeadFilters,
   campuses: Campus[],
 ): Promise<CampusLeadReport> {
-  const [leads, sections, imported] = await Promise.all([
+  const [leads, sections, imported, supportedFamilies] = await Promise.all([
     fetchAllRows<RawLeadFullRow>(
       "campus_lead_suggestions",
       "id,campus_id,first_name,last_name,title,email,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,source_url,created_at",
@@ -1817,6 +1817,7 @@ export async function fetchCampusLeadReport(
       "outreach_leads",
       "id,campus_id,school_id,created_at",
     ),
+    getSupportedTextbookFamilies(),
   ]);
 
   const campusById = new Map(campuses.map((c) => [c.id, c]));
@@ -1825,13 +1826,7 @@ export async function fetchCampusLeadReport(
   const textbookCampusIds = filters.textbookMatchOnly
     ? new Set(
         campuses
-          .filter((c) => {
-            const tb = c.course_family_textbooks_json;
-            if (!tb || typeof tb !== "object") return false;
-            return Object.values(tb).some(
-              (v) => v && typeof v === "object" && (v as any).isbn13,
-            );
-          })
+          .filter((c) => campusHasSupportedTextbook(c, supportedFamilies, ["intro_1", "intro_2"]))
           .map((c) => c.id),
       )
     : null;
