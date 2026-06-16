@@ -712,6 +712,42 @@ export interface SmsConfig {
   twilio_configured: boolean;
   anthropic_configured: boolean;
 }
+export interface SmsDiagnostics {
+  ok: boolean;
+  checked_at: string;
+  main_line: string;
+  expected_sms_url: string;
+  webhook_ok: boolean;
+  number: {
+    phone_number: string;
+    friendly_name: string | null;
+    status: string;
+    sms_url: string | null;
+    sms_method: string | null;
+    voice_url: string | null;
+    voice_method: string | null;
+    capabilities?: Record<string, boolean>;
+  };
+  recent_messages: Array<{
+    sid: string;
+    date_created: string | null;
+    date_sent: string | null;
+    direction: string;
+    from: string;
+    to: string;
+    status: string;
+    error_code: number | null;
+    body: string;
+  }>;
+  recent_alerts: Array<{
+    sid: string;
+    date_generated: string;
+    error_code: string | null;
+    log_level: string | null;
+    resource_sid: string | null;
+    more_info: string | null;
+  }>;
+}
 
 export async function fetchSmsTemplates(): Promise<SmsTemplate[]> {
   const { data, error } = await (supabase.from("sms_templates" as never) as any)
@@ -734,6 +770,27 @@ export async function fetchSmsConfig(): Promise<SmsConfig> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`sms-config HTTP ${res.status}`);
   return (await res.json()) as SmsConfig;
+}
+
+export async function fetchSmsDiagnostics(): Promise<SmsDiagnostics> {
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sms-diagnostics`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`sms-diagnostics HTTP ${res.status}`);
+  return (await res.json()) as SmsDiagnostics;
+}
+
+export async function resyncSmsNumber(): Promise<{ ok: boolean; error?: string }> {
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sms-diagnostics`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "resync" }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return { ok: false, error: body?.error ?? `HTTP ${res.status}` };
+  }
+  return { ok: true };
 }
 
 
