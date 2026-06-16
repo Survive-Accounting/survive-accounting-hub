@@ -1480,14 +1480,20 @@ interface RawImportedLeadRow {
   created_at: string;
 }
 
-async function fetchAllRows<T>(table: string, columns: string): Promise<T[]> {
+async function fetchAllRows<T>(
+  table: string,
+  columns: string,
+  opts: { excludeArchived?: boolean } = {},
+): Promise<T[]> {
   const out: T[] = [];
   let from = 0;
   for (let i = 0; i < 50; i++) {
-    const { data, error } = await supabase
+    let q: any = supabase
       .from(table as never)
-      .select(columns)
-      .range(from, from + STATS_PAGE - 1);
+      .select(columns);
+    if (opts.excludeArchived) q = q.is("archived_at", null);
+    q = q.range(from, from + STATS_PAGE - 1);
+    const { data, error } = await q;
     if (error) throw error;
     const rows = (data ?? []) as unknown as T[];
     out.push(...rows);
