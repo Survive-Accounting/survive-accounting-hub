@@ -214,14 +214,16 @@ function OutreachPage() {
         usingMock={usingMock}
         onImported={() => qc.invalidateQueries({ queryKey: ["outreach-leads"] })}
       />
-      <ResearchErrorBoundary onReset={() => { setReviewing(null); setAutoResearchId(null); }}>
+      <ResearchErrorBoundary onReset={() => { setReviewing(null); setAutoResearchId(null); setReviewInitialStep(undefined); }}>
         <ApproveCampusModal
           campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
           autoStartResearch={autoResearchId}
+          initialStep={reviewInitialStep}
           onClose={() => {
             if (reviewing) refreshClaim(reviewing.id).catch(() => {});
             setReviewing(null);
             setAutoResearchId(null);
+            setReviewInitialStep(undefined);
           }}
           onPatch={(id, patch) => {
             patchCampus(id, patch);
