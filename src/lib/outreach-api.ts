@@ -1806,6 +1806,7 @@ export async function fetchCampusLeadReport(
     fetchAllRows<RawLeadFullRow>(
       "campus_lead_suggestions",
       "id,campus_id,first_name,last_name,title,email,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,source_url,created_at",
+      { excludeArchived: true },
     ),
     fetchAllRows<RawSectionFullRow>(
       "campus_course_sections",
