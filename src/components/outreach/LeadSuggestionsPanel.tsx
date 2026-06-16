@@ -225,6 +225,31 @@ export default function LeadSuggestionsPanel({
     }
   }
 
+  async function archiveBroadRun() {
+    const activeCount = rows.filter((r) => !(r as any).archived_at).length;
+    const scope = campusId ? "this campus" : "ALL campuses";
+    const confirmed = window.confirm(
+      `Archive ${activeCount > 0 ? activeCount + " active suggestion(s)" : "the current broad AI run"} for ${scope}?\n\n` +
+      `Nothing is deleted. Archived rows are hidden from campaign workflows but can be viewed via "Show archived suggestions".`,
+    );
+    if (!confirmed) return;
+    setArchiving(true);
+    try {
+      const { archivedCount } = await archiveBroadRunSuggestions({
+        label: "AI Broad Run 1 — June 2026",
+        reason: "Broad exploratory AI run archived before clean professor-only campaign research.",
+        by: "admin",
+        campusIds: campusId ? [campusId] : null,
+      });
+      toast.success(`Archived ${archivedCount} suggestion(s). No rows were deleted.`);
+      await refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Archive failed");
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   async function patchRow(id: string, patch: Partial<LeadSuggestion>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } as LeadSuggestion : r)));
     try {
