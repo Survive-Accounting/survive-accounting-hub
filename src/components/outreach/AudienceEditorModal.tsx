@@ -252,6 +252,20 @@ export function AudienceEditorModal({
         <div className="rounded-md border bg-card flex-1 min-h-0 flex flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b p-2 text-xs">
             <Badge variant="outline">{matched.length} match{matched.length === 1 ? "" : "es"}</Badge>
+            {blanksCount > 0 && (
+              <Badge variant="outline" className="border-amber-500 text-amber-700">
+                {blanksCount} blank{blanksCount === 1 ? "" : "s"}
+              </Badge>
+            )}
+            <label className="flex items-center gap-1.5 ml-1">
+              <Checkbox
+                checked={!!filters.includeBlanks}
+                onCheckedChange={(v) =>
+                  setFilters((prev) => ({ ...prev, includeBlanks: !!v }))
+                }
+              />
+              Include blanks (missing textbook)
+            </label>
             <label className="flex items-center gap-2 ml-2">
               <Checkbox checked={pinMode} onCheckedChange={(v) => {
                 const on = !!v;
@@ -263,7 +277,7 @@ export function AudienceEditorModal({
             {pinMode && (
               <>
                 <button type="button" className="text-[11px] text-primary hover:underline ml-auto"
-                  onClick={() => setPinnedIds(matchedFiltered.map((c) => c.id))}>
+                  onClick={() => setPinnedIds(matchedFiltered.map((r) => r.campus.id))}>
                   Pin shown
                 </button>
                 <button type="button" className="text-[11px] text-muted-foreground hover:underline"
@@ -274,36 +288,77 @@ export function AudienceEditorModal({
             )}
           </div>
           <div className="p-2 border-b">
-            <Input placeholder="Search matching campuses…" value={search}
+            <Input placeholder="Search matching campuses or textbooks…" value={search}
               onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs" />
           </div>
-          <div className="overflow-auto divide-y" style={{ maxHeight: 260 }}>
-            {matchedFiltered.slice(0, 250).map((c) => {
-              const pinned = pinnedIds.includes(c.id);
-              return (
-                <label key={c.id}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/40 cursor-pointer">
-                  {pinMode ? (
-                    <Checkbox checked={pinned} onCheckedChange={(v) => togglePin(c.id, !!v)} />
-                  ) : (
-                    <span className="inline-block w-4" />
-                  )}
-                  <span className="truncate flex-1">{c.school_name}</span>
-                  <span className="text-[11px] text-muted-foreground">{c.state}</span>
-                </label>
-              );
-            })}
-            {matchedFiltered.length > 250 && (
-              <div className="px-3 py-2 text-[11px] text-muted-foreground">
-                + {matchedFiltered.length - 250} more — refine filters or search.
-              </div>
-            )}
-            {matchedFiltered.length === 0 && (
-              <div className="px-3 py-6 text-center text-xs text-muted-foreground">
-                No campuses match these filters.
-              </div>
-            )}
+          <div className="overflow-auto flex-1 min-h-0" style={{ maxHeight: 360 }}>
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-card border-b">
+                <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {pinMode && <th className="w-8 px-2 py-2"></th>}
+                  <th className="px-2 py-2">
+                    <button type="button" onClick={() => toggleSort("name")}
+                      className="inline-flex items-center gap-1 hover:text-foreground">
+                      Campus {sortIcon("name")}
+                    </button>
+                  </th>
+                  <th className="px-2 py-2 w-14">
+                    <button type="button" onClick={() => toggleSort("state")}
+                      className="inline-flex items-center gap-1 hover:text-foreground">
+                      ST {sortIcon("state")}
+                    </button>
+                  </th>
+                  <th className="px-2 py-2">
+                    <button type="button" onClick={() => toggleSort("textbook")}
+                      className="inline-flex items-center gap-1 hover:text-foreground">
+                      Textbook {sortIcon("textbook")}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {matchedFiltered.slice(0, 500).map(({ campus: c, textbook }) => {
+                  const pinned = pinnedIds.includes(c.id);
+                  const blank = !textbook;
+                  return (
+                    <tr key={c.id}
+                      className={`hover:bg-accent/40 ${blank ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}`}>
+                      {pinMode && (
+                        <td className="px-2 py-1.5 align-middle">
+                          <Checkbox checked={pinned}
+                            onCheckedChange={(v) => togglePin(c.id, !!v)} />
+                        </td>
+                      )}
+                      <td className="px-2 py-1.5 truncate max-w-[260px]">{c.school_name}</td>
+                      <td className="px-2 py-1.5 text-[11px] text-muted-foreground">{c.state}</td>
+                      <td className="px-2 py-1.5 text-xs">
+                        {blank ? (
+                          <span className="italic text-amber-700 dark:text-amber-400">— blank —</span>
+                        ) : (
+                          <span className="truncate inline-block max-w-[420px] align-bottom">{textbook}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {matchedFiltered.length > 500 && (
+                  <tr>
+                    <td colSpan={pinMode ? 4 : 3} className="px-3 py-2 text-[11px] text-muted-foreground">
+                      + {matchedFiltered.length - 500} more — refine filters or search.
+                    </td>
+                  </tr>
+                )}
+                {matchedFiltered.length === 0 && (
+                  <tr>
+                    <td colSpan={pinMode ? 4 : 3} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                      No campuses match these filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
+
           <p className="border-t p-2 text-[11px] text-muted-foreground">
             {pinMode
               ? "Pinned audience: campaigns target exactly the pinned campuses, regardless of future filter changes."
