@@ -41,16 +41,107 @@ const HARD_EXCLUDE = [
 ];
 // 4-digit year in path (e.g. /2024/, /2007-2008) = archived directory PDFs.
 const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
+const TEACHING_TITLE_RE = /\b(professor|instructor|lecturer|adjunct|clinical|teaching|faculty|dean|chair|practice|visiting)\b/i;
+const PROFILE_ENRICH_LIMIT = 60;
+
+function normalizeUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.hash = "";
+    url.pathname = url.pathname.replace(/\/index\.php$/i, "").replace(/\/+$/, "");
+    return url.toString();
+  } catch {
+    return raw.trim();
+  }
+}
+
+function splitName(fullName: string): { first_name: string; last_name: string } | null {
+  const cleaned = fullName.replace(/\s+/g, " ").trim();
+  const parts = cleaned.split(" ").filter(Boolean);
+  if (parts.length < 2) return null;
+  return { first_name: parts.slice(0, -1).join(" "), last_name: parts.at(-1) ?? "" };
+}
+
+function extractDirectoryMarkdownPeople(pageText: string): Extracted[] {
+  const headingLink = /^#{2,4}\s+\[([^\]]+)]\((https?:\/\/[^)]+)\)\s*$/gim;
+  const matches = Array.from(pageText.matchAll(headingLink));
+  const people: Extracted[] = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const name = (match[1] ?? "").trim();
+    const profileUrl = normalizeUrl(match[2] ?? "");
+    const parsedName = splitName(name);
+    if (!parsedName || !profileUrl) continue;
+
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[i + 1]?.index ?? Math.min(pageText.length, start + 800);
+    const block = pageText.slice(start, end);
+    const title = block.match(/^\s*-\s+(.+?)\s*$/m)?.[1]?.replace(/\s+/g, " ").trim() ?? null;
+    if (title && !TEACHING_TITLE_RE.test(title)) continue;
+
+    people.push({ ...parsedName, title, email: null, profile_url: profileUrl });
+  }
+
+  return people;
+}
+
+function extractBestEmail(pageText: string): string | null {
+  const emails = Array.from(new Set(pageText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? []))
+    .map((e) => e.toLowerCase())
+    .filter((e) => !/^(info|contact|admissions|support|webmaster|umaccy)@/i.test(e));
+  return emails[0] ?? null;
+}
+
+function mergePeople(...groups: Extracted[][]): Extracted[] {
+  const byKey = new Map<string, Extracted>();
+  for (const person of groups.flat()) {
+    const key = person.email ?? person.profile_url ?? `${person.first_name}|${person.last_name}`.toLowerCase();
+    const existing = byKey.get(key);
+    byKey.set(key, {
+      first_name: existing?.first_name || person.first_name,
+      last_name: existing?.last_name || person.last_name,
+      title: person.title || existing?.title || null,
+      email: person.email || existing?.email || null,
+      profile_url: person.profile_url || existing?.profile_url || null,
+    });
+  }
+  return Array.from(byKey.values());
+}
+
+async function enrichProfileEmails(fcKey: string, people: Extracted[], sourceUrl: string): Promise<Extracted[]> {
+  let enriched = 0;
+  const out: Extracted[] = [];
+  const sourceKey = normalizeUrl(sourceUrl);
+
+  for (const person of people) {
+    if (person.email || !person.profile_url || normalizeUrl(person.profile_url) === sourceKey || enriched >= PROFILE_ENRICH_LIMIT) {
+      out.push(person);
+      continue;
+    }
+    try {
+      const profileText = await firecrawlScrape(fcKey, person.profile_url);
+      const email = extractBestEmail(profileText);
+      out.push({ ...person, email: email ?? person.email });
+      enriched++;
+    } catch {
+      out.push(person);
+    }
+  }
+
+  return out;
+}
 
 function rankFacultyUrls(links: string[]): string[] {
   const scored = links
     .map((u) => {
-      const lo = u.toLowerCase();
+      const normalized = normalizeUrl(u);
+      const lo = normalized.toLowerCase();
       if (HARD_EXCLUDE.some((x) => lo.includes(x))) return { u, score: -999 };
       if (YEAR_RE.test(lo)) return { u, score: -999 };
 
       let path = "";
-      try { path = new URL(u).pathname.toLowerCase(); } catch { return { u, score: -999 }; }
+      try { path = new URL(normalized).pathname.toLowerCase(); } catch { return { u, score: -999 }; }
       const segments = path.split("/").filter(Boolean);
 
       let score = 0;
@@ -60,11 +151,12 @@ function rankFacultyUrls(links: string[]): string[] {
       }
       // Soft signal for accounting/accountancy anywhere in URL
       for (const t of SOFT_TOKENS) if (lo.includes(t)) score += 2;
+      if (/faculty[-/]and[-/]staff/.test(lo)) score += 8;
       // Penalize URLs that are *just* a homepage with no useful path
       if (segments.length === 0) score -= 3;
       // Penalize very deep individual profile URLs — we want roster pages
       if (segments.length > 4) score -= 2;
-      return { u, score };
+      return { u: normalized, score };
     })
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
