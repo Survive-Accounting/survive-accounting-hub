@@ -254,6 +254,40 @@ export function LeadFilterBar({
         Textbook match only
       </label>
 
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 gap-2 font-normal">
+            <span className="text-muted-foreground">Research mode:</span>
+            <span className="font-medium">
+              {value.researchMode === "all" ? "All runs"
+                : value.researchMode === "broad" ? "Broad AI Run 1"
+                : "Clean Professor Run"}
+            </span>
+            <ChevronDown className="h-3 w-3 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-2" align="start">
+          {([
+            { v: "clean_professor_only", label: "Clean Professor Run", hint: "Strict professor-only AI run (recommended)" },
+            { v: "broad", label: "Broad AI Run 1", hint: "Original wide AI run" },
+            { v: "all", label: "All runs", hint: "Include every research mode" },
+          ] as { v: ResearchModeFilter; label: string; hint: string }[]).map((opt) => (
+            <button
+              key={opt.v}
+              type="button"
+              onClick={() => patch({ researchMode: opt.v })}
+              className="flex w-full items-start justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <div>
+                <div>{opt.label}</div>
+                <div className="text-[10px] text-muted-foreground">{opt.hint}</div>
+              </div>
+              {value.researchMode === opt.v && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+
       {onReset && (
         <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onReset}>
           Reset
