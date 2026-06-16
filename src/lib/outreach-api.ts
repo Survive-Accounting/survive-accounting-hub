@@ -1812,17 +1812,11 @@ export async function previewCampaignAudience(
     );
   }
 
-  // Pull leads (paginated). Skip stopped/replied/bounced.
+  // Pull leads (paginated).
   const leads: OutreachLeadRow[] = [];
   let from = 0;
   for (let i = 0; i < 50; i++) {
-    let q = supabase
-      .from("outreach_leads")
-      .select("id,campus_id,school_id,email,first_name,last_name,is_phd,status")
-      .not("sequence_stopped_at", "is", null) // we filter below
-      .range(from, from + 999);
-    // Reset above — supabase-js doesn't have a clean way to drop a filter; instead build fresh:
-    q = supabase
+    let q: any = supabase
       .from("outreach_leads")
       .select("id,campus_id,school_id,email,first_name,last_name,is_phd,status")
       .range(from, from + 999);
