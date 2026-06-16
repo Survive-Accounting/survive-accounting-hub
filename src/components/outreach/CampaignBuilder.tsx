@@ -304,6 +304,13 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
           )}
         </div>
       )}
+
+      <AudienceEditorModal
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        campuses={campuses}
+        audience={editingAudience}
+      />
     </Card>
   );
 }
