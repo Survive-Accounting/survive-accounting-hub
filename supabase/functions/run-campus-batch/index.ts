@@ -68,6 +68,12 @@ async function processItem(db: any, item: any, researchMode: string) {
       const n = r.data?.inserted_count ?? 0;
       leads_count = typeof n === "number" ? n : leads_count;
     }
+  } else if (researchMode === "textbook_only") {
+    // TEXTBOOK-ONLY mode: only fill course_family_textbooks_json. No leads, no sections.
+    const r = await step("textbooks", () => invokeFn("research-campus-textbooks", { campus_id }));
+    if (r.ok) {
+      profile_done = true;
+    }
   } else {
     // BROAD mode: full pipeline (profile → leads → prefixes → sections).
     // 1. Campus profile — research-campus expects school_name/state, not campus_id
