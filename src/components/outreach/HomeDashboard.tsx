@@ -91,6 +91,9 @@ export function HomeDashboard({
         </StatGrid>
       </Section>
 
+      {/* Recent student intakes from /start */}
+      <StudentIntakesPanel />
+
       {/* Active Campaigns */}
       <Section title="Active Campaigns" icon={<Megaphone className="h-4 w-4" />}>
         {activeCampaigns.length === 0 ? (
