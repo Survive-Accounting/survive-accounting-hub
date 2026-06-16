@@ -346,10 +346,15 @@ async function processUrls(
     const emails = unique.map((r) => r.email).filter((e): e is string => !!e);
     let existingEmails = new Set<string>();
     if (emails.length > 0) {
+      // Only treat ACTIVE (non-archived) rows as duplicates. Previously-
+      // archived rows (e.g. from a "Reset all leads" sweep) should NOT block
+      // a fresh scrape — otherwise the new run inserts nothing and the
+      // triage panel stays empty.
       const { data: existing } = await supabaseAdmin
         .from("campus_lead_suggestions")
         .select("email")
         .eq("campus_id", campusId)
+        .is("archived_at", null)
         .in("email", emails);
       existingEmails = new Set((existing ?? []).map((r: { email: string | null }) => r.email).filter((e): e is string => !!e));
     }
