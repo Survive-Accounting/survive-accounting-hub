@@ -1319,6 +1319,30 @@ export default function ApproveCampusModal({
                           🔍 Google
                         </Button>
                       </div>
+                      {(() => {
+                        const aiBook = aiResult?.families[f.key]?.book;
+                        const aiHasBook = aiBook && (aiBook.title || aiBook.authors || aiBook.publisher || aiBook.isbn13);
+                        if (!aiHasBook) return null;
+                        return (
+                          <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2 text-[11px]">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <Sparkles className="h-3 w-3 text-blue-600" />
+                              <span className="font-semibold text-blue-700 dark:text-blue-300">AI-guessed textbook in use:</span>
+                            </div>
+                            <div className="text-foreground/90">
+                              {aiBook.title || "—"}
+                              {aiBook.authors ? ` · ${aiBook.authors}` : ""}
+                              {aiBook.publisher ? ` · ${aiBook.publisher}` : ""}
+                              {aiBook.isbn13 ? ` · ISBN ${aiBook.isbn13}` : ""}
+                            </div>
+                            <ConfidenceMeter
+                              confidence={aiBook.confidence}
+                              source={aiBook.source}
+                              touched={aiTouched.has(`book:${f.key}`)}
+                            />
+                          </div>
+                        );
+                      })()}
                       {v === "different" && (() => {
                         const b = familyBooks[f.key] ?? EMPTY_BOOK();
                         const lk = isbnLookup[f.key] ?? "idle";
