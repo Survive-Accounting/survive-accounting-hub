@@ -246,15 +246,21 @@ Deno.serve(async (req) => {
 
     // First message in conversation: send scripted opener.
     if (isFirst && !convo.opener_sent) {
-      const sentSid = await twilioSend(to, from, QUESTIONS_BODY);
+      const sentSid = await twilioSend(to, from, TPL_OPENER);
       await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto", body: QUESTIONS_BODY, twilio_sid: sentSid,
+        conversation_id: convo.id, direction: "out", author: "auto", body: TPL_OPENER, twilio_sid: sentSid,
       });
       await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
 
       if (LEE_PHONE) {
-        await twilioSend(to, LEE_PHONE,
-          `#${convo.short_ref} New student text — ${campusLabel}${isTester ? " [TESTER]" : ""}\nFrom ${from}: "${body}"\nAuto-questions sent. Reply to this thread to jump in yourself.`);
+        const summary = render(TPL_LEE_NEW, {
+          ref: String(convo.short_ref),
+          campus: campusLabel,
+          tester_flag: isTester ? " [TESTER]" : "",
+          from,
+          body,
+        });
+        await twilioSend(to, LEE_PHONE, summary);
       }
       await finalizeRaw("first_message_opener_sent", null, convo.id);
       return twiml();
