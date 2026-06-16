@@ -216,12 +216,47 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
   return (
     <div className="space-y-3">
       {headerStrip}
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-border bg-background px-3 py-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Clear by phone</label>
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={clearPhone}
+              onChange={(e) => setClearPhone(e.target.value)}
+              placeholder="e.g. 901-871-3321"
+              className="h-8 w-44 text-xs"
+            />
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={doClearPhone} disabled={clearingPhone || !clearPhone.trim()}>
+              {clearingPhone ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              Clear
+            </Button>
+          </div>
+        </div>
+        <div className="ml-auto flex flex-col gap-1">
+          <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Danger zone</label>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={doClearAll} disabled={clearingAll}>
+            {clearingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Clear ALL conversations
+          </Button>
+        </div>
+      </div>
+      {lastInbound && Date.now() - new Date(lastInbound).getTime() > 24 * 60 * 60 * 1000 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            No inbound texts received in the last 24 h. If you just texted the main line and don&apos;t see a row,
+            the Twilio number&apos;s &ldquo;A MESSAGE COMES IN&rdquo; webhook URL may be wrong. It should POST to
+            <code className="mx-1 rounded bg-amber-100 px-1">{import.meta.env.VITE_SUPABASE_URL}/functions/v1/twilio-sms-webhook</code>
+          </span>
+        </div>
+      )}
       <Tabs defaultValue="conversations">
         <TabsList>
           <TabsTrigger value="conversations">Conversations {convos.length > 0 && <span className="ml-1 text-[10px] text-muted-foreground">{convos.length}</span>}</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="setup">Setup &amp; tester</TabsTrigger>
         </TabsList>
+
 
         <TabsContent value="conversations" className="mt-3">
           {convosQuery.isLoading ? (
