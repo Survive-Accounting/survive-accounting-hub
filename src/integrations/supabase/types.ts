@@ -3521,6 +3521,7 @@ export type Database = {
           created_at: string
           exam_date: string | null
           id: string
+          is_tester: boolean
           last_message_at: string
           major: string | null
           opener_sent: boolean
@@ -3537,6 +3538,7 @@ export type Database = {
           created_at?: string
           exam_date?: string | null
           id?: string
+          is_tester?: boolean
           last_message_at?: string
           major?: string | null
           opener_sent?: boolean
@@ -3553,6 +3555,7 @@ export type Database = {
           created_at?: string
           exam_date?: string | null
           id?: string
+          is_tester?: boolean
           last_message_at?: string
           major?: string | null
           opener_sent?: boolean
@@ -3568,6 +3571,53 @@ export type Database = {
             columns: ["campus_id"]
             isOneToOne: false
             referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_inbound_raw: {
+        Row: {
+          body: string | null
+          conversation_id: string | null
+          error: string | null
+          from_number: string | null
+          id: string
+          parse_status: string
+          raw_payload: Json | null
+          received_at: string
+          to_number: string | null
+          twilio_sid: string | null
+        }
+        Insert: {
+          body?: string | null
+          conversation_id?: string | null
+          error?: string | null
+          from_number?: string | null
+          id?: string
+          parse_status?: string
+          raw_payload?: Json | null
+          received_at?: string
+          to_number?: string | null
+          twilio_sid?: string | null
+        }
+        Update: {
+          body?: string | null
+          conversation_id?: string | null
+          error?: string | null
+          from_number?: string | null
+          id?: string
+          parse_status?: string
+          raw_payload?: Json | null
+          received_at?: string
+          to_number?: string | null
+          twilio_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_inbound_raw_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "sms_conversations"
             referencedColumns: ["id"]
           },
         ]
