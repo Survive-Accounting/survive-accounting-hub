@@ -27,30 +27,48 @@ type Extracted = {
   profile_url: string | null;
 };
 
-const FACULTY_HINTS = [
-  "faculty", "instructor", "lecturer", "adjunct", "professor",
-  "staff", "directory", "people", "our-team", "team", "department",
-  "accountancy", "accounting",
+// Path segments (between slashes) that strongly indicate a faculty roster page.
+const STRONG_PATH_TOKENS = ["faculty", "faculty-and-staff", "faculty-staff", "directory", "people", "our-people", "our-team", "team", "staff", "instructors"];
+// Soft signals — used to break ties between otherwise-equal pages.
+const SOFT_TOKENS = ["accountancy", "accounting", "school-of-accountancy", "soa"];
+// Always-skip patterns. egrove = Ole Miss publication archive that polluted
+// our earlier picks; news/blog/event/etc. are never staff rosters.
+const HARD_EXCLUDE = [
+  ".pdf", "/news", "/event", "/blog", "/calendar", "/alumni",
+  "/donate", "/giving", "/give", "/apply", "/admission",
+  "/syllabus", "egrove.olemiss.edu", "/cgi/", "viewcontent",
+  "/research", "/publication", "/cite",
 ];
-const FACULTY_EXCLUDE = [
-  "news", "event", "blog", "calendar", "alumni", "donate", "give", "apply",
-  "admission", "course-catalog", "syllabus", "research-paper", ".pdf",
-];
+// 4-digit year in path (e.g. /2024/, /2007-2008) = archived directory PDFs.
+const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
 
 function rankFacultyUrls(links: string[]): string[] {
   const scored = links
     .map((u) => {
       const lo = u.toLowerCase();
-      if (FACULTY_EXCLUDE.some((x) => lo.includes(x))) return { u, score: -1 };
+      if (HARD_EXCLUDE.some((x) => lo.includes(x))) return { u, score: -999 };
+      if (YEAR_RE.test(lo)) return { u, score: -999 };
+
+      let path = "";
+      try { path = new URL(u).pathname.toLowerCase(); } catch { return { u, score: -999 }; }
+      const segments = path.split("/").filter(Boolean);
+
       let score = 0;
-      for (const h of FACULTY_HINTS) if (lo.includes(h)) score += 1;
-      if (lo.includes("accounting") || lo.includes("accountancy")) score += 2;
-      if (lo.includes("faculty") || lo.includes("directory") || lo.includes("people")) score += 2;
+      // Big boost for an exact path segment match (e.g. /faculty/, /people/)
+      for (const seg of segments) {
+        if (STRONG_PATH_TOKENS.includes(seg)) score += 10;
+      }
+      // Soft signal for accounting/accountancy anywhere in URL
+      for (const t of SOFT_TOKENS) if (lo.includes(t)) score += 2;
+      // Penalize URLs that are *just* a homepage with no useful path
+      if (segments.length === 0) score -= 3;
+      // Penalize very deep individual profile URLs — we want roster pages
+      if (segments.length > 4) score -= 2;
       return { u, score };
     })
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
-  // De-dupe by path
+
   const seen = new Set<string>();
   const out: string[] = [];
   for (const { u } of scored) {
@@ -62,6 +80,24 @@ function rankFacultyUrls(links: string[]): string[] {
     } catch { /* skip bad URL */ }
   }
   return out;
+}
+
+async function firecrawlSearch(apiKey: string, query: string): Promise<string[]> {
+  const res = await fetch("https://api.firecrawl.dev/v2/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ query, limit: 10 }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`firecrawl search ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const json = await res.json() as {
+    data?: { web?: Array<{ url: string }> } | Array<{ url: string }>;
+    web?: Array<{ url: string }>;
+  };
+  const web = Array.isArray(json.data) ? json.data : (json.data?.web ?? json.web ?? []);
+  return web.map((r) => r.url).filter(Boolean);
 }
 
 async function firecrawlScrape(apiKey: string, url: string): Promise<string> {
@@ -288,20 +324,37 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       throw new Error("No website_url, accounting_department_url, or domains on this campus. Add one or use 'Scrape faculty' with explicit URLs.");
     }
 
-    // Map each seed and combine
+    // Discovery strategy: combine Firecrawl `search` (Google-quality, finds
+    // pages even if not in the site map) with Firecrawl `map` over each
+    // seed. Search runs against each seed domain individually so we get
+    // results scoped to that school, not the entire web.
     const allLinks: string[] = [];
-    const mapErrors: string[] = [];
+    const discoveryErrors: string[] = [];
+
     for (const seed of seeds.slice(0, 3)) {
+      let host = "";
+      try { host = new URL(seed).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+      // 1) Site-scoped search — usually the highest-signal result.
+      if (host) {
+        try {
+          const found = await firecrawlSearch(fcKey, `site:${host} accounting faculty directory`);
+          allLinks.push(...found);
+        } catch (e) {
+          discoveryErrors.push(`search ${host}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      // 2) Map the seed — picks up internal links the search engine missed.
       try {
         const links = await firecrawlMap(fcKey, seed, "faculty accounting directory");
         allLinks.push(...links);
       } catch (e) {
-        mapErrors.push(`${seed}: ${e instanceof Error ? e.message : String(e)}`);
+        discoveryErrors.push(`map ${seed}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
     if (allLinks.length === 0) {
-      throw new Error(`Firecrawl map found no links. ${mapErrors.join("; ")}`);
+      throw new Error(`Firecrawl discovery found no links. ${discoveryErrors.join("; ")}`);
     }
+    const mapErrors = discoveryErrors;
 
     const ranked = rankFacultyUrls(allLinks).slice(0, data.maxPages);
     if (ranked.length === 0) {
