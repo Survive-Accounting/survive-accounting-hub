@@ -877,7 +877,7 @@ export default function ApproveCampusModal({
   const steps = [
     { id: "1", label: "Course Details", done: step1Done },
     { id: "2", label: "Textbook Research", done: step2Done },
-    { id: "3", label: "Lead Review", done: step3Done },
+    { id: "3", label: "Leads", done: step3Done },
     { id: "4", label: "Approval", done: canApprove },
   ];
 
