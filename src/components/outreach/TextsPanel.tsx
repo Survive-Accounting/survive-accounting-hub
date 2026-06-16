@@ -108,6 +108,32 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
     } else toast.error(res.error ?? "Send failed");
   };
 
+  // Phase 3: canned snippets so Lee can fire off the standard replies fast.
+  const QUICK_REPLIES: { label: string; body: string }[] = [
+    {
+      label: "Send /start link",
+      body: "Hey! I'd love to help you prep.\n\nBook tutoring with me at this link:\nSurviveAccounting.com/start\n\nReply with any questions!\n\nLee",
+    },
+    { label: "Start here", body: "Start here: SurviveAccounting.com/start" },
+    { label: "I'll review your course", body: "Thanks! I'll review your course and get back to you within 2 business days." },
+    { label: "Please upload your syllabus", body: "Could you upload your syllabus at SurviveAccounting.com/start? I need it to prep before our session." },
+    { label: "Here's the booking link", body: "Here's the booking link: SurviveAccounting.com/start" },
+  ];
+
+  const sendQuick = async (body: string) => {
+    if (!selected) return;
+    setSending(true);
+    const res = await sendSmsReply(selected.id, body);
+    setSending(false);
+    if (res.ok) {
+      toast.success("Sent");
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["sms-messages", selected.id] });
+        qc.invalidateQueries({ queryKey: ["sms-conversations"] });
+      }, 1200);
+    } else toast.error(res.error ?? "Send failed");
+  };
+
   const doReset = async () => {
     if (!selected) return;
     if (!window.confirm(`Reset this thread? Deletes the conversation, all messages, and queued outbox so the next inbound from ${formatPhonePretty(selected.student_phone)} runs the first-message flow again.`)) return;
@@ -265,6 +291,22 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
                           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                           Send
                         </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-muted-foreground">Quick replies:</span>
+                        {QUICK_REPLIES.map((q) => (
+                          <Button
+                            key={q.label}
+                            size="sm"
+                            variant={q.label === "Send /start link" ? "default" : "outline"}
+                            className="h-7 text-xs"
+                            disabled={sending || selected.status === "opted_out"}
+                            onClick={() => sendQuick(q.body)}
+                            title={q.body}
+                          >
+                            {q.label}
+                          </Button>
+                        ))}
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-[11px] font-medium text-muted-foreground inline-flex items-center gap-1">
