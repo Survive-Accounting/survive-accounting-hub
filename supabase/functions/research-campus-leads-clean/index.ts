@@ -134,7 +134,7 @@ Map each person to one of these "lead_type" values:
 3. NEVER emit a row whose ONLY evidence is a course-schedule instructor name. Class schedule data may inform teaches_intro_1 / teaches_intro_2 / etc, but the row itself requires an official email or profile.
 4. is_phd / is_cpa — only true if literally shown on the source page. Otherwise false. Explain in "notes".
 5. confidence: "high" = name + title + (email OR official profile URL) on an official accounting/business-school faculty page; "medium" = official source but missing email AND profile URL (do NOT emit per rule 2); "low" = weak/ambiguous (do NOT emit).
-6. Return AT MOST 20 people. Quality over quantity.
+6. Return AT MOST 40 people. Include every accounting-teaching adjunct, instructor, lecturer, and professor (any rank) that meets rules 1–5. Do not artificially cap to "top names" — completeness across all ranks matters.
 
 ================== TEACHING ENRICHMENT (OPTIONAL) ==================
 For each professor, OPTIONALLY add teaching assignment if you can confirm it
