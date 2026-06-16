@@ -132,16 +132,18 @@ export default function LeadSuggestionsPanel({
   const [rows, setRows] = useState<LeadSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [researching, setResearching] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [teachingFilter, setTeachingFilter] = useState<TeachingFilter>("all");
   const [sortMode, setSortMode] = useState<"last_name" | "priority">("last_name");
+  const [showArchived, setShowArchived] = useState(false);
 
   async function refresh(id = campusId) {
     if (!id) { setRows([]); return; }
     setLoading(true);
     try {
-      const data = await getLeadSuggestions(id);
+      const data = await getLeadSuggestions(id, { includeArchived: showArchived });
       setRows(data);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load suggestions");
@@ -150,7 +152,7 @@ export default function LeadSuggestionsPanel({
     }
   }
 
-  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId]);
+  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId, showArchived]);
 
   const visibleRows = useMemo(() => {
     let filtered = rows;
