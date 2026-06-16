@@ -39,7 +39,7 @@ async function invokeFn(name: string, body: unknown): Promise<{ ok: boolean; sta
   }
 }
 
-async function processItem(db: any, item: any) {
+async function processItem(db: any, item: any, researchMode: string) {
   const campus_id = item.campus_id;
   const patch: Record<string, unknown> = { status: "running", started_at: new Date().toISOString() };
   await db.from("campus_research_job_items").update(patch).eq("id", item.id);
