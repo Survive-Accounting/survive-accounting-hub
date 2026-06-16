@@ -2137,12 +2137,8 @@ export async function previewCampaignAudience(
     from += 1000;
   }
 
-  // Optionally enrich with suggestion data for teaching/family/confidence filters.
-  const needsSuggestionLookup =
-    !!filters.teachingOnly ||
-    !!filters.includeOnlyTeachingAssignments ||
-    (typeof filters.minConfidence === "number" && filters.minConfidence > 0) ||
   // Default the campaign builder to clean professor-only suggestions.
+  const researchMode = filters.researchMode ?? "clean_professor_only";
   const researchMode = filters.researchMode ?? "clean_professor_only";
 
   // We ALWAYS need the suggestion lookup now because the default
