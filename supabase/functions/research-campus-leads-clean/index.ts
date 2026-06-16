@@ -317,10 +317,13 @@ Deno.serve(async (req) => {
   if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Supabase env not configured" }, 500);
 
-  let body: { campus_id?: string; test_mode?: boolean };
+  let body: { campus_id?: string; test_mode?: boolean; force_urls?: string[] };
   try { body = await req.json(); } catch { return json({ error: "invalid JSON body" }, 400); }
   const campus_id = (body.campus_id ?? "").trim();
   const test_mode = body.test_mode === true;
+  const force_urls = Array.isArray(body.force_urls)
+    ? body.force_urls.filter((u) => typeof u === "string" && /^https?:\/\//i.test(u))
+    : [];
   if (!campus_id) return json({ error: "campus_id required" }, 400);
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -333,69 +336,124 @@ Deno.serve(async (req) => {
   if (campusErr) return json({ error: "campus lookup failed", detail: campusErr.message }, 500);
   if (!campus) return json({ error: "campus not found" }, 404);
 
-  let text = "";
-  let finishReason: string | null = null;
-  let usage: any = null;
-  const prompt = buildPrompt(campus);
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Lovable-API-Key": LOVABLE_API_KEY,
-        "Content-Type": "application/json",
-        "X-Lovable-AIG-SDK": "research-campus-leads-clean",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        tools: [{ type: "google_search" }],
-      }),
-    });
-    if (res.status === 429)
-      return json({ success: false, error: "AI is rate-limited, try again in a moment" }, 429);
-    if (res.status === 402)
-      return json({ success: false, error: "Workspace AI credits exhausted" }, 402);
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      return json({ success: false, error: "AI request failed", debug: { http_status: res.status, http_body: detail.slice(0, 2000) } }, 502);
+  // --- Two-pass enumeration (single-pass missed instructor tabs ~50% of runs) ---
+  type PassResult = {
+    label: string;
+    text: string;
+    finishReason: string | null;
+    usage: any;
+    parsed: any;
+    parseError?: string;
+  };
+
+  async function callAi(label: string, prompt: string, temperature: number): Promise<PassResult | Response> {
+    try {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Lovable-API-Key": LOVABLE_API_KEY,
+          "Content-Type": "application/json",
+          "X-Lovable-AIG-SDK": "research-campus-leads-clean",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [{ role: "user", content: prompt }],
+          tools: [{ type: "google_search" }],
+          temperature,
+        }),
+      });
+      if (res.status === 429)
+        return json({ success: false, error: `AI is rate-limited on ${label}, try again in a moment` }, 429);
+      if (res.status === 402)
+        return json({ success: false, error: "Workspace AI credits exhausted" }, 402);
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        return json({ success: false, error: `AI request failed on ${label}`, debug: { http_status: res.status, http_body: detail.slice(0, 2000) } }, 502);
+      }
+      const j = await res.json();
+      const choice = j?.choices?.[0];
+      const text = choice?.message?.content ?? "";
+      const finishReason = choice?.finish_reason ?? null;
+      const usage = j?.usage ?? null;
+      if (!text.trim()) {
+        return { label, text: "", finishReason, usage, parsed: { suggestions: [] }, parseError: `Empty response (finish_reason=${finishReason})` };
+      }
+      try {
+        const parsed = extractJson(text);
+        return { label, text, finishReason, usage, parsed };
+      } catch (e) {
+        return { label, text, finishReason, usage, parsed: { suggestions: [] }, parseError: String((e as Error)?.message ?? e) };
+      }
+    } catch (e) {
+      return json({ success: false, error: `AI call failed on ${label}`, detail: String((e as Error)?.message ?? e) }, 500);
     }
-    const j = await res.json();
-    const choice = j?.choices?.[0];
-    text = choice?.message?.content ?? "";
-    finishReason = choice?.finish_reason ?? null;
-    usage = j?.usage ?? null;
-    if (!text.trim()) {
-      return json({ success: false, error: `Empty AI response (finish_reason=${finishReason ?? "unknown"})`, debug: { finish_reason: finishReason, usage } }, 502);
-    }
-  } catch (e) {
-    return json({ success: false, error: "AI call failed", detail: String((e as Error)?.message ?? e) }, 500);
   }
 
-  let parsed: any;
-  try { parsed = extractJson(text); }
-  catch (e) {
-    return json({ success: false, error: "AI returned malformed JSON", detail: String((e as Error)?.message ?? e), debug: { raw_text: text.slice(0, 30000) } }, 502);
+  const promptFaculty = buildPromptFaculty(campus, force_urls);
+  const promptInstructors = buildPromptInstructors(campus, force_urls, false);
+
+  // Run both passes in parallel — independent prompts, independent search budgets.
+  const [pass1, pass2] = await Promise.all([
+    callAi("pass1_faculty", promptFaculty, 0.2),
+    callAi("pass2_instructors", promptInstructors, 0),
+  ]);
+  if (pass1 instanceof Response) return pass1;
+  if (pass2 instanceof Response) return pass2;
+
+  // Audit Pass 2: if it returned zero instructor-titled rows, retry once with stronger prompt.
+  const INSTRUCTOR_TITLE_RE = /instructor|lecturer|adjunct|clinical|practice|visiting/i;
+  const pass2HasInstructor = Array.isArray(pass2.parsed?.suggestions) &&
+    pass2.parsed.suggestions.some((s: any) => typeof s?.title === "string" && INSTRUCTOR_TITLE_RE.test(s.title));
+  let pass2Retry: PassResult | null = null;
+  if (!pass2HasInstructor) {
+    const retryRes = await callAi("pass2_retry", buildPromptInstructors(campus, force_urls, true), 0);
+    if (retryRes instanceof Response) return retryRes;
+    pass2Retry = retryRes;
   }
 
-  const { rows: cleaned, rejected } = sanitize(parsed);
-  const rawCount = Array.isArray(parsed?.suggestions) ? parsed.suggestions.length : 0;
+  // Merge all suggestions, dedupe by email/name before sanitize so we don't double-sanitize.
+  const mergedRaw: any[] = [];
+  const seenMergeKey = new Set<string>();
+  for (const pr of [pass1, pass2, pass2Retry].filter(Boolean) as PassResult[]) {
+    const arr = Array.isArray(pr.parsed?.suggestions) ? pr.parsed.suggestions : [];
+    for (const s of arr) {
+      const k = ((s?.email && String(s.email).toLowerCase()) ||
+        `${(s?.first_name ?? "").toLowerCase()}|${(s?.last_name ?? "").toLowerCase()}`).trim();
+      if (!k || k === "|") continue;
+      if (seenMergeKey.has(k)) continue;
+      seenMergeKey.add(k);
+      mergedRaw.push(s);
+    }
+  }
+  const mergedParsed = { suggestions: mergedRaw };
+
+  const { rows: cleaned, rejected } = sanitize(mergedParsed);
+  const rawCount = mergedRaw.length;
   const debug = {
     model: MODEL,
     research_mode: RESEARCH_MODE,
     research_label: test_mode ? `Clean Professor Test — ${campus.name}` : RESEARCH_LABEL,
-    finish_reason: finishReason,
-    usage,
+    two_pass: true,
+    pass1: { raw: pass1.parsed?.suggestions?.length ?? 0, finish_reason: pass1.finishReason, usage: pass1.usage, parse_error: pass1.parseError },
+    pass2: { raw: pass2.parsed?.suggestions?.length ?? 0, finish_reason: pass2.finishReason, usage: pass2.usage, parse_error: pass2.parseError, retry_triggered: !!pass2Retry },
+    pass2_retry: pass2Retry
+      ? { raw: pass2Retry.parsed?.suggestions?.length ?? 0, finish_reason: pass2Retry.finishReason, usage: pass2Retry.usage, parse_error: pass2Retry.parseError }
+      : null,
+    force_urls,
     raw_suggestion_count: rawCount,
     parsed_lead_count: cleaned.length,
     rejected_count: rejected.length,
     rejected_samples: rejected.slice(0, 20),
     test_mode,
-    prompt_preview: prompt.slice(0, 4000),
-    raw_response_preview: text.slice(0, 8000),
-    accepted_preview: cleaned.slice(0, 30),
-    parsed_suggestions: test_mode ? parsed?.suggestions ?? [] : undefined,
+    prompt_preview: `=== PASS 1 (faculty) ===\n${promptFaculty.slice(0, 2000)}\n\n=== PASS 2 (instructors) ===\n${promptInstructors.slice(0, 2000)}`,
+    raw_response_preview:
+      `=== PASS 1 ===\n${pass1.text.slice(0, 4000)}\n\n=== PASS 2 ===\n${pass2.text.slice(0, 4000)}` +
+      (pass2Retry ? `\n\n=== PASS 2 RETRY ===\n${pass2Retry.text.slice(0, 4000)}` : ""),
+    accepted_preview: cleaned.slice(0, 60),
+    parsed_suggestions: test_mode ? mergedRaw : undefined,
   };
-  console.log("[research-campus-leads-clean]", { campus_id, test_mode, parsed: cleaned.length, rejected: rejected.length });
+  console.log("[research-campus-leads-clean]", { campus_id, test_mode, pass1: pass1.parsed?.suggestions?.length ?? 0, pass2: pass2.parsed?.suggestions?.length ?? 0, retry: !!pass2Retry, parsed: cleaned.length, rejected: rejected.length });
+
 
   // Tag test runs with a distinct label so they're easy to find / archive.
   const labelForRun = test_mode
