@@ -93,6 +93,42 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [clearPhone, setClearPhone] = useState("");
+  const [clearingPhone, setClearingPhone] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
+
+  const doClearPhone = async () => {
+    if (!clearPhone.trim()) return;
+    if (!window.confirm(`Delete all conversations, messages, queued outbox, and inbound logs for ${clearPhone.trim()}?`)) return;
+    setClearingPhone(true);
+    const res = await clearConversationsByPhone(clearPhone.trim());
+    setClearingPhone(false);
+    if (res.ok) {
+      toast.success(res.deleted ? `Cleared ${res.deleted} conversation${res.deleted === 1 ? "" : "s"}` : "Nothing to clear for that number");
+      setClearPhone("");
+      setSelectedId(null);
+      qc.invalidateQueries({ queryKey: ["sms-conversations"] });
+      qc.invalidateQueries({ queryKey: ["sms-inbound-raw"] });
+    } else toast.error(res.error ?? "Clear failed");
+  };
+
+  const doClearAll = async () => {
+    const typed = window.prompt('Type CLEAR to wipe EVERY conversation, message, outbox, and inbound log. This cannot be undone.');
+    if (typed !== "CLEAR") {
+      if (typed != null) toast.error("Canceled — you must type CLEAR exactly.");
+      return;
+    }
+    setClearingAll(true);
+    const res = await clearAllSmsConversations();
+    setClearingAll(false);
+    if (res.ok) {
+      toast.success("All SMS data cleared");
+      setSelectedId(null);
+      qc.invalidateQueries({ queryKey: ["sms-conversations"] });
+      qc.invalidateQueries({ queryKey: ["sms-inbound-raw"] });
+    } else toast.error(res.error ?? "Clear failed");
+  };
+
 
   const doSend = async () => {
     if (!selected || !reply.trim()) return;
