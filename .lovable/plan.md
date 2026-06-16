@@ -1,58 +1,77 @@
-## Diagnosis
+## Goal
 
-Pulled every clean-professor run for University of Mississippi from the DB. The pattern is clear:
+Stop relying on the broad AI "clean professor research" flow that's been hallucinating names (Whitney Barton miss, fabricated rows). Replace it with a tight, per-campus, human-in-the-loop workflow:
 
-| Run (label)                  | Time   | Inserted | Whitney? |
-|------------------------------|--------|----------|----------|
-| Test 17:53                   | 17:53  | 10       | (cumulative)|
-| Test 17:56                   | 17:56  | 7        | —        |
-| Test 18:05                   | 18:05  | 3        | —        |
-| Test 18:11                   | 18:11  | 11       | —        |
-| Test 18:20                   | 18:20  | 5        | —        |
-| Test 18:22                   | 18:22  | 9        | **YES** (wfbarton@olemiss.edu) |
-| Test 18:47                   | 18:47  | 5        | NO       |
-| Run 1 (most recent)          | 18:47  | 5        | NO       |
+1. Wipe the slate.
+2. Scrape one campus's actual faculty/instructor page(s).
+3. Show every scraped person as a triage row with PhD / CPA / Skip checkboxes.
+4. Only the rows you approve get promoted into `outreach_leads` (the email queue).
 
-Whitney's row exists in `campus_lead_suggestions` (status=pending) from the 18:22 run. So this is not a data-loss bug — it's a **single-pass coverage bug**: each individual AI call returns a non-deterministic 3–11 person subset of the ~25 people on `accountancy.olemiss.edu/about/faculty-and-staff/`. The prompt already names Whitney as a canary and tells the model to walk the `?role=instructor` tab, but Gemini still skips that tab on ~half of runs.
+## 1. Archive everything currently in the funnel
 
-Across runs the dedupe layer is cumulatively building a complete list, but any single "fresh" test looks broken. For bulk runs across 170 campuses that's worse: every campus gets exactly one shot.
+- Bulk-archive **all** `outreach_leads` (set `status='archived'`, stamp `sequence_stopped_at`, `sequence_stopped_reason='manual_reset_2026_06'`). Keep rows for history; the Email Queue / Campaign Builder already filters on `status`, so they disappear from the active UI.
+- Bulk-archive all `campus_lead_suggestions` (set `archived_at=now()`, `archived_reason='manual_reset_2026_06'`, `archive_label='reset'`). Existing UI already hides archived suggestions.
+- Also clear `outreach_campaign_leads` for any non-completed campaigns so the new approved leads start clean. Completed/sent history is preserved.
 
-Root cause: one AI call, one set of search queries, model temperature drift. The instructor/adjunct tab is the consistently-missed page.
+This is a one-shot SQL action triggered by a new red **"Archive all leads & start over"** button on the Campuses tab (with a typed-confirmation modal: "type ARCHIVE to continue").
 
-## Fix — Deterministic two-pass enumeration in `research-campus-leads-clean`
+## 2. New per-campus "Scrape faculty page" button
 
-### Pass 1 — Faculty (current behavior, narrowed)
-Call Gemini with the current prompt but scoped to: full / associate / assistant professors, clinical, professor of practice, chair, BAP advisor. Returns ~8–12 senior names.
+On each campus row in `CampusTable` (and inside `ApproveCampusModal`) add a **"Scrape faculty page"** button next to the existing research buttons. Behavior:
 
-### Pass 2 — Instructors / Adjuncts / Lecturers (new, mandatory)
-A second AI call with a **role-locked** prompt:
+- Opens a small modal showing the URL it will scrape. It defaults to `campuses.faculty_page_url` (new column) or, if empty, asks the user to paste the URL(s). One textarea, one URL per line — supports the tabbed cases like Ole Miss where Faculty / Instructor / Staff are separate query strings.
+- On submit, calls a new server function `scrapeCampusFaculty({ campusId, urls[] })` which:
+  - Uses Firecrawl (`scrape` with `formats: ['markdown', 'links']`) on each URL — deterministic, no LLM guessing of names.
+  - Follows obvious individual-profile links one level deep when the directory page only lists names (capped, e.g. 60 profile fetches per run, to keep cost bounded).
+  - Runs a **single, narrow** Lovable AI Gateway call per page whose only job is to extract `{ first_name, last_name, title, email, profile_url }` rows **strictly from the provided markdown** — explicit "do not invent, do not pattern-guess emails, omit the row if no email and no profile URL is present in the source." No web search, no broad reasoning.
+  - Inserts results into `campus_lead_suggestions` with `research_mode='faculty_scrape'`, `status='pending_triage'`, and `source_url` set to the exact page they came from.
+- Returns a summary toast: "Scraped 3 pages, found 24 candidates."
 
-> List EVERY person at `${dept_url}` whose title contains "Instructor", "Lecturer", "Adjunct", "Clinical", "Teaching Professor", "Professor of Practice", or "Visiting". Open `?role=instructor`, `?role=staff`, `#instructors`, and any standalone "Adjunct Faculty" / "Instructors" page. If a directory only lists names, open each individual profile (e.g. `/faculty-and-staff/<slug>/` or `/profiles/<username>.php`) to confirm title and email. Do NOT include tenure-track professors — Pass 1 covers those. Return 0 rows only if you can prove the department has no non-tenure-track faculty.
+If Firecrawl is not connected yet, the button surfaces a clear "Connect Firecrawl" message and we stop. (I'll wire the connector check in the same step.)
 
-Reject token (`temperature: 0`, lower `top_p`) for determinism on this pass.
+## 3. Triage table below the campus
 
-### Merge + sanitize + self-audit
-- Merge both arrays, sanitize once (current rules), dedupe by email.
-- Self-audit guard: if the merged list contains **zero** rows whose title regex-matches `/instructor|lecturer|adjunct|clinical|practice|visiting/i`, automatically fire Pass 2 ONE more time with the explicit text "Your previous response listed no instructors. The department almost certainly has some — search `?role=instructor` and the staff directory now." Cap at one retry to bound cost.
-- Insert as today; existing email-dedupe handles overlap with prior runs.
+New `FacultyTriagePanel` rendered on the Campuses tab when a campus is expanded (or inside `ApproveCampusModal` as a dedicated section). It lists every `campus_lead_suggestions` row for that campus where `archived_at IS NULL` and `research_mode='faculty_scrape'`.
 
-### Cost
-Two Gemini Flash calls per campus instead of one. ~$0.004 → $0.008 per campus. Full 170-campus clean run ≈ $1.40 → $2.80. Trivial.
+Columns:
 
-### Per-campus override (optional, small)
-Extend the request body with optional `force_urls?: string[]`. If present, both passes are told "you MUST open these URLs before searching". Lets you re-run Ole Miss with `["https://accountancy.olemiss.edu/about/faculty-and-staff/?role=instructor"]` and prove the fix.
+```text
+Name | Title | Email | Source | [ ] PhD | [ ] CPA | ( ) Keep ( ) Skip | Notes
+```
 
-## Verification plan
-1. Deploy updated `research-campus-leads-clean`.
-2. Re-run the clean test for University of Mississippi from the panel.
-3. Confirm Pass-2 returns Whitney Barton, Katy Mullinax, Sandi Goodwin, Evelyn Farmer, Grace Herrington, Jennifer Burchfield, Cere Muscarella (the known instructor set). All seven should appear in the accepted_preview of the result modal, not just cumulatively in the DB.
-4. Spot-check 2 other campuses (different state, different CMS) to confirm Pass 2 doesn't regress tenure-track-only schools.
+- PhD / CPA are independent checkboxes (write back to `is_phd`, `is_cpa`).
+- Keep/Skip is a single status toggle: `pending_triage` → `kept` or `skipped`. Skipped rows stay archived-but-visible-on-toggle.
+- A sticky footer button: **"Import N kept leads into Email Queue"** — disabled until at least one row is marked Keep.
 
-## Files touched
-- `supabase/functions/research-campus-leads-clean/index.ts` — split into `buildPromptFaculty()` + `buildPromptInstructors()`, add Pass 2 call, merge, audit-retry, optional `force_urls`.
-- No frontend changes required; existing test modal will surface the larger accepted list automatically.
+Clicking Import promotes the kept suggestions into `outreach_leads` (only `status='new'`, `source='faculty_scrape'`, copy `email`, names, `department`, `is_phd`, `notes`, link `campus_id`/`school_id`). Duplicates by `(campus_id, lower(email))` are skipped silently. After import, the kept rows are marked `status='imported'` so they don't show up in triage again.
 
-## Out of scope
-- Changing the broader `research-campus-leads` (non-clean) endpoint.
-- Switching models or providers.
-- Backfill across 170 campuses — that's a separate bulk-run decision after we confirm the fix on Ole Miss.
+## 4. Demote the old "Clean professor research" flow
+
+- The current `CleanProfessorResearchPanel` and `BatchResearchPanel` stay accessible inside the existing "Batch AI Research" modal but get an amber **"Legacy — known to hallucinate, prefer per-campus faculty scrape"** warning at the top.
+- The home dashboard's primary CTA points at the new per-campus scrape flow instead of batch research.
+
+## 5. Database changes (one migration)
+
+- `ALTER TABLE campuses ADD COLUMN faculty_page_url text;` (nullable, stores the canonical URL the user pasted last time so the button is one-click next run).
+- `ALTER TABLE campus_lead_suggestions` — extend the `status` value space to include `pending_triage`, `kept`, `skipped`, `imported`. No enum today (it's text), so no type change needed; just update the app-side allowed values.
+- No grants needed (tables already exist with grants).
+
+## 6. Out of scope (explicitly not doing this turn)
+
+- No changes to SMS, campaigns, templates, or email sending logic.
+- No change to BAP advisors / departments / alumni lead types — those cards remain "coming soon".
+- Not deleting old data — only archiving — so nothing is permanently lost.
+
+## Technical notes
+
+- Firecrawl runs in a new `src/lib/faculty-scrape.functions.ts` server function gated by `requireSupabaseAuth` + admin role check. Lovable AI Gateway is used for the narrow extraction step (model: `google/gemini-2.5-flash`, temperature 0, JSON-mode).
+- Archive action is a separate `archiveAllLeads` server function, admin-gated, doing the three `UPDATE`s in a single transaction.
+- Triage panel uses the existing `campus_lead_suggestions` query patterns already in `LeadSuggestionsPanel.tsx` — reuses styling.
+- No changes to `routeTree.gen.ts`; only existing routes are touched.
+
+## Order of work once approved
+
+1. Migration: add `faculty_page_url`.
+2. Server functions: `archiveAllLeads`, `scrapeCampusFaculty`, `triagePatch`, `importKeptLeads`.
+3. UI: red archive button + confirm modal, per-campus "Scrape faculty page" button + modal, `FacultyTriagePanel`, legacy warnings.
+4. Manual verification on University of Mississippi: confirm Whitney Barton appears in triage after scraping `https://accountancy.olemiss.edu/about/faculty-and-staff/?role=instructor`.
