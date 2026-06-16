@@ -324,20 +324,37 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       throw new Error("No website_url, accounting_department_url, or domains on this campus. Add one or use 'Scrape faculty' with explicit URLs.");
     }
 
-    // Map each seed and combine
+    // Discovery strategy: combine Firecrawl `search` (Google-quality, finds
+    // pages even if not in the site map) with Firecrawl `map` over each
+    // seed. Search runs against each seed domain individually so we get
+    // results scoped to that school, not the entire web.
     const allLinks: string[] = [];
-    const mapErrors: string[] = [];
+    const discoveryErrors: string[] = [];
+
     for (const seed of seeds.slice(0, 3)) {
+      let host = "";
+      try { host = new URL(seed).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+      // 1) Site-scoped search — usually the highest-signal result.
+      if (host) {
+        try {
+          const found = await firecrawlSearch(fcKey, `site:${host} accounting faculty directory`);
+          allLinks.push(...found);
+        } catch (e) {
+          discoveryErrors.push(`search ${host}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      // 2) Map the seed — picks up internal links the search engine missed.
       try {
         const links = await firecrawlMap(fcKey, seed, "faculty accounting directory");
         allLinks.push(...links);
       } catch (e) {
-        mapErrors.push(`${seed}: ${e instanceof Error ? e.message : String(e)}`);
+        discoveryErrors.push(`map ${seed}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
     if (allLinks.length === 0) {
-      throw new Error(`Firecrawl map found no links. ${mapErrors.join("; ")}`);
+      throw new Error(`Firecrawl discovery found no links. ${discoveryErrors.join("; ")}`);
     }
+    const mapErrors = discoveryErrors;
 
     const ranked = rankFacultyUrls(allLinks).slice(0, data.maxPages);
     if (ranked.length === 0) {
