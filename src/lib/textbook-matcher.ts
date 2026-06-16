@@ -174,6 +174,7 @@ export async function getSupportedTextbookFamilies(force = false): Promise<Suppo
     publisher_keywords: r.publisher_keywords ?? [],
     title_keywords: r.title_keywords ?? [],
     author_keywords: r.author_keywords ?? [],
+    isbn13_prefixes: r.isbn13_prefixes ?? [],
   }));
   _familiesCache = { ts: Date.now(), rows };
   return rows;
