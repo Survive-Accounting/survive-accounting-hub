@@ -54,15 +54,7 @@ export default function CampusTable({
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [scrapeBumps, setScrapeBumps] = useState<Record<string, number>>({});
 
-  const toggleExpand = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
