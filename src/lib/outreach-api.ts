@@ -940,15 +940,48 @@ function mapSuggestion(row: any): LeadSuggestion {
   };
 }
 
-/** List AI-suggested leads for a campus, newest first. */
-export async function getLeadSuggestions(campusId: string): Promise<LeadSuggestion[]> {
-  const { data, error } = await supabase
+/** List AI-suggested leads for a campus, newest first.
+ *  Archived suggestions (archived_at IS NOT NULL) are excluded by default. */
+export async function getLeadSuggestions(
+  campusId: string,
+  opts: { includeArchived?: boolean } = {},
+): Promise<LeadSuggestion[]> {
+  let q: any = supabase
     .from(SUGGESTION_TABLE)
     .select("*")
-    .eq("campus_id", campusId)
-    .order("created_at", { ascending: false });
+    .eq("campus_id", campusId);
+  if (!opts.includeArchived) q = q.is("archived_at", null);
+  q = q.order("created_at", { ascending: false });
+  const { data, error } = await q;
   if (error) throw error;
   return ((data ?? []) as any[]).map(mapSuggestion);
+}
+
+/** Archive every non-archived suggestion for the given campus(es).
+ *  When campusIds is null/undefined, archives ALL non-archived suggestions
+ *  globally. Does NOT delete any rows. Returns affected count.
+ *
+ *  Used by the "Archive current broad AI run" admin action to retire the
+ *  first broad exploratory AI run before clean professor-only research. */
+export async function archiveBroadRunSuggestions(opts: {
+  label: string;
+  reason: string;
+  by?: string | null;
+  campusIds?: string[] | null;
+}): Promise<{ archivedCount: number }> {
+  const patch = {
+    archived_at: new Date().toISOString(),
+    archive_label: opts.label,
+    archived_reason: opts.reason,
+    archived_by: opts.by ?? "admin",
+  };
+  let q: any = (supabase.from(SUGGESTION_TABLE) as any)
+    .update(patch)
+    .is("archived_at", null);
+  if (opts.campusIds && opts.campusIds.length > 0) q = q.in("campus_id", opts.campusIds);
+  const { data, error } = await q.select("id");
+  if (error) throw error;
+  return { archivedCount: (data ?? []).length };
 }
 
 /** Insert a batch of AI suggestions for a campus. Returns inserted rows. */
@@ -1447,14 +1480,20 @@ interface RawImportedLeadRow {
   created_at: string;
 }
 
-async function fetchAllRows<T>(table: string, columns: string): Promise<T[]> {
+async function fetchAllRows<T>(
+  table: string,
+  columns: string,
+  opts: { excludeArchived?: boolean } = {},
+): Promise<T[]> {
   const out: T[] = [];
   let from = 0;
   for (let i = 0; i < 50; i++) {
-    const { data, error } = await supabase
+    let q: any = supabase
       .from(table as never)
-      .select(columns)
-      .range(from, from + STATS_PAGE - 1);
+      .select(columns);
+    if (opts.excludeArchived) q = q.is("archived_at", null);
+    q = q.range(from, from + STATS_PAGE - 1);
+    const { data, error } = await q;
     if (error) throw error;
     const rows = (data ?? []) as unknown as T[];
     out.push(...rows);
@@ -1524,6 +1563,7 @@ export async function fetchCampusLeadStats(
     fetchAllRows<RawLeadRow>(
       "campus_lead_suggestions",
       "id,campus_id,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,created_at",
+      { excludeArchived: true },
     ),
     fetchAllRows<RawSectionRow>(
       "campus_course_sections",
@@ -1766,6 +1806,7 @@ export async function fetchCampusLeadReport(
     fetchAllRows<RawLeadFullRow>(
       "campus_lead_suggestions",
       "id,campus_id,first_name,last_name,title,email,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,source_url,created_at",
+      { excludeArchived: true },
     ),
     fetchAllRows<RawSectionFullRow>(
       "campus_course_sections",
@@ -2069,6 +2110,7 @@ export async function previewCampaignAudience(
     const { data: sugg, error: sErr } = await supabase
       .from("campus_lead_suggestions" as never)
       .select("campus_id,email,lead_type,confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
+      .is("archived_at", null)
       .limit(20000);
     if (sErr) throw sErr;
     for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
@@ -2186,6 +2228,7 @@ export async function createCampaignFromPreview(input: {
   const { data: sugg } = await supabase
     .from("campus_lead_suggestions" as never)
     .select("campus_id,email,lead_type,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
+    .is("archived_at", null)
     .limit(20000);
   const sMap = new Map<string, SuggestionMatchRow>();
   for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
@@ -2542,7 +2585,7 @@ export async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
     emailsSent, opens, replies, bounces, complaints,
     bookingSubmissions, waitlistSignups, syllabiUploaded, textConversations,
   ] = await Promise.all([
-    countRows("campus_lead_suggestions", (q) => q.eq("status", "pending")),
+    countRows("campus_lead_suggestions", (q) => q.eq("status", "pending").is("archived_at", null)),
     countRows("outreach_leads"),
     countRows("outreach_campaign_leads", (q) => q.eq("status", "scheduled")),
     countRows("outreach_leads", (q) => q.not("sent_at", "is", null)),

@@ -4,7 +4,7 @@
 // importLeads() path, preserving dedupe / scheduled_send_at / landing_token.
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Sparkles, Star, Upload, ExternalLink, BookOpen } from "lucide-react";
+import { Loader2, Sparkles, Star, Upload, ExternalLink, BookOpen, Archive } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   getLeadSuggestions,
   updateLeadSuggestion,
   bulkUpdateLeadSuggestions,
+  archiveBroadRunSuggestions,
   importLeads,
   type LeadSuggestion,
   type LeadSuggestionStatus,
@@ -131,16 +132,18 @@ export default function LeadSuggestionsPanel({
   const [rows, setRows] = useState<LeadSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [researching, setResearching] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [teachingFilter, setTeachingFilter] = useState<TeachingFilter>("all");
   const [sortMode, setSortMode] = useState<"last_name" | "priority">("last_name");
+  const [showArchived, setShowArchived] = useState(false);
 
   async function refresh(id = campusId) {
     if (!id) { setRows([]); return; }
     setLoading(true);
     try {
-      const data = await getLeadSuggestions(id);
+      const data = await getLeadSuggestions(id, { includeArchived: showArchived });
       setRows(data);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load suggestions");
@@ -149,7 +152,7 @@ export default function LeadSuggestionsPanel({
     }
   }
 
-  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId]);
+  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId, showArchived]);
 
   const visibleRows = useMemo(() => {
     let filtered = rows;
@@ -219,6 +222,31 @@ export default function LeadSuggestionsPanel({
       toast.error(e?.message ?? "Research failed");
     } finally {
       setResearching(false);
+    }
+  }
+
+  async function archiveBroadRun() {
+    const activeCount = rows.filter((r) => !(r as any).archived_at).length;
+    const scope = campusId ? "this campus" : "ALL campuses";
+    const confirmed = window.confirm(
+      `Archive ${activeCount > 0 ? activeCount + " active suggestion(s)" : "the current broad AI run"} for ${scope}?\n\n` +
+      `Nothing is deleted. Archived rows are hidden from campaign workflows but can be viewed via "Show archived suggestions".`,
+    );
+    if (!confirmed) return;
+    setArchiving(true);
+    try {
+      const { archivedCount } = await archiveBroadRunSuggestions({
+        label: "AI Broad Run 1 — June 2026",
+        reason: "Broad exploratory AI run archived before clean professor-only campaign research.",
+        by: "admin",
+        campusIds: campusId ? [campusId] : null,
+      });
+      toast.success(`Archived ${archivedCount} suggestion(s). No rows were deleted.`);
+      await refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Archive failed");
+    } finally {
+      setArchiving(false);
     }
   }
 
@@ -316,6 +344,34 @@ export default function LeadSuggestionsPanel({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground rounded-md border px-2 h-8 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Show archived suggestions
+          </label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={archiveBroadRun}
+                disabled={archiving}
+              >
+                {archiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                Archive current broad AI run
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              Hides every non-archived suggestion {campusId ? "for this campus" : "across all campuses"} from
+              campaign workflows. Tags rows with archive_label "AI Broad Run 1 — June 2026".
+              No rows are deleted — toggle "Show archived" to review them.
+            </TooltipContent>
+          </Tooltip>
           <Button
             type="button"
             size="sm"
