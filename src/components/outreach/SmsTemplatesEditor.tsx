@@ -23,9 +23,16 @@ export function SmsTemplatesEditor() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tplQuery.data) {
-      setDrafts(Object.fromEntries(tplQuery.data.map((t) => [t.key, t.body])));
-    }
+    if (!tplQuery.data) return;
+    // Only seed drafts for templates not already being edited, so a background
+    // refetch (window focus, invalidation) doesn't wipe in-progress typing.
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const t of tplQuery.data!) {
+        if (next[t.key] === undefined) next[t.key] = t.body;
+      }
+      return next;
+    });
   }, [tplQuery.data]);
 
   const isDirty = (t: SmsTemplate) => (drafts[t.key] ?? t.body) !== t.body;
