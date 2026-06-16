@@ -2270,12 +2270,15 @@ export async function createCampaignFromPreview(input: {
     rows.push(...((data ?? []) as unknown as OutreachLeadRow[]));
   }
 
-  // Optional family/type enrichment (best-effort).
-  const { data: sugg } = await supabase
+  // Optional family/type enrichment (best-effort). Honors the campaign's
+  // research-mode filter so enrichment matches the audience that was previewed.
+  const enrichMode = input.filters.researchMode ?? "clean_professor_only";
+  let enrichQ: any = supabase
     .from("campus_lead_suggestions" as never)
     .select("campus_id,email,lead_type,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
-    .is("archived_at", null)
-    .limit(20000);
+    .is("archived_at", null);
+  if (enrichMode !== "all") enrichQ = enrichQ.eq("research_mode", enrichMode);
+  const { data: sugg } = await enrichQ.limit(20000);
   const sMap = new Map<string, SuggestionMatchRow>();
   for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
     if (r.email && r.campus_id) sMap.set(`${r.campus_id}::${r.email.toLowerCase()}`, r);
