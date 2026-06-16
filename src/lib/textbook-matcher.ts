@@ -17,6 +17,7 @@ export interface SupportedTextbookFamily {
   publisher_keywords: string[];
   title_keywords: string[];
   author_keywords: string[];
+  isbn13_prefixes: string[];
   edition_sensitive: boolean;
   active: boolean;
   notes: string | null;
@@ -106,6 +107,31 @@ export function matchTextbookFamily(
     if (!best || score > best.score) best = { fam, score, reasons };
   }
 
+  // ISBN-13 prefix fallback: if no keyword match (or there were no
+  // title/authors/publisher signals at all), an ISBN whose leading digits
+  // match a family's known publisher prefix is treated as a weak match.
+  const normIsbn = (detected!.isbn13 ?? "").replace(/[^0-9]/g, "");
+  if (!best && normIsbn) {
+    let isbnBest: { fam: SupportedTextbookFamily; prefix: string } | null = null;
+    for (const fam of candidates) {
+      const prefixes = fam.isbn13_prefixes ?? [];
+      const hit = prefixes.find((p) => p && normIsbn.startsWith(p));
+      if (hit && (!isbnBest || hit.length > isbnBest.prefix.length)) {
+        isbnBest = { fam, prefix: hit };
+      }
+    }
+    if (isbnBest) {
+      return {
+        status: "matched",
+        matched_textbook_family_id: isbnBest.fam.id,
+        matched_label: isbnBest.fam.label,
+        textbook_match_reason: `isbn13 prefix match: ${isbnBest.prefix}… → ${isbnBest.fam.label}`,
+        textbook_match_source_url: detected!.source ?? null,
+        textbook_match_confidence: 0.6,
+      };
+    }
+  }
+
   if (!best) {
     return {
       status: "unmatched",
@@ -113,7 +139,7 @@ export function matchTextbookFamily(
       matched_label: null,
       textbook_match_reason:
         "Detected textbook (" +
-        [detected!.title, detected!.authors, detected!.publisher]
+        [detected!.title, detected!.authors, detected!.publisher, detected!.isbn13]
           .filter(Boolean).join(" · ") +
         ") did not match any supported family.",
       textbook_match_source_url: detected!.source ?? null,
@@ -148,6 +174,7 @@ export async function getSupportedTextbookFamilies(force = false): Promise<Suppo
     publisher_keywords: r.publisher_keywords ?? [],
     title_keywords: r.title_keywords ?? [],
     author_keywords: r.author_keywords ?? [],
+    isbn13_prefixes: r.isbn13_prefixes ?? [],
   }));
   _familiesCache = { ts: Date.now(), rows };
   return rows;
