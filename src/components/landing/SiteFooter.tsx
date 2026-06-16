@@ -37,15 +37,24 @@ export default function SiteFooter({
           </a>
 
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-            <button onClick={onBookTutoring} className={linkClass} style={linkStyle}>
-              Book Tutoring
-            </button>
-            <button onClick={onScrollToReviews} className={linkClass} style={linkStyle}>
-              Read Reviews
-            </button>
-            <button onClick={onScrollToContact} className={linkClass} style={linkStyle}>
-              Contact
-            </button>
+            <a href="sms:+16625658818" className={linkClass} style={linkStyle}>
+              Text Lee
+            </a>
+            {onScrollToReviews && (
+              <button onClick={onScrollToReviews} className={linkClass} style={linkStyle}>
+                Reviews
+              </button>
+            )}
+            {onScrollToContact && (
+              <button onClick={onScrollToContact} className={linkClass} style={linkStyle}>
+                Contact
+              </button>
+            )}
+            {onBookTutoring && (
+              <button onClick={onBookTutoring} className={linkClass} style={linkStyle}>
+                Book Tutoring
+              </button>
+            )}
           </nav>
         </div>
       </div>

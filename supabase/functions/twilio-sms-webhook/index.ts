@@ -42,12 +42,12 @@ const TESTER_PHONES = new Set(
 // course/exam/topic questions by SMS. /start collects all of that.
 const FALLBACK_OPENER =
   "Hey! I'd love to help you prep.\n\n" +
-  "Book tutoring with me at this link:\n" +
+  "Start here and upload your syllabus:\n" +
   "SurviveAccounting.com/start\n\n" +
   "Reply with any questions!\n\n" +
   "Lee";
 const FALLBACK_BOOKING =
-  "Here's the booking link again:\n\nSurviveAccounting.com/start";
+  "Here's the link again:\n\nSurviveAccounting.com/start";
 const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
 const FALLBACK_LEE_NEW =
   '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-questions sent. Reply to this thread to jump in yourself.';
