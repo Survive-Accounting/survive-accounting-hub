@@ -51,17 +51,6 @@ function HeroCta() {
       >
         Text Lee for Tutoring →
       </a>
-      <a
-        href={`tel:${TUTOR_PHONE_E164}`}
-        className="hero-anim-btn text-[13px] font-medium"
-        style={{
-          color: "rgba(255,255,255,0.78)",
-          fontFamily: "Inter, sans-serif",
-          textDecoration: "none",
-        }}
-      >
-        {TUTOR_PHONE_PRETTY}
-      </a>
     </div>
   );
 }
