@@ -8,6 +8,7 @@ import type { Campus } from "@/lib/outreach-mock";
 import { ScheduleAndSettingsPanel } from "@/components/outreach/ScheduleAndSettingsPanel";
 import { BroadcastsPanel } from "@/components/outreach/BroadcastsPanel";
 import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
+import { CampaignBuilder } from "@/components/outreach/CampaignBuilder";
 
 const LEAD_TYPE_ICON: Record<LeadType, string> = {
   professors:              "🎓",
@@ -69,6 +70,7 @@ export function EmailQueueShell({ campuses }: { campuses: Campus[] }) {
       {/* Active lead type content */}
       {active === "professors" && (
         <div className="space-y-4">
+          <CampaignBuilder campuses={campuses} />
           <ScheduleAndSettingsPanel campuses={campuses} />
           <BroadcastsPanel campuses={campuses} leadType="professors" />
           <EmailTemplatesPanel leadType="professors" />
