@@ -36,6 +36,8 @@ import {
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
 import ClassScheduleIntelligencePanel from "./ClassScheduleIntelligencePanel";
+import { ScrapeFacultyButton } from "./ScrapeFacultyButton";
+import { FacultyTriagePanel } from "./FacultyTriagePanel";
 import { supabase } from "@/integrations/supabase/client";
 
 type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
