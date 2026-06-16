@@ -1,10 +1,13 @@
-// /start — where texted students land. Same homepage UI (hero, reviews,
-// contact, footer), with the campus search as the hero CTA.
-import { useMemo, useRef, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+// /start — Student Intake Hub.
+// Single entry point for students to share class context + (optionally) upload their syllabus.
+// Keeps homepage branding (SiteNavbar, Hero, Reviews, ContactForm, SiteFooter).
+// Booking link is NOT shown here in Phase 1. Square is unchanged.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Loader2, Search } from "lucide-react";
+import { Loader2, Upload, CheckCircle2, FileText, X } from "lucide-react";
 import { Toaster, toast } from "sonner";
+import { z } from "zod";
 
 import SiteNavbar from "@/components/landing/SiteNavbar";
 import Hero from "@/components/landing/Hero";
@@ -12,27 +15,53 @@ import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
 import SiteFooter from "@/components/landing/SiteFooter";
 import BookTutoringModal from "@/components/landing/BookTutoringModal";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { formatPhonePretty } from "@/lib/outreach-api";
-import { useEffect } from "react";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
 
+// ---------- Routing ----------
+
+type StartSearch = {
+  campus?: string;          // campus slug
+  campus_id?: string;       // campus uuid
+  course?: string;          // free-text course
+  course_family?: string;
+  source?: string;
+  campaign_id?: string;
+  lead_id?: string;
+};
+
 export const Route = createFileRoute("/start")({
+  validateSearch: (search): StartSearch => ({
+    campus: typeof search.campus === "string" ? search.campus : undefined,
+    campus_id: typeof search.campus_id === "string" ? search.campus_id : undefined,
+    course: typeof search.course === "string" ? search.course : undefined,
+    course_family: typeof search.course_family === "string" ? search.course_family : undefined,
+    source: typeof search.source === "string" ? search.source : undefined,
+    campaign_id: typeof search.campaign_id === "string" ? search.campaign_id : undefined,
+    lead_id: typeof search.lead_id === "string" ? search.lead_id : undefined,
+  }),
   head: () => ({
     meta: [
-      { title: "Find Your Campus — Survive Accounting" },
-      { name: "description", content: "Pick your school to see how Lee can help with your accounting course." },
+      { title: "Get Help With Your Accounting Course — Survive Accounting" },
+      { name: "description", content: "Tell Lee what class you're in, upload your syllabus, and get on the path to tutoring." },
     ],
   }),
   component: StartPage,
 });
 
-interface CampusOption { id: string; name: string; slug: string; state: string | null }
+// ---------- Data ----------
+
+interface CampusOption { id: string; name: string; slug: string | null; state: string | null }
 
 async function fetchSelectableCampuses(): Promise<CampusOption[]> {
   const { data, error } = await supabase
@@ -42,52 +71,74 @@ async function fetchSelectableCampuses(): Promise<CampusOption[]> {
     .is("archived_at", null)
     .order("name");
   if (error) throw error;
-  return (data ?? [])
-    .filter((c: any) => c.slug)
-    .map((c: any) => ({ id: c.id, name: c.name ?? "", slug: c.slug, state: c.state ?? null }));
+  return (data ?? []).map((c: any) => ({
+    id: c.id, name: c.name ?? "", slug: c.slug ?? null, state: c.state ?? null,
+  }));
 }
 
-function scrollToId(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-}
+// ---------- Validation ----------
+
+const COURSE_FAMILIES = [
+  { value: "intro_1", label: "Intro 1 — Financial Accounting" },
+  { value: "intro_2", label: "Intro 2 — Managerial Accounting" },
+  { value: "intermediate_1", label: "Intermediate Accounting I" },
+  { value: "intermediate_2", label: "Intermediate Accounting II" },
+  { value: "other", label: "Other / not sure" },
+];
+
+const intakeSchema = z.object({
+  first_name: z.string().trim().min(1, "First name is required").max(80),
+  last_name: z.string().trim().min(1, "Last name is required").max(80),
+  email: z.string().trim().email("Valid email is required").max(255),
+  phone: z.string().trim().min(7, "Phone is required").max(40),
+  campus_id: z.string().uuid().nullable(),
+  school_name: z.string().trim().max(160),
+  course_family: z.string().min(1, "Pick the course family"),
+  course_code_or_name: z.string().trim().min(1, "Course code or name is required").max(120),
+  professor_name: z.string().trim().max(120),
+  next_exam_date: z.string().max(20),
+  is_accounting_major: z.string().max(10),
+  is_greek_member: z.string().max(10),
+  greek_org_name: z.string().trim().max(120),
+  how_did_you_hear_about_me: z.string().trim().max(200),
+  notes: z.string().trim().max(2000),
+});
+
+// ---------- Component ----------
 
 function StartPage() {
+  const search = Route.useSearch();
   const [bookOpen, setBookOpen] = useState(false);
-  const [mainLine, setMainLine] = useState<string | null>(null);
-  useEffect(() => {
-    (supabase.from("campus_phone_numbers" as never) as any)
-      .select("phone_e164").is("campus_id", null).maybeSingle()
-      .then(({ data }: { data: { phone_e164: string } | null }) => {
-        if (data?.phone_e164) setMainLine(data.phone_e164);
-      });
-  }, []);
+  const formRef = useRef<HTMLDivElement>(null);
+
   return (
     <div className="min-h-screen bg-background">
       <SiteNavbar />
       <Hero
-        headline="Need Help in Accounting?"
-        subtext="Pick your campus and I'll show you exactly how I can help with your course."
-        ctaSlot={<CampusSearch />}
+        headline="Get help with your accounting course"
+        subtext="Tell Lee what class you're in, upload your syllabus, and book tutoring."
+        ctaSlot={
+          <Button
+            onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="h-12 px-8 text-base font-bold text-white shadow-lg"
+            style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+          >
+            Start the form ↓
+          </Button>
+        }
       />
+
+      <section ref={formRef} className="px-4 py-16 sm:py-20" style={{ background: "#F5F7FA" }}>
+        <div className="mx-auto w-full max-w-2xl">
+          <IntakeForm initialSearch={search} />
+        </div>
+      </section>
+
       <Reviews />
-      {mainLine && (
-        <section className="border-y border-border bg-white px-6 py-8 text-center" style={{ fontFamily: "Inter, sans-serif" }}>
-          <div className="text-lg font-bold" style={{ color: NAVY }}>
-            📱 Prefer to text? Text Lee:{" "}
-            <a href={`sms:${mainLine}`} className="underline">{formatPhonePretty(mainLine)}</a>
-          </div>
-          <p className="mx-auto mt-2 max-w-xl text-[11px] leading-relaxed text-gray-500">
-            By texting, you agree to receive replies about your tutoring inquiry. Message frequency varies.
-            Message &amp; data rates may apply. Reply STOP to opt out, HELP for help.{" "}
-            <a href="/privacy" className="underline">Privacy Policy</a> ·{" "}
-            <a href="/terms" className="underline">Terms</a>
-          </p>
-        </section>
-      )}
       <ContactForm />
       <SiteFooter
-        onScrollToContact={() => scrollToId("contact-form")}
-        onScrollToReviews={() => scrollToId("reviews-section")}
+        onScrollToContact={() => document.getElementById("contact-form")?.scrollIntoView({ behavior: "smooth" })}
+        onScrollToReviews={() => document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth" })}
         onBookTutoring={() => setBookOpen(true)}
       />
       <BookTutoringModal open={bookOpen} onOpenChange={setBookOpen} />
@@ -96,152 +147,393 @@ function StartPage() {
   );
 }
 
-function CampusSearch() {
-  const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [showWaitlist, setShowWaitlist] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
+// ---------- Form ----------
+
+function IntakeForm({ initialSearch }: { initialSearch: StartSearch }) {
   const campusesQuery = useQuery({ queryKey: ["selectable-campuses"], queryFn: fetchSelectableCampuses, retry: 1 });
-
   const campuses = campusesQuery.data ?? [];
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return campuses
-      .filter((c) => c.name.toLowerCase().includes(q) || (c.state ?? "").toLowerCase() === q)
-      .slice(0, 6);
-  }, [campuses, query]);
 
-  const typed = query.trim().length > 1;
-  const noMatches = typed && filtered.length === 0;
-  const open = (typed && filtered.length > 0) || showWaitlist || noMatches;
-
-  return (
-    <div ref={boxRef} className="hero-anim-btn relative w-full" style={{ maxWidth: 480 }}>
-      <div
-        className="flex items-center gap-2 rounded-xl bg-white px-4 transition-shadow"
-        style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6), 0 10px 28px rgba(0,0,0,0.28)" }}
-      >
-        <Search className="h-4 w-4 shrink-0" style={{ color: NAVY }} />
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setShowWaitlist(false); }}
-          placeholder="Start typing your school — e.g. Ole Miss…"
-          className="h-[56px] w-full bg-transparent text-[16px] outline-none placeholder:text-gray-400"
-          style={{ fontFamily: "Inter, sans-serif", color: "#111827" }}
-        />
-        {campusesQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
-      </div>
-
-      {!showWaitlist && (
-        <button
-          onClick={() => setShowWaitlist(true)}
-          className="mt-3 text-[13px] underline decoration-white/40 underline-offset-2 transition hover:decoration-white"
-          style={{ color: "rgba(255,255,255,0.78)", fontFamily: "Inter, sans-serif" }}
-        >
-          Not seeing your campus?
-        </button>
-      )}
-
-      {open && (
-        <div
-          className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl bg-white text-left"
-          style={{ boxShadow: "0 18px 50px rgba(0,0,0,0.35)" }}
-        >
-          {filtered.map((c) => (
-            <button
-              key={c.id}
-              onClick={() =>
-                navigate({ to: "/outreach/school/$slug", params: { slug: c.slug }, search: { src: "start" } as never })
-              }
-              className="group flex w-full items-center gap-2 border-b border-gray-100 px-4 py-3 text-left transition hover:bg-gray-50"
-            >
-              <span className="text-[15px] font-semibold" style={{ color: "#111827", fontFamily: "Inter, sans-serif" }}>
-                {c.name}
-              </span>
-              {c.state && <span className="text-xs text-gray-400">{c.state}</span>}
-              <ChevronRight className="ml-auto h-4 w-4 text-gray-300 transition group-hover:translate-x-0.5 group-hover:text-gray-500" />
-            </button>
-          ))}
-          {(noMatches || showWaitlist) && (
-            <WaitlistForm prefillCampus={noMatches ? query.trim() : ""} />
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function WaitlistForm({ prefillCampus }: { prefillCampus: string }) {
-  const [form, setForm] = useState({
-    name: "", email: "", phone: "", campus_text: prefillCampus, course_text: "",
-    wants_text: true, wants_call: false,
-  });
-  const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [form, setForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    campus_id: "" as string,           // uuid or "" (other)
+    school_name: "",
+    course_family: initialSearch.course_family ?? "",
+    course_code_or_name: initialSearch.course ?? "",
+    professor_name: "",
+    next_exam_date: "",
+    is_accounting_major: "",
+    is_greek_member: "",
+    greek_org_name: "",
+    how_did_you_hear_about_me: "",
+    notes: "",
+  });
+
+  const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
+
+  // Prefill campus_id from ?campus=<slug> or ?campus_id=<uuid>
+  useEffect(() => {
+    if (!campuses.length) return;
+    if (form.campus_id) return;
+    if (initialSearch.campus_id) {
+      const hit = campuses.find((c) => c.id === initialSearch.campus_id);
+      if (hit) setForm((f) => ({ ...f, campus_id: hit.id }));
+    } else if (initialSearch.campus) {
+      const hit = campuses.find((c) => c.slug === initialSearch.campus);
+      if (hit) setForm((f) => ({ ...f, campus_id: hit.id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campuses.length]);
+
+  const set =
+    <K extends keyof typeof form>(k: K) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const pickFile = (file: File | null) => {
+    if (!file) { setSyllabusFile(null); return; }
+    const MAX = 25 * 1024 * 1024; // 25 MB
+    if (file.size > MAX) {
+      toast.error("Syllabus must be under 25MB");
+      return;
+    }
+    setSyllabusFile(file);
+  };
 
   const submit = async () => {
-    const email = form.email.trim();
-    if (!email || !/.+@.+\..+/.test(email)) { toast.error("A valid email is required"); return; }
+    const parsed = intakeSchema.safeParse({ ...form, campus_id: form.campus_id || null });
+    if (!parsed.success) {
+      const errs: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const k = issue.path[0] as string;
+        if (k && !errs[k]) errs[k] = issue.message;
+      }
+      setErrors(errs);
+      toast.error("Please fix the highlighted fields");
+      return;
+    }
+    setErrors({});
+
+    // Either campus_id or free-text school_name
+    if (!parsed.data.campus_id && !parsed.data.school_name.trim()) {
+      setErrors({ school_name: "Pick your school or type its name" });
+      toast.error("Please pick your school or type its name");
+      return;
+    }
+
     setSubmitting(true);
-    const { error } = await (supabase.from("campus_waitlist" as never) as any).insert({
-      name: form.name.trim() || null,
-      email,
-      phone: form.phone.trim() || null,
-      campus_text: (form.campus_text || prefillCampus).trim() || null,
-      course_text: form.course_text.trim() || null,
-      wants_text: form.wants_text,
-      wants_call: form.wants_call,
-      source: "start_page",
-    });
-    setSubmitting(false);
-    if (error) { toast.error("Something went wrong — try again?"); return; }
-    setDone(true);
+    try {
+      let syllabusUrl: string | null = null;
+      let syllabusAt: string | null = null;
+
+      if (syllabusFile) {
+        const safeName = syllabusFile.name.replace(/[^A-Za-z0-9._-]/g, "_");
+        const path = `${crypto.randomUUID()}/${safeName}`;
+        const { error: upErr } = await supabase
+          .storage
+          .from("student-syllabi")
+          .upload(path, syllabusFile, { upsert: false, contentType: syllabusFile.type || undefined });
+        if (upErr) throw new Error(`Syllabus upload failed: ${upErr.message}`);
+        syllabusUrl = path;
+        syllabusAt = new Date().toISOString();
+      }
+
+      const sourceParams: Record<string, string> = {};
+      for (const [k, v] of Object.entries(initialSearch)) {
+        if (typeof v === "string" && v) sourceParams[k] = v;
+      }
+
+      const payload = {
+        first_name: parsed.data.first_name,
+        last_name: parsed.data.last_name,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        campus_id: parsed.data.campus_id,
+        school_name: parsed.data.school_name || null,
+        course_family: parsed.data.course_family,
+        course_code_or_name: parsed.data.course_code_or_name,
+        professor_name: parsed.data.professor_name || null,
+        next_exam_date: parsed.data.next_exam_date || null,
+        is_accounting_major:
+          parsed.data.is_accounting_major === "yes" ? true :
+          parsed.data.is_accounting_major === "no" ? false : null,
+        is_greek_member:
+          parsed.data.is_greek_member === "yes" ? true :
+          parsed.data.is_greek_member === "no" ? false : null,
+        greek_org_name: parsed.data.greek_org_name || null,
+        how_did_you_hear_about_me: parsed.data.how_did_you_hear_about_me || null,
+        notes: parsed.data.notes || null,
+        syllabus_file_url: syllabusUrl,
+        syllabus_uploaded_at: syllabusAt,
+        source: initialSearch.source ?? null,
+        source_campaign_id: initialSearch.campaign_id ?? null,
+        source_lead_id: initialSearch.lead_id ?? null,
+        source_url_params: sourceParams,
+      };
+
+      const { error } = await (supabase.from("student_intake_submissions" as never) as any).insert(payload);
+      if (error) throw new Error(error.message);
+
+      setDone(true);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Something went wrong — please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (done) {
     return (
-      <div className="p-5 text-center">
-        <div className="text-sm font-semibold" style={{ color: "#111827" }}>Got it — I'll reach out personally. 🤝</div>
-        <p className="mt-1 text-xs text-gray-500">
-          I read every one of these myself. Expect to hear from me soon{form.wants_text && form.phone ? " by text" : ""}. — Lee
+      <div
+        className="rounded-2xl bg-white p-8 text-center shadow-xl"
+        style={{ fontFamily: "Inter, sans-serif" }}
+      >
+        <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+        <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
+          Thanks — your info was saved.
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+          Lee will review your details {syllabusFile ? "and your syllabus " : ""}and follow up shortly.
         </p>
       </div>
     );
   }
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const fieldErr = (k: string) => errors[k];
 
   return (
-    <div className="p-4 text-left" style={{ fontFamily: "Inter, sans-serif" }}>
-      <div className="text-sm font-semibold" style={{ color: "#111827" }}>
-        Tell me where you are — I'll reach out personally.
+    <div
+      className="rounded-2xl bg-white p-6 shadow-xl sm:p-8"
+      style={{ fontFamily: "Inter, sans-serif" }}
+    >
+      <div className="mb-6">
+        <h2 className="text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>
+          Tell Lee about your class
+        </h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Takes about a minute. Required fields marked with <span className="text-red-600">*</span>.
+        </p>
       </div>
-      <div className="mt-3 grid gap-2">
-        <Input placeholder="Your name" value={form.name} onChange={set("name")} className="h-10 bg-white text-gray-900" />
-        <Input placeholder="Email (required)" type="email" value={form.email} onChange={set("email")} className="h-10 bg-white text-gray-900" />
-        <Input placeholder="Phone (optional)" type="tel" value={form.phone} onChange={set("phone")} className="h-10 bg-white text-gray-900" />
-        <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Your school" value={form.campus_text} onChange={set("campus_text")} className="h-10 bg-white text-gray-900" />
-          <Input placeholder="Course (e.g. ACC 201)" value={form.course_text} onChange={set("course_text")} className="h-10 bg-white text-gray-900" />
-        </div>
-        <div className="flex items-center gap-5 pt-1">
-          <label className="flex items-center gap-2 text-xs text-gray-700">
-            <Checkbox checked={form.wants_text} onCheckedChange={(v) => setForm((f) => ({ ...f, wants_text: !!v }))} />
-            Text me back
-          </label>
-          <label className="flex items-center gap-2 text-xs text-gray-700">
-            <Checkbox checked={form.wants_call} onCheckedChange={(v) => setForm((f) => ({ ...f, wants_call: !!v }))} />
-            Call me back
-          </label>
-        </div>
-        <Button onClick={submit} disabled={submitting} className="mt-1 h-10 font-bold text-white" style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}>
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Send to Lee →
+
+      <div className="space-y-5">
+        {/* You */}
+        <Section title="About you">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="First name" required err={fieldErr("first_name")}>
+              <Input value={form.first_name} onChange={set("first_name")} autoComplete="given-name" />
+            </Field>
+            <Field label="Last name" required err={fieldErr("last_name")}>
+              <Input value={form.last_name} onChange={set("last_name")} autoComplete="family-name" />
+            </Field>
+            <Field label="Email" required err={fieldErr("email")}>
+              <Input type="email" value={form.email} onChange={set("email")} autoComplete="email" />
+            </Field>
+            <Field label="Phone" required err={fieldErr("phone")}>
+              <Input type="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" placeholder="(555) 555-5555" />
+            </Field>
+          </div>
+        </Section>
+
+        {/* School + course */}
+        <Section title="Your class">
+          <div className="grid gap-3">
+            <Field label="School" required err={fieldErr("school_name")}>
+              <Select
+                value={form.campus_id || "__other"}
+                onValueChange={(v) => setForm((f) => ({ ...f, campus_id: v === "__other" ? "" : v }))}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder={campusesQuery.isLoading ? "Loading schools…" : "Pick your school"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {campuses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}{c.state ? ` · ${c.state}` : ""}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__other">My school isn't listed</SelectItem>
+                </SelectContent>
+              </Select>
+              {!form.campus_id && (
+                <Input
+                  className="mt-2"
+                  placeholder="Type your school name"
+                  value={form.school_name}
+                  onChange={set("school_name")}
+                />
+              )}
+            </Field>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Which course?" required err={fieldErr("course_family")}>
+                <Select
+                  value={form.course_family}
+                  onValueChange={(v) => setForm((f) => ({ ...f, course_family: v }))}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Pick a course family" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COURSE_FAMILIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Course code or name" required err={fieldErr("course_code_or_name")}>
+                <Input value={form.course_code_or_name} onChange={set("course_code_or_name")} placeholder="e.g. ACCY 201" />
+              </Field>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Professor (optional)">
+                <Input value={form.professor_name} onChange={set("professor_name")} />
+              </Field>
+              <Field label="Next exam date (optional)">
+                <Input type="date" value={form.next_exam_date} onChange={set("next_exam_date")} />
+              </Field>
+            </div>
+          </div>
+        </Section>
+
+        {/* Syllabus upload — prominent */}
+        <Section title="Upload your syllabus">
+          <SyllabusUploader file={syllabusFile} onPick={pickFile} />
+        </Section>
+
+        {/* About you (extra) */}
+        <Section title="A few extras (optional)">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Accounting major?">
+              <Select value={form.is_accounting_major} onValueChange={(v) => setForm((f) => ({ ...f, is_accounting_major: v }))}>
+                <SelectTrigger className="h-10"><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                  <SelectItem value="unsure">Not sure yet</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="In a fraternity or sorority?">
+              <Select value={form.is_greek_member} onValueChange={(v) => setForm((f) => ({ ...f, is_greek_member: v }))}>
+                <SelectTrigger className="h-10"><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            {form.is_greek_member === "yes" && (
+              <Field label="Greek org name">
+                <Input value={form.greek_org_name} onChange={set("greek_org_name")} />
+              </Field>
+            )}
+            <Field label="How did you hear about Lee?">
+              <Input value={form.how_did_you_hear_about_me} onChange={set("how_did_you_hear_about_me")} placeholder="e.g. friend, Instagram, my professor" />
+            </Field>
+          </div>
+          <Field label="Anything else Lee should know?">
+            <Textarea rows={3} value={form.notes} onChange={set("notes")} placeholder="Specific topics you're stuck on, exam dates, etc." />
+          </Field>
+        </Section>
+
+        <Button
+          onClick={submit}
+          disabled={submitting}
+          className="h-12 w-full text-base font-bold text-white"
+          style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+        >
+          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Send to Lee
         </Button>
+        <p className="text-center text-[11px] text-gray-500">
+          By submitting, you agree Lee may text or email you about your tutoring request.
+        </p>
       </div>
+    </div>
+  );
+}
+
+// ---------- Sub-components ----------
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-600">{title}</div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function Field({
+  label, required, err, children,
+}: { label: string; required?: boolean; err?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <Label className="text-xs font-medium text-gray-700">
+        {label}{required && <span className="text-red-600"> *</span>}
+      </Label>
+      {children}
+      {err && <span className="text-[11px] text-red-600">{err}</span>}
+    </div>
+  );
+}
+
+function SyllabusUploader({
+  file, onPick,
+}: { file: File | null; onPick: (f: File | null) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const sizeKb = useMemo(() => file ? Math.round(file.size / 1024) : 0, [file]);
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+        className="hidden"
+        onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+      />
+      {!file ? (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center transition hover:border-gray-400 hover:bg-gray-50"
+        >
+          <Upload className="h-6 w-6 text-gray-500" />
+          <span className="text-sm font-semibold" style={{ color: NAVY }}>
+            Click to upload your syllabus
+          </span>
+          <span className="max-w-md text-xs text-gray-500">
+            Strongly recommended. If you want to book tutoring, Lee needs your syllabus first so he can prep for your course.
+          </span>
+          <span className="text-[11px] text-gray-400">PDF, DOC, image — up to 25MB</span>
+        </button>
+      ) : (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0 text-emerald-700" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-emerald-900">{file.name}</div>
+              <div className="text-[11px] text-emerald-700">{sizeKb.toLocaleString()} KB · ready to upload</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { onPick(null); if (inputRef.current) inputRef.current.value = ""; }}
+            className="rounded p-1 text-emerald-700 hover:bg-emerald-100"
+            aria-label="Remove file"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
