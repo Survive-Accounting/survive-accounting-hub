@@ -1683,3 +1683,349 @@ function aggregateCampusLeadStats(args: {
     totalCampusCount,
   };
 }
+
+// ============================================================
+// Campaigns (Phase 2 — snapshot model, no sending yet)
+// ============================================================
+
+export type CampaignType = "cold_sequence" | "broadcast";
+export type CampaignStatus =
+  | "draft" | "scheduled" | "running" | "paused" | "completed" | "cancelled";
+export const ACTIVE_CAMPAIGN_STATUSES: CampaignStatus[] =
+  ["draft", "scheduled", "running", "paused"];
+
+export interface CampaignAudienceFilters {
+  // mirrors LeadFilters + per-builder extras
+  courseFamilies?: string[];
+  seasons?: string[];
+  campusIds?: string[];                    // from LeadFilters
+  selectedCampusIds?: string[];            // from builder checkbox list
+  leadTypes?: string[];                    // future use
+  teachingOnly?: boolean;
+  includeOnlyTeachingAssignments?: boolean;
+  textbookMatchOnly?: boolean;
+  minConfidence?: number;
+}
+
+export interface CampaignAudiencePreviewLead {
+  outreach_lead_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  campus_id: string | null;
+  campus_name: string | null;
+  lead_type: string | null;
+  course_family: string | null;
+}
+
+export interface CampaignAudiencePreview {
+  totalLeads: number;
+  totalCampuses: number;
+  estimatedDaysAt50PerDay: number;
+  first25Leads: CampaignAudiencePreviewLead[];
+  excludedAlreadyInCampaignCount: number;
+  /** Full ID list so the create step can snapshot exactly what was previewed. */
+  eligibleLeadIds: string[];
+}
+
+interface OutreachLeadRow {
+  id: string;
+  campus_id: string | null;
+  school_id: string | null;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  is_phd: boolean | null;
+  status: string | null;
+}
+
+interface SuggestionMatchRow {
+  campus_id: string;
+  email: string | null;
+  lead_type: string | null;
+  confidence: number | null;
+  teaches_intro_1: boolean | null;
+  teaches_intro_2: boolean | null;
+  teaches_intermediate_1: boolean | null;
+  teaches_intermediate_2: boolean | null;
+}
+
+/** Returns the set of outreach_lead_ids already enrolled in an active cold campaign. */
+async function fetchAlreadyEnrolledLeadIds(): Promise<Set<string>> {
+  const { data: campaigns, error: cErr } = await supabase
+    .from("outreach_campaigns" as never)
+    .select("id")
+    .eq("campaign_type", "cold_sequence")
+    .in("status", ACTIVE_CAMPAIGN_STATUSES);
+  if (cErr) throw cErr;
+  const ids = ((campaigns ?? []) as Array<{ id: string }>).map((c) => c.id);
+  if (!ids.length) return new Set();
+  const { data: rows, error: lErr } = await supabase
+    .from("outreach_campaign_leads" as never)
+    .select("outreach_lead_id")
+    .in("campaign_id", ids);
+  if (lErr) throw lErr;
+  return new Set(
+    ((rows ?? []) as Array<{ outreach_lead_id: string }>).map((r) => r.outreach_lead_id),
+  );
+}
+
+/**
+ * Build a campaign preview from current outreach_leads.
+ * Filters that depend on suggestion-only fields (teaching evidence, family,
+ * confidence) are best-effort matched against campus_lead_suggestions by
+ * (campus_id, lower(email)).
+ */
+export async function previewCampaignAudience(
+  filters: CampaignAudienceFilters,
+  campuses: Array<{ id: string; school_name: string }>,
+): Promise<CampaignAudiencePreview> {
+  // Effective campus filter = intersection of LeadFilter.campusIds and selectedCampusIds.
+  const filterCampusIds = filters.campusIds && filters.campusIds.length ? filters.campusIds : null;
+  const builderCampusIds = filters.selectedCampusIds && filters.selectedCampusIds.length
+    ? filters.selectedCampusIds : null;
+  let effectiveCampusIds: string[] | null = null;
+  if (filterCampusIds && builderCampusIds) {
+    const bSet = new Set(builderCampusIds);
+    effectiveCampusIds = filterCampusIds.filter((id) => bSet.has(id));
+  } else {
+    effectiveCampusIds = filterCampusIds ?? builderCampusIds;
+  }
+
+  // Textbook-match filter: limit to campuses with at least one ISBN recorded.
+  // Caller passes a simple campuses list, so we approximate by fetching the
+  // textbook json column up-front.
+  let textbookCampusIds: Set<string> | null = null;
+  if (filters.textbookMatchOnly) {
+    const { data: tb, error: tbErr } = await supabase
+      .from("campuses")
+      .select("id,course_family_textbooks_json");
+    if (tbErr) throw tbErr;
+    textbookCampusIds = new Set(
+      ((tb ?? []) as Array<{ id: string; course_family_textbooks_json: unknown }>)
+        .filter((c) => {
+          const j = c.course_family_textbooks_json;
+          return j && typeof j === "object" && Object.values(j as Record<string, unknown>)
+            .some((v) => v && typeof v === "object" && (v as any).isbn13);
+        })
+        .map((c) => c.id),
+    );
+  }
+
+  // Pull leads (paginated). Skip stopped/replied/bounced.
+  const leads: OutreachLeadRow[] = [];
+  let from = 0;
+  for (let i = 0; i < 50; i++) {
+    let q = supabase
+      .from("outreach_leads")
+      .select("id,campus_id,school_id,email,first_name,last_name,is_phd,status")
+      .not("sequence_stopped_at", "is", null) // we filter below
+      .range(from, from + 999);
+    // Reset above — supabase-js doesn't have a clean way to drop a filter; instead build fresh:
+    q = supabase
+      .from("outreach_leads")
+      .select("id,campus_id,school_id,email,first_name,last_name,is_phd,status")
+      .range(from, from + 999);
+    if (effectiveCampusIds) q = q.in("campus_id", effectiveCampusIds);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as OutreachLeadRow[];
+    leads.push(...rows);
+    if (rows.length < 1000) break;
+    from += 1000;
+  }
+
+  // Optionally enrich with suggestion data for teaching/family/confidence filters.
+  const needsSuggestionLookup =
+    !!filters.teachingOnly ||
+    !!filters.includeOnlyTeachingAssignments ||
+    (typeof filters.minConfidence === "number" && filters.minConfidence > 0) ||
+    (filters.courseFamilies && filters.courseFamilies.length > 0 && filters.courseFamilies.length < 4);
+
+  let suggestionByKey = new Map<string, SuggestionMatchRow>();
+  if (needsSuggestionLookup) {
+    const { data: sugg, error: sErr } = await supabase
+      .from("campus_lead_suggestions" as never)
+      .select("campus_id,email,lead_type,confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
+      .limit(20000);
+    if (sErr) throw sErr;
+    for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
+      if (!r.email || !r.campus_id) continue;
+      suggestionByKey.set(`${r.campus_id}::${r.email.toLowerCase()}`, r);
+    }
+  }
+
+  const alreadyEnrolled = await fetchAlreadyEnrolledLeadIds();
+
+  const familySet = filters.courseFamilies && filters.courseFamilies.length
+    ? new Set(filters.courseFamilies) : null;
+  const wantTeaching = !!(filters.teachingOnly || filters.includeOnlyTeachingAssignments);
+  const minConfidence = filters.minConfidence ?? 0;
+
+  let excludedAlreadyInCampaignCount = 0;
+  const eligible: Array<{ row: OutreachLeadRow; family: string | null; leadType: string | null }> = [];
+
+  for (const l of leads) {
+    if (!l.email) continue;
+    const campusId = l.campus_id ?? l.school_id;
+    if (textbookCampusIds && (!campusId || !textbookCampusIds.has(campusId))) continue;
+
+    let family: string | null = null;
+    let leadType: string | null = null;
+    if (needsSuggestionLookup || true) {
+      const match = campusId
+        ? suggestionByKey.get(`${campusId}::${l.email.toLowerCase()}`)
+        : undefined;
+      if (match) {
+        leadType = match.lead_type ?? null;
+        // Best-effort family derivation (pick first true flag).
+        if (match.teaches_intro_1) family = "intro_1";
+        else if (match.teaches_intro_2) family = "intro_2";
+        else if (match.teaches_intermediate_1) family = "intermediate_1";
+        else if (match.teaches_intermediate_2) family = "intermediate_2";
+        if (wantTeaching && !family) continue;
+        if (minConfidence > 0 && (match.confidence ?? 0) < minConfidence) continue;
+        if (familySet) {
+          const teachesAny = ["intro_1","intro_2","intermediate_1","intermediate_2"]
+            .some((f) => familySet.has(f) && (match as any)[`teaches_${f}`]);
+          if (!teachesAny) continue;
+        }
+      } else {
+        if (wantTeaching) continue;
+        if (minConfidence > 0) continue;
+        if (familySet && familySet.size < 4) continue;
+      }
+    }
+
+    if (alreadyEnrolled.has(l.id)) {
+      excludedAlreadyInCampaignCount++;
+      continue;
+    }
+
+    eligible.push({ row: l, family, leadType });
+  }
+
+  const campusNameById = new Map(campuses.map((c) => [c.id, c.school_name]));
+  const totalLeads = eligible.length;
+  const totalCampuses = new Set(eligible.map((e) => e.row.campus_id ?? e.row.school_id ?? "")).size;
+  const estimatedDaysAt50PerDay = Math.ceil(totalLeads / 50);
+
+  const first25Leads: CampaignAudiencePreviewLead[] = eligible.slice(0, 25).map((e) => {
+    const cid = e.row.campus_id ?? e.row.school_id;
+    return {
+      outreach_lead_id: e.row.id,
+      email: e.row.email!,
+      first_name: e.row.first_name,
+      last_name: e.row.last_name,
+      campus_id: cid,
+      campus_name: cid ? (campusNameById.get(cid) ?? null) : null,
+      lead_type: e.leadType,
+      course_family: e.family,
+    };
+  });
+
+  return {
+    totalLeads,
+    totalCampuses,
+    estimatedDaysAt50PerDay,
+    first25Leads,
+    excludedAlreadyInCampaignCount,
+    eligibleLeadIds: eligible.map((e) => e.row.id),
+  };
+}
+
+/**
+ * Snapshot a campaign from a previewed audience. Inserts an
+ * outreach_campaigns row (status='draft') plus one outreach_campaign_leads
+ * row per selected lead. Does NOT schedule or send anything.
+ */
+export async function createCampaignFromPreview(input: {
+  name: string;
+  dailyLimit: number;
+  filters: CampaignAudienceFilters;
+  selectedLeadIds: string[];
+  createdBy?: string | null;
+}): Promise<{ campaign_id: string; total_leads: number; total_campuses: number }> {
+  const dailyLimit = input.dailyLimit > 0 ? input.dailyLimit : 50;
+
+  // Hydrate snapshot from outreach_leads.
+  const rows: OutreachLeadRow[] = [];
+  for (let i = 0; i < input.selectedLeadIds.length; i += 1000) {
+    const chunk = input.selectedLeadIds.slice(i, i + 1000);
+    const { data, error } = await supabase
+      .from("outreach_leads")
+      .select("id,campus_id,school_id,email,first_name,last_name,is_phd,status")
+      .in("id", chunk);
+    if (error) throw error;
+    rows.push(...((data ?? []) as unknown as OutreachLeadRow[]));
+  }
+
+  // Optional family/type enrichment (best-effort).
+  const { data: sugg } = await supabase
+    .from("campus_lead_suggestions" as never)
+    .select("campus_id,email,lead_type,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
+    .limit(20000);
+  const sMap = new Map<string, SuggestionMatchRow>();
+  for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
+    if (r.email && r.campus_id) sMap.set(`${r.campus_id}::${r.email.toLowerCase()}`, r);
+  }
+
+  const totalCampuses = new Set(rows.map((r) => r.campus_id ?? r.school_id ?? "")).size;
+  const totalLeads = rows.length;
+  const estimatedDays = Math.ceil(totalLeads / dailyLimit);
+
+  const { data: campaign, error: cErr } = await (supabase
+    .from("outreach_campaigns" as never) as any)
+    .insert({
+      name: input.name.trim(),
+      campaign_type: "cold_sequence",
+      status: "draft",
+      audience_filters: input.filters,
+      total_leads: totalLeads,
+      total_campuses: totalCampuses,
+      daily_limit: dailyLimit,
+      estimated_days: estimatedDays,
+      created_by: input.createdBy ?? null,
+    })
+    .select("id")
+    .single();
+  if (cErr) throw cErr;
+  const campaignId = (campaign as { id: string }).id;
+
+  // Insert campaign_leads in batches.
+  const leadRows = rows
+    .filter((r) => !!r.email)
+    .map((r) => {
+      const cid = r.campus_id ?? r.school_id ?? null;
+      const m = cid && r.email
+        ? sMap.get(`${cid}::${r.email.toLowerCase()}`)
+        : undefined;
+      let family: string | null = null;
+      if (m?.teaches_intro_1) family = "intro_1";
+      else if (m?.teaches_intro_2) family = "intro_2";
+      else if (m?.teaches_intermediate_1) family = "intermediate_1";
+      else if (m?.teaches_intermediate_2) family = "intermediate_2";
+      return {
+        campaign_id: campaignId,
+        outreach_lead_id: r.id,
+        campus_id: cid,
+        email: r.email,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        lead_type: m?.lead_type ?? null,
+        course_family: family,
+        status: "queued",
+        sequence_step: 0,
+        scheduled_send_at: null,
+      };
+    });
+
+  for (let i = 0; i < leadRows.length; i += 500) {
+    const chunk = leadRows.slice(i, i + 500);
+    const { error: lErr } = await (supabase
+      .from("outreach_campaign_leads" as never) as any).insert(chunk);
+    if (lErr) throw lErr;
+  }
+
+  return { campaign_id: campaignId, total_leads: totalLeads, total_campuses: totalCampuses };
+}
