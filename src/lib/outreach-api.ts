@@ -1657,7 +1657,7 @@ function aggregateCampusLeadStats(args: {
     (l) => now - new Date(l.created_at).getTime() < 86_400_000,
   ).length;
 
-  const totalCampusCount = campuses.length;
+  const totalCampusCount = campuses.filter((c) => !c.archived).length;
   return {
     suggestedLeadCount: fLeads.length,
     importedLeadCount: fImported.length,
@@ -1682,6 +1682,234 @@ function aggregateCampusLeadStats(args: {
       : 0,
     totalCampusCount,
   };
+}
+
+// ============================================================
+// Detailed report — same filters, returns row-level data for modal
+// ============================================================
+
+export interface CampusReportRow {
+  campus_id: string;
+  name: string;
+  state: string | null;
+  suggestedLeadCount: number;
+  importedLeadCount: number;
+  sectionCount: number;
+  hasTextbookIsbn: boolean;
+  lastResearchedAt: string | null;
+}
+
+export interface LeadReportRow {
+  id: string;
+  campus_id: string;
+  campusName: string;
+  first_name: string | null;
+  last_name: string | null;
+  title: string | null;
+  email: string | null;
+  confidence: number | null;
+  is_phd: boolean;
+  is_cpa: boolean;
+  teaches_intro_1: boolean;
+  teaches_intro_2: boolean;
+  teaches_intermediate_1: boolean;
+  teaches_intermediate_2: boolean;
+  source_url: string | null;
+  status: string | null;
+  imported: boolean;
+}
+
+export interface SectionReportRow {
+  id: string;
+  campus_id: string;
+  campusName: string;
+  course_family: string | null;
+  course_code: string | null;
+  course_title: string | null;
+  term: string | null;
+  section_number: string | null;
+  instructor_name: string | null;
+  enrollment_current: number | null;
+  enrollment_capacity: number | null;
+  source_url: string | null;
+}
+
+export interface CampusLeadReport {
+  campuses: CampusReportRow[];
+  leads: LeadReportRow[];
+  sections: SectionReportRow[];
+}
+
+interface RawLeadFullRow extends RawLeadRow {
+  first_name: string | null;
+  last_name: string | null;
+  title: string | null;
+  email: string | null;
+  source_url: string | null;
+}
+
+interface RawSectionFullRow extends RawSectionRow {
+  course_code: string | null;
+  course_title: string | null;
+  section_number: string | null;
+  instructor_name: string | null;
+  enrollment_current: number | null;
+  enrollment_capacity: number | null;
+  source_url: string | null;
+}
+
+export async function fetchCampusLeadReport(
+  filters: LeadFilters,
+  campuses: Campus[],
+): Promise<CampusLeadReport> {
+  const [leads, sections, imported] = await Promise.all([
+    fetchAllRows<RawLeadFullRow>(
+      "campus_lead_suggestions",
+      "id,campus_id,first_name,last_name,title,email,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,source_url,created_at",
+    ),
+    fetchAllRows<RawSectionFullRow>(
+      "campus_course_sections",
+      "id,campus_id,course_family,course_code,course_title,term,section_number,instructor_name,enrollment_current,enrollment_capacity,source_url,created_at",
+    ),
+    fetchAllRows<RawImportedLeadRow>(
+      "outreach_leads",
+      "id,campus_id,school_id,created_at",
+    ),
+  ]);
+
+  const campusById = new Map(campuses.map((c) => [c.id, c]));
+  const campusSet = filters.campusIds.length ? new Set(filters.campusIds) : null;
+
+  const textbookCampusIds = filters.textbookMatchOnly
+    ? new Set(
+        campuses
+          .filter((c) => {
+            const tb = c.course_family_textbooks_json;
+            if (!tb || typeof tb !== "object") return false;
+            return Object.values(tb).some(
+              (v) => v && typeof v === "object" && (v as any).isbn13,
+            );
+          })
+          .map((c) => c.id),
+      )
+    : null;
+
+  const familyAllowed = (fam: string | null) => {
+    if (filters.courseFamilies.length === ALL_FAMILIES.length) return true;
+    if (!fam) return false;
+    return (filters.courseFamilies as string[]).includes(fam);
+  };
+  const seasonAllowed = (term: string | null) => {
+    if (filters.seasons.length === ALL_SEASONS.length) return true;
+    const s = termToSeason(term);
+    return s ? filters.seasons.includes(s) : false;
+  };
+  const leadFamilyMatches = (l: RawLeadFullRow) => {
+    if (filters.courseFamilies.length === ALL_FAMILIES.length) return true;
+    if (filters.courseFamilies.length === 0) return false;
+    return filters.courseFamilies.some((f) => (l as any)[`teaches_${f}`] === true);
+  };
+
+  const importedByCampus = new Map<string, number>();
+  for (const r of imported) {
+    const cid = r.campus_id ?? r.school_id;
+    if (!cid) continue;
+    importedByCampus.set(cid, (importedByCampus.get(cid) ?? 0) + 1);
+  }
+
+  const fLeads = leads.filter((l) => {
+    if (campusSet && !campusSet.has(l.campus_id)) return false;
+    if (textbookCampusIds && !textbookCampusIds.has(l.campus_id)) return false;
+    if ((l.confidence ?? 0) < filters.minConfidence) return false;
+    if (filters.teachingOnly && !(
+      l.teaches_intro_1 || l.teaches_intro_2 ||
+      l.teaches_intermediate_1 || l.teaches_intermediate_2
+    )) return false;
+    if (!leadFamilyMatches(l)) return false;
+    return true;
+  });
+
+  const fSections = sections.filter((s) => {
+    if (campusSet && !campusSet.has(s.campus_id)) return false;
+    if (textbookCampusIds && !textbookCampusIds.has(s.campus_id)) return false;
+    if (!familyAllowed(s.course_family)) return false;
+    if (!seasonAllowed(s.term)) return false;
+    return true;
+  });
+
+  const perCampusLeads = new Map<string, number>();
+  const perCampusSections = new Map<string, number>();
+  const perCampusLastResearched = new Map<string, string>();
+  for (const l of fLeads) {
+    perCampusLeads.set(l.campus_id, (perCampusLeads.get(l.campus_id) ?? 0) + 1);
+    const prev = perCampusLastResearched.get(l.campus_id);
+    if (!prev || l.created_at > prev) perCampusLastResearched.set(l.campus_id, l.created_at);
+  }
+  for (const s of fSections) {
+    perCampusSections.set(s.campus_id, (perCampusSections.get(s.campus_id) ?? 0) + 1);
+    const prev = perCampusLastResearched.get(s.campus_id);
+    if (!prev || s.created_at > prev) perCampusLastResearched.set(s.campus_id, s.created_at);
+  }
+
+  const campusIds = new Set<string>([
+    ...perCampusLeads.keys(),
+    ...perCampusSections.keys(),
+  ]);
+
+  const campusesOut: CampusReportRow[] = [...campusIds].map((cid) => {
+    const c = campusById.get(cid);
+    const tb = c?.course_family_textbooks_json;
+    const hasIsbn = !!tb && typeof tb === "object" && Object.values(tb).some(
+      (v) => v && typeof v === "object" && (v as any).isbn13,
+    );
+    return {
+      campus_id: cid,
+      name: c?.school_name ?? "Unknown campus",
+      state: c?.state ?? null,
+      suggestedLeadCount: perCampusLeads.get(cid) ?? 0,
+      importedLeadCount: importedByCampus.get(cid) ?? 0,
+      sectionCount: perCampusSections.get(cid) ?? 0,
+      hasTextbookIsbn: hasIsbn,
+      lastResearchedAt: perCampusLastResearched.get(cid) ?? null,
+    };
+  }).sort((a, b) => b.suggestedLeadCount - a.suggestedLeadCount);
+
+  const leadsOut: LeadReportRow[] = fLeads.map((l) => ({
+    id: l.id,
+    campus_id: l.campus_id,
+    campusName: campusById.get(l.campus_id)?.school_name ?? "Unknown",
+    first_name: l.first_name,
+    last_name: l.last_name,
+    title: l.title,
+    email: l.email,
+    confidence: l.confidence,
+    is_phd: l.is_phd,
+    is_cpa: l.is_cpa,
+    teaches_intro_1: l.teaches_intro_1,
+    teaches_intro_2: l.teaches_intro_2,
+    teaches_intermediate_1: l.teaches_intermediate_1,
+    teaches_intermediate_2: l.teaches_intermediate_2,
+    source_url: l.source_url,
+    status: l.status,
+    imported: (importedByCampus.get(l.campus_id) ?? 0) > 0,
+  }));
+
+  const sectionsOut: SectionReportRow[] = fSections.map((s) => ({
+    id: s.id,
+    campus_id: s.campus_id,
+    campusName: campusById.get(s.campus_id)?.school_name ?? "Unknown",
+    course_family: s.course_family,
+    course_code: s.course_code,
+    course_title: s.course_title,
+    term: s.term,
+    section_number: s.section_number,
+    instructor_name: s.instructor_name,
+    enrollment_current: s.enrollment_current,
+    enrollment_capacity: s.enrollment_capacity,
+    source_url: s.source_url,
+  }));
+
+  return { campuses: campusesOut, leads: leadsOut, sections: sectionsOut };
 }
 
 // ============================================================
