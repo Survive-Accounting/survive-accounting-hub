@@ -278,15 +278,14 @@ Deno.serve(async (req) => {
       (m: any) => m.direction === "out" && m.author === "auto" && typeof m.body === "string" && m.body.includes("SurviveAccounting.com/start"),
     );
 
-    // Tester phones: re-run the booking-link reply every time. Real students:
-    // send the booking link once; on later replies, send a single acknowledgement
-    // at most once per 24h so they don't think we ghosted them.
+    // Phase 3: the opener already contains the /start booking link, so we no
+    // longer send a second "booking" auto-reply. Testers still get a re-send
+    // for QA. Real students get a low-key ack at most once per 24h so they
+    // don't think we ghosted them.
     let autoReplyKind: "booking" | "ack" | null = null;
-    if (convo.opener_sent && !alreadySentBooking) {
-      autoReplyKind = "booking";
-    } else if (isTester) {
-      autoReplyKind = "booking"; // tester bypass — always re-send booking link
-    } else if (convo.opener_sent && alreadySentBooking) {
+    if (isTester) {
+      autoReplyKind = "booking"; // tester bypass — re-send link for QA
+    } else if (convo.opener_sent) {
       const lastAck = (history ?? [])
         .filter((m: any) => m.direction === "out" && m.author === "auto-ack")
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
