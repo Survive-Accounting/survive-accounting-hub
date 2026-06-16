@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { fetchCampusLeadStats } from "@/lib/outreach-api";
 import { CampusLeadsReportModal } from "./CampusLeadsReportModal";
+import { TextbookMatchAuditModal } from "./TextbookMatchAuditModal";
 import {
   LeadFilterBar,
   useLeadFilters,
