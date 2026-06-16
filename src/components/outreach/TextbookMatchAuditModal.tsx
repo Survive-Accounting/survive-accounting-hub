@@ -242,28 +242,62 @@ export function TextbookMatchAuditModal({
             Newly matched (vs. old rule): <strong className="ml-1">{summary.upgraded}</strong>
           </Badge>
           <div className="ml-auto flex items-center gap-2">
-            <label className="text-[11px] font-medium text-muted-foreground">Family:</label>
-            <select
-              value={familyFilter}
-              onChange={(e) => setFamilyFilter(e.target.value)}
-              className="h-8 rounded border bg-background px-2 text-xs"
-            >
-              <option value="all">All families ({rows.length})</option>
-              {(["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const).map((f) => {
-                const n = rows.filter((r) => r.course_family === f).length;
-                return <option key={f} value={f}>{FAMILY_LABEL[f]} ({n})</option>;
-              })}
-            </select>
             <Button
               variant="outline" size="sm" className="h-8"
               disabled={!sorted.length}
               onClick={() => downloadAuditCsv(sorted)}
             >
               <Download className="h-3.5 w-3.5 mr-1" />
-              Download CSV
+              Download CSV ({sorted.length})
             </Button>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-end gap-3 rounded border bg-muted/20 p-2 text-xs">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted-foreground">Families</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {FAMILIES.map((f) => {
+                const n = rows.filter((r) => r.course_family === f).length;
+                return (
+                  <label key={f} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox
+                      checked={!!familySel[f]}
+                      onCheckedChange={(v) => setFamilySel((s) => ({ ...s, [f]: !!v }))}
+                    />
+                    <span>{FAMILY_LABEL[f]} <span className="text-muted-foreground">({n})</span></span>
+                  </label>
+                );
+              })}
+              <button
+                type="button"
+                className="text-[11px] text-primary underline ml-2"
+                onClick={() => setFamilySel({ intro_1: true, intro_2: true, intermediate_1: true, intermediate_2: true })}
+              >all</button>
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground underline"
+                onClick={() => setFamilySel({ intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false })}
+              >none</button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted-foreground">Authors contain</span>
+            <Input value={authorQ} onChange={(e) => setAuthorQ(e.target.value)} placeholder="e.g. Wild" className="h-8 w-44 text-xs" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted-foreground">Publisher contains</span>
+            <Input value={publisherQ} onChange={(e) => setPublisherQ(e.target.value)} placeholder="e.g. McGraw" className="h-8 w-44 text-xs" />
+          </div>
+          {(authorQ || publisherQ) && (
+            <button
+              type="button"
+              className="h-8 text-[11px] text-muted-foreground underline"
+              onClick={() => { setAuthorQ(""); setPublisherQ(""); }}
+            >clear text filters</button>
+          )}
+        </div>
+
 
 
         <div className="flex flex-wrap items-center gap-2 rounded border bg-amber-50/40 p-2 text-xs">
