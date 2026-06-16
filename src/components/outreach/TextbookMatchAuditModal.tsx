@@ -35,6 +35,10 @@ export function TextbookMatchAuditModal({
   onOpenChange: (v: boolean) => void;
   campuses: Campus[];
 }) {
+  const qc = useQueryClient();
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [enrichBusy, setEnrichBusy] = useState(false);
+
   const q = useQuery({
     queryKey: ["textbook-audit", campuses.length],
     queryFn: () => runTextbookMatchAudit(campuses),
@@ -43,6 +47,62 @@ export function TextbookMatchAuditModal({
   });
 
   const rows = q.data ?? [];
+
+  const unknownCampusIds = useMemo(() => {
+    const has: Record<string, boolean> = {};
+    for (const r of rows) {
+      const signal = !!(r.detected_title || r.detected_authors || r.detected_publisher || r.detected_isbn13);
+      if (signal) has[r.campus_id] = true;
+    }
+    return campuses.filter((c) => !(c as any).archived_at && !has[c.id]).map((c) => c.id);
+  }, [rows, campuses]);
+
+  const isbnOnlyCampusIds = useMemo(() => {
+    // Campuses where at least one family has ISBN but no title/authors/publisher.
+    const ids = new Set<string>();
+    for (const r of rows) {
+      if (r.detected_isbn13 && !r.detected_title && !r.detected_authors && !r.detected_publisher) {
+        ids.add(r.campus_id);
+      }
+    }
+    return Array.from(ids);
+  }, [rows]);
+
+  async function handleBulkResearchUnknown() {
+    if (!unknownCampusIds.length) return;
+    if (!confirm(`Start textbook-only research for ${unknownCampusIds.length} campuses?\n\nEstimated cost: ~$${(unknownCampusIds.length * 0.03).toFixed(2)}.`)) return;
+    setBulkBusy(true);
+    try {
+      const job = await startTextbookOnlyBatch("unknown");
+      toast.success(`Started textbook research job ${job.id.slice(0, 8)} for ${unknownCampusIds.length} campuses.`);
+      qc.invalidateQueries({ queryKey: ["campus-batch"] });
+    } catch (e) {
+      toast.error(`Failed to start: ${(e as Error).message}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleEnrichIsbnOnly() {
+    if (!isbnOnlyCampusIds.length) return;
+    setEnrichBusy(true);
+    try {
+      let ok = 0;
+      for (const id of isbnOnlyCampusIds) {
+        try {
+          await runTextbookResearchForCampus(id, { force: false });
+          ok++;
+        } catch { /* keep going */ }
+      }
+      toast.success(`Enriched ${ok}/${isbnOnlyCampusIds.length} ISBN-only campuses via Google Books.`);
+      await qc.invalidateQueries({ queryKey: ["textbook-audit"] });
+      q.refetch();
+    } catch (e) {
+      toast.error(`Failed: ${(e as Error).message}`);
+    } finally {
+      setEnrichBusy(false);
+    }
+  }
 
   const summary = useMemo(() => {
     const intro1Matched = new Set<string>();
