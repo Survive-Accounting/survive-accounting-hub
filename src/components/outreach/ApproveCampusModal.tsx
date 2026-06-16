@@ -2,7 +2,7 @@
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Wand2, XCircle,
+  AlertTriangle, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Users, Wand2, Wrench, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -939,28 +939,31 @@ export default function ApproveCampusModal({
             })}
           </div>
 
-          {/* Research — single primary action + secondary tools */}
-          <div className="mt-3 mb-1 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-2.5">
-            <div className="flex items-center gap-3 min-w-0">
-              <Button
-                type="button"
-                onClick={runAiResearch}
-                disabled={aiResearching}
-                size="sm"
-                className="h-9 gap-2 font-semibold"
-              >
-                {aiResearching ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
-                ) : (
-                  <><Wand2 className="h-4 w-4" /> Run Full AI Research</>
-                )}
-              </Button>
-            </div>
+          {/* Research — single primary action + secondary tools (top-right) */}
+          <div className="mt-3 mb-1 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              onClick={runAiResearch}
+              disabled={aiResearching}
+              size="lg"
+              className="h-11 gap-2 font-semibold text-sm"
+            >
+              {aiResearching ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
+              ) : (
+                <><Sparkles className="h-4 w-4" /> Run Full AI Research</>
+              )}
+            </Button>
             <Sheet>
               <SheetTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Open Research Tools
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10"
+                  title="Open Research Tools"
+                >
+                  <Wrench className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[380px] sm:w-[420px] overflow-y-auto">
@@ -984,6 +987,7 @@ export default function ApproveCampusModal({
                         { emoji: "🏫", label: "Accounting Department", q: `${campus.school_name} accounting department` },
                         { emoji: "📋", label: "Accounting Curriculum", q: `${campus.school_name} accounting curriculum` },
                         { emoji: "🛒", label: "Bookstore", q: `${campus.school_name} bookstore accounting` },
+                        { emoji: "👥", label: "Faculty Page", q: `${campus.school_name} accounting faculty directory` },
                       ].map((b) => (
                         <Button
                           key={b.label}
@@ -1315,6 +1319,30 @@ export default function ApproveCampusModal({
                           🔍 Google
                         </Button>
                       </div>
+                      {(() => {
+                        const aiBook = aiResult?.families[f.key]?.book;
+                        const aiHasBook = aiBook && (aiBook.title || aiBook.authors || aiBook.publisher || aiBook.isbn13);
+                        if (!aiHasBook) return null;
+                        return (
+                          <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2 text-[11px]">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <Sparkles className="h-3 w-3 text-blue-600" />
+                              <span className="font-semibold text-blue-700 dark:text-blue-300">AI-guessed textbook in use:</span>
+                            </div>
+                            <div className="text-foreground/90">
+                              {aiBook.title || "—"}
+                              {aiBook.authors ? ` · ${aiBook.authors}` : ""}
+                              {aiBook.publisher ? ` · ${aiBook.publisher}` : ""}
+                              {aiBook.isbn13 ? ` · ISBN ${aiBook.isbn13}` : ""}
+                            </div>
+                            <ConfidenceMeter
+                              confidence={aiBook.confidence}
+                              source={aiBook.source}
+                              touched={aiTouched.has(`book:${f.key}`)}
+                            />
+                          </div>
+                        );
+                      })()}
                       {v === "different" && (() => {
                         const b = familyBooks[f.key] ?? EMPTY_BOOK();
                         const lk = isbnLookup[f.key] ?? "idle";
@@ -1392,18 +1420,12 @@ export default function ApproveCampusModal({
             {/* STEP 3 — Leads (scrape + triage) */}
             <TabsContent value="3" className="space-y-3 pt-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <ScrapeFacultyButton
-                    campusId={campus.id}
-                    campusName={campus.school_name}
-                    onScraped={() => setLeadsRefreshKey((k) => k + 1)}
-                  />
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                    <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
-                    <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
-                    <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
-                  </div>
-                </div>
+                <ScrapeFacultyButton
+                  campusId={campus.id}
+                  campusName={campus.school_name}
+                  onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                  hideAutoDiscover
+                />
                 <div className="flex items-center gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => setStep("2")}>Previous</Button>
                   <Button size="sm" onClick={() => setStep("4")}>Next Step</Button>
@@ -1417,39 +1439,57 @@ export default function ApproveCampusModal({
                 refreshToken={leadsRefreshKey}
               />
 
-              <ClassScheduleIntelligencePanel
-                campusId={campus.id}
-                onLeadsChanged={() => setLeadsRefreshKey((k) => k + 1)}
-              />
-
-              <label className="flex items-start gap-2 rounded-md border bg-muted/20 p-2.5 text-xs">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-3.5 w-3.5"
-                  checked={skipLeadImport}
-                  onChange={(e) => setSkipLeadImport(e.target.checked)}
-                />
-                <span>
-                  <strong>No usable leads found / skip lead import for now.</strong>{" "}
-                  Approve the campus without importing leads — Lee or a VA can add leads manually later.
-                </span>
-              </label>
-
               <details className="rounded-md border bg-muted/10">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">
-                  Archived: legacy AI lead suggestions
+                  Archived: auto-discover, class schedule, lead-import skip & legacy AI suggestions
                 </summary>
-                <div className="border-t p-2">
-                  <LeadSuggestionsPanel
-                    key={`legacy-${campus.id}-${leadsRefreshKey}`}
+                <div className="border-t p-3 space-y-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <ScrapeFacultyButton
+                      campusId={campus.id}
+                      campusName={campus.school_name}
+                      onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                      hideScrapeUrls
+                    />
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
+                      <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
+                      <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
+                    </div>
+                  </div>
+
+                  <ClassScheduleIntelligencePanel
                     campusId={campus.id}
-                    compact
-                    showManualImportHelp={false}
-                    onSummaryChange={setLeadSummary}
+                    onLeadsChanged={() => setLeadsRefreshKey((k) => k + 1)}
                   />
+
+                  <label className="flex items-start gap-2 rounded-md border bg-muted/20 p-2.5 text-xs">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-3.5 w-3.5"
+                      checked={skipLeadImport}
+                      onChange={(e) => setSkipLeadImport(e.target.checked)}
+                    />
+                    <span>
+                      <strong>No usable leads found / skip lead import for now.</strong>{" "}
+                      Approve the campus without importing leads — Lee or a VA can add leads manually later.
+                    </span>
+                  </label>
+
+                  <div>
+                    <div className="text-[11px] font-medium text-muted-foreground mb-1">Legacy AI lead suggestions</div>
+                    <LeadSuggestionsPanel
+                      key={`legacy-${campus.id}-${leadsRefreshKey}`}
+                      campusId={campus.id}
+                      compact
+                      showManualImportHelp={false}
+                      onSummaryChange={setLeadSummary}
+                    />
+                  </div>
                 </div>
               </details>
             </TabsContent>
+
 
 
             {/* STEP 4 — Approval Summary */}
