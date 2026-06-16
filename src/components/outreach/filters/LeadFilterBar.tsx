@@ -1,6 +1,6 @@
 // Reusable filter bar for lead/section analytics. Used by the
 // "Analyze Campus Leads" panel and (future) campaign builder.
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +16,8 @@ export type CourseFamilyKey =
 export const COURSE_FAMILY_LABELS: Record<CourseFamilyKey, string> = {
   intro_1: "Intro 1",
   intro_2: "Intro 2",
-  intermediate_1: "Intermediate 1",
-  intermediate_2: "Intermediate 2",
+  intermediate_1: "IA1",
+  intermediate_2: "IA2",
 };
 
 export const ALL_FAMILIES: CourseFamilyKey[] = [
@@ -33,9 +33,10 @@ export const SEASON_LABELS: Record<SeasonKey, string> = {
 export interface LeadFilters {
   courseFamilies: CourseFamilyKey[]; // empty = none; full list = all
   seasons: SeasonKey[];
-  campusIds: string[];               // empty = all (treat as no filter)
+  campusIds: string[];               // empty = all (no filter)
   teachingOnly: boolean;
   minConfidence: number;             // 0..1
+  textbookMatchOnly: boolean;
 }
 
 export const DEFAULT_LEAD_FILTERS: LeadFilters = {
@@ -44,7 +45,19 @@ export const DEFAULT_LEAD_FILTERS: LeadFilters = {
   campusIds: [],
   teachingOnly: false,
   minConfidence: 0,
+  textbookMatchOnly: false,
 };
+
+/** Reusable controlled-state hook. */
+export function useLeadFilters(initial: Partial<LeadFilters> = {}) {
+  const [filters, setFilters] = useState<LeadFilters>({ ...DEFAULT_LEAD_FILTERS, ...initial });
+  const reset = useCallback(() => setFilters({ ...DEFAULT_LEAD_FILTERS, ...initial }), [initial]);
+  const patch = useCallback(
+    (p: Partial<LeadFilters>) => setFilters((prev) => ({ ...prev, ...p })),
+    [],
+  );
+  return { filters, setFilters, patch, reset };
+}
 
 export function termToSeason(term: string | null | undefined): SeasonKey | null {
   if (!term) return null;
@@ -57,11 +70,7 @@ export function termToSeason(term: string | null | undefined): SeasonKey | null 
 }
 
 function MultiSelect<T extends string>({
-  label,
-  options,
-  selected,
-  onChange,
-  renderLabel,
+  label, options, selected, onChange, renderLabel,
 }: {
   label: string;
   options: T[];
@@ -72,9 +81,7 @@ function MultiSelect<T extends string>({
   const allSelected = selected.length === options.length;
   const summary = allSelected
     ? "All"
-    : selected.length === 0
-      ? "None"
-      : `${selected.length} of ${options.length}`;
+    : selected.length === 0 ? "None" : `${selected.length} of ${options.length}`;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -86,16 +93,10 @@ function MultiSelect<T extends string>({
       </PopoverTrigger>
       <PopoverContent className="w-56 p-2" align="start">
         <div className="flex items-center justify-between gap-2 pb-2 border-b mb-2">
-          <button
-            type="button"
-            className="text-xs text-primary hover:underline"
-            onClick={() => onChange([...options])}
-          >Select all</button>
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:underline"
-            onClick={() => onChange([])}
-          >Clear</button>
+          <button type="button" className="text-xs text-primary hover:underline"
+            onClick={() => onChange([...options])}>Select all</button>
+          <button type="button" className="text-xs text-muted-foreground hover:underline"
+            onClick={() => onChange([])}>Clear</button>
         </div>
         <div className="space-y-1">
           {options.map((opt) => {
@@ -124,9 +125,7 @@ function CampusPicker({
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = q
-      ? campuses.filter(c => c.school_name.toLowerCase().includes(q))
-      : campuses;
+    const list = q ? campuses.filter(c => c.school_name.toLowerCase().includes(q)) : campuses;
     return list.slice(0, 200);
   }, [campuses, search]);
   const summary = selected.length === 0
@@ -146,16 +145,12 @@ function CampusPicker({
       <PopoverContent className="w-80 p-2" align="start">
         <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b">
           <button type="button" className="text-xs text-primary hover:underline"
-            onClick={() => onChange([])}>All</button>
+            onClick={() => onChange(campuses.map(c => c.id))}>Select all</button>
           <button type="button" className="text-xs text-muted-foreground hover:underline"
-            onClick={() => onChange([])}>Clear</button>
+            onClick={() => onChange([])}>Clear (all)</button>
         </div>
-        <Input
-          placeholder="Search campuses…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-8 mb-2"
-        />
+        <Input placeholder="Search campuses…" value={search}
+          onChange={(e) => setSearch(e.target.value)} className="h-8 mb-2" />
         <div className="max-h-72 overflow-y-auto space-y-0.5">
           {filtered.map((c) => {
             const isOn = selected.includes(c.id);
@@ -200,10 +195,7 @@ function CampusPicker({
 }
 
 export function LeadFilterBar({
-  value,
-  onChange,
-  campuses,
-  onReset,
+  value, onChange, campuses, onReset,
 }: {
   value: LeadFilters;
   onChange: (next: LeadFilters) => void;
@@ -214,25 +206,16 @@ export function LeadFilterBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <MultiSelect
-        label="Course family"
-        options={ALL_FAMILIES}
+      <MultiSelect label="Course family" options={ALL_FAMILIES}
         selected={value.courseFamilies}
         onChange={(v) => patch({ courseFamilies: v })}
-        renderLabel={(v) => COURSE_FAMILY_LABELS[v]}
-      />
-      <MultiSelect
-        label="Season"
-        options={ALL_SEASONS}
+        renderLabel={(v) => COURSE_FAMILY_LABELS[v]} />
+      <MultiSelect label="Season" options={ALL_SEASONS}
         selected={value.seasons}
         onChange={(v) => patch({ seasons: v })}
-        renderLabel={(v) => SEASON_LABELS[v]}
-      />
-      <CampusPicker
-        campuses={campuses}
-        selected={value.campusIds}
-        onChange={(v) => patch({ campusIds: v })}
-      />
+        renderLabel={(v) => SEASON_LABELS[v]} />
+      <CampusPicker campuses={campuses} selected={value.campusIds}
+        onChange={(v) => patch({ campusIds: v })} />
 
       <Popover>
         <PopoverTrigger asChild>
@@ -246,20 +229,21 @@ export function LeadFilterBar({
           <div className="text-xs text-muted-foreground mb-2">
             Only show leads with confidence ≥ {value.minConfidence.toFixed(2)}
           </div>
-          <Slider
-            min={0} max={1} step={0.05}
-            value={[value.minConfidence]}
-            onValueChange={(v) => patch({ minConfidence: v[0] ?? 0 })}
-          />
+          <Slider min={0} max={1} step={0.05} value={[value.minConfidence]}
+            onValueChange={(v) => patch({ minConfidence: v[0] ?? 0 })} />
         </PopoverContent>
       </Popover>
 
       <label className="flex items-center gap-2 text-xs text-muted-foreground rounded-md border px-3 h-8">
-        <Switch
-          checked={value.teachingOnly}
-          onCheckedChange={(v) => patch({ teachingOnly: !!v })}
-        />
+        <Switch checked={value.teachingOnly}
+          onCheckedChange={(v) => patch({ teachingOnly: !!v })} />
         Teaching evidence only
+      </label>
+
+      <label className="flex items-center gap-2 text-xs text-muted-foreground rounded-md border px-3 h-8">
+        <Switch checked={value.textbookMatchOnly}
+          onCheckedChange={(v) => patch({ textbookMatchOnly: !!v })} />
+        Textbook match only
       </label>
 
       {onReset && (
