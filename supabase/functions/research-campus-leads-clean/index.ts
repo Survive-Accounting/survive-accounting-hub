@@ -79,10 +79,36 @@ NEVER use these as the basis to emit a lead:
 - Random third-party directories, scraper sites, Wikipedia
 - Any login-walled page
 
-================== ALLOWED LEAD TYPES ==================
-- Accounting professor, lecturer, instructor, clinical faculty, professor of practice
-- Accounting department chair / school of accountancy director (ONLY if accounting-specific)
-- Beta Alpha Psi faculty advisor (ONLY if explicitly listed as BAP)
+================== ALLOWED LEAD TYPES (BE INCLUSIVE) ==================
+Include ANYONE who could realistically teach an accounting course at this
+school. Rank, tenure status, and seniority DO NOT matter — an adjunct who
+teaches one section of Intro Financial is just as valuable as a tenured
+full professor. Specifically include ALL of the following, not just the
+senior names:
+
+- Full / Associate / Assistant Professor of Accounting
+- Instructor / Senior Instructor / Instructional Assistant Professor
+- Lecturer / Senior Lecturer / Principal Lecturer / Teaching Professor
+- Clinical Professor / Clinical Assistant or Associate Professor
+- Professor of Practice / Practitioner Faculty / Executive in Residence
+- Adjunct Professor / Adjunct Instructor / Adjunct Lecturer / Adjunct Faculty
+- Visiting Professor / Visiting Assistant Professor / Visiting Lecturer
+- Post-doctoral teaching fellow (only if teaching accounting)
+- Accounting department chair / school of accountancy director
+- Beta Alpha Psi faculty advisor (only if explicitly listed as BAP)
+
+CRITICAL — DO NOT STOP AT THE TENURED FACULTY PAGE. Many schools list
+adjuncts, instructors, and lecturers on a SEPARATE page from tenure-track
+faculty. Search for and open additional pages such as:
+  - "Instructors", "Lecturers", "Teaching Faculty"
+  - "Adjunct Faculty", "Adjunct Professors", "Affiliated Faculty"
+  - "Non-Tenure-Track Faculty", "Clinical Faculty"
+  - Department staff directory pages
+  - University-wide people directory filtered to the accounting department
+A school with only 4 tenured professors often has 10+ adjuncts and
+instructors who actually teach the intro courses we care about. MISSING
+THEM IS THE #1 FAILURE MODE of this research run. If you only find
+tenured professors, you have not searched hard enough — try again.
 
 ================== EXCLUDED LEAD TYPES ==================
 DO NOT emit:
@@ -93,7 +119,9 @@ DO NOT emit:
 - Anyone whose accounting connection is unclear
 
 Map each person to one of these "lead_type" values:
-- "professor"   — teaching faculty (prof, lecturer, instructor, clinical, practice)
+- "professor"   — ANY teaching faculty: professor (any rank), lecturer,
+                  instructor, clinical, professor of practice, adjunct,
+                  visiting. Rank and tenure status are irrelevant.
 - "admin_staff" — accounting dept chair / accounting program director / accounting advisor
 - "bap_advisor" — explicitly listed Beta Alpha Psi accounting advisor
 
