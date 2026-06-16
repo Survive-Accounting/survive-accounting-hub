@@ -84,9 +84,29 @@ export function TextbookMatchAuditModal({
           <DialogTitle>Textbook Match Audit</DialogTitle>
           <DialogDescription>
             Per-campus, per-family comparison of the old "has any ISBN" rule vs. the new
-            supported-textbook-family matcher (edition-insensitive, keyword-based).
+            supported-textbook-family matcher (edition-insensitive, keyword + ISBN-prefix).
           </DialogDescription>
         </DialogHeader>
+
+        <details className="rounded border bg-muted/30 p-3 text-xs">
+          <summary className="cursor-pointer font-semibold">How textbook matching works</summary>
+          <div className="mt-2 space-y-2 text-muted-foreground">
+            <p>
+              For each campus + course family (Intro 1, Intro 2, IA1, IA2) we read the
+              detected textbook (<code>title</code>, <code>authors</code>, <code>publisher</code>,
+              <code>isbn13</code>) from <code>campuses.course_family_textbooks_json</code> and
+              score it against every row in <code>supported_textbook_families</code>.
+            </p>
+            <ul className="list-disc pl-5 space-y-0.5">
+              <li><strong>Authors</strong>: 2+ keyword hits = 0.7, 1 hit = 0.5</li>
+              <li><strong>Title</strong>: 2+ hits = 0.25, 1 hit = 0.15</li>
+              <li><strong>Publisher</strong>: any hit = 0.2</li>
+              <li><strong>Score ≥ 0.5</strong> → matched. Editions ignored unless flagged.</li>
+              <li><strong>ISBN-13 prefix fallback</strong>: if no keywords hit (often because the AI only captured an ISBN), an ISBN that starts with one of the family's known publisher prefixes (e.g. McGraw-Hill <code>9781264</code>, Wiley <code>9781119</code>, Cambridge <code>9781618</code>) is treated as a weak match (0.6).</li>
+              <li>If <em>no</em> textbook metadata is on file for that family → <strong>unknown</strong> (not "unmatched"). 166 of 170 campuses are currently in this bucket simply because they haven't been textbook-researched yet.</li>
+            </ul>
+          </div>
+        </details>
 
         <div className="flex flex-wrap items-center gap-3 text-xs border-b pb-3">
           <Badge variant="outline" className="text-xs">
@@ -94,6 +114,9 @@ export function TextbookMatchAuditModal({
           </Badge>
           <Badge variant="outline" className="text-xs">
             With textbook research: <strong className="ml-1">{summary.researched}</strong>
+          </Badge>
+          <Badge variant="outline" className="text-xs">
+            Not yet researched: <strong className="ml-1">{summary.totalCampuses - summary.researched}</strong>
           </Badge>
           <Badge variant="outline" className="text-xs bg-emerald-50">
             Intro 1 matched: <strong className="ml-1">{summary.intro1}</strong>
@@ -113,6 +136,7 @@ export function TextbookMatchAuditModal({
             Download CSV
           </Button>
         </div>
+
 
         <div className="flex-1 overflow-auto rounded border">
           {q.isLoading ? (
