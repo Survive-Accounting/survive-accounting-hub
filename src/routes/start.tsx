@@ -280,14 +280,81 @@ function IntakeForm({ initialSearch }: { initialSearch: StartSearch }) {
         source_url_params: sourceParams,
       };
 
-      const { error } = await (supabase.from("student_intake_submissions" as never) as any).insert(payload);
+      const { data: inserted, error } = await (supabase.from("student_intake_submissions" as never) as any)
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) throw new Error(error.message);
+
+      const newId = inserted?.id as string;
+      setSubmissionId(newId);
+
+      // Compute routing decision
+      const decision = await computeIntakeRouting({
+        campusId: parsed.data.campus_id,
+        courseFamily: parsed.data.course_family,
+        hasSyllabus: !!syllabusUrl,
+      });
+      setRouting(decision);
+
+      // Persist routing result + flags (don't block on failure)
+      await (supabase.from("student_intake_submissions" as never) as any)
+        .update({
+          routing_result: decision.result,
+          routing_reason: decision.reason,
+          booking_link_shown: decision.result === "bookable_ready",
+          waitlist_joined: decision.result === "waitlist_review",
+        })
+        .eq("id", newId);
+
+      // Fire-and-forget notifications — never break the form
+      supabase.functions.invoke("student-intake-notify", { body: { submission_id: newId } })
+        .catch((e) => console.warn("[intake-notify]", e));
 
       setDone(true);
     } catch (e: any) {
       toast.error(e?.message ?? "Something went wrong — please try again.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Late syllabus upload after submit (for bookable_needs_syllabus)
+  const uploadSyllabusLate = async (file: File) => {
+    if (!submissionId) return;
+    try {
+      const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, "_");
+      const path = `${crypto.randomUUID()}/${safeName}`;
+      const { error: upErr } = await supabase.storage.from("student-syllabi")
+        .upload(path, file, { upsert: false, contentType: file.type || undefined });
+      if (upErr) throw new Error(upErr.message);
+
+      await (supabase.from("student_intake_submissions" as never) as any)
+        .update({ syllabus_file_url: path, syllabus_uploaded_at: new Date().toISOString() })
+        .eq("id", submissionId);
+
+      // Recompute routing
+      const decision = await computeIntakeRouting({
+        campusId: form.campus_id || null,
+        courseFamily: form.course_family,
+        hasSyllabus: true,
+      });
+      setRouting(decision);
+
+      await (supabase.from("student_intake_submissions" as never) as any)
+        .update({
+          routing_result: decision.result,
+          routing_reason: decision.reason,
+          booking_link_shown: decision.result === "bookable_ready",
+        })
+        .eq("id", submissionId);
+
+      supabase.functions.invoke("student-intake-notify", { body: { submission_id: submissionId } })
+        .catch((e) => console.warn("[intake-notify]", e));
+
+      toast.success("Syllabus uploaded!");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Upload failed");
     }
   };
 
