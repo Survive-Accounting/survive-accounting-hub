@@ -2585,7 +2585,7 @@ export async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
     emailsSent, opens, replies, bounces, complaints,
     bookingSubmissions, waitlistSignups, syllabiUploaded, textConversations,
   ] = await Promise.all([
-    countRows("campus_lead_suggestions", (q) => q.eq("status", "pending")),
+    countRows("campus_lead_suggestions", (q) => q.eq("status", "pending").is("archived_at", null)),
     countRows("outreach_leads"),
     countRows("outreach_campaign_leads", (q) => q.eq("status", "scheduled")),
     countRows("outreach_leads", (q) => q.not("sent_at", "is", null)),
