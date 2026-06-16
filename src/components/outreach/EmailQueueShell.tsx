@@ -9,6 +9,10 @@ import { ScheduleAndSettingsPanel } from "@/components/outreach/ScheduleAndSetti
 import { BroadcastsPanel } from "@/components/outreach/BroadcastsPanel";
 import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
 import { CampaignBuilder } from "@/components/outreach/CampaignBuilder";
+import { CampaignsListPanel } from "@/components/outreach/CampaignsListPanel";
+import { GlobalDailyLimitCard } from "@/components/outreach/GlobalDailyLimitCard";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 
 const LEAD_TYPE_ICON: Record<LeadType, string> = {
   professors:              "🎓",
