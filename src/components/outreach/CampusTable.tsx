@@ -168,7 +168,8 @@ export default function CampusTable({
                 const tuitionDisplay = s.tuition_out_state ?? s.tuition_in_state;
                 const tuitionIsOfficial = s.tuition_source === "ipeds";
                 return (
-                  <tr key={s.id} className={`hover:bg-muted/30 ${isArchived ? "opacity-50" : ""}`}>
+                  <Fragment key={s.id}>
+                  <tr className={`hover:bg-muted/30 ${isArchived ? "opacity-50" : ""}`}>
                     <td className="px-3 py-3.5 align-top">
                       <Checkbox
                         checked={selectedIds.has(s.id)}
@@ -176,15 +177,21 @@ export default function CampusTable({
                       />
                     </td>
                     <td className="px-3 py-3.5 font-medium align-top">
-                      <span className="inline-flex items-center gap-1.5">
-                        {s.school_name}
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(s.id)}
+                        className="inline-flex items-center gap-1.5 text-left hover:text-primary"
+                        title={expanded.has(s.id) ? "Hide faculty triage" : "Show faculty triage"}
+                      >
+                        {expanded.has(s.id) ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                        <span>{s.school_name}</span>
                         {s.is_sec && (
                           <span title="SEC Conference" className="text-base leading-none" aria-label="SEC">🏈</span>
                         )}
                         {isArchived && (
                           <Badge variant="outline" className="text-[10px] h-4 px-1">archived</Badge>
                         )}
-                      </span>
+                      </button>
                       <div className="mt-0.5 text-[10px] font-normal text-muted-foreground">
                         {s.state} · /{s.slug}
                       </div>
@@ -307,7 +314,15 @@ export default function CampusTable({
                       </AssignCampusPopover>
                     </td>
                     <td className="px-3 py-3.5 align-top min-w-[180px]">
-                      <div className="flex flex-col items-stretch gap-1.5 ml-auto w-[170px]">
+                      <div className="flex flex-col items-stretch gap-1.5 ml-auto w-[180px]">
+                        <ScrapeFacultyButton
+                          campusId={s.id}
+                          campusName={s.school_name}
+                          onScraped={() => {
+                            setExpanded((prev) => new Set(prev).add(s.id));
+                            setScrapeBumps((prev) => ({ ...prev, [s.id]: (prev[s.id] ?? 0) + 1 }));
+                          }}
+                        />
                         <div className="flex items-center gap-1">
                           {isApproved ? (
                             <Button
@@ -343,6 +358,18 @@ export default function CampusTable({
                       </div>
                     </td>
                   </tr>
+                  {expanded.has(s.id) && (
+                    <tr className="bg-muted/20">
+                      <td colSpan={7} className="px-4 py-3">
+                        <FacultyTriagePanel
+                          campusId={s.id}
+                          campusName={s.school_name}
+                          refreshToken={scrapeBumps[s.id] ?? 0}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
