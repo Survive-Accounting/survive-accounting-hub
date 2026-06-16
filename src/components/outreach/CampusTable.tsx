@@ -313,62 +313,26 @@ export default function CampusTable({
                         </button>
                       </AssignCampusPopover>
                     </td>
-                    <td className="px-3 py-3.5 align-top min-w-[180px]">
-                      <div className="flex flex-col items-stretch gap-1.5 ml-auto w-[180px]">
-                        <ScrapeFacultyButton
-                          campusId={s.id}
-                          campusName={s.school_name}
-                          onScraped={() => {
-                            setExpanded((prev) => new Set(prev).add(s.id));
-                            setScrapeBumps((prev) => ({ ...prev, [s.id]: (prev[s.id] ?? 0) + 1 }));
-                          }}
-                        />
-                        <div className="flex items-center gap-1">
-                          {isApproved ? (
-                            <Button
-                              size="sm"
-                              onClick={() => onReview(s)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 justify-center"
-                            >
-                              <Check className="h-3.5 w-3.5" /> Approved
-                            </Button>
-                          ) : (
-                            <Button size="sm" onClick={() => onReview(s)} className="flex-1 justify-center">
-                              <Check className="h-3.5 w-3.5" /> Review
-                            </Button>
-                          )}
-                        </div>
+                    <td className="px-3 py-3.5 align-top min-w-[160px]">
+                      <div className="flex flex-col items-stretch gap-1.5 ml-auto w-[160px]">
+                        <Button size="sm" onClick={() => onReview(s)} className="justify-center">
+                          <Check className="h-3.5 w-3.5" /> Review
+                        </Button>
                         <Button
                           size="sm"
-                          disabled={!isApproved}
                           onClick={() => onImportLeads(s)}
-                          className={
-                            isApproved
-                              ? "bg-[#CE1126] hover:bg-[#CE1126]/90 text-white justify-center"
-                              : "justify-center"
-                          }
-                          variant={isApproved ? "default" : "outline"}
-                          title={isApproved ? "Review leads for this campus" : "Approve the campus first"}
+                          variant="outline"
+                          className="justify-center"
+                          title="Scrape & triage leads for this campus"
                         >
                           <Users className="h-3.5 w-3.5" /> Leads
                         </Button>
                         <Button size="sm" variant="outline" disabled className="justify-center" title="Coming soon">
-                          <BarChart3 className="h-3.5 w-3.5" /> View Metrics
+                          <BarChart3 className="h-3.5 w-3.5" /> Metrics
                         </Button>
                       </div>
                     </td>
                   </tr>
-                  {expanded.has(s.id) && (
-                    <tr className="bg-muted/20">
-                      <td colSpan={7} className="px-4 py-3">
-                        <FacultyTriagePanel
-                          campusId={s.id}
-                          campusName={s.school_name}
-                          refreshToken={scrapeBumps[s.id] ?? 0}
-                        />
-                      </td>
-                    </tr>
-                  )}
                   </Fragment>
                 );
               })}
