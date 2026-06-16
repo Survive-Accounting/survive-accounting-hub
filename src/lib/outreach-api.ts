@@ -940,15 +940,48 @@ function mapSuggestion(row: any): LeadSuggestion {
   };
 }
 
-/** List AI-suggested leads for a campus, newest first. */
-export async function getLeadSuggestions(campusId: string): Promise<LeadSuggestion[]> {
-  const { data, error } = await supabase
+/** List AI-suggested leads for a campus, newest first.
+ *  Archived suggestions (archived_at IS NOT NULL) are excluded by default. */
+export async function getLeadSuggestions(
+  campusId: string,
+  opts: { includeArchived?: boolean } = {},
+): Promise<LeadSuggestion[]> {
+  let q: any = supabase
     .from(SUGGESTION_TABLE)
     .select("*")
-    .eq("campus_id", campusId)
-    .order("created_at", { ascending: false });
+    .eq("campus_id", campusId);
+  if (!opts.includeArchived) q = q.is("archived_at", null);
+  q = q.order("created_at", { ascending: false });
+  const { data, error } = await q;
   if (error) throw error;
   return ((data ?? []) as any[]).map(mapSuggestion);
+}
+
+/** Archive every non-archived suggestion for the given campus(es).
+ *  When campusIds is null/undefined, archives ALL non-archived suggestions
+ *  globally. Does NOT delete any rows. Returns affected count.
+ *
+ *  Used by the "Archive current broad AI run" admin action to retire the
+ *  first broad exploratory AI run before clean professor-only research. */
+export async function archiveBroadRunSuggestions(opts: {
+  label: string;
+  reason: string;
+  by?: string | null;
+  campusIds?: string[] | null;
+}): Promise<{ archivedCount: number }> {
+  const patch = {
+    archived_at: new Date().toISOString(),
+    archive_label: opts.label,
+    archived_reason: opts.reason,
+    archived_by: opts.by ?? "admin",
+  };
+  let q: any = (supabase.from(SUGGESTION_TABLE) as any)
+    .update(patch)
+    .is("archived_at", null);
+  if (opts.campusIds && opts.campusIds.length > 0) q = q.in("campus_id", opts.campusIds);
+  const { data, error } = await q.select("id");
+  if (error) throw error;
+  return { archivedCount: (data ?? []).length };
 }
 
 /** Insert a batch of AI suggestions for a campus. Returns inserted rows. */
