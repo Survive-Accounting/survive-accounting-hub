@@ -906,9 +906,15 @@ export interface LeadSuggestion {
   courses_found: LeadCourseFound[] | null;
   teaching_evidence_url: string | null;
   teaching_evidence_notes: string | null;
+  research_mode: ResearchMode;
+  research_label: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type ResearchMode = "broad" | "clean_professor_only";
+export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only"];
 
 export type LeadSuggestionInput = Partial<
   Omit<LeadSuggestion, "id" | "campus_id" | "created_at" | "updated_at">
@@ -940,22 +946,29 @@ function mapSuggestion(row: any): LeadSuggestion {
     courses_found: Array.isArray(row.courses_found) ? (row.courses_found as LeadCourseFound[]) : null,
     teaching_evidence_url: row.teaching_evidence_url ?? null,
     teaching_evidence_notes: row.teaching_evidence_notes ?? null,
+    research_mode: ((row.research_mode as string) === "clean_professor_only" ? "clean_professor_only" : "broad") as ResearchMode,
+    research_label: row.research_label ?? null,
+    archived_at: row.archived_at ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
 }
 
 /** List AI-suggested leads for a campus, newest first.
- *  Archived suggestions (archived_at IS NOT NULL) are excluded by default. */
+ *  Archived suggestions (archived_at IS NOT NULL) are excluded by default.
+ *  Pass researchMode to filter by 'broad' or 'clean_professor_only'. */
 export async function getLeadSuggestions(
   campusId: string,
-  opts: { includeArchived?: boolean } = {},
+  opts: { includeArchived?: boolean; researchMode?: ResearchMode | "all" } = {},
 ): Promise<LeadSuggestion[]> {
   let q: any = supabase
     .from(SUGGESTION_TABLE)
     .select("*")
     .eq("campus_id", campusId);
   if (!opts.includeArchived) q = q.is("archived_at", null);
+  if (opts.researchMode && opts.researchMode !== "all") {
+    q = q.eq("research_mode", opts.researchMode);
+  }
   q = q.order("created_at", { ascending: false });
   const { data, error } = await q;
   if (error) throw error;
@@ -1171,11 +1184,16 @@ export interface CampusResearchJobItem {
   finished_at: string | null;
 }
 
-/** Start a batch — creates a job and one item per provided campus, then triggers the first tick. */
-export async function startCampusBatch(campusIds: string[], notes?: string): Promise<CampusResearchJob> {
+/** Start a batch — creates a job and one item per provided campus, then triggers the first tick.
+ *  Pass researchMode='clean_professor_only' to run the strict professor-only flow. */
+export async function startCampusBatch(
+  campusIds: string[],
+  notes?: string,
+  researchMode: ResearchMode = "broad",
+): Promise<CampusResearchJob> {
   if (!campusIds.length) throw new Error("no campuses selected");
   const { data: job, error: jobErr } = await (supabase.from("campus_research_jobs" as never) as any)
-    .insert({ status: "running", total_count: campusIds.length, notes: notes ?? null })
+    .insert({ status: "running", total_count: campusIds.length, notes: notes ?? null, research_mode: researchMode })
     .select()
     .single();
   if (jobErr) throw jobErr;
@@ -1184,9 +1202,34 @@ export async function startCampusBatch(campusIds: string[], notes?: string): Pro
   const { error: itemsErr } = await (supabase.from("campus_research_job_items" as never) as any).insert(items);
   if (itemsErr) throw itemsErr;
 
-  // Fire and forget — kick off the first batch immediately.
   supabase.functions.invoke("run-campus-batch", { body: { job_id: job.id, batch_size: 3 } }).catch(() => {});
   return job as CampusResearchJob;
+}
+
+/** Clean professor-only run — convenience wrapper. */
+export async function startCleanProfessorBatch(
+  campusIds: string[],
+  notes?: string,
+): Promise<CampusResearchJob> {
+  return startCampusBatch(campusIds, notes ?? "Clean Professor Run", "clean_professor_only");
+}
+
+/** Returns the set of campus IDs whose Intro 1 OR Intro 2 textbook matches a
+ *  supported_textbook_family row. Used for the "textbook-matched scope" of
+ *  clean professor research. */
+export async function getTextbookMatchedCampusIds(): Promise<string[]> {
+  const [{ data: tb, error: tbErr }, supportedFamilies] = await Promise.all([
+    supabase.from("campuses").select("id,course_family_textbooks_json,archived_at"),
+    getSupportedTextbookFamilies(),
+  ]);
+  if (tbErr) throw tbErr;
+  return ((tb ?? []) as Array<{ id: string; course_family_textbooks_json: unknown; archived_at: string | null }>)
+    .filter((c) => !c.archived_at)
+    .filter((c) => {
+      const fake = { id: c.id, course_family_textbooks_json: c.course_family_textbooks_json } as unknown as Campus;
+      return campusHasSupportedTextbook(fake, supportedFamilies, ["intro_1", "intro_2"]);
+    })
+    .map((c) => c.id);
 }
 
 /** Get the most recent job, with items. */
@@ -1967,6 +2010,8 @@ export interface CampaignAudienceFilters {
   includeOnlyTeachingAssignments?: boolean;
   textbookMatchOnly?: boolean;
   minConfidence?: number;
+  /** Which research run to pull suggestions from. Default: 'clean_professor_only'. */
+  researchMode?: "all" | "broad" | "clean_professor_only";
 }
 
 export interface CampaignAudiencePreviewLead {
@@ -2092,8 +2137,14 @@ export async function previewCampaignAudience(
     from += 1000;
   }
 
-  // Optionally enrich with suggestion data for teaching/family/confidence filters.
+  // Default the campaign builder to clean professor-only suggestions.
+  const researchMode = filters.researchMode ?? "clean_professor_only";
+
+  // We ALWAYS need the suggestion lookup now because the default
+  // research-mode filter restricts the eligible-lead set to whatever the
+  // selected research run produced.
   const needsSuggestionLookup =
+    researchMode !== "all" ||
     !!filters.teachingOnly ||
     !!filters.includeOnlyTeachingAssignments ||
     (typeof filters.minConfidence === "number" && filters.minConfidence > 0) ||
@@ -2101,11 +2152,12 @@ export async function previewCampaignAudience(
 
   let suggestionByKey = new Map<string, SuggestionMatchRow>();
   if (needsSuggestionLookup) {
-    const { data: sugg, error: sErr } = await supabase
+    let sq: any = supabase
       .from("campus_lead_suggestions" as never)
-      .select("campus_id,email,lead_type,confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
-      .is("archived_at", null)
-      .limit(20000);
+      .select("campus_id,email,lead_type,confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,research_mode")
+      .is("archived_at", null);
+    if (researchMode !== "all") sq = sq.eq("research_mode", researchMode);
+    const { data: sugg, error: sErr } = await sq.limit(20000);
     if (sErr) throw sErr;
     for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
       if (!r.email || !r.campus_id) continue;
@@ -2218,12 +2270,15 @@ export async function createCampaignFromPreview(input: {
     rows.push(...((data ?? []) as unknown as OutreachLeadRow[]));
   }
 
-  // Optional family/type enrichment (best-effort).
-  const { data: sugg } = await supabase
+  // Optional family/type enrichment (best-effort). Honors the campaign's
+  // research-mode filter so enrichment matches the audience that was previewed.
+  const enrichMode = input.filters.researchMode ?? "clean_professor_only";
+  let enrichQ: any = supabase
     .from("campus_lead_suggestions" as never)
     .select("campus_id,email,lead_type,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
-    .is("archived_at", null)
-    .limit(20000);
+    .is("archived_at", null);
+  if (enrichMode !== "all") enrichQ = enrichQ.eq("research_mode", enrichMode);
+  const { data: sugg } = await enrichQ.limit(20000);
   const sMap = new Map<string, SuggestionMatchRow>();
   for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
     if (r.email && r.campus_id) sMap.set(`${r.campus_id}::${r.email.toLowerCase()}`, r);

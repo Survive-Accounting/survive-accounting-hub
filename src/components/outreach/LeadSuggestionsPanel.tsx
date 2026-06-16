@@ -138,12 +138,16 @@ export default function LeadSuggestionsPanel({
   const [teachingFilter, setTeachingFilter] = useState<TeachingFilter>("all");
   const [sortMode, setSortMode] = useState<"last_name" | "priority">("last_name");
   const [showArchived, setShowArchived] = useState(false);
+  const [researchModeFilter, setResearchModeFilter] = useState<"all" | "broad" | "clean_professor_only">("all");
 
   async function refresh(id = campusId) {
     if (!id) { setRows([]); return; }
     setLoading(true);
     try {
-      const data = await getLeadSuggestions(id, { includeArchived: showArchived });
+      const data = await getLeadSuggestions(id, {
+        includeArchived: showArchived,
+        researchMode: researchModeFilter,
+      });
       setRows(data);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load suggestions");
@@ -152,7 +156,7 @@ export default function LeadSuggestionsPanel({
     }
   }
 
-  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId, showArchived]);
+  useEffect(() => { setSelected(new Set()); refresh(campusId); /* eslint-disable-next-line */ }, [campusId, showArchived, researchModeFilter]);
 
   const visibleRows = useMemo(() => {
     let filtered = rows;
@@ -343,7 +347,15 @@ export default function LeadSuggestionsPanel({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={researchModeFilter} onValueChange={(v) => setResearchModeFilter(v as any)}>
+            <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Research mode: All</SelectItem>
+              <SelectItem value="clean_professor_only">Clean Professor Run</SelectItem>
+              <SelectItem value="broad">Broad AI Run 1</SelectItem>
+            </SelectContent>
+          </Select>
           <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground rounded-md border px-2 h-8 cursor-pointer select-none">
             <input
               type="checkbox"

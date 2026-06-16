@@ -558,6 +558,8 @@ export type Database = {
           lead_type: string
           notes: string | null
           raw_payload: Json | null
+          research_label: string | null
+          research_mode: string
           source_url: string | null
           status: string
           teaches_intermediate_1: boolean | null
@@ -588,6 +590,8 @@ export type Database = {
           lead_type?: string
           notes?: string | null
           raw_payload?: Json | null
+          research_label?: string | null
+          research_mode?: string
           source_url?: string | null
           status?: string
           teaches_intermediate_1?: boolean | null
@@ -618,6 +622,8 @@ export type Database = {
           lead_type?: string
           notes?: string | null
           raw_payload?: Json | null
+          research_label?: string | null
+          research_mode?: string
           source_url?: string | null
           status?: string
           teaches_intermediate_1?: boolean | null
@@ -755,6 +761,7 @@ export type Database = {
           id: string
           notes: string | null
           options: Json
+          research_mode: string
           status: string
           total_count: number
           updated_at: string
@@ -767,6 +774,7 @@ export type Database = {
           id?: string
           notes?: string | null
           options?: Json
+          research_mode?: string
           status?: string
           total_count?: number
           updated_at?: string
@@ -779,6 +787,7 @@ export type Database = {
           id?: string
           notes?: string | null
           options?: Json
+          research_mode?: string
           status?: string
           total_count?: number
           updated_at?: string
