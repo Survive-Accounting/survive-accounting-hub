@@ -974,7 +974,7 @@ export default function ApproveCampusModal({
                         { emoji: "🏫", label: "Accounting Department", q: `${campus.school_name} accounting department` },
                         { emoji: "📋", label: "Accounting Curriculum", q: `${campus.school_name} accounting curriculum` },
                         { emoji: "🛒", label: "Bookstore", q: `${campus.school_name} bookstore accounting` },
-                      ].map((b) => (
+                        { emoji: "👥", label: "Faculty Page", q: `${campus.school_name} accounting faculty directory` },
                         <Button
                           key={b.label}
                           type="button"
