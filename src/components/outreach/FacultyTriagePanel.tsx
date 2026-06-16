@@ -12,6 +12,12 @@ import {
   fetchTriageRows, importKeptLeads, setTriageFlag, setTriageStatus, type TriageRow,
 } from "@/lib/faculty-triage";
 
+function toTriageStatus(status: string | null): "pending_triage" | "kept" | "skipped" {
+  if (status === "accepted" || status === "kept") return "kept";
+  if (status === "rejected" || status === "skipped") return "skipped";
+  return "pending_triage";
+}
+
 export function FacultyTriagePanel({
   campusId,
   campusName,
@@ -70,8 +76,8 @@ export function FacultyTriagePanel({
     }
   };
 
-  const keptCount = rows.filter((r) => r.status === "kept").length;
-  const pendingCount = rows.filter((r) => !r.status || r.status === "pending_triage").length;
+  const keptCount = rows.filter((r) => toTriageStatus(r.status) === "kept").length;
+  const pendingCount = rows.filter((r) => toTriageStatus(r.status) === "pending_triage").length;
 
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -115,7 +121,7 @@ export function FacultyTriagePanel({
           </TableHeader>
           <TableBody>
             {rows.map((r) => {
-              const status = r.status ?? "pending_triage";
+              const status = toTriageStatus(r.status);
               return (
                 <TableRow key={r.id} className={status === "skipped" ? "opacity-50" : status === "kept" ? "bg-emerald-50/40" : ""}>
                   <TableCell className="font-medium">
