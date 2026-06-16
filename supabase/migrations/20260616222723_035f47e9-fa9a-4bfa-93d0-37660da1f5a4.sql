@@ -1,0 +1,1 @@
+UPDATE public.sms_templates SET body = E'Hey! I\'d love to help you prep.\n\nStart here and upload your syllabus:\nSurviveAccounting.com/start\n\nReply with any questions!\n\nLee' WHERE key IN ('opener_questions','booking_reply');
