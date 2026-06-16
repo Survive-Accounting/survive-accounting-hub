@@ -94,8 +94,46 @@ export function AudienceEditorModal({
   const matched = useMemo(() => applyAudienceFilters(campuses, filters), [campuses, filters]);
   const matchedFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? matched.filter((c) => c.school_name.toLowerCase().includes(q)) : matched;
-  }, [matched, search]);
+    const rows = matched.map((c) => ({
+      campus: c,
+      textbook: getTextbookDisplay(c, filters.families),
+    }));
+    const filtered = q
+      ? rows.filter(
+          (r) =>
+            r.campus.school_name.toLowerCase().includes(q) ||
+            r.textbook.toLowerCase().includes(q),
+        )
+      : rows;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const collator = new Intl.Collator(undefined, { sensitivity: "base" });
+    const sorted = [...filtered].sort((a, b) => {
+      let av = "", bv = "";
+      if (sortKey === "name") { av = a.campus.school_name; bv = b.campus.school_name; }
+      else if (sortKey === "state") { av = a.campus.state ?? ""; bv = b.campus.state ?? ""; }
+      else { av = a.textbook; bv = b.textbook; }
+      // Blanks always sort to the bottom regardless of direction.
+      const aEmpty = !av.trim();
+      const bEmpty = !bv.trim();
+      if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+      return collator.compare(av, bv) * dir;
+    });
+    return sorted;
+  }, [matched, search, sortKey, sortDir, filters.families]);
+
+  const blanksCount = useMemo(
+    () => matched.filter((c) => !getTextbookDisplay(c, filters.families)).length,
+    [matched, filters.families],
+  );
+
+  const toggleSort = (k: "name" | "state" | "textbook") => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("asc"); }
+  };
+  const sortIcon = (k: "name" | "state" | "textbook") => {
+    if (sortKey !== k) return <ArrowUpDown className="h-3 w-3 opacity-50" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
 
   const togglePin = (id: string, on: boolean) => {
     setPinnedIds((prev) => on ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id));
