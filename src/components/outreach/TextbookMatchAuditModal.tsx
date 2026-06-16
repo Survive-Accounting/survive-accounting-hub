@@ -223,6 +223,7 @@ export function TextbookMatchAuditModal({
           </Button>
         </div>
 
+        <div className="flex-1 overflow-auto rounded border">
 
           {q.isLoading ? (
             <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
