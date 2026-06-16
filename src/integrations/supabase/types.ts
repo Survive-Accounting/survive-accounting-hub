@@ -2834,6 +2834,124 @@ export type Database = {
         }
         Relationships: []
       }
+      outreach_campaign_leads: {
+        Row: {
+          campaign_id: string
+          campus_id: string | null
+          course_family: string | null
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          lead_type: string | null
+          outreach_lead_id: string
+          scheduled_send_at: string | null
+          sequence_step: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          campus_id?: string | null
+          course_family?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          lead_type?: string | null
+          outreach_lead_id: string
+          scheduled_send_at?: string | null
+          sequence_step?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          campus_id?: string | null
+          course_family?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          lead_type?: string | null
+          outreach_lead_id?: string
+          scheduled_send_at?: string | null
+          sequence_step?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_campaign_leads_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_campaign_leads_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_campaign_leads_outreach_lead_id_fkey"
+            columns: ["outreach_lead_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_campaigns: {
+        Row: {
+          audience_filters: Json
+          campaign_type: string
+          created_at: string
+          created_by: string | null
+          daily_limit: number
+          estimated_days: number | null
+          id: string
+          name: string
+          status: string
+          total_campuses: number
+          total_leads: number
+          updated_at: string
+        }
+        Insert: {
+          audience_filters?: Json
+          campaign_type?: string
+          created_at?: string
+          created_by?: string | null
+          daily_limit?: number
+          estimated_days?: number | null
+          id?: string
+          name: string
+          status?: string
+          total_campuses?: number
+          total_leads?: number
+          updated_at?: string
+        }
+        Update: {
+          audience_filters?: Json
+          campaign_type?: string
+          created_at?: string
+          created_by?: string | null
+          daily_limit?: number
+          estimated_days?: number | null
+          id?: string
+          name?: string
+          status?: string
+          total_campuses?: number
+          total_leads?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       outreach_email_events: {
         Row: {
           created_at: string
