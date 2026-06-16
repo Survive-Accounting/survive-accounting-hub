@@ -253,14 +253,35 @@ export function CampusLeadsStatsPanel({
           )}
         </Card>
       </CollapsibleContent>
+      <CampusLeadsReportModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        filters={filters}
+        campuses={campuses}
+        onSelectCampus={(id) => setFilters({ ...filters, campusIds: [id] })}
+      />
     </Collapsible>
   );
 }
 
-function Tile({ label, value }: { label: string; value: number }) {
+function Tile({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
     <div className="rounded-lg border bg-card p-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+        <span>{label}</span>
+        {hint && (
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground/70 hover:text-foreground" aria-label="What is this?">
+                  <Info className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs leading-relaxed">{hint}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value.toLocaleString()}</div>
     </div>
   );
