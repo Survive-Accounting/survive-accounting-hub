@@ -397,7 +397,7 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
 
     const { data: campus, error: campusErr } = await supabaseAdmin
       .from("campuses")
-      .select("website_url,accounting_department_url,domains,name")
+      .select("website_url,accounting_department_url,faculty_page_url,domains,name")
       .eq("id", data.campusId)
       .maybeSingle();
     if (campusErr) throw new Error(campusErr.message);
@@ -405,8 +405,14 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
 
     const seeds: string[] = [];
     const accDept = campus.accounting_department_url as string | null;
+    const facultyPageUrl = campus.faculty_page_url as string | null;
     const website = campus.website_url as string | null;
     const domains = (campus.domains as string[] | null) ?? [];
+    const explicitFacultyUrls = (facultyPageUrl ?? "")
+      .split(/\r?\n/)
+      .map((u) => u.trim())
+      .filter((u) => /^https?:\/\//i.test(u))
+      .map(normalizeUrl);
     if (accDept) seeds.push(accDept);
     if (website) seeds.push(website);
     for (const d of domains) {
@@ -433,6 +439,7 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
     // results scoped to that school, not the entire web.
     const allLinks: string[] = [];
     const discoveryErrors: string[] = [];
+    allLinks.push(...explicitFacultyUrls);
 
     for (const seed of seeds.slice(0, 3)) {
       let host = "";
@@ -459,7 +466,7 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
     }
     const mapErrors = discoveryErrors;
 
-    const ranked = rankFacultyUrls(allLinks).slice(0, data.maxPages);
+    const ranked = Array.from(new Set([...explicitFacultyUrls, ...rankFacultyUrls(allLinks)])).slice(0, data.maxPages);
     if (ranked.length === 0) {
       return {
         ok: true, discovered: 0, scraped: 0, inserted: 0, skippedDuplicates: 0,
