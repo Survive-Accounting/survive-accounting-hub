@@ -130,11 +130,16 @@ export function CampusLeadsStatsPanel({
 
               {/* Tile grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Tile label="Suggested leads" value={stats.suggestedLeadCount} />
-                <Tile label="Imported outreach leads" value={stats.importedLeadCount} />
-                <Tile label="High-confidence (≥0.8)" value={stats.highConfidenceLeadCount} />
-                <Tile label="Campuses covered" value={stats.campusCount} />
-                <Tile label="Course sections" value={stats.sectionCount} />
+                <Tile label="Suggested leads" value={stats.suggestedLeadCount}
+                  hint="Distinct rows in campus_lead_suggestions matching the filters — people AI research surfaced as likely professors/staff for the four core accounting course families. Not yet imported into the outreach queue." />
+                <Tile label="Imported outreach leads" value={stats.importedLeadCount}
+                  hint="Suggested leads that have been promoted into outreach_leads and are eligible for campaign enrollment." />
+                <Tile label="High-confidence (≥0.8)" value={stats.highConfidenceLeadCount}
+                  hint="Suggested leads whose AI-assigned confidence score is 0.80 or higher." />
+                <Tile label="Campuses covered" value={stats.campusCount}
+                  hint="Unique campuses that have at least one suggested lead matching the current filters." />
+                <Tile label="Course sections" value={stats.sectionCount}
+                  hint="A course section is one scheduled offering of a class for a specific term (e.g. ACCT 201 Sec 03, Fall 2024). One professor teaching two sections of intro accounting in the same term = 2 sections. Pulled from each campus's class schedule by AI research." />
                 <Tile label="Intro 1 instructors" value={stats.intro1InstructorCount} />
                 <Tile label="Intro 2 instructors" value={stats.intro2InstructorCount} />
                 <Tile label="IA1 instructors" value={stats.ia1InstructorCount} />
@@ -146,9 +151,9 @@ export function CampusLeadsStatsPanel({
 
               <div className="rounded-lg border bg-card p-3">
                 <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <span>Coverage</span>
+                  <span>Coverage (active campuses only — archived excluded)</span>
                   <span className="tabular-nums">
-                    {stats.campusCount} / {stats.totalCampusCount} campuses
+                    {stats.campusCount} / {stats.totalCampusCount} active campuses
                   </span>
                 </div>
                 <Progress value={stats.coveragePct} className="mt-2 h-1.5" />
