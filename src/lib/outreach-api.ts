@@ -2110,6 +2110,7 @@ export async function previewCampaignAudience(
     const { data: sugg, error: sErr } = await supabase
       .from("campus_lead_suggestions" as never)
       .select("campus_id,email,lead_type,confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
+      .is("archived_at", null)
       .limit(20000);
     if (sErr) throw sErr;
     for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
