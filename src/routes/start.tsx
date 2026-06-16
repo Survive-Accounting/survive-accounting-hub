@@ -155,6 +155,8 @@ function IntakeForm({ initialSearch }: { initialSearch: StartSearch }) {
   const campuses = campusesQuery.data ?? [];
 
   const [done, setDone] = useState(false);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [routing, setRouting] = useState<RoutingDecision | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
