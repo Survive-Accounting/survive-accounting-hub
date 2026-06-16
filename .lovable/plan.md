@@ -1,39 +1,86 @@
-## Why her text got no reply (root cause)
+## Goal
 
-The webhook never ran. `sms_inbound_raw` logs every Twilio POST *before* any business logic, and there are zero rows from `+19018713321` after Jun 11. The Twilio number `+1 (662) 565-8818` isn't posting to our function — almost certainly its "A MESSAGE COMES IN" webhook URL in Twilio Console is stale (pointing at an old preview/edge URL) or was cleared.
+Add reusable, named **Audiences** — saved campus selections plus the filter rules that produced them — that can be picked from the Campaign Builder, edited later, and reused for future campaigns.
 
-### Fix (manual, one-time)
+## What an Audience is
 
-In Twilio Console → Phone Numbers → `+16625658818` → Messaging → **A MESSAGE COMES IN**, set to:
+An Audience captures two things:
 
-```
-https://dhlzorresurzlcpuplkv.supabase.co/functions/v1/twilio-sms-webhook
-```
+1. **Filter rules** — the same filter shape used on the Campuses tab (search, tuition min/max, status, assignment, state, batch, SEC-only, high-tuition, include-archived), plus the textbook-audit filters we just added (course families multi-select, authors/publisher contains).
+2. **Pinned campus IDs** — an optional explicit list. When set, the audience resolves to *exactly* those campuses (filter is just a description). When empty, the audience resolves to *whatever currently matches the filters* (dynamic).
 
-Method: **HTTP POST**. Save. Then text the line again — `sms_inbound_raw` should get a fresh row within a second. If it still doesn't, the problem is at Twilio (number unassigned, A2P 10DLC blocked, etc.), not in our code.
+This dual mode mirrors how the Campaign Builder already works: it has filters + an optional explicit campus selection.
 
-Her existing Jun 11 conversation has `opener_sent=true`, so when the webhook does fire, code will send the short ack ("Got it — passing this along to Lee…") and text Lee a summary. No logic change needed there.
+## UI
 
-## What I'll build
+### New "Audiences" tab on the Outreach page
 
-### 1. Two new "clear conversations" controls in the Texts panel header
+Lives next to Campaigns. Lists saved audiences with: name, mode (Pinned N campuses / Dynamic), last used, owner, shared flag, row actions (Edit, Duplicate, Delete, "New campaign from this").
 
-- **Clear by phone**: small input + button. Paste a number (any format), confirms, then deletes that student's `sms_conversations` row + its `sms_messages` + queued `sms_outbox` + `sms_inbound_raw` rows from/about that phone. Next text from them runs the first-message flow.
-- **Clear ALL conversations**: red button, double-confirm ("type CLEAR to confirm"). Wipes every row from `sms_conversations`, `sms_messages`, `sms_outbox`, and `sms_inbound_raw`. Useful for a clean test slate. Does NOT touch `sms_templates`, `campus_phone_numbers`, or anything outside SMS.
+### Audience editor modal
 
-Both run via a new authenticated `createServerFn` (admin-gated by `has_role('admin')`) using `supabaseAdmin` so RLS doesn't get in the way.
+Reuses the existing `CampusFilterBar` (Campuses tab filters) **and** a compact textbook-family / authors / publisher block (lifted out of `TextbookMatchAuditModal`). Below the filters: the same campus checklist UI the Campaign Builder uses, showing the live match count. Two save modes:
 
-### 2. A small "Webhook health" hint card
+- **Save as dynamic** — store filter JSON only.
+- **Pin current selection** — store filter JSON + the explicit campus IDs that are checked right now.
 
-Above the conversations list, show:
-- Last inbound received: `{relative time}` (max `received_at` from `sms_inbound_raw`)
-- If > 24 h ago, a yellow note: *"No inbound texts received recently. Check the Twilio number's webhook URL points to …/twilio-sms-webhook."*
+Header: name input, "Share with team" toggle.
 
-This makes the next "why didn't I get a text?" instantly diagnosable without me having to query the DB.
+### Campaign Builder integration
 
-## Files
+Top of the builder gets an "Audience" dropdown: *None* / list of saved audiences / "Save current as new audience…". Picking one loads its filters and (if pinned) its campus IDs into the existing builder state. A small "Edit audience" link opens the editor in a side modal. The builder still works exactly as today when no audience is selected.
 
-- New: `src/lib/sms-admin.functions.ts` — `clearConversationByPhone({ phone })`, `clearAllConversations({ confirm })`, `getSmsWebhookHealth()`. All `.middleware([requireSupabaseAuth])` + admin role check, dynamic `import("@/integrations/supabase/client.server")` inside handlers.
-- Edited: `src/components/outreach/TextsPanel.tsx` — header row gets the two clear buttons + the health card. Reuses existing toast + invalidation patterns.
+## Data model
 
-No DB migration. No edge function change. No homepage/intake changes.
+New table `outreach_audiences`:
+
+- `name` (text, not null)
+- `description` (text, nullable)
+- `filters_json` (jsonb, not null) — full `CampusFilters` + audit filter extension
+- `pinned_campus_ids` (uuid[], nullable) — null/empty = dynamic
+- `is_shared` (bool, default false)
+- `created_by` (uuid, FK auth.users)
+- `last_used_at` (timestamptz, nullable)
+- standard `id`, `created_at`, `updated_at`
+
+Plus a join column on `outreach_campaigns`: `audience_id uuid references outreach_audiences(id)` so we can later see "which audience launched this campaign" without breaking existing campaigns.
+
+RLS: authenticated users can read all shared rows + their own private rows; insert/update/delete their own; admins can manage all.
+
+## Technical changes
+
+### Migration
+- `CREATE TABLE public.outreach_audiences (...)` + GRANTs (`authenticated`, `service_role`) + RLS policies + `updated_at` trigger using `public.set_updated_at`.
+- `ALTER TABLE public.outreach_campaigns ADD COLUMN audience_id uuid REFERENCES public.outreach_audiences(id) ON DELETE SET NULL`.
+
+### API (`src/lib/outreach-api.ts`)
+- `listAudiences()`, `getAudience(id)`, `createAudience(payload)`, `updateAudience(id, patch)`, `deleteAudience(id)`, `touchAudienceUsed(id)`.
+
+### New files
+- `src/components/outreach/AudiencesPanel.tsx` — list + row actions.
+- `src/components/outreach/AudienceEditorModal.tsx` — name, share, filter editor (reuses `CampusFilterBar`), audit-filter block, campus checklist, save modes.
+- `src/lib/audience-filters.ts` — shared `applyAudienceFilters(campuses, audienceFilters)` so the editor preview and any future campaign-launch resolver use identical logic. Extracts/shares the existing `applyFilters` (campuses) + the family/author/publisher predicates.
+
+### Edited files
+- `src/components/outreach/CampaignBuilder.tsx` — "Audience" dropdown at top, "Save as audience" button, prefill filters + selected campus IDs when an audience is picked.
+- `src/routes/outreach.tsx` (or wherever the tab list lives) — add **Audiences** tab.
+- `src/components/outreach/TextbookMatchAuditModal.tsx` — minor: export the family/authors/publisher predicate so the editor can reuse it.
+
+### Out of scope (this turn)
+- Auto-syncing pinned audiences when new campuses appear.
+- Audience analytics (open/reply rates rolled up across campaigns).
+- Cross-audience deduping in the scheduler.
+
+## Files touched
+
+**New**
+- `supabase/migrations/<ts>_outreach_audiences.sql`
+- `src/components/outreach/AudiencesPanel.tsx`
+- `src/components/outreach/AudienceEditorModal.tsx`
+- `src/lib/audience-filters.ts`
+
+**Edited**
+- `src/lib/outreach-api.ts`
+- `src/components/outreach/CampaignBuilder.tsx`
+- `src/routes/outreach.tsx`
+- `src/components/outreach/TextbookMatchAuditModal.tsx` (export helper only)
