@@ -565,6 +565,7 @@ export interface SmsConversation {
   sentiment: string | null;
   status: string;
   last_message_at: string;
+  is_tester?: boolean | null;
 }
 export interface SmsMessage {
   id: string;
@@ -573,10 +574,20 @@ export interface SmsMessage {
   body: string;
   created_at: string;
 }
+export interface SmsInboundRaw {
+  id: string;
+  received_at: string;
+  from_number: string | null;
+  to_number: string | null;
+  body: string | null;
+  parse_status: string;
+  error: string | null;
+  conversation_id: string | null;
+}
 
 export async function fetchSmsConversations(): Promise<SmsConversation[]> {
   const { data, error } = await (supabase.from("sms_conversations" as never) as any)
-    .select("id,short_ref,student_phone,campus_number,campus_id,course,exam_date,struggles,major,sentiment,status,last_message_at")
+    .select("id,short_ref,student_phone,campus_number,campus_id,course,exam_date,struggles,major,sentiment,status,last_message_at,is_tester")
     .order("last_message_at", { ascending: false })
     .limit(200);
   if (error) throw error;
@@ -592,6 +603,15 @@ export async function fetchSmsMessages(conversationId: string): Promise<SmsMessa
   return (data ?? []) as SmsMessage[];
 }
 
+export async function fetchSmsInboundRaw(limit = 25): Promise<SmsInboundRaw[]> {
+  const { data, error } = await (supabase.from("sms_inbound_raw" as never) as any)
+    .select("id,received_at,from_number,to_number,body,parse_status,error,conversation_id")
+    .order("received_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as SmsInboundRaw[];
+}
+
 /** Queue a dashboard reply for immediate send, then nudge the processor. */
 export async function sendSmsReply(conversationId: string, body: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await (supabase.from("sms_outbox" as never) as any).insert({
@@ -603,6 +623,47 @@ export async function sendSmsReply(conversationId: string, body: string): Promis
   if (error) return { ok: false, error: error.message };
   supabase.functions.invoke("sms-process-outbox", { body: {} }).catch(() => { /* cron will catch it */ });
   return { ok: true };
+}
+
+/** Delete a conversation entirely (cascades messages + outbox). Useful for re-testing first-message flow. */
+export async function resetSmsConversation(conversationId: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await (supabase.from("sms_conversations" as never) as any)
+    .delete()
+    .eq("id", conversationId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/**
+ * Simulate an inbound text by posting to the deployed Twilio webhook with the
+ * exact form-encoded shape Twilio uses. No Twilio charge — exercises the full
+ * webhook → outbox → reply path. The outbound auto-replies still go through
+ * Twilio (cost ~$0.008) unless you point a tester at a phone you own.
+ */
+export async function simulateInboundSms(args: {
+  fromPhone: string;
+  toPhone: string;
+  body: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/twilio-sms-webhook`;
+  const form = new URLSearchParams({
+    From: args.fromPhone,
+    To: args.toPhone,
+    Body: args.body,
+    MessageSid: `SIMULATED${Date.now().toString(36)}`,
+    AccountSid: "SIMULATED",
+  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    if (!res.ok) return { ok: false, error: `Webhook returned HTTP ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
 }
 
 /** campus_id -> phone; the main line (campus_id null) is under "__main__". */
