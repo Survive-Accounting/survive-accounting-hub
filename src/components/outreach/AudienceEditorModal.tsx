@@ -22,6 +22,7 @@ import {
   DEFAULT_AUDIENCE_FILTERS,
   applyAudienceFilters,
   normalizeAudienceFilters,
+  getTextbookDisplay,
   type AudienceFilters,
   type CourseFamilyKey,
 } from "@/lib/audience-filters";
