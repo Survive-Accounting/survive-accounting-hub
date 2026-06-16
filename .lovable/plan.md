@@ -1,61 +1,80 @@
-## Why only 3 campuses match a textbook
+## What I found in the database (last 5 messages on this thread)
 
-Short version: **the matcher is working correctly. The bottleneck is research coverage, not matching logic.**
+Conversation `+19018713321 → +16625658818` (`short_ref #1`) exists, status `active`, `opener_sent=true`, last activity **June 11 21:10 UTC**. Messages:
 
-Of 170 active campuses, only **4** have any textbook research stored in `campus_family_textbooks_json`. The other 166 are `unknown` (no data yet — not "unmatched"). Of those 4:
+```
+Jun 11 17:25  IN   student  "Hey I need a tutor."
+Jun 11 17:30  OUT  auto     "Hey! Thanks for reaching out. ... book with me here: surviveaccounting.com/start"
+Jun 11 17:31  OUT  auto     "Also, which course are you in, and how's it going so far? When is your next exam? ..."
+Jun 11 17:27  OUT  lee      "Hay I love u Mckenzie"   (relay)
+Jun 11 21:10  OUT  lee      "Testing"                 (relay)
+```
 
-| Campus | Intro 1 | Intro 2 | Why |
+**There is no inbound row for a text from her after June 11.** So her newest text either (a) never reached the webhook, or (b) the webhook errored before insert.
+
+## Three real bugs uncovered
+
+### Bug 1 — auto-reply is intentionally one-shot per conversation (matches her experience)
+The webhook only sends `BOOKING_REPLY_BODY` when `opener_sent && !alreadySentBooking`. Once the booking link has been sent in any prior session, **every future student reply is silently swallowed** (no second auto-reply, no acknowledgement). For a returning tester — or a real returning student — this looks broken.
+
+### Bug 2 — `supabase/functions/twilio-sms-webhook/index.ts` has a duplicate `const { data: history }` declaration (lines 184 and 198)
+The source as committed will NOT deploy — it's a hard syntax error. The currently running webhook is therefore a **different, older deployed version** than what's in the repo. If anyone re-deploys (e.g. the next migration touches the function), the webhook will start 500ing and inbound SMS will silently drop. This is a ticking time bomb that explains why future deploys could match her "nothing happened" symptom.
+
+### Bug 3 — no visibility when the webhook fails
+There is no "delivery log" or "raw inbound" record. If Twilio fires the webhook and the function 500s, we lose the message body forever and the dashboard shows nothing. We need a raw-inbound landing table OR a way to view edge function logs from the dashboard.
+
+## Testing strategy options (ranked cheapest → most realistic)
+
+| Option | Cost | Realism | Best for |
 |---|---|---|---|
-| Southern Miss | matched (Wild/Shaw) | matched (Wild/Shaw) | full title + authors + publisher |
-| Penn | matched (Hanlon/Magee/Pfeiffer) | matched (Hartgraves/Morse) | full metadata |
-| USC | matched (Hanlon/Magee/Pfeiffer) | matched (Garrison/Noreen/Brewer) | full metadata |
-| UF | unmatched | unmatched | only an ISBN was researched; title/authors/publisher are blank, so the keyword matcher has nothing to score |
+| **A. In-dashboard SMS simulator** (recommended) | $0 | High — exercises the entire webhook → AI → outbox → reply path | Repeated, deterministic testing of script logic |
+| **B. "Reset conversation" button** (recommended, pairs with A or real cell) | $0 | n/a | Lets you re-test the first-message flow with your own real cell as many times as you want |
+| **C. Provision a dedicated test campus + number** | ~$1.15/mo + $0.0079/SMS each way | Highest | End-to-end Twilio routing test |
+| **D. Add your cell to a special "tester" allowlist** | $0 | Medium | Bypasses the one-shot booking guard so your cell always re-runs the full flow |
 
-So the "3 matched" number is really `3 matched + 1 ISBN-only unmatched + 166 not-yet-researched`.
+**My recommendation: do A + B + D.** Together they cover ~95% of what C would test, cost nothing, and let you iterate from the dashboard or from your own phone instantly. C only adds value once we want to test number-routing or Twilio account permissions — not script behavior.
 
-### How matching works today (`src/lib/textbook-matcher.ts`)
-1. Load all rows from `supported_textbook_families` (14 families across intro_1, intro_2, intermediate_1, intermediate_2).
-2. For each campus + course family, read the detected book (`title`, `authors`, `publisher`, `isbn13`) from `campuses.course_family_textbooks_json`.
-3. If all four fields are empty → status = `unknown`.
-4. Otherwise score against every family in that course slot:
-   - authors: 2+ keyword hits = 0.7, 1 hit = 0.5
-   - title: 2+ hits = 0.25, 1 hit = 0.15
-   - publisher: any hit = 0.2
-5. Best score ≥ 0.5 → `matched`. Editions are ignored unless a family sets `edition_sensitive`.
-6. ISBN is stored but **not** used for matching — that is the gap that hides UF.
+## Proposed changes
 
-### Fixes proposed
+### 1. Fix Bug 2 (source/deployed drift)
+Remove the duplicate `const { data: history }` block in `twilio-sms-webhook/index.ts`. Single read at the top of the "subsequent reply" branch, reused by both the booking-link guard and the Claude extractor.
 
-**A. ISBN-13 lookup as a fallback signal.** Add an `isbn13_prefixes` column (or a small `supported_textbook_isbns` table) to each family. UF's `9781266670268` / `9781264290000` are McGraw-Hill ISBNs that Wild/Shaw and Garrison sit inside; we can match by ISBN even when the AI returns no title/author. This alone should flip UF from `unmatched` to `matched`.
+### 2. Fix Bug 1 + add tester behavior
+- Add `is_tester` boolean to `sms_conversations` (default false).
+- New env var `SMS_TESTER_PHONES` (comma-separated E.164). Inbound from any tester phone: mark `is_tester=true` AND skip the "already sent booking" guard so every reply re-runs the auto flow.
+- For non-tester conversations, replace the silent no-op with a single low-key acknowledgement so returning real students don't think we ghosted them. Send at most once per 24h.
 
-**B. Re-research the missing 166.** Right now `Clean Professor Research` only does professor discovery — it intentionally skips textbook research. We need a way to actually populate `course_family_textbooks_json` for the rest.
+### 3. Add inbound-raw landing table
+New `sms_inbound_raw` table — webhook writes the full Twilio form payload + parse status + error before doing anything else. Used both for forensics ("did Twilio actually call us?") and for the dashboard's new "Raw inbound" tab.
 
-## What you asked for
+### 4. New "Tester" panel in the Texts tab
+A small card at the top of `TextsPanel`:
 
-### 1. Textbook matching report (modal)
-New "How matching works" panel inside the existing **Textbook Match Audit** modal: explains the scoring, lists the 14 supported families, and adds a top-line breakdown:
-`170 active · 4 researched · 3 matched · 1 unmatched (UF — ISBN only) · 166 unknown (no research yet)`.
-Plus a one-click **"Re-run textbook research for unknown campuses"** button that kicks off `research-campus` (textbook step only) for the 166.
+```text
+┌── Tester ─────────────────────────────────────┐
+│ Campus number  [ +1 662 565 8818  ▾ ]         │
+│ Student phone  [ +1 555 000 0001  (free-text) ]│
+│ Body           [ Hey I need help with ACCT201 ]│
+│ [ Simulate inbound text ]   [ Reset thread ]  │
+└───────────────────────────────────────────────┘
+```
 
-### 2. Run Clean Professor Research on all 170
-This already works — open the green **Run Clean Professor Research** card, switch Scope to **All active campuses (170)**, click Run. I'll just make that path more obvious by:
-- Adding a "170" count badge directly on the button.
-- Adding a confirm dialog that estimates cost (~$5.10 at $0.03/campus) and warns it will take ~15–20 minutes.
+`Simulate inbound text` posts a form-encoded body to the deployed webhook just like Twilio would (no Twilio call, $0). The thread updates live below. `Reset thread` deletes the conversation + its messages + queued outbox so the next inbound runs the first-message branch.
 
-### 3. Test a single campus first
-New **"Test on one campus"** control on the Clean Professor card:
-- Searchable campus picker (defaults to a textbook-matched campus so you see a fair test).
-- Runs the same `research-campus-leads-clean` edge function for just that one campus, synchronously.
-- Opens a results dialog showing: prompt used, raw model output, leads created, leads rejected + reason, sources cited.
-- Nothing is auto-imported — results land as pending suggestions tagged `research_label = 'Clean Professor Test — <campus> <timestamp>'` so they're easy to find or archive.
+### 5. Per-conversation "Reset thread" button
+Same delete-and-recreate behavior, exposed on every conversation row in the existing list. This is what unlocks re-testing with your real cell at 901-871-3321 without DB surgery.
 
-### Technical changes
-- **Migration:** add `isbn13_prefixes text[]` to `supported_textbook_families` and seed prefixes for the 14 families.
-- **`src/lib/textbook-matcher.ts`:** new ISBN-prefix branch — if title/authors/publisher all blank but ISBN matches a family's prefix, return `matched` with reason `"isbn13 prefix match"` and confidence 0.6.
-- **`TextbookMatchAuditModal.tsx`:** add explanatory header section + coverage breakdown + "Re-run textbook research" action.
-- **`CleanProfessorResearchPanel.tsx`:** add single-campus picker + "Test one campus" button; show count badge + cost/time confirm on the bulk Run.
-- **New component `CleanRunTestResultModal.tsx`:** shows leads, rejections, sources for the test run.
-- **`supabase/functions/research-campus-leads-clean/index.ts`:** accept a `test_mode: true` flag → return the full result payload (prompt, raw output, accepted, rejected with reasons) instead of just persisting and returning a count.
-- **`src/lib/outreach-api.ts`:** add `runCleanProfessorTest(campusId)` and `triggerTextbookResearchForUnknown()`.
+### 6. Recent-deliveries badge
+At the top of the Texts tab, show a small badge: "Last inbound: 5 min ago · Last outbox sent: 5 min ago · Last webhook error: never". Sourced from the new `sms_inbound_raw` table + existing `sms_outbox`. Lets you instantly tell whether a missing message is a Twilio problem or a logic problem.
 
-No existing data is modified or deleted; ISBN matching only adds matches, never removes them.
+## What I will NOT do without your say-so
+
+- Provision a new Twilio test number (option C). Hold off unless you specifically want it; A + B + D is cheaper and faster.
+- Touch `sms-process-outbox` or the Lee-relay flow — both work and aren't implicated.
+- Change the opt-out (STOP) handling.
+
+## Open questions for you
+
+1. Confirm `SMS_TESTER_PHONES` should include `+19018713321` (Mckenzie's tester) and your personal cell — what's your personal cell number?
+2. For non-tester returning students (Bug 1 fallback acknowledgement), do you want a one-liner like _"Thanks — Lee will text you back personally when he gets a moment."_, or no auto-reply at all?
+3. After we ship this, do you want me to backfill the missing inbound (her newest text) by checking Twilio's message log via the connector, or just move forward?
