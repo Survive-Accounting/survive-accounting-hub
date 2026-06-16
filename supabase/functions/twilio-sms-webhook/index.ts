@@ -294,14 +294,14 @@ Deno.serve(async (req) => {
     }
 
     if (autoReplyKind === "booking") {
-      const sentSid = await twilioSend(to, from, BOOKING_REPLY_BODY);
+      const sentSid = await twilioSend(to, from, TPL_BOOKING);
       await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto", body: BOOKING_REPLY_BODY, twilio_sid: sentSid,
+        conversation_id: convo.id, direction: "out", author: "auto", body: TPL_BOOKING, twilio_sid: sentSid,
       });
     } else if (autoReplyKind === "ack") {
-      const sentSid = await twilioSend(to, from, ACK_BODY);
+      const sentSid = await twilioSend(to, from, TPL_ACK);
       await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto-ack", body: ACK_BODY, twilio_sid: sentSid,
+        conversation_id: convo.id, direction: "out", author: "auto-ack", body: TPL_ACK, twilio_sid: sentSid,
       });
     }
 
@@ -330,8 +330,14 @@ Deno.serve(async (req) => {
         extracted?.struggles ? `Struggling with: ${extracted.struggles}` : null,
         extracted?.major ? `Major: ${extracted.major}` : null,
       ].filter(Boolean).join(" | ");
-      await twilioSend(to, LEE_PHONE,
-        `#${convo.short_ref} ${campusLabel}${isTester ? " [TESTER]" : ""} — "${body}"${facts ? `\n${facts}` : ""}\nReply to this thread to text them back.`);
+      const summary = render(TPL_LEE_FOLLOWUP, {
+        ref: String(convo.short_ref),
+        campus: campusLabel,
+        tester_flag: isTester ? " [TESTER]" : "",
+        body,
+        facts: facts ? `\n${facts}` : "",
+      });
+      await twilioSend(to, LEE_PHONE, summary);
     }
 
     await finalizeRaw(
