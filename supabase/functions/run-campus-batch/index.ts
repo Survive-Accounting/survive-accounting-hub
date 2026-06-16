@@ -61,85 +61,93 @@ async function processItem(db: any, item: any, researchMode: string) {
     return r;
   };
 
-  // 1. Campus profile — research-campus expects school_name/state, not campus_id
-  if (!profile_done) {
-    const { data: campus } = await db
-      .from("campuses")
-      .select("name, state, course_codes_json")
-      .eq("id", campus_id)
-      .maybeSingle();
-    const schoolName = campus?.name ?? null;
-    if (!schoolName) {
-      failed_step = "profile";
-      error = `profile: campus ${campus_id} not found or missing name`;
-    } else {
-      // course_codes_json is { family: { local_course_code, ... } } — flatten to a string[]
-      const codes: string[] = [];
-      const cj = campus?.course_codes_json ?? {};
-      if (cj && typeof cj === "object") {
-        for (const k of Object.keys(cj)) {
-          const v = (cj as any)[k]?.local_course_code;
-          if (typeof v === "string" && v.trim()) codes.push(v.trim());
-        }
-      }
-      const r = await step("profile", () => invokeFn("research-campus", {
-        school_name: schoolName,
-        state: campus.state ?? "",
-        course_codes: codes,
-      }));
-      if (r.ok) {
-        profile_done = true;
-        await db.from("campuses").update({
-          ai_research_debug_json: r.data,
-          ai_enrichment_status: "researched",
-        }).eq("id", campus_id);
-      }
-    }
-  }
-
-  // 2. Suggested leads (continue even if profile failed)
-  if (!error) {
-    const r = await step("leads", () => invokeFn("research-campus-leads", { campus_id }));
+  // CLEAN PROFESSOR mode: skip profile / prefixes / sections. Only leads.
+  if (researchMode === "clean_professor_only") {
+    const r = await step("leads_clean", () => invokeFn("research-campus-leads-clean", { campus_id }));
     if (r.ok) {
-      const n = r.data?.created ?? r.data?.suggestions_created ?? r.data?.inserted ?? 0;
+      const n = r.data?.inserted_count ?? 0;
       leads_count = typeof n === "number" ? n : leads_count;
     }
-  }
-
-  // 3. Prefix probe (cheap, makes sections better)
-  if (!error) {
-    await step("prefixes", () => invokeFn("discover-campus-prefixes", { campus_id }));
-    // Non-blocking — even if it fails, sections still falls back to generic hints.
-    error = null; failed_step = null;
-  }
-
-  // 4. Sections — chunk families to stay under the 150s edge-function timeout.
-  // Big schools (ASU, USC, Drexel, UTSA, etc.) were 504'ing on a single all-families call.
-  if (!error) {
-    await db.from("campus_research_job_items").update({ current_step: "sections" }).eq("id", item.id);
-    const allFams = ["intro_1","intro_2","intermediate_1","intermediate_2","finance","business_stats","business_analytics","microeconomics","macroeconomics"];
-    const chunks: string[][] = [];
-    for (let i = 0; i < allFams.length; i += 3) chunks.push(allFams.slice(i, i + 3));
-    const results = await Promise.all(
-      chunks.map((fams) => invokeFn("research-campus-sections", { campus_id, families: fams })),
-    );
-    const failures = results.filter((r) => !r.ok);
-    if (failures.length === results.length) {
-      failed_step = "sections";
-      error = `sections: all chunks failed — first: HTTP ${failures[0].status} ${JSON.stringify(failures[0].data).slice(0, 300)}`;
-    } else {
-      const counts: Record<string, number> = {};
-      let totalInserted = 0;
-      for (const r of results) {
-        if (!r.ok) continue;
-        totalInserted += r.data?.sections_inserted ?? 0;
-        const pc = r.data?.debug?.per_family_counts ?? {};
-        for (const k of Object.keys(pc)) counts[k] = (counts[k] ?? 0) + (pc[k] ?? 0);
+  } else {
+    // BROAD mode: full pipeline (profile → leads → prefixes → sections).
+    // 1. Campus profile — research-campus expects school_name/state, not campus_id
+    if (!profile_done) {
+      const { data: campus } = await db
+        .from("campuses")
+        .select("name, state, course_codes_json")
+        .eq("id", campus_id)
+        .maybeSingle();
+      const schoolName = campus?.name ?? null;
+      if (!schoolName) {
+        failed_step = "profile";
+        error = `profile: campus ${campus_id} not found or missing name`;
+      } else {
+        const codes: string[] = [];
+        const cj = campus?.course_codes_json ?? {};
+        if (cj && typeof cj === "object") {
+          for (const k of Object.keys(cj)) {
+            const v = (cj as any)[k]?.local_course_code;
+            if (typeof v === "string" && v.trim()) codes.push(v.trim());
+          }
+        }
+        const r = await step("profile", () => invokeFn("research-campus", {
+          school_name: schoolName,
+          state: campus.state ?? "",
+          course_codes: codes,
+        }));
+        if (r.ok) {
+          profile_done = true;
+          await db.from("campuses").update({
+            ai_research_debug_json: r.data,
+            ai_enrichment_status: "researched",
+          }).eq("id", campus_id);
+        }
       }
-      sections_count = totalInserted;
-      families_with_zero = allFams.filter((f) => !counts[f]);
+    }
+
+    // 2. Suggested leads (broad)
+    if (!error) {
+      const r = await step("leads", () => invokeFn("research-campus-leads", { campus_id }));
+      if (r.ok) {
+        const n = r.data?.created ?? r.data?.suggestions_created ?? r.data?.inserted ?? 0;
+        leads_count = typeof n === "number" ? n : leads_count;
+      }
+    }
+
+    // 3. Prefix probe
+    if (!error) {
+      await step("prefixes", () => invokeFn("discover-campus-prefixes", { campus_id }));
+      error = null; failed_step = null;
+    }
+
+    // 4. Sections
+    if (!error) {
+      await db.from("campus_research_job_items").update({ current_step: "sections" }).eq("id", item.id);
+      const allFams = ["intro_1","intro_2","intermediate_1","intermediate_2","finance","business_stats","business_analytics","microeconomics","macroeconomics"];
+      const chunks: string[][] = [];
+      for (let i = 0; i < allFams.length; i += 3) chunks.push(allFams.slice(i, i + 3));
+      const results = await Promise.all(
+        chunks.map((fams) => invokeFn("research-campus-sections", { campus_id, families: fams })),
+      );
+      const failures = results.filter((r) => !r.ok);
+      if (failures.length === results.length) {
+        failed_step = "sections";
+        error = `sections: all chunks failed — first: HTTP ${failures[0].status} ${JSON.stringify(failures[0].data).slice(0, 300)}`;
+      } else {
+        const counts: Record<string, number> = {};
+        let totalInserted = 0;
+        for (const r of results) {
+          if (!r.ok) continue;
+          totalInserted += r.data?.sections_inserted ?? 0;
+          const pc = r.data?.debug?.per_family_counts ?? {};
+          for (const k of Object.keys(pc)) counts[k] = (counts[k] ?? 0) + (pc[k] ?? 0);
+        }
+        sections_count = totalInserted;
+        families_with_zero = allFams.filter((f) => !counts[f]);
+      }
     }
   }
+
 
   const finalStatus = error ? "failed" : "done";
   await db.from("campus_research_job_items").update({
