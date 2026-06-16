@@ -19,6 +19,12 @@ export function BatchResearchSettingsModal({
           <DialogTitle>Batch AI Research</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900">
+            <strong>⚠️ Legacy — known to hallucinate names.</strong> Prefer the
+            per-campus <em>Scrape faculty</em> button on each row (deterministic
+            fetch + narrow extraction, with a triage step before any lead
+            enters the email queue). The panels below remain for ad-hoc work.
+          </div>
           <TextbookCoveragePanel />
           <CleanProfessorResearchPanel campuses={campuses} selectedCampusIds={selectedCampusIds} />
           <div className="rounded-md border border-amber-200 bg-amber-50/40 p-3 text-xs text-amber-900">
