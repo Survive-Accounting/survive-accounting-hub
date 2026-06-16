@@ -23,6 +23,7 @@ import { TextsPanel } from "@/components/outreach/TextsPanel";
 import { WaitlistCard } from "@/components/outreach/WaitlistCard";
 import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import { ArchiveAllLeadsButton } from "@/components/outreach/ArchiveAllLeadsButton";
+import { AudiencesPanel } from "@/components/outreach/AudiencesPanel";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -115,9 +116,10 @@ function OutreachPage() {
         </header>
 
         <Tabs value={tab} onValueChange={setTab} className="space-y-8">
-          <TabsList className="grid w-full grid-cols-4 h-12 gap-2 bg-muted/40 p-1.5">
+          <TabsList className="grid w-full grid-cols-5 h-12 gap-2 bg-muted/40 p-1.5">
             <TabsTrigger value="home" className="text-sm font-medium">Home</TabsTrigger>
             <TabsTrigger value="schools" className="text-sm font-medium">Campuses</TabsTrigger>
+            <TabsTrigger value="audiences" className="text-sm font-medium">Audiences</TabsTrigger>
             <TabsTrigger value="templates" className="text-sm font-medium">Email Queue</TabsTrigger>
             <TabsTrigger value="texts" className="text-sm font-medium">Texts</TabsTrigger>
           </TabsList>
