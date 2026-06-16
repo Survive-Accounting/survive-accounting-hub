@@ -1,62 +1,58 @@
-## Two independent fixes
+## Diagnosis
 
-### Findings from the database
-- **Textbook coverage is essentially zero.** Of 455 campuses, only **4** have any `course_family_textbooks_json` populated. That's why Ole Miss (and ~99% of the others) shows "Not Checked" — there's literally no saved textbook data, so the Approve modal defaults every family to `not_checked`. This is not a UI bug; the bulk research never ran.
-- **Summary texts already route via `LEE_PHONE` secret.** The webhook sends the AI summary to whatever number is stored there. We'll surface that number in the dashboard so you can confirm it's `+16012018759`, and let you update it inline if it isn't.
+Pulled every clean-professor run for University of Mississippi from the DB. The pattern is clear:
 
----
+| Run (label)                  | Time   | Inserted | Whitney? |
+|------------------------------|--------|----------|----------|
+| Test 17:53                   | 17:53  | 10       | (cumulative)|
+| Test 17:56                   | 17:56  | 7        | —        |
+| Test 18:05                   | 18:05  | 3        | —        |
+| Test 18:11                   | 18:11  | 11       | —        |
+| Test 18:20                   | 18:20  | 5        | —        |
+| Test 18:22                   | 18:22  | 9        | **YES** (wfbarton@olemiss.edu) |
+| Test 18:47                   | 18:47  | 5        | NO       |
+| Run 1 (most recent)          | 18:47  | 5        | NO       |
 
-## Part A — Dual-role SMS testing from your own cell (+16012018759)
+Whitney's row exists in `campus_lead_suggestions` (status=pending) from the 18:22 run. So this is not a data-loss bug — it's a **single-pass coverage bug**: each individual AI call returns a non-deterministic 3–11 person subset of the ~25 people on `accountancy.olemiss.edu/about/faculty-and-staff/`. The prompt already names Whitney as a canary and tells the model to walk the `?role=instructor` tab, but Gemini still skips that tab on ~half of runs.
 
-The cleanest "test it on my own phone" loop without provisioning a 2nd device:
+Across runs the dedupe layer is cumulatively building a complete list, but any single "fresh" test looks broken. For bulk runs across 170 campuses that's worse: every campus gets exactly one shot.
 
-1. **Add `+16012018759` to `SMS_TESTER_PHONES`** so the one-shot guard is bypassed (you can text the campus number repeatedly without being silenced as a "returning student").
-2. **Confirm `LEE_PHONE` = `+16012018759`** so the AI summary lands on the same phone. The Setup tab will show:
-   - Lee summary destination: `+1•••8759` (with a "Change" button that calls a tiny server fn updating the secret).
-   - Tester phones currently in `SMS_TESTER_PHONES`, with add/remove buttons.
-3. **New "Live end-to-end test" card** in the Texts → Setup tab:
-   - Shows: *"From `+16012018759`, text the following to `<active campus number>`:"* with a prefilled message ("Hi, I need help with ACCY 201 before my Thursday exam").
-   - A live feed below auto-refreshes every 3s and shows the three expected events in order:
-     - **Inbound** logged in `sms_inbound_raw` ✓
-     - **Outbound to student** (booking link) ✓
-     - **Outbound to Lee** (AI summary) ✓
-   - When you're the same number for both roles, you'll get both texts on your phone — the feed clearly labels which is which so you can tell what came from where.
-   - "Reset thread" button cascades the conversation so the next text starts a brand-new flow.
-4. **Zero-cost simulator** (already built last turn) stays as the dev fallback for when you don't want to spend Twilio fees: it POSTs to the webhook with form-encoded Twilio-shaped data and shows the same feed, but no real SMS leave Twilio.
+Root cause: one AI call, one set of search queries, model temperature drift. The instructor/adjunct tab is the consistently-missed page.
 
-Cost: ~$0.015 per real round-trip (1 inbound + 2 outbound). No new phone number needed.
+## Fix — Deterministic two-pass enumeration in `research-campus-leads-clean`
 
----
+### Pass 1 — Faculty (current behavior, narrowed)
+Call Gemini with the current prompt but scoped to: full / associate / assistant professors, clinical, professor of practice, chair, BAP advisor. Returns ~8–12 senior names.
 
-## Part B — Get all 451 unchecked campuses to "checked" for textbook match
+### Pass 2 — Instructors / Adjuncts / Lecturers (new, mandatory)
+A second AI call with a **role-locked** prompt:
 
-1. **Backfill job: queue every unchecked campus into a `textbook_only` research job.**
-   - New server fn `enqueueTextbookBackfill()` creates one `campus_research_jobs` row with `research_mode='textbook_only'` and inserts a `campus_research_job_items` row for every campus where `course_family_textbooks_json` is null/empty (≈451 rows).
-   - Existing `run-campus-batch` already handles `textbook_only` mode (calls `research-campus-textbooks` per campus, which writes back to `campuses.course_family_textbooks_json`).
-   - Drive it with a `pg_cron` job that hits the batch runner every minute, 3 campuses per tick → full backfill finishes in ~2.5 hours, fully unattended.
-2. **New "Textbook Coverage" card** on the Outreach dashboard:
-   - Big counter: `X / 455 campuses have textbook data` with progress bar.
-   - "Start textbook backfill" button (only enabled when no job is already running).
-   - Live ticker showing the last 5 completed campuses + any failures.
-   - "Re-run failures" button.
-3. **Approve modal preload fix** so once a campus has textbook json, the four family rows show **"Matches"** / **"Likely Match"** etc. instead of "Not Checked":
-   - On modal open, hydrate `familyStatus` from existing `course_family_textbooks_json` (any family with title/authors/ISBN ⇒ `likely_match`, confirmed source ⇒ `matches`) so Ole Miss won't show "Not Checked" after backfill completes.
-   - This is the visual half of the fix — without it, the data is there but the chips still read "Not Checked" until you click Run Research again.
-4. **Per-campus "Recheck textbooks" button** in the Approve modal so you can re-run just textbook research on any single campus without touching leads/sections.
+> List EVERY person at `${dept_url}` whose title contains "Instructor", "Lecturer", "Adjunct", "Clinical", "Teaching Professor", "Professor of Practice", or "Visiting". Open `?role=instructor`, `?role=staff`, `#instructors`, and any standalone "Adjunct Faculty" / "Instructors" page. If a directory only lists names, open each individual profile (e.g. `/faculty-and-staff/<slug>/` or `/profiles/<username>.php`) to confirm title and email. Do NOT include tenure-track professors — Pass 1 covers those. Return 0 rows only if you can prove the department has no non-tenure-track faculty.
 
-Cost estimate: ~451 campuses × ~$0.002 Gemini Flash search call = **~$1 in AI credits** for the full backfill. Google Books ISBN lookup is free.
+Reject token (`temperature: 0`, lower `top_p`) for determinism on this pass.
 
----
+### Merge + sanitize + self-audit
+- Merge both arrays, sanitize once (current rules), dedupe by email.
+- Self-audit guard: if the merged list contains **zero** rows whose title regex-matches `/instructor|lecturer|adjunct|clinical|practice|visiting/i`, automatically fire Pass 2 ONE more time with the explicit text "Your previous response listed no instructors. The department almost certainly has some — search `?role=instructor` and the staff directory now." Cap at one retry to bound cost.
+- Insert as today; existing email-dedupe handles overlap with prior runs.
 
-## Order of operations
-1. Confirm/set `LEE_PHONE` and `SMS_TESTER_PHONES` to `+16012018759`.
-2. Ship Setup-tab Live test card + reset.
-3. Ship Approve modal hydration so existing textbook json renders as checked.
-4. Ship Textbook Coverage card + backfill enqueuer + pg_cron driver.
-5. You kick off the backfill from the dashboard; it runs in the background.
+### Cost
+Two Gemini Flash calls per campus instead of one. ~$0.004 → $0.008 per campus. Full 170-campus clean run ≈ $1.40 → $2.80. Trivial.
 
-## Technical notes (for the next agent)
-- Secret updates from UI go through `secrets--update_secret`-equivalent server fn protected by `requireSupabaseAuth` + admin role check.
-- `pg_cron` calls `/api/public/hooks/run-campus-batch` (TanStack server route, anon-key authenticated per platform pattern) — not a direct edge function URL, so it survives function redeploys.
-- Approve modal hydration: extend `loadCampus` to seed `familyStatus[fam] = 'likely_match'` when `course_family_textbooks_json[fam].title || .authors || .isbn13` is present and no prior status exists.
-- The simulator path stays intact for $0 regression testing of webhook logic.
+### Per-campus override (optional, small)
+Extend the request body with optional `force_urls?: string[]`. If present, both passes are told "you MUST open these URLs before searching". Lets you re-run Ole Miss with `["https://accountancy.olemiss.edu/about/faculty-and-staff/?role=instructor"]` and prove the fix.
+
+## Verification plan
+1. Deploy updated `research-campus-leads-clean`.
+2. Re-run the clean test for University of Mississippi from the panel.
+3. Confirm Pass-2 returns Whitney Barton, Katy Mullinax, Sandi Goodwin, Evelyn Farmer, Grace Herrington, Jennifer Burchfield, Cere Muscarella (the known instructor set). All seven should appear in the accepted_preview of the result modal, not just cumulatively in the DB.
+4. Spot-check 2 other campuses (different state, different CMS) to confirm Pass 2 doesn't regress tenure-track-only schools.
+
+## Files touched
+- `supabase/functions/research-campus-leads-clean/index.ts` — split into `buildPromptFaculty()` + `buildPromptInstructors()`, add Pass 2 call, merge, audit-retry, optional `force_urls`.
+- No frontend changes required; existing test modal will surface the larger accepted list automatically.
+
+## Out of scope
+- Changing the broader `research-campus-leads` (non-clean) endpoint.
+- Switching models or providers.
+- Backfill across 170 campuses — that's a separate bulk-run decision after we confirm the fix on Ole Miss.

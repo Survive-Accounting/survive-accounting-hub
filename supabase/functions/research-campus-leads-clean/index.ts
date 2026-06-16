@@ -47,125 +47,16 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
-function buildPrompt(campus: Record<string, any>) {
+function commonContext(campus: Record<string, any>) {
   const name = campus.name ?? "";
   const state = campus.state ?? "";
   const dept = campus.accounting_department_name ?? "";
   const site = campus.website_url ?? "";
   const domain = campus.email_domain ?? (Array.isArray(campus.domains) ? campus.domains[0] : "") ?? "";
+  return { name, state, dept, site, domain };
+}
 
-  return `You are running a STRICT, quality-first research pass at "${name}"${state ? `, ${state}` : ""}, USA, to find ACCOUNTING-FACULTY contacts for a cold email campaign. Use Google Search to actually open the official accounting department / school of accountancy / business school faculty pages. NEVER guess. A careful blank beats a confident fabrication.
-
-Known context:
-- Department name (if known): ${dept || "unknown"}
-- Website: ${site || "unknown"}
-- Email domain: ${domain || "unknown"}
-
-================== ALLOWED LEAD SOURCES ==================
-Only use these kinds of pages as evidence:
-1. Official accounting department faculty page
-2. Official school of accountancy faculty page
-3. Official business school faculty page FILTERED to accounting faculty
-4. Official university directory entry that clearly identifies accounting department
-5. Accounting department contact page
-6. Beta Alpha Psi advisor page, ONLY if it is explicitly accounting/BAP-related
-
-================== DISALLOWED SOURCES ==================
-NEVER use these as the basis to emit a lead:
-- Generic business school staff/admin/dean/career/admissions pages
-- Class schedule / registrar instructor names WITHOUT a confirmed email or official profile URL
-- LinkedIn
-- Rate My Professors
-- Random third-party directories, scraper sites, Wikipedia
-- Any login-walled page
-
-================== ALLOWED LEAD TYPES (BE INCLUSIVE) ==================
-Include ANYONE who could realistically teach an accounting course at this
-school. Rank, tenure status, and seniority DO NOT matter — an adjunct who
-teaches one section of Intro Financial is just as valuable as a tenured
-full professor. Specifically include ALL of the following, not just the
-senior names:
-
-- Full / Associate / Assistant Professor of Accounting
-- Instructor / Senior Instructor / Instructional Assistant Professor
-- Lecturer / Senior Lecturer / Principal Lecturer / Teaching Professor
-- Clinical Professor / Clinical Assistant or Associate Professor
-- Professor of Practice / Practitioner Faculty / Executive in Residence
-- Adjunct Professor / Adjunct Instructor / Adjunct Lecturer / Adjunct Faculty
-- Visiting Professor / Visiting Assistant Professor / Visiting Lecturer
-- Post-doctoral teaching fellow (only if teaching accounting)
-- Accounting department chair / school of accountancy director
-- Beta Alpha Psi faculty advisor (only if explicitly listed as BAP)
-
-CRITICAL — DO NOT STOP AT THE TENURED FACULTY PAGE. Many schools list
-adjuncts, instructors, and lecturers on a SEPARATE page — OR on the SAME
-page behind filter tabs/dropdowns/role chips (e.g. "Faculty | Instructor |
-Staff | Adjunct"). If you see ANY such filter UI on a faculty-and-staff
-page, you MUST treat each filter value as its own page and enumerate it.
-Many of these tabs are implemented as query strings like
-"?role=instructor", "?type=adjunct", "?category=staff", or fragment
-anchors like "#instructors". OPEN EACH ONE explicitly. Also search for
-and open additional pages such as:
-  - "Instructors", "Lecturers", "Teaching Faculty"
-  - "Adjunct Faculty", "Adjunct Professors", "Affiliated Faculty"
-  - "Non-Tenure-Track Faculty", "Clinical Faculty"
-  - Department staff directory pages
-  - University-wide people directory filtered to the accounting department
-  - Individual faculty profile pages linked from the directory (often at
-    /profiles/<username>.php or /faculty/<slug>) — open a few to confirm
-    titles and find emails for people the directory only lists by name
-A school with only 4 tenured professors often has 10+ adjuncts and
-instructors who actually teach the intro courses we care about. MISSING
-THEM IS THE #1 FAILURE MODE of this research run. Concrete example: at
-the University of Mississippi, https://accountancy.olemiss.edu/about/faculty-and-staff/
-has tabs for "Faculty", "Instructor", and "Staff". A run that only
-enumerates the default "Faculty" tab misses Whitney Barton (Instructor
-in Accountancy, wfbarton@olemiss.edu) and the other instructors entirely
-— that is a BUG, not acceptable output. Before responding, audit your
-own list: if it has ZERO rows whose title contains "Instructor",
-"Lecturer", "Adjunct", "Clinical", or "Professor of Practice", assume
-you missed a tab/page and search again.
-
-================== EXCLUDED LEAD TYPES ==================
-DO NOT emit:
-- Students or alumni
-- Generic admissions or career-services staff
-- Finance, economics, statistics, marketing, management, IS, supply-chain, or
-  any other non-accounting business faculty
-- Anyone whose accounting connection is unclear
-
-Map each person to one of these "lead_type" values:
-- "professor"   — ANY teaching faculty: professor (any rank), lecturer,
-                  instructor, clinical, professor of practice, adjunct,
-                  visiting. Rank and tenure status are irrelevant.
-- "admin_staff" — accounting dept chair / accounting program director / accounting advisor
-- "bap_advisor" — explicitly listed Beta Alpha Psi accounting advisor
-
-================== HARD RULES ==================
-1. EVERY row MUST be supported by "source_url" — an official URL you actually opened. No source ⇒ DO NOT emit the row.
-2. EVERY row MUST have at least one of:
-   (a) a real "email" you actually saw printed on the source page (NEVER invent or pattern-guess), OR
-   (b) an official faculty profile URL recorded in "source_url".
-   If you have neither, DO NOT emit the row.
-3. NEVER emit a row whose ONLY evidence is a course-schedule instructor name. Class schedule data may inform teaches_intro_1 / teaches_intro_2 / etc, but the row itself requires an official email or profile.
-4. is_phd / is_cpa — only true if literally shown on the source page. Otherwise false. Explain in "notes".
-5. confidence: "high" = name + title + (email OR official profile URL) on an official accounting/business-school faculty page; "medium" = official source but missing email AND profile URL (do NOT emit per rule 2); "low" = weak/ambiguous (do NOT emit).
-6. Return AT MOST 40 people. Include every accounting-teaching adjunct, instructor, lecturer, and professor (any rank) that meets rules 1–5. Do not artificially cap to "top names" — completeness across all ranks matters.
-
-================== TEACHING ENRICHMENT (OPTIONAL) ==================
-For each professor, OPTIONALLY add teaching assignment if you can confirm it
-from public pages (faculty profile, accounting dept page, registrar class
-search, public syllabi):
-- "intro_1"        — Intro / Principles of Financial Accounting
-- "intro_2"        — Intro / Principles of Managerial Accounting
-- "intermediate_1" — Intermediate Accounting I
-- "intermediate_2" — Intermediate Accounting II
-
-Rules: If unsure, leave the four booleans false and explain in
-"teaching_evidence_notes". Set "teaching_evidence_url" to the public page.
-"courses_found" is an array of courses actually seen on a public page.
-
-Respond with ONLY a single JSON object (no prose, no markdown fences) in EXACTLY this shape:
+const RESPONSE_SHAPE = `Respond with ONLY a single JSON object (no prose, no markdown fences) in EXACTLY this shape:
 
 {
   "suggestions": [
@@ -195,6 +86,107 @@ Respond with ONLY a single JSON object (no prose, no markdown fences) in EXACTLY
     }
   ]
 }`;
+
+const HARD_RULES = `================== HARD RULES ==================
+1. EVERY row MUST be supported by "source_url" — an official URL you actually opened. No source ⇒ DO NOT emit the row.
+2. EVERY row MUST have at least one of: (a) a real "email" printed on the source page (NEVER invent or pattern-guess), OR (b) an official faculty profile URL in "source_url". If neither, DO NOT emit the row.
+3. NEVER emit a row whose ONLY evidence is a course-schedule instructor name.
+4. is_phd / is_cpa — only true if literally shown on the source page.
+5. NO LinkedIn, NO RateMyProfessors, NO Wikipedia, NO social media as a source.
+6. Exclude finance, economics, statistics, marketing, management, IS, supply-chain, or any other non-accounting faculty.`;
+
+function buildPromptFaculty(campus: Record<string, any>, forceUrls: string[] = []) {
+  const { name, state, dept, site, domain } = commonContext(campus);
+  const forceBlock = forceUrls.length
+    ? `\n\nMANDATORY URLS — open ALL of these before searching:\n${forceUrls.map((u) => `- ${u}`).join("\n")}\n`
+    : "";
+  return `PASS 1 of 2 — TENURE-TRACK / SENIOR ACCOUNTING FACULTY ONLY at "${name}"${state ? `, ${state}` : ""}, USA.
+
+Known context:
+- Department name: ${dept || "unknown"}
+- Website: ${site || "unknown"}
+- Email domain: ${domain || "unknown"}${forceBlock}
+
+Use Google Search to open the official accounting / school of accountancy / business school faculty page. NEVER guess. A careful blank beats a confident fabrication.
+
+INCLUDE only these titles:
+- Full / Associate / Assistant Professor of Accounting (any rank, tenure-track or tenured)
+- Clinical Professor / Clinical Assistant or Associate Professor (accounting)
+- Professor of Practice / Practitioner Faculty / Executive in Residence (accounting)
+- Accounting department chair / school of accountancy director
+- Beta Alpha Psi faculty advisor (only if explicitly listed as BAP advisor)
+
+DO NOT INCLUDE in this pass (Pass 2 will handle them):
+- Instructors, Lecturers, Adjuncts, Visiting faculty, Teaching Professors, Post-docs
+- These are covered by Pass 2, so leaving them out here is correct.
+
+lead_type mapping:
+- "professor"   — teaching faculty above
+- "admin_staff" — chair / director / accounting advisor
+- "bap_advisor" — Beta Alpha Psi accounting advisor
+
+${HARD_RULES}
+
+${RESPONSE_SHAPE}`;
+}
+
+function buildPromptInstructors(
+  campus: Record<string, any>,
+  forceUrls: string[] = [],
+  retry = false,
+) {
+  const { name, state, dept, site, domain } = commonContext(campus);
+  const forceBlock = forceUrls.length
+    ? `\n\nMANDATORY URLS — open ALL of these before searching:\n${forceUrls.map((u) => `- ${u}`).join("\n")}\n`
+    : "";
+  const retryBlock = retry
+    ? `\n\n*** YOUR PREVIOUS RESPONSE LISTED ZERO INSTRUCTORS. ***
+The department almost certainly employs instructors, lecturers, or adjuncts who teach the high-enrollment intro courses. Open the staff/instructor tab now (likely "?role=instructor", "?role=staff", "/instructors", or "/adjunct-faculty") and enumerate every person whose title contains Instructor, Lecturer, Adjunct, Clinical, Teaching Professor, Professor of Practice, or Visiting. Then open each individual profile page to confirm email.\n`
+    : "";
+
+  return `PASS 2 of 2 — NON-TENURE-TRACK ACCOUNTING TEACHING STAFF at "${name}"${state ? `, ${state}` : ""}, USA.
+
+Known context:
+- Department name: ${dept || "unknown"}
+- Website: ${site || "unknown"}
+- Email domain: ${domain || "unknown"}${forceBlock}${retryBlock}
+
+Your ONLY job in this pass is to enumerate EVERY person at this accounting department whose title contains ANY of:
+- Instructor / Senior Instructor / Instructional Assistant Professor
+- Lecturer / Senior Lecturer / Principal Lecturer / Teaching Professor
+- Adjunct Professor / Adjunct Instructor / Adjunct Lecturer / Adjunct Faculty
+- Visiting Professor / Visiting Assistant Professor / Visiting Lecturer
+- Clinical Professor / Clinical Assistant or Associate Professor
+- Professor of Practice / Practitioner Faculty / Executive in Residence
+- Post-doctoral teaching fellow (only if teaching accounting)
+
+These people TEACH THE INTRO COURSES — they are the highest-value targets for this campaign. Missing them is the #1 failure of this research run.
+
+CRITICAL — HOW TO FIND THEM:
+Many schools list non-tenure-track faculty on a SEPARATE page, OR on the SAME faculty-and-staff page behind filter tabs / role chips (e.g. "Faculty | Instructor | Staff | Adjunct"). When you see ANY such filter UI, treat each filter value as its own page — they are usually query strings like "?role=instructor", "?type=adjunct", "?category=staff", or fragment anchors like "#instructors". OPEN EACH ONE EXPLICITLY.
+
+Also search for and open these page patterns:
+- "Instructors", "Lecturers", "Teaching Faculty"
+- "Adjunct Faculty", "Adjunct Professors", "Affiliated Faculty"
+- "Non-Tenure-Track Faculty", "Clinical Faculty"
+- Department staff directory pages
+- Individual faculty profile pages linked from the directory (often "/faculty-and-staff/<slug>/", "/profiles/<username>.php") — OPEN THEM to confirm titles and find emails the directory hides.
+
+Concrete example: at the University of Mississippi, https://accountancy.olemiss.edu/about/faculty-and-staff/ has tabs "Faculty | Instructor | Staff". A run that only enumerates the default "Faculty" tab misses Whitney Barton (Instructor in Accountancy, wfbarton@olemiss.edu), Katy Mullinax, Sandi Goodwin, Evelyn Farmer, Grace Herrington, Jennifer Burchfield, and Cere Muscarella entirely. That is unacceptable output. Always enumerate every tab.
+
+EXCLUDE in this pass:
+- Tenure-track Professors / Assoc / Asst Professors of Accounting (Pass 1 already covered them)
+- Anyone whose title is just "Professor of Accounting" without a "Clinical" / "Practice" / "Adjunct" / "Visiting" qualifier
+- Non-accounting faculty of any kind
+- Pure admin/staff with no teaching role
+
+lead_type for every row in this pass: "professor"
+
+${HARD_RULES}
+
+AUDIT YOURSELF BEFORE RESPONDING: if your suggestions array has zero entries whose title contains "Instructor", "Lecturer", "Adjunct", "Clinical", "Practice", or "Visiting", you have failed — search again and open the role/staff tabs explicitly.
+
+${RESPONSE_SHAPE}`;
 }
 
 function extractJson(text: string): any {
@@ -325,10 +317,13 @@ Deno.serve(async (req) => {
   if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Supabase env not configured" }, 500);
 
-  let body: { campus_id?: string; test_mode?: boolean };
+  let body: { campus_id?: string; test_mode?: boolean; force_urls?: string[] };
   try { body = await req.json(); } catch { return json({ error: "invalid JSON body" }, 400); }
   const campus_id = (body.campus_id ?? "").trim();
   const test_mode = body.test_mode === true;
+  const force_urls = Array.isArray(body.force_urls)
+    ? body.force_urls.filter((u) => typeof u === "string" && /^https?:\/\//i.test(u))
+    : [];
   if (!campus_id) return json({ error: "campus_id required" }, 400);
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -341,69 +336,124 @@ Deno.serve(async (req) => {
   if (campusErr) return json({ error: "campus lookup failed", detail: campusErr.message }, 500);
   if (!campus) return json({ error: "campus not found" }, 404);
 
-  let text = "";
-  let finishReason: string | null = null;
-  let usage: any = null;
-  const prompt = buildPrompt(campus);
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Lovable-API-Key": LOVABLE_API_KEY,
-        "Content-Type": "application/json",
-        "X-Lovable-AIG-SDK": "research-campus-leads-clean",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        tools: [{ type: "google_search" }],
-      }),
-    });
-    if (res.status === 429)
-      return json({ success: false, error: "AI is rate-limited, try again in a moment" }, 429);
-    if (res.status === 402)
-      return json({ success: false, error: "Workspace AI credits exhausted" }, 402);
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      return json({ success: false, error: "AI request failed", debug: { http_status: res.status, http_body: detail.slice(0, 2000) } }, 502);
+  // --- Two-pass enumeration (single-pass missed instructor tabs ~50% of runs) ---
+  type PassResult = {
+    label: string;
+    text: string;
+    finishReason: string | null;
+    usage: any;
+    parsed: any;
+    parseError?: string;
+  };
+
+  async function callAi(label: string, prompt: string, temperature: number): Promise<PassResult | Response> {
+    try {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Lovable-API-Key": LOVABLE_API_KEY,
+          "Content-Type": "application/json",
+          "X-Lovable-AIG-SDK": "research-campus-leads-clean",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [{ role: "user", content: prompt }],
+          tools: [{ type: "google_search" }],
+          temperature,
+        }),
+      });
+      if (res.status === 429)
+        return json({ success: false, error: `AI is rate-limited on ${label}, try again in a moment` }, 429);
+      if (res.status === 402)
+        return json({ success: false, error: "Workspace AI credits exhausted" }, 402);
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        return json({ success: false, error: `AI request failed on ${label}`, debug: { http_status: res.status, http_body: detail.slice(0, 2000) } }, 502);
+      }
+      const j = await res.json();
+      const choice = j?.choices?.[0];
+      const text = choice?.message?.content ?? "";
+      const finishReason = choice?.finish_reason ?? null;
+      const usage = j?.usage ?? null;
+      if (!text.trim()) {
+        return { label, text: "", finishReason, usage, parsed: { suggestions: [] }, parseError: `Empty response (finish_reason=${finishReason})` };
+      }
+      try {
+        const parsed = extractJson(text);
+        return { label, text, finishReason, usage, parsed };
+      } catch (e) {
+        return { label, text, finishReason, usage, parsed: { suggestions: [] }, parseError: String((e as Error)?.message ?? e) };
+      }
+    } catch (e) {
+      return json({ success: false, error: `AI call failed on ${label}`, detail: String((e as Error)?.message ?? e) }, 500);
     }
-    const j = await res.json();
-    const choice = j?.choices?.[0];
-    text = choice?.message?.content ?? "";
-    finishReason = choice?.finish_reason ?? null;
-    usage = j?.usage ?? null;
-    if (!text.trim()) {
-      return json({ success: false, error: `Empty AI response (finish_reason=${finishReason ?? "unknown"})`, debug: { finish_reason: finishReason, usage } }, 502);
-    }
-  } catch (e) {
-    return json({ success: false, error: "AI call failed", detail: String((e as Error)?.message ?? e) }, 500);
   }
 
-  let parsed: any;
-  try { parsed = extractJson(text); }
-  catch (e) {
-    return json({ success: false, error: "AI returned malformed JSON", detail: String((e as Error)?.message ?? e), debug: { raw_text: text.slice(0, 30000) } }, 502);
+  const promptFaculty = buildPromptFaculty(campus, force_urls);
+  const promptInstructors = buildPromptInstructors(campus, force_urls, false);
+
+  // Run both passes in parallel — independent prompts, independent search budgets.
+  const [pass1, pass2] = await Promise.all([
+    callAi("pass1_faculty", promptFaculty, 0.2),
+    callAi("pass2_instructors", promptInstructors, 0),
+  ]);
+  if (pass1 instanceof Response) return pass1;
+  if (pass2 instanceof Response) return pass2;
+
+  // Audit Pass 2: if it returned zero instructor-titled rows, retry once with stronger prompt.
+  const INSTRUCTOR_TITLE_RE = /instructor|lecturer|adjunct|clinical|practice|visiting/i;
+  const pass2HasInstructor = Array.isArray(pass2.parsed?.suggestions) &&
+    pass2.parsed.suggestions.some((s: any) => typeof s?.title === "string" && INSTRUCTOR_TITLE_RE.test(s.title));
+  let pass2Retry: PassResult | null = null;
+  if (!pass2HasInstructor) {
+    const retryRes = await callAi("pass2_retry", buildPromptInstructors(campus, force_urls, true), 0);
+    if (retryRes instanceof Response) return retryRes;
+    pass2Retry = retryRes;
   }
 
-  const { rows: cleaned, rejected } = sanitize(parsed);
-  const rawCount = Array.isArray(parsed?.suggestions) ? parsed.suggestions.length : 0;
+  // Merge all suggestions, dedupe by email/name before sanitize so we don't double-sanitize.
+  const mergedRaw: any[] = [];
+  const seenMergeKey = new Set<string>();
+  for (const pr of [pass1, pass2, pass2Retry].filter(Boolean) as PassResult[]) {
+    const arr = Array.isArray(pr.parsed?.suggestions) ? pr.parsed.suggestions : [];
+    for (const s of arr) {
+      const k = ((s?.email && String(s.email).toLowerCase()) ||
+        `${(s?.first_name ?? "").toLowerCase()}|${(s?.last_name ?? "").toLowerCase()}`).trim();
+      if (!k || k === "|") continue;
+      if (seenMergeKey.has(k)) continue;
+      seenMergeKey.add(k);
+      mergedRaw.push(s);
+    }
+  }
+  const mergedParsed = { suggestions: mergedRaw };
+
+  const { rows: cleaned, rejected } = sanitize(mergedParsed);
+  const rawCount = mergedRaw.length;
   const debug = {
     model: MODEL,
     research_mode: RESEARCH_MODE,
     research_label: test_mode ? `Clean Professor Test — ${campus.name}` : RESEARCH_LABEL,
-    finish_reason: finishReason,
-    usage,
+    two_pass: true,
+    pass1: { raw: pass1.parsed?.suggestions?.length ?? 0, finish_reason: pass1.finishReason, usage: pass1.usage, parse_error: pass1.parseError },
+    pass2: { raw: pass2.parsed?.suggestions?.length ?? 0, finish_reason: pass2.finishReason, usage: pass2.usage, parse_error: pass2.parseError, retry_triggered: !!pass2Retry },
+    pass2_retry: pass2Retry
+      ? { raw: pass2Retry.parsed?.suggestions?.length ?? 0, finish_reason: pass2Retry.finishReason, usage: pass2Retry.usage, parse_error: pass2Retry.parseError }
+      : null,
+    force_urls,
     raw_suggestion_count: rawCount,
     parsed_lead_count: cleaned.length,
     rejected_count: rejected.length,
     rejected_samples: rejected.slice(0, 20),
     test_mode,
-    prompt_preview: prompt.slice(0, 4000),
-    raw_response_preview: text.slice(0, 8000),
-    accepted_preview: cleaned.slice(0, 30),
-    parsed_suggestions: test_mode ? parsed?.suggestions ?? [] : undefined,
+    prompt_preview: `=== PASS 1 (faculty) ===\n${promptFaculty.slice(0, 2000)}\n\n=== PASS 2 (instructors) ===\n${promptInstructors.slice(0, 2000)}`,
+    raw_response_preview:
+      `=== PASS 1 ===\n${pass1.text.slice(0, 4000)}\n\n=== PASS 2 ===\n${pass2.text.slice(0, 4000)}` +
+      (pass2Retry ? `\n\n=== PASS 2 RETRY ===\n${pass2Retry.text.slice(0, 4000)}` : ""),
+    accepted_preview: cleaned.slice(0, 60),
+    parsed_suggestions: test_mode ? mergedRaw : undefined,
   };
-  console.log("[research-campus-leads-clean]", { campus_id, test_mode, parsed: cleaned.length, rejected: rejected.length });
+  console.log("[research-campus-leads-clean]", { campus_id, test_mode, pass1: pass1.parsed?.suggestions?.length ?? 0, pass2: pass2.parsed?.suggestions?.length ?? 0, retry: !!pass2Retry, parsed: cleaned.length, rejected: rejected.length });
+
 
   // Tag test runs with a distinct label so they're easy to find / archive.
   const labelForRun = test_mode
