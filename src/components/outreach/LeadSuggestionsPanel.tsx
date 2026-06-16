@@ -347,7 +347,15 @@ export default function LeadSuggestionsPanel({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={researchModeFilter} onValueChange={(v) => setResearchModeFilter(v as any)}>
+            <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Research mode: All</SelectItem>
+              <SelectItem value="clean_professor_only">Clean Professor Run</SelectItem>
+              <SelectItem value="broad">Broad AI Run 1</SelectItem>
+            </SelectContent>
+          </Select>
           <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground rounded-md border px-2 h-8 cursor-pointer select-none">
             <input
               type="checkbox"
