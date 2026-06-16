@@ -105,13 +105,16 @@ export async function archiveAllLeads(): Promise<{
   suggestions_archived: number;
   campaign_leads_removed: number;
 }> {
-  // 1) Archive every outreach_lead not already archived
-  const { data: leadIds } = await supabase
+  // 1) Archive every outreach_lead not already archived.
+  //    Use head:true + count:'exact' so we get the true count — the default
+  //    PostgREST SELECT caps at 1000 rows, which previously made the toast
+  //    under-report when there were thousands of leads. The UPDATE itself
+  //    is not row-limited, but the count was.
+  const { count: leadCount } = await supabase
     .from("outreach_leads")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .neq("status", "archived");
-  const leadCount = leadIds?.length ?? 0;
-  if (leadCount > 0) {
+  if ((leadCount ?? 0) > 0) {
     const { error } = await supabase
       .from("outreach_leads")
       .update({
@@ -124,12 +127,11 @@ export async function archiveAllLeads(): Promise<{
   }
 
   // 2) Archive every campus_lead_suggestion still in flight
-  const { data: sugIds } = await supabase
+  const { count: sugCount } = await supabase
     .from("campus_lead_suggestions")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .is("archived_at", null);
-  const sugCount = sugIds?.length ?? 0;
-  if (sugCount > 0) {
+  if ((sugCount ?? 0) > 0) {
     const { error } = await supabase
       .from("campus_lead_suggestions")
       .update({
@@ -151,11 +153,11 @@ export async function archiveAllLeads(): Promise<{
     .map((c: { id: string }) => c.id);
   let removed = 0;
   if (liveIds.length > 0) {
-    const { data: cls } = await supabase
+    const { count: clCount } = await supabase
       .from("outreach_campaign_leads")
-      .select("id")
+      .select("id", { count: "exact", head: true })
       .in("campaign_id", liveIds);
-    removed = cls?.length ?? 0;
+    removed = clCount ?? 0;
     if (removed > 0) {
       const { error } = await supabase
         .from("outreach_campaign_leads")
@@ -166,8 +168,8 @@ export async function archiveAllLeads(): Promise<{
   }
 
   return {
-    outreach_leads_archived: leadCount,
-    suggestions_archived: sugCount,
+    outreach_leads_archived: leadCount ?? 0,
+    suggestions_archived: sugCount ?? 0,
     campaign_leads_removed: removed,
   };
 }
