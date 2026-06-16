@@ -3687,6 +3687,48 @@ export type Database = {
           },
         ]
       }
+      supported_textbook_families: {
+        Row: {
+          active: boolean
+          author_keywords: string[]
+          course_family: string
+          created_at: string
+          edition_sensitive: boolean
+          id: string
+          label: string
+          notes: string | null
+          publisher_keywords: string[]
+          title_keywords: string[]
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          author_keywords?: string[]
+          course_family: string
+          created_at?: string
+          edition_sensitive?: boolean
+          id?: string
+          label: string
+          notes?: string | null
+          publisher_keywords?: string[]
+          title_keywords?: string[]
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          author_keywords?: string[]
+          course_family?: string
+          created_at?: string
+          edition_sensitive?: boolean
+          id?: string
+          label?: string
+          notes?: string | null
+          publisher_keywords?: string[]
+          title_keywords?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       teaching_asset_ceq_flags: {
         Row: {
           is_core: boolean | null

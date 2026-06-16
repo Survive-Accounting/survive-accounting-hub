@@ -242,7 +242,7 @@ export function LeadFilterBar({
 
       <label
         className="flex items-center gap-2 text-xs text-muted-foreground rounded-md border px-3 h-8 cursor-help"
-        title="Restricts to campuses where AI research found a confirmed adopted textbook (ISBN13) for at least one of the four course families. Today only a handful of campuses have textbook ISBNs stored — so this filter shrinks the list aggressively. It does NOT check whether a specific lead teaches a course that uses your supported textbooks."
+        title="Restricts to campuses where the AI-detected Intro 1 or Intro 2 textbook matches a row in supported_textbook_families (publisher/title/author keywords, edition-insensitive). Campuses with no textbook research are excluded as 'unknown', not unmatched."
       >
         <Switch checked={value.textbookMatchOnly}
           onCheckedChange={(v) => patch({ textbookMatchOnly: !!v })} />

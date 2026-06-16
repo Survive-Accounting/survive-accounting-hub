@@ -1,7 +1,7 @@
 // Collapsible "Analyze Campus Leads" panel: filter bar + stat tiles.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, ChevronDown, Settings, Download, Info, FileSearch } from "lucide-react";
+import { BarChart3, ChevronDown, Settings, Download, Info, FileSearch, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { fetchCampusLeadStats } from "@/lib/outreach-api";
 import { CampusLeadsReportModal } from "./CampusLeadsReportModal";
+import { TextbookMatchAuditModal } from "./TextbookMatchAuditModal";
 import {
   LeadFilterBar,
   useLeadFilters,
@@ -39,6 +40,7 @@ export function CampusLeadsStatsPanel({
 
   const { filters, setFilters, reset } = useLeadFilters();
   const [reportOpen, setReportOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const statsQ = useQuery({
     queryKey: ["campus-lead-stats", filters, campuses.length],
@@ -80,6 +82,10 @@ export function CampusLeadsStatsPanel({
               <span className="hidden sm:inline">View detailed report</span>
             </Button>
           )}
+          <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={() => setAuditOpen(true)}>
+            <BookOpen className="h-4 w-4" />
+            <span className="hidden sm:inline">Textbook Match Audit</span>
+          </Button>
           <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={onOpenSettings}>
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">AI Research Settings</span>
@@ -259,6 +265,11 @@ export function CampusLeadsStatsPanel({
         filters={filters}
         campuses={campuses}
         onSelectCampus={(id) => setFilters({ ...filters, campusIds: [id] })}
+      />
+      <TextbookMatchAuditModal
+        open={auditOpen}
+        onOpenChange={setAuditOpen}
+        campuses={campuses}
       />
     </Collapsible>
   );

@@ -9,6 +9,11 @@ import type {
   TemplateKind,
   TemplateVariant,
 } from "@/lib/outreach-mock";
+import {
+  getSupportedTextbookFamilies,
+  campusHasSupportedTextbook,
+  type SupportedTextbookFamily,
+} from "@/lib/textbook-matcher";
 
 const APPROVAL_VALUES: ApprovalStatus[] = ["not_reviewed", "needs_review", "approved", "needs_fix"];
 const ASSIGNMENT_VALUES: AssignmentStatus[] = ["not_assigned", "assigned", "in_progress", "approved", "blocked"];
@@ -1559,7 +1564,7 @@ export async function fetchCampusLeadStats(
   filters: LeadFilters,
   campuses: Campus[],
 ): Promise<CampusLeadStats> {
-  const [leads, sections, imported] = await Promise.all([
+  const [leads, sections, imported, supportedFamilies] = await Promise.all([
     fetchAllRows<RawLeadRow>(
       "campus_lead_suggestions",
       "id,campus_id,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,created_at",
@@ -1573,8 +1578,9 @@ export async function fetchCampusLeadStats(
       "outreach_leads",
       "id,campus_id,school_id,created_at",
     ),
+    getSupportedTextbookFamilies(),
   ]);
-  return aggregateCampusLeadStats({ leads, sections, imported, filters, campuses });
+  return aggregateCampusLeadStats({ leads, sections, imported, filters, campuses, supportedFamilies });
 }
 
 function aggregateCampusLeadStats(args: {
@@ -1583,22 +1589,17 @@ function aggregateCampusLeadStats(args: {
   imported: RawImportedLeadRow[];
   filters: LeadFilters;
   campuses: Campus[];
+  supportedFamilies: SupportedTextbookFamily[];
 }): CampusLeadStats {
-  const { leads, sections, imported, filters, campuses } = args;
+  const { leads, sections, imported, filters, campuses, supportedFamilies } = args;
   const campusSet = filters.campusIds.length ? new Set(filters.campusIds) : null;
   const campusById = new Map(campuses.map((c) => [c.id, c]));
 
-  // Campuses that satisfy the textbook-match filter.
+  // Campuses that satisfy the textbook-match filter — uses supported_textbook_families.
   const textbookCampusIds = filters.textbookMatchOnly
     ? new Set(
         campuses
-          .filter((c) => {
-            const tb = c.course_family_textbooks_json;
-            if (!tb || typeof tb !== "object") return false;
-            return Object.values(tb).some(
-              (v) => v && typeof v === "object" && (v as any).isbn13,
-            );
-          })
+          .filter((c) => campusHasSupportedTextbook(c, supportedFamilies, ["intro_1", "intro_2"]))
           .map((c) => c.id),
       )
     : null;
@@ -1802,7 +1803,7 @@ export async function fetchCampusLeadReport(
   filters: LeadFilters,
   campuses: Campus[],
 ): Promise<CampusLeadReport> {
-  const [leads, sections, imported] = await Promise.all([
+  const [leads, sections, imported, supportedFamilies] = await Promise.all([
     fetchAllRows<RawLeadFullRow>(
       "campus_lead_suggestions",
       "id,campus_id,first_name,last_name,title,email,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,source_url,created_at",
@@ -1816,6 +1817,7 @@ export async function fetchCampusLeadReport(
       "outreach_leads",
       "id,campus_id,school_id,created_at",
     ),
+    getSupportedTextbookFamilies(),
   ]);
 
   const campusById = new Map(campuses.map((c) => [c.id, c]));
@@ -1824,13 +1826,7 @@ export async function fetchCampusLeadReport(
   const textbookCampusIds = filters.textbookMatchOnly
     ? new Set(
         campuses
-          .filter((c) => {
-            const tb = c.course_family_textbooks_json;
-            if (!tb || typeof tb !== "object") return false;
-            return Object.values(tb).some(
-              (v) => v && typeof v === "object" && (v as any).isbn13,
-            );
-          })
+          .filter((c) => campusHasSupportedTextbook(c, supportedFamilies, ["intro_1", "intro_2"]))
           .map((c) => c.id),
       )
     : null;
@@ -1899,10 +1895,7 @@ export async function fetchCampusLeadReport(
 
   const campusesOut: CampusReportRow[] = [...campusIds].map((cid) => {
     const c = campusById.get(cid);
-    const tb = c?.course_family_textbooks_json;
-    const hasIsbn = !!tb && typeof tb === "object" && Object.values(tb).some(
-      (v) => v && typeof v === "object" && (v as any).isbn13,
-    );
+    const hasSupportedTextbook = !!c && campusHasSupportedTextbook(c, supportedFamilies, ["intro_1", "intro_2"]);
     return {
       campus_id: cid,
       name: c?.school_name ?? "Unknown campus",
@@ -1910,7 +1903,7 @@ export async function fetchCampusLeadReport(
       suggestedLeadCount: perCampusLeads.get(cid) ?? 0,
       importedLeadCount: importedByCampus.get(cid) ?? 0,
       sectionCount: perCampusSections.get(cid) ?? 0,
-      hasTextbookIsbn: hasIsbn,
+      hasTextbookIsbn: hasSupportedTextbook,
       lastResearchedAt: perCampusLastResearched.get(cid) ?? null,
     };
   }).sort((a, b) => b.suggestedLeadCount - a.suggestedLeadCount);
@@ -2066,16 +2059,17 @@ export async function previewCampaignAudience(
   // textbook json column up-front.
   let textbookCampusIds: Set<string> | null = null;
   if (filters.textbookMatchOnly) {
-    const { data: tb, error: tbErr } = await supabase
-      .from("campuses")
-      .select("id,course_family_textbooks_json");
+    const [{ data: tb, error: tbErr }, supportedFamilies] = await Promise.all([
+      supabase.from("campuses").select("id,course_family_textbooks_json"),
+      getSupportedTextbookFamilies(),
+    ]);
     if (tbErr) throw tbErr;
     textbookCampusIds = new Set(
       ((tb ?? []) as Array<{ id: string; course_family_textbooks_json: unknown }>)
         .filter((c) => {
-          const j = c.course_family_textbooks_json;
-          return j && typeof j === "object" && Object.values(j as Record<string, unknown>)
-            .some((v) => v && typeof v === "object" && (v as any).isbn13);
+          // Reuse the supported-family matcher: campus passes if Intro 1 OR Intro 2 maps to a supported family.
+          const fake = { id: c.id, course_family_textbooks_json: c.course_family_textbooks_json } as unknown as Campus;
+          return campusHasSupportedTextbook(fake, supportedFamilies, ["intro_1", "intro_2"]);
         })
         .map((c) => c.id),
     );
