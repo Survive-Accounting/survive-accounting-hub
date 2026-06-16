@@ -307,7 +307,9 @@ async function processUrls(
         perPage.push({ url, found: 0, error: "empty content" });
         continue;
       }
-      const people = await callLovableAi(aiKey, url, md);
+      const parsedPeople = extractDirectoryMarkdownPeople(md);
+      const aiPeople = await callLovableAi(aiKey, url, md);
+      const people = await enrichProfileEmails(fcKey, mergePeople(parsedPeople, aiPeople), url);
       perPage.push({ url, found: people.length, error: null });
       for (const p of people) {
         if (!p.email && !p.profile_url) continue;
@@ -412,6 +414,15 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       const u = d.startsWith("http") ? d : `https://${d}`;
       if (!seeds.includes(u)) seeds.push(u);
     }
+    const derivedAccountancySeeds = seeds.flatMap((seed) => {
+      try {
+        const parsed = new URL(seed);
+        const host = parsed.hostname.replace(/^www\./, "");
+        if (host.includes("accountancy.")) return [];
+        return [`${parsed.protocol}//accountancy.${host}/`];
+      } catch { return []; }
+    });
+    for (const seed of derivedAccountancySeeds) if (!seeds.includes(seed)) seeds.unshift(seed);
     if (seeds.length === 0) {
       throw new Error("No website_url, accounting_department_url, or domains on this campus. Add one or use 'Scrape faculty' with explicit URLs.");
     }
@@ -429,7 +440,7 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       // 1) Site-scoped search — usually the highest-signal result.
       if (host) {
         try {
-          const found = await firecrawlSearch(fcKey, `site:${host} accounting faculty directory`);
+          const found = await firecrawlSearch(fcKey, `site:${host} accountancy faculty staff`);
           allLinks.push(...found);
         } catch (e) {
           discoveryErrors.push(`search ${host}: ${e instanceof Error ? e.message : String(e)}`);
@@ -437,7 +448,7 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       }
       // 2) Map the seed — picks up internal links the search engine missed.
       try {
-        const links = await firecrawlMap(fcKey, seed, "faculty accounting directory");
+        const links = await firecrawlMap(fcKey, seed, "faculty staff");
         allLinks.push(...links);
       } catch (e) {
         discoveryErrors.push(`map ${seed}: ${e instanceof Error ? e.message : String(e)}`);
