@@ -1396,3 +1396,290 @@ export async function submitCourseWaitlist(input: CourseWaitlistInput): Promise<
   if (error) throw error;
 }
 
+
+// ============================================================
+// Campus Lead Stats — powers <CampusLeadsStatsPanel />
+// Aggregates client-side for now; volumes are small (~10k each).
+// Keep server-translatable: pure functions + paginated reads.
+// ============================================================
+
+import type {
+  LeadFilters,
+  CourseFamilyKey,
+  SeasonKey,
+} from "@/components/outreach/filters/LeadFilterBar";
+import {
+  ALL_FAMILIES,
+  ALL_SEASONS,
+  termToSeason,
+} from "@/components/outreach/filters/LeadFilterBar";
+import type { Campus } from "@/lib/outreach-mock";
+
+const STATS_PAGE = 1000;
+const HIGH_CONFIDENCE = 0.8;
+
+interface RawLeadRow {
+  id: string;
+  campus_id: string;
+  confidence: number | null;
+  is_phd: boolean;
+  is_cpa: boolean;
+  status: string | null;
+  teaches_intro_1: boolean;
+  teaches_intro_2: boolean;
+  teaches_intermediate_1: boolean;
+  teaches_intermediate_2: boolean;
+  created_at: string;
+}
+
+interface RawSectionRow {
+  id: string;
+  campus_id: string;
+  course_family: string | null;
+  term: string | null;
+  created_at: string;
+}
+
+interface RawImportedLeadRow {
+  id: string;
+  campus_id: string | null;
+  school_id: string | null;
+  created_at: string;
+}
+
+async function fetchAllRows<T>(table: string, columns: string): Promise<T[]> {
+  const out: T[] = [];
+  let from = 0;
+  for (let i = 0; i < 50; i++) {
+    const { data, error } = await supabase
+      .from(table as never)
+      .select(columns)
+      .range(from, from + STATS_PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as T[];
+    out.push(...rows);
+    if (rows.length < STATS_PAGE) break;
+    from += STATS_PAGE;
+  }
+  return out;
+}
+
+export interface CampusLeadStats {
+  suggestedLeadCount: number;
+  importedLeadCount: number;
+  highConfidenceLeadCount: number;
+  campusCount: number;
+  sectionCount: number;
+  intro1InstructorCount: number;
+  intro2InstructorCount: number;
+  ia1InstructorCount: number;
+  ia2InstructorCount: number;
+  cpaCount: number;
+  phdCount: number;
+  newLeadCount24h: number;
+  topCampusesByLeadCount: Array<{ campus_id: string; name: string; count: number }>;
+  seasonCounts: Record<SeasonKey, number>;
+  courseFamilyCounts: Record<CourseFamilyKey, { all: number; high: number }>;
+  avgSectionsPerCampus: number;
+  coveragePct: number;
+  totalCampusCount: number;
+}
+
+export interface LeadFilterOptions {
+  availableSeasons: SeasonKey[];
+  availableTerms: string[];
+}
+
+/** Distinct terms / available seasons across all sections. */
+export async function fetchAvailableLeadFilterOptions(): Promise<LeadFilterOptions> {
+  const { data, error } = await supabase
+    .from("campus_course_sections" as never)
+    .select("term")
+    .not("term", "is", null)
+    .limit(5000);
+  if (error) throw error;
+  const terms = new Set<string>();
+  const seasons = new Set<SeasonKey>();
+  for (const r of (data ?? []) as Array<{ term: string | null }>) {
+    if (!r.term) continue;
+    terms.add(r.term);
+    const s = termToSeason(r.term);
+    if (s) seasons.add(s);
+  }
+  return {
+    availableSeasons: ALL_SEASONS.filter((s) => seasons.has(s)),
+    availableTerms: [...terms].sort(),
+  };
+}
+
+/**
+ * Fetches the three source tables and aggregates against `filters`.
+ * `campuses` is needed for name resolution + textbook-match filter.
+ */
+export async function fetchCampusLeadStats(
+  filters: LeadFilters,
+  campuses: Campus[],
+): Promise<CampusLeadStats> {
+  const [leads, sections, imported] = await Promise.all([
+    fetchAllRows<RawLeadRow>(
+      "campus_lead_suggestions",
+      "id,campus_id,confidence,is_phd,is_cpa,status,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,created_at",
+    ),
+    fetchAllRows<RawSectionRow>(
+      "campus_course_sections",
+      "id,campus_id,course_family,term,created_at",
+    ),
+    fetchAllRows<RawImportedLeadRow>(
+      "outreach_leads",
+      "id,campus_id,school_id,created_at",
+    ),
+  ]);
+  return aggregateCampusLeadStats({ leads, sections, imported, filters, campuses });
+}
+
+function aggregateCampusLeadStats(args: {
+  leads: RawLeadRow[];
+  sections: RawSectionRow[];
+  imported: RawImportedLeadRow[];
+  filters: LeadFilters;
+  campuses: Campus[];
+}): CampusLeadStats {
+  const { leads, sections, imported, filters, campuses } = args;
+  const campusSet = filters.campusIds.length ? new Set(filters.campusIds) : null;
+  const campusById = new Map(campuses.map((c) => [c.id, c]));
+
+  // Campuses that satisfy the textbook-match filter.
+  const textbookCampusIds = filters.textbookMatchOnly
+    ? new Set(
+        campuses
+          .filter((c) => {
+            const tb = c.course_family_textbooks_json;
+            if (!tb || typeof tb !== "object") return false;
+            return Object.values(tb).some(
+              (v) => v && typeof v === "object" && (v as any).isbn13,
+            );
+          })
+          .map((c) => c.id),
+      )
+    : null;
+
+  const familyAllowed = (fam: string | null) => {
+    if (filters.courseFamilies.length === ALL_FAMILIES.length) return true;
+    if (!fam) return false;
+    return (filters.courseFamilies as string[]).includes(fam);
+  };
+  const seasonAllowed = (term: string | null) => {
+    if (filters.seasons.length === ALL_SEASONS.length) return true;
+    const s = termToSeason(term);
+    return s ? filters.seasons.includes(s) : false;
+  };
+  const leadFamilyMatches = (l: RawLeadRow) => {
+    if (filters.courseFamilies.length === ALL_FAMILIES.length) return true;
+    if (filters.courseFamilies.length === 0) return false;
+    return filters.courseFamilies.some((f) => (l as any)[`teaches_${f}`] === true);
+  };
+
+  // Filter suggested leads
+  const fLeads = leads.filter((l) => {
+    if (campusSet && !campusSet.has(l.campus_id)) return false;
+    if (textbookCampusIds && !textbookCampusIds.has(l.campus_id)) return false;
+    if ((l.confidence ?? 0) < filters.minConfidence) return false;
+    if (filters.teachingOnly && !(
+      l.teaches_intro_1 || l.teaches_intro_2 ||
+      l.teaches_intermediate_1 || l.teaches_intermediate_2
+    )) return false;
+    if (!leadFamilyMatches(l)) return false;
+    return true;
+  });
+
+  // Filter sections
+  const fSections = sections.filter((s) => {
+    if (campusSet && !campusSet.has(s.campus_id)) return false;
+    if (textbookCampusIds && !textbookCampusIds.has(s.campus_id)) return false;
+    if (!familyAllowed(s.course_family)) return false;
+    if (!seasonAllowed(s.term)) return false;
+    return true;
+  });
+
+  // Filter imported leads (only campus-scoped filters apply)
+  const fImported = imported.filter((l) => {
+    const cid = l.campus_id ?? l.school_id;
+    if (!cid) return campusSet ? false : true;
+    if (campusSet && !campusSet.has(cid)) return false;
+    if (textbookCampusIds && !textbookCampusIds.has(cid)) return false;
+    return true;
+  });
+
+  const leadCampuses = new Set(fLeads.map((l) => l.campus_id));
+  const sectionCampuses = new Set(fSections.map((s) => s.campus_id));
+  const allCovered = new Set<string>([...leadCampuses, ...sectionCampuses]);
+
+  const courseFamilyCounts: Record<CourseFamilyKey, { all: number; high: number }> = {
+    intro_1: { all: 0, high: 0 },
+    intro_2: { all: 0, high: 0 },
+    intermediate_1: { all: 0, high: 0 },
+    intermediate_2: { all: 0, high: 0 },
+  };
+  let phdCount = 0, cpaCount = 0, highConfidenceLeadCount = 0;
+  for (const l of fLeads) {
+    const isHigh = (l.confidence ?? 0) >= HIGH_CONFIDENCE;
+    if (isHigh) highConfidenceLeadCount++;
+    if (l.is_phd) phdCount++;
+    if (l.is_cpa) cpaCount++;
+    for (const f of ALL_FAMILIES) {
+      if ((l as any)[`teaches_${f}`]) {
+        courseFamilyCounts[f].all++;
+        if (isHigh) courseFamilyCounts[f].high++;
+      }
+    }
+  }
+
+  const seasonCounts: Record<SeasonKey, number> =
+    { fall: 0, spring: 0, summer: 0, winter: 0 };
+  for (const s of fSections) {
+    const sk = termToSeason(s.term);
+    if (sk) seasonCounts[sk]++;
+  }
+
+  const perCampus = new Map<string, number>();
+  for (const l of fLeads) perCampus.set(l.campus_id, (perCampus.get(l.campus_id) ?? 0) + 1);
+  const topCampusesByLeadCount = [...perCampus.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([campus_id, count]) => ({
+      campus_id,
+      name: campusById.get(campus_id)?.school_name ?? "Unknown campus",
+      count,
+    }));
+
+  const now = Date.now();
+  const newLeadCount24h = fLeads.filter(
+    (l) => now - new Date(l.created_at).getTime() < 86_400_000,
+  ).length;
+
+  const totalCampusCount = campuses.length;
+  return {
+    suggestedLeadCount: fLeads.length,
+    importedLeadCount: fImported.length,
+    highConfidenceLeadCount,
+    campusCount: leadCampuses.size,
+    sectionCount: fSections.length,
+    intro1InstructorCount: courseFamilyCounts.intro_1.all,
+    intro2InstructorCount: courseFamilyCounts.intro_2.all,
+    ia1InstructorCount: courseFamilyCounts.intermediate_1.all,
+    ia2InstructorCount: courseFamilyCounts.intermediate_2.all,
+    cpaCount,
+    phdCount,
+    newLeadCount24h,
+    topCampusesByLeadCount,
+    seasonCounts,
+    courseFamilyCounts,
+    avgSectionsPerCampus: sectionCampuses.size
+      ? Math.round(fSections.length / sectionCampuses.size)
+      : 0,
+    coveragePct: totalCampusCount
+      ? Math.round((allCovered.size / totalCampusCount) * 100)
+      : 0,
+    totalCampusCount,
+  };
+}
