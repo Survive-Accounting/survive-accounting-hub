@@ -130,7 +130,21 @@ function extractJson(text: string): any {
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) throw new Error("no JSON object in model output");
-  return JSON.parse(cleaned.slice(start, end + 1));
+  const slice = cleaned.slice(start, end + 1);
+  try {
+    return JSON.parse(slice);
+  } catch (e1) {
+    // Common model failure: bad escape sequences inside strings (e.g. "\Users", "\d").
+    // Replace any backslash not followed by a valid JSON escape char with a literal "\\".
+    const fixed = slice.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+    try {
+      return JSON.parse(fixed);
+    } catch (e2) {
+      // Last resort: also strip raw control chars inside the string.
+      const stripped = fixed.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+      return JSON.parse(stripped);
+    }
+  }
 }
 
 function str(v: any): string | null {
