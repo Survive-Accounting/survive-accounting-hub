@@ -218,7 +218,8 @@ Deno.serve(async (req) => {
     .eq("status", "pending");
 
   // Process in parallel
-  const results = await Promise.allSettled(items.map((i) => processItem(db, i)));
+  const researchMode = (job.research_mode as string | null) ?? "broad";
+  const results = await Promise.allSettled(items.map((i) => processItem(db, i, researchMode)));
 
   // Update parent job counts
   const { count: doneCount } = await db
