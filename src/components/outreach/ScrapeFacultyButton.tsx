@@ -112,14 +112,18 @@ export function ScrapeFacultyButton({
   return (
     <>
       <div className="flex gap-2">
-        <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
-          {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-          {discovering ? "Discovering…" : "Auto-discover faculty"}
-        </Button>
-        <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
-          <Globe className="h-3.5 w-3.5" />
-          Scrape URLs
-        </Button>
+        {!hideAutoDiscover && (
+          <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
+            {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            {discovering ? "Discovering…" : "Auto-discover faculty"}
+          </Button>
+        )}
+        {!hideScrapeUrls && (
+          <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
+            <Globe className="h-3.5 w-3.5" />
+            Scrape URLs
+          </Button>
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={(v) => { if (!busy) setOpen(v); }}>
