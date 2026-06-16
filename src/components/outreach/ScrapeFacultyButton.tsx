@@ -81,9 +81,20 @@ export function ScrapeFacultyButton({
         setUrls(result.chosenUrls.join("\n"));
       }
       const errs = result.perPage.filter((p) => p.error);
-      toast.success(
-        `Auto-discover: mapped ${result.discovered} links, scraped ${result.scraped} faculty pages, added ${result.inserted} candidates${result.skippedDuplicates ? ` (skipped ${result.skippedDuplicates} dupes)` : ""}${errs.length ? `, ${errs.length} page error(s)` : ""}.`,
-      );
+      const summary = `Firecrawl mapped ${result.discovered} links → scraped ${result.scraped} faculty pages → added ${result.inserted} candidates${result.skippedDuplicates ? ` (skipped ${result.skippedDuplicates} dupes)` : ""}${errs.length ? `, ${errs.length} page error(s)` : ""}.`;
+      if (result.inserted === 0) {
+        toast.warning(summary, {
+          description: result.chosenUrls.length > 0
+            ? `Pages tried:\n${result.chosenUrls.join("\n")}`
+            : "No usable faculty pages found. Try 'Scrape URLs' with a hand-picked URL.",
+          duration: 15000,
+        });
+      } else {
+        toast.success(summary, {
+          description: `Pages: ${result.chosenUrls.slice(0, 3).join(", ")}${result.chosenUrls.length > 3 ? "…" : ""}`,
+          duration: 10000,
+        });
+      }
       onScraped?.();
     } catch (e) {
       toast.error(`Auto-discover failed: ${e instanceof Error ? e.message : "unknown error"}`);
