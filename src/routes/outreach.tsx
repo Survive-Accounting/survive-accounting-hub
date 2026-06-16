@@ -183,6 +183,12 @@ function OutreachPage() {
         </Tabs>
       </div>
 
+      <BatchResearchSettingsModal
+        open={batchSettingsOpen}
+        onOpenChange={setBatchSettingsOpen}
+        campuses={campuses}
+      />
+
       <ImportLeadsDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
