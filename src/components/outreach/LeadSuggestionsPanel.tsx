@@ -4,7 +4,7 @@
 // importLeads() path, preserving dedupe / scheduled_send_at / landing_token.
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Sparkles, Star, Upload, ExternalLink, BookOpen } from "lucide-react";
+import { Loader2, Sparkles, Star, Upload, ExternalLink, BookOpen, Archive } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
