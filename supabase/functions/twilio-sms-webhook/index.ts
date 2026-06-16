@@ -36,7 +36,8 @@ const TESTER_PHONES = new Set(
     .filter(Boolean),
 );
 
-const QUESTIONS_BODY =
+// Fallback copy used only if a template row is missing in the DB.
+const FALLBACK_OPENER =
   "Hey! This is Lee's automated assistant.\n\n" +
   "Before meeting with students, Lee likes to learn a little about where they're getting stuck.\n\n" +
   "A few quick questions:\n\n" +
@@ -44,15 +45,17 @@ const QUESTIONS_BODY =
   "• When is your next exam?\n" +
   "• What chapters/topics are giving you the most trouble?\n\n" +
   "Reply with your answers and I'll send over Lee's booking link.";
+const FALLBACK_BOOKING =
+  "Thanks!\n\nHere's Lee's booking page:\n\nSurviveAccounting.com/start\n\nHe'll also personally review your answers and follow up when he gets a chance.";
+const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
+const FALLBACK_LEE_NEW =
+  '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-questions sent. Reply to this thread to jump in yourself.';
+const FALLBACK_LEE_FOLLOWUP =
+  '#{ref} {campus}{tester_flag} — "{body}"{facts}\nReply to this thread to text them back.';
 
-const BOOKING_REPLY_BODY =
-  "Thanks!\n\n" +
-  "Here's Lee's booking page:\n\n" +
-  "SurviveAccounting.com/start\n\n" +
-  "He'll also personally review your answers and follow up when he gets a chance.";
-
-const ACK_BODY =
-  "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
+function render(template: string, tokens: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, k) => tokens[k] ?? "");
+}
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -153,6 +156,14 @@ Deno.serve(async (req) => {
     await finalizeRaw("missing_from_or_to", "From or To header missing", null);
     return twiml();
   }
+  // Load editable templates from DB (graceful fallback to baked-in copy).
+  const { data: tplRows } = await admin.from("sms_templates").select("key,body");
+  const tplMap = new Map<string, string>((tplRows ?? []).map((r: any) => [r.key, r.body]));
+  const TPL_OPENER = tplMap.get("opener_questions") || FALLBACK_OPENER;
+  const TPL_BOOKING = tplMap.get("booking_reply") || FALLBACK_BOOKING;
+  const TPL_ACK = tplMap.get("ack_reply") || FALLBACK_ACK;
+  const TPL_LEE_NEW = tplMap.get("lee_new_summary") || FALLBACK_LEE_NEW;
+  const TPL_LEE_FOLLOWUP = tplMap.get("lee_followup_summary") || FALLBACK_LEE_FOLLOWUP;
 
   try {
     // ---------- Lee relay: his personal phone texting a campus number ----------
@@ -235,15 +246,21 @@ Deno.serve(async (req) => {
 
     // First message in conversation: send scripted opener.
     if (isFirst && !convo.opener_sent) {
-      const sentSid = await twilioSend(to, from, QUESTIONS_BODY);
+      const sentSid = await twilioSend(to, from, TPL_OPENER);
       await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto", body: QUESTIONS_BODY, twilio_sid: sentSid,
+        conversation_id: convo.id, direction: "out", author: "auto", body: TPL_OPENER, twilio_sid: sentSid,
       });
       await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
 
       if (LEE_PHONE) {
-        await twilioSend(to, LEE_PHONE,
-          `#${convo.short_ref} New student text — ${campusLabel}${isTester ? " [TESTER]" : ""}\nFrom ${from}: "${body}"\nAuto-questions sent. Reply to this thread to jump in yourself.`);
+        const summary = render(TPL_LEE_NEW, {
+          ref: String(convo.short_ref),
+          campus: campusLabel,
+          tester_flag: isTester ? " [TESTER]" : "",
+          from,
+          body,
+        });
+        await twilioSend(to, LEE_PHONE, summary);
       }
       await finalizeRaw("first_message_opener_sent", null, convo.id);
       return twiml();
@@ -277,14 +294,14 @@ Deno.serve(async (req) => {
     }
 
     if (autoReplyKind === "booking") {
-      const sentSid = await twilioSend(to, from, BOOKING_REPLY_BODY);
+      const sentSid = await twilioSend(to, from, TPL_BOOKING);
       await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto", body: BOOKING_REPLY_BODY, twilio_sid: sentSid,
+        conversation_id: convo.id, direction: "out", author: "auto", body: TPL_BOOKING, twilio_sid: sentSid,
       });
     } else if (autoReplyKind === "ack") {
-      const sentSid = await twilioSend(to, from, ACK_BODY);
+      const sentSid = await twilioSend(to, from, TPL_ACK);
       await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto-ack", body: ACK_BODY, twilio_sid: sentSid,
+        conversation_id: convo.id, direction: "out", author: "auto-ack", body: TPL_ACK, twilio_sid: sentSid,
       });
     }
 
@@ -313,8 +330,14 @@ Deno.serve(async (req) => {
         extracted?.struggles ? `Struggling with: ${extracted.struggles}` : null,
         extracted?.major ? `Major: ${extracted.major}` : null,
       ].filter(Boolean).join(" | ");
-      await twilioSend(to, LEE_PHONE,
-        `#${convo.short_ref} ${campusLabel}${isTester ? " [TESTER]" : ""} — "${body}"${facts ? `\n${facts}` : ""}\nReply to this thread to text them back.`);
+      const summary = render(TPL_LEE_FOLLOWUP, {
+        ref: String(convo.short_ref),
+        campus: campusLabel,
+        tester_flag: isTester ? " [TESTER]" : "",
+        body,
+        facts: facts ? `\n${facts}` : "",
+      });
+      await twilioSend(to, LEE_PHONE, summary);
     }
 
     await finalizeRaw(

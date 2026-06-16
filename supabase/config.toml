@@ -25,3 +25,7 @@ verify_jwt = false
 # Called by pg_cron to drive the batch campus research worker.
 [functions.run-campus-batch]
 verify_jwt = false
+
+# Operator-facing read-only config (no secret values exposed).
+[functions.sms-config]
+verify_jwt = false
