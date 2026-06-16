@@ -1,8 +1,11 @@
 // Drill-down report modal for the Campus Leads stats panel.
-// Three tabs: Campuses · Leads · Course sections. CSV export per tab.
+// Three tabs: Campuses · Leads · Course sections. CSV / Excel / PDF export.
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Loader2 } from "lucide-react";
+import { Download, ExternalLink, Loader2, FileSpreadsheet, FileText } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -41,7 +44,25 @@ export function CampusLeadsReportModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Campus Leads Report</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle>Campus Leads Report</DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline" size="sm" className="gap-1.5 h-8"
+                disabled={!q.data}
+                onClick={() => q.data && downloadExcelAudit(q.data, filters)}
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Excel audit
+              </Button>
+              <Button
+                variant="outline" size="sm" className="gap-1.5 h-8"
+                disabled={!q.data}
+                onClick={() => q.data && downloadPdfAudit(q.data, filters)}
+              >
+                <FileText className="h-4 w-4" /> PDF audit
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
 
         <FilterSummary filters={filters} report={q.data} />
@@ -389,4 +410,204 @@ function downloadCsv(filename: string, rows: Record<string, string | number>[]) 
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Full-audit Excel / PDF exports
+// ─────────────────────────────────────────────────────────────
+
+function filterChipList(filters: LeadFilters): string[] {
+  const chips: string[] = [];
+  chips.push(
+    filters.courseFamilies.length === 4
+      ? "Families: all 4"
+      : `Families: ${filters.courseFamilies.map((f) => COURSE_FAMILY_LABELS[f]).join(", ") || "none"}`,
+  );
+  chips.push(
+    filters.seasons.length === 4
+      ? "Seasons: all"
+      : `Seasons: ${filters.seasons.map((s) => SEASON_LABELS[s]).join(", ") || "none"}`,
+  );
+  chips.push(`Min confidence: ${filters.minConfidence.toFixed(2)}`);
+  chips.push(`Teaching evidence only: ${filters.teachingOnly ? "Y" : "N"}`);
+  chips.push(`Textbook match only: ${filters.textbookMatchOnly ? "Y" : "N"}`);
+  chips.push(`Campus filter: ${filters.campusIds.length ? `${filters.campusIds.length} selected` : "all"}`);
+  return chips;
+}
+
+function campusesSheetRows(r: CampusLeadReport) {
+  return r.campuses.map((c) => ({
+    Campus: c.name,
+    State: c.state ?? "",
+    "Suggested leads": c.suggestedLeadCount,
+    "Imported leads": c.importedLeadCount,
+    "Course sections": c.sectionCount,
+    "Has textbook ISBN": c.hasTextbookIsbn ? "Y" : "N",
+    "Last researched": c.lastResearchedAt ? new Date(c.lastResearchedAt).toISOString() : "",
+    campus_id: c.campus_id,
+  }));
+}
+
+function leadsSheetRows(r: CampusLeadReport) {
+  return r.leads.map((l) => ({
+    "First name": l.first_name ?? "",
+    "Last name": l.last_name ?? "",
+    Title: l.title ?? "",
+    Email: l.email ?? "",
+    Campus: l.campusName,
+    Confidence: l.confidence ?? "",
+    PhD: l.is_phd ? "Y" : "",
+    CPA: l.is_cpa ? "Y" : "",
+    "Teaches Intro 1": l.teaches_intro_1 ? "Y" : "",
+    "Teaches Intro 2": l.teaches_intro_2 ? "Y" : "",
+    "Teaches Intermediate 1": l.teaches_intermediate_1 ? "Y" : "",
+    "Teaches Intermediate 2": l.teaches_intermediate_2 ? "Y" : "",
+    Status: l.status ?? "",
+    "Imported into outreach": l.imported ? "Y" : "",
+    "Source URL": l.source_url ?? "",
+    lead_id: l.id,
+    campus_id: l.campus_id,
+  }));
+}
+
+function sectionsSheetRows(r: CampusLeadReport) {
+  return r.sections.map((s) => ({
+    Campus: s.campusName,
+    "Course family": s.course_family ?? "",
+    "Course code": s.course_code ?? "",
+    "Course title": s.course_title ?? "",
+    Term: s.term ?? "",
+    Section: s.section_number ?? "",
+    Instructor: s.instructor_name ?? "",
+    "Enrolled": s.enrollment_current ?? "",
+    Capacity: s.enrollment_capacity ?? "",
+    "Source URL": s.source_url ?? "",
+    section_id: s.id,
+    campus_id: s.campus_id,
+  }));
+}
+
+function downloadExcelAudit(report: CampusLeadReport, filters: LeadFilters) {
+  const wb = XLSX.utils.book_new();
+
+  // Summary sheet
+  const summary = [
+    ["Campus Leads Audit Report"],
+    ["Generated at", new Date().toISOString()],
+    [],
+    ["Filters"],
+    ...filterChipList(filters).map((c) => ["", c]),
+    [],
+    ["Totals"],
+    ["Campuses", report.campuses.length],
+    ["Leads", report.leads.length],
+    ["Course sections", report.sections.length],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Summary");
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(campusesSheetRows(report)), "Campuses");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leadsSheetRows(report)), "Leads");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sectionsSheetRows(report)), "Course sections");
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `campus-leads-audit-${stamp}.xlsx`);
+}
+
+function downloadPdfAudit(report: CampusLeadReport, filters: LeadFilters) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
+  const margin = 36;
+
+  doc.setFontSize(16);
+  doc.text("Campus Leads Audit Report", margin, 40);
+  doc.setFontSize(9);
+  doc.setTextColor(110);
+  doc.text(`Generated ${new Date().toLocaleString()}`, margin, 56);
+
+  const filterLines = filterChipList(filters);
+  filterLines.forEach((l, i) => doc.text(l, margin, 72 + i * 12));
+  doc.setTextColor(0);
+
+  const totalsY = 72 + filterLines.length * 12 + 8;
+  doc.setFontSize(10);
+  doc.text(
+    `Campuses: ${report.campuses.length}    Leads: ${report.leads.length}    Course sections: ${report.sections.length}`,
+    margin, totalsY,
+  );
+
+  // Campuses table
+  autoTable(doc, {
+    startY: totalsY + 16,
+    head: [["Campus", "State", "Leads", "Imported", "Sections", "Textbook ISBN", "Last researched"]],
+    body: report.campuses.map((c) => [
+      c.name, c.state ?? "", c.suggestedLeadCount, c.importedLeadCount, c.sectionCount,
+      c.hasTextbookIsbn ? "Y" : "N",
+      c.lastResearchedAt ? new Date(c.lastResearchedAt).toLocaleDateString() : "",
+    ]),
+    headStyles: { fillColor: [60, 60, 60] },
+    styles: { fontSize: 8, cellPadding: 3 },
+    didDrawPage: () => addFooter(doc),
+  });
+
+  // Leads
+  doc.addPage();
+  doc.setFontSize(12); doc.text("Leads", margin, 40);
+  autoTable(doc, {
+    startY: 52,
+    head: [["Name", "Title", "Email", "Campus", "Conf", "PhD", "CPA", "I1", "I2", "IA1", "IA2", "Imp", "Source"]],
+    body: report.leads.map((l) => [
+      [l.first_name, l.last_name].filter(Boolean).join(" "),
+      l.title ?? "", l.email ?? "", l.campusName,
+      l.confidence != null ? l.confidence.toFixed(2) : "",
+      l.is_phd ? "Y" : "", l.is_cpa ? "Y" : "",
+      l.teaches_intro_1 ? "Y" : "", l.teaches_intro_2 ? "Y" : "",
+      l.teaches_intermediate_1 ? "Y" : "", l.teaches_intermediate_2 ? "Y" : "",
+      l.imported ? "Y" : "",
+      l.source_url ?? "",
+    ]),
+    headStyles: { fillColor: [60, 60, 60] },
+    styles: { fontSize: 7, cellPadding: 2, overflow: "linebreak" },
+    columnStyles: {
+      2: { cellWidth: 110 }, // email
+      3: { cellWidth: 90 },  // campus
+      12: { cellWidth: 120 }, // source
+    },
+    didDrawPage: () => addFooter(doc),
+  });
+
+  // Sections
+  doc.addPage();
+  doc.setFontSize(12); doc.text("Course sections", margin, 40);
+  autoTable(doc, {
+    startY: 52,
+    head: [["Campus", "Family", "Code", "Title", "Term", "Sec", "Instructor", "Enroll", "Source"]],
+    body: report.sections.map((s) => [
+      s.campusName, s.course_family ?? "", s.course_code ?? "",
+      s.course_title ?? "", s.term ?? "", s.section_number ?? "",
+      s.instructor_name ?? "",
+      `${s.enrollment_current ?? ""}${s.enrollment_capacity ? `/${s.enrollment_capacity}` : ""}`,
+      s.source_url ?? "",
+    ]),
+    headStyles: { fillColor: [60, 60, 60] },
+    styles: { fontSize: 7, cellPadding: 2, overflow: "linebreak" },
+    columnStyles: {
+      0: { cellWidth: 90 }, 3: { cellWidth: 130 }, 8: { cellWidth: 120 },
+    },
+    didDrawPage: () => addFooter(doc),
+  });
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  doc.save(`campus-leads-audit-${stamp}.pdf`);
+}
+
+function addFooter(doc: jsPDF) {
+  const pageSize = doc.internal.pageSize;
+  const w = pageSize.getWidth();
+  const h = pageSize.getHeight();
+  doc.setFontSize(8);
+  doc.setTextColor(140);
+  doc.text(
+    `Campus Leads Audit · page ${doc.getNumberOfPages()}`,
+    w - 36, h - 18, { align: "right" },
+  );
+  doc.setTextColor(0);
 }
