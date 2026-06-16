@@ -663,7 +663,9 @@ export async function simulateInboundSms(args: {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };
+  }
 }
+
 
 // ----- SMS templates + config -----
 export interface SmsTemplate {
@@ -702,7 +704,8 @@ export async function fetchSmsConfig(): Promise<SmsConfig> {
   if (!res.ok) throw new Error(`sms-config HTTP ${res.status}`);
   return (await res.json()) as SmsConfig;
 }
-}
+
+
 
 /** campus_id -> phone; the main line (campus_id null) is under "__main__". */
 export async function fetchCampusPhones(): Promise<Map<string, string>> {
