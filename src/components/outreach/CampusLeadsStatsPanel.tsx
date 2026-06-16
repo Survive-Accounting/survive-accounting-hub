@@ -74,6 +74,12 @@ export function CampusLeadsStatsPanel({
                 : `${stats.suggestedLeadCount.toLocaleString()} leads · ${stats.sectionCount.toLocaleString()} sections`}
             </span>
           )}
+          {open && (
+            <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={() => setReportOpen(true)}>
+              <FileSearch className="h-4 w-4" />
+              <span className="hidden sm:inline">View detailed report</span>
+            </Button>
+          )}
           <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={onOpenSettings}>
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">AI Research Settings</span>
