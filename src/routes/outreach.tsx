@@ -9,6 +9,7 @@ import { Toaster, toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
+import { HomeDashboard } from "@/components/outreach/HomeDashboard";
 import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import { BatchResearchSettingsModal } from "@/components/outreach/BatchResearchSettingsModal";
