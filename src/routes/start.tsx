@@ -528,6 +528,100 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function PostSubmitCard({
+  routing, onUploadSyllabus,
+}: { routing: RoutingDecision | null; onUploadSyllabus: (file: File) => Promise<void> }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePick = async (file: File | null) => {
+    if (!file) return;
+    setUploading(true);
+    try { await onUploadSyllabus(file); } finally { setUploading(false); }
+  };
+
+  if (!routing) {
+    return (
+      <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-gray-500" />
+        <p className="mt-3 text-sm text-gray-600">Saving your info…</p>
+      </div>
+    );
+  }
+
+  if (routing.result === "bookable_ready") {
+    return (
+      <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+        <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+        <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
+          Now, let's get you some tutoring!
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+          Book your Zoom session here.
+        </p>
+        {routing.bookingUrl ? (
+          <Button
+            asChild
+            className="mt-6 h-12 px-8 text-base font-bold text-white"
+            style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+          >
+            <a href={routing.bookingUrl} target="_blank" rel="noopener noreferrer">
+              <Calendar className="mr-2 h-4 w-4" /> Book Zoom Tutoring
+            </a>
+          </Button>
+        ) : (
+          <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Booking link not configured yet. Lee will follow up shortly with one.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (routing.result === "bookable_needs_syllabus") {
+    return (
+      <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+        <Upload className="mx-auto h-12 w-12" style={{ color: NAVY }} />
+        <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
+          Almost done — upload your syllabus to unlock the booking link.
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+          Lee needs your syllabus to prep for your course before scheduling.
+        </p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,application/pdf,image/*"
+          className="hidden"
+          onChange={(e) => handlePick(e.target.files?.[0] ?? null)}
+        />
+        <Button
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="mt-6 h-12 px-8 text-base font-bold text-white"
+          style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+        >
+          {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+          Upload Syllabus
+        </Button>
+      </div>
+    );
+  }
+
+  // waitlist_review
+  return (
+    <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+      <Clock className="mx-auto h-12 w-12 text-amber-600" />
+      <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
+        You're on the waitlist.
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+        I'll review your course and respond within 2 business days.
+      </p>
+    </div>
+  );
+}
+
 function Field({
   label, required, err, children,
 }: { label: string; required?: boolean; err?: string; children: React.ReactNode }) {
