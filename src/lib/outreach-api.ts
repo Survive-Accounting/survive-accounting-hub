@@ -2228,6 +2228,7 @@ export async function createCampaignFromPreview(input: {
   const { data: sugg } = await supabase
     .from("campus_lead_suggestions" as never)
     .select("campus_id,email,lead_type,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
+    .is("archived_at", null)
     .limit(20000);
   const sMap = new Map<string, SuggestionMatchRow>();
   for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
