@@ -44,7 +44,25 @@ export function CampusLeadsReportModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Campus Leads Report</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle>Campus Leads Report</DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline" size="sm" className="gap-1.5 h-8"
+                disabled={!q.data}
+                onClick={() => q.data && downloadExcelAudit(q.data, filters)}
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Excel audit
+              </Button>
+              <Button
+                variant="outline" size="sm" className="gap-1.5 h-8"
+                disabled={!q.data}
+                onClick={() => q.data && downloadPdfAudit(q.data, filters)}
+              >
+                <FileText className="h-4 w-4" /> PDF audit
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
 
         <FilterSummary filters={filters} report={q.data} />
