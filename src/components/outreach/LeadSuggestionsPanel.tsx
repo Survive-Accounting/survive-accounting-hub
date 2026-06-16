@@ -344,6 +344,34 @@ export default function LeadSuggestionsPanel({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground rounded-md border px-2 h-8 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Show archived suggestions
+          </label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={archiveBroadRun}
+                disabled={archiving}
+              >
+                {archiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                Archive current broad AI run
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              Hides every non-archived suggestion {campusId ? "for this campus" : "across all campuses"} from
+              campaign workflows. Tags rows with archive_label "AI Broad Run 1 — June 2026".
+              No rows are deleted — toggle "Show archived" to review them.
+            </TooltipContent>
+          </Tooltip>
           <Button
             type="button"
             size="sm"
