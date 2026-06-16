@@ -2023,3 +2023,313 @@ export async function createCampaignFromPreview(input: {
 
   return { campaign_id: campaignId, total_leads: totalLeads, total_campuses: totalCampuses };
 }
+
+// ============================================================
+// Phase 3 — Global daily send limit, campaign scheduling, metrics.
+// ============================================================
+
+const COLD_ACTIVE = ["draft", "scheduled", "running", "paused"] as const;
+
+export async function fetchGlobalDailyLimit(): Promise<number> {
+  const { data } = await (supabase.from("outreach_settings" as never) as any)
+    .select("global_daily_send_limit").eq("id", 1).maybeSingle();
+  const n = Number((data as any)?.global_daily_send_limit ?? 50);
+  return Number.isFinite(n) && n > 0 ? n : 50;
+}
+
+export async function setGlobalDailyLimit(n: number): Promise<void> {
+  const v = Math.max(1, Math.floor(n));
+  const { error } = await (supabase.from("outreach_settings" as never) as any)
+    .update({ global_daily_send_limit: v, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) throw error;
+}
+
+// --- Campaign list & metrics ---
+
+export interface CampaignSummary {
+  id: string;
+  name: string;
+  status: string;
+  total_leads: number;
+  total_campuses: number;
+  daily_limit: number;
+  estimated_days: number | null;
+  created_at: string;
+}
+
+export async function fetchCampaigns(): Promise<CampaignSummary[]> {
+  const { data, error } = await (supabase.from("outreach_campaigns" as never) as any)
+    .select("id,name,status,total_leads,total_campuses,daily_limit,estimated_days,created_at,campaign_type")
+    .eq("campaign_type", "cold_sequence")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((c) => ({
+    id: c.id, name: c.name, status: c.status,
+    total_leads: Number(c.total_leads ?? 0),
+    total_campuses: Number(c.total_campuses ?? 0),
+    daily_limit: Number(c.daily_limit ?? 50),
+    estimated_days: c.estimated_days == null ? null : Number(c.estimated_days),
+    created_at: c.created_at,
+  }));
+}
+
+export interface CampaignMetrics {
+  campaign_id: string;
+  total: number;
+  queued: number;
+  scheduled: number;
+  sent: number;
+  opened: number;
+  clicked: number;
+  replied: number;
+  bounced: number;
+  complained: number;
+  stopped: number;
+  remaining: number;
+  next_send_at: string | null;
+  last_scheduled_at: string | null;
+  estimated_completion: string | null;
+}
+
+export async function fetchCampaignMetrics(campaignId: string): Promise<CampaignMetrics> {
+  const { data: cleads, error } = await (supabase.from("outreach_campaign_leads" as never) as any)
+    .select("status,scheduled_send_at,outreach_lead_id")
+    .eq("campaign_id", campaignId);
+  if (error) throw error;
+  const rows = (cleads ?? []) as Array<{ status: string; scheduled_send_at: string | null; outreach_lead_id: string }>;
+  const leadIds = rows.map((r) => r.outreach_lead_id).filter(Boolean);
+
+  // Pull lead-level state in chunks.
+  const leadStats = { sent: 0, opened: 0, clicked: 0, stopped: 0 };
+  const leadById = new Map<string, { sent_at: string | null; opens_count: number; clicks_count: number; sequence_stopped_at: string | null }>();
+  for (let i = 0; i < leadIds.length; i += 500) {
+    const chunk = leadIds.slice(i, i + 500);
+    const { data: ld } = await supabase.from("outreach_leads")
+      .select("id,sent_at,opens_count,clicks_count,sequence_stopped_at")
+      .in("id", chunk);
+    for (const l of (ld ?? []) as any[]) {
+      leadById.set(l.id, {
+        sent_at: l.sent_at ?? null,
+        opens_count: Number(l.opens_count ?? 0),
+        clicks_count: Number(l.clicks_count ?? 0),
+        sequence_stopped_at: l.sequence_stopped_at ?? null,
+      });
+    }
+  }
+  for (const id of leadIds) {
+    const l = leadById.get(id);
+    if (!l) continue;
+    if (l.sent_at) leadStats.sent++;
+    if (l.opens_count > 0) leadStats.opened++;
+    if (l.clicks_count > 0) leadStats.clicked++;
+    if (l.sequence_stopped_at) leadStats.stopped++;
+  }
+
+  // Event-derived stats (reply/bounce/complaint). Best-effort.
+  let replied = 0, bounced = 0, complained = 0;
+  try {
+    for (let i = 0; i < leadIds.length; i += 500) {
+      const chunk = leadIds.slice(i, i + 500);
+      const { data: ev } = await (supabase.from("outreach_email_events" as never) as any)
+        .select("lead_id,event_type")
+        .in("lead_id", chunk);
+      const byLead = new Map<string, Set<string>>();
+      for (const e of (ev ?? []) as Array<{ lead_id: string; event_type: string }>) {
+        const s = byLead.get(e.lead_id) ?? new Set<string>();
+        s.add(e.event_type);
+        byLead.set(e.lead_id, s);
+      }
+      for (const types of byLead.values()) {
+        if (types.has("reply") || types.has("replied")) replied++;
+        if (types.has("bounce") || types.has("bounced")) bounced++;
+        if (types.has("complaint") || types.has("complained") || types.has("spam")) complained++;
+      }
+    }
+  } catch { /* table may not exist */ }
+
+  const total = rows.length;
+  const scheduled = rows.filter((r) => r.status === "scheduled" || r.scheduled_send_at).length;
+  const queued = rows.filter((r) => r.status === "queued" && !r.scheduled_send_at).length;
+  const remaining = Math.max(0, total - leadStats.sent);
+  const scheduledTimes = rows.map((r) => r.scheduled_send_at).filter(Boolean) as string[];
+  scheduledTimes.sort();
+  const future = scheduledTimes.find((t) => new Date(t).getTime() > Date.now()) ?? null;
+  const last = scheduledTimes.length ? scheduledTimes[scheduledTimes.length - 1] : null;
+
+  return {
+    campaign_id: campaignId,
+    total, queued, scheduled,
+    sent: leadStats.sent, opened: leadStats.opened, clicked: leadStats.clicked,
+    replied, bounced, complained, stopped: leadStats.stopped,
+    remaining,
+    next_send_at: future,
+    last_scheduled_at: last,
+    estimated_completion: last,
+  };
+}
+
+// --- Schedule a draft campaign across business days, respecting global limit. ---
+
+function nextBusinessSlot(d: Date): Date {
+  const out = new Date(d.getTime());
+  out.setUTCHours(15, 30, 0, 0); // 9:30 AM Central during DST
+  for (let i = 0; i < 14; i++) {
+    const dow = out.getUTCDay();
+    if (dow !== 0 && dow !== 6) return out;
+    out.setUTCDate(out.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function dayKey(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  return d.toISOString().slice(0, 10);
+}
+
+export interface ScheduleCampaignResult {
+  campaign_id: string;
+  scheduled: number;
+  skipped_conflicts: number;
+  first_send_at: string | null;
+  last_send_at: string | null;
+}
+
+export async function scheduleCampaign(campaignId: string): Promise<ScheduleCampaignResult> {
+  const limit = await fetchGlobalDailyLimit();
+
+  // Verify campaign exists and is draft/paused/scheduled (re-schedulable).
+  const { data: campaign, error: cErr } = await (supabase.from("outreach_campaigns" as never) as any)
+    .select("id,status").eq("id", campaignId).single();
+  if (cErr) throw cErr;
+  if (!["draft", "paused", "scheduled"].includes((campaign as any).status)) {
+    throw new Error(`Campaign is ${(campaign as any).status}; cannot schedule.`);
+  }
+
+  // Unscheduled campaign leads (queued, no send time yet).
+  const { data: cleads, error: lErr } = await (supabase.from("outreach_campaign_leads" as never) as any)
+    .select("id,outreach_lead_id,email")
+    .eq("campaign_id", campaignId)
+    .in("status", ["queued", "scheduled"])
+    .is("scheduled_send_at", null);
+  if (lErr) throw lErr;
+  const toSchedule = (cleads ?? []) as Array<{ id: string; outreach_lead_id: string; email: string }>;
+
+  // Existing capacity used per day (outreach_leads.scheduled_send_at across all campaigns).
+  const { data: existing } = await supabase
+    .from("outreach_leads")
+    .select("scheduled_send_at")
+    .not("scheduled_send_at", "is", null)
+    .is("sent_at", null)
+    .is("sequence_stopped_at", null)
+    .gte("scheduled_send_at", new Date().toISOString());
+  const dayCounts = new Map<string, number>();
+  for (const r of (existing ?? []) as Array<{ scheduled_send_at: string }>) {
+    const k = dayKey(r.scheduled_send_at);
+    dayCounts.set(k, (dayCounts.get(k) ?? 0) + 1);
+  }
+
+  // Walk forward filling each business day up to the limit.
+  let cursor = nextBusinessSlot(importSendTime());
+  const updates: Array<{ campaignLeadId: string; outreachLeadId: string; sendAt: string }> = [];
+  let conflicts = 0;
+  for (const lead of toSchedule) {
+    // Lead-level dedup: skip if already enrolled active elsewhere is enforced by DB trigger,
+    // but if the trigger somehow allowed (e.g. same campaign re-schedule), allow continue.
+    while (true) {
+      const k = dayKey(cursor);
+      const used = dayCounts.get(k) ?? 0;
+      if (used >= limit) {
+        cursor = nextBusinessSlot(new Date(cursor.getTime() + 24 * 3600 * 1000));
+        continue;
+      }
+      dayCounts.set(k, used + 1);
+      updates.push({ campaignLeadId: lead.id, outreachLeadId: lead.outreach_lead_id, sendAt: cursor.toISOString() });
+      break;
+    }
+  }
+
+  // Apply: write scheduled_send_at on both outreach_leads (so existing scheduler picks it up)
+  // and outreach_campaign_leads (for campaign-side metrics).
+  let scheduled = 0;
+  for (const u of updates) {
+    try {
+      const { error: e1 } = await (supabase.from("outreach_leads") as any)
+        .update({ scheduled_send_at: u.sendAt, status: "queued" })
+        .eq("id", u.outreachLeadId)
+        .is("sent_at", null)
+        .is("sequence_stopped_at", null);
+      if (e1) { conflicts++; continue; }
+      const { error: e2 } = await (supabase.from("outreach_campaign_leads" as never) as any)
+        .update({ scheduled_send_at: u.sendAt, status: "scheduled" })
+        .eq("id", u.campaignLeadId);
+      if (e2) { conflicts++; continue; }
+      scheduled++;
+    } catch { conflicts++; }
+  }
+
+  await (supabase.from("outreach_campaigns" as never) as any)
+    .update({ status: "scheduled", updated_at: new Date().toISOString() })
+    .eq("id", campaignId);
+
+  const times = updates.map((u) => u.sendAt).sort();
+  return {
+    campaign_id: campaignId,
+    scheduled,
+    skipped_conflicts: conflicts,
+    first_send_at: times[0] ?? null,
+    last_send_at: times[times.length - 1] ?? null,
+  };
+}
+
+// --- Home dashboard snapshot ---
+
+export interface HomeSnapshot {
+  suggestedLeads: number;
+  importedLeads: number;
+  campaignLeadsScheduled: number;
+  emailsSent: number;
+  opens: number;
+  replies: number;
+  bounces: number;
+  complaints: number;
+  bookingSubmissions: number;
+  waitlistSignups: number;
+  syllabiUploaded: number;
+  textConversations: number;
+}
+
+async function countRows(table: string, predicate?: (q: any) => any): Promise<number> {
+  try {
+    let q: any = (supabase.from(table as never) as any).select("id", { count: "exact", head: true });
+    if (predicate) q = predicate(q);
+    const { count } = await q;
+    return Number(count ?? 0);
+  } catch { return 0; }
+}
+
+export async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
+  const [
+    suggestedLeads, importedLeads, campaignLeadsScheduled,
+    emailsSent, opens, replies, bounces, complaints,
+    bookingSubmissions, waitlistSignups, syllabiUploaded, textConversations,
+  ] = await Promise.all([
+    countRows("campus_lead_suggestions", (q) => q.eq("status", "pending")),
+    countRows("outreach_leads"),
+    countRows("outreach_campaign_leads", (q) => q.eq("status", "scheduled")),
+    countRows("outreach_leads", (q) => q.not("sent_at", "is", null)),
+    countRows("outreach_leads", (q) => q.gt("opens_count", 0)),
+    countRows("outreach_email_events", (q) => q.in("event_type", ["reply", "replied"])),
+    countRows("outreach_email_events", (q) => q.in("event_type", ["bounce", "bounced"])),
+    countRows("outreach_email_events", (q) => q.in("event_type", ["complaint", "complained", "spam"])),
+    countRows("session_prep_submissions"),
+    countRows("outreach_waitlist_signups"),
+    countRows("session_prep_submissions", (q) => q.not("file_paths", "is", null)),
+    countRows("sms_conversations"),
+  ]);
+  return {
+    suggestedLeads, importedLeads, campaignLeadsScheduled,
+    emailsSent, opens, replies, bounces, complaints,
+    bookingSubmissions, waitlistSignups, syllabiUploaded, textConversations,
+  };
+}

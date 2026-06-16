@@ -9,6 +9,10 @@ import { ScheduleAndSettingsPanel } from "@/components/outreach/ScheduleAndSetti
 import { BroadcastsPanel } from "@/components/outreach/BroadcastsPanel";
 import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
 import { CampaignBuilder } from "@/components/outreach/CampaignBuilder";
+import { CampaignsListPanel } from "@/components/outreach/CampaignsListPanel";
+import { GlobalDailyLimitCard } from "@/components/outreach/GlobalDailyLimitCard";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 
 const LEAD_TYPE_ICON: Record<LeadType, string> = {
   professors:              "🎓",
@@ -70,10 +74,20 @@ export function EmailQueueShell({ campuses }: { campuses: Campus[] }) {
       {/* Active lead type content */}
       {active === "professors" && (
         <div className="space-y-4">
+          <GlobalDailyLimitCard />
           <CampaignBuilder campuses={campuses} />
-          <ScheduleAndSettingsPanel campuses={campuses} />
-          <BroadcastsPanel campuses={campuses} leadType="professors" />
+          <CampaignsListPanel />
           <EmailTemplatesPanel leadType="professors" />
+          <BroadcastsPanel campuses={campuses} leadType="professors" />
+          <Collapsible>
+            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2 text-sm font-medium hover:bg-muted/50">
+              <span>Advanced / Legacy Scheduling</span>
+              <ChevronDown className="h-4 w-4" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-3">
+              <ScheduleAndSettingsPanel campuses={campuses} />
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       )}
     </div>

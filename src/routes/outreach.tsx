@@ -9,6 +9,7 @@ import { Toaster, toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
+import { HomeDashboard } from "@/components/outreach/HomeDashboard";
 import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import { BatchResearchSettingsModal } from "@/components/outreach/BatchResearchSettingsModal";
@@ -120,12 +121,25 @@ function OutreachPage() {
           </TabsList>
 
           <TabsContent value="home" className="mt-8 space-y-8">
-            <CampusQueuePanel
-              onReview={(campusId) => {
-                const c = campuses.find((x) => x.id === campusId);
-                if (c) setReviewing(c);
-              }}
+            <HomeDashboard
+              onCreateCampaign={() => setTab("templates")}
+              onImportLeads={() => { setImportCampusId(null); setImportOpen(true); }}
+              onOpenAISettings={() => setBatchSettingsOpen(true)}
+              onViewTexts={() => setTab("texts")}
             />
+            <details className="rounded-md border border-border bg-card">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">
+                Campus approval queue
+              </summary>
+              <div className="p-3">
+                <CampusQueuePanel
+                  onReview={(campusId) => {
+                    const c = campuses.find((x) => x.id === campusId);
+                    if (c) setReviewing(c);
+                  }}
+                />
+              </div>
+            </details>
           </TabsContent>
 
 
