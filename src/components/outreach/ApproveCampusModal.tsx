@@ -36,6 +36,8 @@ import {
 } from "@/lib/outreach-api";
 import LeadSuggestionsPanel, { type LeadSuggestionsSummary } from "./LeadSuggestionsPanel";
 import ClassScheduleIntelligencePanel from "./ClassScheduleIntelligencePanel";
+import { ScrapeFacultyButton } from "./ScrapeFacultyButton";
+import { FacultyTriagePanel } from "./FacultyTriagePanel";
 import { supabase } from "@/integrations/supabase/client";
 
 type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
@@ -163,7 +165,7 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
 }
 
 export default function ApproveCampusModal({
-  campus, onClose, onPatch, onApprove, autoStartResearch,
+  campus, onClose, onPatch, onApprove, autoStartResearch, initialStep,
 }: {
   campus: Campus | null;
   onClose: () => void;
@@ -171,8 +173,10 @@ export default function ApproveCampusModal({
   onApprove: (id: string, patch: Partial<Campus>) => void;
   /** When set to a campus id, automatically kick off full AI research once after the modal opens. */
   autoStartResearch?: string | null;
+  /** Optional step to land on when the modal opens (default "1"). */
+  initialStep?: string;
 }) {
-  const [step, setStep] = useState("1");
+  const [step, setStep] = useState(initialStep ?? "1");
   const [familyCodes, setFamilyCodes] = useState<Record<string, string>>({});
   const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
   const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
@@ -212,7 +216,7 @@ export default function ApproveCampusModal({
 
   useEffect(() => {
     if (!campus) return;
-    setStep("1");
+    setStep(initialStep ?? "1");
     const existingCodes = campus.course_family_codes_json ?? {};
     const existingTitles = campus.course_family_titles_json ?? {};
     const initCodes: Record<string, string> = {};
@@ -873,7 +877,7 @@ export default function ApproveCampusModal({
   const steps = [
     { id: "1", label: "Course Details", done: step1Done },
     { id: "2", label: "Textbook Research", done: step2Done },
-    { id: "3", label: "Lead Review", done: step3Done },
+    { id: "3", label: "Leads", done: step3Done },
     { id: "4", label: "Approval", done: canApprove },
   ];
 
@@ -951,9 +955,6 @@ export default function ApproveCampusModal({
                   <><Wand2 className="h-4 w-4" /> Run Full AI Research</>
                 )}
               </Button>
-              <span className="text-[11px] text-muted-foreground">
-                Finds course codes, textbook matches, and suggested leads. You’ll review everything before saving.
-              </span>
             </div>
             <Sheet>
               <SheetTrigger asChild>
@@ -1388,16 +1389,20 @@ export default function ApproveCampusModal({
               )}
             </TabsContent>
 
-            {/* STEP 3 — Lead Review (Phase 4) */}
-            <TabsContent value="3" className="space-y-2 pt-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    Run AI research, then accept the leads you want in the outreach queue.
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Accepting a lead does <strong>not</strong> email them. <strong>Import Accepted Leads</strong> moves them into the outreach lead list.
-                  </p>
+            {/* STEP 3 — Leads (scrape + triage) */}
+            <TabsContent value="3" className="space-y-3 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ScrapeFacultyButton
+                    campusId={campus.id}
+                    campusName={campus.school_name}
+                    onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                  />
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
+                    <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
+                    <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => setStep("2")}>Previous</Button>
@@ -1405,20 +1410,11 @@ export default function ApproveCampusModal({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
-                <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
-                <Badge variant="outline" className="font-normal border-amber-500/40 text-amber-700">Needs Lee: {leadSummary.needs_lee}</Badge>
-                <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
-              </div>
-
-
-              <LeadSuggestionsPanel
-                key={`${campus.id}-${leadsRefreshKey}`}
+              <FacultyTriagePanel
+                key={`triage-${campus.id}-${leadsRefreshKey}`}
                 campusId={campus.id}
-                compact
-                showManualImportHelp={false}
-                onSummaryChange={setLeadSummary}
+                campusName={campus.school_name}
+                refreshToken={leadsRefreshKey}
               />
 
               <ClassScheduleIntelligencePanel
@@ -1435,10 +1431,26 @@ export default function ApproveCampusModal({
                 />
                 <span>
                   <strong>No usable leads found / skip lead import for now.</strong>{" "}
-                  Approve the campus without importing AI-suggested leads — Lee or a VA can add leads manually later.
+                  Approve the campus without importing leads — Lee or a VA can add leads manually later.
                 </span>
               </label>
+
+              <details className="rounded-md border bg-muted/10">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Archived: legacy AI lead suggestions
+                </summary>
+                <div className="border-t p-2">
+                  <LeadSuggestionsPanel
+                    key={`legacy-${campus.id}-${leadsRefreshKey}`}
+                    campusId={campus.id}
+                    compact
+                    showManualImportHelp={false}
+                    onSummaryChange={setLeadSummary}
+                  />
+                </div>
+              </details>
             </TabsContent>
+
 
             {/* STEP 4 — Approval Summary */}
             <TabsContent value="4" className="space-y-2 pt-3">

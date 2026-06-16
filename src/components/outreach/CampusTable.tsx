@@ -1,7 +1,7 @@
 // Ported from the original app (ProfessorOutreach.tsx — SchoolsPanel table).
 import { Fragment, useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, ChevronRight, Copy, DollarSign,
+  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign,
   Eye, MousePointerClick, Phone, RefreshCw, Upload, Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,8 +15,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import CampusFilterBar from "@/components/outreach/CampusFilterBar";
 import AssignCampusPopover from "@/components/outreach/AssignCampusPopover";
-import { ScrapeFacultyButton } from "@/components/outreach/ScrapeFacultyButton";
-import { FacultyTriagePanel } from "@/components/outreach/FacultyTriagePanel";
 import {
   ASSIGNMENT_STATUS_BADGE,
   ASSIGNMENT_STATUS_LABEL,
@@ -56,15 +54,7 @@ export default function CampusTable({
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [scrapeBumps, setScrapeBumps] = useState<Record<string, number>>({});
 
-  const toggleExpand = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -177,21 +167,18 @@ export default function CampusTable({
                       />
                     </td>
                     <td className="px-3 py-3.5 font-medium align-top">
-                      <button
-                        type="button"
-                        onClick={() => toggleExpand(s.id)}
-                        className="inline-flex items-center gap-1.5 text-left hover:text-primary"
-                        title={expanded.has(s.id) ? "Hide faculty triage" : "Show faculty triage"}
-                      >
-                        {expanded.has(s.id) ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                      <div className="inline-flex items-center gap-1.5">
                         <span>{s.school_name}</span>
                         {s.is_sec && (
                           <span title="SEC Conference" className="text-base leading-none" aria-label="SEC">🏈</span>
                         )}
+                        {isApproved && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-emerald-500/40 text-emerald-700">approved</Badge>
+                        )}
                         {isArchived && (
                           <Badge variant="outline" className="text-[10px] h-4 px-1">archived</Badge>
                         )}
-                      </button>
+                      </div>
                       <div className="mt-0.5 text-[10px] font-normal text-muted-foreground">
                         {s.state} · /{s.slug}
                       </div>
@@ -313,62 +300,26 @@ export default function CampusTable({
                         </button>
                       </AssignCampusPopover>
                     </td>
-                    <td className="px-3 py-3.5 align-top min-w-[180px]">
-                      <div className="flex flex-col items-stretch gap-1.5 ml-auto w-[180px]">
-                        <ScrapeFacultyButton
-                          campusId={s.id}
-                          campusName={s.school_name}
-                          onScraped={() => {
-                            setExpanded((prev) => new Set(prev).add(s.id));
-                            setScrapeBumps((prev) => ({ ...prev, [s.id]: (prev[s.id] ?? 0) + 1 }));
-                          }}
-                        />
-                        <div className="flex items-center gap-1">
-                          {isApproved ? (
-                            <Button
-                              size="sm"
-                              onClick={() => onReview(s)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 justify-center"
-                            >
-                              <Check className="h-3.5 w-3.5" /> Approved
-                            </Button>
-                          ) : (
-                            <Button size="sm" onClick={() => onReview(s)} className="flex-1 justify-center">
-                              <Check className="h-3.5 w-3.5" /> Review
-                            </Button>
-                          )}
-                        </div>
+                    <td className="px-3 py-3.5 align-top min-w-[160px]">
+                      <div className="flex flex-col items-stretch gap-1.5 ml-auto w-[160px]">
+                        <Button size="sm" onClick={() => onReview(s)} className="justify-center">
+                          <Check className="h-3.5 w-3.5" /> Review
+                        </Button>
                         <Button
                           size="sm"
-                          disabled={!isApproved}
                           onClick={() => onImportLeads(s)}
-                          className={
-                            isApproved
-                              ? "bg-[#CE1126] hover:bg-[#CE1126]/90 text-white justify-center"
-                              : "justify-center"
-                          }
-                          variant={isApproved ? "default" : "outline"}
-                          title={isApproved ? "Review leads for this campus" : "Approve the campus first"}
+                          variant="outline"
+                          className="justify-center"
+                          title="Scrape & triage leads for this campus"
                         >
                           <Users className="h-3.5 w-3.5" /> Leads
                         </Button>
                         <Button size="sm" variant="outline" disabled className="justify-center" title="Coming soon">
-                          <BarChart3 className="h-3.5 w-3.5" /> View Metrics
+                          <BarChart3 className="h-3.5 w-3.5" /> Metrics
                         </Button>
                       </div>
                     </td>
                   </tr>
-                  {expanded.has(s.id) && (
-                    <tr className="bg-muted/20">
-                      <td colSpan={7} className="px-4 py-3">
-                        <FacultyTriagePanel
-                          campusId={s.id}
-                          campusName={s.school_name}
-                          refreshToken={scrapeBumps[s.id] ?? 0}
-                        />
-                      </td>
-                    </tr>
-                  )}
                   </Fragment>
                 );
               })}

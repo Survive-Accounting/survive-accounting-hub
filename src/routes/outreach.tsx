@@ -52,6 +52,7 @@ function OutreachPage() {
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
+  const [reviewInitialStep, setReviewInitialStep] = useState<string | undefined>(undefined);
   const [autoResearchId, setAutoResearchId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importCampusId, setImportCampusId] = useState<string | null>(null);
@@ -167,8 +168,8 @@ function OutreachPage() {
                 campuses={campuses}
                 filters={filters}
                 onFiltersChange={setFilters}
-                onReview={(c) => setReviewing(c)}
-                onImportLeads={(c) => { setImportCampusId(c.id); setImportOpen(true); }}
+                onReview={(c) => { setReviewInitialStep("1"); setReviewing(c); }}
+                onImportLeads={(c) => { setReviewInitialStep("3"); setReviewing(c); }}
                 onAssignPatch={handleAssignPatch}
                 campusPhones={phonesQuery.data}
                 onTogglePersonalPhone={handleTogglePersonalPhone}
@@ -213,14 +214,16 @@ function OutreachPage() {
         usingMock={usingMock}
         onImported={() => qc.invalidateQueries({ queryKey: ["outreach-leads"] })}
       />
-      <ResearchErrorBoundary onReset={() => { setReviewing(null); setAutoResearchId(null); }}>
+      <ResearchErrorBoundary onReset={() => { setReviewing(null); setAutoResearchId(null); setReviewInitialStep(undefined); }}>
         <ApproveCampusModal
           campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
           autoStartResearch={autoResearchId}
+          initialStep={reviewInitialStep}
           onClose={() => {
             if (reviewing) refreshClaim(reviewing.id).catch(() => {});
             setReviewing(null);
             setAutoResearchId(null);
+            setReviewInitialStep(undefined);
           }}
           onPatch={(id, patch) => {
             patchCampus(id, patch);
