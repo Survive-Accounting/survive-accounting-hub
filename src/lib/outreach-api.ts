@@ -1413,7 +1413,7 @@ import {
   ALL_SEASONS,
   termToSeason,
 } from "@/components/outreach/filters/LeadFilterBar";
-import type { Campus } from "@/lib/outreach-mock";
+// (Campus type already imported at top of file.)
 
 const STATS_PAGE = 1000;
 const HIGH_CONFIDENCE = 0.8;
