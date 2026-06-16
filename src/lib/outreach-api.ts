@@ -2059,16 +2059,17 @@ export async function previewCampaignAudience(
   // textbook json column up-front.
   let textbookCampusIds: Set<string> | null = null;
   if (filters.textbookMatchOnly) {
-    const { data: tb, error: tbErr } = await supabase
-      .from("campuses")
-      .select("id,course_family_textbooks_json");
+    const [{ data: tb, error: tbErr }, supportedFamilies] = await Promise.all([
+      supabase.from("campuses").select("id,course_family_textbooks_json"),
+      getSupportedTextbookFamilies(),
+    ]);
     if (tbErr) throw tbErr;
     textbookCampusIds = new Set(
       ((tb ?? []) as Array<{ id: string; course_family_textbooks_json: unknown }>)
         .filter((c) => {
-          const j = c.course_family_textbooks_json;
-          return j && typeof j === "object" && Object.values(j as Record<string, unknown>)
-            .some((v) => v && typeof v === "object" && (v as any).isbn13);
+          // Reuse the supported-family matcher: campus passes if Intro 1 OR Intro 2 maps to a supported family.
+          const fake = { id: c.id, course_family_textbooks_json: c.course_family_textbooks_json } as unknown as Campus;
+          return campusHasSupportedTextbook(fake, supportedFamilies, ["intro_1", "intro_2"]);
         })
         .map((c) => c.id),
     );
