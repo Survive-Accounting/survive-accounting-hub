@@ -2,15 +2,17 @@
 // supported-textbook-family matcher classifies each researched campus,
 // compared to the old "has any ISBN" rule.
 
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, Download } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Download, BookOpen, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { runTextbookMatchAudit, type TextbookAuditRow } from "@/lib/textbook-matcher";
+import { startTextbookOnlyBatch, runTextbookResearchForCampus } from "@/lib/outreach-api";
 import type { Campus } from "@/lib/outreach-mock";
 
 const FAMILY_LABEL: Record<string, string> = {
