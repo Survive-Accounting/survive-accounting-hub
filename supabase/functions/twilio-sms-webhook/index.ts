@@ -36,7 +36,8 @@ const TESTER_PHONES = new Set(
     .filter(Boolean),
 );
 
-const QUESTIONS_BODY =
+// Fallback copy used only if a template row is missing in the DB.
+const FALLBACK_OPENER =
   "Hey! This is Lee's automated assistant.\n\n" +
   "Before meeting with students, Lee likes to learn a little about where they're getting stuck.\n\n" +
   "A few quick questions:\n\n" +
@@ -44,15 +45,17 @@ const QUESTIONS_BODY =
   "• When is your next exam?\n" +
   "• What chapters/topics are giving you the most trouble?\n\n" +
   "Reply with your answers and I'll send over Lee's booking link.";
+const FALLBACK_BOOKING =
+  "Thanks!\n\nHere's Lee's booking page:\n\nSurviveAccounting.com/start\n\nHe'll also personally review your answers and follow up when he gets a chance.";
+const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
+const FALLBACK_LEE_NEW =
+  '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-questions sent. Reply to this thread to jump in yourself.';
+const FALLBACK_LEE_FOLLOWUP =
+  '#{ref} {campus}{tester_flag} — "{body}"{facts}\nReply to this thread to text them back.';
 
-const BOOKING_REPLY_BODY =
-  "Thanks!\n\n" +
-  "Here's Lee's booking page:\n\n" +
-  "SurviveAccounting.com/start\n\n" +
-  "He'll also personally review your answers and follow up when he gets a chance.";
-
-const ACK_BODY =
-  "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
+function render(template: string, tokens: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, k) => tokens[k] ?? "");
+}
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
