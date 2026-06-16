@@ -1,14 +1,16 @@
 // Collapsible "Analyze Campus Leads" panel: filter bar + stat tiles.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, ChevronDown, Settings, Download } from "lucide-react";
+import { BarChart3, ChevronDown, Settings, Download, Info, FileSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { fetchCampusLeadStats } from "@/lib/outreach-api";
+import { CampusLeadsReportModal } from "./CampusLeadsReportModal";
 import {
   LeadFilterBar,
   useLeadFilters,
@@ -36,6 +38,7 @@ export function CampusLeadsStatsPanel({
   }, [open]);
 
   const { filters, setFilters, reset } = useLeadFilters();
+  const [reportOpen, setReportOpen] = useState(false);
 
   const statsQ = useQuery({
     queryKey: ["campus-lead-stats", filters, campuses.length],
@@ -70,6 +73,12 @@ export function CampusLeadsStatsPanel({
                 ? "Refreshing…"
                 : `${stats.suggestedLeadCount.toLocaleString()} leads · ${stats.sectionCount.toLocaleString()} sections`}
             </span>
+          )}
+          {open && (
+            <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={() => setReportOpen(true)}>
+              <FileSearch className="h-4 w-4" />
+              <span className="hidden sm:inline">View detailed report</span>
+            </Button>
           )}
           <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={onOpenSettings}>
             <Settings className="h-4 w-4" />
@@ -121,11 +130,16 @@ export function CampusLeadsStatsPanel({
 
               {/* Tile grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Tile label="Suggested leads" value={stats.suggestedLeadCount} />
-                <Tile label="Imported outreach leads" value={stats.importedLeadCount} />
-                <Tile label="High-confidence (≥0.8)" value={stats.highConfidenceLeadCount} />
-                <Tile label="Campuses covered" value={stats.campusCount} />
-                <Tile label="Course sections" value={stats.sectionCount} />
+                <Tile label="Suggested leads" value={stats.suggestedLeadCount}
+                  hint="Distinct rows in campus_lead_suggestions matching the filters — people AI research surfaced as likely professors/staff for the four core accounting course families. Not yet imported into the outreach queue." />
+                <Tile label="Imported outreach leads" value={stats.importedLeadCount}
+                  hint="Suggested leads that have been promoted into outreach_leads and are eligible for campaign enrollment." />
+                <Tile label="High-confidence (≥0.8)" value={stats.highConfidenceLeadCount}
+                  hint="Suggested leads whose AI-assigned confidence score is 0.80 or higher." />
+                <Tile label="Campuses covered" value={stats.campusCount}
+                  hint="Unique campuses that have at least one suggested lead matching the current filters." />
+                <Tile label="Course sections" value={stats.sectionCount}
+                  hint="A course section is one scheduled offering of a class for a specific term (e.g. ACCT 201 Sec 03, Fall 2024). One professor teaching two sections of intro accounting in the same term = 2 sections. Pulled from each campus's class schedule by AI research." />
                 <Tile label="Intro 1 instructors" value={stats.intro1InstructorCount} />
                 <Tile label="Intro 2 instructors" value={stats.intro2InstructorCount} />
                 <Tile label="IA1 instructors" value={stats.ia1InstructorCount} />
@@ -137,9 +151,9 @@ export function CampusLeadsStatsPanel({
 
               <div className="rounded-lg border bg-card p-3">
                 <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <span>Coverage</span>
+                  <span>Coverage (active campuses only — archived excluded)</span>
                   <span className="tabular-nums">
-                    {stats.campusCount} / {stats.totalCampusCount} campuses
+                    {stats.campusCount} / {stats.totalCampusCount} active campuses
                   </span>
                 </div>
                 <Progress value={stats.coveragePct} className="mt-2 h-1.5" />
@@ -239,14 +253,35 @@ export function CampusLeadsStatsPanel({
           )}
         </Card>
       </CollapsibleContent>
+      <CampusLeadsReportModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        filters={filters}
+        campuses={campuses}
+        onSelectCampus={(id) => setFilters({ ...filters, campusIds: [id] })}
+      />
     </Collapsible>
   );
 }
 
-function Tile({ label, value }: { label: string; value: number }) {
+function Tile({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
     <div className="rounded-lg border bg-card p-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+        <span>{label}</span>
+        {hint && (
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground/70 hover:text-foreground" aria-label="What is this?">
+                  <Info className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs leading-relaxed">{hint}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value.toLocaleString()}</div>
     </div>
   );

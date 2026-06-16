@@ -1,90 +1,53 @@
-# Campuses Tab — Stats & Cleanup
+# Campus Stats — Clarity Fixes + Drill-Down Report
 
-## 1. Move Batch AI Research out of the main view
+Three changes to the Campuses → Analyze Campus Leads panel. No backend schema changes; this is presentation + a new modal.
 
-- Remove `<BatchResearchPanel />` from the top of the Campuses tab.
-- Add a small header row at the top of the Campuses tab with:
-  - Left: a toggle button **"Analyze Campus Leads"** (chevron icon, shows/hides the stats panel below it).
-  - Right: a gear/settings icon button that opens a modal containing the existing `BatchResearchPanel` (no behavior changes inside — just wrapped in a `Dialog`).
-- Result: the campus table area stays clean; AI batch tooling is one click away but no longer dominates.
+## 1. Coverage denominator: exclude archived campuses
 
-## 2. New `CampusLeadsStatsPanel` component
+Current behavior: "Coverage 4 / 455 campuses" uses the full `campuses` list, which includes 285 archived rows (verified: 455 total, 170 active where `archived_at IS NULL`).
 
-Collapsible panel (closed by default; state persisted in `localStorage`) that opens beneath the toggle. Contains a **shared filter bar** + **stat tiles**.
+Fix: in `aggregateCampusLeadStats` (`src/lib/outreach-api.ts`), set `totalCampusCount` to the count of campuses where `archived_at == null`. The headline will then read **"4 / 170 active campuses"**. Label updated in `CampusLeadsStatsPanel.tsx`.
 
-### Filter bar (reusable — extracted so the future campaign builder can import it)
+## 2. Inline explanations for confusing metrics
 
-New file: `src/components/outreach/filters/LeadFilterBar.tsx` exporting:
-- `LeadFilterBar` component
-- `LeadFilters` type: `{ courseFamilies: string[]; seasons: string[]; campusIds: string[]; teachingOnly: boolean; minConfidence: number }`
-- `useLeadFilters()` hook with default = all-selected
+Add small `?` info tooltips (using existing `Tooltip` primitive) on three tiles + the headline:
 
-Controls (all multi-select with "Select all / Clear" actions, default = all):
-- **Course family** — Intro 1, Intro 2, Intermediate 1, Intermediate 2 (the 4 with dedicated `teaches_*` columns). "Show all 9 families" advanced toggle later.
-- **Season / term** — derived from distinct `term` values on `campus_course_sections` grouped into Fall / Spring / Summer / Winter + year picker.
-- **Campus** — searchable multi-select chip picker (defaults to all; "Clear" empties; "All" restores).
-- **Confidence** — slider 0–1 (default 0.0) for lead confidence.
-- **Teaching-evidence only** — switch (default off) limits to leads with at least one `teaches_*` flag true.
+- **Course sections** — "A course section is one scheduled offering of a class for a specific term (e.g. ACCT 201 Section 03, Fall 2024). One professor teaching two sections of intro accounting in the same term = 2 sections. Pulled from each campus's class schedule by AI research. Currently 11,416 sections across 9 course families."
+- **Textbook match only** (filter label) — "Restricts to campuses where AI research found a confirmed adopted textbook (ISBN13) for at least one of the four course families. Today only a handful of campuses have textbook ISBNs stored, which is why this filter shrinks the list so aggressively. It does NOT check whether a specific lead teaches a course that uses our supported textbooks."
+- **Suggested leads** — "Distinct rows in `campus_lead_suggestions` matching the filters — people AI research surfaced as likely professors/staff for the four core accounting course families. Not yet imported into the outreach queue."
+- **Imported outreach leads** — "Suggested leads that have been promoted into `outreach_leads` and are eligible for campaign enrollment."
 
-### Stat tiles (top row, primary headline)
+This addresses the user's "are we sure textbook match is working correctly?" — it is working, but the rule is "campus has any textbook ISBN on file", not "lead's course matches our books". The tooltip makes that explicit.
 
-> **"X high-confidence leads across Y campuses with Z course sections found"** — single sentence headline driven by current filters.
+## 3. New "View detailed report" modal
 
-Then a tight grid of small tiles:
+A new button next to "AI Research Settings" in the panel header: **"View detailed report"** (opens when the panel is expanded). Opens a large dialog (`max-w-6xl`) titled "Campus Leads Report" with the active filter summary at the top and three tabs:
 
-| Tile | Source |
-|---|---|
-| Total leads (matching filters) | `campus_lead_suggestions` count |
-| High-confidence leads (≥ 0.8) | same, filtered |
-| Campuses covered | distinct `campus_id` |
-| Course sections found | `campus_course_sections` count |
-| Sections by season | mini bar (Fall/Spring/Summer) |
-| Leads by family | mini bar: Intro1 / Intro2 / IA1 / IA2 |
-| PhDs / CPAs | counts of `is_phd`, `is_cpa` |
-| Top 5 campuses by lead count | small ranked list with campus name + count |
-| Avg sections per campus | sections / campuses covered |
-| Coverage | campuses with ≥1 lead ÷ total campuses (progress bar) |
+**Tab 1 — Campuses** (covered by current filters)
+- Columns: Campus · State · # Suggested leads · # Imported leads · # Sections · Has textbook ISBN (Y/N) · Last researched
+- Sortable by lead count / section count. Row click → filters the parent panel to that single campus.
 
-All tiles re-compute reactively against the filter state.
+**Tab 2 — Leads** (filtered `campus_lead_suggestions`)
+- Columns: Name · Title · Email · Campus · Confidence · PhD · CPA · Teaches (I1/I2/IA1/IA2 chips) · Source URL · Imported? (Y/N)
+- Paginated 50/page; total count shown.
 
-### Suggested extras (slick, low-effort)
+**Tab 3 — Course sections** (filtered `campus_course_sections`)
+- Columns: Campus · Family · Course code · Title · Term · Section · Instructor · Enrollment · Source URL
+- Paginated 50/page; total count shown. Grouping toggle: "Group by campus" / "Group by family".
 
-- **"New since last batch"** badge — count of leads created in last 24h (uses `created_at`).
-- **Export filtered → CSV** button (leads only, current filter state).
-- **Click a tile → drills down**: e.g., clicking "Intro 1" sets family filter to Intro 1 only; clicking a campus row pre-filters campus + opens its drawer.
+Each tab has a "Download CSV" button that exports the filtered rows for that tab.
 
-## 3. Data layer
+The modal reads from the same already-fetched arrays the stats panel uses (no extra queries) — `fetchCampusLeadStats` will be extended to also return `filteredLeads`, `filteredSections`, and a `perCampus` enriched list, behind a new `includeDetail: true` option so the existing summary path stays lean. The modal calls a sibling `fetchCampusLeadReport(filters, campuses)` that reuses the same row-collection + filter helpers and returns the detailed arrays.
 
-Add to `src/lib/outreach-api.ts`:
-- `fetchLeadStats(filters: LeadFilters)` — one query per source table, aggregated client-side (volumes are small: ~5k leads, ~10k sections). Returns the shape consumed by `CampusLeadsStatsPanel`.
-- `fetchAvailableTerms()` — distinct terms for the season filter.
+## Technical notes
 
-Wrap each in `useQuery` with `queryKey: ['lead-stats', filters]` and `staleTime: 60s`.
+Files touched:
+- `src/lib/outreach-api.ts` — fix `totalCampusCount` (exclude archived), add `fetchCampusLeadReport` reusing existing fetch + filter helpers.
+- `src/components/outreach/CampusLeadsStatsPanel.tsx` — add tooltips, "View detailed report" button, modal trigger; update coverage label to "active campuses".
+- `src/components/outreach/CampusLeadsReportModal.tsx` — new file: dialog + tabs + tables + CSV export.
 
-## 4. Files touched / created
+Not changed: filter bar, batch research, campaign builder, email sending.
 
-**Created**
-- `src/components/outreach/CampusLeadsStatsPanel.tsx`
-- `src/components/outreach/filters/LeadFilterBar.tsx` (reusable)
-- `src/components/outreach/BatchResearchSettingsModal.tsx` (thin Dialog wrapper around existing `BatchResearchPanel`)
+## Open question
 
-**Edited**
-- `src/routes/outreach.tsx` — replace `<BatchResearchPanel />` block with new header row (toggle + settings icon) + `<CampusLeadsStatsPanel />` collapsible.
-- `src/lib/outreach-api.ts` — add stats fetchers.
-
-**Unchanged**
-- `BatchResearchPanel.tsx` — reused as-is inside the new modal.
-- `CampusTable.tsx`, `LeadsPanel.tsx` — untouched.
-
-## 5. Visual / UX notes
-
-- Toggle button uses outline variant + chevron that rotates open.
-- Panel uses `Collapsible` from `@/components/ui/collapsible` with a subtle bordered card; muted background so it doesn't compete with the table.
-- Tiles use `Card` with single-line label + large number + tiny delta/sparkline where useful.
-- Filter bar sticky inside the panel when scrolled.
-- Mobile: tiles wrap into 2 cols; filter bar collapses into a "Filters" popover.
-
-## 6. Out of scope (callouts for future turns)
-
-- Saving filter presets to `outreach_saved_views` (existing table) — easy follow-up; reuse same `LeadFilters` type.
-- Wiring `LeadFilterBar` into the campaign builder you mentioned — same component, drop in.
+For the Campuses tab table itself (separate from this panel), should archived campuses also be hidden by default? Today the bottom table appears to include them. Out of scope for this change unless you say yes — flag it for a follow-up.
