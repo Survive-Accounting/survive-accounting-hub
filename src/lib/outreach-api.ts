@@ -913,8 +913,8 @@ export interface LeadSuggestion {
   updated_at: string;
 }
 
-export type ResearchMode = "broad" | "clean_professor_only";
-export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only"];
+export type ResearchMode = "broad" | "clean_professor_only" | "textbook_only";
+export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only", "textbook_only"];
 
 export type LeadSuggestionInput = Partial<
   Omit<LeadSuggestion, "id" | "campus_id" | "created_at" | "updated_at">
