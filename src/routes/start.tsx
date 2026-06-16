@@ -359,20 +359,7 @@ function IntakeForm({ initialSearch }: { initialSearch: StartSearch }) {
   };
 
   if (done) {
-    return (
-      <div
-        className="rounded-2xl bg-white p-8 text-center shadow-xl"
-        style={{ fontFamily: "Inter, sans-serif" }}
-      >
-        <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
-        <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
-          Thanks — your info was saved.
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
-          Lee will review your details {syllabusFile ? "and your syllabus " : ""}and follow up shortly.
-        </p>
-      </div>
-    );
+    return <PostSubmitCard routing={routing} onUploadSyllabus={uploadSyllabusLate} />;
   }
 
   const fieldErr = (k: string) => errors[k];
