@@ -2139,7 +2139,6 @@ export async function previewCampaignAudience(
 
   // Default the campaign builder to clean professor-only suggestions.
   const researchMode = filters.researchMode ?? "clean_professor_only";
-  const researchMode = filters.researchMode ?? "clean_professor_only";
 
   // We ALWAYS need the suggestion lookup now because the default
   // research-mode filter restricts the eligible-lead set to whatever the
