@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Upload, CheckCircle2, FileText, X } from "lucide-react";
+import { Loader2, Upload, CheckCircle2, FileText, X, Calendar, Clock } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { z } from "zod";
 
@@ -21,9 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectValue, SelectTrigger,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { computeIntakeRouting, type RoutingDecision } from "@/lib/intake-routing";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
