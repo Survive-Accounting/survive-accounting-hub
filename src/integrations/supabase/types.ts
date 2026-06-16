@@ -3704,6 +3704,7 @@ export type Database = {
           created_at: string
           edition_sensitive: boolean
           id: string
+          isbn13_prefixes: string[]
           label: string
           notes: string | null
           publisher_keywords: string[]
@@ -3717,6 +3718,7 @@ export type Database = {
           created_at?: string
           edition_sensitive?: boolean
           id?: string
+          isbn13_prefixes?: string[]
           label: string
           notes?: string | null
           publisher_keywords?: string[]
@@ -3730,6 +3732,7 @@ export type Database = {
           created_at?: string
           edition_sensitive?: boolean
           id?: string
+          isbn13_prefixes?: string[]
           label?: string
           notes?: string | null
           publisher_keywords?: string[]
