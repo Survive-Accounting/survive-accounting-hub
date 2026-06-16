@@ -14,10 +14,14 @@ export function ScrapeFacultyButton({
   campusId,
   campusName,
   onScraped,
+  hideAutoDiscover = false,
+  hideScrapeUrls = false,
 }: {
   campusId: string;
   campusName: string;
   onScraped?: () => void;
+  hideAutoDiscover?: boolean;
+  hideScrapeUrls?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [urls, setUrls] = useState("");
