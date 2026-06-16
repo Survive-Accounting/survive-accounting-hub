@@ -199,8 +199,31 @@ export function TextbookMatchAuditModal({
           </Button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 rounded border bg-amber-50/40 p-2 text-xs">
+          <BookOpen className="h-4 w-4 text-amber-700" />
+          <span className="font-medium">Fix the data gap:</span>
+          <span className="text-muted-foreground">
+            {unknownCampusIds.length} campuses have no textbook research yet · {isbnOnlyCampusIds.length} have ISBN-only entries that can be repaired for free via Google Books.
+          </span>
+          <Button
+            variant="outline" size="sm" className="ml-auto h-8"
+            disabled={enrichBusy || !isbnOnlyCampusIds.length}
+            onClick={handleEnrichIsbnOnly}
+          >
+            {enrichBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Wand2 className="h-3.5 w-3.5 mr-1" />}
+            Enrich {isbnOnlyCampusIds.length} ISBN-only via Google Books
+          </Button>
+          <Button
+            size="sm" className="h-8"
+            disabled={bulkBusy || !unknownCampusIds.length}
+            onClick={handleBulkResearchUnknown}
+          >
+            {bulkBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <BookOpen className="h-3.5 w-3.5 mr-1" />}
+            Research textbooks for {unknownCampusIds.length} unknown campuses
+          </Button>
+        </div>
 
-        <div className="flex-1 overflow-auto rounded border">
+
           {q.isLoading ? (
             <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running audit…
