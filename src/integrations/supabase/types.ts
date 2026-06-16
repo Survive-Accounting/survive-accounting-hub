@@ -3259,6 +3259,7 @@ export type Database = {
       outreach_settings: {
         Row: {
           auto_schedule_on_import: boolean
+          global_daily_send_limit: number
           id: number
           intermediate_1_availability: string
           intermediate_2_availability: string
@@ -3268,6 +3269,7 @@ export type Database = {
         }
         Insert: {
           auto_schedule_on_import?: boolean
+          global_daily_send_limit?: number
           id?: number
           intermediate_1_availability?: string
           intermediate_2_availability?: string
@@ -3277,6 +3279,7 @@ export type Database = {
         }
         Update: {
           auto_schedule_on_import?: boolean
+          global_daily_send_limit?: number
           id?: number
           intermediate_1_availability?: string
           intermediate_2_availability?: string
