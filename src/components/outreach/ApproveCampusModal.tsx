@@ -955,9 +955,6 @@ export default function ApproveCampusModal({
                   <><Wand2 className="h-4 w-4" /> Run Full AI Research</>
                 )}
               </Button>
-              <span className="text-[11px] text-muted-foreground">
-                Finds course codes, textbook matches, and suggested leads. You’ll review everything before saving.
-              </span>
             </div>
             <Sheet>
               <SheetTrigger asChild>
