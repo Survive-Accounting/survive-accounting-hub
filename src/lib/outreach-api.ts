@@ -663,7 +663,45 @@ export async function simulateInboundSms(args: {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Network error" };
-  }
+}
+
+// ----- SMS templates + config -----
+export interface SmsTemplate {
+  key: string;
+  label: string;
+  description: string | null;
+  body: string;
+  updated_at: string;
+}
+export interface SmsConfig {
+  lee_phone: string | null;
+  tester_phones: string[];
+  twilio_configured: boolean;
+  anthropic_configured: boolean;
+}
+
+export async function fetchSmsTemplates(): Promise<SmsTemplate[]> {
+  const { data, error } = await (supabase.from("sms_templates" as never) as any)
+    .select("key,label,description,body,updated_at")
+    .order("key");
+  if (error) throw error;
+  return (data ?? []) as SmsTemplate[];
+}
+
+export async function updateSmsTemplate(key: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await (supabase.from("sms_templates" as never) as any)
+    .update({ body })
+    .eq("key", key);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function fetchSmsConfig(): Promise<SmsConfig> {
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sms-config`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`sms-config HTTP ${res.status}`);
+  return (await res.json()) as SmsConfig;
+}
 }
 
 /** campus_id -> phone; the main line (campus_id null) is under "__main__". */
