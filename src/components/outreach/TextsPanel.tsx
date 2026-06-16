@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle, CheckCircle2, Copy, FlaskConical, Link2, Loader2,
-  MessageSquare, Phone, RefreshCw, RotateCcw, Send, ShieldCheck,
+  MessageSquare, Phone, RefreshCw, RotateCcw, Send, ShieldCheck, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Campus } from "@/lib/outreach-mock";
 import {
+  clearAllSmsConversations, clearConversationsByPhone,
   fetchCampusPhones, fetchSmsConfig, fetchSmsConversations, fetchSmsInboundRaw,
   fetchSmsMessages, formatPhonePretty, provisionCampusNumber, resetSmsConversation,
   sendSmsReply, simulateInboundSms,

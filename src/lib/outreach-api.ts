@@ -634,6 +634,37 @@ export async function resetSmsConversation(conversationId: string): Promise<{ ok
   return { ok: true };
 }
 
+/** Delete every conversation (and its messages/outbox) for a given student phone, plus their inbound_raw rows.
+ * Accepts any format; normalizes to E.164 (+1XXXXXXXXXX for 10-digit US numbers). */
+export async function clearConversationsByPhone(phone: string): Promise<{ ok: boolean; deleted: number; error?: string }> {
+  const digits = phone.replace(/[^\d]/g, "");
+  if (digits.length < 7) return { ok: false, deleted: 0, error: "Phone number too short" };
+  const e164 = digits.length === 10 ? `+1${digits}` : `+${digits}`;
+  const client = supabase.from("sms_conversations" as never) as any;
+  const { data: convos, error: findErr } = await client.select("id").eq("student_phone", e164);
+  if (findErr) return { ok: false, deleted: 0, error: findErr.message };
+  const ids = (convos ?? []).map((c: { id: string }) => c.id);
+  if (ids.length) {
+    const { error: delErr } = await client.delete().in("id", ids);
+    if (delErr) return { ok: false, deleted: 0, error: delErr.message };
+  }
+  await (supabase.from("sms_inbound_raw" as never) as any).delete().eq("from_number", e164);
+  return { ok: true, deleted: ids.length };
+}
+
+/** Nuke every SMS row: conversations (cascades to messages + outbox) and inbound_raw. */
+export async function clearAllSmsConversations(): Promise<{ ok: boolean; error?: string }> {
+  const convoDel = await (supabase.from("sms_conversations" as never) as any)
+    .delete()
+    .not("id", "is", null);
+  if (convoDel.error) return { ok: false, error: convoDel.error.message };
+  const rawDel = await (supabase.from("sms_inbound_raw" as never) as any)
+    .delete()
+    .not("id", "is", null);
+  if (rawDel.error) return { ok: false, error: rawDel.error.message };
+  return { ok: true };
+}
+
 /**
  * Simulate an inbound text by posting to the deployed Twilio webhook with the
  * exact form-encoded shape Twilio uses. No Twilio charge — exercises the full
