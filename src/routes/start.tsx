@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Upload, CheckCircle2, FileText, X } from "lucide-react";
+import { Loader2, Upload, CheckCircle2, FileText, X, Calendar, Clock } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { z } from "zod";
 
@@ -21,9 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectValue, SelectTrigger,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { computeIntakeRouting, type RoutingDecision } from "@/lib/intake-routing";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -154,6 +155,8 @@ function IntakeForm({ initialSearch }: { initialSearch: StartSearch }) {
   const campuses = campusesQuery.data ?? [];
 
   const [done, setDone] = useState(false);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [routing, setRouting] = useState<RoutingDecision | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -277,8 +280,36 @@ function IntakeForm({ initialSearch }: { initialSearch: StartSearch }) {
         source_url_params: sourceParams,
       };
 
-      const { error } = await (supabase.from("student_intake_submissions" as never) as any).insert(payload);
+      const { data: inserted, error } = await (supabase.from("student_intake_submissions" as never) as any)
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) throw new Error(error.message);
+
+      const newId = inserted?.id as string;
+      setSubmissionId(newId);
+
+      // Compute routing decision
+      const decision = await computeIntakeRouting({
+        campusId: parsed.data.campus_id,
+        courseFamily: parsed.data.course_family,
+        hasSyllabus: !!syllabusUrl,
+      });
+      setRouting(decision);
+
+      // Persist routing result + flags (don't block on failure)
+      await (supabase.from("student_intake_submissions" as never) as any)
+        .update({
+          routing_result: decision.result,
+          routing_reason: decision.reason,
+          booking_link_shown: decision.result === "bookable_ready",
+          waitlist_joined: decision.result === "waitlist_review",
+        })
+        .eq("id", newId);
+
+      // Fire-and-forget notifications — never break the form
+      supabase.functions.invoke("student-intake-notify", { body: { submission_id: newId } })
+        .catch((e) => console.warn("[intake-notify]", e));
 
       setDone(true);
     } catch (e: any) {
@@ -288,21 +319,47 @@ function IntakeForm({ initialSearch }: { initialSearch: StartSearch }) {
     }
   };
 
+  // Late syllabus upload after submit (for bookable_needs_syllabus)
+  const uploadSyllabusLate = async (file: File) => {
+    if (!submissionId) return;
+    try {
+      const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, "_");
+      const path = `${crypto.randomUUID()}/${safeName}`;
+      const { error: upErr } = await supabase.storage.from("student-syllabi")
+        .upload(path, file, { upsert: false, contentType: file.type || undefined });
+      if (upErr) throw new Error(upErr.message);
+
+      await (supabase.from("student_intake_submissions" as never) as any)
+        .update({ syllabus_file_url: path, syllabus_uploaded_at: new Date().toISOString() })
+        .eq("id", submissionId);
+
+      // Recompute routing
+      const decision = await computeIntakeRouting({
+        campusId: form.campus_id || null,
+        courseFamily: form.course_family,
+        hasSyllabus: true,
+      });
+      setRouting(decision);
+
+      await (supabase.from("student_intake_submissions" as never) as any)
+        .update({
+          routing_result: decision.result,
+          routing_reason: decision.reason,
+          booking_link_shown: decision.result === "bookable_ready",
+        })
+        .eq("id", submissionId);
+
+      supabase.functions.invoke("student-intake-notify", { body: { submission_id: submissionId } })
+        .catch((e) => console.warn("[intake-notify]", e));
+
+      toast.success("Syllabus uploaded!");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Upload failed");
+    }
+  };
+
   if (done) {
-    return (
-      <div
-        className="rounded-2xl bg-white p-8 text-center shadow-xl"
-        style={{ fontFamily: "Inter, sans-serif" }}
-      >
-        <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
-        <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
-          Thanks — your info was saved.
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
-          Lee will review your details {syllabusFile ? "and your syllabus " : ""}and follow up shortly.
-        </p>
-      </div>
-    );
+    return <PostSubmitCard routing={routing} onUploadSyllabus={uploadSyllabusLate} />;
   }
 
   const fieldErr = (k: string) => errors[k];
@@ -467,6 +524,100 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
       <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-600">{title}</div>
       <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function PostSubmitCard({
+  routing, onUploadSyllabus,
+}: { routing: RoutingDecision | null; onUploadSyllabus: (file: File) => Promise<void> }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePick = async (file: File | null) => {
+    if (!file) return;
+    setUploading(true);
+    try { await onUploadSyllabus(file); } finally { setUploading(false); }
+  };
+
+  if (!routing) {
+    return (
+      <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-gray-500" />
+        <p className="mt-3 text-sm text-gray-600">Saving your info…</p>
+      </div>
+    );
+  }
+
+  if (routing.result === "bookable_ready") {
+    return (
+      <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+        <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+        <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
+          Now, let's get you some tutoring!
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+          Book your Zoom session here.
+        </p>
+        {routing.bookingUrl ? (
+          <Button
+            asChild
+            className="mt-6 h-12 px-8 text-base font-bold text-white"
+            style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+          >
+            <a href={routing.bookingUrl} target="_blank" rel="noopener noreferrer">
+              <Calendar className="mr-2 h-4 w-4" /> Book Zoom Tutoring
+            </a>
+          </Button>
+        ) : (
+          <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Booking link not configured yet. Lee will follow up shortly with one.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (routing.result === "bookable_needs_syllabus") {
+    return (
+      <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+        <Upload className="mx-auto h-12 w-12" style={{ color: NAVY }} />
+        <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
+          Almost done — upload your syllabus to unlock the booking link.
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+          Lee needs your syllabus to prep for your course before scheduling.
+        </p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,application/pdf,image/*"
+          className="hidden"
+          onChange={(e) => handlePick(e.target.files?.[0] ?? null)}
+        />
+        <Button
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="mt-6 h-12 px-8 text-base font-bold text-white"
+          style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+        >
+          {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+          Upload Syllabus
+        </Button>
+      </div>
+    );
+  }
+
+  // waitlist_review
+  return (
+    <div className="rounded-2xl bg-white p-8 text-center shadow-xl" style={{ fontFamily: "Inter, sans-serif" }}>
+      <Clock className="mx-auto h-12 w-12 text-amber-600" />
+      <h2 className="mt-4 text-2xl font-bold" style={{ color: NAVY }}>
+        You're on the waitlist.
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+        I'll review your course and respond within 2 business days.
+      </p>
     </div>
   );
 }

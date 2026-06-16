@@ -111,6 +111,7 @@ export type Database = {
       }
       campus_course_availability: {
         Row: {
+          booking_url: string | null
           campus_id: string
           course_family: string
           created_at: string
@@ -122,6 +123,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          booking_url?: string | null
           campus_id: string
           course_family: string
           created_at?: string
@@ -133,6 +135,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          booking_url?: string | null
           campus_id?: string
           course_family?: string
           created_at?: string
@@ -3289,6 +3292,11 @@ export type Database = {
           intermediate_2_availability: string
           intro_1_availability: string
           intro_2_availability: string
+          square_booking_url: string | null
+          square_booking_url_intermediate_1: string | null
+          square_booking_url_intermediate_2: string | null
+          square_booking_url_intro_1: string | null
+          square_booking_url_intro_2: string | null
           updated_at: string
         }
         Insert: {
@@ -3299,6 +3307,11 @@ export type Database = {
           intermediate_2_availability?: string
           intro_1_availability?: string
           intro_2_availability?: string
+          square_booking_url?: string | null
+          square_booking_url_intermediate_1?: string | null
+          square_booking_url_intermediate_2?: string | null
+          square_booking_url_intro_1?: string | null
+          square_booking_url_intro_2?: string | null
           updated_at?: string
         }
         Update: {
@@ -3309,6 +3322,11 @@ export type Database = {
           intermediate_2_availability?: string
           intro_1_availability?: string
           intro_2_availability?: string
+          square_booking_url?: string | null
+          square_booking_url_intermediate_1?: string | null
+          square_booking_url_intermediate_2?: string | null
+          square_booking_url_intro_1?: string | null
+          square_booking_url_intro_2?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -3790,6 +3808,7 @@ export type Database = {
           last_name: string | null
           next_exam_date: string | null
           notes: string | null
+          notification_log: Json
           phone: string | null
           professor_name: string | null
           routing_reason: string | null
@@ -3820,6 +3839,7 @@ export type Database = {
           last_name?: string | null
           next_exam_date?: string | null
           notes?: string | null
+          notification_log?: Json
           phone?: string | null
           professor_name?: string | null
           routing_reason?: string | null
@@ -3850,6 +3870,7 @@ export type Database = {
           last_name?: string | null
           next_exam_date?: string | null
           notes?: string | null
+          notification_log?: Json
           phone?: string | null
           professor_name?: string | null
           routing_reason?: string | null

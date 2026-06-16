@@ -13,6 +13,7 @@ import {
   fetchCampaigns, fetchCampaignMetrics, fetchHomeSnapshot,
   type CampaignMetrics,
 } from "@/lib/outreach-api";
+import { StudentIntakesPanel } from "./StudentIntakesPanel";
 
 interface HomeDashboardProps {
   onCreateCampaign: () => void;
@@ -89,6 +90,9 @@ export function HomeDashboard({
           <StatTile label="Text conversations" value={s?.textConversations} icon={<MessageCircle className="h-4 w-4" />} />
         </StatGrid>
       </Section>
+
+      {/* Recent student intakes from /start */}
+      <StudentIntakesPanel />
 
       {/* Active Campaigns */}
       <Section title="Active Campaigns" icon={<Megaphone className="h-4 w-4" />}>
