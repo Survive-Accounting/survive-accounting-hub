@@ -1,7 +1,7 @@
 // Ported from the original app (ProfessorOutreach.tsx — SchoolsPanel table).
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign,
+  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, ChevronRight, Copy, DollarSign,
   Eye, MousePointerClick, Phone, RefreshCw, Upload, Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import CampusFilterBar from "@/components/outreach/CampusFilterBar";
 import AssignCampusPopover from "@/components/outreach/AssignCampusPopover";
+import { ScrapeFacultyButton } from "@/components/outreach/ScrapeFacultyButton";
+import { FacultyTriagePanel } from "@/components/outreach/FacultyTriagePanel";
 import {
   ASSIGNMENT_STATUS_BADGE,
   ASSIGNMENT_STATUS_LABEL,
