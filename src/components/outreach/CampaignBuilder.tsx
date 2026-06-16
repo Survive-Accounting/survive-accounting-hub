@@ -1,9 +1,9 @@
 // Campaign Builder — Phase 2: preview + create draft only.
 // No emails are scheduled or sent from here.
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Users, ListChecks } from "lucide-react";
+import { Loader2, Users, ListChecks, Plus, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,14 +11,22 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   LeadFilterBar,
   useLeadFilters,
 } from "@/components/outreach/filters/LeadFilterBar";
 import {
   previewCampaignAudience,
   createCampaignFromPreview,
+  listAudiences,
+  touchAudienceUsed,
   type CampaignAudiencePreview,
+  type Audience,
 } from "@/lib/outreach-api";
+import { applyAudienceFilters, normalizeAudienceFilters } from "@/lib/audience-filters";
+import { AudienceEditorModal } from "@/components/outreach/AudienceEditorModal";
 import type { Campus } from "@/lib/outreach-mock";
 
 export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
@@ -29,11 +37,29 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
   const [selectedCampusIds, setSelectedCampusIds] = useState<string[]>([]);
   const [campusSearch, setCampusSearch] = useState("");
   const [preview, setPreview] = useState<CampaignAudiencePreview | null>(null);
+  const [audienceId, setAudienceId] = useState<string>("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingAudience, setEditingAudience] = useState<Audience | null>(null);
+
+  const audiencesQ = useQuery({ queryKey: ["audiences"], queryFn: listAudiences });
+  const audiences = audiencesQ.data ?? [];
+  const currentAudience = audiences.find((a) => a.id === audienceId) ?? null;
 
   const filteredCampuses = useMemo(() => {
     const q = campusSearch.trim().toLowerCase();
     return q ? campuses.filter((c) => c.school_name.toLowerCase().includes(q)) : campuses;
   }, [campuses, campusSearch]);
+
+  function applyAudience(a: Audience) {
+    const f = normalizeAudienceFilters(a.filters_json);
+    const ids = a.pinned_campus_ids && a.pinned_campus_ids.length
+      ? a.pinned_campus_ids
+      : applyAudienceFilters(campuses, f).map((c) => c.id);
+    setSelectedCampusIds(ids);
+    setPreview(null);
+    touchAudienceUsed(a.id).catch(() => { /* non-blocking */ });
+    toast.success(`Loaded "${a.name}" — ${ids.length} campuses`);
+  }
 
   const previewMut = useMutation({
     mutationFn: async () => previewCampaignAudience(
@@ -109,6 +135,51 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
             className="h-9 mt-1"
           />
         </div>
+      </div>
+
+      <div className="mb-4 rounded-md border bg-card p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col flex-1 min-w-[220px]">
+            <Label className="text-xs">Audience</Label>
+            <Select
+              value={audienceId || "_none"}
+              onValueChange={(v) => {
+                if (v === "_none") { setAudienceId(""); return; }
+                setAudienceId(v);
+                const a = audiences.find((x) => x.id === v);
+                if (a) applyAudience(a);
+              }}
+            >
+              <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="None — use filters below" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">None — use filters below</SelectItem>
+                {audiences.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}{a.pinned_campus_ids?.length ? ` · ${a.pinned_campus_ids.length} pinned` : " · dynamic"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button type="button" size="sm" variant="outline" className="h-9"
+            onClick={() => { setEditingAudience(null); setEditorOpen(true); }}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> New
+          </Button>
+          {currentAudience && (
+            <Button type="button" size="sm" variant="outline" className="h-9"
+              onClick={() => { setEditingAudience(currentAudience); setEditorOpen(true); }}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+            </Button>
+          )}
+          {currentAudience && (
+            <Badge variant="outline" className="text-[10px]">
+              {selectedCampusIds.length} campuses loaded
+            </Badge>
+          )}
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Pick a saved audience to prefill the campus list below, or build one from scratch and save it for next time.
+        </p>
       </div>
 
       <div className="mb-4">
@@ -233,6 +304,13 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
           )}
         </div>
       )}
+
+      <AudienceEditorModal
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        campuses={campuses}
+        audience={editingAudience}
+      />
     </Card>
   );
 }

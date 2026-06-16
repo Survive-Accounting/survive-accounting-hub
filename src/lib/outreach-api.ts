@@ -2893,3 +2893,77 @@ export async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
     bookingSubmissions, waitlistSignups, syllabiUploaded, textConversations,
   };
 }
+
+// ============================================================
+// Audiences: saved campus filter sets + optional pinned campus IDs.
+// ============================================================
+
+export interface Audience {
+  id: string;
+  name: string;
+  description: string | null;
+  filters_json: Record<string, unknown>;
+  pinned_campus_ids: string[] | null;
+  is_shared: boolean;
+  created_by: string | null;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AudiencePayload {
+  name: string;
+  description?: string | null;
+  filters_json: Record<string, unknown>;
+  pinned_campus_ids?: string[] | null;
+  is_shared?: boolean;
+}
+
+const AUDIENCE_TABLE = "outreach_audiences" as const;
+
+export async function listAudiences(): Promise<Audience[]> {
+  const { data, error } = await (supabase.from(AUDIENCE_TABLE as never) as any)
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Audience[];
+}
+
+export async function createAudience(payload: AudiencePayload): Promise<Audience> {
+  const { data: userRes } = await supabase.auth.getUser();
+  const created_by = userRes.user?.id ?? null;
+  const row = {
+    name: payload.name,
+    description: payload.description ?? null,
+    filters_json: payload.filters_json,
+    pinned_campus_ids: payload.pinned_campus_ids ?? null,
+    is_shared: !!payload.is_shared,
+    created_by,
+  };
+  const { data, error } = await (supabase.from(AUDIENCE_TABLE as never) as any)
+    .insert(row).select("*").single();
+  if (error) throw error;
+  return data as Audience;
+}
+
+export async function updateAudience(
+  id: string,
+  patch: Partial<AudiencePayload>,
+): Promise<Audience> {
+  const { data, error } = await (supabase.from(AUDIENCE_TABLE as never) as any)
+    .update(patch as never).eq("id", id).select("*").single();
+  if (error) throw error;
+  return data as Audience;
+}
+
+export async function deleteAudience(id: string): Promise<void> {
+  const { error } = await (supabase.from(AUDIENCE_TABLE as never) as any)
+    .delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function touchAudienceUsed(id: string): Promise<void> {
+  await (supabase.from(AUDIENCE_TABLE as never) as any)
+    .update({ last_used_at: new Date().toISOString() } as never).eq("id", id);
+}
+

@@ -2813,6 +2813,45 @@ export type Database = {
         }
         Relationships: []
       }
+      outreach_audiences: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          filters_json: Json
+          id: string
+          is_shared: boolean
+          last_used_at: string | null
+          name: string
+          pinned_campus_ids: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          filters_json?: Json
+          id?: string
+          is_shared?: boolean
+          last_used_at?: string | null
+          name: string
+          pinned_campus_ids?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          filters_json?: Json
+          id?: string
+          is_shared?: boolean
+          last_used_at?: string | null
+          name?: string
+          pinned_campus_ids?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       outreach_broadcasts: {
         Row: {
           body: string
@@ -2937,6 +2976,7 @@ export type Database = {
       outreach_campaigns: {
         Row: {
           audience_filters: Json
+          audience_id: string | null
           campaign_type: string
           created_at: string
           created_by: string | null
@@ -2951,6 +2991,7 @@ export type Database = {
         }
         Insert: {
           audience_filters?: Json
+          audience_id?: string | null
           campaign_type?: string
           created_at?: string
           created_by?: string | null
@@ -2965,6 +3006,7 @@ export type Database = {
         }
         Update: {
           audience_filters?: Json
+          audience_id?: string | null
           campaign_type?: string
           created_at?: string
           created_by?: string | null
@@ -2977,7 +3019,15 @@ export type Database = {
           total_leads?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "outreach_campaigns_audience_id_fkey"
+            columns: ["audience_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_audiences"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       outreach_email_events: {
         Row: {
