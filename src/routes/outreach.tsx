@@ -22,6 +22,7 @@ import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
 import { WaitlistCard } from "@/components/outreach/WaitlistCard";
 import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
+import { ArchiveAllLeadsButton } from "@/components/outreach/ArchiveAllLeadsButton";
 import {
   DEFAULT_CAMPUS_FILTERS,
   MOCK_CAMPUSES,
@@ -148,7 +149,8 @@ function OutreachPage() {
               campuses={campuses}
               onOpenSettings={() => setBatchSettingsOpen(true)}
             />
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between gap-2">
+              <ArchiveAllLeadsButton />
               <button
                 onClick={() => setAddOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
