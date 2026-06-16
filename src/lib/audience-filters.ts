@@ -13,15 +13,12 @@ export type CourseFamilyKey =
   | "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2";
 
 export interface AudienceFilters extends CampusFilters {
-  // Which course families a campus must have textbook data for. Empty = no
-  // family filter applied. A campus passes if ANY selected family has matching
-  // textbook metadata (or the campus has the family in course_codes when no
-  // textbook json — but to keep it tight we require json).
   families: CourseFamilyKey[];
-  // Substring match (case-insensitive) on any family's detected authors.
   authorsContains: string;
-  // Substring match (case-insensitive) on any family's detected publisher.
   publisherContains: string;
+  // Include campuses missing textbook data for the selected family. Helps
+  // audit coverage gaps when reviewing an audience.
+  includeBlanks?: boolean;
 }
 
 export const DEFAULT_AUDIENCE_FILTERS: AudienceFilters = {
@@ -29,6 +26,7 @@ export const DEFAULT_AUDIENCE_FILTERS: AudienceFilters = {
   families: [],
   authorsContains: "",
   publisherContains: "",
+  includeBlanks: false,
 };
 
 function getFamilyEntries(c: Campus) {
@@ -36,6 +34,24 @@ function getFamilyEntries(c: Campus) {
     string,
     { isbn13?: string; title?: string; authors?: string; publisher?: string }
   >;
+}
+
+export function getTextbookDisplay(
+  c: Campus,
+  families: CourseFamilyKey[],
+): string {
+  const tb = getFamilyEntries(c);
+  const keys = families.length
+    ? families
+    : (Object.keys(tb) as CourseFamilyKey[]);
+  for (const k of keys) {
+    const e = tb[k];
+    if (!e) continue;
+    const title = (e.title ?? "").trim();
+    const authors = (e.authors ?? "").trim();
+    if (title || authors) return [title, authors].filter(Boolean).join(" — ");
+  }
+  return "";
 }
 
 export function applyAudienceFilters(
@@ -49,21 +65,27 @@ export function applyAudienceFilters(
   if (!families.length && !aq && !pq) return base;
   return base.filter((c) => {
     const tb = getFamilyEntries(c);
-    const keys = families.length ? families : (Object.keys(tb) as CourseFamilyKey[]);
+    const keys = families.length
+      ? families
+      : (Object.keys(tb) as CourseFamilyKey[]);
+    let hasAnyEntry = false;
     for (const k of keys) {
       const entry = tb[k];
       if (!entry) continue;
+      hasAnyEntry = true;
       const authors = (entry.authors ?? "").toLowerCase();
       const publisher = (entry.publisher ?? "").toLowerCase();
       const okA = !aq || authors.includes(aq);
       const okP = !pq || publisher.includes(pq);
       if (okA && okP) return true;
     }
+    // Show blanks for audit purposes (only when text filters are off, since
+    // those filters are inherently exclusionary against missing data).
+    if (f.includeBlanks && !aq && !pq && !hasAnyEntry) return true;
     return false;
   });
 }
 
-// Migrate a stored filters_json blob (possibly older shape) to AudienceFilters.
 export function normalizeAudienceFilters(input: unknown): AudienceFilters {
   const f = (input ?? {}) as Partial<AudienceFilters>;
   return {
@@ -72,5 +94,6 @@ export function normalizeAudienceFilters(input: unknown): AudienceFilters {
     families: Array.isArray(f.families) ? (f.families as CourseFamilyKey[]) : [],
     authorsContains: typeof f.authorsContains === "string" ? f.authorsContains : "",
     publisherContains: typeof f.publisherContains === "string" ? f.publisherContains : "",
+    includeBlanks: !!f.includeBlanks,
   };
 }
