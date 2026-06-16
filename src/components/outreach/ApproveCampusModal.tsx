@@ -165,7 +165,7 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
 }
 
 export default function ApproveCampusModal({
-  campus, onClose, onPatch, onApprove, autoStartResearch,
+  campus, onClose, onPatch, onApprove, autoStartResearch, initialStep,
 }: {
   campus: Campus | null;
   onClose: () => void;
@@ -173,8 +173,10 @@ export default function ApproveCampusModal({
   onApprove: (id: string, patch: Partial<Campus>) => void;
   /** When set to a campus id, automatically kick off full AI research once after the modal opens. */
   autoStartResearch?: string | null;
+  /** Optional step to land on when the modal opens (default "1"). */
+  initialStep?: string;
 }) {
-  const [step, setStep] = useState("1");
+  const [step, setStep] = useState(initialStep ?? "1");
   const [familyCodes, setFamilyCodes] = useState<Record<string, string>>({});
   const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
   const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
