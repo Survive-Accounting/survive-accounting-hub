@@ -13,6 +13,7 @@ import {
   fetchCampaigns, fetchCampaignMetrics, fetchHomeSnapshot,
   type CampaignMetrics,
 } from "@/lib/outreach-api";
+import { StudentIntakesPanel } from "./StudentIntakesPanel";
 
 interface HomeDashboardProps {
   onCreateCampaign: () => void;
