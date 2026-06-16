@@ -941,6 +941,19 @@ export default function ApproveCampusModal({
 
           {/* Research — single primary action + secondary tools (top-right) */}
           <div className="mt-3 mb-1 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              onClick={runAiResearch}
+              disabled={aiResearching}
+              size="lg"
+              className="h-11 gap-2 font-semibold text-sm"
+            >
+              {aiResearching ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
+              ) : (
+                <><Sparkles className="h-4 w-4" /> Run Full AI Research</>
+              )}
+            </Button>
             <Sheet>
               <SheetTrigger asChild>
                 <Button
