@@ -115,7 +115,7 @@ function Home() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
-        headline="Hey, I'm Lee."
+        headline="Let's Make Accounting Exams Feel Easy"
         subtext="If you need help in your course, I'm your guy. Text me to book a session, and I'll respond ASAP."
         ctaSlot={<HeroCta />}
       />
