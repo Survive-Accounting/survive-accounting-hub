@@ -4,12 +4,14 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Download, BookOpen, Wand2 } from "lucide-react";
+import { Loader2, Download, BookOpen, Wand2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { runTextbookMatchAudit, type TextbookAuditRow } from "@/lib/textbook-matcher";
 import { startTextbookOnlyBatch, runTextbookResearchForCampus } from "@/lib/outreach-api";
@@ -38,7 +40,28 @@ export function TextbookMatchAuditModal({
   const qc = useQueryClient();
   const [bulkBusy, setBulkBusy] = useState(false);
   const [enrichBusy, setEnrichBusy] = useState(false);
-  const [familyFilter, setFamilyFilter] = useState<string>("all");
+  const FAMILIES = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const;
+  const [familySel, setFamilySel] = useState<Record<string, boolean>>({
+    intro_1: true, intro_2: true, intermediate_1: true, intermediate_2: true,
+  });
+  const [authorQ, setAuthorQ] = useState("");
+  const [publisherQ, setPublisherQ] = useState("");
+  type SortKey = "campus_name" | "course_family" | "course_code" | "detected_publisher" | "detected_authors" | "old_status" | "new_status" | "match_reason" | "source_url";
+  const [sortKey, setSortKey] = useState<SortKey>("new_status");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir("asc"); }
+  }
+  function SortHeader({ k, label }: { k: SortKey; label: string }) {
+    const active = sortKey === k;
+    const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+    return (
+      <button onClick={() => toggleSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
+        {label}<Icon className="h-3 w-3 opacity-60" />
+      </button>
+    );
+  }
 
   const q = useQuery({
     queryKey: ["textbook-audit", campuses.length],
@@ -129,17 +152,44 @@ export function TextbookMatchAuditModal({
     };
   }, [rows, campuses]);
 
-  // Sort: matched first, then unmatched, then unknown; within each, by campus name.
   const sorted = useMemo(() => {
     const order = { matched: 0, unmatched: 1, unknown: 2 } as const;
-    const filtered = familyFilter === "all" ? rows : rows.filter((r) => r.course_family === familyFilter);
-    return [...filtered].sort((a, b) => {
-      const s = order[a.new_status] - order[b.new_status];
-      if (s !== 0) return s;
-      return a.campus_name.localeCompare(b.campus_name)
-        || a.course_family.localeCompare(b.course_family);
+    const aq = authorQ.trim().toLowerCase();
+    const pq = publisherQ.trim().toLowerCase();
+    const filtered = rows.filter((r) => {
+      if (!familySel[r.course_family]) return false;
+      if (aq && !(r.detected_authors ?? "").toLowerCase().includes(aq)) return false;
+      if (pq && !(r.detected_publisher ?? "").toLowerCase().includes(pq)) return false;
+      return true;
     });
-  }, [rows, familyFilter]);
+    const dir = sortDir === "asc" ? 1 : -1;
+    const cmpStr = (a?: string | null, b?: string | null) =>
+      (a ?? "").localeCompare(b ?? "");
+    return [...filtered].sort((a, b) => {
+      let s = 0;
+      switch (sortKey) {
+        case "new_status":
+        case "old_status":
+          s = order[a[sortKey]] - order[b[sortKey]]; break;
+        case "campus_name":
+          s = cmpStr(a.campus_name, b.campus_name); break;
+        case "course_family":
+          s = cmpStr(a.course_family, b.course_family); break;
+        case "course_code":
+          s = cmpStr(a.course_code, b.course_code); break;
+        case "detected_publisher":
+          s = cmpStr(a.detected_publisher, b.detected_publisher); break;
+        case "detected_authors":
+          s = cmpStr(a.detected_authors, b.detected_authors); break;
+        case "match_reason":
+          s = cmpStr(a.match_reason, b.match_reason); break;
+        case "source_url":
+          s = cmpStr(a.source_url, b.source_url); break;
+      }
+      if (s !== 0) return s * dir;
+      return cmpStr(a.campus_name, b.campus_name) || cmpStr(a.course_family, b.course_family);
+    });
+  }, [rows, familySel, authorQ, publisherQ, sortKey, sortDir]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -192,28 +242,62 @@ export function TextbookMatchAuditModal({
             Newly matched (vs. old rule): <strong className="ml-1">{summary.upgraded}</strong>
           </Badge>
           <div className="ml-auto flex items-center gap-2">
-            <label className="text-[11px] font-medium text-muted-foreground">Family:</label>
-            <select
-              value={familyFilter}
-              onChange={(e) => setFamilyFilter(e.target.value)}
-              className="h-8 rounded border bg-background px-2 text-xs"
-            >
-              <option value="all">All families ({rows.length})</option>
-              {(["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const).map((f) => {
-                const n = rows.filter((r) => r.course_family === f).length;
-                return <option key={f} value={f}>{FAMILY_LABEL[f]} ({n})</option>;
-              })}
-            </select>
             <Button
               variant="outline" size="sm" className="h-8"
               disabled={!sorted.length}
               onClick={() => downloadAuditCsv(sorted)}
             >
               <Download className="h-3.5 w-3.5 mr-1" />
-              Download CSV
+              Download CSV ({sorted.length})
             </Button>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-end gap-3 rounded border bg-muted/20 p-2 text-xs">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted-foreground">Families</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {FAMILIES.map((f) => {
+                const n = rows.filter((r) => r.course_family === f).length;
+                return (
+                  <label key={f} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox
+                      checked={!!familySel[f]}
+                      onCheckedChange={(v) => setFamilySel((s) => ({ ...s, [f]: !!v }))}
+                    />
+                    <span>{FAMILY_LABEL[f]} <span className="text-muted-foreground">({n})</span></span>
+                  </label>
+                );
+              })}
+              <button
+                type="button"
+                className="text-[11px] text-primary underline ml-2"
+                onClick={() => setFamilySel({ intro_1: true, intro_2: true, intermediate_1: true, intermediate_2: true })}
+              >all</button>
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground underline"
+                onClick={() => setFamilySel({ intro_1: false, intro_2: false, intermediate_1: false, intermediate_2: false })}
+              >none</button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted-foreground">Authors contain</span>
+            <Input value={authorQ} onChange={(e) => setAuthorQ(e.target.value)} placeholder="e.g. Wild" className="h-8 w-44 text-xs" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted-foreground">Publisher contains</span>
+            <Input value={publisherQ} onChange={(e) => setPublisherQ(e.target.value)} placeholder="e.g. McGraw" className="h-8 w-44 text-xs" />
+          </div>
+          {(authorQ || publisherQ) && (
+            <button
+              type="button"
+              className="h-8 text-[11px] text-muted-foreground underline"
+              onClick={() => { setAuthorQ(""); setPublisherQ(""); }}
+            >clear text filters</button>
+          )}
+        </div>
+
 
 
         <div className="flex flex-wrap items-center gap-2 rounded border bg-amber-50/40 p-2 text-xs">
@@ -250,16 +334,16 @@ export function TextbookMatchAuditModal({
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-muted/70 text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-2 text-left">Campus</th>
-                  <th className="px-2 py-2 text-left">Family</th>
-                  <th className="px-2 py-2 text-left">Course code</th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="campus_name" label="Campus" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="course_family" label="Family" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="course_code" label="Course code" /></th>
                   <th className="px-2 py-2 text-left">Detected textbook</th>
-                  <th className="px-2 py-2 text-left">Publisher</th>
-                  <th className="px-2 py-2 text-left">Authors</th>
-                  <th className="px-2 py-2 text-left">Old</th>
-                  <th className="px-2 py-2 text-left">New</th>
-                  <th className="px-2 py-2 text-left">Match reason</th>
-                  <th className="px-2 py-2 text-left">Source</th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="detected_publisher" label="Publisher" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="detected_authors" label="Authors" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="old_status" label="Old" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="new_status" label="New" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="match_reason" label="Match reason" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="source_url" label="Source" /></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
