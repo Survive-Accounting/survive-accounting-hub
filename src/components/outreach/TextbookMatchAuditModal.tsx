@@ -334,16 +334,16 @@ export function TextbookMatchAuditModal({
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-muted/70 text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-2 text-left">Campus</th>
-                  <th className="px-2 py-2 text-left">Family</th>
-                  <th className="px-2 py-2 text-left">Course code</th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="campus_name" label="Campus" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="course_family" label="Family" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="course_code" label="Course code" /></th>
                   <th className="px-2 py-2 text-left">Detected textbook</th>
-                  <th className="px-2 py-2 text-left">Publisher</th>
-                  <th className="px-2 py-2 text-left">Authors</th>
-                  <th className="px-2 py-2 text-left">Old</th>
-                  <th className="px-2 py-2 text-left">New</th>
-                  <th className="px-2 py-2 text-left">Match reason</th>
-                  <th className="px-2 py-2 text-left">Source</th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="detected_publisher" label="Publisher" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="detected_authors" label="Authors" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="old_status" label="Old" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="new_status" label="New" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="match_reason" label="Match reason" /></th>
+                  <th className="px-2 py-2 text-left"><SortHeader k="source_url" label="Source" /></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
