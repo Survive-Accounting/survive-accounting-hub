@@ -1232,6 +1232,45 @@ export async function getTextbookMatchedCampusIds(): Promise<string[]> {
     .map((c) => c.id);
 }
 
+/** Run clean professor research synchronously on ONE campus in test mode.
+ *  Returns the edge function's full response payload (prompt, raw output,
+ *  accepted/rejected leads, sources). Results are still inserted as pending
+ *  suggestions but tagged with a distinct research_label so they're easy
+ *  to find or archive. */
+export interface CleanProfessorTestResult {
+  success: boolean;
+  campus_id: string;
+  inserted_count: number;
+  skipped_duplicate_count: number;
+  suggestions: any[];
+  debug: {
+    model: string;
+    research_mode: string;
+    research_label: string;
+    finish_reason: string | null;
+    usage: any;
+    raw_suggestion_count: number;
+    parsed_lead_count: number;
+    rejected_count: number;
+    rejected_samples: { reason: string; sample: any }[];
+    test_mode: boolean;
+    prompt_preview: string;
+    raw_response_preview: string;
+    accepted_preview: any[];
+    parsed_suggestions?: any[];
+  };
+  error?: string;
+}
+
+export async function runCleanProfessorTest(campusId: string): Promise<CleanProfessorTestResult> {
+  if (!campusId) throw new Error("campusId required");
+  const { data, error } = await supabase.functions.invoke("research-campus-leads-clean", {
+    body: { campus_id: campusId, test_mode: true },
+  });
+  if (error) throw error;
+  return data as CleanProfessorTestResult;
+}
+
 /** Get the most recent job, with items. */
 export async function getLatestCampusBatch(): Promise<
   { job: CampusResearchJob; items: CampusResearchJobItem[] } | null
