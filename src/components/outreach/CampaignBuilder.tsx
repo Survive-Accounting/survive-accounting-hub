@@ -37,21 +37,29 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
   const [selectedCampusIds, setSelectedCampusIds] = useState<string[]>([]);
   const [campusSearch, setCampusSearch] = useState("");
   const [preview, setPreview] = useState<CampaignAudiencePreview | null>(null);
+  const [audienceId, setAudienceId] = useState<string>("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingAudience, setEditingAudience] = useState<Audience | null>(null);
+
+  const audiencesQ = useQuery({ queryKey: ["audiences"], queryFn: listAudiences });
+  const audiences = audiencesQ.data ?? [];
+  const currentAudience = audiences.find((a) => a.id === audienceId) ?? null;
 
   const filteredCampuses = useMemo(() => {
     const q = campusSearch.trim().toLowerCase();
     return q ? campuses.filter((c) => c.school_name.toLowerCase().includes(q)) : campuses;
   }, [campuses, campusSearch]);
 
-  const previewMut = useMutation({
-    mutationFn: async () => previewCampaignAudience(
-      { ...filters, selectedCampusIds },
-      campuses,
-    ),
-    onSuccess: (data) => {
-      setPreview(data);
-      toast.success(`Preview: ${data.totalLeads.toLocaleString()} leads across ${data.totalCampuses} campuses`);
-    },
+  function applyAudience(a: Audience) {
+    const f = normalizeAudienceFilters(a.filters_json);
+    const ids = a.pinned_campus_ids && a.pinned_campus_ids.length
+      ? a.pinned_campus_ids
+      : applyAudienceFilters(campuses, f).map((c) => c.id);
+    setSelectedCampusIds(ids);
+    setPreview(null);
+    touchAudienceUsed(a.id).catch(() => { /* non-blocking */ });
+    toast.success(`Loaded "${a.name}" — ${ids.length} campuses`);
+  }
     onError: (e: Error) => toast.error(`Preview failed: ${e.message}`),
   });
 
