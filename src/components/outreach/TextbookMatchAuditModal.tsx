@@ -152,17 +152,44 @@ export function TextbookMatchAuditModal({
     };
   }, [rows, campuses]);
 
-  // Sort: matched first, then unmatched, then unknown; within each, by campus name.
   const sorted = useMemo(() => {
     const order = { matched: 0, unmatched: 1, unknown: 2 } as const;
-    const filtered = familyFilter === "all" ? rows : rows.filter((r) => r.course_family === familyFilter);
-    return [...filtered].sort((a, b) => {
-      const s = order[a.new_status] - order[b.new_status];
-      if (s !== 0) return s;
-      return a.campus_name.localeCompare(b.campus_name)
-        || a.course_family.localeCompare(b.course_family);
+    const aq = authorQ.trim().toLowerCase();
+    const pq = publisherQ.trim().toLowerCase();
+    const filtered = rows.filter((r) => {
+      if (!familySel[r.course_family]) return false;
+      if (aq && !(r.detected_authors ?? "").toLowerCase().includes(aq)) return false;
+      if (pq && !(r.detected_publisher ?? "").toLowerCase().includes(pq)) return false;
+      return true;
     });
-  }, [rows, familyFilter]);
+    const dir = sortDir === "asc" ? 1 : -1;
+    const cmpStr = (a?: string | null, b?: string | null) =>
+      (a ?? "").localeCompare(b ?? "");
+    return [...filtered].sort((a, b) => {
+      let s = 0;
+      switch (sortKey) {
+        case "new_status":
+        case "old_status":
+          s = order[a[sortKey]] - order[b[sortKey]]; break;
+        case "campus_name":
+          s = cmpStr(a.campus_name, b.campus_name); break;
+        case "course_family":
+          s = cmpStr(a.course_family, b.course_family); break;
+        case "course_code":
+          s = cmpStr(a.course_code, b.course_code); break;
+        case "detected_publisher":
+          s = cmpStr(a.detected_publisher, b.detected_publisher); break;
+        case "detected_authors":
+          s = cmpStr(a.detected_authors, b.detected_authors); break;
+        case "match_reason":
+          s = cmpStr(a.match_reason, b.match_reason); break;
+        case "source_url":
+          s = cmpStr(a.source_url, b.source_url); break;
+      }
+      if (s !== 0) return s * dir;
+      return cmpStr(a.campus_name, b.campus_name) || cmpStr(a.course_family, b.course_family);
+    });
+  }, [rows, familySel, authorQ, publisherQ, sortKey, sortDir]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
