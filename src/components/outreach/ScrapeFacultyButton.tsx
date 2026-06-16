@@ -77,21 +77,23 @@ export function ScrapeFacultyButton({
     setDiscovering(true);
     try {
       const result = await discover({ data: { campusId, maxPages: 5 } });
-      if (result.chosenUrls.length > 0) {
-        setUrls(result.chosenUrls.join("\n"));
+      const chosenUrls = result?.chosenUrls ?? [];
+      const perPage = result?.perPage ?? [];
+      if (chosenUrls.length > 0) {
+        setUrls(chosenUrls.join("\n"));
       }
-      const errs = result.perPage.filter((p) => p.error);
-      const summary = `Firecrawl mapped ${result.discovered} links → scraped ${result.scraped} faculty pages → added ${result.inserted} candidates${result.skippedDuplicates ? ` (skipped ${result.skippedDuplicates} dupes)` : ""}${errs.length ? `, ${errs.length} page error(s)` : ""}.`;
-      if (result.inserted === 0) {
+      const errs = perPage.filter((p) => p.error);
+      const summary = `Firecrawl mapped ${result?.discovered ?? 0} links → scraped ${result?.scraped ?? 0} faculty pages → added ${result?.inserted ?? 0} candidates${result?.skippedDuplicates ? ` (skipped ${result.skippedDuplicates} dupes)` : ""}${errs.length ? `, ${errs.length} page error(s)` : ""}.`;
+      if ((result?.inserted ?? 0) === 0) {
         toast.warning(summary, {
-          description: result.chosenUrls.length > 0
-            ? `Pages tried:\n${result.chosenUrls.join("\n")}`
+          description: chosenUrls.length > 0
+            ? `Pages tried:\n${chosenUrls.join("\n")}`
             : "No usable faculty pages found. Try 'Scrape URLs' with a hand-picked URL.",
           duration: 15000,
         });
       } else {
         toast.success(summary, {
-          description: `Pages: ${result.chosenUrls.slice(0, 3).join(", ")}${result.chosenUrls.length > 3 ? "…" : ""}`,
+          description: `Pages: ${chosenUrls.slice(0, 3).join(", ")}${chosenUrls.length > 3 ? "…" : ""}`,
           duration: 10000,
         });
       }
