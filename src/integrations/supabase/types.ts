@@ -540,6 +540,10 @@ export type Database = {
       }
       campus_lead_suggestions: {
         Row: {
+          archive_label: string | null
+          archived_at: string | null
+          archived_by: string | null
+          archived_reason: string | null
           campus_id: string
           confidence: number | null
           courses_found: Json | null
@@ -566,6 +570,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archive_label?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          archived_reason?: string | null
           campus_id: string
           confidence?: number | null
           courses_found?: Json | null
@@ -592,6 +600,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archive_label?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          archived_reason?: string | null
           campus_id?: string
           confidence?: number | null
           courses_found?: Json | null
