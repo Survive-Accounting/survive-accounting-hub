@@ -2142,15 +2142,27 @@ export async function previewCampaignAudience(
     !!filters.teachingOnly ||
     !!filters.includeOnlyTeachingAssignments ||
     (typeof filters.minConfidence === "number" && filters.minConfidence > 0) ||
+  // Default the campaign builder to clean professor-only suggestions.
+  const researchMode = filters.researchMode ?? "clean_professor_only";
+
+  // We ALWAYS need the suggestion lookup now because the default
+  // research-mode filter restricts the eligible-lead set to whatever the
+  // selected research run produced.
+  const needsSuggestionLookup =
+    researchMode !== "all" ||
+    !!filters.teachingOnly ||
+    !!filters.includeOnlyTeachingAssignments ||
+    (typeof filters.minConfidence === "number" && filters.minConfidence > 0) ||
     (filters.courseFamilies && filters.courseFamilies.length > 0 && filters.courseFamilies.length < 4);
 
   let suggestionByKey = new Map<string, SuggestionMatchRow>();
   if (needsSuggestionLookup) {
-    const { data: sugg, error: sErr } = await supabase
+    let sq: any = supabase
       .from("campus_lead_suggestions" as never)
-      .select("campus_id,email,lead_type,confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
-      .is("archived_at", null)
-      .limit(20000);
+      .select("campus_id,email,lead_type,confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,research_mode")
+      .is("archived_at", null);
+    if (researchMode !== "all") sq = sq.eq("research_mode", researchMode);
+    const { data: sugg, error: sErr } = await sq.limit(20000);
     if (sErr) throw sErr;
     for (const r of (sugg ?? []) as SuggestionMatchRow[]) {
       if (!r.email || !r.campus_id) continue;
