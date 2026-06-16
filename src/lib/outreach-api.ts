@@ -1895,10 +1895,7 @@ export async function fetchCampusLeadReport(
 
   const campusesOut: CampusReportRow[] = [...campusIds].map((cid) => {
     const c = campusById.get(cid);
-    const tb = c?.course_family_textbooks_json;
-    const hasIsbn = !!tb && typeof tb === "object" && Object.values(tb).some(
-      (v) => v && typeof v === "object" && (v as any).isbn13,
-    );
+    const hasSupportedTextbook = !!c && campusHasSupportedTextbook(c, supportedFamilies, ["intro_1", "intro_2"]);
     return {
       campus_id: cid,
       name: c?.school_name ?? "Unknown campus",
@@ -1906,7 +1903,7 @@ export async function fetchCampusLeadReport(
       suggestedLeadCount: perCampusLeads.get(cid) ?? 0,
       importedLeadCount: importedByCampus.get(cid) ?? 0,
       sectionCount: perCampusSections.get(cid) ?? 0,
-      hasTextbookIsbn: hasIsbn,
+      hasTextbookIsbn: hasSupportedTextbook,
       lastResearchedAt: perCampusLastResearched.get(cid) ?? null,
     };
   }).sort((a, b) => b.suggestedLeadCount - a.suggestedLeadCount);
