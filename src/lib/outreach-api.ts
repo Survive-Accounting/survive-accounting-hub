@@ -906,9 +906,15 @@ export interface LeadSuggestion {
   courses_found: LeadCourseFound[] | null;
   teaching_evidence_url: string | null;
   teaching_evidence_notes: string | null;
+  research_mode: ResearchMode;
+  research_label: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type ResearchMode = "broad" | "clean_professor_only";
+export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only"];
 
 export type LeadSuggestionInput = Partial<
   Omit<LeadSuggestion, "id" | "campus_id" | "created_at" | "updated_at">
