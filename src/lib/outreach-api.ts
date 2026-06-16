@@ -1267,12 +1267,14 @@ export interface CampusResearchJob {
   notes: string | null;
   created_at: string;
   finished_at: string | null;
+  research_mode?: ResearchMode | string | null;
 }
 
 export interface CampusResearchJobItem {
   id: string;
   job_id: string;
   campus_id: string;
+  campus_name?: string | null;
   status: "pending" | "running" | "done" | "failed" | "skipped";
   current_step: string | null;
   profile_done: boolean;
