@@ -5,7 +5,7 @@
 //   - autoDiscoverCampusFaculty: use Firecrawl Map against the campus website
 //     to discover faculty/directory pages, then run the same scrape+extract.
 // Results land in campus_lead_suggestions with research_mode='faculty_scrape'
-// and status='pending_triage' for human review.
+// and status='pending' for human review.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -322,8 +322,8 @@ async function processUrls(
           source_url: p.profile_url ?? url,
           research_mode: "faculty_scrape",
           research_label: "faculty_scrape_v2_firecrawl",
-          status: "pending_triage",
-          lead_type: "professors",
+          status: "pending",
+          lead_type: "professor",
           notes: `Scraped from ${url}`,
           raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url },
         });
