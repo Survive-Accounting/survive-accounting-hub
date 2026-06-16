@@ -1,0 +1,173 @@
+// Client-side helpers for the faculty triage workflow.
+// All operations use the regular (anon) Supabase client; RLS allows
+// anon CRUD on outreach_leads and campus_lead_suggestions in this project.
+import { supabase } from "@/integrations/supabase/client";
+
+export type TriageRow = {
+  id: string;
+  campus_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  title: string | null;
+  email: string | null;
+  source_url: string | null;
+  is_phd: boolean | null;
+  is_cpa: boolean | null;
+  status: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
+  const { data, error } = await supabase
+    .from("campus_lead_suggestions")
+    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at")
+    .eq("campus_id", campusId)
+    .eq("research_mode", "faculty_scrape")
+    .is("archived_at", null)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as TriageRow[];
+}
+
+export async function setTriageFlag(id: string, patch: { is_phd?: boolean; is_cpa?: boolean }) {
+  const { error } = await supabase.from("campus_lead_suggestions").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setTriageStatus(id: string, status: "pending_triage" | "kept" | "skipped") {
+  const { error } = await supabase.from("campus_lead_suggestions").update({ status }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function importKeptLeads(campusId: string): Promise<{ inserted: number; skipped: number }> {
+  // Pull all kept rows
+  const { data: kept, error: keptErr } = await supabase
+    .from("campus_lead_suggestions")
+    .select("id,first_name,last_name,email,title,is_phd,notes")
+    .eq("campus_id", campusId)
+    .eq("research_mode", "faculty_scrape")
+    .eq("status", "kept");
+  if (keptErr) throw keptErr;
+  const rows = (kept ?? []) as Array<{
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    title: string | null;
+    is_phd: boolean | null;
+    notes: string | null;
+  }>;
+  if (rows.length === 0) return { inserted: 0, skipped: 0 };
+
+  const withEmail = rows.filter((r) => r.email && r.email.includes("@"));
+  if (withEmail.length === 0) return { inserted: 0, skipped: rows.length };
+
+  // De-dupe against existing outreach_leads for this campus
+  const emails = withEmail.map((r) => r.email!.toLowerCase());
+  const { data: existing } = await supabase
+    .from("outreach_leads")
+    .select("email")
+    .eq("campus_id", campusId)
+    .in("email", emails);
+  const existingSet = new Set((existing ?? []).map((r: { email: string | null }) => (r.email ?? "").toLowerCase()));
+
+  const toInsert = withEmail
+    .filter((r) => !existingSet.has(r.email!.toLowerCase()))
+    .map((r) => ({
+      campus_id: campusId,
+      first_name: r.first_name,
+      last_name: r.last_name,
+      email: r.email!.toLowerCase(),
+      affiliation: r.title,
+      is_phd: r.is_phd ?? false,
+      status: "new",
+      source: "faculty_scrape",
+      notes: r.notes,
+    }));
+
+  let inserted = 0;
+  if (toInsert.length > 0) {
+    const { error: insErr } = await supabase.from("outreach_leads").insert(toInsert as never);
+    if (insErr) throw insErr;
+    inserted = toInsert.length;
+  }
+
+  // Mark all kept rows as imported so they vanish from triage
+  const ids = rows.map((r) => r.id);
+  await supabase.from("campus_lead_suggestions").update({ status: "imported" }).in("id", ids);
+
+  return { inserted, skipped: rows.length - inserted };
+}
+
+export async function archiveAllLeads(): Promise<{
+  outreach_leads_archived: number;
+  suggestions_archived: number;
+  campaign_leads_removed: number;
+}> {
+  // 1) Archive every outreach_lead not already archived
+  const { data: leadIds } = await supabase
+    .from("outreach_leads")
+    .select("id")
+    .neq("status", "archived");
+  const leadCount = leadIds?.length ?? 0;
+  if (leadCount > 0) {
+    const { error } = await supabase
+      .from("outreach_leads")
+      .update({
+        status: "archived",
+        sequence_stopped_at: new Date().toISOString(),
+        sequence_stopped_reason: "manual_reset",
+      })
+      .neq("status", "archived");
+    if (error) throw error;
+  }
+
+  // 2) Archive every campus_lead_suggestion still in flight
+  const { data: sugIds } = await supabase
+    .from("campus_lead_suggestions")
+    .select("id")
+    .is("archived_at", null);
+  const sugCount = sugIds?.length ?? 0;
+  if (sugCount > 0) {
+    const { error } = await supabase
+      .from("campus_lead_suggestions")
+      .update({
+        archived_at: new Date().toISOString(),
+        archived_reason: "manual_reset",
+        archive_label: "reset",
+      })
+      .is("archived_at", null);
+    if (error) throw error;
+  }
+
+  // 3) Remove campaign_leads tied to non-completed campaigns so the
+  //    new approved leads start clean.
+  const { data: liveCampaigns } = await supabase
+    .from("outreach_campaigns")
+    .select("id,status");
+  const liveIds = (liveCampaigns ?? [])
+    .filter((c: { status: string | null }) => c.status !== "completed")
+    .map((c: { id: string }) => c.id);
+  let removed = 0;
+  if (liveIds.length > 0) {
+    const { data: cls } = await supabase
+      .from("outreach_campaign_leads")
+      .select("id")
+      .in("campaign_id", liveIds);
+    removed = cls?.length ?? 0;
+    if (removed > 0) {
+      const { error } = await supabase
+        .from("outreach_campaign_leads")
+        .delete()
+        .in("campaign_id", liveIds);
+      if (error) throw error;
+    }
+  }
+
+  return {
+    outreach_leads_archived: leadCount,
+    suggestions_archived: sugCount,
+    campaign_leads_removed: removed,
+  };
+}
