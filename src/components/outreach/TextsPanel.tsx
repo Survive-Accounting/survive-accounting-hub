@@ -389,7 +389,7 @@ function SetupAndTesterTab({
           <div className="flex justify-between gap-2 sm:col-span-2"><dt className="text-muted-foreground">Tester phones (bypass guard)</dt><dd className="font-medium tabular-nums">{config?.tester_phones?.length ? config.tester_phones.map(formatPhonePretty).join(", ") : "none"}</dd></div>
         </dl>
         <p className="text-[10px] text-muted-foreground">
-          To change the summary-text destination or tester phones, update the <code>LEE_PERSONAL_PHONE</code> / <code>SMS_TESTER_PHONES</code> secrets in Lovable Cloud.
+          To change the summary-text destination or tester phones, ask Lovable to update the <code>LEE_PERSONAL_PHONE</code> and <code>SMS_TESTER_PHONES</code> secrets.
         </p>
         {!mainLine && (
           <Button size="sm" className="self-start mt-1" onClick={getMainLine} disabled={provisioning}>
@@ -397,6 +397,41 @@ function SetupAndTesterTab({
             Provision main line
           </Button>
         )}
+      </Card>
+
+      <Card className="p-3 gap-2 border-violet-200 bg-violet-50/40 dark:bg-violet-950/10">
+        <div className="flex items-center gap-2">
+          <Phone className="h-4 w-4 text-violet-600" />
+          <h3 className="text-sm font-semibold">Live test from your own cell</h3>
+          <Badge variant="outline" className="text-[10px] h-4 px-1">~$0.015 per round-trip</Badge>
+        </div>
+        <ol className="text-xs space-y-1 list-decimal pl-4 text-foreground/90">
+          <li>
+            Confirm <strong>your cell number</strong> appears in both rows above: <em>Summary texts go to</em> and <em>Tester phones</em>. If not, ask Lovable to set <code>LEE_PERSONAL_PHONE</code> and add your number to <code>SMS_TESTER_PHONES</code>.
+          </li>
+          <li>
+            From your cell, text the campus number{" "}
+            {campusNumberOptions[0] ? (
+              <strong className="tabular-nums">{formatPhonePretty(campusNumberOptions[0].phone)}</strong>
+            ) : (
+              <strong>(provision a number first)</strong>
+            )}
+            {" "}with a realistic student message — e.g. <em>"Hi I need a tutor for ACCT 2010, exam Thursday"</em>.
+          </li>
+          <li>
+            You'll receive <strong>two texts back on the same phone</strong>:
+            <ul className="list-disc pl-4 mt-0.5">
+              <li><strong>From the campus number → "student"</strong> — the auto-reply booking link.</li>
+              <li><strong>From the campus number → "Lee"</strong> — the AI summary with course, exam date, and struggles.</li>
+            </ul>
+          </li>
+          <li>
+            Watch the <em>Conversations</em> tab — the thread will appear and update. Use <em>Reset thread</em> there to start a brand-new flow without spinning up a new phone.
+          </li>
+        </ol>
+        <p className="text-[10px] text-muted-foreground">
+          Because tester phones bypass the one-shot guard, you can run the test as many times as you want without being silenced as a "returning student". When you don't want to spend Twilio credits, use the <em>Simulate</em> card below instead — it routes the exact same logic for $0.
+        </p>
       </Card>
 
       <Card className="p-3 gap-2">
