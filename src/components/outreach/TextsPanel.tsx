@@ -292,6 +292,22 @@ export function TextsPanel({ campuses }: { campuses: Campus[] }) {
                           Send
                         </Button>
                       </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-muted-foreground">Quick replies:</span>
+                        {QUICK_REPLIES.map((q) => (
+                          <Button
+                            key={q.label}
+                            size="sm"
+                            variant={q.label === "Send /start link" ? "default" : "outline"}
+                            className="h-7 text-xs"
+                            disabled={sending || selected.status === "opted_out"}
+                            onClick={() => sendQuick(q.body)}
+                            title={q.body}
+                          >
+                            {q.label}
+                          </Button>
+                        ))}
+                      </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-[11px] font-medium text-muted-foreground inline-flex items-center gap-1">
                           <Link2 className="h-3 w-3" /> Quick links:
