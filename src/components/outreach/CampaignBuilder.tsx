@@ -137,6 +137,51 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
         </div>
       </div>
 
+      <div className="mb-4 rounded-md border bg-card p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col flex-1 min-w-[220px]">
+            <Label className="text-xs">Audience</Label>
+            <Select
+              value={audienceId || "_none"}
+              onValueChange={(v) => {
+                if (v === "_none") { setAudienceId(""); return; }
+                setAudienceId(v);
+                const a = audiences.find((x) => x.id === v);
+                if (a) applyAudience(a);
+              }}
+            >
+              <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="None — use filters below" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">None — use filters below</SelectItem>
+                {audiences.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}{a.pinned_campus_ids?.length ? ` · ${a.pinned_campus_ids.length} pinned` : " · dynamic"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button type="button" size="sm" variant="outline" className="h-9"
+            onClick={() => { setEditingAudience(null); setEditorOpen(true); }}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> New
+          </Button>
+          {currentAudience && (
+            <Button type="button" size="sm" variant="outline" className="h-9"
+              onClick={() => { setEditingAudience(currentAudience); setEditorOpen(true); }}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+            </Button>
+          )}
+          {currentAudience && (
+            <Badge variant="outline" className="text-[10px]">
+              {selectedCampusIds.length} campuses loaded
+            </Badge>
+          )}
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Pick a saved audience to prefill the campus list below, or build one from scratch and save it for next time.
+        </p>
+      </div>
+
       <div className="mb-4">
         <Label className="text-xs mb-2 block">Filters</Label>
         <LeadFilterBar
