@@ -82,6 +82,10 @@ export function CampusLeadsStatsPanel({
               <span className="hidden sm:inline">View detailed report</span>
             </Button>
           )}
+          <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={() => setAuditOpen(true)}>
+            <BookOpen className="h-4 w-4" />
+            <span className="hidden sm:inline">Textbook Match Audit</span>
+          </Button>
           <Button variant="ghost" size="sm" className="gap-2 h-9" onClick={onOpenSettings}>
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">AI Research Settings</span>
