@@ -35,8 +35,14 @@ export async function setTriageFlag(id: string, patch: { is_phd?: boolean; is_cp
   if (error) throw error;
 }
 
+const TRIAGE_TO_DB_STATUS = {
+  pending_triage: "pending",
+  kept: "accepted",
+  skipped: "rejected",
+} as const;
+
 export async function setTriageStatus(id: string, status: "pending_triage" | "kept" | "skipped") {
-  const { error } = await supabase.from("campus_lead_suggestions").update({ status }).eq("id", id);
+  const { error } = await supabase.from("campus_lead_suggestions").update({ status: TRIAGE_TO_DB_STATUS[status] }).eq("id", id);
   if (error) throw error;
 }
 
@@ -47,7 +53,7 @@ export async function importKeptLeads(campusId: string): Promise<{ inserted: num
     .select("id,first_name,last_name,email,title,is_phd,notes")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
-    .eq("status", "kept");
+    .eq("status", "accepted");
   if (keptErr) throw keptErr;
   const rows = (kept ?? []) as Array<{
     id: string;
@@ -95,7 +101,7 @@ export async function importKeptLeads(campusId: string): Promise<{ inserted: num
 
   // Mark all kept rows as imported so they vanish from triage
   const ids = rows.map((r) => r.id);
-  await supabase.from("campus_lead_suggestions").update({ status: "imported" }).in("id", ids);
+  await supabase.from("campus_lead_suggestions").update({ archived_at: new Date().toISOString(), archived_reason: "imported", archive_label: "faculty_scrape_import" }).in("id", ids);
 
   return { inserted, skipped: rows.length - inserted };
 }
