@@ -225,9 +225,21 @@ export default function ApproveCampusModal({
     setFamilyTitles(initTitles);
 
     const existing = campus.course_family_status_json ?? {};
+    const existingBooksForStatus = campus.course_family_textbooks_json ?? {};
     const init: Record<string, FamilyStatus> = {};
     FAMILIES.forEach((f) => {
-      init[f.key] = normalizeStatus(existing[f.key]);
+      const saved = normalizeStatus(existing[f.key]);
+      // Hydrate from textbook json when no explicit status saved yet —
+      // e.g. after a textbook-only backfill ran. Without this, all chips
+      // show "Not Checked" even though we already know the textbook.
+      if (saved === "not_checked") {
+        const b = existingBooksForStatus[f.key];
+        if (b && (b.title || b.authors || b.publisher || b.isbn13)) {
+          init[f.key] = "likely_match";
+          return;
+        }
+      }
+      init[f.key] = saved;
     });
     setFamilyStatus(init);
 
