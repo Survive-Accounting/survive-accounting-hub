@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Globe, Loader2 } from "lucide-react";
+import { Globe, Loader2, Wand2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { scrapeCampusFaculty } from "@/lib/faculty-scrape.functions";
+import { scrapeCampusFaculty, autoDiscoverCampusFaculty } from "@/lib/faculty-scrape.functions";
 
 export function ScrapeFacultyButton({
   campusId,
@@ -22,8 +22,10 @@ export function ScrapeFacultyButton({
   const [open, setOpen] = useState(false);
   const [urls, setUrls] = useState("");
   const [busy, setBusy] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   const [loadingUrls, setLoadingUrls] = useState(false);
   const scrape = useServerFn(scrapeCampusFaculty);
+  const discover = useServerFn(autoDiscoverCampusFaculty);
 
   const openModal = async () => {
     setOpen(true);
@@ -71,12 +73,37 @@ export function ScrapeFacultyButton({
     }
   };
 
+  const runAutoDiscover = async () => {
+    setDiscovering(true);
+    try {
+      const result = await discover({ data: { campusId, maxPages: 5 } });
+      if (result.chosenUrls.length > 0) {
+        setUrls(result.chosenUrls.join("\n"));
+      }
+      const errs = result.perPage.filter((p) => p.error);
+      toast.success(
+        `Auto-discover: mapped ${result.discovered} links, scraped ${result.scraped} faculty pages, added ${result.inserted} candidates${result.skippedDuplicates ? ` (skipped ${result.skippedDuplicates} dupes)` : ""}${errs.length ? `, ${errs.length} page error(s)` : ""}.`,
+      );
+      onScraped?.();
+    } catch (e) {
+      toast.error(`Auto-discover failed: ${e instanceof Error ? e.message : "unknown error"}`);
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
   return (
     <>
-      <Button size="sm" variant="outline" onClick={openModal} className="justify-center" title="Fetch this campus's faculty/instructor pages and extract candidates">
-        <Globe className="h-3.5 w-3.5" />
-        Scrape faculty
-      </Button>
+      <div className="flex gap-2">
+        <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
+          {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+          {discovering ? "Discovering…" : "Auto-discover faculty"}
+        </Button>
+        <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
+          <Globe className="h-3.5 w-3.5" />
+          Scrape URLs
+        </Button>
+      </div>
 
       <Dialog open={open} onOpenChange={(v) => { if (!busy) setOpen(v); }}>
         <DialogContent className="max-w-2xl">
@@ -85,7 +112,7 @@ export function ScrapeFacultyButton({
             <DialogDescription className="pt-1">
               Paste one URL per line. Include each filter/tab as its own line
               (e.g. <code>?role=instructor</code>, <code>?role=staff</code>) so
-              non-tenure-track folks aren't missed.
+              non-tenure-track folks aren't missed. Pages are fetched via Firecrawl.
             </DialogDescription>
           </DialogHeader>
           <Textarea
