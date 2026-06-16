@@ -25,8 +25,8 @@ import type { Campus } from "@/lib/outreach-mock";
 import {
   clearAllSmsConversations, clearConversationsByPhone,
   fetchCampusPhones, fetchSmsConfig, fetchSmsConversations, fetchSmsInboundRaw,
-  fetchSmsMessages, formatPhonePretty, provisionCampusNumber, resetSmsConversation,
-  sendSmsReply, simulateInboundSms,
+  fetchSmsDiagnostics, fetchSmsMessages, formatPhonePretty, provisionCampusNumber,
+  resetSmsConversation, resyncSmsNumber, sendSmsReply, simulateInboundSms,
   type SmsConversation,
 } from "@/lib/outreach-api";
 import { SmsTemplatesEditor } from "./SmsTemplatesEditor";
@@ -467,6 +467,13 @@ function SetupAndTesterTab({
   const [fromPhone, setFromPhone] = useState<string>("+15550000001");
   const [body, setBody] = useState<string>("Hey I need a tutor for ACCT 2010, exam next Thursday and I'm lost on adjusting entries.");
   const [sending, setSending] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  const diagnosticsQuery = useQuery({
+    queryKey: ["sms-diagnostics"],
+    queryFn: fetchSmsDiagnostics,
+    retry: 1,
+    refetchInterval: 30_000,
+  });
 
   // default to main line once it loads
   useMemo(() => { if (!toPhone && campusNumberOptions[0]) setToPhone(campusNumberOptions[0].phone); }, [campusNumberOptions, toPhone]);
@@ -487,6 +494,18 @@ function SetupAndTesterTab({
     if (res.ok) { toast.success(`Main line ready: ${res.phone}`); onProvisioned(); }
     else toast.error(res.error ?? "Provisioning failed");
   };
+
+  const doResync = async () => {
+    setResyncing(true);
+    const res = await resyncSmsNumber();
+    setResyncing(false);
+    if (res.ok) { toast.success("SMS webhook settings resynced"); diagnosticsQuery.refetch(); }
+    else toast.error(res.error ?? "Resync failed");
+  };
+
+  const diagnostics = diagnosticsQuery.data;
+  const providerInbound = diagnostics?.recent_messages?.filter((m) => m.direction === "inbound") ?? [];
+  const providerOutbound = diagnostics?.recent_messages?.filter((m) => m.direction !== "inbound") ?? [];
 
   return (
     <>
@@ -511,6 +530,55 @@ function SetupAndTesterTab({
             Provision main line
           </Button>
         )}
+      </Card>
+
+      <Card className="p-3 gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {diagnostics?.webhook_ok ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+          <h3 className="text-sm font-semibold">Live SMS proof</h3>
+          <Badge variant={diagnostics?.webhook_ok ? "default" : "outline"} className="text-[10px] h-4 px-1">
+            {diagnosticsQuery.isLoading ? "checking" : diagnostics?.webhook_ok ? "webhook synced" : "needs resync"}
+          </Badge>
+          <Button size="sm" variant="outline" className="ml-auto h-7 text-xs" onClick={() => diagnosticsQuery.refetch()} disabled={diagnosticsQuery.isFetching}>
+            {diagnosticsQuery.isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Refresh
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={doResync} disabled={resyncing}>
+            {resyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+            Resync webhook
+          </Button>
+        </div>
+        {diagnosticsQuery.error ? (
+          <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">Diagnostics failed: {(diagnosticsQuery.error as Error).message}</div>
+        ) : diagnostics ? (
+          <div className="grid gap-3 text-xs lg:grid-cols-3">
+            <div className="rounded border border-border bg-muted/20 p-2">
+              <div className="font-medium">Number routing</div>
+              <div className="mt-1 tabular-nums">{formatPhonePretty(diagnostics.main_line)}</div>
+              <div className="mt-1 text-[10px] text-muted-foreground break-all">{diagnostics.number.sms_url}</div>
+            </div>
+            <div className="rounded border border-border bg-muted/20 p-2">
+              <div className="font-medium">Provider received</div>
+              {providerInbound.slice(0, 3).map((m) => (
+                <div key={m.sid} className="mt-1 border-t border-border/60 pt-1">
+                  <span className="tabular-nums">{formatPhonePretty(m.from)}</span> → <span className="tabular-nums">{formatPhonePretty(m.to)}</span>
+                  <div className="text-[10px] text-muted-foreground">{m.status} · {new Date(m.date_created ?? "").toLocaleString()} · “{m.body}”</div>
+                </div>
+              ))}
+              {!providerInbound.length && <div className="mt-1 text-muted-foreground">No recent inbound texts at provider.</div>}
+            </div>
+            <div className="rounded border border-border bg-muted/20 p-2">
+              <div className="font-medium">Provider sent back</div>
+              {providerOutbound.slice(0, 3).map((m) => (
+                <div key={m.sid} className="mt-1 border-t border-border/60 pt-1">
+                  <span className="tabular-nums">{formatPhonePretty(m.from)}</span> → <span className="tabular-nums">{formatPhonePretty(m.to)}</span>
+                  <div className={cn("text-[10px]", m.error_code ? "text-amber-700" : "text-muted-foreground")}>{m.status}{m.error_code ? ` · error ${m.error_code}` : ""} · “{m.body}”</div>
+                </div>
+              ))}
+              {!providerOutbound.length && <div className="mt-1 text-muted-foreground">No recent outbound replies at provider.</div>}
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="p-3 gap-2 border-violet-200 bg-violet-50/40 dark:bg-violet-950/10">
