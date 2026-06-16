@@ -266,6 +266,11 @@ export function CampusLeadsStatsPanel({
         campuses={campuses}
         onSelectCampus={(id) => setFilters({ ...filters, campusIds: [id] })}
       />
+      <TextbookMatchAuditModal
+        open={auditOpen}
+        onOpenChange={setAuditOpen}
+        campuses={campuses}
+      />
     </Collapsible>
   );
 }
