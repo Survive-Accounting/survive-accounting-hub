@@ -168,8 +168,8 @@ function OutreachPage() {
                 campuses={campuses}
                 filters={filters}
                 onFiltersChange={setFilters}
-                onReview={(c) => setReviewing(c)}
-                onImportLeads={(c) => { setImportCampusId(c.id); setImportOpen(true); }}
+                onReview={(c) => { setReviewInitialStep("1"); setReviewing(c); }}
+                onImportLeads={(c) => { setReviewInitialStep("3"); setReviewing(c); }}
                 onAssignPatch={handleAssignPatch}
                 campusPhones={phonesQuery.data}
                 onTogglePersonalPhone={handleTogglePersonalPhone}
