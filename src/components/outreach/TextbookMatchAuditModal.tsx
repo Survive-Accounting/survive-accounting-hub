@@ -2,15 +2,17 @@
 // supported-textbook-family matcher classifies each researched campus,
 // compared to the old "has any ISBN" rule.
 
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, Download } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Download, BookOpen, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { runTextbookMatchAudit, type TextbookAuditRow } from "@/lib/textbook-matcher";
+import { startTextbookOnlyBatch, runTextbookResearchForCampus } from "@/lib/outreach-api";
 import type { Campus } from "@/lib/outreach-mock";
 
 const FAMILY_LABEL: Record<string, string> = {
@@ -33,6 +35,10 @@ export function TextbookMatchAuditModal({
   onOpenChange: (v: boolean) => void;
   campuses: Campus[];
 }) {
+  const qc = useQueryClient();
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [enrichBusy, setEnrichBusy] = useState(false);
+
   const q = useQuery({
     queryKey: ["textbook-audit", campuses.length],
     queryFn: () => runTextbookMatchAudit(campuses),
@@ -41,6 +47,62 @@ export function TextbookMatchAuditModal({
   });
 
   const rows = q.data ?? [];
+
+  const unknownCampusIds = useMemo(() => {
+    const has: Record<string, boolean> = {};
+    for (const r of rows) {
+      const signal = !!(r.detected_title || r.detected_authors || r.detected_publisher || r.detected_isbn13);
+      if (signal) has[r.campus_id] = true;
+    }
+    return campuses.filter((c) => !(c as any).archived_at && !has[c.id]).map((c) => c.id);
+  }, [rows, campuses]);
+
+  const isbnOnlyCampusIds = useMemo(() => {
+    // Campuses where at least one family has ISBN but no title/authors/publisher.
+    const ids = new Set<string>();
+    for (const r of rows) {
+      if (r.detected_isbn13 && !r.detected_title && !r.detected_authors && !r.detected_publisher) {
+        ids.add(r.campus_id);
+      }
+    }
+    return Array.from(ids);
+  }, [rows]);
+
+  async function handleBulkResearchUnknown() {
+    if (!unknownCampusIds.length) return;
+    if (!confirm(`Start textbook-only research for ${unknownCampusIds.length} campuses?\n\nEstimated cost: ~$${(unknownCampusIds.length * 0.03).toFixed(2)}.`)) return;
+    setBulkBusy(true);
+    try {
+      const job = await startTextbookOnlyBatch("unknown");
+      toast.success(`Started textbook research job ${job.id.slice(0, 8)} for ${unknownCampusIds.length} campuses.`);
+      qc.invalidateQueries({ queryKey: ["campus-batch"] });
+    } catch (e) {
+      toast.error(`Failed to start: ${(e as Error).message}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleEnrichIsbnOnly() {
+    if (!isbnOnlyCampusIds.length) return;
+    setEnrichBusy(true);
+    try {
+      let ok = 0;
+      for (const id of isbnOnlyCampusIds) {
+        try {
+          await runTextbookResearchForCampus(id, { force: false });
+          ok++;
+        } catch { /* keep going */ }
+      }
+      toast.success(`Enriched ${ok}/${isbnOnlyCampusIds.length} ISBN-only campuses via Google Books.`);
+      await qc.invalidateQueries({ queryKey: ["textbook-audit"] });
+      q.refetch();
+    } catch (e) {
+      toast.error(`Failed: ${(e as Error).message}`);
+    } finally {
+      setEnrichBusy(false);
+    }
+  }
 
   const summary = useMemo(() => {
     const intro1Matched = new Set<string>();
@@ -137,8 +199,32 @@ export function TextbookMatchAuditModal({
           </Button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 rounded border bg-amber-50/40 p-2 text-xs">
+          <BookOpen className="h-4 w-4 text-amber-700" />
+          <span className="font-medium">Fix the data gap:</span>
+          <span className="text-muted-foreground">
+            {unknownCampusIds.length} campuses have no textbook research yet · {isbnOnlyCampusIds.length} have ISBN-only entries that can be repaired for free via Google Books.
+          </span>
+          <Button
+            variant="outline" size="sm" className="ml-auto h-8"
+            disabled={enrichBusy || !isbnOnlyCampusIds.length}
+            onClick={handleEnrichIsbnOnly}
+          >
+            {enrichBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Wand2 className="h-3.5 w-3.5 mr-1" />}
+            Enrich {isbnOnlyCampusIds.length} ISBN-only via Google Books
+          </Button>
+          <Button
+            size="sm" className="h-8"
+            disabled={bulkBusy || !unknownCampusIds.length}
+            onClick={handleBulkResearchUnknown}
+          >
+            {bulkBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <BookOpen className="h-3.5 w-3.5 mr-1" />}
+            Research textbooks for {unknownCampusIds.length} unknown campuses
+          </Button>
+        </div>
 
         <div className="flex-1 overflow-auto rounded border">
+
           {q.isLoading ? (
             <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running audit…

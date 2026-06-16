@@ -913,8 +913,8 @@ export interface LeadSuggestion {
   updated_at: string;
 }
 
-export type ResearchMode = "broad" | "clean_professor_only";
-export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only"];
+export type ResearchMode = "broad" | "clean_professor_only" | "textbook_only";
+export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only", "textbook_only"];
 
 export type LeadSuggestionInput = Partial<
   Omit<LeadSuggestion, "id" | "campus_id" | "created_at" | "updated_at">
@@ -1269,6 +1269,72 @@ export async function runCleanProfessorTest(campusId: string): Promise<CleanProf
   });
   if (error) throw error;
   return data as CleanProfessorTestResult;
+}
+
+// ────────────────────────────────────────────────────────────────
+// Textbook-only research (Phase: fix the 166 "unknown" campuses
+// and repair existing ISBN-only entries via Google Books).
+// ────────────────────────────────────────────────────────────────
+
+export interface TextbookResearchResult {
+  success: boolean;
+  campus_id: string;
+  families_now_present: string[];
+  enriched_from_existing_isbn: string[];
+  ai_attempted: boolean;
+  ai_families_added: string[];
+  ai_enriched_after: string[];
+  ai_failed: string | null;
+  textbooks: Record<string, { title: string | null; authors: string | null; publisher: string | null; isbn13: string | null; source: string | null }>;
+}
+
+/** Synchronous single-campus textbook research / ISBN repair. */
+export async function runTextbookResearchForCampus(
+  campusId: string,
+  opts: { force?: boolean } = {},
+): Promise<TextbookResearchResult> {
+  if (!campusId) throw new Error("campusId required");
+  const { data, error } = await supabase.functions.invoke("research-campus-textbooks", {
+    body: { campus_id: campusId, force: !!opts.force },
+  });
+  if (error) throw error;
+  return data as TextbookResearchResult;
+}
+
+/** Start a textbook-only batch job. Use scope='unknown' to target the
+ *  campuses that have no textbook metadata for ANY family (covers the 166). */
+export async function startTextbookOnlyBatch(
+  scope: "unknown" | "all" | "selected",
+  selectedIds?: string[],
+): Promise<CampusResearchJob> {
+  let ids: string[] = [];
+  if (scope === "selected") {
+    ids = (selectedIds ?? []).filter(Boolean);
+  } else {
+    const { data, error } = await supabase
+      .from("campuses")
+      .select("id, archived_at, course_family_textbooks_json");
+    if (error) throw error;
+    const rows = (data ?? []) as Array<{ id: string; archived_at: string | null; course_family_textbooks_json: unknown }>;
+    const active = rows.filter((r) => !r.archived_at);
+    if (scope === "all") {
+      ids = active.map((r) => r.id);
+    } else {
+      // unknown = no entry has any signal across the four families
+      ids = active
+        .filter((r) => {
+          const tb = (r.course_family_textbooks_json ?? {}) as Record<string, any>;
+          const fams = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
+          return !fams.some((f) => {
+            const e = tb[f];
+            return e && (e.title || e.authors || e.publisher || e.isbn13);
+          });
+        })
+        .map((r) => r.id);
+    }
+  }
+  if (!ids.length) throw new Error("No campuses match this scope.");
+  return startCampusBatch(ids, `Textbook-only research (${scope})`, "textbook_only");
 }
 
 /** Get the most recent job, with items. */
