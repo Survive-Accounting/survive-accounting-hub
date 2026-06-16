@@ -1,9 +1,9 @@
 // Campaign Builder — Phase 2: preview + create draft only.
 // No emails are scheduled or sent from here.
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Users, ListChecks } from "lucide-react";
+import { Loader2, Users, ListChecks, Plus, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,14 +11,22 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   LeadFilterBar,
   useLeadFilters,
 } from "@/components/outreach/filters/LeadFilterBar";
 import {
   previewCampaignAudience,
   createCampaignFromPreview,
+  listAudiences,
+  touchAudienceUsed,
   type CampaignAudiencePreview,
+  type Audience,
 } from "@/lib/outreach-api";
+import { applyAudienceFilters, normalizeAudienceFilters } from "@/lib/audience-filters";
+import { AudienceEditorModal } from "@/components/outreach/AudienceEditorModal";
 import type { Campus } from "@/lib/outreach-mock";
 
 export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
