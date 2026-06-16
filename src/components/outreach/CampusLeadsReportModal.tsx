@@ -1,8 +1,11 @@
 // Drill-down report modal for the Campus Leads stats panel.
-// Three tabs: Campuses · Leads · Course sections. CSV export per tab.
+// Three tabs: Campuses · Leads · Course sections. CSV / Excel / PDF export.
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Loader2 } from "lucide-react";
+import { Download, ExternalLink, Loader2, FileSpreadsheet, FileText } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
