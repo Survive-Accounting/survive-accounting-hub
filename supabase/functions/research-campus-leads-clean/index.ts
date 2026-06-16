@@ -98,17 +98,33 @@ senior names:
 - Beta Alpha Psi faculty advisor (only if explicitly listed as BAP)
 
 CRITICAL — DO NOT STOP AT THE TENURED FACULTY PAGE. Many schools list
-adjuncts, instructors, and lecturers on a SEPARATE page from tenure-track
-faculty. Search for and open additional pages such as:
+adjuncts, instructors, and lecturers on a SEPARATE page — OR on the SAME
+page behind filter tabs/dropdowns/role chips (e.g. "Faculty | Instructor |
+Staff | Adjunct"). If you see ANY such filter UI on a faculty-and-staff
+page, you MUST treat each filter value as its own page and enumerate it.
+Many of these tabs are implemented as query strings like
+"?role=instructor", "?type=adjunct", "?category=staff", or fragment
+anchors like "#instructors". OPEN EACH ONE explicitly. Also search for
+and open additional pages such as:
   - "Instructors", "Lecturers", "Teaching Faculty"
   - "Adjunct Faculty", "Adjunct Professors", "Affiliated Faculty"
   - "Non-Tenure-Track Faculty", "Clinical Faculty"
   - Department staff directory pages
   - University-wide people directory filtered to the accounting department
+  - Individual faculty profile pages linked from the directory (often at
+    /profiles/<username>.php or /faculty/<slug>) — open a few to confirm
+    titles and find emails for people the directory only lists by name
 A school with only 4 tenured professors often has 10+ adjuncts and
 instructors who actually teach the intro courses we care about. MISSING
-THEM IS THE #1 FAILURE MODE of this research run. If you only find
-tenured professors, you have not searched hard enough — try again.
+THEM IS THE #1 FAILURE MODE of this research run. Concrete example: at
+the University of Mississippi, https://accountancy.olemiss.edu/about/faculty-and-staff/
+has tabs for "Faculty", "Instructor", and "Staff". A run that only
+enumerates the default "Faculty" tab misses Whitney Barton (Instructor
+in Accountancy, wfbarton@olemiss.edu) and the other instructors entirely
+— that is a BUG, not acceptable output. Before responding, audit your
+own list: if it has ZERO rows whose title contains "Instructor",
+"Lecturer", "Adjunct", "Clinical", or "Professor of Practice", assume
+you missed a tab/page and search again.
 
 ================== EXCLUDED LEAD TYPES ==================
 DO NOT emit:
