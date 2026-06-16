@@ -281,9 +281,10 @@ Deno.serve(async (req) => {
   if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Supabase env not configured" }, 500);
 
-  let body: { campus_id?: string };
+  let body: { campus_id?: string; test_mode?: boolean };
   try { body = await req.json(); } catch { return json({ error: "invalid JSON body" }, 400); }
   const campus_id = (body.campus_id ?? "").trim();
+  const test_mode = body.test_mode === true;
   if (!campus_id) return json({ error: "campus_id required" }, 400);
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY);
