@@ -156,6 +156,14 @@ Deno.serve(async (req) => {
     await finalizeRaw("missing_from_or_to", "From or To header missing", null);
     return twiml();
   }
+  // Load editable templates from DB (graceful fallback to baked-in copy).
+  const { data: tplRows } = await admin.from("sms_templates").select("key,body");
+  const tplMap = new Map<string, string>((tplRows ?? []).map((r: any) => [r.key, r.body]));
+  const TPL_OPENER = tplMap.get("opener_questions") || FALLBACK_OPENER;
+  const TPL_BOOKING = tplMap.get("booking_reply") || FALLBACK_BOOKING;
+  const TPL_ACK = tplMap.get("ack_reply") || FALLBACK_ACK;
+  const TPL_LEE_NEW = tplMap.get("lee_new_summary") || FALLBACK_LEE_NEW;
+  const TPL_LEE_FOLLOWUP = tplMap.get("lee_followup_summary") || FALLBACK_LEE_FOLLOWUP;
 
   try {
     // ---------- Lee relay: his personal phone texting a campus number ----------
