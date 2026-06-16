@@ -9,6 +9,11 @@ import type {
   TemplateKind,
   TemplateVariant,
 } from "@/lib/outreach-mock";
+import {
+  getSupportedTextbookFamilies,
+  campusHasSupportedTextbook,
+  type SupportedTextbookFamily,
+} from "@/lib/textbook-matcher";
 
 const APPROVAL_VALUES: ApprovalStatus[] = ["not_reviewed", "needs_review", "approved", "needs_fix"];
 const ASSIGNMENT_VALUES: AssignmentStatus[] = ["not_assigned", "assigned", "in_progress", "approved", "blocked"];
