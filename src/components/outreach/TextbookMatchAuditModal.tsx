@@ -4,12 +4,14 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Download, BookOpen, Wand2 } from "lucide-react";
+import { Loader2, Download, BookOpen, Wand2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { runTextbookMatchAudit, type TextbookAuditRow } from "@/lib/textbook-matcher";
 import { startTextbookOnlyBatch, runTextbookResearchForCampus } from "@/lib/outreach-api";
