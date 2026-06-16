@@ -113,13 +113,30 @@ async function processItem(db: any, item: any) {
     error = null; failed_step = null;
   }
 
-  // 4. Sections (the expensive one)
+  // 4. Sections — chunk families to stay under the 150s edge-function timeout.
+  // Big schools (ASU, USC, Drexel, UTSA, etc.) were 504'ing on a single all-families call.
   if (!error) {
-    const r = await step("sections", () => invokeFn("research-campus-sections", { campus_id }));
-    if (r.ok) {
-      sections_count = r.data?.sections_inserted ?? 0;
-      const counts = r.data?.debug?.per_family_counts ?? {};
-      const allFams = ["intro_1","intro_2","intermediate_1","intermediate_2","finance","business_stats","business_analytics","microeconomics","macroeconomics"];
+    await db.from("campus_research_job_items").update({ current_step: "sections" }).eq("id", item.id);
+    const allFams = ["intro_1","intro_2","intermediate_1","intermediate_2","finance","business_stats","business_analytics","microeconomics","macroeconomics"];
+    const chunks: string[][] = [];
+    for (let i = 0; i < allFams.length; i += 3) chunks.push(allFams.slice(i, i + 3));
+    const results = await Promise.all(
+      chunks.map((fams) => invokeFn("research-campus-sections", { campus_id, families: fams })),
+    );
+    const failures = results.filter((r) => !r.ok);
+    if (failures.length === results.length) {
+      failed_step = "sections";
+      error = `sections: all chunks failed — first: HTTP ${failures[0].status} ${JSON.stringify(failures[0].data).slice(0, 300)}`;
+    } else {
+      const counts: Record<string, number> = {};
+      let totalInserted = 0;
+      for (const r of results) {
+        if (!r.ok) continue;
+        totalInserted += r.data?.sections_inserted ?? 0;
+        const pc = r.data?.debug?.per_family_counts ?? {};
+        for (const k of Object.keys(pc)) counts[k] = (counts[k] ?? 0) + (pc[k] ?? 0);
+      }
+      sections_count = totalInserted;
       families_with_zero = allFams.filter((f) => !counts[f]);
     }
   }
