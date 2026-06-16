@@ -37,16 +37,17 @@ const TESTER_PHONES = new Set(
 );
 
 // Fallback copy used only if a template row is missing in the DB.
+// Fallback copy used only if a template row is missing in the DB.
+// New flow (Phase 3): the opener IS the booking link — we no longer ask
+// course/exam/topic questions by SMS. /start collects all of that.
 const FALLBACK_OPENER =
-  "Hey! This is Lee's automated assistant.\n\n" +
-  "Before meeting with students, Lee likes to learn a little about where they're getting stuck.\n\n" +
-  "A few quick questions:\n\n" +
-  "• Which course are you in?\n" +
-  "• When is your next exam?\n" +
-  "• What chapters/topics are giving you the most trouble?\n\n" +
-  "Reply with your answers and I'll send over Lee's booking link.";
+  "Hey! I'd love to help you prep.\n\n" +
+  "Book tutoring with me at this link:\n" +
+  "SurviveAccounting.com/start\n\n" +
+  "Reply with any questions!\n\n" +
+  "Lee";
 const FALLBACK_BOOKING =
-  "Thanks!\n\nHere's Lee's booking page:\n\nSurviveAccounting.com/start\n\nHe'll also personally review your answers and follow up when he gets a chance.";
+  "Here's the booking link again:\n\nSurviveAccounting.com/start";
 const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
 const FALLBACK_LEE_NEW =
   '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-questions sent. Reply to this thread to jump in yourself.';
