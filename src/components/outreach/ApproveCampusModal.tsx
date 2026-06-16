@@ -216,7 +216,7 @@ export default function ApproveCampusModal({
 
   useEffect(() => {
     if (!campus) return;
-    setStep("1");
+    setStep(initialStep ?? "1");
     const existingCodes = campus.course_family_codes_json ?? {};
     const existingTitles = campus.course_family_titles_json ?? {};
     const initCodes: Record<string, string> = {};
