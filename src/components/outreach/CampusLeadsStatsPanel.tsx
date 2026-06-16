@@ -1,14 +1,16 @@
 // Collapsible "Analyze Campus Leads" panel: filter bar + stat tiles.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, ChevronDown, Settings, Download } from "lucide-react";
+import { BarChart3, ChevronDown, Settings, Download, Info, FileSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { fetchCampusLeadStats } from "@/lib/outreach-api";
+import { CampusLeadsReportModal } from "./CampusLeadsReportModal";
 import {
   LeadFilterBar,
   useLeadFilters,
