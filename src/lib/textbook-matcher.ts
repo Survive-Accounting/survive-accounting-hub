@@ -17,6 +17,7 @@ export interface SupportedTextbookFamily {
   publisher_keywords: string[];
   title_keywords: string[];
   author_keywords: string[];
+  isbn13_prefixes: string[];
   edition_sensitive: boolean;
   active: boolean;
   notes: string | null;
