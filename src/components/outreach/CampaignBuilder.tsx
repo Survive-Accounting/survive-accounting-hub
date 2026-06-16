@@ -60,6 +60,16 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
     touchAudienceUsed(a.id).catch(() => { /* non-blocking */ });
     toast.success(`Loaded "${a.name}" — ${ids.length} campuses`);
   }
+
+  const previewMut = useMutation({
+    mutationFn: async () => previewCampaignAudience(
+      { ...filters, selectedCampusIds },
+      campuses,
+    ),
+    onSuccess: (data) => {
+      setPreview(data);
+      toast.success(`Preview: ${data.totalLeads.toLocaleString()} leads across ${data.totalCampuses} campuses`);
+    },
     onError: (e: Error) => toast.error(`Preview failed: ${e.message}`),
   });
 
