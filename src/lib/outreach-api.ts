@@ -946,6 +946,9 @@ function mapSuggestion(row: any): LeadSuggestion {
     courses_found: Array.isArray(row.courses_found) ? (row.courses_found as LeadCourseFound[]) : null,
     teaching_evidence_url: row.teaching_evidence_url ?? null,
     teaching_evidence_notes: row.teaching_evidence_notes ?? null,
+    research_mode: ((row.research_mode as string) === "clean_professor_only" ? "clean_professor_only" : "broad") as ResearchMode,
+    research_label: row.research_label ?? null,
+    archived_at: row.archived_at ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
