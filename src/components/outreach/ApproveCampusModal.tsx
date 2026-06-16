@@ -1389,16 +1389,20 @@ export default function ApproveCampusModal({
               )}
             </TabsContent>
 
-            {/* STEP 3 — Lead Review (Phase 4) */}
-            <TabsContent value="3" className="space-y-2 pt-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    Run AI research, then accept the leads you want in the outreach queue.
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Accepting a lead does <strong>not</strong> email them. <strong>Import Accepted Leads</strong> moves them into the outreach lead list.
-                  </p>
+            {/* STEP 3 — Leads (scrape + triage) */}
+            <TabsContent value="3" className="space-y-3 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ScrapeFacultyButton
+                    campusId={campus.id}
+                    campusName={campus.school_name}
+                    onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                  />
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
+                    <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
+                    <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => setStep("2")}>Previous</Button>
@@ -1406,20 +1410,11 @@ export default function ApproveCampusModal({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <Badge variant="outline" className="font-normal">Pending: {leadSummary.pending}</Badge>
-                <Badge variant="outline" className="font-normal border-emerald-500/40 text-emerald-700">Accepted: {leadSummary.accepted}</Badge>
-                <Badge variant="outline" className="font-normal border-amber-500/40 text-amber-700">Needs Lee: {leadSummary.needs_lee}</Badge>
-                <Badge variant="outline" className="font-normal border-red-500/30 text-red-700">Rejected: {leadSummary.rejected}</Badge>
-              </div>
-
-
-              <LeadSuggestionsPanel
-                key={`${campus.id}-${leadsRefreshKey}`}
+              <FacultyTriagePanel
+                key={`triage-${campus.id}-${leadsRefreshKey}`}
                 campusId={campus.id}
-                compact
-                showManualImportHelp={false}
-                onSummaryChange={setLeadSummary}
+                campusName={campus.school_name}
+                refreshToken={leadsRefreshKey}
               />
 
               <ClassScheduleIntelligencePanel
@@ -1436,10 +1431,26 @@ export default function ApproveCampusModal({
                 />
                 <span>
                   <strong>No usable leads found / skip lead import for now.</strong>{" "}
-                  Approve the campus without importing AI-suggested leads — Lee or a VA can add leads manually later.
+                  Approve the campus without importing leads — Lee or a VA can add leads manually later.
                 </span>
               </label>
+
+              <details className="rounded-md border bg-muted/10">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Archived: legacy AI lead suggestions
+                </summary>
+                <div className="border-t p-2">
+                  <LeadSuggestionsPanel
+                    key={`legacy-${campus.id}-${leadsRefreshKey}`}
+                    campusId={campus.id}
+                    compact
+                    showManualImportHelp={false}
+                    onSummaryChange={setLeadSummary}
+                  />
+                </div>
+              </details>
             </TabsContent>
+
 
             {/* STEP 4 — Approval Summary */}
             <TabsContent value="4" className="space-y-2 pt-3">
