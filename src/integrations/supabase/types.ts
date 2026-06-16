@@ -3701,6 +3701,30 @@ export type Database = {
           },
         ]
       }
+      sms_templates: {
+        Row: {
+          body: string
+          description: string | null
+          key: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          description?: string | null
+          key: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          description?: string | null
+          key?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       student_emails: {
         Row: {
           attempted_at: string | null
