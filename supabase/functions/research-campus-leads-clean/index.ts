@@ -346,15 +346,26 @@ Deno.serve(async (req) => {
   const debug = {
     model: MODEL,
     research_mode: RESEARCH_MODE,
-    research_label: RESEARCH_LABEL,
+    research_label: test_mode ? `Clean Professor Test — ${campus.name}` : RESEARCH_LABEL,
     finish_reason: finishReason,
     usage,
     raw_suggestion_count: rawCount,
     parsed_lead_count: cleaned.length,
     rejected_count: rejected.length,
-    rejected_samples: rejected.slice(0, 10),
+    rejected_samples: rejected.slice(0, 20),
+    test_mode,
+    prompt_preview: prompt.slice(0, 4000),
+    raw_response_preview: text.slice(0, 8000),
+    accepted_preview: cleaned.slice(0, 30),
+    parsed_suggestions: test_mode ? parsed?.suggestions ?? [] : undefined,
   };
-  console.log("[research-campus-leads-clean]", { campus_id, ...debug });
+  console.log("[research-campus-leads-clean]", { campus_id, test_mode, parsed: cleaned.length, rejected: rejected.length });
+
+  // Tag test runs with a distinct label so they're easy to find / archive.
+  const labelForRun = test_mode
+    ? `Clean Professor Test — ${campus.name} ${new Date().toISOString().slice(0,16).replace("T"," ")}`
+    : RESEARCH_LABEL;
+  for (const r of cleaned) r.research_label = labelForRun;
 
   if (cleaned.length === 0) {
     return json({ success: true, campus_id, inserted_count: 0, skipped_duplicate_count: 0, suggestions: [], debug });
