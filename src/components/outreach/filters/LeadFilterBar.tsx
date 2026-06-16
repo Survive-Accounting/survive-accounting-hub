@@ -30,6 +30,8 @@ export const SEASON_LABELS: Record<SeasonKey, string> = {
   fall: "Fall", spring: "Spring", summer: "Summer", winter: "Winter",
 };
 
+export type ResearchModeFilter = "all" | "broad" | "clean_professor_only";
+
 export interface LeadFilters {
   courseFamilies: CourseFamilyKey[]; // empty = none; full list = all
   seasons: SeasonKey[];
@@ -37,6 +39,7 @@ export interface LeadFilters {
   teachingOnly: boolean;
   minConfidence: number;             // 0..1
   textbookMatchOnly: boolean;
+  researchMode: ResearchModeFilter;
 }
 
 export const DEFAULT_LEAD_FILTERS: LeadFilters = {
@@ -46,6 +49,8 @@ export const DEFAULT_LEAD_FILTERS: LeadFilters = {
   teachingOnly: false,
   minConfidence: 0,
   textbookMatchOnly: false,
+  // Campaign builder defaults to ONLY clean professor-only suggestions.
+  researchMode: "clean_professor_only",
 };
 
 /** Reusable controlled-state hook. */
