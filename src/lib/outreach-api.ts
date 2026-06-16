@@ -955,16 +955,20 @@ function mapSuggestion(row: any): LeadSuggestion {
 }
 
 /** List AI-suggested leads for a campus, newest first.
- *  Archived suggestions (archived_at IS NOT NULL) are excluded by default. */
+ *  Archived suggestions (archived_at IS NOT NULL) are excluded by default.
+ *  Pass researchMode to filter by 'broad' or 'clean_professor_only'. */
 export async function getLeadSuggestions(
   campusId: string,
-  opts: { includeArchived?: boolean } = {},
+  opts: { includeArchived?: boolean; researchMode?: ResearchMode | "all" } = {},
 ): Promise<LeadSuggestion[]> {
   let q: any = supabase
     .from(SUGGESTION_TABLE)
     .select("*")
     .eq("campus_id", campusId);
   if (!opts.includeArchived) q = q.is("archived_at", null);
+  if (opts.researchMode && opts.researchMode !== "all") {
+    q = q.eq("research_mode", opts.researchMode);
+  }
   q = q.order("created_at", { ascending: false });
   const { data, error } = await q;
   if (error) throw error;
