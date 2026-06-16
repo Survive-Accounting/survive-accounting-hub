@@ -191,6 +191,10 @@ function OutreachPage() {
             <LeadsPanel campuses={campuses} />
           </TabsContent>
 
+          <TabsContent value="audiences" className="mt-8 space-y-4">
+            <AudiencesPanel campuses={campuses} />
+          </TabsContent>
+
           <TabsContent value="templates" className="mt-8 space-y-4">
             <EmailQueueShell campuses={campuses} />
           </TabsContent>
