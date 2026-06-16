@@ -1051,6 +1051,7 @@ export type Database = {
           enrollment_source: string | null
           enrollment_source_year: string | null
           enrollment_updated_at: string | null
+          faculty_page_url: string | null
           generated_theme_json: Json | null
           hipolabs_raw_json: Json | null
           hipolabs_status: string | null
@@ -1176,6 +1177,7 @@ export type Database = {
           enrollment_source?: string | null
           enrollment_source_year?: string | null
           enrollment_updated_at?: string | null
+          faculty_page_url?: string | null
           generated_theme_json?: Json | null
           hipolabs_raw_json?: Json | null
           hipolabs_status?: string | null
@@ -1301,6 +1303,7 @@ export type Database = {
           enrollment_source?: string | null
           enrollment_source_year?: string | null
           enrollment_updated_at?: string | null
+          faculty_page_url?: string | null
           generated_theme_json?: Json | null
           hipolabs_raw_json?: Json | null
           hipolabs_status?: string | null
