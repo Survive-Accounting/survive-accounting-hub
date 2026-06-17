@@ -107,6 +107,20 @@ function joinCoursesFull(codes: string[]): string {
   return cleaned.slice(0, -1).join(", ") + ", and " + cleaned[cleaned.length - 1];
 }
 
+/**
+ * Resolve a family code (e.g. "intro_2") for merge. If `anchor` shares a prefix,
+ * return just the number — so "{intro1}, {intro2}" renders as "ACCY 201, 202".
+ */
+function familyCode(code: string | undefined | null, anchor?: string | null): string {
+  const c = (code ?? "").trim();
+  if (!c) return "";
+  const a = (anchor ?? "").trim();
+  if (!a || a === c) return c;
+  const cm = c.match(/^([A-Za-z&-]+)\s+(.+)$/);
+  const am = a.match(/^([A-Za-z&-]+)\s+/);
+  if (cm && am && cm[1].toUpperCase() === am[1].toUpperCase()) return cm[2];
+  return c;
+
 /** Render **bold** and _italic_ markdown in a pre-escaped string segment. */
 function applyBold(html: string): string {
   return html
@@ -173,6 +187,10 @@ Deno.serve(async (req) => {
         .replace(/\{\s*courses\s*\}/gi, sampleCourses)
         .replace(/\{\s*phone\s*\}/gi, samplePhone)
         .replace(/\{\s*full\s*codes\s*\}/gi, sampleFullCodes)
+        .replace(/\{\s*intro\s*1\s*\}/gi, "ACCY 201")
+        .replace(/\{\s*intro\s*2\s*\}/gi, familyCode("ACCY 202", "ACCY 201"))
+        .replace(/\{\s*intermediate\s*1\s*\}/gi, "ACCY 303")
+        .replace(/\{\s*intermediate\s*2\s*\}/gi, familyCode("ACCY 304", "ACCY 303"))
         .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
         .replace(/\[First Name\]/g, sampleFirst)
         .replace(/\[Booking Link\]/g, BOOKING_LINK)
@@ -251,6 +269,7 @@ Deno.serve(async (req) => {
     let landingUrl: string | null = null;
     let campusApproved = false;
     let courseFamilyStatus: Record<string, string> = {};
+    let courseFamilyCodes: Record<string, string> = {};
     let programName = "";
     let coursesText = "";
     let fullCoursesText = "";
@@ -259,7 +278,7 @@ Deno.serve(async (req) => {
     if (lead.campus_id) {
       const { data: campus } = await admin
         .from("campuses")
-        .select("slug, approval_status, course_family_status_json, accounting_department_name, course_codes_json, use_personal_phone")
+        .select("slug, approval_status, course_family_status_json, course_family_codes_json, accounting_department_name, course_codes_json, use_personal_phone")
         .eq("id", lead.campus_id)
         .single();
       if (campus?.approval_status === "approved" && campus?.slug) {
@@ -270,6 +289,9 @@ Deno.serve(async (req) => {
       }
       if (campus?.course_family_status_json && typeof campus.course_family_status_json === "object") {
         courseFamilyStatus = campus.course_family_status_json as Record<string, string>;
+      }
+      if (campus?.course_family_codes_json && typeof campus.course_family_codes_json === "object") {
+        courseFamilyCodes = campus.course_family_codes_json as Record<string, string>;
       }
       programName = (campus?.accounting_department_name ?? "").trim();
       if (Array.isArray(campus?.course_codes_json)) {
@@ -285,6 +307,10 @@ Deno.serve(async (req) => {
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
     const fullCoursesMerge = fullCoursesText || coursesMerge;
     const prefixMerge = prefixText || "accounting";
+    const intro1Code = courseFamilyCodes["intro_1"] ?? "";
+    const intro2Code = familyCode(courseFamilyCodes["intro_2"], intro1Code);
+    const intermediate1Code = courseFamilyCodes["intermediate_1"] ?? "";
+    const intermediate2Code = familyCode(courseFamilyCodes["intermediate_2"], intermediate1Code);
 
     // {phone} merge — hardcoded to Lee's main line.
     void usePersonalPhone;
@@ -362,6 +388,10 @@ Deno.serve(async (req) => {
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
+      .replace(/\{\s*intro\s*1\s*\}/gi, intro1Code)
+      .replace(/\{\s*intro\s*2\s*\}/gi, intro2Code)
+      .replace(/\{\s*intermediate\s*1\s*\}/gi, intermediate1Code)
+      .replace(/\{\s*intermediate\s*2\s*\}/gi, intermediate2Code)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
       .replace(/\[First Name\]/g, greetingName)
@@ -384,6 +414,10 @@ Deno.serve(async (req) => {
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
+      .replace(/\{\s*intro\s*1\s*\}/gi, intro1Code)
+      .replace(/\{\s*intro\s*2\s*\}/gi, intro2Code)
+      .replace(/\{\s*intermediate\s*1\s*\}/gi, intermediate1Code)
+      .replace(/\{\s*intermediate\s*2\s*\}/gi, intermediate2Code)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\[First Name\]/g, greetingName);
 
