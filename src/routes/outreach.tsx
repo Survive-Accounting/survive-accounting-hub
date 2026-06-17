@@ -20,6 +20,7 @@ import AddCampusModal from "@/components/outreach/AddCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
+import { TutoringRequestsPanel } from "@/components/outreach/TutoringRequestsPanel";
 import { WaitlistCard } from "@/components/outreach/WaitlistCard";
 import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import { ArchiveAllLeadsButton } from "@/components/outreach/ArchiveAllLeadsButton";
@@ -121,7 +122,7 @@ function OutreachPage() {
             <TabsTrigger value="schools" className="text-sm font-medium">Campuses</TabsTrigger>
             <TabsTrigger value="audiences" className="text-sm font-medium">Audiences</TabsTrigger>
             <TabsTrigger value="templates" className="text-sm font-medium">Email Queue</TabsTrigger>
-            <TabsTrigger value="texts" className="text-sm font-medium">Texts</TabsTrigger>
+            <TabsTrigger value="texts" className="text-sm font-medium">Students</TabsTrigger>
           </TabsList>
 
           <TabsContent value="home" className="mt-8 space-y-8">
@@ -200,8 +201,19 @@ function OutreachPage() {
           </TabsContent>
 
           <TabsContent value="texts" className="mt-8 space-y-4">
-            <WaitlistCard />
-            <TextsPanel campuses={campuses} />
+            <Tabs defaultValue="conversations" className="space-y-4">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="conversations">Conversations</TabsTrigger>
+                <TabsTrigger value="requests">Requests</TabsTrigger>
+              </TabsList>
+              <TabsContent value="conversations" className="space-y-4">
+                <WaitlistCard />
+                <TextsPanel campuses={campuses} />
+              </TabsContent>
+              <TabsContent value="requests" className="space-y-4">
+                <TutoringRequestsPanel />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>
