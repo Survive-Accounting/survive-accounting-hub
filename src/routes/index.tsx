@@ -88,48 +88,6 @@ function HeroCta() {
   );
 }
 
-function SmsPolicyFootnote() {
-  return (
-    <div
-      style={{
-        background: "#0b1a36",
-        borderTop: "1px solid rgba(255,255,255,0.05)",
-      }}
-    >
-      <details className="mx-auto max-w-[1100px] px-4 sm:px-6 py-3 group">
-        <summary
-          className="cursor-pointer list-none text-[11px] tracking-wide"
-          style={{
-            color: "rgba(255,255,255,0.4)",
-            fontFamily: "Inter, sans-serif",
-          }}
-        >
-          <span className="underline underline-offset-4 group-open:hidden">
-            SMS policy
-          </span>
-          <span className="underline underline-offset-4 hidden group-open:inline">
-            Hide SMS policy
-          </span>
-        </summary>
-        <p
-          className="mt-2 text-[11px] leading-relaxed"
-          style={{
-            color: "rgba(255,255,255,0.55)",
-            fontFamily: "Inter, sans-serif",
-            maxWidth: 640,
-          }}
-        >
-          By texting {TUTOR_PHONE_PRETTY}, you agree to receive replies from Lee
-          about your tutoring request. Message frequency varies. Msg &amp; data
-          rates may apply. Reply STOP to opt out, HELP for help. See our{" "}
-          <a href="/privacy" className="underline hover:text-white">Privacy</a>{" "}
-          and{" "}
-          <a href="/terms" className="underline hover:text-white">Terms</a>.
-        </p>
-      </details>
-    </div>
-  );
-}
 
 function Home() {
   const goToReviews = () => scrollToId("reviews-section");
