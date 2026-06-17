@@ -474,6 +474,7 @@ function InfoStep({
 
       {schoolPicked && (
         <CoursePicker
+          campusId={draft.campusId}
           course={draft.course}
           courseOther={draft.courseOther}
           notSure={draft.notSureCourse}
