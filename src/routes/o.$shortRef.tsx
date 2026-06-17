@@ -20,6 +20,10 @@ import {
   type CampusLite,
   type OnboardingSnapshot,
 } from "@/lib/onboarding.functions";
+import leeHeadshot from "@/assets/lee-headshot-original.png";
+
+const LEE_PHONE_DISPLAY = "(662) 565-8818";
+const LEE_PHONE_HREF = "+16625658818";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
