@@ -28,7 +28,7 @@ import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
 import { TutoringRequestsPanel } from "@/components/outreach/TutoringRequestsPanel";
-import { WaitlistCard } from "@/components/outreach/WaitlistCard";
+// WaitlistCard removed from sidebar layout
 import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import { ArchiveAllLeadsButton } from "@/components/outreach/ArchiveAllLeadsButton";
 import { AudiencesPanel } from "@/components/outreach/AudiencesPanel";
