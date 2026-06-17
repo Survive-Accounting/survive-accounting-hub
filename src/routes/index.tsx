@@ -121,8 +121,8 @@ function Home() {
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
         headline="Let's Make Accounting Exams Feel Easy"
-        subtext="I've helped over 1,000 students ace exams confidently. I'd love to help you, too. Shoot me a text to request tutoring."
-        ctaSlot={<HeroCta onReadReviews={goToReviews} />}
+        subtext="Get expert help from a tutor who knows your exams. Text me at the number below to get started today."
+        ctaSlot={<HeroCta />}
       />
       <Reviews />
       <ContactForm />
