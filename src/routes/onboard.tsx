@@ -50,7 +50,7 @@ type StressItem =
   | "Study strategies"
   | "Just trying to pass"
   | "Something else";
-type Pricing = "Single session" | "5-pack" | "Exam cram" | "Not sure yet";
+type PriceReaction = "accepted" | "hesitant";
 type Future = "CPA exam" | "Internship prep" | "Grad school" | "Just passing this class";
 
 type Answers = {
