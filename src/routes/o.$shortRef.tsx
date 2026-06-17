@@ -125,10 +125,10 @@ type Draft = {
 function draftFromSnapshot(s: OnboardingSnapshot): Draft {
   // Strip synthetic web phone markers (e.g. "web:UUID") from prefill.
   const phone = s.phone && !s.phone.startsWith("web:") ? s.phone : "";
-  // Map server-saved course (display name) back into either the dropdown
-  // value or the "other" write-in field.
+  // Map server-saved course (display name) back to a course-family key, the
+  // "Not sure" sentinel, or a free-text write-in.
   const courseName = (s.course ?? "").trim();
-  const isKnown = (COURSE_OPTIONS as readonly string[]).includes(courseName);
+  const familyKey = courseNameToFamilyKey(courseName);
   const isNotSure = courseName === "Not sure";
   const hasCampus = !!(s.campusId || s.campus);
   return {
@@ -139,8 +139,8 @@ function draftFromSnapshot(s: OnboardingSnapshot): Draft {
     campusId: s.campusId,
     schoolName: s.campus ?? "",
     schoolOther: !s.campusId && !!s.campus,
-    course: isKnown ? courseName : "",
-    courseOther: !isKnown && !isNotSure && hasCampus ? courseName : "",
+    course: familyKey ?? "",
+    courseOther: !familyKey && !isNotSure && hasCampus ? courseName : "",
     notSureCourse: isNotSure,
     pricingReaction: (s.pricingReaction as Draft["pricingReaction"]) ?? null,
     stressFactors: s.stressFactors,
