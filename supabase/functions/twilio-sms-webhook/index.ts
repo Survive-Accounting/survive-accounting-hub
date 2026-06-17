@@ -284,13 +284,29 @@ Deno.serve(async (req) => {
     const campusLabel = campus?.name ?? to;
     const isTester = isTesterPhone || convo.is_tester === true;
 
+    // First-time text: create a minimal student_intake_submissions row and
+    // link it back to the conversation so /o/{short_ref} can resolve to it.
+    if (!convo.submission_id) {
+      const { data: sub } = await admin.from("student_intake_submissions").insert({
+        phone: from,
+        campus_id: campus?.id ?? null,
+        school_name: campus?.name ?? null,
+        source: "sms_inbound",
+      }).select("id").single();
+      if (sub?.id) {
+        await admin.from("sms_conversations").update({ submission_id: sub.id }).eq("id", convo.id);
+        convo.submission_id = sub.id;
+      }
+    }
+
     // Send the scripted opener exactly once. If a prior attempt failed before
     // `opener_sent` was set, the next inbound retries instead of silently
     // suppressing the student auto-reply.
     if (!convo.opener_sent) {
-      const sentSid = await twilioSend(to, from, TPL_OPENER);
+      const openerBody = render(TPL_OPENER, { short_ref: String(convo.short_ref) });
+      const sentSid = await twilioSend(to, from, openerBody);
       await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto", body: TPL_OPENER, twilio_sid: sentSid,
+        conversation_id: convo.id, direction: "out", author: "auto", body: openerBody, twilio_sid: sentSid,
       });
       if (sentSid) await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
 
