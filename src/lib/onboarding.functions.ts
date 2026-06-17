@@ -87,7 +87,7 @@ export const getOnboarding = createServerFn({ method: "GET" })
 
     const { data: sub } = await supabaseAdmin
       .from("student_intake_submissions")
-      .select("first_name,last_name,email,phone,campus_id,school_name,course_code_or_name,stress_factors,pricing_reaction,is_greek_member,greek_org_name,future_interests,contact_info_completed_at,required_onboarding_completed_at,greek_completed_at,future_interests_completed_at,syllabus_step_completed_at,syllabus_uploaded_at,onboarding_finished_at,onboarding_opened_at")
+      .select("first_name,last_name,email,phone,campus_id,school_name,course_code_or_name,stress_factors,pricing_reaction,is_greek_member,greek_org_name,future_interests,accounting_major_status,contact_info_completed_at,required_onboarding_completed_at,greek_completed_at,future_interests_completed_at,syllabus_step_completed_at,syllabus_uploaded_at,onboarding_finished_at,onboarding_opened_at")
       .eq("id", submissionId).single();
 
     if (sub && !sub.onboarding_opened_at) {
