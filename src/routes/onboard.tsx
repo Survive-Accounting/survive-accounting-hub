@@ -1,6 +1,6 @@
 // /onboard — Premium multi-step lead qualification flow.
 // Apple/TurboTax-inspired. Answers held in local state for now; Supabase wiring later.
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -16,12 +16,17 @@ import {
   FileText,
   PartyPopper,
   X,
+  Search,
+  ChevronDown,
+  HelpCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/onboard")({
   head: () => ({
@@ -39,8 +44,9 @@ type Pricing = "Single session" | "5-pack" | "Exam cram" | "Not sure yet";
 type Future = "CPA exam" | "Internship prep" | "Grad school" | "Just passing this class";
 
 type Answers = {
-  school: string;
-  course: string;
+  campusId: string;
+  campusName: string;
+  courseCode: string;
   professor: string;
   stress: StressItem[];
   pricing: Pricing | "";
@@ -65,8 +71,9 @@ function OnboardPage() {
   const [stepIdx, setStepIdx] = useState(0);
   const [direction, setDirection] = useState(1);
   const [answers, setAnswers] = useState<Answers>({
-    school: "",
-    course: "",
+    campusId: "",
+    campusName: "",
+    courseCode: "",
     professor: "",
     stress: [],
     pricing: "",
@@ -83,7 +90,7 @@ function OnboardPage() {
   const canAdvance = useMemo(() => {
     switch (step.key) {
       case "campus":
-        return answers.school.trim().length > 0 && answers.course.trim().length > 0;
+        return answers.campusId.length > 0;
       case "stress":
         return answers.stress.length > 0;
       case "pricing":
@@ -282,39 +289,31 @@ function StepContent({
     return (
       <StepShell
         eyebrow="Step 1"
-        title="Where are you studying?"
-        subtitle="So Lee can match you with the right approach for your campus and instructor."
+        title="Let's get you started."
+        subtitle="This should only take about 2 minutes."
       >
-        <div className="space-y-5">
-          <Field label="School">
-            <Input
-              value={answers.school}
-              onChange={(e) => update("school", e.target.value)}
-              placeholder="Ole Miss, Mississippi State, etc."
-              className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-              autoFocus
-            />
-          </Field>
-          <Field label="Course">
-            <Input
-              value={answers.course}
-              onChange={(e) => update("course", e.target.value)}
-              placeholder="ACCY 201 — Intro to Financial Accounting"
-              className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-            />
-          </Field>
-          <Field label="Professor (optional)">
-            <Input
-              value={answers.professor}
-              onChange={(e) => update("professor", e.target.value)}
-              placeholder="Dr. Smith"
-              className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-            />
-          </Field>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-lg font-semibold text-[color:var(--brand-navy)] sm:text-xl">
+              Which school and course do you need help with?
+            </h2>
+          </div>
+          <CampusCoursePicker
+            campusId={answers.campusId}
+            campusName={answers.campusName}
+            courseCode={answers.courseCode}
+            onCampusChange={(id, name) => {
+              update("campusId", id);
+              update("campusName", name);
+              update("courseCode", "");
+            }}
+            onCourseChange={(code) => update("courseCode", code)}
+          />
         </div>
       </StepShell>
     );
   }
+
 
   if (step === "stress") {
     const items: StressItem[] = [
@@ -618,6 +617,276 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-2">
       <Label className="text-sm font-medium text-[color:var(--brand-navy)]/80">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+// ---------------- Campus + Course picker ----------------
+
+type CampusRow = { id: string; name: string };
+type CourseRow = { local_course_code: string; local_course_name: string | null; display_order: number | null };
+
+function CampusCoursePicker({
+  campusId,
+  campusName,
+  courseCode,
+  onCampusChange,
+  onCourseChange,
+}: {
+  campusId: string;
+  campusName: string;
+  courseCode: string;
+  onCampusChange: (id: string, name: string) => void;
+  onCourseChange: (code: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [campuses, setCampuses] = useState<CampusRow[]>([]);
+  const [loadingCampuses, setLoadingCampuses] = useState(false);
+  const [courses, setCourses] = useState<CourseRow[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load campuses (cached once)
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingCampuses(true);
+    supabase
+      .from("campuses")
+      .select("id,name")
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+      .limit(2000)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error && data) setCampuses(data as CampusRow[]);
+        setLoadingCampuses(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load courses when campus changes
+  useEffect(() => {
+    if (!campusId) {
+      setCourses([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingCourses(true);
+    supabase
+      .from("campus_courses")
+      .select("local_course_code,local_course_name,display_order")
+      .eq("campus_id", campusId)
+      .eq("is_active", true)
+      .order("display_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error && data) {
+          const filtered = (data as CourseRow[]).filter((c) => c.local_course_code?.trim());
+          setCourses(filtered);
+        } else {
+          setCourses([]);
+        }
+        setLoadingCourses(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campusId]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const filteredCampuses = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return campuses.slice(0, 100);
+    return campuses.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 100);
+  }, [campuses, query]);
+
+  return (
+    <div className="space-y-6">
+      {/* Searchable campus dropdown */}
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-[color:var(--brand-navy)]/80">School</Label>
+        <div ref={containerRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className={cn(
+              "flex h-16 w-full items-center justify-between gap-3 rounded-2xl border bg-white px-5 text-left text-base shadow-sm transition-all",
+              "border-black/10 hover:border-[color:var(--brand-navy)]/40 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-navy)]/30",
+              campusId && "border-[color:var(--brand-navy)]/40",
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <Search className="h-5 w-5 shrink-0 text-[color:var(--brand-navy)]/40" />
+              <span className={cn("truncate", !campusName && "text-[color:var(--brand-navy)]/40")}>
+                {campusName || "Search for your school…"}
+              </span>
+            </div>
+            <ChevronDown className={cn("h-5 w-5 shrink-0 text-[color:var(--brand-navy)]/40 transition-transform", open && "rotate-180")} />
+          </button>
+
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-xl shadow-[color:var(--brand-navy)]/10"
+              >
+                <div className="flex items-center gap-2 border-b border-black/5 px-4 py-3">
+                  <Search className="h-4 w-4 text-[color:var(--brand-navy)]/40" />
+                  <input
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Type to search…"
+                    className="w-full bg-transparent text-base outline-none placeholder:text-[color:var(--brand-navy)]/40"
+                  />
+                </div>
+                <div className="max-h-72 overflow-y-auto py-2">
+                  {loadingCampuses && (
+                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-[color:var(--brand-navy)]/50">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading schools…
+                    </div>
+                  )}
+                  {!loadingCampuses && filteredCampuses.length === 0 && (
+                    <div className="px-4 py-6 text-center text-sm text-[color:var(--brand-navy)]/50">
+                      No schools match "{query}"
+                    </div>
+                  )}
+                  {!loadingCampuses &&
+                    filteredCampuses.map((c) => {
+                      const active = c.id === campusId;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            onCampusChange(c.id, c.name);
+                            setOpen(false);
+                            setQuery("");
+                          }}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-base hover:bg-[color:var(--brand-navy)]/5",
+                            active && "bg-[color:var(--brand-navy)]/5 font-semibold",
+                          )}
+                        >
+                          <span className="truncate">{c.name}</span>
+                          {active && <Check className="h-4 w-4 shrink-0 text-[color:var(--brand-navy)]" />}
+                        </button>
+                      );
+                    })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Course selection (appears after campus chosen) */}
+      <AnimatePresence mode="wait">
+        {campusId && (
+          <motion.div
+            key={campusId}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.22 }}
+            className="space-y-2"
+          >
+            <Label className="text-sm font-medium text-[color:var(--brand-navy)]/80">Course</Label>
+            {loadingCourses ? (
+              <div className="flex h-16 items-center justify-center rounded-2xl border border-black/10 bg-white text-sm text-[color:var(--brand-navy)]/50">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading courses…
+              </div>
+            ) : courses.length > 0 ? (
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {courses.map((c) => {
+                  const active = courseCode === c.local_course_code;
+                  return (
+                    <button
+                      key={c.local_course_code}
+                      type="button"
+                      onClick={() => onCourseChange(active ? "" : c.local_course_code)}
+                      className={cn(
+                        "flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 text-left transition-all",
+                        active
+                          ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
+                          : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-base font-semibold">{c.local_course_code}</div>
+                        {c.local_course_name && (
+                          <div className="mt-0.5 truncate text-xs text-[color:var(--brand-navy)]/60">
+                            {c.local_course_name}
+                          </div>
+                        )}
+                      </div>
+                      {active && <Check className="h-5 w-5 shrink-0 text-[color:var(--brand-navy)]" />}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => onCourseChange(courseCode === "__not_sure__" ? "" : "__not_sure__")}
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 text-left transition-all",
+                    courseCode === "__not_sure__"
+                      ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
+                      : "border-dashed border-black/15 hover:border-[color:var(--brand-navy)]/40",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <HelpCircle className="h-5 w-5 text-[color:var(--brand-navy)]/50" />
+                    <span className="text-base font-semibold">Not sure</span>
+                  </div>
+                  {courseCode === "__not_sure__" && <Check className="h-5 w-5 text-[color:var(--brand-navy)]" />}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Input
+                  value={courseCode === "__not_sure__" ? "" : courseCode}
+                  onChange={(e) => onCourseChange(e.target.value)}
+                  placeholder="Course code (optional) — e.g. ACC 201"
+                  className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => onCourseChange(courseCode === "__not_sure__" ? "" : "__not_sure__")}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-5 text-left transition-all",
+                    courseCode === "__not_sure__"
+                      ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
+                      : "border-dashed border-black/15 hover:border-[color:var(--brand-navy)]/40",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <HelpCircle className="h-6 w-6 text-[color:var(--brand-navy)]/50" />
+                    <span className="text-base font-semibold">Not sure</span>
+                  </div>
+                  {courseCode === "__not_sure__" && <Check className="h-5 w-5 text-[color:var(--brand-navy)]" />}
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
