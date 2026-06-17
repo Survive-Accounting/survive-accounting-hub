@@ -3872,6 +3872,8 @@ export type Database = {
           email: string | null
           first_name: string | null
           future_interests: string | null
+          future_interests_completed_at: string | null
+          greek_completed_at: string | null
           greek_org_name: string | null
           how_did_you_hear_about_me: string | null
           id: string
@@ -3881,6 +3883,7 @@ export type Database = {
           next_exam_date: string | null
           notes: string | null
           notification_log: Json
+          onboarding_finished_at: string | null
           onboarding_opened_at: string | null
           phone: string | null
           pricing_reaction: string | null
@@ -3896,6 +3899,7 @@ export type Database = {
           source_url_params: Json
           stress_factors: string | null
           syllabus_file_url: string | null
+          syllabus_step_completed_at: string | null
           syllabus_uploaded_at: string | null
           updated_at: string
           waitlist_joined: boolean
@@ -3911,6 +3915,8 @@ export type Database = {
           email?: string | null
           first_name?: string | null
           future_interests?: string | null
+          future_interests_completed_at?: string | null
+          greek_completed_at?: string | null
           greek_org_name?: string | null
           how_did_you_hear_about_me?: string | null
           id?: string
@@ -3920,6 +3926,7 @@ export type Database = {
           next_exam_date?: string | null
           notes?: string | null
           notification_log?: Json
+          onboarding_finished_at?: string | null
           onboarding_opened_at?: string | null
           phone?: string | null
           pricing_reaction?: string | null
@@ -3935,6 +3942,7 @@ export type Database = {
           source_url_params?: Json
           stress_factors?: string | null
           syllabus_file_url?: string | null
+          syllabus_step_completed_at?: string | null
           syllabus_uploaded_at?: string | null
           updated_at?: string
           waitlist_joined?: boolean
@@ -3950,6 +3958,8 @@ export type Database = {
           email?: string | null
           first_name?: string | null
           future_interests?: string | null
+          future_interests_completed_at?: string | null
+          greek_completed_at?: string | null
           greek_org_name?: string | null
           how_did_you_hear_about_me?: string | null
           id?: string
@@ -3959,6 +3969,7 @@ export type Database = {
           next_exam_date?: string | null
           notes?: string | null
           notification_log?: Json
+          onboarding_finished_at?: string | null
           onboarding_opened_at?: string | null
           phone?: string | null
           pricing_reaction?: string | null
@@ -3974,6 +3985,7 @@ export type Database = {
           source_url_params?: Json
           stress_factors?: string | null
           syllabus_file_url?: string | null
+          syllabus_step_completed_at?: string | null
           syllabus_uploaded_at?: string | null
           updated_at?: string
           waitlist_joined?: boolean
