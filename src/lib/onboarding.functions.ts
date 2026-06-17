@@ -383,6 +383,7 @@ const submitSchema = z.object({
   isGreekMember: z.boolean().nullable().optional(),
   greekOrgName: z.string().trim().max(120).nullable().optional(),
   futureInterests: z.array(z.string().trim().min(1).max(120)).max(20),
+  accountingMajorStatus: z.enum(["yes", "no", "definitely_not"]).nullable().optional(),
 });
 
 export const submitOnboarding = createServerFn({ method: "POST" })
