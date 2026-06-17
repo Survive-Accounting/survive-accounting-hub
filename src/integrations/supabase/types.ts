@@ -3604,6 +3604,7 @@ export type Database = {
           status: string
           struggles: string | null
           student_phone: string
+          submission_id: string | null
         }
         Insert: {
           campus_id?: string | null
@@ -3621,6 +3622,7 @@ export type Database = {
           status?: string
           struggles?: string | null
           student_phone: string
+          submission_id?: string | null
         }
         Update: {
           campus_id?: string | null
@@ -3638,6 +3640,7 @@ export type Database = {
           status?: string
           struggles?: string | null
           student_phone?: string
+          submission_id?: string | null
         }
         Relationships: [
           {
@@ -3645,6 +3648,13 @@ export type Database = {
             columns: ["campus_id"]
             isOneToOne: false
             referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_conversations_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "student_intake_submissions"
             referencedColumns: ["id"]
           },
         ]
@@ -3855,11 +3865,13 @@ export type Database = {
           archived_by_lee: boolean
           booking_link_shown: boolean
           campus_id: string | null
+          contact_info_completed_at: string | null
           course_code_or_name: string | null
           course_family: string | null
           created_at: string
           email: string | null
           first_name: string | null
+          future_interests: string | null
           greek_org_name: string | null
           how_did_you_hear_about_me: string | null
           id: string
@@ -3869,9 +3881,12 @@ export type Database = {
           next_exam_date: string | null
           notes: string | null
           notification_log: Json
+          onboarding_opened_at: string | null
           phone: string | null
+          pricing_reaction: string | null
           professor_name: string | null
           replied_by_lee: boolean
+          required_onboarding_completed_at: string | null
           routing_reason: string | null
           routing_result: string | null
           school_name: string | null
@@ -3879,6 +3894,7 @@ export type Database = {
           source_campaign_id: string | null
           source_lead_id: string | null
           source_url_params: Json
+          stress_factors: string | null
           syllabus_file_url: string | null
           syllabus_uploaded_at: string | null
           updated_at: string
@@ -3888,11 +3904,13 @@ export type Database = {
           archived_by_lee?: boolean
           booking_link_shown?: boolean
           campus_id?: string | null
+          contact_info_completed_at?: string | null
           course_code_or_name?: string | null
           course_family?: string | null
           created_at?: string
           email?: string | null
           first_name?: string | null
+          future_interests?: string | null
           greek_org_name?: string | null
           how_did_you_hear_about_me?: string | null
           id?: string
@@ -3902,9 +3920,12 @@ export type Database = {
           next_exam_date?: string | null
           notes?: string | null
           notification_log?: Json
+          onboarding_opened_at?: string | null
           phone?: string | null
+          pricing_reaction?: string | null
           professor_name?: string | null
           replied_by_lee?: boolean
+          required_onboarding_completed_at?: string | null
           routing_reason?: string | null
           routing_result?: string | null
           school_name?: string | null
@@ -3912,6 +3933,7 @@ export type Database = {
           source_campaign_id?: string | null
           source_lead_id?: string | null
           source_url_params?: Json
+          stress_factors?: string | null
           syllabus_file_url?: string | null
           syllabus_uploaded_at?: string | null
           updated_at?: string
@@ -3921,11 +3943,13 @@ export type Database = {
           archived_by_lee?: boolean
           booking_link_shown?: boolean
           campus_id?: string | null
+          contact_info_completed_at?: string | null
           course_code_or_name?: string | null
           course_family?: string | null
           created_at?: string
           email?: string | null
           first_name?: string | null
+          future_interests?: string | null
           greek_org_name?: string | null
           how_did_you_hear_about_me?: string | null
           id?: string
@@ -3935,9 +3959,12 @@ export type Database = {
           next_exam_date?: string | null
           notes?: string | null
           notification_log?: Json
+          onboarding_opened_at?: string | null
           phone?: string | null
+          pricing_reaction?: string | null
           professor_name?: string | null
           replied_by_lee?: boolean
+          required_onboarding_completed_at?: string | null
           routing_reason?: string | null
           routing_result?: string | null
           school_name?: string | null
@@ -3945,6 +3972,7 @@ export type Database = {
           source_campaign_id?: string | null
           source_lead_id?: string | null
           source_url_params?: Json
+          stress_factors?: string | null
           syllabus_file_url?: string | null
           syllabus_uploaded_at?: string | null
           updated_at?: string
