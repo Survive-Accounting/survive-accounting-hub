@@ -345,7 +345,7 @@ function OutreachPage() {
         }}
       />
 
-    </div>
+    </SidebarProvider>
     </AdminGate>
   );
 }
