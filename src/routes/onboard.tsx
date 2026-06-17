@@ -59,7 +59,7 @@ type Answers = {
   courseCode: string;
   professor: string;
   stressFactors: StressItem[];
-  pricing: Pricing | "";
+  priceReaction: PriceReaction | "";
   greek: string;
   future: Future[];
   syllabusName: string;
