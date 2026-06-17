@@ -367,3 +367,73 @@ export const finishOnboarding = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
+// --- One-shot submit for the simplified 3-step flow ---
+const submitSchema = z.object({
+  shortRef: z.coerce.number().int().positive(),
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().max(80).optional().nullable(),
+  email: z.string().trim().email().max(255),
+  phone: z.string().trim().min(7).max(30),
+  campusId: z.string().uuid().nullable().optional(),
+  schoolName: z.string().trim().max(200).nullable().optional(),
+  courseCodeOrName: z.string().trim().max(200).nullable().optional(),
+  pricingReaction: z.enum(["sounds_good", "more_than_expected"]),
+  stressFactors: z.array(z.string().trim().min(1).max(80)).max(20),
+  isGreekMember: z.boolean().nullable().optional(),
+  greekOrgName: z.string().trim().max(120).nullable().optional(),
+  futureInterests: z.array(z.string().trim().min(1).max(120)).max(20),
+});
+
+export const submitOnboarding = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => submitSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, convo, submissionId } = await loadByShortRef(data.shortRef);
+
+    const { data: current } = await supabaseAdmin
+      .from("student_intake_submissions")
+      .select("onboarding_finished_at,required_onboarding_completed_at")
+      .eq("id", submissionId).single();
+    const alreadyFinished = !!current?.onboarding_finished_at;
+
+    let schoolName = data.schoolName ?? null;
+    if (data.campusId) {
+      const { data: c } = await supabaseAdmin.from("campuses")
+        .select("name").eq("id", data.campusId).maybeSingle();
+      schoolName = (c?.name as string | undefined) ?? schoolName;
+    }
+
+    const now = new Date().toISOString();
+    const { error } = await supabaseAdmin.from("student_intake_submissions").update({
+      first_name: data.firstName,
+      last_name: data.lastName ?? null,
+      email: data.email,
+      phone: data.phone,
+      campus_id: data.campusId ?? null,
+      school_name: schoolName,
+      course_code_or_name: data.courseCodeOrName ?? null,
+      pricing_reaction: data.pricingReaction,
+      stress_factors: data.stressFactors.length ? JSON.stringify(data.stressFactors) : null,
+      is_greek_member: data.isGreekMember ?? null,
+      greek_org_name: data.isGreekMember ? (data.greekOrgName ?? null) : null,
+      future_interests: data.futureInterests.length ? JSON.stringify(data.futureInterests) : null,
+      contact_info_completed_at: now,
+      required_onboarding_completed_at: current?.required_onboarding_completed_at ?? now,
+      greek_completed_at: now,
+      future_interests_completed_at: now,
+      syllabus_step_completed_at: now,
+      onboarding_finished_at: current?.onboarding_finished_at ?? now,
+    }).eq("id", submissionId);
+    if (error) throw new Error(error.message);
+
+    if (!alreadyFinished) {
+      const body =
+        `New tutoring request.\n\n` +
+        `${data.firstName}${data.lastName ? " " + data.lastName : ""}\n` +
+        `${schoolName ?? "—"} • ${data.courseCodeOrName ?? "—"}\n` +
+        `Pricing: ${data.pricingReaction}\n\n` +
+        `Open:\nhttps://surviveaccounting.com/o/${convo.short_ref}`;
+      await notifyLee(body);
+    }
+    return { ok: true as const };
+  });
