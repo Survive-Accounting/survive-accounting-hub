@@ -289,39 +289,31 @@ function StepContent({
     return (
       <StepShell
         eyebrow="Step 1"
-        title="Where are you studying?"
-        subtitle="So Lee can match you with the right approach for your campus and instructor."
+        title="Let's get you started."
+        subtitle="This should only take about 2 minutes."
       >
-        <div className="space-y-5">
-          <Field label="School">
-            <Input
-              value={answers.school}
-              onChange={(e) => update("school", e.target.value)}
-              placeholder="Ole Miss, Mississippi State, etc."
-              className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-              autoFocus
-            />
-          </Field>
-          <Field label="Course">
-            <Input
-              value={answers.course}
-              onChange={(e) => update("course", e.target.value)}
-              placeholder="ACCY 201 — Intro to Financial Accounting"
-              className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-            />
-          </Field>
-          <Field label="Professor (optional)">
-            <Input
-              value={answers.professor}
-              onChange={(e) => update("professor", e.target.value)}
-              placeholder="Dr. Smith"
-              className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-            />
-          </Field>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-lg font-semibold text-[color:var(--brand-navy)] sm:text-xl">
+              Which school and course do you need help with?
+            </h2>
+          </div>
+          <CampusCoursePicker
+            campusId={answers.campusId}
+            campusName={answers.campusName}
+            courseCode={answers.courseCode}
+            onCampusChange={(id, name) => {
+              update("campusId", id);
+              update("campusName", name);
+              update("courseCode", "");
+            }}
+            onCourseChange={(code) => update("courseCode", code)}
+          />
         </div>
       </StepShell>
     );
   }
+
 
   if (step === "stress") {
     const items: StressItem[] = [
