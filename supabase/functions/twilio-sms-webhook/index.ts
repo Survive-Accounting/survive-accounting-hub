@@ -280,7 +280,7 @@ Deno.serve(async (req) => {
       });
       if (sentSid) await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
 
-      if (LEE_PHONE) {
+      if (LEE_PHONE && !isDuplicateBody) {
         const summary = render(TPL_LEE_NEW, {
           ref: String(convo.short_ref),
           campus: campusLabel,
