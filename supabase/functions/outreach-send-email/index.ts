@@ -71,11 +71,31 @@ function prettyPhone(e164: string): string {
   return e164;
 }
 
-/** "ACCY 201, ACCY 202 and ACCY 303" from a codes array. */
+/**
+ * Format course codes for an email, collapsing a shared prefix:
+ *   ["ACCY 201","ACCY 202","ACCY 303","ACCY 304"] -> "ACCY 201, 202, 303, and 304"
+ *   ["ACCY 201","BUS 250"] -> "ACCY 201 and BUS 250"
+ *   ["ACCY 201","BUS 250","FIN 300"] -> "ACCY 201, BUS 250, and FIN 300"
+ * Uses an Oxford comma for 3+ items.
+ */
 function joinCourses(codes: string[]): string {
   if (codes.length === 0) return "";
   if (codes.length === 1) return codes[0];
-  return codes.slice(0, -1).join(", ") + " and " + codes[codes.length - 1];
+
+  // Split each "PREFIX 123" into [prefix, number]; fall back to raw if no space.
+  const parts = codes.map((c) => {
+    const m = c.trim().match(/^([A-Za-z]+)\s+(.+)$/);
+    return m ? { prefix: m[1].toUpperCase(), num: m[2], raw: c.trim() } : { prefix: "", num: "", raw: c.trim() };
+  });
+  const firstPrefix = parts[0].prefix;
+  const allSamePrefix = firstPrefix && parts.every((p) => p.prefix === firstPrefix);
+
+  const tokens = allSamePrefix
+    ? [parts[0].raw, ...parts.slice(1).map((p) => p.num)]
+    : parts.map((p) => p.raw);
+
+  if (tokens.length === 2) return `${tokens[0]} and ${tokens[1]}`;
+  return tokens.slice(0, -1).join(", ") + ", and " + tokens[tokens.length - 1];
 }
 
 /** Render **bold** markdown in a pre-escaped string segment. */
