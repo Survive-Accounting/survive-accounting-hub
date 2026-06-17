@@ -98,9 +98,11 @@ function joinCourses(codes: string[]): string {
   return tokens.slice(0, -1).join(", ") + ", and " + tokens[tokens.length - 1];
 }
 
-/** Render **bold** markdown in a pre-escaped string segment. */
+/** Render **bold** and _italic_ markdown in a pre-escaped string segment. */
 function applyBold(html: string): string {
-  return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  return html
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^A-Za-z0-9_])_([^\n_]+?)_(?=$|[^A-Za-z0-9_])/g, "$1<em>$2</em>");
 }
 
 function renderHtml(body: string, surviveLinkUrl: string) {
@@ -168,7 +170,7 @@ Deno.serve(async (req) => {
         .replace(/\{\s*recipient\s*name\s*\}/gi, "Dr. Smith")
         .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, samplePrefix)
         .replace(/\[First Name\]/g, sampleFirst);
-      const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`).replace(/\*\*(.+?)\*\*/g, "$1");
+      const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`).replace(/\*\*(.+?)\*\*/g, "$1").replace(/(^|[^A-Za-z0-9_])_([^\n_]+?)_(?=$|[^A-Za-z0-9_])/g, "$1$2");
 
       const testRes = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -368,7 +370,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\[First Name\]/g, greetingName);
 
-    const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`).replace(/\*\*(.+?)\*\*/g, "$1");
+    const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`).replace(/\*\*(.+?)\*\*/g, "$1").replace(/(^|[^A-Za-z0-9_])_([^\n_]+?)_(?=$|[^A-Za-z0-9_])/g, "$1$2");
 
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
