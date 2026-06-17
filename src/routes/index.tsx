@@ -141,6 +141,7 @@ function Home() {
         ctaSlot={<HeroCta onReadReviews={goToReviews} />}
       />
       <Reviews />
+      <ContactForm />
       <SmsPolicyFootnote />
       <SiteFooter onScrollToReviews={goToReviews} />
       <Toaster position="top-center" richColors />
