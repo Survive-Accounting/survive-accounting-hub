@@ -25,6 +25,7 @@ import leeHeadshot from "@/assets/lee-headshot-original.png";
 
 const LEE_PHONE_DISPLAY = "(662) 565-8818";
 const LEE_PHONE_HREF = "+16625658818";
+const LOGO_URL = "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
