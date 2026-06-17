@@ -1,18 +1,31 @@
-// /o/{short_ref} — Onboarding entry point for students who texted Lee.
-// Resolves the SMS short_ref to a linked student_intake_submissions row and
-// collects name + email. Phone is already known from the SMS thread.
-import { useState } from "react";
+// /o/{short_ref} — Onboarding wizard for students who texted Lee.
+// Steps: 1) contact, 2) campus/course, 3) stress, 4) pricing (completes required),
+// 5) optional extras (greek, future interests, syllabus).
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Search, Upload } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getOnboarding, saveOnboardingContact } from "@/lib/onboarding.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import {
+  getOnboarding,
+  saveOnboardingContact,
+  saveOnboardingCampusCourse,
+  saveOnboardingStress,
+  saveOnboardingPricing,
+  saveOnboardingExtras,
+  searchCampuses,
+  uploadOnboardingSyllabus,
+  type CampusLite,
+} from "@/lib/onboarding.functions";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -38,16 +51,10 @@ export const Route = createFileRoute("/o/$shortRef")({
     return (
       <div className="mx-auto max-w-md p-6 text-center">
         <h1 className="text-lg font-semibold" style={{ color: NAVY }}>
-          We couldn't find that link.
+          We couldn&apos;t find that link.
         </h1>
         <p className="mt-2 text-sm text-gray-600">{error.message}</p>
-        <Button
-          className="mt-4"
-          onClick={() => {
-            router.invalidate();
-            reset();
-          }}
-        >
+        <Button className="mt-4" onClick={() => { router.invalidate(); reset(); }}>
           Try again
         </Button>
       </div>
@@ -55,36 +62,219 @@ export const Route = createFileRoute("/o/$shortRef")({
   },
   notFoundComponent: () => (
     <div className="mx-auto max-w-md p-6 text-center">
-      <h1 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Link not found.
-      </h1>
+      <h1 className="text-lg font-semibold" style={{ color: NAVY }}>Link not found.</h1>
     </div>
   ),
 });
 
+type StepKey = "contact" | "campus" | "stress" | "pricing" | "extras" | "done";
+
+const STRESS_OPTIONS = [
+  "Upcoming exam",
+  "Falling behind",
+  "Homework",
+  "Understanding concepts",
+  "Test anxiety",
+  "Busy schedule",
+  "Need accountability",
+  "Study strategies",
+  "Just trying to pass",
+  "Something else",
+];
+
+const REQUIRED_STEPS: { key: StepKey; label: string }[] = [
+  { key: "contact", label: "Contact info" },
+  { key: "campus", label: "School & course" },
+  { key: "stress", label: "What's stressing you" },
+  { key: "pricing", label: "Pricing" },
+];
+
+function OnboardingPage() {
+  const { shortRef } = Route.useParams();
+  const { data, refetch } = useSuspenseQuery(onboardingQuery(shortRef));
+
+  // Determine initial step from server data.
+  const initialStep: StepKey = useMemo(() => {
+    if (!data.contactInfoCompletedAt || !data.email) return "contact";
+    if (!data.campus && !data.campusId) return "campus";
+    if (!data.course) return "campus";
+    if (!data.stressFactors.length) return "stress";
+    if (!data.pricingReaction) return "pricing";
+    return "extras";
+  }, [data]);
+
+  const [step, setStep] = useState<StepKey>(initialStep);
+  useEffect(() => { setStep(initialStep); }, [initialStep]);
+
+  const completedIdx = REQUIRED_STEPS.findIndex((s) => s.key === step);
+  const progress =
+    step === "extras" || step === "done"
+      ? 100
+      : Math.round(((completedIdx === -1 ? 0 : completedIdx) / REQUIRED_STEPS.length) * 100);
+
+  return (
+    <div className="min-h-screen" style={{ background: "#F5F7FA", fontFamily: "Inter, sans-serif" }}>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
+        {/* Mobile progress */}
+        <div className="mb-4 sm:hidden">
+          <ProgressBar progress={progress} step={step} />
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-[220px_1fr]">
+          {/* Desktop rail */}
+          <aside className="hidden sm:block">
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <ol className="space-y-3">
+                {REQUIRED_STEPS.map((s, i) => {
+                  const isActive = s.key === step;
+                  const isDone =
+                    REQUIRED_STEPS.findIndex((x) => x.key === step) > i ||
+                    step === "extras" || step === "done";
+                  return (
+                    <li key={s.key} className="flex items-start gap-3">
+                      <span
+                        className={cn(
+                          "mt-0.5 grid h-6 w-6 place-content-center rounded-full text-xs font-semibold",
+                          isDone ? "bg-emerald-500 text-white"
+                            : isActive ? "text-white" : "bg-gray-200 text-gray-600",
+                        )}
+                        style={isActive && !isDone ? { background: NAVY } : undefined}
+                      >
+                        {isDone ? "✓" : i + 1}
+                      </span>
+                      <span
+                        className={cn("text-sm",
+                          isActive ? "font-semibold" : "text-gray-600")}
+                        style={isActive ? { color: NAVY } : undefined}
+                      >
+                        {s.label}
+                      </span>
+                    </li>
+                  );
+                })}
+                <li className="flex items-start gap-3 pt-2 border-t">
+                  <span className="mt-0.5 grid h-6 w-6 place-content-center rounded-full bg-gray-100 text-xs text-gray-500">+</span>
+                  <span className="text-sm text-gray-500">Optional extras</span>
+                </li>
+              </ol>
+            </div>
+          </aside>
+
+          <main className="rounded-2xl bg-white p-6 shadow-xl sm:p-8">
+            {step === "contact" && (
+              <ContactStep
+                shortRef={shortRef}
+                initialName={[data.firstName, data.lastName].filter(Boolean).join(" ")}
+                initialEmail={data.email ?? ""}
+                onDone={() => { refetch().then(() => setStep("campus")); }}
+              />
+            )}
+            {step === "campus" && (
+              <CampusStep
+                shortRef={shortRef}
+                initialCampusId={data.campusId}
+                initialSchool={data.campus}
+                initialCourse={data.course}
+                onDone={() => { refetch().then(() => setStep("stress")); }}
+              />
+            )}
+            {step === "stress" && (
+              <StressStep
+                shortRef={shortRef}
+                initial={data.stressFactors}
+                onDone={() => { refetch().then(() => setStep("pricing")); }}
+              />
+            )}
+            {step === "pricing" && (
+              <PricingStep
+                shortRef={shortRef}
+                onDone={() => { refetch().then(() => setStep("extras")); }}
+              />
+            )}
+            {step === "extras" && (
+              <ExtrasStep
+                shortRef={shortRef}
+                campus={data.campus}
+                course={data.course}
+                initialGreek={data.isGreekMember}
+                initialGreekOrg={data.greekOrgName ?? ""}
+                initialFuture={data.futureInterests ?? ""}
+                syllabusUploadedAt={data.syllabusUploadedAt}
+                onRefresh={() => refetch()}
+              />
+            )}
+          </main>
+        </div>
+      </div>
+      <Toaster position="top-center" richColors />
+    </div>
+  );
+}
+
+function ProgressBar({ progress, step }: { progress: number; step: StepKey }) {
+  const label =
+    step === "extras" || step === "done"
+      ? "All required steps complete"
+      : `Step ${(REQUIRED_STEPS.findIndex((s) => s.key === step) + 1) || 1} of ${REQUIRED_STEPS.length}`;
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between text-xs text-gray-600">
+        <span>{label}</span>
+        <span>{progress}%</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+        <div className="h-full transition-all" style={{ width: `${progress}%`, background: NAVY }} />
+      </div>
+    </div>
+  );
+}
+
+function StepShell({
+  title, subtitle, children,
+}: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h1 className="text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>{title}</h1>
+      {subtitle && <p className="mt-1 text-sm text-gray-600">{subtitle}</p>}
+      <div className="mt-6">{children}</div>
+    </div>
+  );
+}
+
+function PrimaryButton({
+  children, disabled, onClick, type = "button",
+}: { children: React.ReactNode; disabled?: boolean; onClick?: () => void; type?: "button" | "submit" }) {
+  return (
+    <Button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className="h-12 w-full text-base font-bold text-white"
+      style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+    >
+      {children}
+    </Button>
+  );
+}
+
+// ---------- Step 1 ----------
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   email: z.string().trim().email("Valid email is required").max(255),
 });
 
-function OnboardingPage() {
-  const { shortRef } = Route.useParams();
-  const { data, refetch } = useSuspenseQuery(onboardingQuery(shortRef));
+function ContactStep({
+  shortRef, initialName, initialEmail, onDone,
+}: { shortRef: string; initialName: string; initialEmail: string; onDone: () => void }) {
   const saveFn = useServerFn(saveOnboardingContact);
-
-  const [name, setName] = useState(
-    [data.firstName, data.lastName].filter(Boolean).join(" "),
-  );
-  const [email, setEmail] = useState(data.email ?? "");
+  const [name, setName] = useState(initialName);
+  const [email, setEmail] = useState(initialEmail);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const mutation = useMutation({
     mutationFn: (input: { name: string; email: string }) =>
       saveFn({ data: { shortRef: Number(shortRef), ...input } }),
-    onSuccess: () => {
-      toast.success("Thanks — Lee will be in touch shortly.");
-      refetch();
-    },
+    onSuccess: () => onDone(),
     onError: (e: unknown) => toast.error((e as Error).message),
   });
 
@@ -103,82 +293,425 @@ function OnboardingPage() {
     mutation.mutate(parsed.data);
   };
 
-  const done = !!data.requiredOnboardingCompletedAt;
+  return (
+    <StepShell
+      title="Continue your tutoring request"
+      subtitle="Quick info so Lee knows who he's texting with."
+    >
+      <div className="space-y-4">
+        <div>
+          <Label className="mb-1.5 block text-sm font-medium text-gray-800">
+            Name <span className="text-red-600">*</span>
+          </Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+          {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
+        </div>
+        <div>
+          <Label className="mb-1.5 block text-sm font-medium text-gray-800">
+            Email <span className="text-red-600">*</span>
+          </Label>
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+          {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+        </div>
+        <PrimaryButton disabled={mutation.isPending} onClick={submit}>
+          {mutation.isPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>) : "Continue"}
+        </PrimaryButton>
+      </div>
+    </StepShell>
+  );
+}
+
+// ---------- Step 2 ----------
+function CampusStep({
+  shortRef, initialCampusId, initialSchool, initialCourse, onDone,
+}: {
+  shortRef: string;
+  initialCampusId: string | null;
+  initialSchool: string | null;
+  initialCourse: string | null;
+  onDone: () => void;
+}) {
+  const saveFn = useServerFn(saveOnboardingCampusCourse);
+  const searchFn = useServerFn(searchCampuses);
+
+  const [campusId, setCampusId] = useState<string | null>(initialCampusId);
+  const [schoolName, setSchoolName] = useState<string>(initialSchool ?? "");
+  const [course, setCourse] = useState<string>(initialCourse ?? "");
+  const [other, setOther] = useState<boolean>(!initialCampusId && !initialSchool);
+  const [notSureCourse, setNotSureCourse] = useState<boolean>(initialCourse === "Not sure");
+  const [query, setQuery] = useState<string>("");
+  const [results, setResults] = useState<CampusLite[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (other || campusId) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const r = await searchFn({ data: { q: query } });
+        if (!cancelled) setResults(r);
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setSearching(false); }
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query, other, campusId, searchFn]);
+
+  const mutation = useMutation({
+    mutationFn: () => saveFn({
+      data: {
+        shortRef: Number(shortRef),
+        campusId: other ? null : campusId,
+        schoolName: other ? (schoolName.trim() || null) : null,
+        courseCodeOrName: notSureCourse ? "Not sure" : (course.trim() || null),
+      },
+    }),
+    onSuccess: () => onDone(),
+    onError: (e: unknown) => toast.error((e as Error).message),
+  });
+
+  const canContinue =
+    (other ? schoolName.trim().length > 0 : !!campusId || !!initialSchool) &&
+    (notSureCourse || course.trim().length > 0);
 
   return (
-    <div className="min-h-screen" style={{ background: "#F5F7FA", fontFamily: "Inter, sans-serif" }}>
-      <div className="mx-auto max-w-xl px-4 py-12">
-        <div className="rounded-2xl bg-white p-6 shadow-xl sm:p-8">
-          {done && !mutation.isPending ? (
-            <div className="text-center">
-              <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
-              <h1 className="mt-4 text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>
-                You're all set.
-              </h1>
-              <p className="mt-3 text-sm text-gray-700">
-                Lee has your info and will text you back shortly.
-              </p>
-              {data.campus || data.course ? (
-                <p className="mt-2 text-xs text-gray-500">
-                  {[data.campus, data.course].filter(Boolean).join(" • ")}
-                </p>
-              ) : null}
+    <StepShell title="Which school and course do you need help with?">
+      <div className="space-y-5">
+        <div>
+          <Label className="mb-1.5 block text-sm font-medium text-gray-800">School</Label>
+          {campusId && !other ? (
+            <div className="flex items-center justify-between rounded-md border bg-gray-50 p-3">
+              <span className="text-sm font-medium">{schoolName || "Selected school"}</span>
+              <Button variant="ghost" size="sm"
+                onClick={() => { setCampusId(null); setSchoolName(""); setQuery(""); }}>
+                Change
+              </Button>
+            </div>
+          ) : other ? (
+            <div className="space-y-2">
+              <Input
+                placeholder="Type your school name"
+                value={schoolName}
+                onChange={(e) => setSchoolName(e.target.value)}
+              />
+              <button type="button" className="text-xs text-gray-600 underline"
+                onClick={() => { setOther(false); setSchoolName(""); }}>
+                Search for my school instead
+              </button>
             </div>
           ) : (
             <>
-              <h1 className="text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>
-                Continue your tutoring request
-              </h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Quick info so Lee knows who he's texting with.
-              </p>
-
-              <div className="mt-6 space-y-4">
-                <div>
-                  <Label className="mb-1.5 block text-sm font-medium text-gray-800">
-                    Name <span className="text-red-600">*</span>
-                  </Label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    autoComplete="name"
-                  />
-                  {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
-                </div>
-
-                <div>
-                  <Label className="mb-1.5 block text-sm font-medium text-gray-800">
-                    Email <span className="text-red-600">*</span>
-                  </Label>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                  />
-                  {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-                </div>
-
-                <Button
-                  onClick={submit}
-                  disabled={mutation.isPending}
-                  className="h-12 w-full text-base font-bold text-white"
-                  style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
-                >
-                  {mutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
-                    </>
-                  ) : (
-                    "Continue"
-                  )}
-                </Button>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search schools…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
               </div>
+              <div className="mt-2 max-h-56 overflow-auto rounded-md border">
+                {searching && <div className="p-3 text-xs text-gray-500">Searching…</div>}
+                {!searching && results.length === 0 && (
+                  <div className="p-3 text-xs text-gray-500">No matches.</div>
+                )}
+                {results.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    onClick={() => { setCampusId(r.id); setSchoolName(r.name); }}
+                  >
+                    {r.name}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="mt-2 text-xs text-gray-600 underline"
+                onClick={() => setOther(true)}>
+                Other / Not sure
+              </button>
             </>
           )}
         </div>
+
+        <div>
+          <Label className="mb-1.5 block text-sm font-medium text-gray-800">Course</Label>
+          <Input
+            placeholder="e.g. Accy 201, Intermediate I"
+            value={course}
+            onChange={(e) => { setCourse(e.target.value); if (e.target.value) setNotSureCourse(false); }}
+            disabled={notSureCourse}
+          />
+          <label className="mt-2 flex items-center gap-2 text-xs text-gray-700">
+            <Checkbox checked={notSureCourse}
+              onCheckedChange={(v) => { setNotSureCourse(!!v); if (v) setCourse(""); }} />
+            Not sure
+          </label>
+        </div>
+
+        <PrimaryButton disabled={!canContinue || mutation.isPending} onClick={() => mutation.mutate()}>
+          {mutation.isPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>) : "Continue"}
+        </PrimaryButton>
       </div>
-      <Toaster position="top-center" richColors />
+    </StepShell>
+  );
+}
+
+// ---------- Step 3 ----------
+function StressStep({
+  shortRef, initial, onDone,
+}: { shortRef: string; initial: string[]; onDone: () => void }) {
+  const saveFn = useServerFn(saveOnboardingStress);
+  const [selected, setSelected] = useState<string[]>(initial);
+
+  const toggle = (opt: string) =>
+    setSelected((prev) => prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]);
+
+  const mutation = useMutation({
+    mutationFn: () => saveFn({ data: { shortRef: Number(shortRef), stressFactors: selected } }),
+    onSuccess: () => onDone(),
+    onError: (e: unknown) => toast.error((e as Error).message),
+  });
+
+  return (
+    <StepShell
+      title="What's stressing you out most right now?"
+      subtitle="Select all that apply."
+    >
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {STRESS_OPTIONS.map((opt) => {
+          const active = selected.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggle(opt)}
+              className={cn(
+                "rounded-xl border px-4 py-3 text-left text-sm transition",
+                active ? "border-transparent text-white"
+                  : "border-gray-200 bg-white hover:border-gray-300",
+              )}
+              style={active ? { background: NAVY } : undefined}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-6">
+        <PrimaryButton
+          disabled={selected.length === 0 || mutation.isPending}
+          onClick={() => mutation.mutate()}
+        >
+          {mutation.isPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>) : "Continue"}
+        </PrimaryButton>
+      </div>
+    </StepShell>
+  );
+}
+
+// ---------- Step 4 ----------
+function PricingStep({
+  shortRef, onDone,
+}: { shortRef: string; onDone: () => void }) {
+  const saveFn = useServerFn(saveOnboardingPricing);
+  const mutation = useMutation({
+    mutationFn: (pricingReaction: "sounds_good" | "more_than_expected") =>
+      saveFn({ data: { shortRef: Number(shortRef), pricingReaction } }),
+    onSuccess: () => onDone(),
+    onError: (e: unknown) => toast.error((e as Error).message),
+  });
+
+  return (
+    <StepShell title="How does this sound?">
+      <ul className="space-y-3 rounded-xl border bg-gray-50 p-5 text-sm text-gray-800">
+        <li>• Free 30-minute intro session</li>
+        <li>• Intro Accounting tutoring: <strong>$100/hour</strong></li>
+        <li>• Intermediate Accounting tutoring: <strong>$120/hour</strong></li>
+        <li>• Zoom sessions with recording available</li>
+      </ul>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <Button
+          onClick={() => mutation.mutate("sounds_good")}
+          disabled={mutation.isPending}
+          className="h-14 text-base font-bold text-white"
+          style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+        >
+          Sounds good
+        </Button>
+        <Button
+          onClick={() => mutation.mutate("more_than_expected")}
+          disabled={mutation.isPending}
+          variant="outline"
+          className="h-14 text-base font-semibold"
+          style={{ color: NAVY, borderColor: NAVY }}
+        >
+          More than I expected
+        </Button>
+      </div>
+    </StepShell>
+  );
+}
+
+// ---------- Step 5 ----------
+function ExtrasStep({
+  shortRef, campus, course, initialGreek, initialGreekOrg, initialFuture,
+  syllabusUploadedAt, onRefresh,
+}: {
+  shortRef: string;
+  campus: string | null;
+  course: string | null;
+  initialGreek: boolean | null;
+  initialGreekOrg: string;
+  initialFuture: string;
+  syllabusUploadedAt: string | null;
+  onRefresh: () => void;
+}) {
+  const saveFn = useServerFn(saveOnboardingExtras);
+  const uploadFn = useServerFn(uploadOnboardingSyllabus);
+
+  const [isGreek, setIsGreek] = useState<boolean | null>(initialGreek);
+  const [greekOrg, setGreekOrg] = useState(initialGreekOrg);
+  const [future, setFuture] = useState(initialFuture);
+  const [uploaded, setUploaded] = useState<boolean>(!!syllabusUploadedAt);
+  const [uploading, setUploading] = useState(false);
+
+  const save = useMutation({
+    mutationFn: () => saveFn({
+      data: {
+        shortRef: Number(shortRef),
+        isGreekMember: isGreek,
+        greekOrgName: isGreek ? (greekOrg.trim() || null) : null,
+        futureInterests: future.trim() || null,
+      },
+    }),
+    onSuccess: () => { toast.success("Saved."); onRefresh(); },
+    onError: (e: unknown) => toast.error((e as Error).message),
+  });
+
+  const onFile = async (file: File) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("Max 10MB."); return; }
+    setUploading(true);
+    try {
+      const buf = await file.arrayBuffer();
+      // chunked base64 to avoid call-stack overflow on large files
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      const base64 = btoa(binary);
+      await uploadFn({
+        data: {
+          shortRef: Number(shortRef),
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          base64,
+        },
+      });
+      setUploaded(true);
+      toast.success("Syllabus uploaded.");
+      onRefresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-6 flex items-start gap-3 rounded-xl bg-emerald-50 p-4">
+        <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+        <div>
+          <p className="text-sm font-semibold text-emerald-900">You&apos;re all set.</p>
+          <p className="text-xs text-emerald-800">
+            Lee has your info{campus || course ? ` for ${[campus, course].filter(Boolean).join(" • ")}` : ""}
+            {" "}and will text you back shortly. The questions below are optional.
+          </p>
+        </div>
+      </div>
+
+      <h2 className="text-lg font-bold" style={{ color: NAVY }}>Optional extras</h2>
+      <p className="mt-1 text-sm text-gray-600">Helpful but not required.</p>
+
+      <div className="mt-5 space-y-6">
+        <section>
+          <Label className="mb-2 block text-sm font-medium text-gray-800">
+            Are you in a Greek organization?
+          </Label>
+          <div className="flex gap-2">
+            {[
+              { v: true, label: "Yes" },
+              { v: false, label: "No" },
+            ].map(({ v, label }) => {
+              const active = isGreek === v;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setIsGreek(v)}
+                  className={cn(
+                    "rounded-lg border px-4 py-2 text-sm",
+                    active ? "border-transparent text-white" : "border-gray-200",
+                  )}
+                  style={active ? { background: NAVY } : undefined}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {isGreek && (
+            <Input
+              className="mt-3"
+              placeholder="Chapter or organization name"
+              value={greekOrg}
+              onChange={(e) => setGreekOrg(e.target.value)}
+            />
+          )}
+        </section>
+
+        <section>
+          <Label className="mb-2 block text-sm font-medium text-gray-800">
+            Anything else coming up you might want help with later?
+          </Label>
+          <Textarea
+            rows={3}
+            placeholder="Future classes, CPA, internships…"
+            value={future}
+            onChange={(e) => setFuture(e.target.value)}
+          />
+        </section>
+
+        <section>
+          <Label className="mb-2 block text-sm font-medium text-gray-800">
+            Upload your syllabus (optional)
+          </Label>
+          <label className={cn(
+            "flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-sm",
+            uploaded ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+              : "border-gray-300 text-gray-600 hover:bg-gray-50",
+          )}>
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> :
+              uploaded ? <CheckCircle2 className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+            {uploading ? "Uploading…" : uploaded ? "Syllabus uploaded" : "Choose file (PDF or image)"}
+            <input
+              type="file"
+              accept="application/pdf,image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); }}
+            />
+          </label>
+        </section>
+
+        <PrimaryButton disabled={save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>) : "Save & finish"}
+        </PrimaryButton>
+      </div>
     </div>
   );
 }
