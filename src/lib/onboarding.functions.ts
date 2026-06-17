@@ -211,7 +211,12 @@ export const searchCampuses = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ q: z.string().trim().max(80) }).parse(data))
   .handler(async ({ data }): Promise<CampusLite[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let query = supabaseAdmin.from("campuses").select("id,name").order("name").limit(20);
+    let query = supabaseAdmin
+      .from("campuses")
+      .select("id,name")
+      .eq("ready_for_outreach", true)
+      .order("name")
+      .limit(20);
     if (data.q) query = query.ilike("name", `%${data.q}%`);
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
