@@ -252,6 +252,19 @@ Deno.serve(async (req) => {
       return twiml();
     }
 
+    // Dedupe: if the same body arrived from this student in the last 10 min,
+    // skip the Lee summary on the duplicate (Brody's carrier resent — two
+    // distinct MessageSids, identical body).
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: priorSame } = await admin.from("sms_messages")
+      .select("id")
+      .eq("conversation_id", convo.id)
+      .eq("direction", "in")
+      .eq("body", body)
+      .gte("created_at", tenMinAgo)
+      .limit(1);
+    const isDuplicateBody = (priorSame ?? []).length > 0;
+
     await admin.from("sms_messages").insert({ conversation_id: convo.id, direction: "in", author: "student", body, twilio_sid: sid });
 
     const campusLabel = campus?.name ?? to;
@@ -267,7 +280,7 @@ Deno.serve(async (req) => {
       });
       if (sentSid) await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
 
-      if (LEE_PHONE) {
+      if (LEE_PHONE && !isDuplicateBody) {
         const summary = render(TPL_LEE_NEW, {
           ref: String(convo.short_ref),
           campus: campusLabel,
@@ -311,7 +324,7 @@ Deno.serve(async (req) => {
       if (Object.keys(patch).length) await admin.from("sms_conversations").update(patch).eq("id", convo.id);
     }
 
-    if (LEE_PHONE) {
+    if (LEE_PHONE && !isDuplicateBody) {
       const facts = [
         extracted?.course ? `Course: ${extracted.course}` : null,
         extracted?.exam_date ? `Exam: ${extracted.exam_date}` : null,
