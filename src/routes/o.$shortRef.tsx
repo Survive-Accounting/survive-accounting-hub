@@ -43,12 +43,26 @@ const FUTURE_OPTIONS = [
   "Free tips and updates",
 ];
 
-const COURSE_OPTIONS = [
-  "Intro Accounting 1",
-  "Intro Accounting 2",
-  "Intermediate Accounting 1",
-  "Intermediate Accounting 2",
+const COURSE_FAMILIES = [
+  { key: "intro_1", title: "Intro 1" },
+  { key: "intro_2", title: "Intro 2" },
+  { key: "intermediate_1", title: "IA1" },
+  { key: "intermediate_2", title: "IA2" },
 ] as const;
+type CourseFamilyKey = (typeof COURSE_FAMILIES)[number]["key"];
+const COURSE_TITLE_BY_KEY: Record<CourseFamilyKey, string> = {
+  intro_1: "Intro 1",
+  intro_2: "Intro 2",
+  intermediate_1: "IA1",
+  intermediate_2: "IA2",
+};
+// Saved-course strings we recognize as a "known" dropdown selection (kept loose
+// so older entries like "Intro Accounting 1" still round-trip into the dropdown).
+const KNOWN_COURSE_TITLES = new Set<string>([
+  ...COURSE_FAMILIES.map((c) => c.title),
+  "Intro Accounting 1", "Intro Accounting 2",
+  "Intermediate Accounting 1", "Intermediate Accounting 2",
+]);
 
 const STEPS = ["Add Your Info", "Confirm Pricing", "Submit Request"] as const;
 
