@@ -1103,8 +1103,8 @@ export interface LeadSuggestion {
   updated_at: string;
 }
 
-export type ResearchMode = "broad" | "clean_professor_only" | "textbook_only";
-export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only", "textbook_only"];
+export type ResearchMode = "broad" | "clean_professor_only" | "textbook_only" | "program_and_courses";
+export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only", "textbook_only", "program_and_courses"];
 
 export type LeadSuggestionInput = Partial<
   Omit<LeadSuggestion, "id" | "campus_id" | "created_at" | "updated_at">
@@ -1404,6 +1404,15 @@ export async function startCleanProfessorBatch(
   notes?: string,
 ): Promise<CampusResearchJob> {
   return startCampusBatch(campusIds, notes ?? "Clean Professor Run", "clean_professor_only");
+}
+
+/** Program + course codes/titles batch — narrow AI run, writes only
+ *  accounting_department_name + course_family_codes_json + course_family_titles_json. */
+export async function startProgramAndCoursesBatch(
+  campusIds: string[],
+  notes?: string,
+): Promise<CampusResearchJob> {
+  return startCampusBatch(campusIds, notes ?? "Program + courses", "program_and_courses");
 }
 
 /** Returns the set of campus IDs whose Intro 1 OR Intro 2 textbook matches a
