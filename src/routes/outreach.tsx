@@ -201,17 +201,16 @@ function OutreachPage() {
           </TabsContent>
 
           <TabsContent value="texts" className="mt-8 space-y-4">
-            <Tabs defaultValue="conversations" className="space-y-4">
+            <Tabs defaultValue="requests" className="space-y-4">
               <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="conversations">Conversations</TabsTrigger>
                 <TabsTrigger value="requests">Requests</TabsTrigger>
+                <TabsTrigger value="conversations">Conversations</TabsTrigger>
               </TabsList>
-              <TabsContent value="conversations" className="space-y-4">
-                <WaitlistCard />
-                <TextsPanel campuses={campuses} />
-              </TabsContent>
               <TabsContent value="requests" className="space-y-4">
                 <TutoringRequestsPanel />
+              </TabsContent>
+              <TabsContent value="conversations" className="space-y-4">
+                <TextsPanel campuses={campuses} />
               </TabsContent>
             </Tabs>
           </TabsContent>
