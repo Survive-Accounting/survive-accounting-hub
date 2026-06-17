@@ -223,6 +223,31 @@ export const searchCampuses = createServerFn({ method: "POST" })
     return (rows ?? []).map((r) => ({ id: r.id as string, name: (r.name as string) ?? "" }));
   });
 
+export type CampusCourseCodes = {
+  intro_1: string | null;
+  intro_2: string | null;
+  intermediate_1: string | null;
+  intermediate_2: string | null;
+};
+
+export const getCampusCourseCodes = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ campusId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }): Promise<CampusCourseCodes> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row } = await supabaseAdmin
+      .from("campuses")
+      .select("course_family_codes_json")
+      .eq("id", data.campusId)
+      .maybeSingle();
+    const codes = (row?.course_family_codes_json ?? {}) as Record<string, string | null>;
+    return {
+      intro_1: codes.intro_1 ?? null,
+      intro_2: codes.intro_2 ?? null,
+      intermediate_1: codes.intermediate_1 ?? null,
+      intermediate_2: codes.intermediate_2 ?? null,
+    };
+  });
+
 // --- Step 3: Stress ---
 const saveStressSchema = z.object({
   shortRef: z.coerce.number().int().positive(),
