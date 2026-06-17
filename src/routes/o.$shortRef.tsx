@@ -821,7 +821,9 @@ function ExtrasStep({
         phone: draft.phone.trim(),
         campusId: draft.campusId,
         schoolName: draft.campusId ? null : (draft.schoolName.trim() || null),
-        courseCodeOrName: draft.notSureCourse ? "Not sure" : (draft.course.trim() || null),
+        courseCodeOrName: draft.notSureCourse
+          ? "Not sure"
+          : (draft.courseOther.trim() || draft.course.trim() || null),
         pricingReaction: draft.pricingReaction ?? "sounds_good",
         stressFactors: draft.stressFactors,
         isGreekMember: greekMode === "choose" ? true : greekMode === "not" ? false : null,
