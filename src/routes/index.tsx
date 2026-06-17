@@ -36,7 +36,7 @@ function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function HeroCta({ onReadReviews }: { onReadReviews: () => void }) {
+function HeroCta() {
   return (
     <div className="flex flex-col items-center gap-4">
       <a
@@ -52,37 +52,21 @@ function HeroCta({ onReadReviews }: { onReadReviews: () => void }) {
         }}
       >
         <MessageCircle className="w-5 h-5" strokeWidth={2.5} />
-        <span>
-          Text Lee{" "}
-          <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
-            {TUTOR_PHONE_PRETTY}
-          </span>
+        <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
+          {TUTOR_PHONE_PRETTY}
         </span>
-        <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
 
       <p
-        className="hero-anim-btn text-[12px]"
+        className="hero-anim-btn mt-2 text-center text-[13px] font-light"
         style={{
-          color: "rgba(255,255,255,0.55)",
+          color: "rgba(255,255,255,0.75)",
           fontFamily: "Inter, sans-serif",
           letterSpacing: "0.02em",
         }}
       >
-        Msg &amp; data rates may apply
+        1,000+ students tutored
       </p>
-
-      <button
-        onClick={onReadReviews}
-        className="hero-anim-btn text-[13px] underline-offset-4 hover:underline transition-colors"
-        style={{
-          color: "rgba(255,255,255,0.7)",
-          fontFamily: "Inter, sans-serif",
-          background: "transparent",
-        }}
-      >
-        Read reviews from students
-      </button>
     </div>
   );
 }
@@ -137,8 +121,8 @@ function Home() {
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
         headline="Let's Make Accounting Exams Feel Easy"
-        subtext="I've helped over 1,000 students ace exams confidently. I'd love to help you, too. Shoot me a text to request tutoring."
-        ctaSlot={<HeroCta onReadReviews={goToReviews} />}
+        subtext="Get expert help from a tutor who knows your exams. Text me at the number below to get started today."
+        ctaSlot={<HeroCta />}
       />
       <Reviews />
       <ContactForm />
