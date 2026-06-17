@@ -3862,6 +3862,7 @@ export type Database = {
       }
       student_intake_submissions: {
         Row: {
+          accounting_major_status: string | null
           archived_by_lee: boolean
           booking_link_shown: boolean
           campus_id: string | null
@@ -3905,6 +3906,7 @@ export type Database = {
           waitlist_joined: boolean
         }
         Insert: {
+          accounting_major_status?: string | null
           archived_by_lee?: boolean
           booking_link_shown?: boolean
           campus_id?: string | null
@@ -3948,6 +3950,7 @@ export type Database = {
           waitlist_joined?: boolean
         }
         Update: {
+          accounting_major_status?: string | null
           archived_by_lee?: boolean
           booking_link_shown?: boolean
           campus_id?: string | null

@@ -24,6 +24,7 @@ export type OnboardingSnapshot = {
   isGreekMember: boolean | null;
   greekOrgName: string | null;
   futureInterests: string[];
+  accountingMajorStatus: "yes" | "no" | "definitely_not" | null;
   contactInfoCompletedAt: string | null;
   requiredOnboardingCompletedAt: string | null;
   greekCompletedAt: string | null;
@@ -86,7 +87,7 @@ export const getOnboarding = createServerFn({ method: "GET" })
 
     const { data: sub } = await supabaseAdmin
       .from("student_intake_submissions")
-      .select("first_name,last_name,email,phone,campus_id,school_name,course_code_or_name,stress_factors,pricing_reaction,is_greek_member,greek_org_name,future_interests,contact_info_completed_at,required_onboarding_completed_at,greek_completed_at,future_interests_completed_at,syllabus_step_completed_at,syllabus_uploaded_at,onboarding_finished_at,onboarding_opened_at")
+      .select("first_name,last_name,email,phone,campus_id,school_name,course_code_or_name,stress_factors,pricing_reaction,is_greek_member,greek_org_name,future_interests,accounting_major_status,contact_info_completed_at,required_onboarding_completed_at,greek_completed_at,future_interests_completed_at,syllabus_step_completed_at,syllabus_uploaded_at,onboarding_finished_at,onboarding_opened_at")
       .eq("id", submissionId).single();
 
     if (sub && !sub.onboarding_opened_at) {
@@ -110,6 +111,7 @@ export const getOnboarding = createServerFn({ method: "GET" })
       isGreekMember: (sub?.is_greek_member as boolean | null) ?? null,
       greekOrgName: (sub?.greek_org_name as string | null) ?? null,
       futureInterests: parseStress((sub?.future_interests as string | null) ?? null),
+      accountingMajorStatus: (sub?.accounting_major_status as OnboardingSnapshot["accountingMajorStatus"]) ?? null,
       contactInfoCompletedAt: (sub?.contact_info_completed_at as string | null) ?? null,
       requiredOnboardingCompletedAt: (sub?.required_onboarding_completed_at as string | null) ?? null,
       greekCompletedAt: (sub?.greek_completed_at as string | null) ?? null,
@@ -383,6 +385,7 @@ const submitSchema = z.object({
   isGreekMember: z.boolean().nullable().optional(),
   greekOrgName: z.string().trim().max(120).nullable().optional(),
   futureInterests: z.array(z.string().trim().min(1).max(120)).max(20),
+  accountingMajorStatus: z.enum(["yes", "no", "definitely_not"]).nullable().optional(),
 });
 
 export const submitOnboarding = createServerFn({ method: "POST" })
@@ -417,6 +420,7 @@ export const submitOnboarding = createServerFn({ method: "POST" })
       is_greek_member: data.isGreekMember ?? null,
       greek_org_name: data.isGreekMember ? (data.greekOrgName ?? null) : null,
       future_interests: data.futureInterests.length ? JSON.stringify(data.futureInterests) : null,
+      accounting_major_status: data.accountingMajorStatus ?? null,
       contact_info_completed_at: now,
       required_onboarding_completed_at: current?.required_onboarding_completed_at ?? now,
       greek_completed_at: now,
