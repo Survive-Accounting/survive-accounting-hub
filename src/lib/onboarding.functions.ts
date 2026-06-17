@@ -111,6 +111,7 @@ export const getOnboarding = createServerFn({ method: "GET" })
       isGreekMember: (sub?.is_greek_member as boolean | null) ?? null,
       greekOrgName: (sub?.greek_org_name as string | null) ?? null,
       futureInterests: parseStress((sub?.future_interests as string | null) ?? null),
+      accountingMajorStatus: (sub?.accounting_major_status as OnboardingSnapshot["accountingMajorStatus"]) ?? null,
       contactInfoCompletedAt: (sub?.contact_info_completed_at as string | null) ?? null,
       requiredOnboardingCompletedAt: (sub?.required_onboarding_completed_at as string | null) ?? null,
       greekCompletedAt: (sub?.greek_completed_at as string | null) ?? null,
