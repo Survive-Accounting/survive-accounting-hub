@@ -3701,6 +3701,7 @@ export type Database = {
           created_at: string
           direction: string
           id: string
+          replied_by_lee: boolean
           twilio_sid: string | null
         }
         Insert: {
@@ -3710,6 +3711,7 @@ export type Database = {
           created_at?: string
           direction: string
           id?: string
+          replied_by_lee?: boolean
           twilio_sid?: string | null
         }
         Update: {
@@ -3719,6 +3721,7 @@ export type Database = {
           created_at?: string
           direction?: string
           id?: string
+          replied_by_lee?: boolean
           twilio_sid?: string | null
         }
         Relationships: [
@@ -3861,6 +3864,7 @@ export type Database = {
           notification_log: Json
           phone: string | null
           professor_name: string | null
+          replied_by_lee: boolean
           routing_reason: string | null
           routing_result: string | null
           school_name: string | null
@@ -3892,6 +3896,7 @@ export type Database = {
           notification_log?: Json
           phone?: string | null
           professor_name?: string | null
+          replied_by_lee?: boolean
           routing_reason?: string | null
           routing_result?: string | null
           school_name?: string | null
@@ -3923,6 +3928,7 @@ export type Database = {
           notification_log?: Json
           phone?: string | null
           professor_name?: string | null
+          replied_by_lee?: boolean
           routing_reason?: string | null
           routing_result?: string | null
           school_name?: string | null
