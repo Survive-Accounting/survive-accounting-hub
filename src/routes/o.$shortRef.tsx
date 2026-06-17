@@ -837,14 +837,14 @@ function Chip({
 }
 
 // ---------- Success ----------
-function SuccessScreen() {
+function SuccessScreen({ firstName }: { firstName: string | null }) {
   return (
     <div className="py-6 text-center">
       <div className="mx-auto grid h-20 w-20 place-content-center rounded-full bg-emerald-50">
         <CheckCircle2 className="h-12 w-12 text-emerald-500" />
       </div>
       <h1 className="mt-6 text-3xl font-bold sm:text-4xl" style={{ color: NAVY }}>
-        Thanks!
+        {firstName ? `Thanks, ${firstName}!` : "Thanks!"}
       </h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
         I&apos;ll personally review your information and follow up with how I can help.
