@@ -1,5 +1,5 @@
 // Admin review panel for syllabus-first /start tutoring requests.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -247,7 +247,7 @@ function NoteDialog({
 
   // Reset note when opening a different row.
   const rowId = row?.id ?? null;
-  useMemo(() => {
+  useEffect(() => {
     setNote(row?.admin_notes ?? "");
   }, [rowId]);
 
