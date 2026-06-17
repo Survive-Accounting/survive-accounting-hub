@@ -42,11 +42,11 @@ const TESTER_PHONES = new Set(
 // New flow (Phase 3): the opener IS the booking link — we no longer ask
 // course/exam/topic questions by SMS. /start collects all of that.
 const FALLBACK_OPENER =
-  "Need tutoring?\n\n" +
-  "Upload your syllabus to book sessions\n" +
+  "Hey, it's Lee. Need tutoring?\n\n" +
+  "Booking Link\n" +
   "https://surviveaccounting.com/start\n\n" +
-  "Questions? Just reply here.\n\n" +
-  "Big thanks!\n" +
+  "Questions? Reply them here.\n\n" +
+  "Thanks!\n" +
   "Lee";
 const FALLBACK_BOOKING =
   FALLBACK_OPENER;
