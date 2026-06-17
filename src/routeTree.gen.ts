@@ -17,6 +17,7 @@ import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
+import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
@@ -63,6 +64,11 @@ const TSlugRoute = TSlugRouteImport.update({
   path: '/t/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OShortRefRoute = OShortRefRouteImport.update({
+  id: '/o/$shortRef',
+  path: '/o/$shortRef',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CeqCreateRoute = CeqCreateRouteImport.update({
   id: '/create',
   path: '/create',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/o/$shortRef': typeof OShortRefRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/o/$shortRef': typeof OShortRefRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/o/$shortRef': typeof OShortRefRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/start'
     | '/terms'
     | '/ceq/create'
+    | '/o/$shortRef'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/start'
     | '/terms'
     | '/ceq/create'
+    | '/o/$shortRef'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/start'
     | '/terms'
     | '/ceq/create'
+    | '/o/$shortRef'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -192,6 +204,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
   TermsRoute: typeof TermsRoute
+  OShortRefRoute: typeof OShortRefRoute
   TSlugRoute: typeof TSlugRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
 }
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/t/$slug'
       fullPath: '/t/$slug'
       preLoaderRoute: typeof TSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/o/$shortRef': {
+      id: '/o/$shortRef'
+      path: '/o/$shortRef'
+      fullPath: '/o/$shortRef'
+      preLoaderRoute: typeof OShortRefRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ceq/create': {
@@ -316,6 +336,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
   TermsRoute: TermsRoute,
+  OShortRefRoute: OShortRefRoute,
   TSlugRoute: TSlugRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
 }
