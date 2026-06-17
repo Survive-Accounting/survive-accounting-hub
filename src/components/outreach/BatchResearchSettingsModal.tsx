@@ -27,6 +27,7 @@ export function BatchResearchSettingsModal({
             enters the email queue). The panels below remain for ad-hoc work.
           </div>
           <TextbookCoveragePanel />
+          <ProgramAndCoursesPanel />
           <CleanProfessorResearchPanel campuses={campuses} selectedCampusIds={selectedCampusIds} />
           <div className="rounded-md border border-amber-200 bg-amber-50/40 p-3 text-xs text-amber-900">
             <strong>Legacy broad research</strong> below runs the original wide AI flow (profile → broad leads → sections).
