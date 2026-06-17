@@ -269,6 +269,7 @@ Deno.serve(async (req) => {
     let landingUrl: string | null = null;
     let campusApproved = false;
     let courseFamilyStatus: Record<string, string> = {};
+    let courseFamilyCodes: Record<string, string> = {};
     let programName = "";
     let coursesText = "";
     let fullCoursesText = "";
@@ -277,7 +278,7 @@ Deno.serve(async (req) => {
     if (lead.campus_id) {
       const { data: campus } = await admin
         .from("campuses")
-        .select("slug, approval_status, course_family_status_json, accounting_department_name, course_codes_json, use_personal_phone")
+        .select("slug, approval_status, course_family_status_json, course_family_codes_json, accounting_department_name, course_codes_json, use_personal_phone")
         .eq("id", lead.campus_id)
         .single();
       if (campus?.approval_status === "approved" && campus?.slug) {
@@ -288,6 +289,9 @@ Deno.serve(async (req) => {
       }
       if (campus?.course_family_status_json && typeof campus.course_family_status_json === "object") {
         courseFamilyStatus = campus.course_family_status_json as Record<string, string>;
+      }
+      if (campus?.course_family_codes_json && typeof campus.course_family_codes_json === "object") {
+        courseFamilyCodes = campus.course_family_codes_json as Record<string, string>;
       }
       programName = (campus?.accounting_department_name ?? "").trim();
       if (Array.isArray(campus?.course_codes_json)) {
@@ -303,6 +307,10 @@ Deno.serve(async (req) => {
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
     const fullCoursesMerge = fullCoursesText || coursesMerge;
     const prefixMerge = prefixText || "accounting";
+    const intro1Code = courseFamilyCodes["intro_1"] ?? "";
+    const intro2Code = familyCode(courseFamilyCodes["intro_2"], intro1Code);
+    const intermediate1Code = courseFamilyCodes["intermediate_1"] ?? "";
+    const intermediate2Code = familyCode(courseFamilyCodes["intermediate_2"], intermediate1Code);
 
     // {phone} merge — hardcoded to Lee's main line.
     void usePersonalPhone;
