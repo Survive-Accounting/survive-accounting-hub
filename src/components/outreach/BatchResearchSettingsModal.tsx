@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { BatchResearchPanel } from "./BatchResearchPanel";
 import { CleanProfessorResearchPanel } from "./CleanProfessorResearchPanel";
 import { TextbookCoveragePanel } from "./TextbookCoveragePanel";
+import { ProgramAndCoursesPanel } from "./ProgramAndCoursesPanel";
 import type { Campus } from "@/lib/outreach-mock";
 
 export function BatchResearchSettingsModal({
