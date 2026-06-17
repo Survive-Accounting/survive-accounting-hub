@@ -3695,6 +3695,7 @@ export type Database = {
       }
       sms_messages: {
         Row: {
+          archived_by_lee: boolean
           author: string | null
           body: string
           conversation_id: string
@@ -3705,6 +3706,7 @@ export type Database = {
           twilio_sid: string | null
         }
         Insert: {
+          archived_by_lee?: boolean
           author?: string | null
           body: string
           conversation_id: string
@@ -3715,6 +3717,7 @@ export type Database = {
           twilio_sid?: string | null
         }
         Update: {
+          archived_by_lee?: boolean
           author?: string | null
           body?: string
           conversation_id?: string
@@ -3846,6 +3849,7 @@ export type Database = {
       }
       student_intake_submissions: {
         Row: {
+          archived_by_lee: boolean
           booking_link_shown: boolean
           campus_id: string | null
           course_code_or_name: string | null
@@ -3878,6 +3882,7 @@ export type Database = {
           waitlist_joined: boolean
         }
         Insert: {
+          archived_by_lee?: boolean
           booking_link_shown?: boolean
           campus_id?: string | null
           course_code_or_name?: string | null
@@ -3910,6 +3915,7 @@ export type Database = {
           waitlist_joined?: boolean
         }
         Update: {
+          archived_by_lee?: boolean
           booking_link_shown?: boolean
           campus_id?: string | null
           course_code_or_name?: string | null
