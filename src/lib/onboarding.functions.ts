@@ -23,10 +23,15 @@ export type OnboardingSnapshot = {
   pricingReaction: string | null;
   isGreekMember: boolean | null;
   greekOrgName: string | null;
-  futureInterests: string | null;
+  futureInterests: string[];
   contactInfoCompletedAt: string | null;
   requiredOnboardingCompletedAt: string | null;
+  greekCompletedAt: string | null;
+  futureInterestsCompletedAt: string | null;
+  syllabusStepCompletedAt: string | null;
   syllabusUploadedAt: string | null;
+  onboardingFinishedAt: string | null;
+  leePhone: string | null;
 };
 
 async function loadByShortRef(shortRef: number) {
