@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { Check, CheckCircle2, Loader2, Search, Upload } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { z } from "zod";
