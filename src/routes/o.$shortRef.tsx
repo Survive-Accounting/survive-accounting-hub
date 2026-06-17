@@ -93,7 +93,9 @@ type Draft = {
   phone: string;
   campusId: string | null;
   schoolName: string;
+  schoolOther: boolean;
   course: string;
+  courseOther: string;
   notSureCourse: boolean;
   pricingReaction: "sounds_good" | "more_than_expected" | null;
   stressFactors: string[];
