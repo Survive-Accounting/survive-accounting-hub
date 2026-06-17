@@ -321,6 +321,39 @@ function InfoStep({
         </div>
       </Field>
 
+      <div>
+        <Label className="mb-1.5 block text-sm font-medium text-gray-800">
+          Are you an accounting major?
+        </Label>
+        <p className="mb-3 text-xs text-gray-500">Totally optional — just helps us tailor things.</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {[
+            { value: "yes" as const, label: "Yes" },
+            { value: "no" as const, label: "No" },
+            { value: "definitely_not" as const, label: "Definitely not 😄" },
+          ].map((opt) => {
+            const active = draft.accountingMajorStatus === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() =>
+                  update("accountingMajorStatus", active ? null : opt.value)
+                }
+                className="rounded-2xl border px-4 py-4 text-base font-medium transition-all"
+                style={
+                  active
+                    ? { background: NAVY, color: "white", borderColor: NAVY }
+                    : { background: "white", color: "#1f2937", borderColor: "#e5e7eb" }
+                }
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <PrimaryBtn onClick={handleContinue}>Continue</PrimaryBtn>
     </div>
   );
