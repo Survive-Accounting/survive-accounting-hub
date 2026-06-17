@@ -4280,6 +4280,45 @@ export type Database = {
         }
         Relationships: []
       }
+      tutoring_requests: {
+        Row: {
+          admin_notes: string | null
+          course_notes: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          status: string
+          syllabus_file_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          course_notes?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone: string
+          status?: string
+          syllabus_file_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          course_notes?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string
+          status?: string
+          syllabus_file_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       va_accounts: {
         Row: {
           account_status: string | null
