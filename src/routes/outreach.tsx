@@ -5,17 +5,16 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Users } from "lucide-react";
+import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Settings, Users } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton,
   SidebarMenuSubItem, SidebarProvider, SidebarTrigger, SidebarInset,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
-import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
 import { HomeDashboard } from "@/components/outreach/HomeDashboard";
 import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
@@ -120,7 +119,6 @@ function OutreachPage() {
       <Sidebar collapsible="icon">
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Outreach</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
@@ -181,6 +179,19 @@ function OutreachPage() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setBatchSettingsOpen(true)}
+                tooltip="Admin settings"
+              >
+                <Settings className="h-4 w-4" />
+                <span>Admin settings</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
 
       <SidebarInset>
@@ -197,25 +208,7 @@ function OutreachPage() {
 
             <Tabs value={tab} onValueChange={setTab} className="space-y-6 mt-4">
               <TabsContent value="home" className="space-y-8">
-                <HomeDashboard
-                  onCreateCampaign={() => setTab("templates")}
-                  onImportLeads={() => { setImportCampusId(null); setImportOpen(true); }}
-                  onOpenAISettings={() => setBatchSettingsOpen(true)}
-                  onViewTexts={() => setTab("texts")}
-                />
-                <details className="rounded-md border border-border bg-card">
-                  <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">
-                    Campus approval queue
-                  </summary>
-                  <div className="p-3">
-                    <CampusQueuePanel
-                      onReview={(campusId) => {
-                        const c = campuses.find((x) => x.id === campusId);
-                        if (c) setReviewing(c);
-                      }}
-                    />
-                  </div>
-                </details>
+                <HomeDashboard onCreateCampaign={() => setTab("templates")} />
               </TabsContent>
 
               <TabsContent value="schools" className="space-y-6">
