@@ -44,8 +44,9 @@ type Pricing = "Single session" | "5-pack" | "Exam cram" | "Not sure yet";
 type Future = "CPA exam" | "Internship prep" | "Grad school" | "Just passing this class";
 
 type Answers = {
-  school: string;
-  course: string;
+  campusId: string;
+  campusName: string;
+  courseCode: string;
   professor: string;
   stress: StressItem[];
   pricing: Pricing | "";
@@ -70,8 +71,9 @@ function OnboardPage() {
   const [stepIdx, setStepIdx] = useState(0);
   const [direction, setDirection] = useState(1);
   const [answers, setAnswers] = useState<Answers>({
-    school: "",
-    course: "",
+    campusId: "",
+    campusName: "",
+    courseCode: "",
     professor: "",
     stress: [],
     pricing: "",
@@ -88,7 +90,7 @@ function OnboardPage() {
   const canAdvance = useMemo(() => {
     switch (step.key) {
       case "campus":
-        return answers.school.trim().length > 0 && answers.course.trim().length > 0;
+        return answers.campusId.length > 0;
       case "stress":
         return answers.stress.length > 0;
       case "pricing":
