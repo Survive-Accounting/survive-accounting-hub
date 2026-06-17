@@ -62,6 +62,21 @@ function render(template: string, tokens: Record<string, string>): string {
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+// Flatten Unicode punctuation that iOS autocorrect inserts (curly quotes,
+// em/en dashes, ellipsis, non-breaking spaces) to plain GSM-7 equivalents.
+// Keeps Lee's outbound texts in 160-char segments instead of 70-char Unicode
+// segments — same readable message, ~4x cheaper per send.
+function normalizeForGsm(input: string): string {
+  return input
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u00A0/g, " ")
+    .replace(/\u2022/g, "*")
+    .replace(/[\u2010\u2011]/g, "-");
+}
+
 async function twilioSend(from: string, to: string, body: string): Promise<string | null> {
   if (!TWILIO_SID || !TWILIO_TOKEN) return null;
   if (!TWILIO_MSID) {
