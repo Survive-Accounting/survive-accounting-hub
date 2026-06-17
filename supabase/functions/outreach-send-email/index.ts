@@ -414,6 +414,10 @@ Deno.serve(async (req) => {
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
+      .replace(/\{\s*intro\s*1\s*\}/gi, intro1Code)
+      .replace(/\{\s*intro\s*2\s*\}/gi, intro2Code)
+      .replace(/\{\s*intermediate\s*1\s*\}/gi, intermediate1Code)
+      .replace(/\{\s*intermediate\s*2\s*\}/gi, intermediate2Code)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\[First Name\]/g, greetingName);
 
