@@ -137,7 +137,7 @@ function Home() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
-        headline="Let's Make Accounting Exams Feel Easy"
+        headline="Let's Make Accounting Feel Easy"
         subtext={
           <>
             <span className="md:hidden">
