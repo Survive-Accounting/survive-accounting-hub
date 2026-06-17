@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import { MessageCircle } from "lucide-react";
 import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
+import ContactForm from "@/components/landing/ContactForm";
 import SiteFooter from "@/components/landing/SiteFooter";
 
 const TUTOR_PHONE_E164 = "+16625658818";
@@ -140,6 +141,7 @@ function Home() {
         ctaSlot={<HeroCta onReadReviews={goToReviews} />}
       />
       <Reviews />
+      <ContactForm />
       <SmsPolicyFootnote />
       <SiteFooter onScrollToReviews={goToReviews} />
       <Toaster position="top-center" richColors />
