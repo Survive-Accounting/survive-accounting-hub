@@ -138,7 +138,16 @@ function Home() {
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
         headline="Let's Make Accounting Exams Feel Easy"
-        subtext="Get expert help from a tutor who knows your exams. Text me at the number below to get started today."
+        subtext={
+          <>
+            <span className="md:hidden">
+              Get expert help from a virtual tutor who knows your exams. Text me below to get started.
+            </span>
+            <span className="hidden md:inline">
+              Get expert help from a virtual tutor who knows your exams. My sessions are relaxed, straightforward, and designed to boost your confidence and reduce your stress.
+            </span>
+          </>
+        }
         ctaSlot={<HeroCta />}
       />
       <Reviews />
