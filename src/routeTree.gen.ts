@@ -13,6 +13,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OutreachRouteImport } from './routes/outreach'
+import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
@@ -40,6 +41,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const OutreachRoute = OutreachRouteImport.update({
   id: '/outreach',
   path: '/outreach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardRoute = OnboardRouteImport.update({
+  id: '/onboard',
+  path: '/onboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CeqRoute = CeqRouteImport.update({
@@ -87,6 +93,7 @@ const CeqCourseSlugChapterSlugRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/onboard': typeof OnboardRoute
   '/outreach': typeof OutreachRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/onboard': typeof OnboardRoute
   '/outreach': typeof OutreachRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/onboard': typeof OnboardRoute
   '/outreach': typeof OutreachRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ceq'
+    | '/onboard'
     | '/outreach'
     | '/privacy'
     | '/start'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ceq'
+    | '/onboard'
     | '/outreach'
     | '/privacy'
     | '/start'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/ceq'
+    | '/onboard'
     | '/outreach'
     | '/privacy'
     | '/start'
@@ -175,6 +187,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CeqRoute: typeof CeqRouteWithChildren
+  OnboardRoute: typeof OnboardRoute
   OutreachRoute: typeof OutreachRoute
   PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       path: '/outreach'
       fullPath: '/outreach'
       preLoaderRoute: typeof OutreachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboard': {
+      id: '/onboard'
+      path: '/onboard'
+      fullPath: '/onboard'
+      preLoaderRoute: typeof OnboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ceq': {
@@ -291,6 +311,7 @@ const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CeqRoute: CeqRouteWithChildren,
+  OnboardRoute: OnboardRoute,
   OutreachRoute: OutreachRoute,
   PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
