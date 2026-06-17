@@ -104,7 +104,7 @@ function OnboardPage() {
       case "stress":
         return answers.stressFactors.length > 0;
       case "pricing":
-        return answers.pricing !== "";
+        return answers.priceReaction !== "";
       default:
         return true;
     }
