@@ -24,6 +24,7 @@ export type OnboardingSnapshot = {
   isGreekMember: boolean | null;
   greekOrgName: string | null;
   futureInterests: string[];
+  accountingMajorStatus: "yes" | "no" | "definitely_not" | null;
   contactInfoCompletedAt: string | null;
   requiredOnboardingCompletedAt: string | null;
   greekCompletedAt: string | null;
