@@ -8,8 +8,19 @@ import SiteFooter from "@/components/landing/SiteFooter";
 
 const TUTOR_PHONE_E164 = "+16625658818";
 const TUTOR_PHONE_PRETTY = "(662) 565-8818";
-const SMS_BODY = "Hi Lee, I need help with my accounting class.";
+const SMS_BODY = "Hi Lee, I'm interested in accounting tutoring.";
 const SMS_HREF = `sms:${TUTOR_PHONE_E164}?body=${encodeURIComponent(SMS_BODY)}`;
+
+const RED_BTN_CLASS =
+  "hero-anim-btn group rounded-2xl px-10 py-5 text-[17px] font-bold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center justify-center gap-3";
+const RED_BTN_STYLE: React.CSSProperties = {
+  background: "linear-gradient(180deg, #CE1126 0%, #A8101F 100%)",
+  fontFamily: "Inter, sans-serif",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.25), 0 14px 36px rgba(206,17,38,0.42)",
+  letterSpacing: "0.01em",
+  textDecoration: "none",
+};
 
 export const Route = createFileRoute("/")({
   head: () => ({
