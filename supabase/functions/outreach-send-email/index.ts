@@ -107,6 +107,20 @@ function joinCoursesFull(codes: string[]): string {
   return cleaned.slice(0, -1).join(", ") + ", and " + cleaned[cleaned.length - 1];
 }
 
+/**
+ * Resolve a family code (e.g. "intro_2") for merge. If `anchor` shares a prefix,
+ * return just the number — so "{intro1}, {intro2}" renders as "ACCY 201, 202".
+ */
+function familyCode(code: string | undefined | null, anchor?: string | null): string {
+  const c = (code ?? "").trim();
+  if (!c) return "";
+  const a = (anchor ?? "").trim();
+  if (!a || a === c) return c;
+  const cm = c.match(/^([A-Za-z&-]+)\s+(.+)$/);
+  const am = a.match(/^([A-Za-z&-]+)\s+/);
+  if (cm && am && cm[1].toUpperCase() === am[1].toUpperCase()) return cm[2];
+  return c;
+
 /** Render **bold** and _italic_ markdown in a pre-escaped string segment. */
 function applyBold(html: string): string {
   return html
