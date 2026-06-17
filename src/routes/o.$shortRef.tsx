@@ -20,6 +20,10 @@ import {
   type CampusLite,
   type OnboardingSnapshot,
 } from "@/lib/onboarding.functions";
+import leeHeadshot from "@/assets/lee-headshot-original.png";
+
+const LEE_PHONE_DISPLAY = "(662) 565-8818";
+const LEE_PHONE_HREF = "+16625658818";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -124,80 +128,174 @@ function OnboardingPage() {
   const update = <K extends keyof Draft>(k: K, v: Draft[K]) =>
     setDraft((p) => ({ ...p, [k]: v }));
 
+  const firstName = draft.firstName.trim().split(/\s+/)[0] || "";
+  const hasName = firstName.length > 0 && step > 0;
+
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
-      <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-14">
-        {step < 3 && <Stepper current={step as 0 | 1 | 2} />}
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-8 sm:py-14 lg:grid-cols-[1fr_240px]">
+        <div className="min-w-0">
+          {step < 3 && <Stepper current={step as 0 | 1 | 2} />}
 
-        <div className="mt-6 rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-10">
-          {step === 0 && (
-            <InfoStep
-              draft={draft}
-              update={update}
-              onContinue={() => setStep(1)}
-            />
-          )}
-          {step === 1 && (
-            <PricingStep
-              draft={draft}
-              update={update}
-              onContinue={() => setStep(2)}
-              onBack={() => setStep(0)}
-            />
-          )}
-          {step === 2 && (
-            <ExtrasStep
-              shortRef={shortRef}
-              draft={draft}
-              update={update}
-              onBack={() => setStep(1)}
-              onSubmitted={async () => { await refetch(); setStep(3); }}
-            />
-          )}
-          {step === 3 && <SuccessScreen />}
+          <div className="mt-6 rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-10">
+            {step === 0 && (
+              <InfoStep
+                draft={draft}
+                update={update}
+                onContinue={() => setStep(1)}
+              />
+            )}
+            {step === 1 && (
+              <PricingStep
+                firstName={hasName ? firstName : null}
+                draft={draft}
+                update={update}
+                onContinue={() => setStep(2)}
+                onBack={() => setStep(0)}
+              />
+            )}
+            {step === 2 && (
+              <ExtrasStep
+                firstName={hasName ? firstName : null}
+                shortRef={shortRef}
+                draft={draft}
+                update={update}
+                onBack={() => setStep(1)}
+                onSubmitted={async () => { await refetch(); setStep(3); }}
+              />
+            )}
+            {step === 3 && <SuccessScreen firstName={firstName || null} />}
+          </div>
+
+          <TrustPills />
         </div>
+
+        <LeeAside />
       </div>
       <Toaster position="top-center" richColors />
     </div>
   );
 }
 
+// ---------- Personal touch (desktop) ----------
+function LeeAside() {
+  return (
+    <aside className="hidden lg:flex lg:flex-col lg:items-center lg:pt-2">
+      <img
+        src={leeHeadshot}
+        alt="Lee, your tutor"
+        className="h-24 w-24 rounded-full object-cover ring-4 ring-white shadow-[0_8px_24px_-10px_rgba(20,33,61,0.35)]"
+        loading="lazy"
+      />
+      <div className="mt-4 text-center">
+        <p className="text-sm font-semibold" style={{ color: NAVY }}>Questions?</p>
+        <p className="mt-0.5 text-xs text-gray-600">Text me anytime.</p>
+        <a
+          href={`sms:${LEE_PHONE_HREF}`}
+          className="mt-1 inline-block text-sm font-semibold tracking-tight hover:underline"
+          style={{ color: RED }}
+        >
+          {LEE_PHONE_DISPLAY}
+        </a>
+      </div>
+    </aside>
+  );
+}
+
+// ---------- Trust pills ----------
+function TrustPills() {
+  const pillStyle: React.CSSProperties = {
+    background: "rgba(20,33,61,0.04)",
+    borderColor: "rgba(20,33,61,0.10)",
+    color: NAVY,
+  };
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium"
+        style={pillStyle}
+      >
+        <Check className="h-3.5 w-3.5" style={{ color: RED }} />
+        1,000+ students helped since 2015
+      </span>
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium"
+        style={pillStyle}
+      >
+        <span aria-hidden>🎓</span>
+        Bachelor&apos;s + Master&apos;s in Accounting
+      </span>
+    </div>
+  );
+}
+
 // ---------- Stepper ----------
 function Stepper({ current }: { current: 0 | 1 | 2 }) {
+  const pct = current === 0 ? 8 : current === 1 ? 50 : 92;
   return (
-    <ol className="flex items-center gap-2 sm:gap-4">
-      {STEPS.map((label, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <li key={label} className="flex flex-1 items-center gap-2 sm:gap-3">
-            <span
-              className={cn(
-                "grid h-7 w-7 shrink-0 place-content-center rounded-full text-xs font-bold",
-                done ? "bg-emerald-500 text-white"
-                  : active ? "text-white shadow-sm"
-                  : "bg-gray-200 text-gray-500",
+    <div>
+      {/* Mobile: minimal label + animated bar */}
+      <div className="sm:hidden">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold" style={{ color: NAVY }}>
+            Step {current + 1} of 3
+          </span>
+          <span className="text-gray-500">{STEPS[current]}</span>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+          <div
+            className="h-full rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${pct}%`, background: RED }}
+          />
+        </div>
+      </div>
+
+      {/* Desktop: 3-dot indicator with connecting line */}
+      <ol className="hidden items-center sm:flex">
+        {STEPS.map((label, i) => {
+          const done = i < current;
+          const active = i === current;
+          return (
+            <li key={label} className="flex flex-1 items-center last:flex-none">
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "grid h-7 w-7 shrink-0 place-content-center rounded-full border text-xs font-bold transition-colors",
+                    done && "text-white",
+                    active && "text-white shadow-sm",
+                    !done && !active && "border-gray-300 bg-white text-gray-400",
+                  )}
+                  style={
+                    done
+                      ? { background: RED, borderColor: RED }
+                      : active
+                      ? { background: RED, borderColor: RED }
+                      : undefined
+                  }
+                >
+                  {done ? <Check className="h-4 w-4" /> : i + 1}
+                </span>
+                <span
+                  className={cn(
+                    "text-sm",
+                    active ? "font-semibold" : done ? "text-gray-500" : "text-gray-400",
+                  )}
+                  style={active ? { color: NAVY } : undefined}
+                >
+                  {label}
+                </span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <span
+                  className="mx-4 h-px flex-1 transition-colors"
+                  style={{ background: done ? RED : "#E5E7EB" }}
+                />
               )}
-              style={active && !done ? { background: NAVY } : undefined}
-            >
-              {done ? <Check className="h-4 w-4" /> : i + 1}
-            </span>
-            <span
-              className={cn(
-                "hidden truncate text-sm sm:inline",
-                active ? "font-semibold" : "text-gray-500",
-              )}
-              style={active ? { color: NAVY } : undefined}
-            >
-              {label}
-            </span>
-            {i < STEPS.length - 1 && (
-              <span className={cn("ml-1 h-px flex-1", done ? "bg-emerald-400" : "bg-gray-200")} />
-            )}
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -472,8 +570,9 @@ function SchoolPicker({
 
 // ---------- Step 2: Pricing ----------
 function PricingStep({
-  draft, update, onContinue, onBack,
+  firstName, draft, update, onContinue, onBack,
 }: {
+  firstName: string | null;
   draft: Draft;
   update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
   onContinue: () => void;
@@ -486,7 +585,10 @@ function PricingStep({
 
   return (
     <div className="space-y-7">
-      <Title>How does this sound?</Title>
+      <Title subtitle={firstName ? `Nice to meet you, ${firstName}.` : undefined}>
+        How does this sound?
+      </Title>
+
 
       <ul className="space-y-3 rounded-2xl border bg-gray-50 p-6 text-[15px] text-gray-800">
         <li className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> Free 30-minute introductory session</li>
@@ -531,8 +633,9 @@ function PricingStep({
 
 // ---------- Step 3: Extras + Submit ----------
 function ExtrasStep({
-  shortRef, draft, update, onBack, onSubmitted,
+  firstName, shortRef, draft, update, onBack, onSubmitted,
 }: {
+  firstName: string | null;
   shortRef: string;
   draft: Draft;
   update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
@@ -617,7 +720,9 @@ function ExtrasStep({
 
   return (
     <div className="space-y-8">
-      <Title subtitle="Everything below is optional.">Almost done.</Title>
+      <Title subtitle="Everything below is optional.">
+        {firstName ? `Almost done, ${firstName}.` : "Almost done."}
+      </Title>
 
       {/* Stress */}
       <section>
@@ -732,14 +837,14 @@ function Chip({
 }
 
 // ---------- Success ----------
-function SuccessScreen() {
+function SuccessScreen({ firstName }: { firstName: string | null }) {
   return (
     <div className="py-6 text-center">
       <div className="mx-auto grid h-20 w-20 place-content-center rounded-full bg-emerald-50">
         <CheckCircle2 className="h-12 w-12 text-emerald-500" />
       </div>
       <h1 className="mt-6 text-3xl font-bold sm:text-4xl" style={{ color: NAVY }}>
-        Thanks!
+        {firstName ? `Thanks, ${firstName}!` : "Thanks!"}
       </h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
         I&apos;ll personally review your information and follow up with how I can help.
