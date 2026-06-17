@@ -356,7 +356,8 @@ function InfoStep({
   draft, update, onContinue,
 }: { draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onContinue: () => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [schoolNeeded, setSchoolNeeded] = useState(true);
+
+  const schoolPicked = !!(draft.campusId || (draft.schoolOther && draft.schoolName.trim()));
 
   const handleContinue = () => {
     const parsed = infoSchema.safeParse({
@@ -372,11 +373,15 @@ function InfoStep({
         if (k && !errs[k]) errs[k] = i.message;
       }
     }
-    if (!draft.schoolName.trim() && !draft.campusId) {
+    if (!schoolPicked) {
       errs.school = "Please select or enter your school";
     }
-    if (!draft.notSureCourse && !draft.course.trim()) {
-      errs.course = "Please add a course or mark Not sure";
+    const courseProvided =
+      draft.notSureCourse ||
+      draft.course.trim().length > 0 ||
+      draft.courseOther.trim().length > 0;
+    if (schoolPicked && !courseProvided) {
+      errs.course = "Please pick a course or mark Not sure";
     }
     setErrors(errs);
     if (Object.keys(errs).length === 0) onContinue();
@@ -400,7 +405,7 @@ function InfoStep({
             onChange={(e) => update("email", e.target.value)} autoComplete="email" />
         </Field>
         <Field label="Phone" required error={errors.phone}>
-          <Input type="tel" value={draft.phone}
+          <Input type="tel" value={draft.phone} placeholder="(555) 555-5555"
             onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
         </Field>
       </div>
@@ -408,35 +413,50 @@ function InfoStep({
       <SchoolPicker
         campusId={draft.campusId}
         schoolName={draft.schoolName}
-        onPick={(id, name) => { update("campusId", id); update("schoolName", name); setSchoolNeeded(false); }}
-        onTypeOther={(name) => { update("campusId", null); update("schoolName", name); }}
+        other={draft.schoolOther}
+        onPick={(id, name) => {
+          update("campusId", id);
+          update("schoolName", name);
+          update("schoolOther", false);
+        }}
+        onTypeOther={(name) => {
+          update("campusId", null);
+          update("schoolName", name);
+          update("schoolOther", true);
+        }}
+        onClear={() => {
+          update("campusId", null);
+          update("schoolName", "");
+          update("schoolOther", false);
+        }}
         error={errors.school}
-        initialOpen={schoolNeeded}
       />
 
-      <Field label="Course" error={errors.course}>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            placeholder="e.g. Accy 201, Intermediate I"
-            value={draft.course}
-            disabled={draft.notSureCourse}
-            onChange={(e) => { update("course", e.target.value); if (e.target.value) update("notSureCourse", false); }}
-          />
-          <Button
-            type="button"
-            variant={draft.notSureCourse ? "default" : "outline"}
-            onClick={() => {
-              const next = !draft.notSureCourse;
-              update("notSureCourse", next);
-              if (next) update("course", "");
-            }}
-            className="h-10 shrink-0"
-            style={draft.notSureCourse ? { background: NAVY, color: "white" } : undefined}
-          >
-            Not sure
-          </Button>
-        </div>
-      </Field>
+      {schoolPicked && (
+        <CoursePicker
+          course={draft.course}
+          courseOther={draft.courseOther}
+          notSure={draft.notSureCourse}
+          onPickCourse={(v) => {
+            update("course", v);
+            update("courseOther", "");
+            update("notSureCourse", false);
+          }}
+          onNotSure={() => {
+            update("course", "");
+            update("courseOther", "");
+            update("notSureCourse", true);
+          }}
+          onTypeOther={(v) => {
+            update("course", "");
+            update("notSureCourse", false);
+            update("courseOther", v);
+          }}
+          onResetOther={() => update("courseOther", "")}
+          error={errors.course}
+        />
+      )}
+
 
       <div>
         <Label className="mb-1.5 block text-sm font-medium text-gray-800">
