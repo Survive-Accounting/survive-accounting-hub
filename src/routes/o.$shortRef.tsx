@@ -89,6 +89,7 @@ type Draft = {
   isGreekMember: boolean | null;
   greekOrgName: string;
   futureInterests: string[];
+  accountingMajorStatus: "yes" | "no" | "definitely_not" | null;
 };
 
 function draftFromSnapshot(s: OnboardingSnapshot): Draft {
