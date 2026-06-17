@@ -68,7 +68,7 @@ function HeroCta({ onReadReviews }: { onReadReviews: () => void }) {
           letterSpacing: "0.02em",
         }}
       >
-        Replies usually within an hour · Msg &amp; data rates may apply
+        Msg &amp; data rates may apply
       </p>
 
       <button
