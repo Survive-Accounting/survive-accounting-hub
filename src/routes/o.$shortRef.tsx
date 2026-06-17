@@ -111,8 +111,9 @@ function draftFromSnapshot(s: OnboardingSnapshot): Draft {
   // Map server-saved course (display name) back into either the dropdown
   // value or the "other" write-in field.
   const courseName = (s.course ?? "").trim();
-  const isKnown = COURSE_OPTIONS.includes(courseName);
+  const isKnown = (COURSE_OPTIONS as readonly string[]).includes(courseName);
   const isNotSure = courseName === "Not sure";
+  const hasCampus = !!(s.campusId || s.campus);
   return {
     firstName: s.firstName ?? "",
     lastName: s.lastName ?? "",
@@ -120,8 +121,9 @@ function draftFromSnapshot(s: OnboardingSnapshot): Draft {
     phone,
     campusId: s.campusId,
     schoolName: s.campus ?? "",
+    schoolOther: !s.campusId && !!s.campus,
     course: isKnown ? courseName : "",
-    courseOther: !isKnown && !isNotSure ? courseName : "",
+    courseOther: !isKnown && !isNotSure && hasCampus ? courseName : "",
     notSureCourse: isNotSure,
     pricingReaction: (s.pricingReaction as Draft["pricingReaction"]) ?? null,
     stressFactors: s.stressFactors,
