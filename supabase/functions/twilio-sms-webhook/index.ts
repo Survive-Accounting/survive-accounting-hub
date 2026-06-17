@@ -52,7 +52,7 @@ const FALLBACK_BOOKING =
   FALLBACK_OPENER;
 const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
 const FALLBACK_LEE_NEW =
-  '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-questions sent. Reply to this thread to jump in yourself.';
+  '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-reply sent. Reply to this thread to jump in yourself.';
 const FALLBACK_LEE_FOLLOWUP =
   '#{ref} {campus}{tester_flag} — "{body}"{facts}\nReply to this thread to text them back.';
 
