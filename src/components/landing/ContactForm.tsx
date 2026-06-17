@@ -78,20 +78,11 @@ export default function ContactForm() {
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-4">
-            {/* Mobile: SMS */}
-            <a href={SMS_HREF} className={`${BTN_CLASS} md:hidden`} style={BTN_STYLE}>
+            <a href={SMS_HREF} className={BTN_CLASS} style={BTN_STYLE}>
               <MessageCircle className="w-5 h-5" strokeWidth={2.5} />
               <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
                 Text Lee {TUTOR_PHONE_PRETTY}
               </span>
-            </a>
-
-            {/* Desktop/tablet: Get Started */}
-            <a href="/start" className={`${BTN_CLASS} hidden md:inline-flex`} style={BTN_STYLE}>
-              <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
-                Get Started
-              </span>
-              <span className="transition-transform group-hover:translate-x-0.5">→</span>
             </a>
 
             <p
