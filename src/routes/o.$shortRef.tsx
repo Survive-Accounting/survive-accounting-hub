@@ -1,6 +1,6 @@
 // /o/{short_ref} — Onboarding wizard for students who texted Lee.
-// Steps: 1) contact, 2) campus/course, 3) stress, 4) pricing (completes required),
-// 5) optional extras (greek, future interests, syllabus).
+// Required: 1) contact, 2) campus/course, 3) stress, 4) pricing.
+// Optional: 5) Greek, 6) future interests, 7) syllabus → final "all set" screen.
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   getOnboarding,
@@ -21,10 +20,14 @@ import {
   saveOnboardingCampusCourse,
   saveOnboardingStress,
   saveOnboardingPricing,
-  saveOnboardingExtras,
-  searchCampuses,
+  saveOnboardingGreek,
+  saveOnboardingFutureInterests,
   uploadOnboardingSyllabus,
+  completeOnboardingSyllabusStep,
+  finishOnboarding,
+  searchCampuses,
   type CampusLite,
+  type OnboardingSnapshot,
 } from "@/lib/onboarding.functions";
 
 const NAVY = "#14213D";
@@ -67,106 +70,119 @@ export const Route = createFileRoute("/o/$shortRef")({
   ),
 });
 
-type StepKey = "contact" | "campus" | "stress" | "pricing" | "extras" | "done";
+type StepKey =
+  | "contact" | "campus" | "stress" | "pricing"
+  | "greek" | "future" | "syllabus" | "done";
 
 const STRESS_OPTIONS = [
-  "Upcoming exam",
-  "Falling behind",
-  "Homework",
-  "Understanding concepts",
-  "Test anxiety",
-  "Busy schedule",
-  "Need accountability",
-  "Study strategies",
-  "Just trying to pass",
-  "Something else",
+  "Upcoming exam", "Falling behind", "Homework", "Understanding concepts",
+  "Test anxiety", "Busy schedule", "Need accountability", "Study strategies",
+  "Just trying to pass", "Something else",
 ];
 
-const REQUIRED_STEPS: { key: StepKey; label: string }[] = [
-  { key: "contact", label: "Contact info" },
-  { key: "campus", label: "School & course" },
-  { key: "stress", label: "What's stressing you" },
-  { key: "pricing", label: "Pricing" },
+const FUTURE_OPTIONS = [
+  "Practice exams with video solutions",
+  "Homework help",
+  "Group reviews",
+  "Free tips and updates",
 ];
+
+const RAIL_STEPS: { key: StepKey; label: string; required: boolean }[] = [
+  { key: "contact", label: "Contact info", required: true },
+  { key: "campus", label: "School & course", required: true },
+  { key: "stress", label: "What's stressing you", required: true },
+  { key: "pricing", label: "Pricing", required: true },
+  { key: "greek", label: "Greek org", required: false },
+  { key: "future", label: "Future interests", required: false },
+  { key: "syllabus", label: "Syllabus", required: false },
+];
+
+function initialStepFor(d: OnboardingSnapshot): StepKey {
+  if (d.onboardingFinishedAt) return "done";
+  if (!d.contactInfoCompletedAt || !d.email) return "contact";
+  if ((!d.campus && !d.campusId) || !d.course) return "campus";
+  if (!d.stressFactors.length) return "stress";
+  if (!d.pricingReaction) return "pricing";
+  if (!d.greekCompletedAt) return "greek";
+  if (!d.futureInterestsCompletedAt) return "future";
+  if (!d.syllabusStepCompletedAt) return "syllabus";
+  return "done";
+}
 
 function OnboardingPage() {
   const { shortRef } = Route.useParams();
   const { data, refetch } = useSuspenseQuery(onboardingQuery(shortRef));
 
-  // Determine initial step from server data.
-  const initialStep: StepKey = useMemo(() => {
-    if (!data.contactInfoCompletedAt || !data.email) return "contact";
-    if (!data.campus && !data.campusId) return "campus";
-    if (!data.course) return "campus";
-    if (!data.stressFactors.length) return "stress";
-    if (!data.pricingReaction) return "pricing";
-    return "extras";
-  }, [data]);
+  const computed = useMemo(() => initialStepFor(data), [data]);
+  const [step, setStep] = useState<StepKey>(computed);
+  useEffect(() => { setStep(computed); }, [computed]);
 
-  const [step, setStep] = useState<StepKey>(initialStep);
-  useEffect(() => { setStep(initialStep); }, [initialStep]);
+  const stepIdx = Math.max(0, RAIL_STEPS.findIndex((s) => s.key === step));
+  const progress = step === "done"
+    ? 100
+    : Math.round((stepIdx / RAIL_STEPS.length) * 100);
 
-  const completedIdx = REQUIRED_STEPS.findIndex((s) => s.key === step);
-  const progress =
-    step === "extras" || step === "done"
-      ? 100
-      : Math.round(((completedIdx === -1 ? 0 : completedIdx) / REQUIRED_STEPS.length) * 100);
+  const goNext = async (next: StepKey) => {
+    await refetch();
+    setStep(next);
+  };
 
   return (
     <div className="min-h-screen" style={{ background: "#F5F7FA", fontFamily: "Inter, sans-serif" }}>
       <div className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
-        {/* Mobile progress */}
-        <div className="mb-4 sm:hidden">
-          <ProgressBar progress={progress} step={step} />
-        </div>
+        {step !== "done" && (
+          <div className="mb-4 sm:hidden">
+            <ProgressBar progress={progress} step={step} />
+          </div>
+        )}
 
-        <div className="grid gap-6 sm:grid-cols-[220px_1fr]">
-          {/* Desktop rail */}
-          <aside className="hidden sm:block">
-            <div className="rounded-2xl bg-white p-5 shadow-sm">
-              <ol className="space-y-3">
-                {REQUIRED_STEPS.map((s, i) => {
-                  const isActive = s.key === step;
-                  const isDone =
-                    REQUIRED_STEPS.findIndex((x) => x.key === step) > i ||
-                    step === "extras" || step === "done";
-                  return (
-                    <li key={s.key} className="flex items-start gap-3">
-                      <span
-                        className={cn(
-                          "mt-0.5 grid h-6 w-6 place-content-center rounded-full text-xs font-semibold",
-                          isDone ? "bg-emerald-500 text-white"
-                            : isActive ? "text-white" : "bg-gray-200 text-gray-600",
-                        )}
-                        style={isActive && !isDone ? { background: NAVY } : undefined}
-                      >
-                        {isDone ? "✓" : i + 1}
-                      </span>
-                      <span
-                        className={cn("text-sm",
-                          isActive ? "font-semibold" : "text-gray-600")}
-                        style={isActive ? { color: NAVY } : undefined}
-                      >
-                        {s.label}
-                      </span>
-                    </li>
-                  );
-                })}
-                <li className="flex items-start gap-3 pt-2 border-t">
-                  <span className="mt-0.5 grid h-6 w-6 place-content-center rounded-full bg-gray-100 text-xs text-gray-500">+</span>
-                  <span className="text-sm text-gray-500">Optional extras</span>
-                </li>
-              </ol>
-            </div>
-          </aside>
+        <div className={cn("grid gap-6", step !== "done" && "sm:grid-cols-[220px_1fr]")}>
+          {step !== "done" && (
+            <aside className="hidden sm:block">
+              <div className="rounded-2xl bg-white p-5 shadow-sm">
+                <ol className="space-y-3">
+                  {RAIL_STEPS.map((s, i) => {
+                    const isActive = s.key === step;
+                    const isDone = i < stepIdx;
+                    return (
+                      <li key={s.key} className="flex items-start gap-3">
+                        <span
+                          className={cn(
+                            "mt-0.5 grid h-6 w-6 place-content-center rounded-full text-xs font-semibold",
+                            isDone ? "bg-emerald-500 text-white"
+                              : isActive ? "text-white" : "bg-gray-200 text-gray-600",
+                          )}
+                          style={isActive && !isDone ? { background: NAVY } : undefined}
+                        >
+                          {isDone ? "✓" : i + 1}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-sm",
+                            isActive ? "font-semibold" : "text-gray-600",
+                            !s.required && "italic",
+                          )}
+                          style={isActive ? { color: NAVY } : undefined}
+                        >
+                          {s.label}
+                          {!s.required && <span className="ml-1 text-xs text-gray-400">(optional)</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            </aside>
+          )}
 
-          <main className="rounded-2xl bg-white p-6 shadow-xl sm:p-8">
+          <main className={cn("rounded-2xl bg-white shadow-xl",
+            step === "done" ? "p-6 sm:p-10" : "p-6 sm:p-8")}>
             {step === "contact" && (
               <ContactStep
                 shortRef={shortRef}
                 initialName={[data.firstName, data.lastName].filter(Boolean).join(" ")}
                 initialEmail={data.email ?? ""}
-                onDone={() => { refetch().then(() => setStep("campus")); }}
+                onDone={() => goNext("campus")}
               />
             )}
             {step === "campus" && (
@@ -175,32 +191,51 @@ function OnboardingPage() {
                 initialCampusId={data.campusId}
                 initialSchool={data.campus}
                 initialCourse={data.course}
-                onDone={() => { refetch().then(() => setStep("stress")); }}
+                onDone={() => goNext("stress")}
               />
             )}
             {step === "stress" && (
               <StressStep
                 shortRef={shortRef}
                 initial={data.stressFactors}
-                onDone={() => { refetch().then(() => setStep("pricing")); }}
+                onDone={() => goNext("pricing")}
               />
             )}
             {step === "pricing" && (
               <PricingStep
                 shortRef={shortRef}
-                onDone={() => { refetch().then(() => setStep("extras")); }}
+                onDone={() => goNext("greek")}
               />
             )}
-            {step === "extras" && (
-              <ExtrasStep
+            {step === "greek" && (
+              <GreekStep
                 shortRef={shortRef}
-                campus={data.campus}
-                course={data.course}
-                initialGreek={data.isGreekMember}
-                initialGreekOrg={data.greekOrgName ?? ""}
-                initialFuture={data.futureInterests ?? ""}
-                syllabusUploadedAt={data.syllabusUploadedAt}
-                onRefresh={() => refetch()}
+                initial={{
+                  isGreek: data.isGreekMember,
+                  greekOrg: data.greekOrgName ?? "",
+                }}
+                onDone={() => goNext("future")}
+              />
+            )}
+            {step === "future" && (
+              <FutureStep
+                shortRef={shortRef}
+                initial={data.futureInterests}
+                onDone={() => goNext("syllabus")}
+              />
+            )}
+            {step === "syllabus" && (
+              <SyllabusStep
+                shortRef={shortRef}
+                alreadyUploaded={!!data.syllabusUploadedAt}
+                onDone={() => goNext("done")}
+              />
+            )}
+            {step === "done" && (
+              <DoneScreen
+                shortRef={shortRef}
+                data={data}
+                onRefresh={refetch}
               />
             )}
           </main>
@@ -212,14 +247,11 @@ function OnboardingPage() {
 }
 
 function ProgressBar({ progress, step }: { progress: number; step: StepKey }) {
-  const label =
-    step === "extras" || step === "done"
-      ? "All required steps complete"
-      : `Step ${(REQUIRED_STEPS.findIndex((s) => s.key === step) + 1) || 1} of ${REQUIRED_STEPS.length}`;
+  const i = RAIL_STEPS.findIndex((s) => s.key === step);
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-xs text-gray-600">
-        <span>{label}</span>
+        <span>Step {Math.max(1, i + 1)} of {RAIL_STEPS.length}</span>
         <span>{progress}%</span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
@@ -254,6 +286,15 @@ function PrimaryButton({
     >
       {children}
     </Button>
+  );
+}
+
+function SkipLink({ onClick, children = "Skip" }: { onClick: () => void; children?: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="text-sm text-gray-500 underline hover:text-gray-700">
+      {children}
+    </button>
   );
 }
 
@@ -553,41 +594,162 @@ function PricingStep({
   );
 }
 
-// ---------- Step 5 ----------
-function ExtrasStep({
-  shortRef, campus, course, initialGreek, initialGreekOrg, initialFuture,
-  syllabusUploadedAt, onRefresh,
+// ---------- Step 5: Greek ----------
+function GreekStep({
+  shortRef, initial, onDone,
 }: {
   shortRef: string;
-  campus: string | null;
-  course: string | null;
-  initialGreek: boolean | null;
-  initialGreekOrg: string;
-  initialFuture: string;
-  syllabusUploadedAt: string | null;
-  onRefresh: () => void;
+  initial: { isGreek: boolean | null; greekOrg: string };
+  onDone: () => void;
 }) {
-  const saveFn = useServerFn(saveOnboardingExtras);
-  const uploadFn = useServerFn(uploadOnboardingSyllabus);
-
-  const [isGreek, setIsGreek] = useState<boolean | null>(initialGreek);
-  const [greekOrg, setGreekOrg] = useState(initialGreekOrg);
-  const [future, setFuture] = useState(initialFuture);
-  const [uploaded, setUploaded] = useState<boolean>(!!syllabusUploadedAt);
-  const [uploading, setUploading] = useState(false);
+  const saveFn = useServerFn(saveOnboardingGreek);
+  type Mode = "choose" | "not" | null;
+  const [mode, setMode] = useState<Mode>(
+    initial.isGreek === true ? "choose" : initial.isGreek === false ? "not" : null,
+  );
+  const [org, setOrg] = useState(initial.greekOrg);
 
   const save = useMutation({
-    mutationFn: () => saveFn({
+    mutationFn: (input: { skipped: boolean }) => saveFn({
       data: {
         shortRef: Number(shortRef),
-        isGreekMember: isGreek,
-        greekOrgName: isGreek ? (greekOrg.trim() || null) : null,
-        futureInterests: future.trim() || null,
+        isGreekMember: input.skipped ? null : mode === "choose",
+        greekOrgName: input.skipped ? null : (mode === "choose" ? (org.trim() || null) : null),
+        skipped: input.skipped,
       },
     }),
-    onSuccess: () => { toast.success("Saved."); onRefresh(); },
+    onSuccess: () => onDone(),
     onError: (e: unknown) => toast.error((e as Error).message),
   });
+
+  return (
+    <StepShell
+      title="Are you in a Greek organization?"
+      subtitle="Many chapters help members pay for tutoring."
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setMode("choose")}
+          className={cn(
+            "rounded-xl border px-4 py-4 text-left text-sm transition",
+            mode === "choose" ? "border-transparent text-white" : "border-gray-200 hover:border-gray-300",
+          )}
+          style={mode === "choose" ? { background: NAVY } : undefined}
+        >
+          <div className="font-semibold">Choose my organization</div>
+          <div className={cn("text-xs", mode === "choose" ? "text-white/80" : "text-gray-500")}>
+            Tell us your chapter
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode("not"); setOrg(""); }}
+          className={cn(
+            "rounded-xl border px-4 py-4 text-left text-sm transition",
+            mode === "not" ? "border-transparent text-white" : "border-gray-200 hover:border-gray-300",
+          )}
+          style={mode === "not" ? { background: NAVY } : undefined}
+        >
+          <div className="font-semibold">Not Greek</div>
+        </button>
+      </div>
+
+      {mode === "choose" && (
+        <div className="mt-4">
+          <Label className="mb-1.5 block text-sm font-medium text-gray-800">Organization</Label>
+          <Input
+            placeholder="e.g. Sigma Chi, Phi Mu"
+            value={org}
+            onChange={(e) => setOrg(e.target.value)}
+          />
+        </div>
+      )}
+
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <SkipLink onClick={() => save.mutate({ skipped: true })} />
+        <Button
+          onClick={() => save.mutate({ skipped: false })}
+          disabled={!mode || save.isPending || (mode === "choose" && org.trim().length === 0)}
+          className="h-11 px-6 text-sm font-bold text-white"
+          style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+        >
+          {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
+        </Button>
+      </div>
+    </StepShell>
+  );
+}
+
+// ---------- Step 6: Future interests ----------
+function FutureStep({
+  shortRef, initial, onDone,
+}: { shortRef: string; initial: string[]; onDone: () => void }) {
+  const saveFn = useServerFn(saveOnboardingFutureInterests);
+  const [selected, setSelected] = useState<string[]>(initial);
+
+  const toggle = (opt: string) =>
+    setSelected((prev) => prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]);
+
+  const save = useMutation({
+    mutationFn: (input: { skipped: boolean }) => saveFn({
+      data: {
+        shortRef: Number(shortRef),
+        futureInterests: input.skipped ? [] : selected,
+        skipped: input.skipped,
+      },
+    }),
+    onSuccess: () => onDone(),
+    onError: (e: unknown) => toast.error((e as Error).message),
+  });
+
+  return (
+    <StepShell
+      title="Want updates on lower-cost options?"
+      subtitle="I'm building these and can notify you when they're available."
+    >
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {FUTURE_OPTIONS.map((opt) => {
+          const active = selected.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggle(opt)}
+              className={cn(
+                "rounded-xl border px-4 py-3 text-left text-sm transition",
+                active ? "border-transparent text-white" : "border-gray-200 hover:border-gray-300",
+              )}
+              style={active ? { background: NAVY } : undefined}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <SkipLink onClick={() => save.mutate({ skipped: true })} />
+        <Button
+          onClick={() => save.mutate({ skipped: false })}
+          disabled={selected.length === 0 || save.isPending}
+          className="h-11 px-6 text-sm font-bold text-white"
+          style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+        >
+          {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save preferences"}
+        </Button>
+      </div>
+    </StepShell>
+  );
+}
+
+// ---------- Step 7: Syllabus ----------
+function SyllabusStep({
+  shortRef, alreadyUploaded, onDone,
+}: { shortRef: string; alreadyUploaded: boolean; onDone: () => void }) {
+  const uploadFn = useServerFn(uploadOnboardingSyllabus);
+  const completeFn = useServerFn(completeOnboardingSyllabusStep);
+  const [uploading, setUploading] = useState(false);
+  const [uploaded, setUploaded] = useState(alreadyUploaded);
 
   const onFile = async (file: File) => {
     if (!file) return;
@@ -595,7 +757,6 @@ function ExtrasStep({
     setUploading(true);
     try {
       const buf = await file.arrayBuffer();
-      // chunked base64 to avoid call-stack overflow on large files
       const bytes = new Uint8Array(buf);
       let binary = "";
       const chunk = 0x8000;
@@ -613,7 +774,7 @@ function ExtrasStep({
       });
       setUploaded(true);
       toast.success("Syllabus uploaded.");
-      onRefresh();
+      onDone();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -621,97 +782,126 @@ function ExtrasStep({
     }
   };
 
+  const skip = useMutation({
+    mutationFn: () => completeFn({ data: { shortRef: Number(shortRef) } }),
+    onSuccess: () => onDone(),
+    onError: (e: unknown) => toast.error((e as Error).message),
+  });
+
   return (
-    <div>
-      <div className="mb-6 flex items-start gap-3 rounded-xl bg-emerald-50 p-4">
-        <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
-        <div>
-          <p className="text-sm font-semibold text-emerald-900">You&apos;re all set.</p>
-          <p className="text-xs text-emerald-800">
-            Lee has your info{campus || course ? ` for ${[campus, course].filter(Boolean).join(" • ")}` : ""}
-            {" "}and will text you back shortly. The questions below are optional.
-          </p>
-        </div>
+    <StepShell
+      title="Upload your syllabus"
+      subtitle="This helps me understand your class and prepare before we meet."
+    >
+      <label className={cn(
+        "flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-sm",
+        uploaded ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+          : "border-gray-300 text-gray-600 hover:bg-gray-50",
+      )}>
+        {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> :
+          uploaded ? <CheckCircle2 className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
+        {uploading ? "Uploading…" : uploaded ? "Syllabus uploaded" : "Upload syllabus (PDF or image)"}
+        <input
+          type="file"
+          accept="application/pdf,image/*"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); }}
+        />
+      </label>
+
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <SkipLink onClick={() => skip.mutate()}>Skip</SkipLink>
+        <Button
+          variant="outline"
+          onClick={() => skip.mutate()}
+          disabled={skip.isPending}
+          className="h-11 px-6 text-sm font-semibold"
+          style={{ color: NAVY, borderColor: NAVY }}
+        >
+          {skip.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "I'll do this later"}
+        </Button>
       </div>
+    </StepShell>
+  );
+}
 
-      <h2 className="text-lg font-bold" style={{ color: NAVY }}>Optional extras</h2>
-      <p className="mt-1 text-sm text-gray-600">Helpful but not required.</p>
+// ---------- Done screen ----------
+function DoneScreen({
+  shortRef, data, onRefresh,
+}: {
+  shortRef: string;
+  data: OnboardingSnapshot;
+  onRefresh: () => void;
+}) {
+  const finishFn = useServerFn(finishOnboarding);
+  useEffect(() => {
+    if (data.onboardingFinishedAt) return;
+    finishFn({ data: { shortRef: Number(shortRef) } })
+      .then(() => onRefresh())
+      .catch(() => { /* non-blocking */ });
+  }, [data.onboardingFinishedAt, finishFn, onRefresh, shortRef]);
 
-      <div className="mt-5 space-y-6">
-        <section>
-          <Label className="mb-2 block text-sm font-medium text-gray-800">
-            Are you in a Greek organization?
-          </Label>
-          <div className="flex gap-2">
-            {[
-              { v: true, label: "Yes" },
-              { v: false, label: "No" },
-            ].map(({ v, label }) => {
-              const active = isGreek === v;
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => setIsGreek(v)}
-                  className={cn(
-                    "rounded-lg border px-4 py-2 text-sm",
-                    active ? "border-transparent text-white" : "border-gray-200",
-                  )}
-                  style={active ? { background: NAVY } : undefined}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          {isGreek && (
-            <Input
-              className="mt-3"
-              placeholder="Chapter or organization name"
-              value={greekOrg}
-              onChange={(e) => setGreekOrg(e.target.value)}
-            />
-          )}
-        </section>
+  const pricingLabel =
+    data.pricingReaction === "sounds_good" ? "Sounds good" :
+    data.pricingReaction === "more_than_expected" ? "More than expected" :
+    data.pricingReaction ?? "—";
 
-        <section>
-          <Label className="mb-2 block text-sm font-medium text-gray-800">
-            Anything else coming up you might want help with later?
-          </Label>
-          <Textarea
-            rows={3}
-            placeholder="Future classes, CPA, internships…"
-            value={future}
-            onChange={(e) => setFuture(e.target.value)}
-          />
-        </section>
+  const syllabusStatus = data.syllabusUploadedAt
+    ? "Uploaded"
+    : data.syllabusStepCompletedAt ? "Will share later" : "—";
 
-        <section>
-          <Label className="mb-2 block text-sm font-medium text-gray-800">
-            Upload your syllabus (optional)
-          </Label>
-          <label className={cn(
-            "flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-sm",
-            uploaded ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-              : "border-gray-300 text-gray-600 hover:bg-gray-50",
-          )}>
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> :
-              uploaded ? <CheckCircle2 className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-            {uploading ? "Uploading…" : uploaded ? "Syllabus uploaded" : "Choose file (PDF or image)"}
-            <input
-              type="file"
-              accept="application/pdf,image/*"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); }}
-            />
-          </label>
-        </section>
+  const smsHref = data.leePhone
+    ? `sms:${data.leePhone}?&body=${encodeURIComponent("Hi Lee, I completed the tutoring form.")}`
+    : undefined;
 
-        <PrimaryButton disabled={save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>) : "Save & finish"}
-        </PrimaryButton>
+  return (
+    <div className="text-center">
+      <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
+      <h1 className="mt-4 text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
+        You&apos;re all set.
+      </h1>
+      <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+        I&apos;ll review your information and follow up with how I can help.
+      </p>
+
+      <dl className="mx-auto mt-8 max-w-md divide-y rounded-xl border bg-gray-50 text-left text-sm">
+        <SummaryRow label="School" value={data.campus ?? "—"} />
+        <SummaryRow label="Course" value={data.course ?? "—"} />
+        <SummaryRow label="Pricing reaction" value={pricingLabel} />
+        <SummaryRow
+          label="What's stressing you"
+          value={data.stressFactors.length ? data.stressFactors.join(", ") : "—"}
+        />
+        {data.greekOrgName && <SummaryRow label="Greek organization" value={data.greekOrgName} />}
+        {data.futureInterests.length > 0 && (
+          <SummaryRow label="Future interests" value={data.futureInterests.join(", ")} />
+        )}
+        <SummaryRow label="Syllabus" value={syllabusStatus} />
+      </dl>
+
+      <div className="mt-8">
+        {smsHref ? (
+          <a
+            href={smsHref}
+            className="inline-flex h-12 w-full max-w-md items-center justify-center rounded-md text-base font-bold text-white shadow"
+            style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+          >
+            Text Lee
+          </a>
+        ) : (
+          <p className="text-xs text-gray-500">Lee will reach out to you shortly.</p>
+        )}
       </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3">
+      <dt className="text-xs uppercase tracking-wide text-gray-500">{label}</dt>
+      <dd className="text-sm text-gray-900">{value}</dd>
     </div>
   );
 }
