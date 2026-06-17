@@ -74,6 +74,13 @@ async function processItem(db: any, item: any, researchMode: string) {
     if (r.ok) {
       profile_done = true;
     }
+  } else if (researchMode === "program_and_courses") {
+    // PROGRAM + COURSES mode: only fill accounting_department_name + course code/title maps.
+    const r = await step("program", () => invokeFn("research-campus-program-courses", { campus_id }));
+    if (r.ok) {
+      profile_done = true;
+    }
+  
   } else {
     // BROAD mode: full pipeline (profile → leads → prefixes → sections).
     // 1. Campus profile — research-campus expects school_name/state, not campus_id
