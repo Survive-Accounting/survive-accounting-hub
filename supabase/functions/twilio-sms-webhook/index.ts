@@ -26,6 +26,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
 const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
+const TWILIO_MSID = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID") ?? "";
 const LEE_PHONE = (Deno.env.get("LEE_PERSONAL_PHONE") ?? "").replace(/[^+\d]/g, "");
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const SITE_ORIGIN = Deno.env.get("SITE_ORIGIN") ?? "https://surviveaccounting.com";
@@ -62,6 +63,15 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 async function twilioSend(from: string, to: string, body: string): Promise<string | null> {
   if (!TWILIO_SID || !TWILIO_TOKEN) return null;
+  if (!TWILIO_MSID) {
+    console.error("twilio-sms-webhook: TWILIO_MESSAGING_SERVICE_SID not configured; refusing to send outbound SMS");
+    return null;
+  }
+  // Always route outbound through the approved A2P Messaging Service.
+  // `from` (the campus number the student texted) is intentionally ignored —
+  // the messaging service's sender pool picks the From number.
+  void from;
+  const params = new URLSearchParams({ MessagingServiceSid: TWILIO_MSID, To: to, Body: body });
   const res = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
     {
@@ -70,7 +80,7 @@ async function twilioSend(from: string, to: string, body: string): Promise<strin
         Authorization: "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`),
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({ From: from, To: to, Body: body }),
+      body: params,
     },
   );
   const j = await res.json().catch(() => ({}));

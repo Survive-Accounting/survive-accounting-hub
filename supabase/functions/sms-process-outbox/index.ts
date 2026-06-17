@@ -7,6 +7,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
 const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
+const TWILIO_MSID = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID") ?? "";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -34,6 +35,16 @@ Deno.serve(async (req) => {
       await admin.from("sms_outbox").update({ status: "canceled" }).eq("id", row.id);
       continue;
     }
+    if (!TWILIO_MSID) {
+      await admin.from("sms_outbox").update({ status: "failed", error: "TWILIO_MESSAGING_SERVICE_SID is not configured" }).eq("id", row.id);
+      failed++;
+      continue;
+    }
+    const sendParams = new URLSearchParams({
+      MessagingServiceSid: TWILIO_MSID,
+      To: convo.student_phone,
+      Body: row.body,
+    });
     const res = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
       {
@@ -42,7 +53,7 @@ Deno.serve(async (req) => {
           Authorization: "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`),
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({ From: convo.campus_number, To: convo.student_phone, Body: row.body }),
+        body: sendParams,
       },
     );
     const j = await res.json().catch(() => ({}));
