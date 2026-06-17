@@ -253,6 +253,7 @@ Deno.serve(async (req) => {
     let courseFamilyStatus: Record<string, string> = {};
     let programName = "";
     let coursesText = "";
+    let fullCoursesText = "";
     let prefixText = "";
     let usePersonalPhone = false;
     if (lead.campus_id) {
@@ -274,6 +275,7 @@ Deno.serve(async (req) => {
       if (Array.isArray(campus?.course_codes_json)) {
         const codes = (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string");
         coursesText = joinCourses(codes);
+        fullCoursesText = joinCoursesFull(codes);
         prefixText = coursePrefix(codes);
       }
       usePersonalPhone = !!campus?.use_personal_phone;
@@ -281,6 +283,7 @@ Deno.serve(async (req) => {
     // Graceful fallbacks when research hasn't captured these yet.
     const programMerge = programName || "accounting program";
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
+    const fullCoursesMerge = fullCoursesText || coursesMerge;
     const prefixMerge = prefixText || "accounting";
 
     // {phone} merge — hardcoded to Lee's main line.
