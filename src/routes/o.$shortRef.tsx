@@ -1,6 +1,6 @@
 // /o/{short_ref} — Simplified 3-step tutoring request.
 // 1) Your info  →  2) Confirm pricing  →  3) Optional extras + submit  →  success.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
