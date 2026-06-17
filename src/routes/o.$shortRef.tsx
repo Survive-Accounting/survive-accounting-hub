@@ -125,7 +125,7 @@ function OnboardingPage() {
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-14">
-        {step < 3 && <Stepper current={step} />}
+        {step < 3 && <Stepper current={step as 0 | 1 | 2} />}
 
         <div className="mt-6 rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-10">
           {step === 0 && (
