@@ -608,6 +608,7 @@ function ExtrasStep({
         isGreekMember: greekMode === "choose" ? true : greekMode === "not" ? false : null,
         greekOrgName: greekMode === "choose" ? (draft.greekOrgName.trim() || null) : null,
         futureInterests: draft.futureInterests,
+        accountingMajorStatus: draft.accountingMajorStatus,
       },
     }),
     onSuccess: async () => { await onSubmitted(); },
