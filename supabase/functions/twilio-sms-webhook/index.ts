@@ -44,7 +44,7 @@ const TESTER_PHONES = new Set(
 const FALLBACK_OPENER =
   "Hey, it's Lee. Need tutoring?\n\n" +
   "Booking Link\n" +
-  "https://surviveaccounting.com/start\n\n" +
+  "https://surviveaccounting.com/o/{short_ref}\n\n" +
   "Questions? Reply them here.\n\n" +
   "Thanks!\n" +
   "Lee";
