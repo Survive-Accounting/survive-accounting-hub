@@ -148,7 +148,11 @@ export const saveOnboardingCampusCourse = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => saveCampusCourseSchema.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
-    const update: Record<string, unknown> = {
+    const update: {
+      course_code_or_name: string | null;
+      campus_id?: string | null;
+      school_name?: string | null;
+    } = {
       course_code_or_name: data.courseCodeOrName ?? null,
     };
     if (data.campusId) {
