@@ -448,63 +448,72 @@ function StepContent({
 
   if (step === "greek") {
     return (
-      <StepShell
-        eyebrow="Step 4 · Optional"
-        title="In a Greek organization?"
-        subtitle="Some chapters have study partners or shared notes Lee can plug into."
-      >
-        <Field label="Chapter or organization">
-          <Input
-            value={answers.greek}
-            onChange={(e) => update("greek", e.target.value)}
-            placeholder="Kappa Alpha, Chi Omega, etc."
-            className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-            autoFocus
-          />
-        </Field>
-      </StepShell>
+      <GreekStep
+        greekOrg={answers.greekOrg}
+        onChange={(v) => update("greekOrg", v)}
+      />
     );
   }
 
   if (step === "future") {
-    const items: Future[] = ["CPA exam", "Internship prep", "Grad school", "Just passing this class"];
-    const toggle = (v: Future) => {
-      const has = answers.future.includes(v);
-      update("future", has ? answers.future.filter((x) => x !== v) : [...answers.future, v]);
+    const items: FutureInterest[] = [
+      "Practice exams with video solutions",
+      "Homework help",
+      "Group reviews",
+      "Free tips and updates",
+    ];
+    const toggle = (v: FutureInterest) => {
+      const has = answers.futureInterests.includes(v);
+      update(
+        "futureInterests",
+        has ? answers.futureInterests.filter((x) => x !== v) : [...answers.futureInterests, v],
+      );
     };
     return (
       <StepShell
         eyebrow="Step 5 · Optional"
-        title="Thinking long-term?"
-        subtitle="Lee can weave career-relevant context into the tutoring sessions."
+        title="Which additional resources would interest you?"
+        subtitle="I'm building these and can notify you when they're available."
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {items.map((item) => {
-            const active = answers.future.includes(item);
-            return (
-              <button
-                key={item}
-                type="button"
-                onClick={() => toggle(item)}
-                className={cn(
-                  "flex items-center justify-between rounded-2xl border bg-white px-5 py-4 text-left text-base font-medium transition-all",
-                  active
-                    ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
-                    : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
-                )}
-              >
-                <span>{item}</span>
-                <span
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {items.map((item) => {
+              const active = answers.futureInterests.includes(item);
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => toggle(item)}
                   className={cn(
-                    "grid h-6 w-6 shrink-0 place-items-center rounded-full border",
-                    active ? "border-[color:var(--brand-navy)] bg-[color:var(--brand-navy)] text-white" : "border-black/15",
+                    "flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-5 text-left text-base font-medium transition-all",
+                    active
+                      ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
+                      : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
                   )}
                 >
-                  {active && <Check className="h-4 w-4" />}
-                </span>
-              </button>
-            );
-          })}
+                  <span>{item}</span>
+                  <span
+                    className={cn(
+                      "grid h-6 w-6 shrink-0 place-items-center rounded-md border",
+                      active
+                        ? "border-[color:var(--brand-navy)] bg-[color:var(--brand-navy)] text-white"
+                        : "border-black/20 bg-white",
+                    )}
+                  >
+                    {active && <Check className="h-4 w-4" strokeWidth={3} />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Button
+            type="button"
+            onClick={onContinue}
+            disabled={answers.futureInterests.length === 0}
+            className="h-14 w-full rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90 disabled:opacity-40"
+          >
+            Notify Me
+          </Button>
         </div>
       </StepShell>
     );
@@ -514,58 +523,124 @@ function StepContent({
     return (
       <StepShell
         eyebrow="Step 6 · Optional"
-        title="Drop in your syllabus"
-        subtitle="It's the single biggest thing that lets Lee prep before your first session."
+        title="Upload your syllabus"
+        subtitle="This helps me understand your class and prepare before we meet."
       >
-        <label
-          htmlFor="syllabus"
-          className={cn(
-            "flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed bg-white px-6 py-12 text-center transition-colors",
-            answers.syllabusName ? "border-[color:var(--brand-navy)]/60" : "border-black/15 hover:border-[color:var(--brand-navy)]/40",
-          )}
-        >
-          {answers.syllabusName ? (
-            <>
-              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
-                <FileText className="h-7 w-7 text-[color:var(--brand-navy)]" />
-              </div>
-              <div className="mt-4 max-w-full truncate text-base font-semibold">{answers.syllabusName}</div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  update("syllabusName", "");
-                }}
-                className="mt-3 inline-flex items-center gap-1 text-sm text-[color:var(--brand-navy)]/60 hover:text-[color:var(--brand-red)]"
-              >
-                <X className="h-3.5 w-3.5" /> Remove
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
-                <Upload className="h-7 w-7 text-[color:var(--brand-navy)]" />
-              </div>
-              <div className="mt-4 text-base font-semibold">Upload your syllabus</div>
-              <div className="mt-1 text-sm text-[color:var(--brand-navy)]/60">PDF, DOCX, or photo — up to 10MB</div>
-            </>
-          )}
-          <input
-            id="syllabus"
-            type="file"
-            accept=".pdf,.doc,.docx,image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) update("syllabusName", f.name);
-            }}
-          />
-        </label>
+        <div className="space-y-4">
+          <label
+            htmlFor="syllabus"
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed bg-white px-6 py-12 text-center transition-colors",
+              answers.syllabusName
+                ? "border-[color:var(--brand-navy)]/60"
+                : "border-black/15 hover:border-[color:var(--brand-navy)]/40",
+            )}
+          >
+            {answers.syllabusName ? (
+              <>
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
+                  <FileText className="h-7 w-7 text-[color:var(--brand-navy)]" />
+                </div>
+                <div className="mt-4 max-w-full truncate text-base font-semibold">{answers.syllabusName}</div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    update("syllabusName", "");
+                  }}
+                  className="mt-3 inline-flex items-center gap-1 text-sm text-[color:var(--brand-navy)]/60 hover:text-[color:var(--brand-red)]"
+                >
+                  <X className="h-3.5 w-3.5" /> Remove
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
+                  <Upload className="h-7 w-7 text-[color:var(--brand-navy)]" />
+                </div>
+                <div className="mt-4 text-base font-semibold">Drag & drop, or tap to choose</div>
+                <div className="mt-1 text-sm text-[color:var(--brand-navy)]/60">PDF, DOCX, or photo — up to 10MB</div>
+              </>
+            )}
+            <input
+              id="syllabus"
+              type="file"
+              accept=".pdf,.doc,.docx,image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  update("syllabusName", f.name);
+                  update("syllabusSkipped", false);
+                }
+              }}
+            />
+          </label>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button
+              type="button"
+              onClick={() => document.getElementById("syllabus")?.click()}
+              className="h-14 rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90"
+            >
+              <Upload className="mr-2 h-5 w-5" /> Upload Syllabus
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                update("syllabusSkipped", true);
+                onContinue();
+              }}
+              className="h-14 rounded-2xl border-black/15 bg-white text-base font-semibold text-[color:var(--brand-navy)] hover:bg-[color:var(--brand-navy)]/5"
+            >
+              I'll Do This Later
+            </Button>
+          </div>
+        </div>
       </StepShell>
     );
   }
 
-  // done
+  // done — success page
+  return <DoneStep />;
+}
+
+const LEE_PHONE_E164 = "+16625658818";
+const LEE_PHONE_DISPLAY = "(662) 565-8818";
+const LEE_SMS_BODY = "Hi Lee, I just finished the onboarding on surviveaccounting.com.";
+
+function DoneStep() {
+  const [copied, setCopied] = useState(false);
+
+  const handleText = () => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const smsHref = isMobile
+      ? `sms:${LEE_PHONE_E164}?&body=${encodeURIComponent(LEE_SMS_BODY)}`
+      : `sms:${LEE_PHONE_E164};body=${encodeURIComponent(LEE_SMS_BODY)}`;
+
+    if (isMobile) {
+      window.location.href = smsHref;
+      return;
+    }
+    // Desktop: try sms: link, also copy number as fallback
+    try {
+      navigator.clipboard?.writeText(LEE_PHONE_DISPLAY);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* no-op */
+    }
+    window.location.href = smsHref;
+  };
+
+  const bullets = [
+    "Free 30-minute intro session",
+    "Personalized support",
+    "Zoom tutoring",
+    "Session recordings available",
+  ];
+
   return (
     <div className="text-center">
       <motion.div
@@ -576,47 +651,38 @@ function StepContent({
       >
         <Check className="h-10 w-10" strokeWidth={3} />
       </motion.div>
-      <h1 className="font-display mt-8 text-4xl leading-tight sm:text-5xl">You're in.</h1>
-      <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-[color:var(--brand-navy)]/70">
-        Lee personally reviews every request and will text you within one business day.
+      <h1 className="font-display mt-8 text-4xl leading-tight sm:text-5xl">You're all set!</h1>
+      <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-[color:var(--brand-navy)]/70 sm:text-lg">
+        Thanks for reaching out. I'll review your information and text you within 1 business day.
       </p>
 
-      <div className="mx-auto mt-10 max-w-md space-y-4 text-left">
-        <Field label="Your name">
-          <Input
-            value={answers.name}
-            onChange={(e) => update("name", e.target.value)}
-            placeholder="Jordan Smith"
-            className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-          />
-        </Field>
-        <Field label="Phone (for text)">
-          <Input
-            value={answers.phone}
-            onChange={(e) => update("phone", e.target.value)}
-            placeholder="(555) 123-4567"
-            inputMode="tel"
-            className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-          />
-        </Field>
+      <ul className="mx-auto mt-10 max-w-md space-y-3 rounded-3xl border border-black/10 bg-white p-6 text-left shadow-sm">
+        {bullets.map((b) => (
+          <li key={b} className="flex items-start gap-3 text-base text-[color:var(--brand-navy)]">
+            <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color:var(--brand-navy)] text-white">
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            </span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mx-auto mt-8 max-w-md">
         <Button
           type="button"
-          onClick={() => {
-            // TODO: wire to Supabase
-            console.log("onboard answers", answers);
-          }}
-          disabled={!answers.name.trim() || !answers.phone.trim()}
-          className="h-14 w-full rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90 disabled:opacity-40"
+          onClick={handleText}
+          className="h-14 w-full rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90"
         >
-          Send my request
+          Text Lee Now
         </Button>
-        <p className="text-center text-xs text-[color:var(--brand-navy)]/50">
-          By submitting you agree to receive a text reply from Lee.
+        <p className="mt-3 text-sm text-[color:var(--brand-navy)]/60">
+          {copied ? `Copied ${LEE_PHONE_DISPLAY} to clipboard` : LEE_PHONE_DISPLAY}
         </p>
       </div>
     </div>
   );
 }
+
 
 function StepShell({
   eyebrow,
