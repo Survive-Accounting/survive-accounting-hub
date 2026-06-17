@@ -991,3 +991,149 @@ function CampusCoursePicker({
     </div>
   );
 }
+
+// ---------------- Greek Organization step ----------------
+
+const GREEK_ORGS = [
+  "Alpha Chi Omega","Alpha Delta Pi","Alpha Epsilon Phi","Alpha Gamma Delta","Alpha Kappa Alpha",
+  "Alpha Omicron Pi","Alpha Phi","Alpha Sigma Alpha","Alpha Xi Delta","Chi Omega",
+  "Delta Delta Delta","Delta Gamma","Delta Sigma Theta","Delta Zeta","Gamma Phi Beta",
+  "Kappa Alpha Theta","Kappa Delta","Kappa Kappa Gamma","Phi Mu","Pi Beta Phi",
+  "Sigma Delta Tau","Sigma Kappa","Sigma Sigma Sigma","Zeta Tau Alpha",
+  "Alpha Epsilon Pi","Alpha Tau Omega","Beta Theta Pi","Chi Phi","Delta Chi",
+  "Delta Tau Delta","Delta Upsilon","Kappa Alpha Order","Kappa Sigma","Lambda Chi Alpha",
+  "Phi Delta Theta","Phi Gamma Delta (FIJI)","Phi Kappa Psi","Phi Kappa Tau","Pi Kappa Alpha",
+  "Pi Kappa Phi","Sigma Alpha Epsilon","Sigma Chi","Sigma Nu","Sigma Phi Epsilon",
+  "Tau Kappa Epsilon","Theta Chi","Zeta Beta Tau",
+];
+
+const NOT_GREEK = "__not_greek__";
+
+function GreekStep({ greekOrg, onChange }: { greekOrg: string; onChange: (v: string) => void }) {
+  const [showPicker, setShowPicker] = useState(greekOrg !== "" && greekOrg !== NOT_GREEK);
+  const [query, setQuery] = useState("");
+
+  const isNotGreek = greekOrg === NOT_GREEK;
+  const isChosen = greekOrg !== "" && !isNotGreek;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return GREEK_ORGS;
+    return GREEK_ORGS.filter((o) => o.toLowerCase().includes(q));
+  }, [query]);
+
+  return (
+    <StepShell
+      eyebrow="Step 4 · Optional"
+      title="Are you in a Greek organization?"
+      subtitle="Many chapters help members pay for tutoring."
+    >
+      <div className="space-y-5">
+        {!showPicker && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setShowPicker(true);
+                if (isNotGreek) onChange("");
+              }}
+              className="h-16 rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white hover:bg-[color:var(--brand-navy)]/90"
+            >
+              <Users className="mr-2 h-5 w-5" /> Choose My Organization
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onChange(NOT_GREEK)}
+              className={cn(
+                "h-16 rounded-2xl border-black/15 bg-white text-base font-semibold text-[color:var(--brand-navy)] hover:bg-[color:var(--brand-navy)]/5",
+                isNotGreek && "border-[color:var(--brand-navy)] ring-2 ring-[color:var(--brand-navy)]/10",
+              )}
+            >
+              Not Greek
+              {isNotGreek && <Check className="ml-2 h-5 w-5" />}
+            </Button>
+          </div>
+        )}
+
+        {isChosen && !showPicker && (
+          <div className="rounded-2xl border border-[color:var(--brand-navy)]/40 bg-white px-5 py-4 text-sm">
+            <span className="text-[color:var(--brand-navy)]/60">Selected:</span>{" "}
+            <span className="font-semibold text-[color:var(--brand-navy)]">{greekOrg}</span>
+          </div>
+        )}
+
+        {showPicker && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-[color:var(--brand-navy)]/80">Your chapter</Label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPicker(false);
+                  onChange("");
+                }}
+                className="text-xs font-medium text-[color:var(--brand-navy)]/60 hover:text-[color:var(--brand-navy)]"
+              >
+                ← Back
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[color:var(--brand-navy)]/40" />
+              <Input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search Greek organizations…"
+                className="h-14 rounded-2xl border-black/10 bg-white pl-12 pr-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto rounded-2xl border border-black/10 bg-white shadow-sm">
+              {filtered.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-[color:var(--brand-navy)]/50">
+                  No matches. Type your chapter name and tap "Use…" below.
+                </div>
+              ) : (
+                filtered.map((org) => {
+                  const active = greekOrg === org;
+                  return (
+                    <button
+                      key={org}
+                      type="button"
+                      onClick={() => onChange(org)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 border-b border-black/5 px-4 py-3 text-left text-base last:border-b-0 hover:bg-[color:var(--brand-navy)]/5",
+                        active && "bg-[color:var(--brand-navy)]/5 font-semibold",
+                      )}
+                    >
+                      <span className="truncate">{org}</span>
+                      {active && <Check className="h-4 w-4 shrink-0 text-[color:var(--brand-navy)]" />}
+                    </button>
+                  );
+                })
+              )}
+              {query.trim() && !filtered.some((o) => o.toLowerCase() === query.trim().toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => onChange(query.trim())}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 border-t border-black/5 px-4 py-3 text-left text-base hover:bg-[color:var(--brand-navy)]/5",
+                    greekOrg === query.trim() && "bg-[color:var(--brand-navy)]/5 font-semibold",
+                  )}
+                >
+                  <span className="truncate">Use "{query.trim()}"</span>
+                  {greekOrg === query.trim() && <Check className="h-4 w-4 shrink-0 text-[color:var(--brand-navy)]" />}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </StepShell>
+  );
+}
