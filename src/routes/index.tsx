@@ -74,16 +74,31 @@ function HeroCta() {
         <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
 
-      <p
-        className="hero-anim-btn mt-2 text-center text-[13px] font-light"
+      <div
+        className="hero-anim-btn mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5"
         style={{
-          color: "rgba(255,255,255,0.75)",
-          fontFamily: "Inter, sans-serif",
-          letterSpacing: "0.02em",
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
         }}
       >
-        1,000+ students tutored
-      </p>
+        <Check
+          className="w-4 h-4"
+          strokeWidth={3}
+          style={{ color: "#7CFFB2" }}
+        />
+        <span
+          className="text-[13px] font-medium"
+          style={{
+            color: "rgba(255,255,255,0.92)",
+            fontFamily: "Inter, sans-serif",
+            letterSpacing: "0.01em",
+          }}
+        >
+          1,000+ students helped since 2015
+        </span>
+      </div>
     </div>
   );
 }
