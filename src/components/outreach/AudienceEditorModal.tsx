@@ -112,9 +112,20 @@ export function AudienceEditorModal({
     const dir = sortDir === "asc" ? 1 : -1;
     const collator = new Intl.Collator(undefined, { sensitivity: "base" });
     const sorted = [...filtered].sort((a, b) => {
+      if (sortKey === "tuition" || sortKey === "enrollment") {
+        const av = sortKey === "tuition"
+          ? (a.campus.tuition_out_state ?? a.campus.tuition_in_state)
+          : a.campus.total_enrollment;
+        const bv = sortKey === "tuition"
+          ? (b.campus.tuition_out_state ?? b.campus.tuition_in_state)
+          : b.campus.total_enrollment;
+        const aNull = av == null, bNull = bv == null;
+        if (aNull !== bNull) return aNull ? 1 : -1;
+        if (aNull && bNull) return 0;
+        return ((av as number) - (bv as number)) * dir;
+      }
       let av = "", bv = "";
       if (sortKey === "name") { av = a.campus.school_name; bv = b.campus.school_name; }
-      else if (sortKey === "state") { av = a.campus.state ?? ""; bv = b.campus.state ?? ""; }
       else { av = a.textbook; bv = b.textbook; }
       // Blanks always sort to the bottom regardless of direction.
       const aEmpty = !av.trim();
@@ -130,14 +141,16 @@ export function AudienceEditorModal({
     [matched, filters.families],
   );
 
-  const toggleSort = (k: "name" | "state" | "textbook") => {
+  type SortKey = "name" | "textbook" | "tuition" | "enrollment";
+  const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(k); setSortDir("asc"); }
   };
-  const sortIcon = (k: "name" | "state" | "textbook") => {
+  const sortIcon = (k: SortKey) => {
     if (sortKey !== k) return <ArrowUpDown className="h-3 w-3 opacity-50" />;
     return sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
   };
+
 
   const togglePin = (id: string, on: boolean) => {
     setPinnedIds((prev) => on ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id));
