@@ -143,7 +143,9 @@ Deno.serve(async (req) => {
       }
       const sampleFirst = "John";
       const samplePogram = "School of Accountancy";
-      const sampleCourses = joinCourses(["ACCY 201", "ACCY 202", "ACCY 303", "ACCY 304"]);
+      const oleMissCodes = ["ACCY 201", "ACCY 202", "ACCY 303", "ACCY 304"];
+      const sampleCourses = joinCourses(oleMissCodes);
+      const sampleFullCodes = joinCoursesFull(oleMissCodes);
       const samplePhone = "(662) 565-8818";
       const samplePrefix = "ACCY";
       const surviveLinkUrl = "https://surviveaccounting.com";
