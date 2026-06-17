@@ -17,6 +17,7 @@ import {
   getOnboarding,
   submitOnboarding,
   searchCampuses,
+  getCampusCourseCodes,
   uploadOnboardingSyllabus,
   type CampusLite,
   type OnboardingSnapshot,
