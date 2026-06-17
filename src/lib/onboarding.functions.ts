@@ -272,7 +272,11 @@ export const saveOnboardingExtras = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => saveExtrasSchema.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
-    const update: Record<string, unknown> = {};
+    const update: {
+      is_greek_member?: boolean | null;
+      greek_org_name?: string | null;
+      future_interests?: string | null;
+    } = {};
     if (data.isGreekMember !== undefined) update.is_greek_member = data.isGreekMember;
     if (data.greekOrgName !== undefined) update.greek_org_name = data.greekOrgName;
     if (data.futureInterests !== undefined) update.future_interests = data.futureInterests;
