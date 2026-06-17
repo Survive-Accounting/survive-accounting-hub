@@ -3072,6 +3072,7 @@ export type Database = {
           is_active: boolean | null
           is_locked: boolean | null
           kind: string | null
+          lead_type: string
           name: string | null
           subject: string | null
           updated_at: string
@@ -3084,6 +3085,7 @@ export type Database = {
           is_active?: boolean | null
           is_locked?: boolean | null
           kind?: string | null
+          lead_type?: string
           name?: string | null
           subject?: string | null
           updated_at?: string
@@ -3096,6 +3098,7 @@ export type Database = {
           is_active?: boolean | null
           is_locked?: boolean | null
           kind?: string | null
+          lead_type?: string
           name?: string | null
           subject?: string | null
           updated_at?: string

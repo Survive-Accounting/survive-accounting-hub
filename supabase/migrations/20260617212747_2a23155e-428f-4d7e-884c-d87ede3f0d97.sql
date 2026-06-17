@@ -1,0 +1,2 @@
+alter table public.outreach_email_templates add column if not exists lead_type text not null default 'professors';
+update public.outreach_email_templates set lead_type = 'professors' where lead_type is null or lead_type = '';
