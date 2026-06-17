@@ -56,8 +56,12 @@ export function AudienceEditorModal({
   const [pinMode, setPinMode] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<"name" | "state" | "textbook">("name");
+  const [sortKey, setSortKey] = useState<"name" | "textbook" | "tuition" | "enrollment">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const showTuitionCol = filters.minTuition != null || filters.maxTuition != null || filters.highTuitionOnly;
+  const showEnrollmentCol = filters.minEnrollment != null || filters.maxEnrollment != null;
+
 
   // Reset when opening for a new audience or switching audiences.
   useEffect(() => {
@@ -108,9 +112,20 @@ export function AudienceEditorModal({
     const dir = sortDir === "asc" ? 1 : -1;
     const collator = new Intl.Collator(undefined, { sensitivity: "base" });
     const sorted = [...filtered].sort((a, b) => {
+      if (sortKey === "tuition" || sortKey === "enrollment") {
+        const av = sortKey === "tuition"
+          ? (a.campus.tuition_out_state ?? a.campus.tuition_in_state)
+          : a.campus.total_enrollment;
+        const bv = sortKey === "tuition"
+          ? (b.campus.tuition_out_state ?? b.campus.tuition_in_state)
+          : b.campus.total_enrollment;
+        const aNull = av == null, bNull = bv == null;
+        if (aNull !== bNull) return aNull ? 1 : -1;
+        if (aNull && bNull) return 0;
+        return ((av as number) - (bv as number)) * dir;
+      }
       let av = "", bv = "";
       if (sortKey === "name") { av = a.campus.school_name; bv = b.campus.school_name; }
-      else if (sortKey === "state") { av = a.campus.state ?? ""; bv = b.campus.state ?? ""; }
       else { av = a.textbook; bv = b.textbook; }
       // Blanks always sort to the bottom regardless of direction.
       const aEmpty = !av.trim();
@@ -126,14 +141,16 @@ export function AudienceEditorModal({
     [matched, filters.families],
   );
 
-  const toggleSort = (k: "name" | "state" | "textbook") => {
+  type SortKey = "name" | "textbook" | "tuition" | "enrollment";
+  const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(k); setSortDir("asc"); }
   };
-  const sortIcon = (k: "name" | "state" | "textbook") => {
+  const sortIcon = (k: SortKey) => {
     if (sortKey !== k) return <ArrowUpDown className="h-3 w-3 opacity-50" />;
     return sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
   };
+
 
   const togglePin = (id: string, on: boolean) => {
     setPinnedIds((prev) => on ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id));
@@ -246,8 +263,48 @@ export function AudienceEditorModal({
                 placeholder="e.g. McGraw" className="h-8 w-44 text-xs"
               />
             </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-muted-foreground">Tuition / yr</span>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number" placeholder="Min" className="h-8 w-20 text-xs"
+                  value={filters.minTuition ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, minTuition: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="number" placeholder="Max" className="h-8 w-20 text-xs"
+                  value={filters.maxTuition ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, maxTuition: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-muted-foreground">Enrollment</span>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number" placeholder="Min" className="h-8 w-24 text-xs"
+                  value={filters.minEnrollment ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, minEnrollment: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="number" placeholder="Max" className="h-8 w-24 text-xs"
+                  value={filters.maxEnrollment ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, maxEnrollment: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-1.5 h-8">
+              <Checkbox
+                checked={filters.secOnly}
+                onCheckedChange={(v) => setFilters((prev) => ({ ...prev, secOnly: !!v }))}
+              />
+              <span>SEC only 🏈</span>
+            </label>
           </div>
         </div>
+
 
         <div className="rounded-md border bg-card flex-1 min-h-0 flex flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b p-2 text-xs">
@@ -295,17 +352,29 @@ export function AudienceEditorModal({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-card border-b">
                 <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  {pinMode && <th className="w-8 px-2 py-2"></th>}
+                  <th className="w-8 px-2 py-2">
+                    <Checkbox
+                      checked={
+                        matchedFiltered.length > 0 &&
+                        matchedFiltered.every((r) => pinnedIds.includes(r.campus.id))
+                      }
+                      onCheckedChange={(v) => {
+                        const on = !!v;
+                        if (!pinMode) setPinMode(true);
+                        const shownIds = matchedFiltered.map((r) => r.campus.id);
+                        setPinnedIds((prev) =>
+                          on
+                            ? Array.from(new Set([...prev, ...shownIds]))
+                            : prev.filter((id) => !shownIds.includes(id)),
+                        );
+                      }}
+                      aria-label="Select all shown"
+                    />
+                  </th>
                   <th className="px-2 py-2">
                     <button type="button" onClick={() => toggleSort("name")}
                       className="inline-flex items-center gap-1 hover:text-foreground">
                       Campus {sortIcon("name")}
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 w-14">
-                    <button type="button" onClick={() => toggleSort("state")}
-                      className="inline-flex items-center gap-1 hover:text-foreground">
-                      ST {sortIcon("state")}
                     </button>
                   </th>
                   <th className="px-2 py-2">
@@ -314,23 +383,42 @@ export function AudienceEditorModal({
                       Textbook {sortIcon("textbook")}
                     </button>
                   </th>
+                  {showTuitionCol && (
+                    <th className="px-2 py-2 w-24">
+                      <button type="button" onClick={() => toggleSort("tuition")}
+                        className="inline-flex items-center gap-1 hover:text-foreground">
+                        Tuition {sortIcon("tuition")}
+                      </button>
+                    </th>
+                  )}
+                  {showEnrollmentCol && (
+                    <th className="px-2 py-2 w-24">
+                      <button type="button" onClick={() => toggleSort("enrollment")}
+                        className="inline-flex items-center gap-1 hover:text-foreground">
+                        Enrollment {sortIcon("enrollment")}
+                      </button>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {matchedFiltered.slice(0, 500).map(({ campus: c, textbook }) => {
                   const pinned = pinnedIds.includes(c.id);
                   const blank = !textbook;
+                  const t = c.tuition_out_state ?? c.tuition_in_state;
                   return (
                     <tr key={c.id}
                       className={`hover:bg-accent/40 ${blank ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}`}>
-                      {pinMode && (
-                        <td className="px-2 py-1.5 align-middle">
-                          <Checkbox checked={pinned}
-                            onCheckedChange={(v) => togglePin(c.id, !!v)} />
-                        </td>
-                      )}
+                      <td className="px-2 py-1.5 align-middle">
+                        <Checkbox
+                          checked={pinned}
+                          onCheckedChange={(v) => {
+                            if (!pinMode) setPinMode(true);
+                            togglePin(c.id, !!v);
+                          }}
+                        />
+                      </td>
                       <td className="px-2 py-1.5 truncate max-w-[260px]">{c.school_name}</td>
-                      <td className="px-2 py-1.5 text-[11px] text-muted-foreground">{c.state}</td>
                       <td className="px-2 py-1.5 text-xs">
                         {blank ? (
                           <span className="italic text-amber-700 dark:text-amber-400">— blank —</span>
@@ -338,25 +426,36 @@ export function AudienceEditorModal({
                           <span className="truncate inline-block max-w-[420px] align-bottom">{textbook}</span>
                         )}
                       </td>
+                      {showTuitionCol && (
+                        <td className="px-2 py-1.5 text-xs tabular-nums text-muted-foreground">
+                          {t == null ? "—" : `$${t.toLocaleString()}`}
+                        </td>
+                      )}
+                      {showEnrollmentCol && (
+                        <td className="px-2 py-1.5 text-xs tabular-nums text-muted-foreground">
+                          {c.total_enrollment == null ? "—" : c.total_enrollment.toLocaleString()}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {matchedFiltered.length > 500 && (
                   <tr>
-                    <td colSpan={pinMode ? 4 : 3} className="px-3 py-2 text-[11px] text-muted-foreground">
+                    <td colSpan={3 + (showTuitionCol ? 1 : 0) + (showEnrollmentCol ? 1 : 0)} className="px-3 py-2 text-[11px] text-muted-foreground">
                       + {matchedFiltered.length - 500} more — refine filters or search.
                     </td>
                   </tr>
                 )}
                 {matchedFiltered.length === 0 && (
                   <tr>
-                    <td colSpan={pinMode ? 4 : 3} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                    <td colSpan={3 + (showTuitionCol ? 1 : 0) + (showEnrollmentCol ? 1 : 0)} className="px-3 py-6 text-center text-xs text-muted-foreground">
                       No campuses match these filters.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+
           </div>
 
           <p className="border-t p-2 text-[11px] text-muted-foreground">
