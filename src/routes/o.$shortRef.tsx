@@ -500,15 +500,14 @@ function InfoStep({
 
 
       <div>
-        <Label className="mb-1.5 block text-sm font-medium text-gray-800">
+        <Label className="mb-3 block text-sm font-medium text-gray-800">
           Are you an accounting major?
         </Label>
-        <p className="mb-3 text-xs text-gray-500">Totally optional — just helps us tailor things.</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {[
             { value: "yes" as const, label: "Yes" },
             { value: "no" as const, label: "No" },
-            { value: "definitely_not" as const, label: "Definitely not 😄" },
+            { value: "definitely_not" as const, label: "Undecided" },
           ].map((opt) => {
             const active = draft.accountingMajorStatus === opt.value;
             return (
