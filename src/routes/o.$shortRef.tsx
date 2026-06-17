@@ -185,11 +185,20 @@ function OnboardingPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
-      <div className="mx-auto w-full max-w-6xl px-4 pt-8 sm:pt-10">
-        <a href="/" aria-label="Survive Accounting — home" className="inline-block">
-          <img src={LOGO_URL} alt="Survive Accounting" className="h-8 w-auto sm:h-10" loading="eager" />
-        </a>
-      </div>
+      <header
+        className="sticky top-0 z-40 w-full border-b"
+        style={{
+          background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)",
+          borderColor: "rgba(255,255,255,0.08)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.04) inset",
+        }}
+      >
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center px-4 sm:px-6">
+          <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
+            <img src={LOGO_URL} alt="Survive Accounting" className="h-5 w-auto select-none sm:h-[22px]" draggable={false} />
+          </a>
+        </div>
+      </header>
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-14 pt-8 sm:pt-12 lg:grid-cols-[1fr_240px]">
         <div className="min-w-0">
           {step < 3 && <Stepper current={step as 0 | 1 | 2} />}
