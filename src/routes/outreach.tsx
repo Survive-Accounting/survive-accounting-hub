@@ -106,12 +106,6 @@ function OutreachPage() {
 
 
 
-  return (
-    <AdminGate>
-
-    <div className="min-h-screen bg-background">
-      <Toaster richColors position="top-center" />
-      <div className="mx-auto max-w-7xl px-6 py-8">
   const campaignsItems = [
     { value: "schools", label: "Campuses", icon: GraduationCap },
     { value: "audiences", label: "Audiences", icon: Users },
