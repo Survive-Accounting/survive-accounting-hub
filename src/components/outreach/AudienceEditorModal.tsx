@@ -263,8 +263,48 @@ export function AudienceEditorModal({
                 placeholder="e.g. McGraw" className="h-8 w-44 text-xs"
               />
             </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-muted-foreground">Tuition / yr</span>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number" placeholder="Min" className="h-8 w-20 text-xs"
+                  value={filters.minTuition ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, minTuition: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="number" placeholder="Max" className="h-8 w-20 text-xs"
+                  value={filters.maxTuition ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, maxTuition: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-muted-foreground">Enrollment</span>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number" placeholder="Min" className="h-8 w-24 text-xs"
+                  value={filters.minEnrollment ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, minEnrollment: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="number" placeholder="Max" className="h-8 w-24 text-xs"
+                  value={filters.maxEnrollment ?? ""}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, maxEnrollment: e.target.value === "" ? null : Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-1.5 h-8">
+              <Checkbox
+                checked={filters.secOnly}
+                onCheckedChange={(v) => setFilters((prev) => ({ ...prev, secOnly: !!v }))}
+              />
+              <span>SEC only 🏈</span>
+            </label>
           </div>
         </div>
+
 
         <div className="rounded-md border bg-card flex-1 min-h-0 flex flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b p-2 text-xs">
