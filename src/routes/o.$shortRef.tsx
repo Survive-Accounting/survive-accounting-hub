@@ -252,6 +252,10 @@ function LeeAside() {
         loading="lazy"
       />
       <div className="mt-4 text-center">
+        <p className="text-base font-semibold tracking-tight" style={{ color: NAVY }}>Lee Ingram</p>
+        <TrustPills />
+      </div>
+      <div className="mt-6 w-full border-t border-gray-200/70 pt-5 text-center">
         <p className="text-sm font-semibold" style={{ color: NAVY }}>Questions?</p>
         <p className="mt-0.5 text-xs text-gray-600">Text me anytime.</p>
         <a
@@ -261,10 +265,6 @@ function LeeAside() {
         >
           {LEE_PHONE_DISPLAY}
         </a>
-      </div>
-      <div className="mt-6 w-full border-t border-gray-200/70 pt-5 text-center">
-        <p className="text-sm font-semibold tracking-tight" style={{ color: NAVY }}>Lee Ingram</p>
-        <TrustPills />
       </div>
     </aside>
   );
