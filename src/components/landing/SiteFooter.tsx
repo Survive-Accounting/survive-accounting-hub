@@ -68,6 +68,30 @@ export default function SiteFooter({
             © {new Date().getFullYear()} Earned Wisdom, LLC · Created by Lee Ingram
           </p>
           <div className="flex items-center gap-4">
+            <details className="group">
+              <summary
+                className="cursor-pointer list-none text-[11px] hover:underline"
+                style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Inter, sans-serif" }}
+              >
+                <span className="group-open:hidden">SMS policy</span>
+                <span className="hidden group-open:inline">Hide SMS policy</span>
+              </summary>
+              <p
+                className="mt-2 text-[11px] leading-relaxed"
+                style={{
+                  color: "rgba(255,255,255,0.55)",
+                  fontFamily: "Inter, sans-serif",
+                  maxWidth: 520,
+                }}
+              >
+                By texting (662) 565-8818, you agree to receive replies from Lee
+                about your tutoring request. Message frequency varies. Msg &amp; data
+                rates may apply. Reply STOP to opt out, HELP for help. See our{" "}
+                <a href="/privacy" className="underline hover:text-white">Privacy</a>{" "}
+                and{" "}
+                <a href="/terms" className="underline hover:text-white">Terms</a>.
+              </p>
+            </details>
             <a
               href="/privacy"
               className="text-[11px] hover:underline"
