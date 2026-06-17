@@ -663,18 +663,28 @@ function SchoolPicker({
 
 // ---------- Course picker (shown after school is selected) ----------
 function CoursePicker({
-  course, courseOther, notSure, onPickCourse, onNotSure, onTypeOther, onResetOther, error,
+  campusId, course, courseOther, notSure,
+  onPickCourse, onNotSure, onTypeOther, onResetOther, error,
 }: {
-  course: string;
+  campusId: string | null;
+  course: string; // a CourseFamilyKey or ""
   courseOther: string;
   notSure: boolean;
-  onPickCourse: (v: string) => void;
+  onPickCourse: (v: CourseFamilyKey) => void;
   onNotSure: () => void;
   onTypeOther: (v: string) => void;
   onResetOther: () => void;
   error?: string;
 }) {
-  const otherMode = courseOther.length > 0 || (!course && !notSure && courseOther !== "");
+  const codesFn = useServerFn(getCampusCourseCodes);
+  const { data: codes } = useQuery({
+    queryKey: ["campus-course-codes", campusId],
+    queryFn: () => codesFn({ data: { campusId: campusId! } }),
+    enabled: !!campusId,
+    staleTime: 5 * 60_000,
+  });
+
+  const otherMode = courseOther.length > 0;
   const selectValue = notSure
     ? "__not_sure__"
     : otherMode
@@ -683,8 +693,7 @@ function CoursePicker({
 
   const handleChange = (v: string) => {
     if (v === "__not_sure__") return onNotSure();
-    if (v === "__other__") return onTypeOther(" "); // sentinel non-empty to enter other mode
-    onPickCourse(v);
+    onPickCourse(v as CourseFamilyKey);
   };
 
   return (
@@ -692,21 +701,9 @@ function CoursePicker({
       <Label className="mb-1.5 block text-sm font-medium text-gray-800">
         Course<span className="ml-0.5 text-red-600">*</span>
       </Label>
-      <Select value={selectValue} onValueChange={handleChange}>
-        <SelectTrigger className="h-11">
-          <SelectValue placeholder="Pick your course" />
-        </SelectTrigger>
-        <SelectContent>
-          {COURSE_OPTIONS.map((c) => (
-            <SelectItem key={c} value={c}>{c}</SelectItem>
-          ))}
-          <SelectItem value="__not_sure__">Not sure</SelectItem>
-          <SelectItem value="__other__">My course isn&apos;t listed</SelectItem>
-        </SelectContent>
-      </Select>
 
-      {(otherMode || courseOther) && (
-        <div className="mt-2 space-y-2">
+      {otherMode ? (
+        <div className="space-y-2">
           <Input
             placeholder="Type your course name or number"
             value={courseOther.trim() === "" ? "" : courseOther}
@@ -718,6 +715,29 @@ function CoursePicker({
             Pick from the list instead
           </button>
         </div>
+      ) : (
+        <>
+          <Select value={selectValue} onValueChange={handleChange}>
+            <SelectTrigger className="h-11">
+              <SelectValue placeholder="Pick your course" />
+            </SelectTrigger>
+            <SelectContent>
+              {COURSE_FAMILIES.map((c) => (
+                <SelectItem key={c.key} value={c.key}>
+                  {formatCourseOption(c.key, codes?.[c.key] ?? null)}
+                </SelectItem>
+              ))}
+              <SelectItem value="__not_sure__">Not Sure</SelectItem>
+            </SelectContent>
+          </Select>
+          <button
+            type="button"
+            className="mt-2 text-xs text-gray-600 underline"
+            onClick={() => onTypeOther(" ")}
+          >
+            My course isn&apos;t listed
+          </button>
+        </>
       )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
