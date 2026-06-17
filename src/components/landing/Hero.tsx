@@ -225,8 +225,8 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               color: "rgba(255,255,255,0.78)",
               fontFamily: "Inter, sans-serif",
               fontSize: "17px",
-              lineHeight: 1.55,
-              maxWidth: 600,
+              lineHeight: 1.65,
+              maxWidth: 680,
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
