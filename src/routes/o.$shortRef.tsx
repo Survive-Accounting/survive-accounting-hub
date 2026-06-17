@@ -64,6 +64,22 @@ const KNOWN_COURSE_TITLES = new Set<string>([
   "Intermediate Accounting 1", "Intermediate Accounting 2",
 ]);
 
+function courseNameToFamilyKey(name: string): CourseFamilyKey | null {
+  const n = name.trim().toLowerCase();
+  if (!n) return null;
+  if (n === "intro 1" || n === "intro accounting 1") return "intro_1";
+  if (n === "intro 2" || n === "intro accounting 2") return "intro_2";
+  if (n === "ia1" || n === "intermediate accounting 1") return "intermediate_1";
+  if (n === "ia2" || n === "intermediate accounting 2") return "intermediate_2";
+  return null;
+}
+
+function formatCourseOption(key: CourseFamilyKey, code: string | null): string {
+  const title = COURSE_TITLE_BY_KEY[key];
+  return code ? `${code} — ${title}` : title;
+}
+
+
 const STEPS = ["Add Your Info", "Confirm Pricing", "Submit Request"] as const;
 
 const onboardingQuery = (shortRef: string) =>
