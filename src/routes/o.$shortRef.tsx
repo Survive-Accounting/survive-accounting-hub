@@ -107,6 +107,7 @@ function draftFromSnapshot(s: OnboardingSnapshot): Draft {
     isGreekMember: s.isGreekMember,
     greekOrgName: s.greekOrgName ?? "",
     futureInterests: s.futureInterests,
+    accountingMajorStatus: s.accountingMajorStatus,
   };
 }
 
