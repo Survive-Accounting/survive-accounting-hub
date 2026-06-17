@@ -570,8 +570,9 @@ function SchoolPicker({
 
 // ---------- Step 2: Pricing ----------
 function PricingStep({
-  draft, update, onContinue, onBack,
+  firstName, draft, update, onContinue, onBack,
 }: {
+  firstName: string | null;
   draft: Draft;
   update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
   onContinue: () => void;
@@ -584,7 +585,10 @@ function PricingStep({
 
   return (
     <div className="space-y-7">
-      <Title>How does this sound?</Title>
+      <Title subtitle={firstName ? `Nice to meet you, ${firstName}.` : undefined}>
+        How does this sound?
+      </Title>
+
 
       <ul className="space-y-3 rounded-2xl border bg-gray-50 p-6 text-[15px] text-gray-800">
         <li className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> Free 30-minute introductory session</li>
