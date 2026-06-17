@@ -40,6 +40,13 @@ const FUTURE_OPTIONS = [
   "Free tips and updates",
 ];
 
+const COURSE_OPTIONS = [
+  "Intro Accounting 1",
+  "Intro Accounting 2",
+  "Intermediate Accounting 1",
+  "Intermediate Accounting 2",
+] as const;
+
 const STEPS = ["Add Your Info", "Confirm Pricing", "Submit Request"] as const;
 
 const onboardingQuery = (shortRef: string) =>
