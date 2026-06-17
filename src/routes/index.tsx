@@ -34,23 +34,53 @@ function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function HeroCta() {
+function HeroCta({ onReadReviews }: { onReadReviews: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-4">
       <a
         href={SMS_HREF}
-        className="hero-anim-btn rounded-xl px-9 py-4 text-[16px] font-bold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center justify-center"
+        className="hero-anim-btn group rounded-2xl px-10 py-5 text-[17px] font-bold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center justify-center gap-3"
         style={{
           background: "linear-gradient(180deg, #CE1126 0%, #A8101F 100%)",
           fontFamily: "Inter, sans-serif",
           boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.25), 0 10px 28px rgba(206,17,38,0.35)",
+            "inset 0 1px 0 rgba(255,255,255,0.25), 0 14px 36px rgba(206,17,38,0.42)",
           letterSpacing: "0.01em",
           textDecoration: "none",
         }}
       >
-        Text Lee for Tutoring →
+        <MessageCircle className="w-5 h-5" strokeWidth={2.5} />
+        <span>
+          Text Lee{" "}
+          <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
+            {TUTOR_PHONE_PRETTY}
+          </span>
+        </span>
+        <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
+
+      <p
+        className="hero-anim-btn text-[12px]"
+        style={{
+          color: "rgba(255,255,255,0.55)",
+          fontFamily: "Inter, sans-serif",
+          letterSpacing: "0.02em",
+        }}
+      >
+        Replies usually within an hour · Msg &amp; data rates may apply
+      </p>
+
+      <button
+        onClick={onReadReviews}
+        className="hero-anim-btn text-[13px] underline-offset-4 hover:underline transition-colors"
+        style={{
+          color: "rgba(255,255,255,0.7)",
+          fontFamily: "Inter, sans-serif",
+          background: "transparent",
+        }}
+      >
+        Read reviews from students
+      </button>
     </div>
   );
 }
