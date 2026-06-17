@@ -97,15 +97,23 @@ type Draft = {
 };
 
 function draftFromSnapshot(s: OnboardingSnapshot): Draft {
+  // Strip synthetic web phone markers (e.g. "web:UUID") from prefill.
+  const phone = s.phone && !s.phone.startsWith("web:") ? s.phone : "";
+  // Map server-saved course (display name) back into either the dropdown
+  // value or the "other" write-in field.
+  const courseName = (s.course ?? "").trim();
+  const isKnown = COURSE_OPTIONS.includes(courseName);
+  const isNotSure = courseName === "Not sure";
   return {
     firstName: s.firstName ?? "",
     lastName: s.lastName ?? "",
     email: s.email ?? "",
-    phone: s.phone ?? "",
+    phone,
     campusId: s.campusId,
     schoolName: s.campus ?? "",
-    course: s.course && s.course !== "Not sure" ? s.course : "",
-    notSureCourse: s.course === "Not sure",
+    course: isKnown ? courseName : "",
+    courseOther: !isKnown && !isNotSure ? courseName : "",
+    notSureCourse: isNotSure,
     pricingReaction: (s.pricingReaction as Draft["pricingReaction"]) ?? null,
     stressFactors: s.stressFactors,
     isGreekMember: s.isGreekMember,
