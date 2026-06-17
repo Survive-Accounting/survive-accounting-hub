@@ -883,7 +883,8 @@ function ExtrasStep({
         schoolName: draft.campusId ? null : (draft.schoolName.trim() || null),
         courseCodeOrName: draft.notSureCourse
           ? "Not sure"
-          : (draft.courseOther.trim() || draft.course.trim() || null),
+          : (draft.courseOther.trim()
+              || (draft.course ? COURSE_TITLE_BY_KEY[draft.course as CourseFamilyKey] ?? null : null)),
         pricingReaction: draft.pricingReaction ?? "sounds_good",
         stressFactors: draft.stressFactors,
         isGreekMember: greekMode === "choose" ? true : greekMode === "not" ? false : null,
