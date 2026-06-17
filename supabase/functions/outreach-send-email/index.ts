@@ -98,6 +98,15 @@ function joinCourses(codes: string[]): string {
   return tokens.slice(0, -1).join(", ") + ", and " + tokens[tokens.length - 1];
 }
 
+/** Like joinCourses, but always keeps the full code on every entry (never collapses prefix). */
+function joinCoursesFull(codes: string[]): string {
+  const cleaned = codes.map((c) => c.trim()).filter(Boolean);
+  if (cleaned.length === 0) return "";
+  if (cleaned.length === 1) return cleaned[0];
+  if (cleaned.length === 2) return `${cleaned[0]} and ${cleaned[1]}`;
+  return cleaned.slice(0, -1).join(", ") + ", and " + cleaned[cleaned.length - 1];
+}
+
 /** Render **bold** and _italic_ markdown in a pre-escaped string segment. */
 function applyBold(html: string): string {
   return html
