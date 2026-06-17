@@ -50,22 +50,28 @@ function scrollToId(id: string) {
 function HeroCta() {
   return (
     <div className="flex flex-col items-center gap-4">
+      {/* Mobile: SMS link */}
       <a
         href={SMS_HREF}
-        className="hero-anim-btn group rounded-2xl px-10 py-5 text-[17px] font-bold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center justify-center gap-3"
-        style={{
-          background: "linear-gradient(180deg, #CE1126 0%, #A8101F 100%)",
-          fontFamily: "Inter, sans-serif",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.25), 0 14px 36px rgba(206,17,38,0.42)",
-          letterSpacing: "0.01em",
-          textDecoration: "none",
-        }}
+        className={`${RED_BTN_CLASS} md:hidden`}
+        style={RED_BTN_STYLE}
       >
         <MessageCircle className="w-5 h-5" strokeWidth={2.5} />
         <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
-          {TUTOR_PHONE_PRETTY}
+          Text Lee {TUTOR_PHONE_PRETTY}
         </span>
+      </a>
+
+      {/* Desktop/tablet: Get Started → /start */}
+      <a
+        href="/start"
+        className={`${RED_BTN_CLASS} hidden md:inline-flex`}
+        style={RED_BTN_STYLE}
+      >
+        <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
+          Get Started
+        </span>
+        <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
 
       <p
