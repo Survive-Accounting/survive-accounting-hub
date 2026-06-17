@@ -20,6 +20,7 @@ import AddCampusModal from "@/components/outreach/AddCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
 import { TextsPanel } from "@/components/outreach/TextsPanel";
+import { TutoringRequestsPanel } from "@/components/outreach/TutoringRequestsPanel";
 import { WaitlistCard } from "@/components/outreach/WaitlistCard";
 import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import { ArchiveAllLeadsButton } from "@/components/outreach/ArchiveAllLeadsButton";
@@ -121,7 +122,7 @@ function OutreachPage() {
             <TabsTrigger value="schools" className="text-sm font-medium">Campuses</TabsTrigger>
             <TabsTrigger value="audiences" className="text-sm font-medium">Audiences</TabsTrigger>
             <TabsTrigger value="templates" className="text-sm font-medium">Email Queue</TabsTrigger>
-            <TabsTrigger value="texts" className="text-sm font-medium">Texts</TabsTrigger>
+            <TabsTrigger value="texts" className="text-sm font-medium">Students</TabsTrigger>
           </TabsList>
 
           <TabsContent value="home" className="mt-8 space-y-8">
