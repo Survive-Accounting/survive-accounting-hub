@@ -325,13 +325,7 @@ Deno.serve(async (req) => {
       await twilioSend(to, LEE_PHONE, summary);
     }
 
-    await finalizeRaw(
-      autoReplyKind === "booking" ? "reply_booking_sent"
-        : autoReplyKind === "ack" ? "reply_ack_sent"
-        : "reply_no_auto",
-      null,
-      convo.id,
-    );
+    await finalizeRaw("reply_no_auto", null, convo.id);
     return twiml();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
