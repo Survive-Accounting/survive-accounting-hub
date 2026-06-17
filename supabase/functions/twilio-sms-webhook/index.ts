@@ -85,7 +85,9 @@ async function twilioSend(from: string, to: string, body: string): Promise<strin
     },
   );
   const j = await res.json().catch(() => ({}));
-  return res.ok ? (j?.sid ?? null) : null;
+  if (res.ok) return j?.sid ?? null;
+  console.error("twilio-sms-webhook: Twilio send failed", JSON.stringify(j));
+  return null;
 }
 
 /** Claude extraction — fills course/exam_date/struggles/major/sentiment. */
@@ -235,7 +237,6 @@ Deno.serve(async (req) => {
     }
 
     let convo: any = existing;
-    const isFirst = !existing;
     if (!convo) {
       const { data: created } = await admin.from("sms_conversations")
         .insert({ student_phone: from, campus_number: to, campus_id: campus?.id ?? null, is_tester: isTesterPhone })
@@ -256,13 +257,15 @@ Deno.serve(async (req) => {
     const campusLabel = campus?.name ?? to;
     const isTester = isTesterPhone || convo.is_tester === true;
 
-    // First message in conversation: send scripted opener.
-    if (isFirst && !convo.opener_sent) {
+    // Send the scripted opener exactly once. If a prior attempt failed before
+    // `opener_sent` was set, the next inbound retries instead of silently
+    // suppressing the student auto-reply.
+    if (!convo.opener_sent) {
       const sentSid = await twilioSend(to, from, TPL_OPENER);
       await admin.from("sms_messages").insert({
         conversation_id: convo.id, direction: "out", author: "auto", body: TPL_OPENER, twilio_sid: sentSid,
       });
-      await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
+      if (sentSid) await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
 
       if (LEE_PHONE) {
         const summary = render(TPL_LEE_NEW, {
@@ -272,9 +275,9 @@ Deno.serve(async (req) => {
           from,
           body,
         });
-        await twilioSend(to, LEE_PHONE, summary);
+        await twilioSend(to, LEE_PHONE, sentSid ? summary : `${summary}\n\nAuto-reply failed to send; retrying on the student's next text.`);
       }
-      await finalizeRaw("first_message_opener_sent", null, convo.id);
+      await finalizeRaw(sentSid ? "first_message_opener_sent" : "opener_send_failed", sentSid ? null : "Twilio did not accept opener send", convo.id);
       return twiml();
     }
 
