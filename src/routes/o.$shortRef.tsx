@@ -68,10 +68,10 @@ const KNOWN_COURSE_TITLES = new Set<string>([
 function courseNameToFamilyKey(name: string): CourseFamilyKey | null {
   const n = name.trim().toLowerCase();
   if (!n) return null;
-  if (n === "intro 1" || n === "intro accounting 1") return "intro_1";
-  if (n === "intro 2" || n === "intro accounting 2") return "intro_2";
-  if (n === "ia1" || n === "intermediate accounting 1") return "intermediate_1";
-  if (n === "ia2" || n === "intermediate accounting 2") return "intermediate_2";
+  if (n === "intro 1" || n === "intro accounting 1" || n === "introduction to financial accounting") return "intro_1";
+  if (n === "intro 2" || n === "intro accounting 2" || n === "introduction to managerial accounting") return "intro_2";
+  if (n === "ia1" || n === "intermediate accounting 1" || n === "intermediate financial accounting 1") return "intermediate_1";
+  if (n === "ia2" || n === "intermediate accounting 2" || n === "intermediate financial accounting 2") return "intermediate_2";
   return null;
 }
 
