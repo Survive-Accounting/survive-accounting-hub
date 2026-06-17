@@ -110,7 +110,7 @@ function Home() {
       />
       <Reviews />
       <ContactForm />
-      <SmsPolicyFootnote />
+      
       <SiteFooter onScrollToReviews={goToReviews} />
       <Toaster position="top-center" richColors />
     </div>
