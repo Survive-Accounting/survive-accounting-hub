@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\[First Name\]/g, greetingName);
 
-    const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`).replace(/\*\*(.+?)\*\*/g, "$1");
+    const textBody = mergedBody.replaceAll(SA_LINK_TOKEN, `SurviveAccounting.com (${surviveLinkUrl})`).replace(/\*\*(.+?)\*\*/g, "$1").replace(/(^|[^A-Za-z0-9_])_([^\n_]+?)_(?=$|[^A-Za-z0-9_])/g, "$1$2");
 
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
