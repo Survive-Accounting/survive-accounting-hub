@@ -329,31 +329,38 @@ function StepContent({
     const items: StressItem[] = [
       "Upcoming exam",
       "Falling behind",
-      "Don't understand concepts",
-      "Homework piling up",
-      "Bad grade on last test",
-      "Just starting the course",
+      "Homework",
+      "Understanding concepts",
+      "Test anxiety",
+      "Busy schedule",
+      "Need accountability",
+      "Study strategies",
+      "Just trying to pass",
+      "Something else",
     ];
     const toggle = (v: StressItem) => {
-      const has = answers.stress.includes(v);
-      update("stress", has ? answers.stress.filter((x) => x !== v) : [...answers.stress, v]);
+      const has = answers.stressFactors.includes(v);
+      update(
+        "stressFactors",
+        has ? answers.stressFactors.filter((x) => x !== v) : [...answers.stressFactors, v],
+      );
     };
     return (
       <StepShell
         eyebrow="Step 2"
-        title="What's stressing you out?"
-        subtitle="Pick anything that applies. The more honest, the better Lee can help."
+        title="What's stressing you out most right now?"
+        subtitle="Select all that apply."
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {items.map((item) => {
-            const active = answers.stress.includes(item);
+            const active = answers.stressFactors.includes(item);
             return (
               <button
                 key={item}
                 type="button"
                 onClick={() => toggle(item)}
                 className={cn(
-                  "group flex items-center justify-between rounded-2xl border bg-white px-5 py-4 text-left text-base font-medium transition-all",
+                  "group flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-5 text-left text-base font-medium transition-all",
                   active
                     ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
                     : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
@@ -362,13 +369,13 @@ function StepContent({
                 <span>{item}</span>
                 <span
                   className={cn(
-                    "grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors",
+                    "grid h-6 w-6 shrink-0 place-items-center rounded-md border transition-colors",
                     active
                       ? "border-[color:var(--brand-navy)] bg-[color:var(--brand-navy)] text-white"
-                      : "border-black/15 bg-white",
+                      : "border-black/20 bg-white",
                   )}
                 >
-                  {active && <Check className="h-4 w-4" />}
+                  {active && <Check className="h-4 w-4" strokeWidth={3} />}
                 </span>
               </button>
             );
@@ -377,6 +384,7 @@ function StepContent({
       </StepShell>
     );
   }
+
 
   if (step === "pricing") {
     const options: { value: Pricing; price: string; desc: string }[] = [
