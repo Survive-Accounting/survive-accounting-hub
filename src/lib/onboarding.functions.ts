@@ -418,6 +418,7 @@ export const submitOnboarding = createServerFn({ method: "POST" })
       is_greek_member: data.isGreekMember ?? null,
       greek_org_name: data.isGreekMember ? (data.greekOrgName ?? null) : null,
       future_interests: data.futureInterests.length ? JSON.stringify(data.futureInterests) : null,
+      accounting_major_status: data.accountingMajorStatus ?? null,
       contact_info_completed_at: now,
       required_onboarding_completed_at: current?.required_onboarding_completed_at ?? now,
       greek_completed_at: now,
