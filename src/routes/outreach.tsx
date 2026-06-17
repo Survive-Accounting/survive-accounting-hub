@@ -5,17 +5,16 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Users } from "lucide-react";
+import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Settings, Users } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton,
   SidebarMenuSubItem, SidebarProvider, SidebarTrigger, SidebarInset,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
-import { CampusQueuePanel } from "@/components/outreach/CampusQueuePanel";
 import { HomeDashboard } from "@/components/outreach/HomeDashboard";
 import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
