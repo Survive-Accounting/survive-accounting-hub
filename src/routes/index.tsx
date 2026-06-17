@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Check } from "lucide-react";
 import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
@@ -74,16 +74,31 @@ function HeroCta() {
         <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
 
-      <p
-        className="hero-anim-btn mt-2 text-center text-[13px] font-light"
+      <div
+        className="hero-anim-btn mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5"
         style={{
-          color: "rgba(255,255,255,0.75)",
-          fontFamily: "Inter, sans-serif",
-          letterSpacing: "0.02em",
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
         }}
       >
-        1,000+ students tutored
-      </p>
+        <Check
+          className="w-4 h-4"
+          strokeWidth={3}
+          style={{ color: "#7CFFB2" }}
+        />
+        <span
+          className="text-[13px] font-medium"
+          style={{
+            color: "rgba(255,255,255,0.92)",
+            fontFamily: "Inter, sans-serif",
+            letterSpacing: "0.01em",
+          }}
+        >
+          1,000+ students helped since 2015
+        </span>
+      </div>
     </div>
   );
 }
@@ -96,16 +111,7 @@ function Home() {
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
         headline="Let's Make Accounting Feel Easy"
-        subtext={
-          <>
-            <span className="md:hidden">
-              Get expert help from a virtual tutor who knows your exams. Text me below to get started.
-            </span>
-            <span className="hidden md:inline">
-              Get expert help from a virtual tutor who knows your exams. My sessions are relaxed, straightforward, and designed to boost your confidence and reduce your stress.
-            </span>
-          </>
-        }
+        subtext="Get virtual tutoring from a 10+ year expert who knows your exams. Every session is designed to reduce stress, boost confidence, and help you ace your next test."
         ctaSlot={<HeroCta />}
       />
       <Reviews />
