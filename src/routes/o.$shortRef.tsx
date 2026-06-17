@@ -252,15 +252,15 @@ function LeeAside() {
         loading="lazy"
       />
       <div className="mt-4 text-center">
-        <p className="text-base font-semibold tracking-tight" style={{ color: NAVY }}>Lee Ingram</p>
         <TrustPills />
       </div>
       <div className="mt-6 w-full border-t border-gray-200/70 pt-5 text-center">
         <p className="text-sm font-semibold" style={{ color: NAVY }}>Questions?</p>
         <p className="mt-0.5 text-xs text-gray-600">Text me anytime.</p>
+        <p className="mt-2 text-base font-semibold tracking-tight" style={{ color: NAVY }}>Lee Ingram</p>
         <a
           href={`sms:${LEE_PHONE_HREF}`}
-          className="mt-1 inline-block text-sm font-semibold tracking-tight hover:underline"
+          className="mt-0.5 inline-block text-sm font-semibold tracking-tight hover:underline"
           style={{ color: RED }}
         >
           {LEE_PHONE_DISPLAY}
