@@ -1,7 +1,7 @@
 // SMS template editor — operator-editable copy for the auto-replies and the
 // summary texts Lee receives. Tokens shown beneath each field are the only
 // placeholders the webhook expands.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -21,18 +21,23 @@ export function SmsTemplatesEditor() {
   const tplQuery = useQuery({ queryKey: ["sms-templates"], queryFn: fetchSmsTemplates });
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const serverBodiesRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (!tplQuery.data) return;
-    // Only seed drafts for templates not already being edited, so a background
-    // refetch (window focus, invalidation) doesn't wipe in-progress typing.
+    const previousServerBodies = serverBodiesRef.current;
+    const latestServerBodies: Record<string, string> = {};
+    for (const t of tplQuery.data) latestServerBodies[t.key] = t.body;
+    // Keep drafts in sync with server-side template changes, but don't wipe an
+    // in-progress local edit that differs from the last server value we saw.
     setDrafts((prev) => {
       const next = { ...prev };
       for (const t of tplQuery.data!) {
-        if (next[t.key] === undefined) next[t.key] = t.body;
+        if (next[t.key] === undefined || next[t.key] === previousServerBodies[t.key]) next[t.key] = t.body;
       }
       return next;
     });
+    serverBodiesRef.current = latestServerBodies;
   }, [tplQuery.data]);
 
   const isDirty = (t: SmsTemplate) => (drafts[t.key] ?? t.body) !== t.body;
