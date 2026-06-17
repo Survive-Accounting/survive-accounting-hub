@@ -51,7 +51,11 @@ type StressItem =
   | "Just trying to pass"
   | "Something else";
 type PriceReaction = "accepted" | "hesitant";
-type Future = "CPA exam" | "Internship prep" | "Grad school" | "Just passing this class";
+type FutureInterest =
+  | "Practice exams with video solutions"
+  | "Homework help"
+  | "Group reviews"
+  | "Free tips and updates";
 
 type Answers = {
   campusId: string;
@@ -60,9 +64,10 @@ type Answers = {
   professor: string;
   stressFactors: StressItem[];
   priceReaction: PriceReaction | "";
-  greek: string;
-  future: Future[];
+  greekOrg: string; // "" = unanswered, "__not_greek__" = not greek, otherwise chapter name
+  futureInterests: FutureInterest[];
   syllabusName: string;
+  syllabusSkipped: boolean;
   name: string;
   phone: string;
 };
@@ -87,9 +92,10 @@ function OnboardPage() {
     professor: "",
     stressFactors: [],
     priceReaction: "",
-    greek: "",
-    future: [],
+    greekOrg: "",
+    futureInterests: [],
     syllabusName: "",
+    syllabusSkipped: false,
     name: "",
     phone: "",
   });
