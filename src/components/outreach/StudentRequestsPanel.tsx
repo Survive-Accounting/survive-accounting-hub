@@ -27,7 +27,7 @@ import {
   type StudentConversationTarget,
 } from "./StudentConversationModal";
 
-type Filter = "all" | "texts" | "syllabi" | "unreplied";
+type Filter = "all" | "texts" | "syllabi" | "unreplied" | "archived";
 
 interface RequestRow {
   key: string;
@@ -38,6 +38,7 @@ interface RequestRow {
   email: string | null;
   preview: string;
   replied: boolean;
+  archived: boolean;
   // For mutations:
   smsMessageId?: string;
   intakeId?: string;
@@ -51,6 +52,7 @@ interface InboundSmsRow {
   body: string;
   created_at: string;
   replied_by_lee: boolean;
+  archived_by_lee: boolean;
   conversation_id: string;
   conversation: {
     id: string;
@@ -69,12 +71,13 @@ interface SyllabusIntakeRow {
   syllabus_uploaded_at: string | null;
   created_at: string;
   replied_by_lee: boolean;
+  archived_by_lee: boolean;
 }
 
-async function fetchInboundTexts(limit = 50): Promise<InboundSmsRow[]> {
+async function fetchInboundTexts(limit = 100): Promise<InboundSmsRow[]> {
   const { data, error } = await (supabase.from("sms_messages" as never) as any)
     .select(
-      "id,body,created_at,replied_by_lee,conversation_id,conversation:sms_conversations(id,student_phone,short_ref)",
+      "id,body,created_at,replied_by_lee,archived_by_lee,conversation_id,conversation:sms_conversations(id,student_phone,short_ref)",
     )
     .eq("direction", "in")
     .order("created_at", { ascending: false })
@@ -83,10 +86,10 @@ async function fetchInboundTexts(limit = 50): Promise<InboundSmsRow[]> {
   return (data ?? []) as InboundSmsRow[];
 }
 
-async function fetchSyllabusUploads(limit = 50): Promise<SyllabusIntakeRow[]> {
+async function fetchSyllabusUploads(limit = 100): Promise<SyllabusIntakeRow[]> {
   const { data, error } = await (supabase.from("student_intake_submissions" as never) as any)
     .select(
-      "id,first_name,last_name,email,phone,syllabus_file_url,syllabus_uploaded_at,created_at,replied_by_lee",
+      "id,first_name,last_name,email,phone,syllabus_file_url,syllabus_uploaded_at,created_at,replied_by_lee,archived_by_lee",
     )
     .not("syllabus_file_url", "is", null)
     .order("created_at", { ascending: false })
@@ -96,7 +99,7 @@ async function fetchSyllabusUploads(limit = 50): Promise<SyllabusIntakeRow[]> {
 }
 
 async function fetchStudentRequests(): Promise<RequestRow[]> {
-  const [texts, sylls] = await Promise.all([fetchInboundTexts(50), fetchSyllabusUploads(50)]);
+  const [texts, sylls] = await Promise.all([fetchInboundTexts(100), fetchSyllabusUploads(100)]);
 
   const textRows: RequestRow[] = texts.map((t) => ({
     key: `t:${t.id}`,
@@ -109,6 +112,7 @@ async function fetchStudentRequests(): Promise<RequestRow[]> {
     email: null,
     preview: t.body,
     replied: !!t.replied_by_lee,
+    archived: !!t.archived_by_lee,
     smsMessageId: t.id,
     conversationId: t.conversation_id,
   }));
@@ -124,6 +128,7 @@ async function fetchStudentRequests(): Promise<RequestRow[]> {
       email: s.email,
       preview: "Syllabus uploaded",
       replied: !!s.replied_by_lee,
+      archived: !!s.archived_by_lee,
       intakeId: s.id,
       syllabusUrl: s.syllabus_file_url,
     };
