@@ -352,17 +352,29 @@ export function AudienceEditorModal({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-card border-b">
                 <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  {pinMode && <th className="w-8 px-2 py-2"></th>}
+                  <th className="w-8 px-2 py-2">
+                    <Checkbox
+                      checked={
+                        matchedFiltered.length > 0 &&
+                        matchedFiltered.every((r) => pinnedIds.includes(r.campus.id))
+                      }
+                      onCheckedChange={(v) => {
+                        const on = !!v;
+                        if (!pinMode) setPinMode(true);
+                        const shownIds = matchedFiltered.map((r) => r.campus.id);
+                        setPinnedIds((prev) =>
+                          on
+                            ? Array.from(new Set([...prev, ...shownIds]))
+                            : prev.filter((id) => !shownIds.includes(id)),
+                        );
+                      }}
+                      aria-label="Select all shown"
+                    />
+                  </th>
                   <th className="px-2 py-2">
                     <button type="button" onClick={() => toggleSort("name")}
                       className="inline-flex items-center gap-1 hover:text-foreground">
                       Campus {sortIcon("name")}
-                    </button>
-                  </th>
-                  <th className="px-2 py-2 w-14">
-                    <button type="button" onClick={() => toggleSort("state")}
-                      className="inline-flex items-center gap-1 hover:text-foreground">
-                      ST {sortIcon("state")}
                     </button>
                   </th>
                   <th className="px-2 py-2">
@@ -371,23 +383,42 @@ export function AudienceEditorModal({
                       Textbook {sortIcon("textbook")}
                     </button>
                   </th>
+                  {showTuitionCol && (
+                    <th className="px-2 py-2 w-24">
+                      <button type="button" onClick={() => toggleSort("tuition")}
+                        className="inline-flex items-center gap-1 hover:text-foreground">
+                        Tuition {sortIcon("tuition")}
+                      </button>
+                    </th>
+                  )}
+                  {showEnrollmentCol && (
+                    <th className="px-2 py-2 w-24">
+                      <button type="button" onClick={() => toggleSort("enrollment")}
+                        className="inline-flex items-center gap-1 hover:text-foreground">
+                        Enrollment {sortIcon("enrollment")}
+                      </button>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {matchedFiltered.slice(0, 500).map(({ campus: c, textbook }) => {
                   const pinned = pinnedIds.includes(c.id);
                   const blank = !textbook;
+                  const t = c.tuition_out_state ?? c.tuition_in_state;
                   return (
                     <tr key={c.id}
                       className={`hover:bg-accent/40 ${blank ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}`}>
-                      {pinMode && (
-                        <td className="px-2 py-1.5 align-middle">
-                          <Checkbox checked={pinned}
-                            onCheckedChange={(v) => togglePin(c.id, !!v)} />
-                        </td>
-                      )}
+                      <td className="px-2 py-1.5 align-middle">
+                        <Checkbox
+                          checked={pinned}
+                          onCheckedChange={(v) => {
+                            if (!pinMode) setPinMode(true);
+                            togglePin(c.id, !!v);
+                          }}
+                        />
+                      </td>
                       <td className="px-2 py-1.5 truncate max-w-[260px]">{c.school_name}</td>
-                      <td className="px-2 py-1.5 text-[11px] text-muted-foreground">{c.state}</td>
                       <td className="px-2 py-1.5 text-xs">
                         {blank ? (
                           <span className="italic text-amber-700 dark:text-amber-400">— blank —</span>
@@ -395,25 +426,36 @@ export function AudienceEditorModal({
                           <span className="truncate inline-block max-w-[420px] align-bottom">{textbook}</span>
                         )}
                       </td>
+                      {showTuitionCol && (
+                        <td className="px-2 py-1.5 text-xs tabular-nums text-muted-foreground">
+                          {t == null ? "—" : `$${t.toLocaleString()}`}
+                        </td>
+                      )}
+                      {showEnrollmentCol && (
+                        <td className="px-2 py-1.5 text-xs tabular-nums text-muted-foreground">
+                          {c.total_enrollment == null ? "—" : c.total_enrollment.toLocaleString()}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {matchedFiltered.length > 500 && (
                   <tr>
-                    <td colSpan={pinMode ? 4 : 3} className="px-3 py-2 text-[11px] text-muted-foreground">
+                    <td colSpan={3 + (showTuitionCol ? 1 : 0) + (showEnrollmentCol ? 1 : 0)} className="px-3 py-2 text-[11px] text-muted-foreground">
                       + {matchedFiltered.length - 500} more — refine filters or search.
                     </td>
                   </tr>
                 )}
                 {matchedFiltered.length === 0 && (
                   <tr>
-                    <td colSpan={pinMode ? 4 : 3} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                    <td colSpan={3 + (showTuitionCol ? 1 : 0) + (showEnrollmentCol ? 1 : 0)} className="px-3 py-6 text-center text-xs text-muted-foreground">
                       No campuses match these filters.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+
           </div>
 
           <p className="border-t p-2 text-[11px] text-muted-foreground">
