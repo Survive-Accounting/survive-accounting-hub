@@ -354,8 +354,12 @@ export function applyFilters(campuses: Campus[], f: CampusFilters): Campus[] {
     if (f.highTuitionOnly && (t == null || t < 40000)) return false;
     if (f.minTuition != null && (t == null || t < f.minTuition)) return false;
     if (f.maxTuition != null && (t == null || t > f.maxTuition)) return false;
+    const enr = c.total_enrollment;
+    if (f.minEnrollment != null && (enr == null || enr < f.minEnrollment)) return false;
+    if (f.maxEnrollment != null && (enr == null || enr > f.maxEnrollment)) return false;
     return true;
   });
+
 }
 
 export function exportCampusesCsv(campuses: Campus[]): void {
