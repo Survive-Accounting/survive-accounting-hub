@@ -163,6 +163,7 @@ Deno.serve(async (req) => {
         .replace(/\{\s*program\s*\}/gi, samplePogram)
         .replace(/\{\s*courses\s*\}/gi, sampleCourses)
         .replace(/\{\s*phone\s*\}/gi, samplePhone)
+        .replace(/\{\s*full\s*codes\s*\}/gi, sampleFullCodes)
         .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
         .replace(/\[First Name\]/g, sampleFirst)
         .replace(/\[Booking Link\]/g, BOOKING_LINK)
