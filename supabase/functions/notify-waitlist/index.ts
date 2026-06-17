@@ -33,13 +33,18 @@ Deno.serve(async (req) => {
     `${record.email}${record.phone ? ` · ${record.phone}` : ""}`,
     `Wants: ${wants}`,
   ];
+  if (!TWILIO_MSID) {
+    return new Response(JSON.stringify({ ok: true, skipped: "TWILIO_MESSAGING_SERVICE_SID not configured" }));
+  }
+  // Use the messaging service so the carrier-approved sender pool picks the From number.
+  void main; // kept above only to gate on "main line provisioned" before notifying Lee.
   await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`, {
     method: "POST",
     headers: {
       Authorization: "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`),
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: new URLSearchParams({ From: main.phone_e164, To: LEE_PHONE, Body: lines.join("\n") }),
+    body: new URLSearchParams({ MessagingServiceSid: TWILIO_MSID, To: LEE_PHONE, Body: lines.join("\n") }),
   });
   return new Response(JSON.stringify({ ok: true }));
 });
