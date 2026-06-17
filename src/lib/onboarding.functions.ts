@@ -7,6 +7,28 @@ import { z } from "zod";
 
 const shortRefSchema = z.object({ shortRef: z.coerce.number().int().positive() });
 
+// Creates a fresh sms_conversations row for a web-originated onboarding visit
+// (no inbound text yet). Returns the short_ref so the caller can redirect
+// to /o/{short_ref}. Uses synthetic phone/campus_number markers so the
+// existing UNIQUE (student_phone, campus_number) constraint never collides.
+export const createWebOnboarding = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const marker = `web:${crypto.randomUUID()}`;
+    const { data, error } = await supabaseAdmin
+      .from("sms_conversations")
+      .insert({
+        student_phone: marker,
+        campus_number: "web",
+        status: "active",
+      })
+      .select("short_ref")
+      .single();
+    if (error) throw new Error(error.message);
+    return { shortRef: data.short_ref as number };
+  });
+
+
 export type CampusLite = { id: string; name: string };
 
 export type OnboardingSnapshot = {
