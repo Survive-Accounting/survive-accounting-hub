@@ -25,6 +25,7 @@ import leeHeadshot from "@/assets/lee-headshot-original.png";
 
 const LEE_PHONE_DISPLAY = "(662) 565-8818";
 const LEE_PHONE_HREF = "+16625658818";
+const LOGO_URL = "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -153,7 +154,12 @@ function OnboardingPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-8 sm:py-14 lg:grid-cols-[1fr_240px]">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-8 sm:pt-10">
+        <a href="/" aria-label="Survive Accounting — home" className="inline-block">
+          <img src={LOGO_URL} alt="Survive Accounting" className="h-8 w-auto sm:h-10" loading="eager" />
+        </a>
+      </div>
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-14 pt-8 sm:pt-12 lg:grid-cols-[1fr_240px]">
         <div className="min-w-0">
           {step < 3 && <Stepper current={step as 0 | 1 | 2} />}
 
@@ -186,8 +192,6 @@ function OnboardingPage() {
             )}
             {step === 3 && <SuccessScreen firstName={firstName || null} />}
           </div>
-
-          <TrustPills />
         </div>
 
         <LeeAside />
@@ -203,7 +207,7 @@ function LeeAside() {
     <aside className="hidden lg:flex lg:flex-col lg:items-center lg:pt-2">
       <img
         src={leeHeadshot}
-        alt="Lee, your tutor"
+        alt="Lee Ingram, your tutor"
         className="h-24 w-24 rounded-full object-cover ring-4 ring-white shadow-[0_8px_24px_-10px_rgba(20,33,61,0.35)]"
         loading="lazy"
       />
@@ -218,6 +222,10 @@ function LeeAside() {
           {LEE_PHONE_DISPLAY}
         </a>
       </div>
+      <div className="mt-6 w-full border-t border-gray-200/70 pt-5 text-center">
+        <p className="text-sm font-semibold tracking-tight" style={{ color: NAVY }}>Lee Ingram</p>
+        <TrustPills />
+      </div>
     </aside>
   );
 }
@@ -230,16 +238,16 @@ function TrustPills() {
     color: NAVY,
   };
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+    <div className="mt-3 flex flex-col items-center gap-2">
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium"
+        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium"
         style={pillStyle}
       >
         <Check className="h-3.5 w-3.5" style={{ color: RED }} />
         1,000+ students helped since 2015
       </span>
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium"
+        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium"
         style={pillStyle}
       >
         <span aria-hidden>🎓</span>
