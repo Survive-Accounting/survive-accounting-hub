@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { BatchResearchPanel } from "./BatchResearchPanel";
 import { CleanProfessorResearchPanel } from "./CleanProfessorResearchPanel";
 import { TextbookCoveragePanel } from "./TextbookCoveragePanel";
+import { ProgramAndCoursesPanel } from "./ProgramAndCoursesPanel";
 import type { Campus } from "@/lib/outreach-mock";
 
 export function BatchResearchSettingsModal({
@@ -26,6 +27,7 @@ export function BatchResearchSettingsModal({
             enters the email queue). The panels below remain for ad-hoc work.
           </div>
           <TextbookCoveragePanel />
+          <ProgramAndCoursesPanel />
           <CleanProfessorResearchPanel campuses={campuses} selectedCampusIds={selectedCampusIds} />
           <div className="rounded-md border border-amber-200 bg-amber-50/40 p-3 text-xs text-amber-900">
             <strong>Legacy broad research</strong> below runs the original wide AI flow (profile → broad leads → sections).
