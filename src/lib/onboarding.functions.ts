@@ -272,38 +272,54 @@ export const saveOnboardingPricing = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-// --- Step 5: Optional extras ---
-const saveExtrasSchema = z.object({
+// --- Step 5: Greek ---
+const saveGreekSchema = z.object({
   shortRef: z.coerce.number().int().positive(),
-  isGreekMember: z.boolean().nullable().optional(),
+  isGreekMember: z.boolean().nullable(),
   greekOrgName: z.string().trim().max(120).nullable().optional(),
-  futureInterests: z.string().trim().max(2000).nullable().optional(),
+  skipped: z.boolean().optional(),
 });
 
-export const saveOnboardingExtras = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => saveExtrasSchema.parse(data))
+export const saveOnboardingGreek = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => saveGreekSchema.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
-    const update: {
-      is_greek_member?: boolean | null;
-      greek_org_name?: string | null;
-      future_interests?: string | null;
-    } = {};
-    if (data.isGreekMember !== undefined) update.is_greek_member = data.isGreekMember;
-    if (data.greekOrgName !== undefined) update.greek_org_name = data.greekOrgName;
-    if (data.futureInterests !== undefined) update.future_interests = data.futureInterests;
-    if (Object.keys(update).length === 0) return { ok: true as const };
-    const { error } = await supabaseAdmin.from("student_intake_submissions")
-      .update(update).eq("id", submissionId);
+    const { error } = await supabaseAdmin.from("student_intake_submissions").update({
+      is_greek_member: data.skipped ? null : data.isGreekMember,
+      greek_org_name: data.skipped ? null : (data.isGreekMember ? (data.greekOrgName ?? null) : null),
+      greek_completed_at: new Date().toISOString(),
+    }).eq("id", submissionId);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
 
+// --- Step 6: Future interests ---
+const saveFutureSchema = z.object({
+  shortRef: z.coerce.number().int().positive(),
+  futureInterests: z.array(z.string().trim().min(1).max(120)).max(20),
+  skipped: z.boolean().optional(),
+});
+
+export const saveOnboardingFutureInterests = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => saveFutureSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
+    const { error } = await supabaseAdmin.from("student_intake_submissions").update({
+      future_interests: data.skipped
+        ? null
+        : (data.futureInterests.length ? JSON.stringify(data.futureInterests) : null),
+      future_interests_completed_at: new Date().toISOString(),
+    }).eq("id", submissionId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// --- Step 7: Syllabus upload + skip/later ---
 const uploadSyllabusSchema = z.object({
   shortRef: z.coerce.number().int().positive(),
   fileName: z.string().trim().min(1).max(200),
   contentType: z.string().trim().min(1).max(120),
-  base64: z.string().min(1).max(15_000_000), // ~11MB binary
+  base64: z.string().min(1).max(15_000_000),
 });
 
 export const uploadOnboardingSyllabus = createServerFn({ method: "POST" })
@@ -317,9 +333,37 @@ export const uploadOnboardingSyllabus = createServerFn({ method: "POST" })
       .from("student-syllabi")
       .upload(path, bytes, { contentType: data.contentType, upsert: false });
     if (upErr) throw new Error(upErr.message);
+    const now = new Date().toISOString();
     const { error } = await supabaseAdmin.from("student_intake_submissions").update({
-      syllabus_uploaded_at: new Date().toISOString(),
+      syllabus_uploaded_at: now,
+      syllabus_step_completed_at: now,
     }).eq("id", submissionId);
     if (error) throw new Error(error.message);
     return { ok: true as const, path };
+  });
+
+export const completeOnboardingSyllabusStep = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => shortRefSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
+    const { error } = await supabaseAdmin.from("student_intake_submissions").update({
+      syllabus_step_completed_at: new Date().toISOString(),
+    }).eq("id", submissionId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const finishOnboarding = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => shortRefSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
+    const { data: current } = await supabaseAdmin
+      .from("student_intake_submissions")
+      .select("onboarding_finished_at").eq("id", submissionId).single();
+    if (current?.onboarding_finished_at) return { ok: true as const };
+    const { error } = await supabaseAdmin.from("student_intake_submissions").update({
+      onboarding_finished_at: new Date().toISOString(),
+    }).eq("id", submissionId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
