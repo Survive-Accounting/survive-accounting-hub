@@ -1406,6 +1406,15 @@ export async function startCleanProfessorBatch(
   return startCampusBatch(campusIds, notes ?? "Clean Professor Run", "clean_professor_only");
 }
 
+/** Program + course codes/titles batch — narrow AI run, writes only
+ *  accounting_department_name + course_family_codes_json + course_family_titles_json. */
+export async function startProgramAndCoursesBatch(
+  campusIds: string[],
+  notes?: string,
+): Promise<CampusResearchJob> {
+  return startCampusBatch(campusIds, notes ?? "Program + courses", "program_and_courses");
+}
+
 /** Returns the set of campus IDs whose Intro 1 OR Intro 2 textbook matches a
  *  supported_textbook_family row. Used for the "textbook-matched scope" of
  *  clean professor research. */
