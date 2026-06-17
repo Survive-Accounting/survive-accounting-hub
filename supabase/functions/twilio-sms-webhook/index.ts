@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
       if (Object.keys(patch).length) await admin.from("sms_conversations").update(patch).eq("id", convo.id);
     }
 
-    if (LEE_PHONE) {
+    if (LEE_PHONE && !isDuplicateBody) {
       const facts = [
         extracted?.course ? `Course: ${extracted.course}` : null,
         extracted?.exam_date ? `Exam: ${extracted.exam_date}` : null,
