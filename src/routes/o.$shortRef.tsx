@@ -511,22 +511,34 @@ function Field({
 }
 
 function SchoolPicker({
-  campusId, schoolName, onPick, onTypeOther, error, initialOpen,
+  campusId, schoolName, other, onPick, onTypeOther, onClear, error,
 }: {
   campusId: string | null;
   schoolName: string;
+  other: boolean;
   onPick: (id: string, name: string) => void;
   onTypeOther: (name: string) => void;
+  onClear: () => void;
   error?: string;
-  initialOpen: boolean;
 }) {
   const searchFn = useServerFn(searchCampuses);
-  const [other, setOther] = useState<boolean>(!campusId && !!schoolName);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CampusLite[]>([]);
   const [searching, setSearching] = useState(false);
-  const [open, setOpen] = useState(initialOpen && !campusId);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  // Debounced search — only while open and not in "other" mode
   useEffect(() => {
     if (!open || other) return;
     let cancelled = false;
@@ -542,7 +554,7 @@ function SchoolPicker({
   }, [query, open, other, searchFn]);
 
   return (
-    <div>
+    <div ref={wrapRef}>
       <Label className="mb-1.5 block text-sm font-medium text-gray-800">
         School<span className="ml-0.5 text-red-600">*</span>
       </Label>
@@ -550,7 +562,7 @@ function SchoolPicker({
       {campusId && !other ? (
         <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-4 py-3">
           <span className="text-sm font-medium">{schoolName}</span>
-          <Button variant="ghost" size="sm" onClick={() => { setOpen(true); onPick("", ""); }}>
+          <Button variant="ghost" size="sm" onClick={() => { onClear(); setQuery(""); setOpen(false); }}>
             Change
           </Button>
         </div>
@@ -560,9 +572,10 @@ function SchoolPicker({
             placeholder="Type your school name"
             value={schoolName}
             onChange={(e) => onTypeOther(e.target.value)}
+            autoFocus
           />
           <button type="button" className="text-xs text-gray-600 underline"
-            onClick={() => { setOther(false); onTypeOther(""); setOpen(true); }}>
+            onClick={() => { onClear(); setQuery(""); }}>
             Search for my school instead
           </button>
         </div>
@@ -579,7 +592,7 @@ function SchoolPicker({
             />
           </div>
           {open && (
-            <div className="mt-2 max-h-56 overflow-auto rounded-xl border">
+            <div className="mt-2 max-h-56 overflow-auto rounded-xl border bg-white shadow-sm">
               {searching && <div className="p-3 text-xs text-gray-500">Searching…</div>}
               {!searching && results.length === 0 && (
                 <div className="p-3 text-xs text-gray-500">No matches.</div>
@@ -589,7 +602,7 @@ function SchoolPicker({
                   key={r.id}
                   type="button"
                   className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                  onClick={() => { onPick(r.id, r.name); setOpen(false); }}
+                  onClick={() => { onPick(r.id, r.name); setOpen(false); setQuery(""); }}
                 >
                   {r.name}
                 </button>
@@ -597,10 +610,73 @@ function SchoolPicker({
             </div>
           )}
           <button type="button" className="mt-2 text-xs text-gray-600 underline"
-            onClick={() => { setOther(true); setOpen(false); }}>
+            onClick={() => { onTypeOther(""); setOpen(false); }}>
             My school isn&apos;t listed
           </button>
         </>
+      )}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+// ---------- Course picker (shown after school is selected) ----------
+function CoursePicker({
+  course, courseOther, notSure, onPickCourse, onNotSure, onTypeOther, onResetOther, error,
+}: {
+  course: string;
+  courseOther: string;
+  notSure: boolean;
+  onPickCourse: (v: string) => void;
+  onNotSure: () => void;
+  onTypeOther: (v: string) => void;
+  onResetOther: () => void;
+  error?: string;
+}) {
+  const otherMode = courseOther.length > 0 || (!course && !notSure && courseOther !== "");
+  const selectValue = notSure
+    ? "__not_sure__"
+    : otherMode
+    ? "__other__"
+    : course || "";
+
+  const handleChange = (v: string) => {
+    if (v === "__not_sure__") return onNotSure();
+    if (v === "__other__") return onTypeOther(" "); // sentinel non-empty to enter other mode
+    onPickCourse(v);
+  };
+
+  return (
+    <div>
+      <Label className="mb-1.5 block text-sm font-medium text-gray-800">
+        Course<span className="ml-0.5 text-red-600">*</span>
+      </Label>
+      <Select value={selectValue} onValueChange={handleChange}>
+        <SelectTrigger className="h-11">
+          <SelectValue placeholder="Pick your course" />
+        </SelectTrigger>
+        <SelectContent>
+          {COURSE_OPTIONS.map((c) => (
+            <SelectItem key={c} value={c}>{c}</SelectItem>
+          ))}
+          <SelectItem value="__not_sure__">Not sure</SelectItem>
+          <SelectItem value="__other__">My course isn&apos;t listed</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {(otherMode || courseOther) && (
+        <div className="mt-2 space-y-2">
+          <Input
+            placeholder="Type your course name or number"
+            value={courseOther.trim() === "" ? "" : courseOther}
+            onChange={(e) => onTypeOther(e.target.value)}
+            autoFocus
+          />
+          <button type="button" className="text-xs text-gray-600 underline"
+            onClick={onResetOther}>
+            Pick from the list instead
+          </button>
+        </div>
       )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
