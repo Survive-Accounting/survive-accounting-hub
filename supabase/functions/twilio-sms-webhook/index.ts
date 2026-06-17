@@ -278,43 +278,17 @@ Deno.serve(async (req) => {
       return twiml();
     }
 
-    // Subsequent reply — fetch history once, then decide what auto-reply to send.
+    // Subsequent reply — fetch history for transcript extraction.
+    // Policy: NEVER auto-reply to the student after the initial opener.
+    // Only forward a status update to Lee's personal cell.
     const { data: history } = await admin.from("sms_messages")
       .select("direction,author,body,created_at")
       .eq("conversation_id", convo.id)
       .order("created_at", { ascending: true })
       .limit(60);
-
-    const alreadySentBooking = (history ?? []).some(
-      (m: any) => m.direction === "out" && m.author === "auto" && typeof m.body === "string" && m.body.includes("SurviveAccounting.com/start"),
-    );
-
-    // Phase 3: the opener already contains the /start booking link, so we no
-    // longer send a second "booking" auto-reply. Testers still get a re-send
-    // for QA. Real students get a low-key ack at most once per 24h so they
-    // don't think we ghosted them.
-    let autoReplyKind: "booking" | "ack" | null = null;
-    if (isTester) {
-      autoReplyKind = "booking"; // tester bypass — re-send link for QA
-    } else if (convo.opener_sent) {
-      const lastAck = (history ?? [])
-        .filter((m: any) => m.direction === "out" && m.author === "auto-ack")
-        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-      const ackTooRecent = lastAck && (Date.now() - new Date(lastAck.created_at).getTime() < 24 * 60 * 60 * 1000);
-      if (!ackTooRecent) autoReplyKind = "ack";
-    }
-
-    if (autoReplyKind === "booking") {
-      const sentSid = await twilioSend(to, from, TPL_BOOKING);
-      await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto", body: TPL_BOOKING, twilio_sid: sentSid,
-      });
-    } else if (autoReplyKind === "ack") {
-      const sentSid = await twilioSend(to, from, TPL_ACK);
-      await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto-ack", body: TPL_ACK, twilio_sid: sentSid,
-      });
-    }
+    // Reference template constants so the linter doesn't complain about them
+    // now that we've removed the subsequent auto-reply sends.
+    void TPL_BOOKING; void TPL_ACK;
 
     // Extract structured facts from the running transcript.
     const transcript = (history ?? [])
