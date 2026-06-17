@@ -56,8 +56,12 @@ export function AudienceEditorModal({
   const [pinMode, setPinMode] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<"name" | "state" | "textbook">("name");
+  const [sortKey, setSortKey] = useState<"name" | "textbook" | "tuition" | "enrollment">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const showTuitionCol = filters.minTuition != null || filters.maxTuition != null || filters.highTuitionOnly;
+  const showEnrollmentCol = filters.minEnrollment != null || filters.maxEnrollment != null;
+
 
   // Reset when opening for a new audience or switching audiences.
   useEffect(() => {
