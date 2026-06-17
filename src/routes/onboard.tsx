@@ -58,7 +58,7 @@ type Answers = {
   campusName: string;
   courseCode: string;
   professor: string;
-  stress: StressItem[];
+  stressFactors: StressItem[];
   pricing: Pricing | "";
   greek: string;
   future: Future[];
