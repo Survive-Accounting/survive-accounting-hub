@@ -98,6 +98,15 @@ function joinCourses(codes: string[]): string {
   return tokens.slice(0, -1).join(", ") + ", and " + tokens[tokens.length - 1];
 }
 
+/** Like joinCourses, but always keeps the full code on every entry (never collapses prefix). */
+function joinCoursesFull(codes: string[]): string {
+  const cleaned = codes.map((c) => c.trim()).filter(Boolean);
+  if (cleaned.length === 0) return "";
+  if (cleaned.length === 1) return cleaned[0];
+  if (cleaned.length === 2) return `${cleaned[0]} and ${cleaned[1]}`;
+  return cleaned.slice(0, -1).join(", ") + ", and " + cleaned[cleaned.length - 1];
+}
+
 /** Render **bold** and _italic_ markdown in a pre-escaped string segment. */
 function applyBold(html: string): string {
   return html
@@ -143,7 +152,9 @@ Deno.serve(async (req) => {
       }
       const sampleFirst = "John";
       const samplePogram = "School of Accountancy";
-      const sampleCourses = joinCourses(["ACCY 201", "ACCY 202", "ACCY 303", "ACCY 304"]);
+      const oleMissCodes = ["ACCY 201", "ACCY 202", "ACCY 303", "ACCY 304"];
+      const sampleCourses = joinCourses(oleMissCodes);
+      const sampleFullCodes = joinCoursesFull(oleMissCodes);
       const samplePhone = "(662) 565-8818";
       const samplePrefix = "ACCY";
       const surviveLinkUrl = "https://surviveaccounting.com";
@@ -161,6 +172,7 @@ Deno.serve(async (req) => {
         .replace(/\{\s*program\s*\}/gi, samplePogram)
         .replace(/\{\s*courses\s*\}/gi, sampleCourses)
         .replace(/\{\s*phone\s*\}/gi, samplePhone)
+        .replace(/\{\s*full\s*codes\s*\}/gi, sampleFullCodes)
         .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
         .replace(/\[First Name\]/g, sampleFirst)
         .replace(/\[Booking Link\]/g, BOOKING_LINK)
@@ -241,6 +253,7 @@ Deno.serve(async (req) => {
     let courseFamilyStatus: Record<string, string> = {};
     let programName = "";
     let coursesText = "";
+    let fullCoursesText = "";
     let prefixText = "";
     let usePersonalPhone = false;
     if (lead.campus_id) {
@@ -262,6 +275,7 @@ Deno.serve(async (req) => {
       if (Array.isArray(campus?.course_codes_json)) {
         const codes = (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string");
         coursesText = joinCourses(codes);
+        fullCoursesText = joinCoursesFull(codes);
         prefixText = coursePrefix(codes);
       }
       usePersonalPhone = !!campus?.use_personal_phone;
@@ -269,6 +283,7 @@ Deno.serve(async (req) => {
     // Graceful fallbacks when research hasn't captured these yet.
     const programMerge = programName || "accounting program";
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
+    const fullCoursesMerge = fullCoursesText || coursesMerge;
     const prefixMerge = prefixText || "accounting";
 
     // {phone} merge — hardcoded to Lee's main line.
@@ -346,6 +361,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, prefixMerge)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
+      .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
       .replace(/\[First Name\]/g, greetingName)
@@ -367,6 +383,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, prefixMerge)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
+      .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
       .replace(/\[First Name\]/g, greetingName);
 

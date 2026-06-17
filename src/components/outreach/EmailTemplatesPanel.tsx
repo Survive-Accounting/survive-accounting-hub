@@ -211,7 +211,7 @@ function TemplateFormDialog({
         <DialogHeader>
           <DialogTitle>Edit — {meta.label} · {variantLabel}</DialogTitle>
           <DialogDescription>
-            Merge tags: <code>{"{recipient name}"}</code> (automatic — "Dr. Lastname" for PhDs, first name otherwise; <code>{"{first name}"}</code> does the same), <code>{"{course prefix}"}</code> (e.g. "ACCY"), <code>{"{courses}"}</code> (full codes), <code>{"{program}"}</code>, <code>{"{phone}"}</code> (campus number, else your main line), <code>{"{surviveaccounting.com}"}</code> (the professor's personalized landing link).
+            Merge tags: <code>{"{recipient name}"}</code> (automatic — "Dr. Lastname" for PhDs, first name otherwise; <code>{"{first name}"}</code> does the same), <code>{"{course prefix}"}</code> (e.g. "ACCY"), <code>{"{courses}"}</code> (collapsed, e.g. "ACCY 201, 202, 303, and 304"), <code>{"{full codes}"}</code> (uncollapsed, e.g. "ACCY 201, ACCY 202, ACCY 303, and ACCY 304"), <code>{"{program}"}</code>, <code>{"{phone}"}</code> (campus number, else your main line), <code>{"{surviveaccounting.com}"}</code> (the professor's personalized landing link).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
