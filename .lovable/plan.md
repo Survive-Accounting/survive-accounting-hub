@@ -1,86 +1,79 @@
 ## Goal
 
-Add reusable, named **Audiences** — saved campus selections plus the filter rules that produced them — that can be picked from the Campaign Builder, edited later, and reused for future campaigns.
+Make the hero CTA sleek and **text-first**. Drop the dual-button idea — one bold primary action: text Lee. Keep `/start` as the booking flow but make it reachable only through the SMS opener link (not surfaced on the homepage).
 
-## What an Audience is
+## Hero changes (`src/components/landing/Hero.tsx`)
 
-An Audience captures two things:
+Replace the current button row with a single, prominent **"Text Lee →"** CTA card:
 
-1. **Filter rules** — the same filter shape used on the Campuses tab (search, tuition min/max, status, assignment, state, batch, SEC-only, high-tuition, include-archived), plus the textbook-audit filters we just added (course families multi-select, authors/publisher contains).
-2. **Pinned campus IDs** — an optional explicit list. When set, the audience resolves to *exactly* those campuses (filter is just a description). When empty, the audience resolves to *whatever currently matches the filters* (dynamic).
+- **Sub-copy** above the button, with the number **bolded and tappable**:
+  > "Text **662-565-8818** — I'll reply personally and send your booking link."
+- **Primary CTA**: large red pill button `Text Lee 662-565-8818 →` → `href="sms:+16625658818?&body=Hi%20Lee%2C%20I%20need%20tutoring"`
+  - Pre-fills the message so phones (especially iOS) open Messages already addressed and ready to send.
+  - On desktop where `sms:` is flaky, falls back to a tooltip/secondary line: "On desktop? Text **662-565-8818** from your phone."
+- **Secondary action** (smaller, ghost link, not a button): `Read reviews` — keeps the existing scroll-to-reviews behavior but visually de-emphasized so the texting path wins.
+- Remove `Book Tutoring` modal trigger from the hero (it'll still be reachable from `/start` directly for anyone with the SMS link).
 
-This dual mode mirrors how the Campaign Builder already works: it has filters + an optional explicit campus selection.
+### Why text-only wins here
+- Captures the student's phone number automatically (your stated goal — future marketing, notifications, follow-ups).
+- Triggers your existing Twilio webhook flow → auto-opener with the booking link → Lee notified.
+- Zero friction; matches the conversational tone of the brand.
+- One CTA = higher conversion than two competing ones.
 
-## UI
+### Sleekness details
+- Slightly smaller headline weight on the sub-line so the **number** pops.
+- Add a tiny SMS bubble icon (lucide `MessageCircle`) inside the button left of the label.
+- Keep the existing red gradient + shadow — already on-brand.
+- Add a one-liner under the button in 11px white/60%: "Replies usually within an hour. Msg & data rates may apply."
 
-### New "Audiences" tab on the Outreach page
+## `/start` access
 
-Lives next to Campaigns. Lists saved audiences with: name, mode (Pinned N campuses / Dynamic), last used, owner, shared flag, row actions (Edit, Duplicate, Delete, "New campaign from this").
+No code change required to "lock" it — just stop linking to it from the homepage. It remains:
+- The destination of the SMS opener link (`surviveaccounting.com/start`).
+- Directly typeable for anyone with the link.
 
-### Audience editor modal
+If you want it truly gated (block direct visits without an SMS click), that's a separate, larger change (token in URL, validated server-side). Recommend **not** doing that yet — adds friction for legitimate inbound and breaks the SMS opener if the token logic ever hiccups.
 
-Reuses the existing `CampusFilterBar` (Campuses tab filters) **and** a compact textbook-family / authors / publisher block (lifted out of `TextbookMatchAuditModal`). Below the filters: the same campus checklist UI the Campaign Builder uses, showing the live match count. Two save modes:
+## Twilio voicemail setup (instructions only — no code)
 
-- **Save as dynamic** — store filter JSON only.
-- **Pin current selection** — store filter JSON + the explicit campus IDs that are checked right now.
+Your number is SMS-capable but you also want a voicemail message when someone calls it. Twilio doesn't have a built-in "voicemail" toggle; you build it with a tiny TwiML flow. Two paths:
 
-Header: name input, "Share with team" toggle.
+### Option A — Simplest (no edge function): TwiML Bin
+1. Twilio Console → **Runtime → TwiML Bins → Create new Bin**.
+2. Name: `Lee Voicemail`. Paste:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <Response>
+     <Say voice="Polly.Joanna">Hey, you've reached Lee at Survive Accounting. I don't take calls — please text me at this same number and I'll get right back to you. Thanks!</Say>
+     <Hangup/>
+   </Response>
+   ```
+   (Or use `<Record>` instead of `<Hangup/>` if you actually want to capture voicemails — see Option B.)
+3. Save → copy the TwiML Bin URL.
+4. Twilio Console → **Phone Numbers → Manage → Active numbers → 662-565-8818**.
+5. Under **Voice Configuration → A call comes in** → set to **TwiML Bin** → pick `Lee Voicemail`.
+6. Save. Call the number from your phone to verify.
 
-### Campaign Builder integration
+### Option B — Real voicemail with recording + transcription + SMS to you
+Same as A but the TwiML Bin body becomes:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna">Hey, you've reached Lee. Texting is fastest — try this same number. Or leave a message after the beep and I'll get back to you.</Say>
+  <Record maxLength="60" transcribe="true" transcribeCallback="https://surviveaccounting.com/api/public/twilio-voicemail" playBeep="true"/>
+  <Hangup/>
+</Response>
+```
+- `transcribeCallback` posts the transcript to a public endpoint we'd add later (`src/routes/api/public/twilio-voicemail.ts`) that forwards it to your phone via SMS. Tell me when you want that wired up and I'll add it.
 
-Top of the builder gets an "Audience" dropdown: *None* / list of saved audiences / "Save current as new audience…". Picking one loads its filters and (if pinned) its campus IDs into the existing builder state. A small "Edit audience" link opens the editor in a side modal. The builder still works exactly as today when no audience is selected.
+### Already in the repo
+There's a `supabase/functions/twilio-voice-webhook/index.ts` — if it's already pointed at your number, we'd update that instead of a TwiML Bin. I'll check and reuse it when you give the go-ahead.
 
-## Data model
+## Files to change
 
-New table `outreach_audiences`:
+- `src/components/landing/Hero.tsx` — rewrite the CTA block (single text button + bolded number sub-line + small reviews link).
+- Nothing else. `/start` route stays as-is.
 
-- `name` (text, not null)
-- `description` (text, nullable)
-- `filters_json` (jsonb, not null) — full `CampusFilters` + audit filter extension
-- `pinned_campus_ids` (uuid[], nullable) — null/empty = dynamic
-- `is_shared` (bool, default false)
-- `created_by` (uuid, FK auth.users)
-- `last_used_at` (timestamptz, nullable)
-- standard `id`, `created_at`, `updated_at`
+## Open question
 
-Plus a join column on `outreach_campaigns`: `audience_id uuid references outreach_audiences(id)` so we can later see "which audience launched this campaign" without breaking existing campaigns.
-
-RLS: authenticated users can read all shared rows + their own private rows; insert/update/delete their own; admins can manage all.
-
-## Technical changes
-
-### Migration
-- `CREATE TABLE public.outreach_audiences (...)` + GRANTs (`authenticated`, `service_role`) + RLS policies + `updated_at` trigger using `public.set_updated_at`.
-- `ALTER TABLE public.outreach_campaigns ADD COLUMN audience_id uuid REFERENCES public.outreach_audiences(id) ON DELETE SET NULL`.
-
-### API (`src/lib/outreach-api.ts`)
-- `listAudiences()`, `getAudience(id)`, `createAudience(payload)`, `updateAudience(id, patch)`, `deleteAudience(id)`, `touchAudienceUsed(id)`.
-
-### New files
-- `src/components/outreach/AudiencesPanel.tsx` — list + row actions.
-- `src/components/outreach/AudienceEditorModal.tsx` — name, share, filter editor (reuses `CampusFilterBar`), audit-filter block, campus checklist, save modes.
-- `src/lib/audience-filters.ts` — shared `applyAudienceFilters(campuses, audienceFilters)` so the editor preview and any future campaign-launch resolver use identical logic. Extracts/shares the existing `applyFilters` (campuses) + the family/author/publisher predicates.
-
-### Edited files
-- `src/components/outreach/CampaignBuilder.tsx` — "Audience" dropdown at top, "Save as audience" button, prefill filters + selected campus IDs when an audience is picked.
-- `src/routes/outreach.tsx` (or wherever the tab list lives) — add **Audiences** tab.
-- `src/components/outreach/TextbookMatchAuditModal.tsx` — minor: export the family/authors/publisher predicate so the editor can reuse it.
-
-### Out of scope (this turn)
-- Auto-syncing pinned audiences when new campuses appear.
-- Audience analytics (open/reply rates rolled up across campaigns).
-- Cross-audience deduping in the scheduler.
-
-## Files touched
-
-**New**
-- `supabase/migrations/<ts>_outreach_audiences.sql`
-- `src/components/outreach/AudiencesPanel.tsx`
-- `src/components/outreach/AudienceEditorModal.tsx`
-- `src/lib/audience-filters.ts`
-
-**Edited**
-- `src/lib/outreach-api.ts`
-- `src/components/outreach/CampaignBuilder.tsx`
-- `src/routes/outreach.tsx`
-- `src/components/outreach/TextbookMatchAuditModal.tsx` (export helper only)
+Want me to **also remove** `Book Tutoring` from the navbar/footer so SMS is the only path on the public site, or leave it in secondary nav as an escape hatch?
