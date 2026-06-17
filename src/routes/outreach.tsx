@@ -208,25 +208,7 @@ function OutreachPage() {
 
             <Tabs value={tab} onValueChange={setTab} className="space-y-6 mt-4">
               <TabsContent value="home" className="space-y-8">
-                <HomeDashboard
-                  onCreateCampaign={() => setTab("templates")}
-                  onImportLeads={() => { setImportCampusId(null); setImportOpen(true); }}
-                  onOpenAISettings={() => setBatchSettingsOpen(true)}
-                  onViewTexts={() => setTab("texts")}
-                />
-                <details className="rounded-md border border-border bg-card">
-                  <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">
-                    Campus approval queue
-                  </summary>
-                  <div className="p-3">
-                    <CampusQueuePanel
-                      onReview={(campusId) => {
-                        const c = campuses.find((x) => x.id === campusId);
-                        if (c) setReviewing(c);
-                      }}
-                    />
-                  </div>
-                </details>
+                <HomeDashboard onCreateCampaign={() => setTab("templates")} />
               </TabsContent>
 
               <TabsContent value="schools" className="space-y-6">
