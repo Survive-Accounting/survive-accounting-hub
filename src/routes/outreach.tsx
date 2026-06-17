@@ -119,7 +119,6 @@ function OutreachPage() {
       <Sidebar collapsible="icon">
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Outreach</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
@@ -180,6 +179,19 @@ function OutreachPage() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setBatchSettingsOpen(true)}
+                tooltip="Admin settings"
+              >
+                <Settings className="h-4 w-4" />
+                <span>Admin settings</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
 
       <SidebarInset>
