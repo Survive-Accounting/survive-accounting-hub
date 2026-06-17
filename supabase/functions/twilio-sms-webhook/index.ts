@@ -201,6 +201,7 @@ Deno.serve(async (req) => {
       let relayBody = body;
       const m = body.match(/^#(\d+)\s+([\s\S]+)/);
       if (m) { targetRef = Number(m[1]); relayBody = m[2].trim(); }
+      relayBody = normalizeForGsm(relayBody);
 
       let q = admin.from("sms_conversations").select("*").eq("campus_number", to).eq("status", "active");
       if (targetRef != null) q = q.eq("short_ref", targetRef);
