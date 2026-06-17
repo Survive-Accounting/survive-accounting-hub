@@ -102,7 +102,7 @@ function OnboardPage() {
       case "campus":
         return answers.campusId.length > 0;
       case "stress":
-        return answers.stress.length > 0;
+        return answers.stressFactors.length > 0;
       case "pricing":
         return answers.pricing !== "";
       default:
