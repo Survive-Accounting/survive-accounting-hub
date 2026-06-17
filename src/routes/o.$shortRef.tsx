@@ -207,7 +207,7 @@ function LeeAside() {
     <aside className="hidden lg:flex lg:flex-col lg:items-center lg:pt-2">
       <img
         src={leeHeadshot}
-        alt="Lee, your tutor"
+        alt="Lee Ingram, your tutor"
         className="h-24 w-24 rounded-full object-cover ring-4 ring-white shadow-[0_8px_24px_-10px_rgba(20,33,61,0.35)]"
         loading="lazy"
       />
@@ -222,6 +222,10 @@ function LeeAside() {
           {LEE_PHONE_DISPLAY}
         </a>
       </div>
+      <div className="mt-6 w-full border-t border-gray-200/70 pt-5 text-center">
+        <p className="text-sm font-semibold tracking-tight" style={{ color: NAVY }}>Lee Ingram</p>
+        <TrustPills />
+      </div>
     </aside>
   );
 }
@@ -234,16 +238,16 @@ function TrustPills() {
     color: NAVY,
   };
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+    <div className="mt-3 flex flex-col items-center gap-2">
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium"
+        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium"
         style={pillStyle}
       >
         <Check className="h-3.5 w-3.5" style={{ color: RED }} />
         1,000+ students helped since 2015
       </span>
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium"
+        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium"
         style={pillStyle}
       >
         <span aria-hidden>🎓</span>
