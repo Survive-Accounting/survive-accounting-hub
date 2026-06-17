@@ -85,7 +85,7 @@ function OnboardPage() {
     campusName: "",
     courseCode: "",
     professor: "",
-    stress: [],
+    stressFactors: [],
     pricing: "",
     greek: "",
     future: [],
