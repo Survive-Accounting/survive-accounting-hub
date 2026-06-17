@@ -1,38 +1,24 @@
-import { useState } from "react";
-import { toast } from "sonner";
+import { MessageCircle } from "lucide-react";
 import leeHeadshot from "@/assets/lee-headshot-original.png";
 
 const RED = "#CE1126";
+const TUTOR_PHONE_E164 = "+16625658818";
+const TUTOR_PHONE_PRETTY = "(662) 565-8818";
+const SMS_BODY = "Hi Lee, I have a question about accounting tutoring.";
+const SMS_HREF = `sms:${TUTOR_PHONE_E164}?body=${encodeURIComponent(SMS_BODY)}`;
+
+const BTN_CLASS =
+  "group rounded-2xl px-10 py-5 text-[17px] font-bold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center justify-center gap-3";
+const BTN_STYLE: React.CSSProperties = {
+  background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
+  fontFamily: "Inter, sans-serif",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.25), 0 14px 36px rgba(206,17,38,0.42)",
+  letterSpacing: "0.01em",
+  textDecoration: "none",
+};
 
 export default function ContactForm() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !email.trim() || !message.trim()) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-    setSending(true);
-    // Placeholder — no backend wired yet
-    await new Promise((r) => setTimeout(r, 600));
-    toast.success("Thanks! I'll get back to you soon.");
-    setName("");
-    setEmail("");
-    setMessage("");
-    setSending(false);
-  };
-
-  const inputStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    fontFamily: "Inter, sans-serif",
-    color: "#FFFFFF",
-  };
-
   return (
     <section
       id="contact-form"
@@ -52,7 +38,7 @@ export default function ContactForm() {
       />
 
       <div className="relative z-10 mx-auto" style={{ maxWidth: 640 }}>
-        <div className="flex flex-col items-center text-center mb-8">
+        <div className="flex flex-col items-center text-center">
           <div
             className="rounded-full overflow-hidden mb-5"
             style={{
@@ -77,7 +63,7 @@ export default function ContactForm() {
               color: "#FFFFFF",
             }}
           >
-            Got a question? Ask away.
+            Questions? Just text me.
           </h2>
           <p
             className="mt-3 text-[15px] sm:text-[16px]"
@@ -88,52 +74,38 @@ export default function ContactForm() {
               maxWidth: 480,
             }}
           >
-            Send me a note about your class, your exam, or anything else. I read
-            and reply to every message.
+            Need help with an exam, homework, or understanding a topic? Send me a text. I personally read and reply to every message.
           </p>
-        </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            type="text"
-            placeholder="Your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded-lg px-4 py-3 text-[15px] placeholder:text-white/40 focus:outline-none focus:border-white/30"
-            style={inputStyle}
-          />
-          <input
-            type="email"
-            placeholder="Your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg px-4 py-3 text-[15px] placeholder:text-white/40 focus:outline-none focus:border-white/30"
-            style={inputStyle}
-          />
-          <textarea
-            placeholder="What's on your mind?"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={5}
-            className="rounded-lg px-4 py-3 text-[15px] placeholder:text-white/40 focus:outline-none focus:border-white/30 resize-y"
-            style={inputStyle}
-          />
-          <button
-            type="submit"
-            disabled={sending}
-            className="mt-2 rounded-xl px-7 py-4 text-[15px] font-bold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center self-center"
-            style={{
-              background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
-              fontFamily: "Inter, sans-serif",
-              boxShadow:
-                "inset 0 1px 0 rgba(255,255,255,0.25), 0 10px 28px rgba(206,17,38,0.35)",
-              letterSpacing: "0.01em",
-              minWidth: 200,
-            }}
-          >
-            {sending ? "Sending…" : "Send Message →"}
-          </button>
-        </form>
+          <div className="mt-8 flex flex-col items-center gap-4">
+            {/* Mobile: SMS */}
+            <a href={SMS_HREF} className={`${BTN_CLASS} md:hidden`} style={BTN_STYLE}>
+              <MessageCircle className="w-5 h-5" strokeWidth={2.5} />
+              <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
+                Text Lee {TUTOR_PHONE_PRETTY}
+              </span>
+            </a>
+
+            {/* Desktop/tablet: Get Started */}
+            <a href="/start" className={`${BTN_CLASS} hidden md:inline-flex`} style={BTN_STYLE}>
+              <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
+                Get Started
+              </span>
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </a>
+
+            <p
+              className="mt-2 text-center text-[13px] font-light"
+              style={{
+                color: "rgba(255,255,255,0.75)",
+                fontFamily: "Inter, sans-serif",
+                letterSpacing: "0.02em",
+              }}
+            >
+              1,000+ students tutored
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   );
