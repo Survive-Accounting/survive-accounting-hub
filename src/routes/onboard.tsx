@@ -39,7 +39,17 @@ export const Route = createFileRoute("/onboard")({
   component: OnboardPage,
 });
 
-type StressItem = "Upcoming exam" | "Falling behind" | "Don't understand concepts" | "Homework piling up" | "Bad grade on last test" | "Just starting the course";
+type StressItem =
+  | "Upcoming exam"
+  | "Falling behind"
+  | "Homework"
+  | "Understanding concepts"
+  | "Test anxiety"
+  | "Busy schedule"
+  | "Need accountability"
+  | "Study strategies"
+  | "Just trying to pass"
+  | "Something else";
 type Pricing = "Single session" | "5-pack" | "Exam cram" | "Not sure yet";
 type Future = "CPA exam" | "Internship prep" | "Grad school" | "Just passing this class";
 
