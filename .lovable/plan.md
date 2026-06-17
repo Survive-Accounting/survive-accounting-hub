@@ -1,79 +1,79 @@
-## Goal
 
-Make the hero CTA sleek and **text-first**. Drop the dual-button idea — one bold primary action: text Lee. Keep `/start` as the booking flow but make it reachable only through the SMS opener link (not surfaced on the homepage).
+# Simplify the Outreach dashboard
 
-## Hero changes (`src/components/landing/Hero.tsx`)
+## 1. Sidebar cleanup (`src/routes/outreach.tsx`)
 
-Replace the current button row with a single, prominent **"Text Lee →"** CTA card:
+- Drop the `SidebarGroupLabel` ("Outreach") above Home.
+- Keep `Sidebar collapsible="icon"` and the header `SidebarTrigger` so the sidebar can collapse to a narrow icon strip and re-open from the trigger.
+- Add a footer (`SidebarFooter`) in the bottom-left with a single **Admin settings** button (gear icon). Clicking it opens `BatchResearchSettingsModal` (today's "AI Research Settings").
+- Keep Home / Campaigns (collapsible group) / Students items unchanged.
 
-- **Sub-copy** above the button, with the number **bolded and tappable**:
-  > "Text **662-565-8818** — I'll reply personally and send your booking link."
-- **Primary CTA**: large red pill button `Text Lee 662-565-8818 →` → `href="sms:+16625658818?&body=Hi%20Lee%2C%20I%20need%20tutoring"`
-  - Pre-fills the message so phones (especially iOS) open Messages already addressed and ready to send.
-  - On desktop where `sms:` is flaky, falls back to a tooltip/secondary line: "On desktop? Text **662-565-8818** from your phone."
-- **Secondary action** (smaller, ghost link, not a button): `Read reviews` — keeps the existing scroll-to-reviews behavior but visually de-emphasized so the texting path wins.
-- Remove `Book Tutoring` modal trigger from the hero (it'll still be reachable from `/start` directly for anyone with the SMS link).
+## 2. Home dashboard simplification (`src/components/outreach/HomeDashboard.tsx`)
 
-### Why text-only wins here
-- Captures the student's phone number automatically (your stated goal — future marketing, notifications, follow-ups).
-- Triggers your existing Twilio webhook flow → auto-opener with the booking link → Lee notified.
-- Zero friction; matches the conversational tone of the brand.
-- One CTA = higher conversion than two competing ones.
+Strip the page down to two sections:
 
-### Sleekness details
-- Slightly smaller headline weight on the sub-line so the **number** pops.
-- Add a tiny SMS bubble icon (lucide `MessageCircle`) inside the button left of the label.
-- Keep the existing red gradient + shadow — already on-brand.
-- Add a one-liner under the button in 11px white/60%: "Replies usually within an hour. Msg & data rates may apply."
+- **Student requests** (new unified panel — replaces `StudentIntakesPanel`).
+- **Active campaigns** (kept, with a new "View metrics" button per card).
 
-## `/start` access
+Remove from the home view:
+- Outreach Snapshot stat grid
+- Student Funnel stat grid
+- Quick-action buttons: Import Accepted Leads, AI Research Settings (moved to sidebar footer), View Texts
+- "Campus approval queue" `<details>` block in `outreach.tsx` and the `CampusQueuePanel` import/usage
+- "Create Campaign" quick-action stays at the top of the home view (only remaining action)
 
-No code change required to "lock" it — just stop linking to it from the homepage. It remains:
-- The destination of the SMS opener link (`surviveaccounting.com/start`).
-- Directly typeable for anyone with the link.
+## 3. New Student Requests panel (`src/components/outreach/StudentRequestsPanel.tsx`)
 
-If you want it truly gated (block direct visits without an SMS click), that's a separate, larger change (token in URL, validated server-side). Recommend **not** doing that yet — adds friction for legitimate inbound and breaks the SMS opener if the token logic ever hiccups.
+A single chronological log fed by two sources:
 
-## Twilio voicemail setup (instructions only — no code)
+- **Inbound SMS messages** — `sms_messages` joined to `sms_conversations` (filter `direction = 'inbound'`).
+- **Syllabus uploads** — `student_intake_submissions` rows where `syllabus_file_url is not null`, surfaced as a "Syllabus uploaded" event.
 
-Your number is SMS-capable but you also want a voicemail message when someone calls it. Twilio doesn't have a built-in "voicemail" toggle; you build it with a tiny TwiML flow. Two paths:
+Columns: Type icon · Student (name / phone / email) · Preview (text body or filename) · When · Replied? (checkbox) · open button.
 
-### Option A — Simplest (no edge function): TwiML Bin
-1. Twilio Console → **Runtime → TwiML Bins → Create new Bin**.
-2. Name: `Lee Voicemail`. Paste:
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <Response>
-     <Say voice="Polly.Joanna">Hey, you've reached Lee at Survive Accounting. I don't take calls — please text me at this same number and I'll get right back to you. Thanks!</Say>
-     <Hangup/>
-   </Response>
-   ```
-   (Or use `<Record>` instead of `<Hangup/>` if you actually want to capture voicemails — see Option B.)
-3. Save → copy the TwiML Bin URL.
-4. Twilio Console → **Phone Numbers → Manage → Active numbers → 662-565-8818**.
-5. Under **Voice Configuration → A call comes in** → set to **TwiML Bin** → pick `Lee Voicemail`.
-6. Save. Call the number from your phone to verify.
+Behavior:
+- Sorted by event time desc; default 50, "Load more".
+- Filter chips: All / Texts / Syllabi / Unreplied.
+- Clicking a row opens a **Conversation modal** (see §4).
+- Replied checkbox toggles persisted state (see §5) optimistically with React Query mutation.
 
-### Option B — Real voicemail with recording + transcription + SMS to you
-Same as A but the TwiML Bin body becomes:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="Polly.Joanna">Hey, you've reached Lee. Texting is fastest — try this same number. Or leave a message after the beep and I'll get back to you.</Say>
-  <Record maxLength="60" transcribe="true" transcribeCallback="https://surviveaccounting.com/api/public/twilio-voicemail" playBeep="true"/>
-  <Hangup/>
-</Response>
-```
-- `transcribeCallback` posts the transcript to a public endpoint we'd add later (`src/routes/api/public/twilio-voicemail.ts`) that forwards it to your phone via SMS. Tell me when you want that wired up and I'll add it.
+## 4. Conversation modal (`src/components/outreach/StudentConversationModal.tsx`)
 
-### Already in the repo
-There's a `supabase/functions/twilio-voice-webhook/index.ts` — if it's already pointed at your number, we'd update that instead of a TwiML Bin. I'll check and reuse it when you give the go-ahead.
+Reuses logic from `TextsPanel`/SMS components to show a single student thread:
 
-## Files to change
+- Resolves the SMS conversation by phone (text events) or by intake.phone/email (syllabus events).
+- Shows full inbound/outbound message history with timestamps.
+- Composer at the bottom: textarea + Send → existing send pathway (`sms-process-outbox` / outbound insert pattern used by `TextsPanel`).
+- For syllabus events: includes a link to view the uploaded file (signed URL from `student-syllabi` bucket) at the top.
 
-- `src/components/landing/Hero.tsx` — rewrite the CTA block (single text button + bolded number sub-line + small reviews link).
-- Nothing else. `/start` route stays as-is.
+## 5. Reply tracking (DB)
 
-## Open question
+A new migration adds persistent "replied" flags:
 
-Want me to **also remove** `Book Tutoring` from the navbar/footer so SMS is the only path on the public site, or leave it in secondary nav as an escape hatch?
+- `sms_messages.replied_by_lee boolean not null default false` (for inbound SMS rows)
+- `student_intake_submissions.replied_by_lee boolean not null default false` (for syllabus-upload rows)
+
+Both default false, indexed for fast unreplied filtering. Toggled via `createServerFn` mutations gated by `requireSupabaseAuth` + admin role check, then invalidating the `["student-requests"]` query.
+
+## 6. Active Campaigns — View Metrics modal
+
+Per card in `HomeDashboard`, add a **View Metrics** button.
+
+New `CampaignMetricsModal` (`src/components/outreach/CampaignMetricsModal.tsx`) shows two big cards in a 2-column grid:
+
+- **Audience** card — focused stats: total leads, by status (queued / sent / replied / bounced / unsubscribed), eligible remaining, daily cap, est. days to finish. Built from `outreach_campaign_leads` aggregates for this campaign id.
+- **Emails** card — focused stats per step: sent, opens, open rate, replies, reply rate, bounces, complaints. Aggregated from `outreach_email_events` for this campaign.
+
+Both are slim, read-only stat blocks (no panel reuse) so the modal stays focused on "how is this campaign performing".
+
+## 7. Cleanup
+
+- Remove unused imports (`CampusQueuePanel`) and unused dashboard props (`onImportLeads`, `onOpenAISettings`, `onViewTexts`) from `HomeDashboard`.
+- Delete `StudentIntakesPanel` usage; file can stay until next pass.
+
+## Technical notes
+
+- Query keys: `["student-requests", filter]`, `["campaign-metrics-detail", campaignId]`.
+- All Supabase access through the existing browser `supabase` client for reads (admin-gated route) and `createServerFn` for the reply-flag mutations.
+- No changes to existing campaign list fetching; metrics modal does its own query on demand.
+- Sidebar uses the existing shadcn `Sidebar` + `SidebarFooter` primitives.
