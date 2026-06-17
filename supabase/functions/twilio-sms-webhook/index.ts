@@ -48,8 +48,6 @@ const FALLBACK_OPENER =
   "Questions? Reply them here.\n\n" +
   "Thanks!\n" +
   "Lee";
-const FALLBACK_BOOKING =
-  FALLBACK_OPENER;
 const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
 const FALLBACK_LEE_NEW =
   '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-reply sent. Reply to this thread to jump in yourself.';
@@ -189,7 +187,7 @@ Deno.serve(async (req) => {
   const { data: tplRows } = await admin.from("sms_templates").select("key,body");
   const tplMap = new Map<string, string>((tplRows ?? []).map((r: any) => [r.key, r.body]));
   const TPL_OPENER = tplMap.get("opener_questions") || FALLBACK_OPENER;
-  const TPL_BOOKING = tplMap.get("booking_reply") || FALLBACK_BOOKING;
+  
   const TPL_ACK = tplMap.get("ack_reply") || FALLBACK_ACK;
   const TPL_LEE_NEW = tplMap.get("lee_new_summary") || FALLBACK_LEE_NEW;
   const TPL_LEE_FOLLOWUP = tplMap.get("lee_followup_summary") || FALLBACK_LEE_FOLLOWUP;
@@ -320,7 +318,7 @@ Deno.serve(async (req) => {
       .limit(60);
     // Reference template constants so the linter doesn't complain about them
     // now that we've removed the subsequent auto-reply sends.
-    void TPL_BOOKING; void TPL_ACK;
+    void TPL_ACK;
 
     // Extract structured facts from the running transcript.
     const transcript = (history ?? [])
