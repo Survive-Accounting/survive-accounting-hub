@@ -137,7 +137,7 @@ function Home() {
       <Hero
         headline="Let's Make Accounting Exams Feel Easy"
         subtext="I've helped over 1,000 students ace exams confidently. I'd love to help you, too. Text 662-565-8818 to request tutoring."
-        ctaSlot={<HeroCta />}
+        ctaSlot={<HeroCta onReadReviews={goToReviews} />}
       />
       <Reviews />
       <SmsPolicyFootnote />
