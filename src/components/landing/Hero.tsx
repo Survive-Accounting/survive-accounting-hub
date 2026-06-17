@@ -8,7 +8,7 @@ interface HeroProps {
   onReadReviews?: () => void;
   /** Optional overrides (used by /start) — defaults keep the homepage exactly as-is. */
   headline?: string;
-  subtext?: string;
+  subtext?: React.ReactNode;
   ctaSlot?: React.ReactNode;
   showBottomFade?: boolean;
 }
