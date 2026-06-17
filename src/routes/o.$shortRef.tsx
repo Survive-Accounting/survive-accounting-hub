@@ -633,8 +633,9 @@ function PricingStep({
 
 // ---------- Step 3: Extras + Submit ----------
 function ExtrasStep({
-  shortRef, draft, update, onBack, onSubmitted,
+  firstName, shortRef, draft, update, onBack, onSubmitted,
 }: {
+  firstName: string | null;
   shortRef: string;
   draft: Draft;
   update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
