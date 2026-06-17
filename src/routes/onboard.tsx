@@ -50,7 +50,7 @@ type StressItem =
   | "Study strategies"
   | "Just trying to pass"
   | "Something else";
-type Pricing = "Single session" | "5-pack" | "Exam cram" | "Not sure yet";
+type PriceReaction = "accepted" | "hesitant";
 type Future = "CPA exam" | "Internship prep" | "Grad school" | "Just passing this class";
 
 type Answers = {
@@ -59,7 +59,7 @@ type Answers = {
   courseCode: string;
   professor: string;
   stressFactors: StressItem[];
-  pricing: Pricing | "";
+  priceReaction: PriceReaction | "";
   greek: string;
   future: Future[];
   syllabusName: string;
@@ -86,7 +86,7 @@ function OnboardPage() {
     courseCode: "",
     professor: "",
     stressFactors: [],
-    pricing: "",
+    priceReaction: "",
     greek: "",
     future: [],
     syllabusName: "",
@@ -104,7 +104,7 @@ function OnboardPage() {
       case "stress":
         return answers.stressFactors.length > 0;
       case "pricing":
-        return answers.pricing !== "";
+        return answers.priceReaction !== "";
       default:
         return true;
     }
@@ -387,47 +387,58 @@ function StepContent({
 
 
   if (step === "pricing") {
-    const options: { value: Pricing; price: string; desc: string }[] = [
-      { value: "Single session", price: "$75/hr", desc: "Try one session, no commitment." },
-      { value: "5-pack", price: "$340", desc: "Save $35. Most popular for steady support." },
-      { value: "Exam cram", price: "$200", desc: "3-hour focused prep before your test." },
-      { value: "Not sure yet", price: "—", desc: "Lee will recommend based on your needs." },
+    const bullets = [
+      "Free 30-minute introductory session",
+      "Intro Accounting tutoring: $100/hour",
+      "Intermediate Accounting tutoring: $120/hour",
+      "Zoom sessions with recording available",
+    ];
+    const options: { value: PriceReaction; label: string }[] = [
+      { value: "accepted", label: "Sounds good" },
+      { value: "hesitant", label: "More than I expected" },
     ];
     return (
       <StepShell
         eyebrow="Step 3"
-        title="Pick a starting point"
-        subtitle="No payment now — you'll only pay after Lee confirms he's a good fit."
+        title="How does this sound?"
       >
-        <div className="space-y-3">
-          {options.map((opt) => {
-            const active = answers.pricing === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => update("pricing", opt.value)}
-                className={cn(
-                  "flex w-full items-center justify-between gap-4 rounded-2xl border bg-white p-5 text-left transition-all",
-                  active
-                    ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
-                    : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
-                )}
-              >
-                <div className="min-w-0">
-                  <div className="text-base font-semibold">{opt.value}</div>
-                  <div className="mt-0.5 text-sm text-[color:var(--brand-navy)]/60">{opt.desc}</div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <div className="font-display text-xl text-[color:var(--brand-navy)]">{opt.price}</div>
-                </div>
-              </button>
-            );
-          })}
+        <div className="space-y-8">
+          <ul className="space-y-3 rounded-3xl border border-black/10 bg-white p-6 shadow-sm sm:p-7">
+            {bullets.map((b) => (
+              <li key={b} className="flex items-start gap-3 text-base text-[color:var(--brand-navy)] sm:text-lg">
+                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color:var(--brand-navy)] text-white">
+                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                </span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {options.map((opt) => {
+              const active = answers.priceReaction === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => update("priceReaction", opt.value)}
+                  className={cn(
+                    "flex h-20 w-full items-center justify-center rounded-2xl border bg-white px-6 text-center text-base font-semibold transition-all sm:text-lg",
+                    active
+                      ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
+                      : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </StepShell>
     );
   }
+
 
   if (step === "greek") {
     return (
