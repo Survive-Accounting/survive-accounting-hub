@@ -1,6 +1,6 @@
 // /onboard — Premium multi-step lead qualification flow.
 // Apple/TurboTax-inspired. Answers held in local state for now; Supabase wiring later.
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -16,12 +16,17 @@ import {
   FileText,
   PartyPopper,
   X,
+  Search,
+  ChevronDown,
+  HelpCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/onboard")({
   head: () => ({
