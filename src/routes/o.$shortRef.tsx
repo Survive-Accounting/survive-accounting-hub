@@ -154,7 +154,12 @@ function OnboardingPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-8 sm:py-14 lg:grid-cols-[1fr_240px]">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-8 sm:pt-10">
+        <a href="/" aria-label="Survive Accounting — home" className="inline-block">
+          <img src={LOGO_URL} alt="Survive Accounting" className="h-8 w-auto sm:h-10" loading="eager" />
+        </a>
+      </div>
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-14 pt-8 sm:pt-12 lg:grid-cols-[1fr_240px]">
         <div className="min-w-0">
           {step < 3 && <Stepper current={step as 0 | 1 | 2} />}
 
@@ -187,8 +192,6 @@ function OnboardingPage() {
             )}
             {step === 3 && <SuccessScreen firstName={firstName || null} />}
           </div>
-
-          <TrustPills />
         </div>
 
         <LeeAside />
