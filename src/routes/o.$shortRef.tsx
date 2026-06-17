@@ -720,7 +720,9 @@ function ExtrasStep({
 
   return (
     <div className="space-y-8">
-      <Title subtitle="Everything below is optional.">Almost done.</Title>
+      <Title subtitle="Everything below is optional.">
+        {firstName ? `Almost done, ${firstName}.` : "Almost done."}
+      </Title>
 
       {/* Stress */}
       <section>
