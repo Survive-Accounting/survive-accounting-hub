@@ -51,7 +51,11 @@ type StressItem =
   | "Just trying to pass"
   | "Something else";
 type PriceReaction = "accepted" | "hesitant";
-type Future = "CPA exam" | "Internship prep" | "Grad school" | "Just passing this class";
+type FutureInterest =
+  | "Practice exams with video solutions"
+  | "Homework help"
+  | "Group reviews"
+  | "Free tips and updates";
 
 type Answers = {
   campusId: string;
@@ -60,9 +64,10 @@ type Answers = {
   professor: string;
   stressFactors: StressItem[];
   priceReaction: PriceReaction | "";
-  greek: string;
-  future: Future[];
+  greekOrg: string; // "" = unanswered, "__not_greek__" = not greek, otherwise chapter name
+  futureInterests: FutureInterest[];
   syllabusName: string;
+  syllabusSkipped: boolean;
   name: string;
   phone: string;
 };
@@ -87,9 +92,10 @@ function OnboardPage() {
     professor: "",
     stressFactors: [],
     priceReaction: "",
-    greek: "",
-    future: [],
+    greekOrg: "",
+    futureInterests: [],
     syllabusName: "",
+    syllabusSkipped: false,
     name: "",
     phone: "",
   });
@@ -442,63 +448,72 @@ function StepContent({
 
   if (step === "greek") {
     return (
-      <StepShell
-        eyebrow="Step 4 · Optional"
-        title="In a Greek organization?"
-        subtitle="Some chapters have study partners or shared notes Lee can plug into."
-      >
-        <Field label="Chapter or organization">
-          <Input
-            value={answers.greek}
-            onChange={(e) => update("greek", e.target.value)}
-            placeholder="Kappa Alpha, Chi Omega, etc."
-            className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-            autoFocus
-          />
-        </Field>
-      </StepShell>
+      <GreekStep
+        greekOrg={answers.greekOrg}
+        onChange={(v) => update("greekOrg", v)}
+      />
     );
   }
 
   if (step === "future") {
-    const items: Future[] = ["CPA exam", "Internship prep", "Grad school", "Just passing this class"];
-    const toggle = (v: Future) => {
-      const has = answers.future.includes(v);
-      update("future", has ? answers.future.filter((x) => x !== v) : [...answers.future, v]);
+    const items: FutureInterest[] = [
+      "Practice exams with video solutions",
+      "Homework help",
+      "Group reviews",
+      "Free tips and updates",
+    ];
+    const toggle = (v: FutureInterest) => {
+      const has = answers.futureInterests.includes(v);
+      update(
+        "futureInterests",
+        has ? answers.futureInterests.filter((x) => x !== v) : [...answers.futureInterests, v],
+      );
     };
     return (
       <StepShell
         eyebrow="Step 5 · Optional"
-        title="Thinking long-term?"
-        subtitle="Lee can weave career-relevant context into the tutoring sessions."
+        title="Which additional resources would interest you?"
+        subtitle="I'm building these and can notify you when they're available."
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {items.map((item) => {
-            const active = answers.future.includes(item);
-            return (
-              <button
-                key={item}
-                type="button"
-                onClick={() => toggle(item)}
-                className={cn(
-                  "flex items-center justify-between rounded-2xl border bg-white px-5 py-4 text-left text-base font-medium transition-all",
-                  active
-                    ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
-                    : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
-                )}
-              >
-                <span>{item}</span>
-                <span
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {items.map((item) => {
+              const active = answers.futureInterests.includes(item);
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => toggle(item)}
                   className={cn(
-                    "grid h-6 w-6 shrink-0 place-items-center rounded-full border",
-                    active ? "border-[color:var(--brand-navy)] bg-[color:var(--brand-navy)] text-white" : "border-black/15",
+                    "flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-5 text-left text-base font-medium transition-all",
+                    active
+                      ? "border-[color:var(--brand-navy)] shadow-md shadow-[color:var(--brand-navy)]/10 ring-2 ring-[color:var(--brand-navy)]/10"
+                      : "border-black/10 hover:border-[color:var(--brand-navy)]/40 hover:shadow-sm",
                   )}
                 >
-                  {active && <Check className="h-4 w-4" />}
-                </span>
-              </button>
-            );
-          })}
+                  <span>{item}</span>
+                  <span
+                    className={cn(
+                      "grid h-6 w-6 shrink-0 place-items-center rounded-md border",
+                      active
+                        ? "border-[color:var(--brand-navy)] bg-[color:var(--brand-navy)] text-white"
+                        : "border-black/20 bg-white",
+                    )}
+                  >
+                    {active && <Check className="h-4 w-4" strokeWidth={3} />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Button
+            type="button"
+            onClick={onContinue}
+            disabled={answers.futureInterests.length === 0}
+            className="h-14 w-full rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90 disabled:opacity-40"
+          >
+            Notify Me
+          </Button>
         </div>
       </StepShell>
     );
@@ -508,58 +523,124 @@ function StepContent({
     return (
       <StepShell
         eyebrow="Step 6 · Optional"
-        title="Drop in your syllabus"
-        subtitle="It's the single biggest thing that lets Lee prep before your first session."
+        title="Upload your syllabus"
+        subtitle="This helps me understand your class and prepare before we meet."
       >
-        <label
-          htmlFor="syllabus"
-          className={cn(
-            "flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed bg-white px-6 py-12 text-center transition-colors",
-            answers.syllabusName ? "border-[color:var(--brand-navy)]/60" : "border-black/15 hover:border-[color:var(--brand-navy)]/40",
-          )}
-        >
-          {answers.syllabusName ? (
-            <>
-              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
-                <FileText className="h-7 w-7 text-[color:var(--brand-navy)]" />
-              </div>
-              <div className="mt-4 max-w-full truncate text-base font-semibold">{answers.syllabusName}</div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  update("syllabusName", "");
-                }}
-                className="mt-3 inline-flex items-center gap-1 text-sm text-[color:var(--brand-navy)]/60 hover:text-[color:var(--brand-red)]"
-              >
-                <X className="h-3.5 w-3.5" /> Remove
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
-                <Upload className="h-7 w-7 text-[color:var(--brand-navy)]" />
-              </div>
-              <div className="mt-4 text-base font-semibold">Upload your syllabus</div>
-              <div className="mt-1 text-sm text-[color:var(--brand-navy)]/60">PDF, DOCX, or photo — up to 10MB</div>
-            </>
-          )}
-          <input
-            id="syllabus"
-            type="file"
-            accept=".pdf,.doc,.docx,image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) update("syllabusName", f.name);
-            }}
-          />
-        </label>
+        <div className="space-y-4">
+          <label
+            htmlFor="syllabus"
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed bg-white px-6 py-12 text-center transition-colors",
+              answers.syllabusName
+                ? "border-[color:var(--brand-navy)]/60"
+                : "border-black/15 hover:border-[color:var(--brand-navy)]/40",
+            )}
+          >
+            {answers.syllabusName ? (
+              <>
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
+                  <FileText className="h-7 w-7 text-[color:var(--brand-navy)]" />
+                </div>
+                <div className="mt-4 max-w-full truncate text-base font-semibold">{answers.syllabusName}</div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    update("syllabusName", "");
+                  }}
+                  className="mt-3 inline-flex items-center gap-1 text-sm text-[color:var(--brand-navy)]/60 hover:text-[color:var(--brand-red)]"
+                >
+                  <X className="h-3.5 w-3.5" /> Remove
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[color:var(--brand-navy)]/5">
+                  <Upload className="h-7 w-7 text-[color:var(--brand-navy)]" />
+                </div>
+                <div className="mt-4 text-base font-semibold">Drag & drop, or tap to choose</div>
+                <div className="mt-1 text-sm text-[color:var(--brand-navy)]/60">PDF, DOCX, or photo — up to 10MB</div>
+              </>
+            )}
+            <input
+              id="syllabus"
+              type="file"
+              accept=".pdf,.doc,.docx,image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  update("syllabusName", f.name);
+                  update("syllabusSkipped", false);
+                }
+              }}
+            />
+          </label>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button
+              type="button"
+              onClick={() => document.getElementById("syllabus")?.click()}
+              className="h-14 rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90"
+            >
+              <Upload className="mr-2 h-5 w-5" /> Upload Syllabus
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                update("syllabusSkipped", true);
+                onContinue();
+              }}
+              className="h-14 rounded-2xl border-black/15 bg-white text-base font-semibold text-[color:var(--brand-navy)] hover:bg-[color:var(--brand-navy)]/5"
+            >
+              I'll Do This Later
+            </Button>
+          </div>
+        </div>
       </StepShell>
     );
   }
 
-  // done
+  // done — success page
+  return <DoneStep />;
+}
+
+const LEE_PHONE_E164 = "+16625658818";
+const LEE_PHONE_DISPLAY = "(662) 565-8818";
+const LEE_SMS_BODY = "Hi Lee, I just finished the onboarding on surviveaccounting.com.";
+
+function DoneStep() {
+  const [copied, setCopied] = useState(false);
+
+  const handleText = () => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const smsHref = isMobile
+      ? `sms:${LEE_PHONE_E164}?&body=${encodeURIComponent(LEE_SMS_BODY)}`
+      : `sms:${LEE_PHONE_E164};body=${encodeURIComponent(LEE_SMS_BODY)}`;
+
+    if (isMobile) {
+      window.location.href = smsHref;
+      return;
+    }
+    // Desktop: try sms: link, also copy number as fallback
+    try {
+      navigator.clipboard?.writeText(LEE_PHONE_DISPLAY);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* no-op */
+    }
+    window.location.href = smsHref;
+  };
+
+  const bullets = [
+    "Free 30-minute intro session",
+    "Personalized support",
+    "Zoom tutoring",
+    "Session recordings available",
+  ];
+
   return (
     <div className="text-center">
       <motion.div
@@ -570,47 +651,38 @@ function StepContent({
       >
         <Check className="h-10 w-10" strokeWidth={3} />
       </motion.div>
-      <h1 className="font-display mt-8 text-4xl leading-tight sm:text-5xl">You're in.</h1>
-      <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-[color:var(--brand-navy)]/70">
-        Lee personally reviews every request and will text you within one business day.
+      <h1 className="font-display mt-8 text-4xl leading-tight sm:text-5xl">You're all set!</h1>
+      <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-[color:var(--brand-navy)]/70 sm:text-lg">
+        Thanks for reaching out. I'll review your information and text you within 1 business day.
       </p>
 
-      <div className="mx-auto mt-10 max-w-md space-y-4 text-left">
-        <Field label="Your name">
-          <Input
-            value={answers.name}
-            onChange={(e) => update("name", e.target.value)}
-            placeholder="Jordan Smith"
-            className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-          />
-        </Field>
-        <Field label="Phone (for text)">
-          <Input
-            value={answers.phone}
-            onChange={(e) => update("phone", e.target.value)}
-            placeholder="(555) 123-4567"
-            inputMode="tel"
-            className="h-14 rounded-2xl border-black/10 bg-white px-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
-          />
-        </Field>
+      <ul className="mx-auto mt-10 max-w-md space-y-3 rounded-3xl border border-black/10 bg-white p-6 text-left shadow-sm">
+        {bullets.map((b) => (
+          <li key={b} className="flex items-start gap-3 text-base text-[color:var(--brand-navy)]">
+            <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color:var(--brand-navy)] text-white">
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            </span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mx-auto mt-8 max-w-md">
         <Button
           type="button"
-          onClick={() => {
-            // TODO: wire to Supabase
-            console.log("onboard answers", answers);
-          }}
-          disabled={!answers.name.trim() || !answers.phone.trim()}
-          className="h-14 w-full rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90 disabled:opacity-40"
+          onClick={handleText}
+          className="h-14 w-full rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white shadow-lg shadow-[color:var(--brand-navy)]/20 hover:bg-[color:var(--brand-navy)]/90"
         >
-          Send my request
+          Text Lee Now
         </Button>
-        <p className="text-center text-xs text-[color:var(--brand-navy)]/50">
-          By submitting you agree to receive a text reply from Lee.
+        <p className="mt-3 text-sm text-[color:var(--brand-navy)]/60">
+          {copied ? `Copied ${LEE_PHONE_DISPLAY} to clipboard` : LEE_PHONE_DISPLAY}
         </p>
       </div>
     </div>
   );
 }
+
 
 function StepShell({
   eyebrow,
@@ -917,5 +989,151 @@ function CampusCoursePicker({
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ---------------- Greek Organization step ----------------
+
+const GREEK_ORGS = [
+  "Alpha Chi Omega","Alpha Delta Pi","Alpha Epsilon Phi","Alpha Gamma Delta","Alpha Kappa Alpha",
+  "Alpha Omicron Pi","Alpha Phi","Alpha Sigma Alpha","Alpha Xi Delta","Chi Omega",
+  "Delta Delta Delta","Delta Gamma","Delta Sigma Theta","Delta Zeta","Gamma Phi Beta",
+  "Kappa Alpha Theta","Kappa Delta","Kappa Kappa Gamma","Phi Mu","Pi Beta Phi",
+  "Sigma Delta Tau","Sigma Kappa","Sigma Sigma Sigma","Zeta Tau Alpha",
+  "Alpha Epsilon Pi","Alpha Tau Omega","Beta Theta Pi","Chi Phi","Delta Chi",
+  "Delta Tau Delta","Delta Upsilon","Kappa Alpha Order","Kappa Sigma","Lambda Chi Alpha",
+  "Phi Delta Theta","Phi Gamma Delta (FIJI)","Phi Kappa Psi","Phi Kappa Tau","Pi Kappa Alpha",
+  "Pi Kappa Phi","Sigma Alpha Epsilon","Sigma Chi","Sigma Nu","Sigma Phi Epsilon",
+  "Tau Kappa Epsilon","Theta Chi","Zeta Beta Tau",
+];
+
+const NOT_GREEK = "__not_greek__";
+
+function GreekStep({ greekOrg, onChange }: { greekOrg: string; onChange: (v: string) => void }) {
+  const [showPicker, setShowPicker] = useState(greekOrg !== "" && greekOrg !== NOT_GREEK);
+  const [query, setQuery] = useState("");
+
+  const isNotGreek = greekOrg === NOT_GREEK;
+  const isChosen = greekOrg !== "" && !isNotGreek;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return GREEK_ORGS;
+    return GREEK_ORGS.filter((o) => o.toLowerCase().includes(q));
+  }, [query]);
+
+  return (
+    <StepShell
+      eyebrow="Step 4 · Optional"
+      title="Are you in a Greek organization?"
+      subtitle="Many chapters help members pay for tutoring."
+    >
+      <div className="space-y-5">
+        {!showPicker && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setShowPicker(true);
+                if (isNotGreek) onChange("");
+              }}
+              className="h-16 rounded-2xl bg-[color:var(--brand-navy)] text-base font-semibold text-white hover:bg-[color:var(--brand-navy)]/90"
+            >
+              <Users className="mr-2 h-5 w-5" /> Choose My Organization
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onChange(NOT_GREEK)}
+              className={cn(
+                "h-16 rounded-2xl border-black/15 bg-white text-base font-semibold text-[color:var(--brand-navy)] hover:bg-[color:var(--brand-navy)]/5",
+                isNotGreek && "border-[color:var(--brand-navy)] ring-2 ring-[color:var(--brand-navy)]/10",
+              )}
+            >
+              Not Greek
+              {isNotGreek && <Check className="ml-2 h-5 w-5" />}
+            </Button>
+          </div>
+        )}
+
+        {isChosen && !showPicker && (
+          <div className="rounded-2xl border border-[color:var(--brand-navy)]/40 bg-white px-5 py-4 text-sm">
+            <span className="text-[color:var(--brand-navy)]/60">Selected:</span>{" "}
+            <span className="font-semibold text-[color:var(--brand-navy)]">{greekOrg}</span>
+          </div>
+        )}
+
+        {showPicker && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-[color:var(--brand-navy)]/80">Your chapter</Label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPicker(false);
+                  onChange("");
+                }}
+                className="text-xs font-medium text-[color:var(--brand-navy)]/60 hover:text-[color:var(--brand-navy)]"
+              >
+                ← Back
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[color:var(--brand-navy)]/40" />
+              <Input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search Greek organizations…"
+                className="h-14 rounded-2xl border-black/10 bg-white pl-12 pr-5 text-base shadow-sm focus-visible:ring-[color:var(--brand-navy)]"
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto rounded-2xl border border-black/10 bg-white shadow-sm">
+              {filtered.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-[color:var(--brand-navy)]/50">
+                  No matches. Type your chapter name and tap "Use…" below.
+                </div>
+              ) : (
+                filtered.map((org) => {
+                  const active = greekOrg === org;
+                  return (
+                    <button
+                      key={org}
+                      type="button"
+                      onClick={() => onChange(org)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 border-b border-black/5 px-4 py-3 text-left text-base last:border-b-0 hover:bg-[color:var(--brand-navy)]/5",
+                        active && "bg-[color:var(--brand-navy)]/5 font-semibold",
+                      )}
+                    >
+                      <span className="truncate">{org}</span>
+                      {active && <Check className="h-4 w-4 shrink-0 text-[color:var(--brand-navy)]" />}
+                    </button>
+                  );
+                })
+              )}
+              {query.trim() && !filtered.some((o) => o.toLowerCase() === query.trim().toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => onChange(query.trim())}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 border-t border-black/5 px-4 py-3 text-left text-base hover:bg-[color:var(--brand-navy)]/5",
+                    greekOrg === query.trim() && "bg-[color:var(--brand-navy)]/5 font-semibold",
+                  )}
+                >
+                  <span className="truncate">Use "{query.trim()}"</span>
+                  {greekOrg === query.trim() && <Check className="h-4 w-4 shrink-0 text-[color:var(--brand-navy)]" />}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </StepShell>
   );
 }
