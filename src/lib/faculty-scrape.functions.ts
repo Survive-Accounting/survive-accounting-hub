@@ -74,6 +74,8 @@ type Extracted = {
   title: string | null;
   email: string | null;
   profile_url: string | null;
+  is_phd: boolean;
+  is_cpa: boolean;
 };
 
 // Path segments (between slashes) that strongly indicate a faculty roster page.
@@ -93,6 +95,28 @@ const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
 const TEACHING_TITLE_RE = /\b(professor|instructor|lecturer|adjunct|clinical|teaching|faculty|dean|chair|practice|visiting)\b/i;
 const PROFILE_ENRICH_LIMIT = 60;
 
+// Credential detection — used both to flag the row and to strip trailing
+// credentials from displayed names ("Jane Doe, PhD, CPA" → "Jane Doe").
+const PHD_RE = /\b(Ph\.?\s?D\.?|D\.?B\.?A\.?|Ed\.?D\.?|D\.?Phil\.?|Doctorate|J\.?S\.?D\.?)\b/i;
+const CPA_RE = /\bC\.?\s?P\.?\s?A\.?\b/i;
+const CREDENTIAL_TAIL_RE = /[,\s]+(?:Ph\.?\s?D\.?|D\.?B\.?A\.?|Ed\.?D\.?|D\.?Phil\.?|J\.?S\.?D\.?|C\.?\s?P\.?\s?A\.?|M\.?B\.?A\.?|M\.?S\.?|M\.?Acc\.?|J\.?D\.?|Esq\.?|CFA|CMA|CIA|CFP|CFE|EA)\.?\s*$/i;
+
+function stripCredentials(raw: string): string {
+  let s = raw.trim();
+  // Repeatedly strip trailing credentials separated by comma/space.
+  for (let i = 0; i < 6; i++) {
+    const next = s.replace(CREDENTIAL_TAIL_RE, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s.replace(/[,\s]+$/, "").trim();
+}
+
+function detectCredentials(...sources: Array<string | null | undefined>): { is_phd: boolean; is_cpa: boolean } {
+  const haystack = sources.filter(Boolean).join(" | ");
+  return { is_phd: PHD_RE.test(haystack), is_cpa: CPA_RE.test(haystack) };
+}
+
 function normalizeUrl(raw: string): string {
   try {
     const url = new URL(raw);
@@ -105,7 +129,7 @@ function normalizeUrl(raw: string): string {
 }
 
 function splitName(fullName: string): { first_name: string; last_name: string } | null {
-  const cleaned = fullName.replace(/\s+/g, " ").trim();
+  const cleaned = stripCredentials(fullName.replace(/\s+/g, " ").trim());
   const parts = cleaned.split(" ").filter(Boolean);
   if (parts.length < 2) return null;
   return { first_name: parts.slice(0, -1).join(" "), last_name: parts.at(-1) ?? "" };
@@ -118,9 +142,9 @@ function extractDirectoryMarkdownPeople(pageText: string): Extracted[] {
 
   for (let i = 0; i < matches.length; i++) {
     const match = matches[i];
-    const name = (match[1] ?? "").trim();
+    const rawName = (match[1] ?? "").trim();
     const profileUrl = normalizeUrl(match[2] ?? "");
-    const parsedName = splitName(name);
+    const parsedName = splitName(rawName);
     if (!parsedName || !profileUrl) continue;
 
     const start = (match.index ?? 0) + match[0].length;
@@ -129,7 +153,8 @@ function extractDirectoryMarkdownPeople(pageText: string): Extracted[] {
     const title = block.match(/^\s*-\s+(.+?)\s*$/m)?.[1]?.replace(/\s+/g, " ").trim() ?? null;
     if (title && !TEACHING_TITLE_RE.test(title)) continue;
 
-    people.push({ ...parsedName, title, email: null, profile_url: profileUrl });
+    const creds = detectCredentials(rawName, title);
+    people.push({ ...parsedName, title, email: null, profile_url: profileUrl, ...creds });
   }
 
   return people;
@@ -153,6 +178,8 @@ function mergePeople(...groups: Extracted[][]): Extracted[] {
       title: person.title || existing?.title || null,
       email: person.email || existing?.email || null,
       profile_url: person.profile_url || existing?.profile_url || null,
+      is_phd: !!(existing?.is_phd || person.is_phd),
+      is_cpa: !!(existing?.is_cpa || person.is_cpa),
     });
   }
   return Array.from(byKey.values());
@@ -171,7 +198,14 @@ async function enrichProfileEmails(fcKey: string, people: Extracted[], sourceUrl
     try {
       const profileText = await firecrawlScrape(fcKey, person.profile_url);
       const email = extractBestEmail(profileText);
-      out.push({ ...person, email: email ?? person.email });
+      // Profile pages often disclose credentials the index page hid.
+      const profileCreds = detectCredentials(profileText.slice(0, 4000));
+      out.push({
+        ...person,
+        email: email ?? person.email,
+        is_phd: person.is_phd || profileCreds.is_phd,
+        is_cpa: person.is_cpa || profileCreds.is_cpa,
+      });
       enriched++;
     } catch {
       out.push(person);
@@ -295,8 +329,11 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
     "3. Capture every teaching role: Professor, Associate/Assistant Professor, Instructor, Lecturer, Adjunct, Clinical, Teaching Professor, Professor of Practice, Visiting. " +
     "4. Exclude clearly non-accounting faculty (finance, economics, marketing, IS, etc.) unless the page explicitly lists them under accounting. " +
     "5. Exclude purely administrative staff with no teaching title (e.g. Department Coordinator, Office Manager) unless their title contains an instructional keyword. " +
-    "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url }] }. " +
-    "7. profile_url should be an absolute URL when the source links to a personal profile page; otherwise null.";
+    "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url, is_phd, is_cpa }] }. " +
+    "7. profile_url should be an absolute URL when the source links to a personal profile page; otherwise null. " +
+    "8. is_phd = true if the person's name, title, or bio shows a doctorate credential (PhD, Ph.D., DBA, EdD, DPhil, JSD, or 'Doctorate'). Otherwise false. " +
+    "9. is_cpa = true if their name, title, or bio shows the CPA credential (CPA or C.P.A.). Otherwise false. " +
+    "10. Do NOT include credentials (PhD, CPA, MBA, JD, Esq., etc.) inside first_name or last_name — return the clean human name only.";
 
   const user = `Source URL: ${sourceUrl}\n\nPage content (markdown):\n${truncated}`;
 
@@ -337,15 +374,22 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
   for (const p of people) {
     if (!p || typeof p !== "object") continue;
     const r = p as Record<string, unknown>;
-    const fn = typeof r.first_name === "string" ? r.first_name.trim() : "";
-    const ln = typeof r.last_name === "string" ? r.last_name.trim() : "";
-    if (!fn && !ln) continue;
+    const fnRaw = typeof r.first_name === "string" ? r.first_name.trim() : "";
+    const lnRaw = typeof r.last_name === "string" ? r.last_name.trim() : "";
+    if (!fnRaw && !lnRaw) continue;
+    const title = typeof r.title === "string" ? r.title.trim() || null : null;
+    // OR the AI signal with our regex against name + title (belt and suspenders).
+    const regexCreds = detectCredentials(fnRaw, lnRaw, title);
+    const aiPhd = r.is_phd === true;
+    const aiCpa = r.is_cpa === true;
     out.push({
-      first_name: fn,
-      last_name: ln,
-      title: typeof r.title === "string" ? r.title.trim() || null : null,
+      first_name: stripCredentials(fnRaw),
+      last_name: stripCredentials(lnRaw),
+      title,
       email: typeof r.email === "string" && r.email.includes("@") ? r.email.trim().toLowerCase() : null,
       profile_url: typeof r.profile_url === "string" && /^https?:\/\//i.test(r.profile_url) ? r.profile_url.trim() : null,
+      is_phd: aiPhd || regexCreds.is_phd,
+      is_cpa: aiCpa || regexCreds.is_cpa,
     });
   }
   return out;
@@ -370,8 +414,11 @@ async function callLovableAiWithPdf(
     "3. Capture every teaching role: Professor, Associate/Assistant Professor, Instructor, Lecturer, Adjunct, Clinical, Teaching Professor, Professor of Practice, Visiting. " +
     "4. Exclude clearly non-accounting faculty (finance, economics, marketing, IS, etc.) unless the page explicitly lists them under accounting. " +
     "5. Exclude purely administrative staff with no teaching title unless their title contains an instructional keyword. " +
-    "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url }] }. " +
-    "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null.";
+    "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url, is_phd, is_cpa }] }. " +
+    "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null. " +
+    "8. is_phd = true if the person's name, title, or bio shows a doctorate credential (PhD, Ph.D., DBA, EdD, DPhil, JSD, or 'Doctorate'). Otherwise false. " +
+    "9. is_cpa = true if their name, title, or bio shows the CPA credential (CPA or C.P.A.). Otherwise false. " +
+    "10. Do NOT include credentials (PhD, CPA, MBA, JD, Esq., etc.) inside first_name or last_name — return the clean human name only.";
 
   const res = await fetchWithTimeout(
     "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -413,15 +460,21 @@ async function callLovableAiWithPdf(
   for (const p of people) {
     if (!p || typeof p !== "object") continue;
     const r = p as Record<string, unknown>;
-    const fn = typeof r.first_name === "string" ? r.first_name.trim() : "";
-    const ln = typeof r.last_name === "string" ? r.last_name.trim() : "";
-    if (!fn && !ln) continue;
+    const fnRaw = typeof r.first_name === "string" ? r.first_name.trim() : "";
+    const lnRaw = typeof r.last_name === "string" ? r.last_name.trim() : "";
+    if (!fnRaw && !lnRaw) continue;
+    const title = typeof r.title === "string" ? r.title.trim() || null : null;
+    const regexCreds = detectCredentials(fnRaw, lnRaw, title);
+    const aiPhd = r.is_phd === true;
+    const aiCpa = r.is_cpa === true;
     out.push({
-      first_name: fn,
-      last_name: ln,
-      title: typeof r.title === "string" ? r.title.trim() || null : null,
+      first_name: stripCredentials(fnRaw),
+      last_name: stripCredentials(lnRaw),
+      title,
       email: typeof r.email === "string" && r.email.includes("@") ? r.email.trim().toLowerCase() : null,
       profile_url: typeof r.profile_url === "string" && /^https?:\/\//i.test(r.profile_url) ? r.profile_url.trim() : null,
+      is_phd: aiPhd || regexCreds.is_phd,
+      is_cpa: aiCpa || regexCreds.is_cpa,
     });
   }
   return out;
@@ -453,8 +506,10 @@ async function insertExtractedPeople(
       research_label: researchLabel,
       status: "pending",
       lead_type: "professor",
+      is_phd: p.is_phd,
+      is_cpa: p.is_cpa,
       notes: `Scraped from ${sourceLabel}`,
-      raw_payload: { source: sourceLabel, title: p.title, profile_url: p.profile_url },
+      raw_payload: { source: sourceLabel, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
     });
   }
   if (rowsToInsert.length === 0) return { inserted: 0, skippedDuplicates: 0 };
@@ -526,8 +581,10 @@ async function processUrls(
           research_label: "faculty_scrape_v2_firecrawl",
           status: "pending",
           lead_type: "professor",
+          is_phd: p.is_phd,
+          is_cpa: p.is_cpa,
           notes: `Scraped from ${url}`,
-          raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url },
+          raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
         });
       }
     } catch (e) {
