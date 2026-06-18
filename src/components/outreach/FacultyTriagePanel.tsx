@@ -673,7 +673,35 @@ export function FacultyTriagePanel({
                       <span className="text-amber-700">no email found</span>
                     )}
                   </TableCell>
+                  <TableCell className="text-center text-xs tabular-nums">
+                    {r.rmp_rating != null ? (
+                      r.rmp_profile_url ? (
+                        <a
+                          href={r.rmp_profile_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 hover:underline"
+                          title={`${r.rmp_num_ratings ?? 0} ratings · difficulty ${r.rmp_difficulty?.toFixed(1) ?? "—"} · ${r.rmp_would_take_again != null ? Math.round(r.rmp_would_take_again) + "% take again" : "no take-again %"}`}
+                        >
+                          <span className="text-amber-500">★</span>
+                          <span className="font-medium">{r.rmp_rating.toFixed(1)}</span>
+                          {r.rmp_num_ratings != null && (
+                            <span className="text-muted-foreground">({r.rmp_num_ratings})</span>
+                          )}
+                        </a>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-amber-500">★</span>
+                          <span className="font-medium">{r.rmp_rating.toFixed(1)}</span>
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-center">
+
                     <div className="flex items-center justify-center gap-1">
                       <button
                         type="button"
