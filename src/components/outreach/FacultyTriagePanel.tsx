@@ -569,6 +569,9 @@ export function FacultyTriagePanel({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px] text-center">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground" title="Import?">Imp</span>
+              </TableHead>
               <TableHead className="w-[18%]">
                 <button type="button" onClick={() => toggleSort("name")}
                   className="inline-flex items-center gap-1 hover:text-foreground">
@@ -585,6 +588,7 @@ export function FacultyTriagePanel({
               <TableHead className="w-[110px] text-center">Creds</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {sortedRows.map((r) => {
               const isSel = selected.has(r.id);
