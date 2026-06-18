@@ -301,6 +301,7 @@ export default function ApproveCampusModal({
 
     setIsbnLookup({});
     setProgramName(campus.accounting_department_name ?? "");
+    setProgramShorthand((campus as Campus & { program_shorthand?: string | null }).program_shorthand ?? "");
     setLastSavedAt(null);
     setAiResult(null);
     setAiResearching(false);
