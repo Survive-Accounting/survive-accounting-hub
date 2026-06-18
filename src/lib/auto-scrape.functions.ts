@@ -36,6 +36,46 @@ function hostOf(u: string): string {
   try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
 }
 
+// Dated blog posts (e.g. /2025/12/01/foo) are news, never faculty rosters.
+const BLOG_DATE_RE = /\/(?:19|20)\d{2}\/\d{1,2}\/\d{1,2}\//;
+// Faculty-directory-parent path tokens used to climb from profile → directory.
+const FACULTY_PARENT_TOKENS = new Set([
+  "people", "faculty", "faculty-directory", "faculty-and-staff",
+  "faculty-staff", "profiles", "directory", "staff", "instructors",
+]);
+
+/**
+ * Given a profile-detail URL (e.g. `…/profile.html?id=kenmerk` or
+ * `…/people/jane-doe`), derive the parent directory listing URL(s). The
+ * roster is almost always where the rest of the dept lives — one extra
+ * Firecrawl call is far cheaper than missing 30 profs.
+ */
+function deriveDirectoryParents(rawUrl: string): string[] {
+  const out: string[] = [];
+  try {
+    const u = new URL(rawUrl);
+    const base = `${u.protocol}//${u.host}`;
+    // Case A: query like ?id=… / ?profile=… / ?person=… → strip query, and
+    // strip a trailing /xxx.html file segment to expose the directory dir.
+    if (u.search && /[?&](id|profile|person|username)=/i.test(u.search)) {
+      const pathNoFile = u.pathname.replace(/\/[^/]*\.html?$/i, "/");
+      const parent = pathNoFile !== u.pathname ? pathNoFile : u.pathname.replace(/\/+$/, "/");
+      out.push(`${base}${parent.endsWith("/") ? parent : parent + "/"}`);
+    }
+    // Case B: /<faculty-dir>/<slug>(.html)? → climb to /<faculty-dir>/
+    const segs = u.pathname.split("/").filter(Boolean);
+    if (segs.length >= 2) {
+      const parentSeg = segs.at(-2)!.toLowerCase();
+      const lastSeg = segs.at(-1)!.toLowerCase().replace(/\.html?$/, "");
+      if (FACULTY_PARENT_TOKENS.has(parentSeg) && !FACULTY_PARENT_TOKENS.has(lastSeg)) {
+        const dirPath = "/" + segs.slice(0, -1).join("/") + "/";
+        out.push(`${base}${dirPath}`);
+      }
+    }
+  } catch { /* ignore bad URLs */ }
+  return Array.from(new Set(out));
+}
+
 const Input = z.object({ campusId: z.string().uuid() });
 
 export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
