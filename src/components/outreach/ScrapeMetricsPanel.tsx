@@ -4,8 +4,10 @@
 // refreshes whenever a job finishes (the queue component already subscribes
 // to realtime; we just re-query on visibility changes + a slow timer).
 import { useEffect, useState } from "react";
-import { ChevronDown, BarChart3, RefreshCw } from "lucide-react";
+import { ChevronDown, BarChart3, RefreshCw, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { listRecentDebugBundles } from "@/lib/scrape-debug.functions";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
