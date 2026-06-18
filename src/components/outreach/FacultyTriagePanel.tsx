@@ -242,6 +242,31 @@ export function FacultyTriagePanel({
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [rows]);
 
+  /** Tag suggestions for the current selection. Combines:
+   *   - role keywords detected in any selected person's title
+   *     (Instructor, Lecturer, Adjunct, Grader, Teaching Assistant, etc.)
+   *   - tags already in use elsewhere in this campus that match a selected title
+   *  Excludes tags every selected row already has. */
+  const suggestedTags = useMemo(() => {
+    if (selectedRows.length === 0) return [] as string[];
+    const out = new Set<string>();
+    for (const r of selectedRows) {
+      const title = (r.title ?? "").trim();
+      if (!title) continue;
+      for (const { re, label } of ROLE_TAG_KEYWORDS) {
+        if (re.test(title)) out.add(label);
+      }
+      for (const t of allKnownTags) {
+        if (t.toLowerCase() === title.toLowerCase()) out.add(t);
+      }
+    }
+    // Drop tags every selected row already has.
+    const everyHas = (tag: string) =>
+      selectedRows.every((r) => (r.title_tags ?? []).map((x) => x.toLowerCase()).includes(tag.toLowerCase()));
+    return Array.from(out).filter((t) => !everyHas(t)).sort();
+  }, [selectedRows, allKnownTags]);
+
+
   /** Remove a tag from every row in this campus (used by the dropdown ×). */
   const removeTagFromCampus = async (tag: string) => {
     if (!confirm(`Remove tag "${tag}" from every person in this campus?`)) return;
