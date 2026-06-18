@@ -120,6 +120,9 @@ function familyCode(code: string | undefined | null, anchor?: string | null): st
   const am = a.match(/^([A-Za-z&-]+)\s+/);
   if (cm && am && cm[1].toUpperCase() === am[1].toUpperCase()) return cm[2];
   return c;
+}
+
+
 
 /** Render **bold** and _italic_ markdown in a pre-escaped string segment. */
 function applyBold(html: string): string {
