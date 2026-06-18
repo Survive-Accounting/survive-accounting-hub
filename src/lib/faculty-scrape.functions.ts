@@ -816,6 +816,14 @@ async function processUrls(
       const url = urls[i];
       try {
         const { markdown: md, links } = await firecrawlScrapeWithLinks(fcKey, url);
+        // Cache the rendered directory page so RMP reverse-lookup (and future
+        // enrichment passes) can name-match without re-scraping. Cap markdown
+        // at 200KB per URL to keep the JSONB column reasonable.
+        cache[url] = {
+          markdown: md ? md.slice(0, 200_000) : "",
+          links: links.slice(0, 2000),
+          scraped_at: new Date().toISOString(),
+        };
         if (!md) {
           perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: links.length, error: "empty content" });
           continue;
