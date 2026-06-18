@@ -456,7 +456,7 @@ async function enrichProfileEmails(
 ): Promise<{
   people: Extracted[];
   enriched: number;
-  outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }>;
+  outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error" | "skipped_host"; mdLen: number; htmlLen: number }>;
 }> {
   const sourceKey = normalizeUrl(sourceUrl);
   const passThrough: Extracted[] = [];
