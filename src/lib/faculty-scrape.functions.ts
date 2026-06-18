@@ -198,33 +198,45 @@ function mergePeople(...groups: Extracted[][]): Extracted[] {
 }
 
 async function enrichProfileEmails(fcKey: string, people: Extracted[], sourceUrl: string): Promise<Extracted[]> {
-  let enriched = 0;
-  const out: Extracted[] = [];
   const sourceKey = normalizeUrl(sourceUrl);
-
-  for (const person of people) {
-    if (person.email || !person.profile_url || normalizeUrl(person.profile_url) === sourceKey || enriched >= PROFILE_ENRICH_LIMIT) {
-      out.push(person);
-      continue;
-    }
-    try {
-      const profileText = await firecrawlScrape(fcKey, person.profile_url);
-      const email = extractBestEmail(profileText);
-      // Profile pages often disclose credentials the index page hid.
-      const profileCreds = detectCredentials(profileText.slice(0, 4000));
-      out.push({
-        ...person,
-        email: email ?? person.email,
-        is_phd: person.is_phd || profileCreds.is_phd,
-        is_cpa: person.is_cpa || profileCreds.is_cpa,
-      });
-      enriched++;
-    } catch {
-      out.push(person);
+  // Partition: people that already have an email (or no profile) pass through
+  // untouched; the rest go into a bounded-parallel enrichment pool.
+  const passThrough: Extracted[] = [];
+  const toEnrich: Extracted[] = [];
+  for (const p of people) {
+    if (p.email || !p.profile_url || normalizeUrl(p.profile_url) === sourceKey) {
+      passThrough.push(p);
+    } else if (toEnrich.length < PROFILE_ENRICH_LIMIT) {
+      toEnrich.push(p);
+    } else {
+      passThrough.push(p);
     }
   }
 
-  return out;
+  const enriched: Extracted[] = new Array(toEnrich.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, toEnrich.length) }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= toEnrich.length) return;
+      const person = toEnrich[i];
+      try {
+        const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
+        const email = extractBestEmail(profileText);
+        const profileCreds = detectCredentials(profileText.slice(0, 4000));
+        enriched[i] = {
+          ...person,
+          email: email ?? person.email,
+          is_phd: person.is_phd || profileCreds.is_phd,
+          is_cpa: person.is_cpa || profileCreds.is_cpa,
+        };
+      } catch {
+        enriched[i] = person;
+      }
+    }
+  });
+  await Promise.all(workers);
+  return [...passThrough, ...enriched];
 }
 
 function rankFacultyUrls(links: string[]): string[] {
