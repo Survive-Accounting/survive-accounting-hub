@@ -51,9 +51,15 @@ export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
     const conf = payload?.email_confidence;
     const email_confidence: TriageRow["email_confidence"] =
       conf === "inferred" || conf === "directory" || conf === "verified" || conf === "news" ? conf : null;
+    const pagInfo = (r.raw_payload ?? null) as { pagination?: { pagesWalked?: number } } | null;
+    const pagination_pages_walked =
+      pagInfo?.pagination?.pagesWalked && pagInfo.pagination.pagesWalked > 1
+        ? pagInfo.pagination.pagesWalked
+        : null;
     return {
       id: r.id,
       campus_id: r.campus_id,
+
       first_name: r.first_name,
       last_name: r.last_name,
       title: r.title,
