@@ -1,0 +1,319 @@
+// /outreach/leadfinder/$campusId — minimal, focused page for scraping faculty
+// and triaging leads on a single campus. Replaces the legacy ApproveCampusModal.
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Toaster, toast } from "sonner";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, X } from "lucide-react";
+
+import { AdminGate } from "@/components/AdminGate";
+import { Button } from "@/components/ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger,
+} from "@/components/ui/select";
+import { ScrapeFacultyButton } from "@/components/outreach/ScrapeFacultyButton";
+import { FacultyTriagePanel, type TriageStats } from "@/components/outreach/FacultyTriagePanel";
+import { fetchCampuses } from "@/lib/outreach-api";
+import { importKeptLeads } from "@/lib/faculty-triage";
+import { supabase } from "@/integrations/supabase/client";
+import type { Campus } from "@/lib/outreach-mock";
+
+const LOGO_URL =
+  "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
+
+type NextFilter = "all" | "with_leads" | "without_leads" | "sec_only" | "highest_value";
+const FILTER_LABELS: Record<NextFilter, string> = {
+  all: "All",
+  with_leads: "With leads",
+  without_leads: "Without leads",
+  sec_only: "SEC only 🏈",
+  highest_value: "Highest value 💰",
+};
+
+const HISTORY_KEY = "sa-leadfinder-history";
+const FILTER_KEY = "sa-leadfinder-filter";
+
+function readHistory(): string[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(window.sessionStorage.getItem(HISTORY_KEY) || "[]"); }
+  catch { return []; }
+}
+function writeHistory(ids: string[]) {
+  try { window.sessionStorage.setItem(HISTORY_KEY, JSON.stringify(ids)); }
+  catch { /* ignore */ }
+}
+
+function LeadOdometer({ value }: { value: number }) {
+  const digits = String(Math.max(0, Math.min(999999, value))).padStart(6, "0").split("");
+  return (
+    <span className="inline-flex overflow-hidden rounded-sm border border-zinc-700/80 shadow-inner">
+      {digits.map((d, i) => (
+        <span
+          key={i}
+          className="inline-flex h-5 w-3.5 items-center justify-center bg-zinc-900 font-mono text-[11px] font-bold leading-none text-amber-300"
+          style={{ borderRight: i < digits.length - 1 ? "1px solid #3f3f46" : undefined }}
+        >
+          {d}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export const Route = createFileRoute("/outreach/leadfinder/$campusId")({
+  head: () => ({
+    meta: [
+      { title: "Lead Finder — Survive Accounting" },
+      { name: "description", content: "Scrape faculty pages and triage campus leads." },
+    ],
+  }),
+  component: LeadFinderPage,
+});
+
+function LeadFinderPage() {
+  const { campusId } = Route.useParams();
+  const navigate = useNavigate();
+  const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
+  const campus: Campus | null = useMemo(
+    () => campusQuery.data?.find((c) => c.id === campusId) ?? null,
+    [campusQuery.data, campusId],
+  );
+
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [triageStats, setTriageStats] = useState<TriageStats>({ leads: 0, kept: 0, pending: 0, tagged: 0 });
+  const [importing, setImporting] = useState(false);
+  const [nextFilter, setNextFilter] = useState<NextFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    const v = window.localStorage.getItem(FILTER_KEY);
+    return (v === "with_leads" || v === "without_leads" || v === "sec_only" || v === "highest_value" || v === "all")
+      ? v : "all";
+  });
+  const updateFilter = (v: NextFilter) => {
+    setNextFilter(v);
+    try { window.localStorage.setItem(FILTER_KEY, v); } catch { /* ignore */ }
+  };
+
+  const [history, setHistory] = useState<string[]>(readHistory);
+  useEffect(() => { writeHistory(history); }, [history]);
+  const canGoBack = history.length > 0;
+
+  const handleImport = async () => {
+    if (!campus || triageStats.kept === 0) return;
+    setImporting(true);
+    try {
+      const r = await importKeptLeads(campus.id);
+      const parts = [`Imported ${r.inserted} new lead${r.inserted === 1 ? "" : "s"}`];
+      if (r.mergedTags) parts.push(`merged tags onto ${r.mergedTags} existing`);
+      if (r.skipped) parts.push(`skipped ${r.skipped} duplicate`);
+      toast.success(parts.join(" · "));
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      toast.error(`Import failed: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (history.length === 0) return;
+    const next = [...history];
+    const prevId = next.pop()!;
+    setHistory(next);
+    navigate({ to: "/outreach/leadfinder/$campusId", params: { campusId: prevId } });
+  };
+
+  const handleNext = async () => {
+    if (!campus || !campusQuery.data) return;
+    const visited = new Set([...history, campus.id]);
+    let pool = campusQuery.data.filter(
+      (c) => !c.archived && c.approval_status !== "approved" && !visited.has(c.id),
+    );
+    if (nextFilter === "sec_only") pool = pool.filter((c) => c.is_sec);
+    if (nextFilter === "with_leads" || nextFilter === "without_leads") {
+      try {
+        const ids = pool.map((c) => c.id);
+        if (ids.length > 0) {
+          const { data } = await supabase
+            .from("campus_lead_suggestions")
+            .select("campus_id")
+            .eq("research_mode", "faculty_scrape")
+            .is("archived_at", null)
+            .in("campus_id", ids);
+          const withLeads = new Set(
+            ((data ?? []) as Array<{ campus_id: string | null }>)
+              .map((r) => r.campus_id).filter((x): x is string => !!x),
+          );
+          pool = pool.filter((c) =>
+            nextFilter === "with_leads" ? withLeads.has(c.id) : !withLeads.has(c.id),
+          );
+        }
+      } catch { /* ignore */ }
+    }
+    if (nextFilter === "highest_value") {
+      pool = [...pool].sort((a, b) => {
+        const ta = a.tuition_out_state ?? a.tuition_in_state ?? 0;
+        const tb = b.tuition_out_state ?? b.tuition_in_state ?? 0;
+        const ea = a.total_enrollment ?? 0;
+        const eb = b.total_enrollment ?? 0;
+        return (tb * eb) - (ta * ea);
+      });
+    }
+    const nextCampus = pool[0];
+    if (!nextCampus) {
+      toast.info(`No more campuses matching "${FILTER_LABELS[nextFilter]}".`);
+      return;
+    }
+    setHistory((h) => [...h, campus.id]);
+    navigate({ to: "/outreach/leadfinder/$campusId", params: { campusId: nextCampus.id } });
+  };
+
+  const handleClose = () => {
+    setHistory([]);
+    writeHistory([]);
+    navigate({ to: "/outreach" });
+  };
+
+  return (
+    <AdminGate>
+      <Toaster richColors position="top-center" />
+      <div className="min-h-screen bg-background pb-28">
+        {/* Navy top bar */}
+        <header
+          className="text-white"
+          style={{ background: "linear-gradient(180deg, #0b1f3a 0%, #0a1830 100%)" }}
+        >
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-3 md:grid-cols-[minmax(0,1fr)_2fr] md:items-center md:gap-6">
+            {/* Left: logo + title + counter */}
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <img
+                  src={LOGO_URL}
+                  alt="Survive Accounting"
+                  className="h-5 w-auto object-contain brightness-0 invert"
+                  draggable={false}
+                />
+              </div>
+              <div className="font-serif text-sm font-semibold tracking-tight">
+                USA College Campus Lead Finder
+                <sup className="ml-0.5 text-[8px] align-super">™</sup>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                  Leads Found
+                </span>
+                <LeadOdometer value={triageStats.leads} />
+              </div>
+            </div>
+
+            {/* Right: scrape steps */}
+            <div className="flex flex-col gap-2 rounded-lg bg-white/5 p-3 ring-1 ring-white/10">
+              {campus ? (
+                <ScrapeFacultyButton
+                  campusId={campus.id}
+                  campusName={campus.school_name}
+                  onScraped={() => setRefreshKey((k) => k + 1)}
+                  hideAutoDiscover
+                  layout="stacked"
+                />
+              ) : (
+                <div className="text-xs text-white/60">Loading campus…</div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Campus name + close */}
+        <div className="mx-auto max-w-6xl px-4 pt-6">
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
+              {campus?.school_name ?? (campusQuery.isLoading ? "Loading…" : "Campus not found")}
+            </h1>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+              aria-label="Close"
+              title="Back to dashboard"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            <Link to="/outreach" className="underline-offset-2 hover:underline">
+              ← Outreach Dashboard
+            </Link>
+          </div>
+        </div>
+
+        {/* Table (compact text) */}
+        <div className="mx-auto max-w-6xl px-4 pt-4 text-xs">
+          {campus ? (
+            <FacultyTriagePanel
+              key={`triage-${campus.id}-${refreshKey}`}
+              campusId={campus.id}
+              campusName={campus.school_name}
+              refreshToken={refreshKey}
+              hideHeader
+              onStatsChange={setTriageStats}
+            />
+          ) : campusQuery.isError ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              Could not load campus.
+            </div>
+          ) : null}
+        </div>
+
+        {/* Sticky bottom action bar */}
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="mx-auto flex max-w-6xl items-center justify-center gap-3 px-4 py-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleBack}
+              disabled={!canGoBack}
+              className="gap-1.5"
+              title={canGoBack ? "Previous campus" : "No previous campus in this session"}
+            >
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleImport}
+              disabled={importing || triageStats.kept === 0}
+              className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              {importing
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
+                : <><CheckCircle2 className="h-4 w-4" /> Import Leads ({triageStats.kept})</>}
+            </Button>
+            <div className="inline-flex overflow-hidden rounded-md border bg-secondary">
+              <button
+                type="button"
+                onClick={handleNext}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium hover:bg-secondary/80"
+                title={`Next campus · ${FILTER_LABELS[nextFilter]}`}
+              >
+                Next <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+              <Select value={nextFilter} onValueChange={(v) => updateFilter(v as NextFilter)}>
+                <SelectTrigger
+                  className="h-auto rounded-none border-0 border-l border-border/60 bg-transparent px-2 text-[11px] focus:ring-0"
+                  aria-label="Choose which campuses to advance through"
+                >
+                  <span className="text-muted-foreground">{FILTER_LABELS[nextFilter]}</span>
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {(Object.keys(FILTER_LABELS) as NextFilter[]).map((k) => (
+                    <SelectItem key={k} value={k} className="text-xs">
+                      {FILTER_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </AdminGate>
+  );
+}
