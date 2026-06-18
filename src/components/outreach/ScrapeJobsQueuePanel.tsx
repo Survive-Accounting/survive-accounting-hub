@@ -13,6 +13,7 @@ import {
   cancelScrapeJob,
   type ScrapeJob,
 } from "@/lib/scrape-jobs";
+import { ScrapeMetricsPanel } from "./ScrapeMetricsPanel";
 
 
 function timeAgo(ts: number): string {
