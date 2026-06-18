@@ -558,10 +558,12 @@ async function enrichProfileEmails(
           const { email, how } = pickEmail(markdown, rawHtml);
           const profileCreds = detectCredentials(markdown.slice(0, 4000));
           if (email) enriched++;
+          const result = email ? how : (markdown || rawHtml ? "no_email" : "empty");
+          bumpHost(person.profile_url!, result === "empty");
           outcomes.push({
             url: person.profile_url!,
             name: `${person.first_name} ${person.last_name}`.trim(),
-            result: email ? how : (markdown || rawHtml ? "no_email" : "empty"),
+            result,
             mdLen: markdown.length,
             htmlLen: rawHtml.length,
           });
@@ -572,6 +574,7 @@ async function enrichProfileEmails(
             is_cpa: person.is_cpa || profileCreds.is_cpa,
           };
         } catch {
+          bumpHost(person.profile_url!, true);
           outcomes.push({
             url: person.profile_url!,
             name: `${person.first_name} ${person.last_name}`.trim(),
