@@ -360,6 +360,8 @@ export default function ApproveCampusModal({
   const [leadsRefreshKey, setLeadsRefreshKey] = useState(0);
   const [triageStats, setTriageStats] = useState<TriageStats>({ leads: 0, kept: 0, pending: 0, tagged: 0 });
   const [importingLeads, setImportingLeads] = useState(false);
+  const qc = useQueryClient();
+
 
   const markTouched = (fieldId: string) =>
     setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
