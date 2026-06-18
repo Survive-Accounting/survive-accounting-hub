@@ -319,7 +319,7 @@ function OutreachPage() {
           }}
           onNext={(currentId) => {
             const sorted = [...campuses]
-              .filter((c) => !c.archived_at && c.approval_status !== "approved" && c.id !== currentId)
+              .filter((c) => !c.archived && c.approval_status !== "approved" && c.id !== currentId)
               .sort((a, b) => {
                 const ta = a.tuition_out_state ?? a.tuition_in_state ?? -1;
                 const tb = b.tuition_out_state ?? b.tuition_in_state ?? -1;
