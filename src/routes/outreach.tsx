@@ -206,6 +206,7 @@ function OutreachPage() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
+          <ScrapeJobsQueuePanel />
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -219,6 +220,7 @@ function OutreachPage() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
+
 
       <SidebarInset>
         <div className="flex min-h-screen flex-col bg-background">
