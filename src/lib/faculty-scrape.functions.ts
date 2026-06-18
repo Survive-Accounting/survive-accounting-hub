@@ -92,8 +92,10 @@ type Extracted = {
   /** How the email was sourced. Absent/'verified' = scraped directly from
    *  the page. 'directory' = found near the name on the directory page.
    *  'inferred' = synthesized from the dept's dominant email pattern; the
-   *  UI shows these as "guessed" so a human can spot-check before send. */
-  email_confidence?: "verified" | "directory" | "inferred";
+   *  UI shows these as "guessed" so a human can spot-check before send.
+   *  'news' = name pulled from a news/blog/spotlight page; almost never a
+   *  tenure-track contact — flagged so reviewers can deprioritize. */
+  email_confidence?: "verified" | "directory" | "inferred" | "news";
 };
 
 
@@ -118,6 +120,34 @@ const PROFILE_SCRAPE_TIMEOUT_MS = 20_000;
 const URL_PROCESS_CONCURRENCY = 3;
 const DIRECTORY_WAIT_MS = 3500;
 const BATCH_SCRAPE_TIMEOUT_MS = 90_000;
+// After this many empty/error fetches from the same host inside one enrichment
+// pass, skip the rest. Anti-bot blocks usually fail every URL on that host —
+// no point burning credits + 20s of timeout per profile.
+const PER_HOST_FAIL_LIMIT = 2;
+// If the primary scrape returns fewer than this many emails AND we have a
+// usable root domain, run one Firecrawl `map` fallback to discover the real
+// faculty roster page and re-scrape.
+const MAP_FALLBACK_EMAIL_THRESHOLD = 5;
+
+// URL shape hints: news/blog/spotlight pages produce names that are almost
+// always students, alumni, or one-off featured profiles — not tenure-track
+// faculty. We still extract them, but tag email_confidence='news' and skip
+// per-profile enrichment so we don't burn credits chasing dated blog posts.
+const NEWS_PATH_RE = /(\/spotlight|\/news|\/blog|\/stor(y|ies)|\/press|\/article|\/alumni-profile|\/feature|\/podcast)\b/i;
+const BLOG_DATE_PATH_RE = /\/(?:19|20)\d{2}\/\d{1,2}\/\d{1,2}\//;
+
+function looksLikeNewsPage(rawUrl: string): boolean {
+  try {
+    const u = new URL(rawUrl);
+    const path = u.pathname.toLowerCase();
+    if (NEWS_PATH_RE.test(path)) return true;
+    if (BLOG_DATE_PATH_RE.test(path)) return true;
+    const host = u.hostname.toLowerCase();
+    if (/^blog\.|\.blog\./.test(host)) return true;
+    if (/^news\.|\.news\./.test(host)) return true;
+    return false;
+  } catch { return false; }
+}
 
 
 // Credential detection — used both to flag the row and to strip trailing
@@ -426,7 +456,7 @@ async function enrichProfileEmails(
 ): Promise<{
   people: Extracted[];
   enriched: number;
-  outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }>;
+  outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error" | "skipped_host"; mdLen: number; htmlLen: number }>;
 }> {
   const sourceKey = normalizeUrl(sourceUrl);
   const passThrough: Extracted[] = [];
@@ -440,7 +470,16 @@ async function enrichProfileEmails(
       passThrough.push(p);
     }
   }
-  const outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }> = [];
+  const outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error" | "skipped_host"; mdLen: number; htmlLen: number }> = [];
+  // Track per-host fail counts so anti-bot blocks on one host don't burn the
+  // whole enrichment budget. Both batch and fallback paths update this map.
+  const hostFailures = new Map<string, number>();
+  const hostOf = (u: string): string => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; } };
+  const isHostBlocked = (u: string): boolean => (hostFailures.get(hostOf(u)) ?? 0) >= PER_HOST_FAIL_LIMIT;
+  const bumpHost = (u: string, fail: boolean) => {
+    const h = hostOf(u); if (!h) return;
+    if (fail) hostFailures.set(h, (hostFailures.get(h) ?? 0) + 1);
+  };
   if (toEnrich.length === 0) return { people: passThrough, enriched: 0, outcomes };
 
   // Prefer Firecrawl batchScrape: one upstream call, server-side concurrency,
@@ -474,10 +513,13 @@ async function enrichProfileEmails(
       const { email, how } = pickEmail(payload.markdown, payload.rawHtml);
       const profileCreds = payload.markdown ? detectCredentials(payload.markdown.slice(0, 4000)) : { is_phd: false, is_cpa: false };
       if (email) enriched++;
+      const result = email ? how : (payload.markdown || payload.rawHtml ? "no_email" : "empty");
+      // Empty payload from batch = treat as host failure for the fallback pass.
+      bumpHost(person.profile_url!, result === "empty");
       outcomes.push({
         url: person.profile_url!,
         name: `${person.first_name} ${person.last_name}`.trim(),
-        result: email ? how : (payload.markdown || payload.rawHtml ? "no_email" : "empty"),
+        result,
         mdLen: payload.markdown.length,
         htmlLen: payload.rawHtml.length,
       });
@@ -498,15 +540,30 @@ async function enrichProfileEmails(
         const i = cursor++;
         if (i >= toEnrich.length) return;
         const person = toEnrich[i];
+        // Anti-bot blocks usually fail every URL on the host. After 2 misses,
+        // skip the rest from that host — saves time + Firecrawl credits.
+        if (isHostBlocked(person.profile_url!)) {
+          outcomes.push({
+            url: person.profile_url!,
+            name: `${person.first_name} ${person.last_name}`.trim(),
+            result: "skipped_host",
+            mdLen: 0,
+            htmlLen: 0,
+          });
+          enrichedRows[i] = person;
+          continue;
+        }
         try {
           const { markdown, rawHtml } = await firecrawlScrapeFull(fcKey, person.profile_url!);
           const { email, how } = pickEmail(markdown, rawHtml);
           const profileCreds = detectCredentials(markdown.slice(0, 4000));
           if (email) enriched++;
+          const result = email ? how : (markdown || rawHtml ? "no_email" : "empty");
+          bumpHost(person.profile_url!, result === "empty");
           outcomes.push({
             url: person.profile_url!,
             name: `${person.first_name} ${person.last_name}`.trim(),
-            result: email ? how : (markdown || rawHtml ? "no_email" : "empty"),
+            result,
             mdLen: markdown.length,
             htmlLen: rawHtml.length,
           });
@@ -517,6 +574,7 @@ async function enrichProfileEmails(
             is_cpa: person.is_cpa || profileCreds.is_cpa,
           };
         } catch {
+          bumpHost(person.profile_url!, true);
           outcomes.push({
             url: person.profile_url!,
             name: `${person.first_name} ${person.last_name}`.trim(),
@@ -1087,10 +1145,19 @@ async function processUrls(
         const aiPeople = await callLovableAi(aiKey, url, md);
         const merged = mergePeople(parsedPeople, aiPeople);
         const extracted = merged.length;
+        // News/blog/spotlight page → names here are almost never tenure-track
+        // faculty (student spotlights, alumni profiles, press features). Skip
+        // expensive per-profile enrichment, skip directory sweep + inference,
+        // and tag every row 'news' so reviewers can deprioritize them.
+        const isNewsPage = looksLikeNewsPage(url);
         // Deterministic fallback: pair people without a profile_url to a
         // slug-matched link from the directory page (e.g. /faculty/friedman).
-        const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
-        const { people: enrichedPeople, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
+        const { people: withSlugs, matched: slugMatched } = isNewsPage
+          ? { people: merged, matched: 0 }
+          : attachProfileUrlsFromLinks(merged, url, links);
+        const { people: enrichedPeople, enriched, outcomes: enrichOutcomes } = isNewsPage
+          ? { people: withSlugs, enriched: 0, outcomes: [] as Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error" | "skipped_host"; mdLen: number; htmlLen: number }> }
+          : await enrichProfileEmails(fcKey, withSlugs, url);
 
         // Recovery pass A — directory markdown sweep. Many .edu directories
         // list "Name ... email" in a card on the listing page even though the
@@ -1098,20 +1165,23 @@ async function processUrls(
         // already fetched). Tag as 'directory' so the UI shows it as a
         // medium-confidence find.
         let directoryFilled = 0;
-        const afterDirectorySweep = enrichedPeople.map((p) => {
-          if (p.email) return { ...p, email_confidence: p.email_confidence ?? "verified" as const };
-          const hit = findEmailNearName(md, p.first_name, p.last_name);
-          if (!hit) return p;
-          directoryFilled++;
-          return { ...p, email: hit, email_confidence: "directory" as const };
-        });
+        const afterDirectorySweep = isNewsPage
+          ? enrichedPeople.map((p) => ({ ...p, email_confidence: "news" as const }))
+          : enrichedPeople.map((p) => {
+              if (p.email) return { ...p, email_confidence: p.email_confidence ?? "verified" as const };
+              const hit = findEmailNearName(md, p.first_name, p.last_name);
+              if (!hit) return p;
+              directoryFilled++;
+              return { ...p, email: hit, email_confidence: "directory" as const };
+            });
 
         // Recovery pass B — pattern inference. If ≥3 captured emails in this
         // department agree on one local-part pattern + domain, synthesize
         // emails for the leftover misses. Flagged as 'inferred' so a human
         // can spot-check before any send. Skipped automatically when the
-        // sample is too sparse to be confident.
-        const pat = inferDepartmentPattern(afterDirectorySweep);
+        // sample is too sparse to be confident. Also skipped on news pages —
+        // synthesizing a "faculty" email for a student spotlight is wrong.
+        const pat = isNewsPage ? null : inferDepartmentPattern(afterDirectorySweep);
         let inferredFilled = 0;
         const afterInference = afterDirectorySweep.map((p) => {
           if (p.email) return p;
@@ -1267,6 +1337,39 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
     const { aiKey, fcKey } = requireKeys();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await processUrls(fcKey, aiKey, data.campusId, data.urls, { allowNoContact: data.allowNoContact });
+
+    // ---- Map fallback ---------------------------------------------------
+    // If the primary scrape yielded <5 emails AND we have a root domain to
+    // map against, ask Firecrawl to find faculty-roster URLs we haven't
+    // tried yet. One map call (~$0.001) beats missing a whole department.
+    const totalEmails = result.perPage.reduce((s, p) => s + p.withEmail, 0);
+    const inputHosts = Array.from(new Set(data.urls.map((u) => {
+      try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
+    }).filter(Boolean)));
+    if (totalEmails < MAP_FALLBACK_EMAIL_THRESHOLD && inputHosts.length > 0) {
+      try {
+        const mapped = await firecrawlMap(fcKey, `https://${inputHosts[0]}`, "faculty accounting");
+        const already = new Set(data.urls.map(normalizeUrl));
+        const fallbackUrls = rankFacultyUrls(mapped)
+          .filter((u) => !already.has(normalizeUrl(u)))
+          .slice(0, 3);
+        if (fallbackUrls.length > 0) {
+          const fb = await processUrls(fcKey, aiKey, data.campusId, fallbackUrls, { allowNoContact: data.allowNoContact });
+          result.perPage.push(...fb.perPage);
+          result.inserted += fb.inserted;
+          result.skippedDuplicates += fb.skippedDuplicates;
+          result.droppedNoContact += fb.droppedNoContact;
+          Object.assign(result.cache, fb.cache);
+          if (fb.programLevels.bachelors || fb.programLevels.masters || fb.programLevels.phd) {
+            result.programLevels = mergeDetections(result.programLevels, fb.programLevels);
+            for (const s of fb.programLevelSources) {
+              if (!result.programLevelSources.includes(s)) result.programLevelSources.push(s);
+            }
+          }
+        }
+      } catch { /* map fallback is best-effort */ }
+    }
+
     await supabaseAdmin
       .from("campuses")
       .update({

@@ -26,8 +26,9 @@ export type TriageRow = {
   imported_lead_id: string | null;
   /** How the email was sourced. 'verified' = scraped directly; 'directory' =
    *  found near the name on the dept directory; 'inferred' = synthesized
-   *  from the dept's dominant email pattern (needs spot-check). */
-  email_confidence: "verified" | "directory" | "inferred" | null;
+   *  from the dept's dominant email pattern (needs spot-check); 'news' =
+   *  pulled from a blog/spotlight page (likely not faculty). */
+  email_confidence: "verified" | "directory" | "inferred" | "news" | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
@@ -44,7 +45,7 @@ export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
     const payload = (r.raw_payload ?? null) as { email_confidence?: string | null } | null;
     const conf = payload?.email_confidence;
     const email_confidence: TriageRow["email_confidence"] =
-      conf === "inferred" || conf === "directory" || conf === "verified" ? conf : null;
+      conf === "inferred" || conf === "directory" || conf === "verified" || conf === "news" ? conf : null;
     return {
       id: r.id,
       campus_id: r.campus_id,
