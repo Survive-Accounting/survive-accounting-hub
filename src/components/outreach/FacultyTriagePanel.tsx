@@ -75,6 +75,10 @@ export function FacultyTriagePanel({
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [customTag, setCustomTag] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  // Click-and-drag selection. Refs so we don't churn renders during mousemove.
+  const dragAnchorRef = useRef<string | null>(null);
+  const dragMovedRef = useRef(false);
+  const suppressClickRef = useRef(false);
   const qc = useQueryClient();
 
   const load = useCallback(async () => {
