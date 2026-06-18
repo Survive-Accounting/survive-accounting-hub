@@ -129,12 +129,69 @@ const PER_HOST_FAIL_LIMIT = 2;
 // faculty roster page and re-scrape.
 const MAP_FALLBACK_EMAIL_THRESHOLD = 5;
 
+// ---- JS-pagination handling -----------------------------------------------
+// Many .edu directories (Drupal Views, WordPress AJAX, custom XHR tables,
+// "Load more" buttons, infinite scroll) render only page 1 server-side and
+// fetch pages 2+ via JS that doesn't change the URL. A vanilla Firecrawl
+// scrape only sees page 1. We detect this pattern and re-scrape with
+// Firecrawl `actions` that click Next/Load more N times and capture HTML
+// from each step. Generalizable across schools.
+const MAX_PAGINATION_PAGES = 8;
+const MIN_EXTRACTED_BEFORE_PAGINATION = 15;
+const PAGINATION_STEP_WAIT_MS = 1500;
+const PAGINATION_ACTIONS_TIMEOUT_MS = 180_000;
+const PAGINATION_NEXT_SELECTOR =
+  'a[rel="next"], a.next, button.next, [aria-label*="Next" i], [aria-label*="next page" i], .pagination a:not(.disabled):not(.current), .pager__item--next a, .page-item:not(.disabled) a.page-link[aria-label*="next" i], button:has-text("Load more"), button:has-text("Show more"), a:has-text("Next"), a:has-text("›"), a:has-text("»")';
+// Markdown- or HTML-visible signals that the directory is paginated.
+const PAGINATION_SIGNALS: Array<{ name: string; re: RegExp }> = [
+  { name: "next-link", re: /(?:^|[\s>"'(])(next\s*(?:page|»|›)?|load\s+more|show\s+more|»|›)(?:[\s<"')]|$)/im },
+  { name: "showing-of", re: /\bshowing\s+\d+\s*[–\-to]+\s*\d+\s+of\s+\d+/i },
+  { name: "page-of", re: /\bpage\s+\d+\s+of\s+\d+\b/i },
+  { name: "rel-next", re: /<a[^>]+rel=["']next["']/i },
+  { name: "pagination-class", re: /class=["'][^"']*\bpagination\b/i },
+  { name: "aria-page", re: /aria-label=["'][^"']*\bpage\s*\d/i },
+  { name: "ajax-endpoint", re: /(\?page=\d+|&p=\d+|admin-ajax\.php|chunk\.php|wp-json|\/api\/[a-z-]+\/page)/i },
+  { name: "numeric-pager", re: /\n\s*\[?\s*1\s*\]?\s+\[?\s*2\s*\]?\s+\[?\s*3\s*\]?\s+\[?\s*4\s*\]?/m },
+];
+
+function detectPagination(markdown: string, rawHtml: string, extractedCount: number):
+  { paginated: boolean; signal?: string } {
+  if (extractedCount >= MIN_EXTRACTED_BEFORE_PAGINATION) return { paginated: false };
+  const hay = `${markdown}\n${rawHtml}`;
+  if (!hay.trim()) return { paginated: false };
+  for (const s of PAGINATION_SIGNALS) {
+    if (s.re.test(hay)) return { paginated: true, signal: s.name };
+  }
+  return { paginated: false };
+}
+
+/** Cheap HTML→text strip that keeps mailto: hrefs visible so the existing
+ *  email regex still matches. Used to feed the AI extractor a concatenated
+ *  multi-page payload from a Firecrawl actions walk. */
+function htmlToFlatText(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<a[^>]+href=["']mailto:([^"']+)["'][^>]*>([^<]*)<\/a>/gi, " $2 <$1> ")
+    .replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi, " $2 [$1] ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // URL shape hints: news/blog/spotlight pages produce names that are almost
 // always students, alumni, or one-off featured profiles — not tenure-track
 // faculty. We still extract them, but tag email_confidence='news' and skip
 // per-profile enrichment so we don't burn credits chasing dated blog posts.
 const NEWS_PATH_RE = /(\/spotlight|\/news|\/blog|\/stor(y|ies)|\/press|\/article|\/alumni-profile|\/feature|\/podcast)\b/i;
 const BLOG_DATE_PATH_RE = /\/(?:19|20)\d{2}\/\d{1,2}\/\d{1,2}\//;
+
 
 function looksLikeNewsPage(rawUrl: string): boolean {
   try {
