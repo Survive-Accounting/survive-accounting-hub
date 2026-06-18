@@ -26,6 +26,7 @@ import {
   type Audience,
 } from "@/lib/outreach-api";
 import { applyAudienceFilters, normalizeAudienceFilters } from "@/lib/audience-filters";
+import { fetchDistinctLeadTitleTags } from "@/lib/faculty-triage";
 import { AudienceEditorModal } from "@/components/outreach/AudienceEditorModal";
 import type { Campus } from "@/lib/outreach-mock";
 
