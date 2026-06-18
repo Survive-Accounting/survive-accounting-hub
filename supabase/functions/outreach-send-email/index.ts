@@ -319,6 +319,8 @@ Deno.serve(async (req) => {
     }
     // Graceful fallbacks when research hasn't captured these yet.
     const programMerge = programName || "accounting program";
+    // Fallback chain: explicit shorthand → full program name → "your program".
+    const programShorthandMerge = programShorthand || programName || "your program";
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
     const fullCoursesMerge = fullCoursesText || coursesMerge;
     const prefixMerge = prefixText || "accounting";
