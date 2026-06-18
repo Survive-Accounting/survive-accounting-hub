@@ -80,6 +80,20 @@ function LeadFinderPage() {
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [triageStats, setTriageStats] = useState<TriageStats>({ leads: 0, kept: 0, pending: 0, tagged: 0 });
+
+  // Total leads imported to date (all-time count of outreach_leads rows).
+  const totalLeadsQuery = useQuery({
+    queryKey: ["outreach-leads-total", refreshKey],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("outreach_leads")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+
   const [importing, setImporting] = useState(false);
   const [nextFilter, setNextFilter] = useState<NextFilter>(() => {
     if (typeof window === "undefined") return "all";
