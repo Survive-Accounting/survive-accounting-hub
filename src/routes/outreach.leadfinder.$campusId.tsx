@@ -5,7 +5,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 // AdminGate + Toaster are provided by the /outreach layout.
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger,
@@ -15,7 +15,7 @@ import { FacultyTriagePanel, type TriageStats } from "@/components/outreach/Facu
 import { fetchCampuses } from "@/lib/outreach-api";
 import { importKeptLeads } from "@/lib/faculty-triage";
 import { supabase } from "@/integrations/supabase/client";
-import { enqueueAllPendingCampuses, getFacultyBatchStatus } from "@/lib/faculty-overnight.functions";
+import { enqueueAllPendingCampuses, getFacultyBatchStatus, testAutoScrapeCampus } from "@/lib/faculty-overnight.functions";
 import type { Campus } from "@/lib/outreach-mock";
 
 const LOGO_URL =
@@ -110,6 +110,7 @@ function LeadFinderPage() {
   const [history, setHistory] = useState<string[]>(readHistory);
   useEffect(() => { writeHistory(history); }, [history]);
   const canGoBack = history.length > 0;
+  const [showManualSteps, setShowManualSteps] = useState(false);
 
   // Flame focus state machine: 1 = Copy Faculty Link, 2 = Scrape URL,
   // 3 = Import Leads, null = done. Resets when the campus changes.
@@ -236,15 +237,30 @@ function LeadFinderPage() {
           <OvernightAutoImportCard />
         </div>
 
-        {/* Campus name */}
+        {/* Campus name + Test Automated Scrape */}
         <div className="mx-auto max-w-6xl px-4 pt-6 text-center">
           <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
             {campus?.school_name ?? (campusQuery.isLoading ? "Loading…" : "Campus not found")}
           </h1>
+          {campus && (
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-[11px]">
+              <TestAutoScrapeButton
+                campusId={campus.id}
+                onDone={() => setRefreshKey((k) => k + 1)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowManualSteps((v) => !v)}
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                {showManualSteps ? "Hide manual steps" : "Show manual steps"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Steps strip — Step #1, Step #2 (scrape), Step #3 lives in bottom bar */}
-        {campus && (
+        {campus && showManualSteps && (
           <div className="mx-auto mt-4 w-full max-w-3xl px-4">
             <div className="rounded-xl border border-border bg-card/60 px-4 py-3 shadow-sm">
               <ScrapeFacultyButton
@@ -298,11 +314,11 @@ function LeadFinderPage() {
               onClick={handleImport}
               disabled={importing || triageStats.tagged === 0}
               className={`gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 ${flameStep === 3 ? "flame-focus flame-focus-strong" : ""}`}
-              title="Step #3 — Import every selected faculty member as a lead"
+              title="Import every tagged faculty member as a lead"
             >
               {importing
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
-                : <><CheckCircle2 className="h-4 w-4" /> Step #3 · Import Leads ({triageStats.tagged})</>}
+                : <><CheckCircle2 className="h-4 w-4" /> Import Leads ({triageStats.tagged})</>}
             </Button>
 
             <div className="inline-flex overflow-hidden rounded-md border bg-secondary">
@@ -394,3 +410,37 @@ function OvernightAutoImportCard() {
   );
 }
 
+
+function TestAutoScrapeButton({ campusId, onDone }: { campusId: string; onDone: () => void }) {
+  const [running, setRunning] = useState(false);
+  const handleClick = async () => {
+    setRunning(true);
+    try {
+      const r = await testAutoScrapeCampus({ data: { campusId } }) as {
+        scraped: number; tagged: number; urls: number;
+      };
+      toast.success(
+        `Test scrape complete · ${r.scraped} new from ${r.urls} URL${r.urls === 1 ? "" : "s"} · ${r.tagged} auto-tagged`,
+        { duration: 4500 },
+      );
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Test scrape failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={handleClick}
+      disabled={running}
+      className="h-7 gap-1.5 px-2.5 text-[11px]"
+    >
+      {running
+        ? <><Loader2 className="h-3 w-3 animate-spin" /> Testing…</>
+        : <><Sparkles className="h-3 w-3" /> Test Automated Scrape</>}
+    </Button>
+  );
+}
