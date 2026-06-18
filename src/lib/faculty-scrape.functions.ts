@@ -74,6 +74,8 @@ type Extracted = {
   title: string | null;
   email: string | null;
   profile_url: string | null;
+  is_phd: boolean;
+  is_cpa: boolean;
 };
 
 // Path segments (between slashes) that strongly indicate a faculty roster page.
@@ -93,6 +95,28 @@ const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
 const TEACHING_TITLE_RE = /\b(professor|instructor|lecturer|adjunct|clinical|teaching|faculty|dean|chair|practice|visiting)\b/i;
 const PROFILE_ENRICH_LIMIT = 60;
 
+// Credential detection — used both to flag the row and to strip trailing
+// credentials from displayed names ("Jane Doe, PhD, CPA" → "Jane Doe").
+const PHD_RE = /\b(Ph\.?\s?D\.?|D\.?B\.?A\.?|Ed\.?D\.?|D\.?Phil\.?|Doctorate|J\.?S\.?D\.?)\b/i;
+const CPA_RE = /\bC\.?\s?P\.?\s?A\.?\b/i;
+const CREDENTIAL_TAIL_RE = /[,\s]+(?:Ph\.?\s?D\.?|D\.?B\.?A\.?|Ed\.?D\.?|D\.?Phil\.?|J\.?S\.?D\.?|C\.?\s?P\.?\s?A\.?|M\.?B\.?A\.?|M\.?S\.?|M\.?Acc\.?|J\.?D\.?|Esq\.?|CFA|CMA|CIA|CFP|CFE|EA)\.?\s*$/i;
+
+function stripCredentials(raw: string): string {
+  let s = raw.trim();
+  // Repeatedly strip trailing credentials separated by comma/space.
+  for (let i = 0; i < 6; i++) {
+    const next = s.replace(CREDENTIAL_TAIL_RE, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s.replace(/[,\s]+$/, "").trim();
+}
+
+function detectCredentials(...sources: Array<string | null | undefined>): { is_phd: boolean; is_cpa: boolean } {
+  const haystack = sources.filter(Boolean).join(" | ");
+  return { is_phd: PHD_RE.test(haystack), is_cpa: CPA_RE.test(haystack) };
+}
+
 function normalizeUrl(raw: string): string {
   try {
     const url = new URL(raw);
@@ -105,7 +129,7 @@ function normalizeUrl(raw: string): string {
 }
 
 function splitName(fullName: string): { first_name: string; last_name: string } | null {
-  const cleaned = fullName.replace(/\s+/g, " ").trim();
+  const cleaned = stripCredentials(fullName.replace(/\s+/g, " ").trim());
   const parts = cleaned.split(" ").filter(Boolean);
   if (parts.length < 2) return null;
   return { first_name: parts.slice(0, -1).join(" "), last_name: parts.at(-1) ?? "" };
@@ -118,9 +142,9 @@ function extractDirectoryMarkdownPeople(pageText: string): Extracted[] {
 
   for (let i = 0; i < matches.length; i++) {
     const match = matches[i];
-    const name = (match[1] ?? "").trim();
+    const rawName = (match[1] ?? "").trim();
     const profileUrl = normalizeUrl(match[2] ?? "");
-    const parsedName = splitName(name);
+    const parsedName = splitName(rawName);
     if (!parsedName || !profileUrl) continue;
 
     const start = (match.index ?? 0) + match[0].length;
@@ -129,7 +153,8 @@ function extractDirectoryMarkdownPeople(pageText: string): Extracted[] {
     const title = block.match(/^\s*-\s+(.+?)\s*$/m)?.[1]?.replace(/\s+/g, " ").trim() ?? null;
     if (title && !TEACHING_TITLE_RE.test(title)) continue;
 
-    people.push({ ...parsedName, title, email: null, profile_url: profileUrl });
+    const creds = detectCredentials(rawName, title);
+    people.push({ ...parsedName, title, email: null, profile_url: profileUrl, ...creds });
   }
 
   return people;
