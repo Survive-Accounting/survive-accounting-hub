@@ -1,78 +1,80 @@
 ## Goal
 
-While we're already pulling the faculty/department pages with Firecrawl, also detect which degree levels the accounting program offers — **Bachelors**, **Masters**, **PhD** — and store it on the campus so we can filter on it later (e.g. "MAcc schools only", "no PhD programs").
+Replace per-row selection + bulk-tag with a **title-driven tagging step** that auto-suggests role tags from each faculty member's title and lets you apply a tag to every matching person with one click. Tuned to surface Intro 1 / Intro 2-likely instructors.
 
-We get this almost for free because the markdown is already in memory during the scrape.
+## New flow on `/outreach/leadfinder/$campusId`
 
-## How detection works
+1. **Step #1** — Copy faculty link (unchanged)
+2. **Step #2** — Paste scrape URL → run scrape (unchanged)
+3. **Step #3 — Review / Edit Tags** *(new)*
+4. Keep / Skip + Import Leads (unchanged)
 
-For each page Firecrawl returns during a scrape run, run a small regex pass over the combined markdown. Three independent boolean signals:
+Step #3 is a single compact panel above the faculty table.
 
-- **has_bachelors** — matches like `BBA`, `BSBA`, `B\.S\.? in Accounting`, `Bachelor of (Science|Business|Accountancy)`, `undergraduate (major|degree|program) in accounting`.
-- **has_masters** — `MAcc`, `MAcy`, `MSA`, `MS in Accounting`, `Master of (Accountancy|Science in Accounting|Professional Accounting)`, `MBA … Accounting concentration`, `graduate (program|degree) in accounting`.
-- **has_phd** — `Ph\.?D\.? in Accounting`, `Doctorate in Accounting`, `DBA … Accounting`, `doctoral program`.
-
-Each match also captures a short snippet (±80 chars) so we can show the user *why* we flagged it.
-
-Results from multiple scraped pages and multiple URLs in one run are OR-ed together at the campus level.
-
-### Why regex first, not AI
-
-The AI call already runs per page to extract faculty — adding another structured field to that prompt is the obvious "smarter" path, but:
-
-1. Regex is deterministic, free, and instant.
-2. Degree names are highly standardized in accounting departments.
-3. We can always add an AI fallback later for the small set of campuses where regex finds nothing (see "Optional follow-up").
-
-So step one is regex-only.
-
-## Where it gets stored
-
-Add three booleans + a JSON evidence blob to `campuses`:
+## Step #3 panel — three rows
 
 ```text
-has_bachelors_accounting   boolean   default false
-has_masters_accounting     boolean   default false
-has_phd_accounting         boolean   default false
-program_levels_evidence    jsonb              -- { bachelors: [snippets], masters: [...], phd: [...], detected_at, source_urls }
+┌──────────────────────────────────────────────────────────────────────┐
+│ INTRO-LIKELY (12)  [ Tag all as "Intro Target" ]   highlight rows ☐ │
+├──────────────────────────────────────────────────────────────────────┤
+│ Detected roles:                                                       │
+│  + Lecturer (3)   + Adjunct (2)   + Instructor (4)                    │
+│  + Assistant Prof (6)   + Associate Prof (5)   + Visiting (1)         │
+│  + Teaching Prof (2)   + Professor of Practice (1)   ...              │
+├──────────────────────────────────────────────────────────────────────┤
+│ From past campuses:  + Clinical Lecturer   + Senior Instructor        │
+│ Custom: [ new tag ____ ] [Add]   • applies to current selection or   │
+│                                    matching titles if rule provided   │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-Update rule on each scrape run: **OR-merge** with existing values (never clear a `true` based on a single empty scrape — different pages cover different programs). `program_levels_evidence` is overwritten with the latest run's findings.
+- **Click a role chip** → applies that tag to every row whose title matches the role's keyword. Click again → removes it from those same rows.
+- **Counts on each chip** reflect how many people on this campus match.
+- **"Intro-likely" button** = one-click tag-all of every row whose title matches the intro-targeting set (see below).
+- **"From past campuses"** pulls tags previously used on titles that match patterns present here, so your taxonomy stays consistent across schools.
+- **Custom tag** still works; optionally attach a keyword so future scrapes auto-tag that role too.
+- **No row selection required** for any of this. Drag-select still works for one-offs.
 
-## UI surface
+Sticky **Tag legend** at the table header colors each row's role chip(s) inline (small, muted), so you can see at-a-glance who got tagged.
 
-Small, low-noise additions only:
+## Keyword set — Intro 1 / Intro 2 targets
 
-- **ApproveCampusModal header** — under the program shorthand row, a single line of compact chips: `BS · MAcc · PhD`. Detected levels are solid; undetected are faded. Tooltip on each chip shows the matched snippet.
-- **Campus list/table** — wherever campuses are listed for triage, add a tiny `BS/MAcc/PhD` column rendered the same way. No filter UI yet — just the data — since the user said "useful later".
+These are the titles most likely to teach Principles of Financial / Managerial Accounting. Bolded ones are the high-yield core.
 
-Nothing else changes in the scrape flow. Same button, same URL panel.
+- **Lecturer** — Senior Lecturer, Clinical Lecturer, Teaching Lecturer
+- **Adjunct** — Adjunct Professor / Faculty / Lecturer / Instructor
+- **Instructor** — Senior Instructor, Clinical Instructor, Continuing Instructor
+- **Assistant Professor** — Clinical Assistant Professor, Visiting Assistant Professor, Teaching Assistant Professor, Assistant Teaching Professor
+- **Associate Professor** *(secondary — many still teach intro)* — Clinical Associate Professor, Teaching Associate Professor
+- **Teaching Professor** / **Professor of Teaching** / **Professor of Practice** / Practitioner in Residence
+- **Visiting** — Visiting Lecturer / Instructor / Professor
+- **Graduate Assistant** / **Teaching Assistant** / **Grader** *(often coordinator-adjacent for intro sections)*
 
-## Where it plugs in
+**Excluded by default** (research-heavy, unlikely intro): Full Professor, Distinguished / Endowed / Named Chair, Emeritus, Dean, Associate Dean, Department Chair, Director of [Research/PhD/Center], Provost.
 
-In `src/lib/faculty-scrape.functions.ts`, both `scrapeCampusFaculty` and `autoDiscoverCampusFaculty` already loop scraped pages to feed the AI extractor. In that same loop:
+The "Intro Target" auto-rule = matches any of the bold groups OR any title containing `lecturer|adjunct|instructor|teaching professor|professor of practice|visiting`, AND does **not** contain `emeritus|dean|chair|provost|director of (research|phd|center)`.
 
-1. Run `detectProgramLevels(markdown)` → `{ bachelors, masters, phd, evidence }`.
-2. Accumulate across pages.
-3. After the run finishes (and before returning), `UPDATE campuses SET has_*_accounting = existing OR detected, program_levels_evidence = {...} WHERE id = campusId`.
+## Persistence & learning
 
-No new Firecrawl calls, no new AI calls, no new round trips.
+- Role keyword table lives in code (`src/lib/role-keywords.ts`) so it's easy to extend.
+- Per-campus tag history already exists (`title_tags` on `outreach_leads_triage`). Add a tiny `useQuery` that pulls **distinct tags across all campuses with the titles that produced them** so the "From past campuses" suggestion is data-driven, not hard-coded.
+- Custom tag + optional regex stored locally in `localStorage` (`sa-tag-rules`) for now; can be promoted to a DB table later.
 
-## Technical details
+## Technical notes
 
-- New file `src/lib/program-levels.ts` exporting `detectProgramLevels(markdown: string)` — pure function, fully unit-testable, no I/O.
-- New migration adds the three boolean columns + jsonb column to `campuses` with defaults so existing rows are valid.
-- Server function uses the existing authenticated supabase client to update `campuses` — no new RLS work since the table is already writable by the same callers.
-- TypeScript types for `campuses` regenerate automatically from the migration; the modal and list read the new fields directly.
+- Edit `src/components/outreach/FacultyTriagePanel.tsx`:
+  - Extract `ROLE_TAG_KEYWORDS` into `src/lib/role-keywords.ts` and expand per list above (with `intro` flag per entry).
+  - Replace the current "Suggested:" row (which only appears with a selection) with the always-on **Step #3 panel** described above.
+  - New helpers: `matchRows(rule)`, `applyTagToMatches(label, rule, mode)`, `introLikelyRows()`.
+  - Keep the existing `setTriageTagsBulk` writer; just feed it the matched IDs instead of `selected`.
+- Add `src/lib/role-keywords.ts` exporting:
+  - `ROLE_KEYWORDS` (array of `{ label, re, intro: boolean }`)
+  - `INTRO_TARGET_RE` (compiled OR-pattern with the exclusion lookbehind logic done in code)
+  - `matchRoles(title): string[]`
+- New tiny query `fetchTagsByTitlePattern()` in `src/lib/faculty-triage.ts` for cross-campus "From past campuses" suggestions.
+- No DB migration required.
 
-## Optional follow-up (not in this plan)
+## Out of scope (call out)
 
-If after a week of runs we see campuses where regex misses (e.g. only a PDF catalog mentions the MAcc), add a one-shot AI classification on the merged markdown as a fallback — gated to only run when all three flags are still false after regex. Decide later based on real data.
-
-## Files touched
-
-- `supabase/migrations/<new>.sql` — add 4 columns to `campuses`.
-- `src/lib/program-levels.ts` — new, regex detector.
-- `src/lib/faculty-scrape.functions.ts` — call detector in both entry points, OR-merge, persist.
-- `src/components/outreach/ApproveCampusModal.tsx` — chip row under shorthand.
-- Campus list component (wherever the triage list lives) — small chip cell.
+- Auto-applying tags during scrape (could come later; for now Step #3 is a one-click pass per campus).
+- Promoting custom rules to a shared DB table (start with localStorage).
