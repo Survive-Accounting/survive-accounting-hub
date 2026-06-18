@@ -222,7 +222,6 @@ export function FacultyTriagePanel({
 
   /** Tag suggestions for the current selection. Combines:
    *   - role keywords detected in any selected person's title
-   *     (Instructor, Lecturer, Adjunct, Grader, Teaching Assistant, etc.)
    *   - tags already in use elsewhere in this campus that match a selected title
    *  Excludes tags every selected row already has. */
   const suggestedTags = useMemo(() => {
@@ -231,18 +230,82 @@ export function FacultyTriagePanel({
     for (const r of selectedRows) {
       const title = (r.title ?? "").trim();
       if (!title) continue;
-      for (const { re, label } of ROLE_TAG_KEYWORDS) {
-        if (re.test(title)) out.add(label);
-      }
+      for (const label of matchRoles(title)) out.add(label);
       for (const t of allKnownTags) {
         if (t.toLowerCase() === title.toLowerCase()) out.add(t);
       }
     }
-    // Drop tags every selected row already has.
     const everyHas = (tag: string) =>
       selectedRows.every((r) => (r.title_tags ?? []).map((x) => x.toLowerCase()).includes(tag.toLowerCase()));
     return Array.from(out).filter((t) => !everyHas(t)).sort();
   }, [selectedRows, allKnownTags]);
+
+  /** Step #3 — title-driven chips. Each role keyword that matches at least one
+   *  row in this campus becomes a one-click chip. Click = add tag to every
+   *  matching row. Click again (when every match already has the tag) = remove. */
+  const roleChips = useMemo(() => {
+    return ROLE_KEYWORDS.map(({ label, re, intro }) => {
+      const matchedIds: string[] = [];
+      for (const r of rows) if (re.test((r.title ?? "").trim())) matchedIds.push(r.id);
+      if (matchedIds.length === 0) return null;
+      const allTagged = matchedIds.every((id) =>
+        (rows.find((r) => r.id === id)?.title_tags ?? [])
+          .map((t) => t.toLowerCase())
+          .includes(label.toLowerCase()),
+      );
+      return { label, intro, matchedIds, allTagged };
+    }).filter((x): x is { label: string; intro: boolean; matchedIds: string[]; allTagged: boolean } => x !== null);
+  }, [rows]);
+
+  /** Rows that qualify as Intro 1 / Intro 2 likely teachers. */
+  const introMatchIds = useMemo(
+    () => rows.filter((r) => isIntroLikely(r.title)).map((r) => r.id),
+    [rows],
+  );
+  const introAllTagged = useMemo(
+    () =>
+      introMatchIds.length > 0 &&
+      introMatchIds.every((id) =>
+        (rows.find((r) => r.id === id)?.title_tags ?? [])
+          .map((t) => t.toLowerCase())
+          .includes(INTRO_TARGET_TAG.toLowerCase()),
+      ),
+    [rows, introMatchIds],
+  );
+
+  /** Cross-campus tag suggestions: tags used on prior campuses whose source
+   *  titles share keywords with titles seen on this campus. Excludes tags
+   *  already represented by a built-in role chip or already in use here. */
+  const pastTagsQuery = useQuery({
+    queryKey: ["faculty-triage-past-tags", campusId],
+    queryFn: () => fetchTagsFromOtherCampuses(campusId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const pastCampusSuggestions = useMemo(() => {
+    const past = pastTagsQuery.data ?? [];
+    if (past.length === 0 || rows.length === 0) return [] as string[];
+    const builtin = new Set(ROLE_KEYWORDS.map((k) => k.label.toLowerCase()));
+    const here = new Set(allKnownTags.map((t) => t.toLowerCase()));
+    // Build a vocabulary of significant words from this campus's titles.
+    const stop = new Set(["the","of","and","for","a","an","in","on","to","at","de","la"]);
+    const vocab = new Set<string>();
+    for (const r of rows) {
+      for (const w of ((r.title ?? "").toLowerCase().match(/[a-z][a-z\-]{2,}/g) ?? [])) {
+        if (!stop.has(w)) vocab.add(w);
+      }
+    }
+    const out: string[] = [];
+    for (const { tag, sourceTitle } of past) {
+      if (builtin.has(tag.toLowerCase())) continue;
+      if (here.has(tag.toLowerCase())) continue;
+      const words = (sourceTitle.toLowerCase().match(/[a-z][a-z\-]{2,}/g) ?? [])
+        .filter((w) => !stop.has(w));
+      if (words.some((w) => vocab.has(w))) out.push(tag);
+    }
+    return Array.from(new Set(out)).slice(0, 8);
+  }, [pastTagsQuery.data, rows, allKnownTags]);
+
 
 
   /** Remove a tag from every row in this campus (used by the dropdown ×). */
