@@ -236,7 +236,7 @@ export function ScrapeFacultyButton({
       variant="outline"
       onClick={copyFacultyGoogleLink}
       title="Copy a Google search link for this school's accounting faculty directory. Paste it in a new tab."
-      className="gap-1.5"
+      className={`gap-1.5 ${flameStep === 1 ? "flame-focus" : ""}`}
     >
       <GraduationCap className="h-3.5 w-3.5" /> Copy Faculty Link
     </Button>
@@ -249,11 +249,13 @@ export function ScrapeFacultyButton({
       onClick={togglePanel}
       title="Add the faculty page URL(s) and start a scrape"
       aria-expanded={expanded}
+      className={flameStep === 2 ? "flame-focus" : ""}
     >
       {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
       {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URL"}
     </Button>
   );
+
 
   const urlPanel = expanded && (
     <div className="w-full max-w-md space-y-1.5 rounded-md border border-border bg-background p-2 text-left">
