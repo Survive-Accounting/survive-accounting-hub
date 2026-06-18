@@ -207,7 +207,9 @@ export default function ApproveCampusModal({
   const [familyBooks, setFamilyBooks] = useState<Record<string, FamilyBook>>({});
   const [familyTerms, setFamilyTerms] = useState<Record<string, CourseFamilyTerms>>({});
   const [programName, setProgramName] = useState("");
+  const [programShorthand, setProgramShorthand] = useState("");
   const programTimer = useRef<number | null>(null);
+  const shorthandTimer = useRef<number | null>(null);
   const [isbnLookup, setIsbnLookup] = useState<Record<string, "idle" | "loading" | "found" | "notfound">>({});
   const bookTimer = useRef<number | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
