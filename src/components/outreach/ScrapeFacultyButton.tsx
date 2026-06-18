@@ -98,19 +98,16 @@ export function ScrapeFacultyButton({
   };
 
   const run = async () => {
-    const list = urls
-      .split(/\r?\n/)
-      .map((u) => u.trim())
-      .filter(Boolean);
+    const list = urlList.map((u) => u.trim()).filter(Boolean);
     if (list.length === 0) {
-      toast.error("Paste at least one URL.");
+      toast.error("Add at least one URL.");
       return;
     }
     if (isScrapingCampus(campusId)) {
       toast.error("Already scraping this campus — wait for it to finish.");
       return;
     }
-    setOpen(false);
+    setExpanded(false);
     toast.info(`Scraping ${campusName} in background…`);
     const promise = (async () => {
       try {
