@@ -62,14 +62,14 @@ function HeroCta() {
         </span>
       </a>
 
-      {/* Desktop/tablet: Get Started → /start */}
+      {/* Desktop/tablet: Book Now → /start */}
       <a
         href="/start"
         className={`${RED_BTN_CLASS} hidden md:inline-flex`}
         style={RED_BTN_STYLE}
       >
         <span style={{ fontWeight: 800, letterSpacing: "0.02em" }}>
-          Get Started
+          Book Now
         </span>
         <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
@@ -78,11 +78,7 @@ function HeroCta() {
         className="hero-anim-btn mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
         style={{ listStyle: "none", padding: 0, margin: 0 }}
       >
-        {[
-          { icon: "🟢", label: "Available Summer 2026" },
-          { icon: "📚", label: "Any Intro or Intermediate course" },
-          { icon: "🎓", label: "1,000+ students helped since 2015" },
-        ].map((b) => (
+        {[{ icon: "🟢", label: "Available Summer 2026" }].map((b) => (
           <li
             key={b.label}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] sm:text-[12.5px]"
