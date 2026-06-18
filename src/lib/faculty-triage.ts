@@ -29,6 +29,11 @@ export type TriageRow = {
    *  from the dept's dominant email pattern (needs spot-check); 'news' =
    *  pulled from a blog/spotlight page (likely not faculty). */
   email_confidence: "verified" | "directory" | "inferred" | "news" | null;
+  /** Number of paginated pages the scraper walked to reach this row, when
+   *  the source directory was JS-paginated (URL doesn't change). null if the
+   *  row came from a single-page scrape. */
+  pagination_pages_walked: number | null;
+
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
