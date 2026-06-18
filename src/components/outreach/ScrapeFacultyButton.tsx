@@ -61,6 +61,14 @@ export function ScrapeFacultyButton({
   const { scraping, elapsedMs } = useScrapingCampusInfo(campusId);
   const stuck = scraping && elapsedMs > 60_000;
 
+  // Reset per-campus state when switching campuses so URLs from a previous
+  // campus don't leak into the new one's Scrape URL panel.
+  useEffect(() => {
+    setExpanded(false);
+    setUrlList([""]);
+    setLoadingUrls(false);
+  }, [campusId]);
+
   const togglePanel = async () => {
     if (expanded) { setExpanded(false); return; }
     setExpanded(true);
