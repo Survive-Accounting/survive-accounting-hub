@@ -60,6 +60,10 @@ function slickHttpError(label: string, status: number, body: string): string {
 const ScrapeInputSchema = z.object({
   campusId: z.string().uuid(),
   urls: z.array(z.string().url()).min(1).max(10),
+  /** When true, save name-only rows (no email/profile URL) anchored to the
+   *  directory URL. Used by the auto-scrape pipeline so RMP enrichment can
+   *  still match by name on card-only directories. */
+  allowNoContact: z.boolean().optional().default(false),
 });
 
 const DiscoverInputSchema = z.object({
@@ -106,7 +110,7 @@ const PROFILE_ENRICH_LIMIT = 50;
 const PROFILE_ENRICH_CONCURRENCY = 4;
 const PROFILE_SCRAPE_TIMEOUT_MS = 20_000;
 const URL_PROCESS_CONCURRENCY = 3;
-const DIRECTORY_WAIT_MS = 1500;
+const DIRECTORY_WAIT_MS = 3500;
 const BATCH_SCRAPE_TIMEOUT_MS = 90_000;
 
 
@@ -425,8 +429,10 @@ async function firecrawlScrapeWithLinks(
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         url,
-        formats: ["markdown", "links"],
-        onlyMainContent: true,
+        // Directory pages: take EVERYTHING. onlyMainContent often strips
+        // card-grid nav containing the profile links we need to enrich.
+        formats: ["markdown", "links", "rawHtml"],
+        onlyMainContent: false,
         waitFor: DIRECTORY_WAIT_MS,
       }),
     },
@@ -438,16 +444,37 @@ async function firecrawlScrapeWithLinks(
     throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
   }
   const json = await res.json() as {
-    data?: { markdown?: string; links?: Array<string | { url?: string }> };
+    data?: { markdown?: string; links?: Array<string | { url?: string }>; rawHtml?: string; html?: string };
     markdown?: string;
     links?: Array<string | { url?: string }>;
+    rawHtml?: string;
+    html?: string;
   };
   const markdown = json.data?.markdown ?? json.markdown ?? "";
   const rawLinks = json.data?.links ?? json.links ?? [];
-  const links = rawLinks
+  const fromLinksField = rawLinks
     .map((l) => (typeof l === "string" ? l : l?.url ?? ""))
     .filter((l): l is string => !!l && /^https?:\/\//i.test(l));
-  return { markdown, links: Array.from(new Set(links)) };
+
+  // Fallback: pull <a href> from rawHtml. The links[] format can miss
+  // JS-rendered card hrefs even with waitFor; rawHtml is post-render.
+  const rawHtml = json.data?.rawHtml ?? json.data?.html ?? json.rawHtml ?? json.html ?? "";
+  const fromHtml: string[] = [];
+  if (rawHtml) {
+    const reAbs = /<a[^>]+href=["'](https?:\/\/[^"']+)["']/gi;
+    const reRel = /<a[^>]+href=["'](\/[^"']+)["']/gi;
+    let m: RegExpExecArray | null;
+    while ((m = reAbs.exec(rawHtml)) !== null) fromHtml.push(m[1]);
+    try {
+      const base = new URL(url);
+      while ((m = reRel.exec(rawHtml)) !== null) {
+        try { fromHtml.push(new URL(m[1], base).toString()); } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }
+
+  const all = Array.from(new Set([...fromLinksField, ...fromHtml]));
+  return { markdown, links: all };
 }
 
 /**
@@ -741,6 +768,7 @@ async function processUrls(
   aiKey: string,
   campusId: string,
   urls: string[],
+  options: { allowNoContact?: boolean } = {},
 ): Promise<{
   perPage: Array<{
     url: string;
@@ -809,7 +837,8 @@ async function processUrls(
         let pageDropped = 0;
         let pageInserted = 0;
         for (const p of people) {
-          if (!p.email && !p.profile_url) { pageDropped++; continue; }
+          const hasContact = !!p.email || !!p.profile_url;
+          if (!hasContact && !options.allowNoContact) { pageDropped++; continue; }
           pageInserted++;
           rowsToInsert.push({
             campus_id: campusId,
@@ -824,8 +853,8 @@ async function processUrls(
             lead_type: "professor",
             is_phd: p.is_phd,
             is_cpa: p.is_cpa,
-            notes: `Scraped from ${url}`,
-            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
+            notes: hasContact ? `Scraped from ${url}` : `Scraped (name only) from ${url}`,
+            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa, name_only: !hasContact },
           });
         }
         totalDroppedNoContact += pageDropped;
@@ -932,7 +961,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { aiKey, fcKey } = requireKeys();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const result = await processUrls(fcKey, aiKey, data.campusId, data.urls);
+    const result = await processUrls(fcKey, aiKey, data.campusId, data.urls, { allowNoContact: data.allowNoContact });
     await supabaseAdmin
       .from("campuses")
       .update({ faculty_page_url: data.urls.join("\n") })
