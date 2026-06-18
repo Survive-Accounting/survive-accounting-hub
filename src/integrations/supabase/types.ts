@@ -3761,6 +3761,116 @@ export type Database = {
           },
         ]
       }
+      scrape_debug_bundles: {
+        Row: {
+          campus_id: string
+          campus_name: string | null
+          contacts_inserted: number
+          contacts_with_email: number
+          created_at: string
+          credits_estimate_usd: number | null
+          duration_ms: number | null
+          host_fail_count: number
+          id: string
+          kind: string
+          map_fallback_used: boolean
+          news_filter_hits: number
+          pagination_walked: number
+          payload: Json
+          scrape_job_id: string | null
+          summary: string | null
+          urls_attempted: number
+        }
+        Insert: {
+          campus_id: string
+          campus_name?: string | null
+          contacts_inserted?: number
+          contacts_with_email?: number
+          created_at?: string
+          credits_estimate_usd?: number | null
+          duration_ms?: number | null
+          host_fail_count?: number
+          id?: string
+          kind: string
+          map_fallback_used?: boolean
+          news_filter_hits?: number
+          pagination_walked?: number
+          payload?: Json
+          scrape_job_id?: string | null
+          summary?: string | null
+          urls_attempted?: number
+        }
+        Update: {
+          campus_id?: string
+          campus_name?: string | null
+          contacts_inserted?: number
+          contacts_with_email?: number
+          created_at?: string
+          credits_estimate_usd?: number | null
+          duration_ms?: number | null
+          host_fail_count?: number
+          id?: string
+          kind?: string
+          map_fallback_used?: boolean
+          news_filter_hits?: number
+          pagination_walked?: number
+          payload?: Json
+          scrape_job_id?: string | null
+          summary?: string | null
+          urls_attempted?: number
+        }
+        Relationships: []
+      }
+      scrape_improvement_suggestions: {
+        Row: {
+          bundle_id: string | null
+          campus_id: string | null
+          campus_name: string | null
+          created_at: string
+          id: string
+          model: string | null
+          pattern_tag: string | null
+          raw: Json | null
+          severity: string | null
+          suggestion: string
+          title: string | null
+        }
+        Insert: {
+          bundle_id?: string | null
+          campus_id?: string | null
+          campus_name?: string | null
+          created_at?: string
+          id?: string
+          model?: string | null
+          pattern_tag?: string | null
+          raw?: Json | null
+          severity?: string | null
+          suggestion: string
+          title?: string | null
+        }
+        Update: {
+          bundle_id?: string | null
+          campus_id?: string | null
+          campus_name?: string | null
+          created_at?: string
+          id?: string
+          model?: string | null
+          pattern_tag?: string | null
+          raw?: Json | null
+          severity?: string | null
+          suggestion?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrape_improvement_suggestions_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "scrape_debug_bundles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scrape_jobs: {
         Row: {
           campus_id: string
