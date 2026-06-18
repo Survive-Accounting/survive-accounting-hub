@@ -28,15 +28,23 @@ function toTriageStatus(status: string | null): "pending_triage" | "kept" | "ski
 
 type SortKey = "title" | "name";
 
+export type TriageStats = { leads: number; kept: number; pending: number; tagged: number };
+
 export function FacultyTriagePanel({
   campusId,
   campusName,
   refreshToken,
+  hideHeader = false,
+  onStatsChange,
 }: {
   campusId: string;
   campusName: string;
   /** Bumped after a scrape completes to force a reload. */
   refreshToken?: number;
+  /** Hide the panel's internal header (use when parent provides its own import button & stats). */
+  hideHeader?: boolean;
+  /** Fires whenever counts change so the parent can mirror them in its own toolbar. */
+  onStatsChange?: (s: TriageStats) => void;
 }) {
   const [rows, setRows] = useState<TriageRow[]>([]);
   const [loading, setLoading] = useState(true);
