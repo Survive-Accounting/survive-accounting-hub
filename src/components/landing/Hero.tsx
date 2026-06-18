@@ -216,7 +216,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
-            {headline ?? "Let's Make Accounting Exams Simple"}
+            {headline ?? "Ace Your Next Exam"}
           </h1>
 
           <p
@@ -226,13 +226,14 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               fontFamily: "Inter, sans-serif",
               fontSize: "17px",
               lineHeight: 1.65,
-              maxWidth: 680,
+              maxWidth: 620,
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
             {subtext ??
-              "Get laid-back virtual tutoring from a pro. Simplify difficult concepts, build confidence, and perform better on exams."}
+              "Get expert 1-on-1 tutoring tailored to your course. Reduce stress, boost confidence, and ace your next exam."}
           </p>
+
 
           <div className="mt-8 flex flex-col items-center gap-4">
             {ctaSlot ?? (
