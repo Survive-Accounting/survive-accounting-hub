@@ -199,6 +199,7 @@ export async function recordAndAnalyzeBundle(input: ScrapeBundleInput): Promise<
       severity: ai.severity,
       title: ai.title,
       suggestion: ai.suggestion,
+      applies_to_verticals: ai.applies_to_verticals,
       raw: ai.raw as never,
     } as never);
   } catch (e) {
