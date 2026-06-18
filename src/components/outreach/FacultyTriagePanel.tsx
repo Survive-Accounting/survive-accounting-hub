@@ -226,14 +226,6 @@ export function FacultyTriagePanel({
     return m;
   }, [rows]);
 
-  const distinctTitleStringsInSelection = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of selectedRows) {
-      const t = (r.title ?? "").trim();
-      if (t) set.add(t);
-    }
-    return Array.from(set).sort();
-  }, [selectedRows]);
 
   /** Every tag currently applied to any row in this campus, A–Z. */
   const allKnownTags = useMemo(() => {
