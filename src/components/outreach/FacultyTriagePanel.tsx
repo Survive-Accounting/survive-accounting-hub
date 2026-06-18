@@ -409,23 +409,24 @@ export function FacultyTriagePanel({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Quick-add per-selection title chips (only when selection has distinct titles). */}
-        {selected.size > 0 && distinctTitleStringsInSelection.length > 0 && distinctTitleStringsInSelection.length <= 3 && (
+        {/* Suggested tags — role keywords detected in selected titles. */}
+        {selected.size > 0 && suggestedTags.length > 0 && (
           <>
-            {distinctTitleStringsInSelection.map((t) => (
-              <Button
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Suggested:</span>
+            {suggestedTags.slice(0, 6).map((t) => (
+              <button
                 key={t}
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-[11px]"
+                type="button"
                 onClick={() => applyTagsToSelection([t], "add")}
-                title={`Tag selection as "${t}"`}
+                title={`Tag ${selected.size} selected as "${t}"`}
+                className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 text-[11px] font-medium text-primary hover:bg-primary/10"
               >
                 + {t}
-              </Button>
+              </button>
             ))}
           </>
         )}
+
 
         <div className="flex items-center gap-1">
           <Input
