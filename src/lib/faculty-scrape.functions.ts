@@ -293,7 +293,11 @@ async function enrichProfileEmails(
   fcKey: string,
   people: Extracted[],
   sourceUrl: string,
-): Promise<{ people: Extracted[]; enriched: number }> {
+): Promise<{
+  people: Extracted[];
+  enriched: number;
+  outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }>;
+}> {
   const sourceKey = normalizeUrl(sourceUrl);
   const passThrough: Extracted[] = [];
   const toEnrich: Extracted[] = [];
@@ -306,12 +310,13 @@ async function enrichProfileEmails(
       passThrough.push(p);
     }
   }
-  if (toEnrich.length === 0) return { people: passThrough, enriched: 0 };
+  const outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }> = [];
+  if (toEnrich.length === 0) return { people: passThrough, enriched: 0, outcomes };
 
   // Prefer Firecrawl batchScrape: one upstream call, server-side concurrency,
   // far faster + more reliable than N parallel scrape calls from the worker.
   const urls = toEnrich.map((p) => p.profile_url!).filter(Boolean);
-  let scraped: Map<string, string> | null = null;
+  let scraped: Map<string, { markdown: string; rawHtml: string }> | null = null;
   try {
     scraped = await firecrawlBatchScrape(fcKey, urls);
   } catch {
@@ -321,13 +326,31 @@ async function enrichProfileEmails(
   let enriched = 0;
   const enrichedRows: Extracted[] = new Array(toEnrich.length);
 
+  const pickEmail = (md: string, html: string): { email: string | null; how: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" } => {
+    if (!md && !html) return { email: null, how: "empty" };
+    const plain = extractBestEmail(md);
+    if (plain) return { email: plain, how: "ok" };
+    const obf = extractObfuscatedEmail(md) ?? extractObfuscatedEmail(html);
+    if (obf) return { email: obf, how: "obfuscated" };
+    const mail = extractMailtoFromHtml(html);
+    if (mail) return { email: mail, how: "mailto" };
+    return { email: null, how: "no_email" };
+  };
+
   if (scraped && scraped.size > 0) {
     for (let i = 0; i < toEnrich.length; i++) {
       const person = toEnrich[i];
-      const md = scraped.get(normalizeUrl(person.profile_url!)) ?? "";
-      const email = md ? extractBestEmail(md) : null;
-      const profileCreds = md ? detectCredentials(md.slice(0, 4000)) : { is_phd: false, is_cpa: false };
+      const payload = scraped.get(normalizeUrl(person.profile_url!)) ?? { markdown: "", rawHtml: "" };
+      const { email, how } = pickEmail(payload.markdown, payload.rawHtml);
+      const profileCreds = payload.markdown ? detectCredentials(payload.markdown.slice(0, 4000)) : { is_phd: false, is_cpa: false };
       if (email) enriched++;
+      outcomes.push({
+        url: person.profile_url!,
+        name: `${person.first_name} ${person.last_name}`.trim(),
+        result: email ? how : (payload.markdown || payload.rawHtml ? "no_email" : "empty"),
+        mdLen: payload.markdown.length,
+        htmlLen: payload.rawHtml.length,
+      });
       enrichedRows[i] = {
         ...person,
         email: email ?? person.email,
@@ -345,9 +368,16 @@ async function enrichProfileEmails(
         const person = toEnrich[i];
         try {
           const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
-          const email = extractBestEmail(profileText);
+          const { email, how } = pickEmail(profileText, "");
           const profileCreds = detectCredentials(profileText.slice(0, 4000));
           if (email) enriched++;
+          outcomes.push({
+            url: person.profile_url!,
+            name: `${person.first_name} ${person.last_name}`.trim(),
+            result: email ? how : (profileText ? "no_email" : "empty"),
+            mdLen: profileText.length,
+            htmlLen: 0,
+          });
           enrichedRows[i] = {
             ...person,
             email: email ?? person.email,
@@ -355,6 +385,13 @@ async function enrichProfileEmails(
             is_cpa: person.is_cpa || profileCreds.is_cpa,
           };
         } catch {
+          outcomes.push({
+            url: person.profile_url!,
+            name: `${person.first_name} ${person.last_name}`.trim(),
+            result: "error",
+            mdLen: 0,
+            htmlLen: 0,
+          });
           enrichedRows[i] = person;
         }
       }
@@ -362,8 +399,9 @@ async function enrichProfileEmails(
     await Promise.all(workers);
   }
 
-  return { people: [...passThrough, ...enrichedRows], enriched };
+  return { people: [...passThrough, ...enrichedRows], enriched, outcomes };
 }
+
 
 
 function rankFacultyUrls(links: string[]): string[] {
