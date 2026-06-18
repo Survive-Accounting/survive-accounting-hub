@@ -65,6 +65,9 @@ const ScrapeInputSchema = z.object({
 const DiscoverInputSchema = z.object({
   campusId: z.string().uuid(),
   maxPages: z.number().int().min(1).max(10).default(5),
+  /** If true, only discover & rank URLs (save to faculty_page_url); skip the
+   *  heavy AI scrape. Keeps the Worker request under 30s. */
+  discoverOnly: z.boolean().default(false),
 });
 
 const PdfInputSchema = z.object({
