@@ -178,6 +178,8 @@ function mergePeople(...groups: Extracted[][]): Extracted[] {
       title: person.title || existing?.title || null,
       email: person.email || existing?.email || null,
       profile_url: person.profile_url || existing?.profile_url || null,
+      is_phd: !!(existing?.is_phd || person.is_phd),
+      is_cpa: !!(existing?.is_cpa || person.is_cpa),
     });
   }
   return Array.from(byKey.values());
