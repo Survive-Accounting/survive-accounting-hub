@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { scrapeCampusRmp, resetCampusLeads } from "@/lib/rmp-scrape.functions";
 import { startScrapeJob } from "@/lib/scrape-jobs";
 import type { Campus } from "@/lib/outreach-mock";
+import { AutoScrapeButton } from "@/components/outreach/AutoScrapeButton";
 
 
 const LOGO_URL =
@@ -241,6 +242,11 @@ function LeadFinderPage() {
           </h1>
           {campus && (
             <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-[11px]">
+              <AutoScrapeButton
+                campusId={campus.id}
+                campusName={campus.school_name}
+                onScraped={() => setRefreshKey((k) => k + 1)}
+              />
               <button
                 type="button"
                 onClick={() => setShowManualSteps((v) => !v)}
