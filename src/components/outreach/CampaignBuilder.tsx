@@ -41,10 +41,17 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
   const [audienceId, setAudienceId] = useState<string>("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAudience, setEditingAudience] = useState<Audience | null>(null);
+  const [titleTags, setTitleTags] = useState<string[]>([]);
 
   const audiencesQ = useQuery({ queryKey: ["audiences"], queryFn: listAudiences });
   const audiences = audiencesQ.data ?? [];
   const currentAudience = audiences.find((a) => a.id === audienceId) ?? null;
+
+  const titleTagsQ = useQuery({
+    queryKey: ["outreach-lead-title-tags"],
+    queryFn: fetchDistinctLeadTitleTags,
+  });
+  const availableTitleTags = titleTagsQ.data ?? [];
 
   const filteredCampuses = useMemo(() => {
     const q = campusSearch.trim().toLowerCase();
