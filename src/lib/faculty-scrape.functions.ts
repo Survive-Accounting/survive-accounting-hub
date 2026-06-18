@@ -542,10 +542,10 @@ async function insertExtractedPeople(
     if (e && existingEmails.has(e)) { skipped++; return false; }
     return true;
   });
-  if (toInsert.length === 0) return { inserted: 0, skippedDuplicates: skipped };
+  if (toInsert.length === 0) return { inserted: 0, skippedDuplicates: skipped, droppedNoContact };
   const { error } = await supabaseAdmin.from("campus_lead_suggestions").insert(toInsert as never);
   if (error) throw new Error(`insert failed: ${error.message}`);
-  return { inserted: toInsert.length, skippedDuplicates: skipped };
+  return { inserted: toInsert.length, skippedDuplicates: skipped, droppedNoContact };
 }
 
 async function processUrls(
