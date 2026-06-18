@@ -1865,7 +1865,8 @@ export default function ApproveCampusModal({
               {isLeeAdmin && !stepsComplete ? "Approve Anyway (Admin)" : "Approve Campus"}
             </Button>
           </DialogFooter>
-
+          </>
+          )}
         </DialogContent>
       </Dialog>
     </TooltipProvider>
