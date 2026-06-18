@@ -1089,6 +1089,10 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
     }
 
     const result = await processUrls(fcKey, aiKey, data.campusId, ranked);
+    await supabaseAdmin
+      .from("campuses")
+      .update({ faculty_scrape_cache: result.cache } as never)
+      .eq("id", data.campusId);
     await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
 
     return {
