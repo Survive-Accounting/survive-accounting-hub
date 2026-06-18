@@ -154,6 +154,33 @@ export function FacultyTriagePanel({
     return Array.from(set).sort();
   }, [selectedRows]);
 
+  /** Every tag currently applied to any row in this campus, A–Z. */
+  const allKnownTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) for (const t of r.title_tags ?? []) set.add(t);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [rows]);
+
+  /** Remove a tag from every row in this campus (used by the dropdown ×). */
+  const removeTagFromCampus = async (tag: string) => {
+    if (!confirm(`Remove tag "${tag}" from every person in this campus?`)) return;
+    const targets = rows.filter((r) => (r.title_tags ?? []).includes(tag));
+    if (targets.length === 0) return;
+    const ids = targets.map((r) => r.id);
+    setRows((prev) => prev.map((r) =>
+      ids.includes(r.id)
+        ? { ...r, title_tags: (r.title_tags ?? []).filter((t) => t !== tag) }
+        : r,
+    ));
+    try {
+      await setTriageTagsBulk(ids, "remove", [tag], tagsCurrentById);
+      toast.success(`Removed "${tag}" from ${ids.length} row${ids.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error(`Could not remove tag: ${e instanceof Error ? e.message : "unknown"}`);
+      void load();
+    }
+  };
+
   const applyTagsToSelection = async (tags: string[], mode: "add" | "remove" | "replace") => {
     if (selected.size === 0 || tags.length === 0) return;
     const ids = Array.from(selected);
