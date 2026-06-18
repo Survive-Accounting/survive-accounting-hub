@@ -69,7 +69,7 @@ export const testAutoScrapeCampus = createServerFn({ method: "POST" })
         .update({ title_tags: next, status: "accepted" })
         .eq("id", r.id);
     }
-    return { scraped, tagged: matches.length, urls: urls.length };
+    return { scraped, tagged: matches.length, urls: urls.length || discoveredUrls.length, discovered: discoveredUrls };
   });
 
 
