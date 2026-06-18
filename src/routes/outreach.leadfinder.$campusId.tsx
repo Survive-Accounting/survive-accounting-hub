@@ -5,11 +5,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 // AdminGate + Toaster are provided by the /outreach layout.
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Star, Trash2, X, Globe } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Search, Star, Trash2, X, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
 import { ScrapeFacultyButton } from "@/components/outreach/ScrapeFacultyButton";
 import { FacultyTriagePanel, type TriageStats } from "@/components/outreach/FacultyTriagePanel";
 import { fetchCampuses } from "@/lib/outreach-api";
@@ -85,6 +89,7 @@ function LeadFinderPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [triageStats, setTriageStats] = useState<TriageStats>({ leads: 0, kept: 0, pending: 0, tagged: 0 });
   const [scrapeApi, setScrapeApi] = useState<{ start: () => void; busy: boolean }>({ start: () => {}, busy: false });
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Total leads imported to date (all-time count of outreach_leads rows).
   const totalLeadsQuery = useQuery({
@@ -257,6 +262,54 @@ function LeadFinderPage() {
                 </SelectContent>
               </Select>
             </div>
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-7 items-center gap-1 rounded-md border bg-secondary px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                  aria-label="Search campuses"
+                >
+                  <Search className="h-3 w-3" /> Search campuses
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="center">
+                <Command
+                  filter={(value, search) =>
+                    value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+                  }
+                >
+                  <CommandInput placeholder="Search by school name…" />
+                  <CommandList>
+                    <CommandEmpty>No campuses found.</CommandEmpty>
+                    <CommandGroup>
+                      {(campusQuery.data ?? [])
+                        .filter((c) => !c.archived)
+                        .map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={`${c.school_name} ${c.state ?? ""}`}
+                            onSelect={() => {
+                              setSearchOpen(false);
+                              navigate({
+                                to: "/outreach/leadfinder/$campusId",
+                                params: { campusId: c.id },
+                              });
+                            }}
+                            className="text-xs"
+                          >
+                            <span className="truncate">{c.school_name}</span>
+                            {c.state && (
+                              <span className="ml-auto text-[10px] text-muted-foreground">
+                                {c.state}
+                              </span>
+                            )}
+                          </CommandItem>
+                        ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
 
