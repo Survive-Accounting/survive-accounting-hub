@@ -16,7 +16,9 @@ import { fetchCampuses } from "@/lib/outreach-api";
 import { importKeptLeads } from "@/lib/faculty-triage";
 import { supabase } from "@/integrations/supabase/client";
 import { scrapeCampusRmp, resetCampusLeads } from "@/lib/rmp-scrape.functions";
+import { startScrapeJob } from "@/lib/scrape-jobs";
 import type { Campus } from "@/lib/outreach-mock";
+
 
 const LOGO_URL =
   "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
@@ -448,6 +450,7 @@ function RmpScrapePanel({
     setRunning(true);
     setExpanded(false);
     toast.info(`Scraping RMP for ${campusName} in background…`);
+    const job = startScrapeJob({ campusId, campusName, kind: "rmp" });
     try {
       const r = await scrapeCampusRmp({ data: { campusId, urls: list } }) as {
         perPage: Array<{ url: string; found: number; matched: number; error?: string }>;
@@ -455,22 +458,26 @@ function RmpScrapePanel({
       };
       const errs = r.perPage.filter((p) => p.error);
       if (errs.length > 0) {
-        toast.warning(
-          `RMP: ${r.totalFound} prof(s) found, ${r.totalUpdated} matched to leads. ${errs.length} URL(s) failed.`,
-          { description: errs.map((e) => `${e.url}: ${e.error}`).join("\n").slice(0, 300) },
-        );
+        const msg = `${r.totalFound} found, ${r.totalUpdated} matched, ${errs.length} URL(s) failed`;
+        toast.warning(`RMP: ${msg}.`, {
+          description: errs.map((e) => `${e.url}: ${e.error}`).join("\n").slice(0, 300),
+        });
+        job.succeed(msg);
       } else {
-        toast.success(
-          `RMP: ${r.totalFound} prof(s) found → ${r.totalUpdated} lead(s) updated with rating/difficulty.`,
-        );
+        const msg = `${r.totalFound} found → ${r.totalUpdated} lead(s) updated`;
+        toast.success(`RMP: ${msg}.`);
+        job.succeed(msg);
       }
       onScraped();
     } catch (e) {
-      toast.error(`RMP scrape failed: ${e instanceof Error ? e.message : "unknown"}`);
+      const msg = e instanceof Error ? e.message : "unknown";
+      toast.error(`RMP scrape failed: ${msg}`);
+      job.fail(msg);
     } finally {
       setRunning(false);
     }
   };
+
 
   return (
     <div className="rounded-xl border border-border bg-card/60 px-4 py-3 shadow-sm">
