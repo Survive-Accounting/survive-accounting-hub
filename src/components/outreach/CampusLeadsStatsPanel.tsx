@@ -45,9 +45,10 @@ export function CampusLeadsStatsPanel({
   const statsQ = useQuery({
     queryKey: ["campus-lead-stats", filters, campuses.length],
     queryFn: () => fetchCampusLeadStats(filters, campuses),
-    staleTime: 60_000,
+    staleTime: 0,
     enabled: open && campuses.length > 0,
   });
+
 
   const stats = statsQ.data ?? null;
 
