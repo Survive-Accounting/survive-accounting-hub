@@ -88,7 +88,7 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
       return createCampaignFromPreview({
         name: name.trim(),
         dailyLimit,
-        filters: { ...filters, selectedCampusIds },
+        filters: { ...filters, selectedCampusIds, titleTags: titleTags.length ? titleTags : undefined },
         selectedLeadIds: preview.eligibleLeadIds,
       });
     },
