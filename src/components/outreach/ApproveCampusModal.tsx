@@ -2,7 +2,7 @@
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Users, Wand2, Wrench, XCircle, Zap,
+  AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Users, Wand2, Wrench, XCircle, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -217,7 +217,7 @@ function SpeedNextButton({
 
 
 export default function ApproveCampusModal({
-  campus, onClose, onPatch, onApprove, onNext, autoStartResearch, initialStep,
+  campus, onClose, onPatch, onApprove, onNext, onBack, canGoBack, autoStartResearch, initialStep,
 }: {
   campus: Campus | null;
   onClose: () => void;
@@ -225,6 +225,10 @@ export default function ApproveCampusModal({
   onApprove: (id: string, patch: Partial<Campus>) => void;
   /** Advance to the next campus in the queue. When provided, Speed Mode shows a "Next" button. */
   onNext?: (currentCampusId: string, filter: NextCampusFilter) => void;
+  /** Go back to the previously reviewed campus. */
+  onBack?: () => void;
+  /** Whether there is a previous campus in the history stack. */
+  canGoBack?: boolean;
   /** When set to a campus id, automatically kick off full AI research once after the modal opens. */
   autoStartResearch?: string | null;
   /** Optional step to land on when the modal opens (default "1"). */
@@ -1063,6 +1067,18 @@ export default function ApproveCampusModal({
                     className="h-7 w-[180px] rounded-md border border-input bg-background px-2 text-xs"
                   />
                   <div className="ml-auto flex items-center gap-2">
+                    {onBack && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={onBack}
+                        disabled={!canGoBack}
+                        title={canGoBack ? "Go back to the previous campus" : "No previous campus in this session"}
+                        className="gap-1"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" /> Back
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={onClose}>
                       Close
                     </Button>

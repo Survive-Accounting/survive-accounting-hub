@@ -61,6 +61,7 @@ function OutreachPage() {
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
+  const [reviewHistory, setReviewHistory] = useState<string[]>([]);
   const [reviewInitialStep, setReviewInitialStep] = useState<string | undefined>(undefined);
   const [autoResearchId, setAutoResearchId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -302,9 +303,28 @@ function OutreachPage() {
           campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
           autoStartResearch={autoResearchId}
           initialStep={reviewInitialStep}
+          canGoBack={reviewHistory.length > 0}
+          onBack={() => {
+            setReviewHistory((prev) => {
+              if (prev.length === 0) return prev;
+              const next = [...prev];
+              const prevId = next.pop()!;
+              const prevCampus = campuses.find((c) => c.id === prevId);
+              if (prevCampus) {
+                if (reviewing) refreshClaim(reviewing.id).catch(() => {});
+                setReviewing(prevCampus);
+                setAutoResearchId(null);
+                setReviewInitialStep(undefined);
+              } else {
+                toast.info("Previous campus is no longer in the queue.");
+              }
+              return next;
+            });
+          }}
           onClose={() => {
             if (reviewing) refreshClaim(reviewing.id).catch(() => {});
             setReviewing(null);
+            setReviewHistory([]);
             setAutoResearchId(null);
             setReviewInitialStep(undefined);
           }}
@@ -353,11 +373,13 @@ function OutreachPage() {
                   : `No more campuses matching filter "${filter.replace("_", " ")}".`,
               );
               setReviewing(null);
+              setReviewHistory([]);
               setAutoResearchId(null);
               setReviewInitialStep(undefined);
               return;
             }
             refreshClaim(currentId).catch(() => {});
+            setReviewHistory((prev) => [...prev, currentId]);
             setReviewing(nextCampus);
             setAutoResearchId(null);
             setReviewInitialStep(undefined);
