@@ -970,32 +970,17 @@ export default function ApproveCampusModal({
 
           {speedMode ? (
             <div className="space-y-3 pt-2">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-                <ScrapeFacultyButton
-                  campusId={campus.id}
-                  campusName={campus.school_name}
-                  onScraped={() => setLeadsRefreshKey((k) => k + 1)}
-                  hideAutoDiscover
-                />
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={onClose}>
-                    Close
-                  </Button>
-                  <Button size="sm" onClick={quickApprove} className="gap-1.5">
-                    <CheckCircle2 className="h-4 w-4" /> Quick Approve
-                  </Button>
-                  {onNext && (
-                    <Button size="sm" variant="secondary" onClick={handleNext} className="gap-1.5">
-                      Next <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  )}
-              </div>
-
-              <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-background px-3 py-2 text-[11px]">
-                <div className="flex flex-1 min-w-[180px] flex-col gap-1">
-                  <label className="font-medium text-muted-foreground">
-                    Program name <span className="font-normal opacity-70">— {"{program}"}</span>
-                  </label>
+              {/* Unified Speed Mode toolbar — collapses scrape + program + filter
+                  + actions into a single dense row. */}
+              <div className="rounded-lg border bg-muted/30 p-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <ScrapeFacultyButton
+                    campusId={campus.id}
+                    campusName={campus.school_name}
+                    onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                    hideAutoDiscover
+                  />
+                  <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
                   <input
                     type="text"
                     value={programName}
@@ -1008,14 +993,10 @@ export default function ApproveCampusModal({
                         writePatch({ accounting_department_name: v.trim() || null });
                       }, 500);
                     }}
-                    placeholder="e.g. Culver School of Business"
-                    className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                    placeholder="Program — {program}"
+                    title="Program name — merge tag {program}"
+                    className="h-7 w-[200px] rounded-md border border-input bg-background px-2 text-xs"
                   />
-                </div>
-                <div className="flex w-[200px] flex-col gap-1">
-                  <label className="font-medium text-muted-foreground">
-                    Shorthand <span className="font-normal opacity-70">— {"{program shorthand}"}</span>
-                  </label>
                   <input
                     type="text"
                     value={programShorthand}
@@ -1027,40 +1008,27 @@ export default function ApproveCampusModal({
                         writePatch({ program_shorthand: v.trim() || null } as Partial<Campus>);
                       }, 500);
                     }}
-                    placeholder="e.g. Culver"
-                    className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                    placeholder="Shorthand — {program shorthand}"
+                    title="Program shorthand — merge tag {program shorthand}"
+                    className="h-7 w-[180px] rounded-md border border-input bg-background px-2 text-xs"
                   />
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={onClose}>
+                      Close
+                    </Button>
+                    <Button size="sm" onClick={quickApprove} className="gap-1.5">
+                      <CheckCircle2 className="h-4 w-4" /> Quick Approve
+                    </Button>
+                    {onNext && (
+                      <SpeedNextButton
+                        filter={nextFilter}
+                        setFilter={updateNextFilter}
+                        onNext={handleNext}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-              </div>
-
-              {onNext && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 text-[11px]">
-                  <span className="font-medium text-muted-foreground">Next filter:</span>
-                  {([
-                    ["all", "All"],
-                    ["with_leads", "With leads"],
-                    ["without_leads", "Without leads"],
-                    ["sec_only", "SEC only 🏈"],
-                  ] as Array<[NextCampusFilter, string]>).map(([val, label]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => updateNextFilter(val)}
-                      className={`rounded-full border px-2.5 py-0.5 transition ${
-                        nextFilter === val
-                          ? "border-amber-500 bg-amber-100 text-amber-900"
-                          : "border-border bg-card text-muted-foreground hover:bg-accent/40"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                  <span className="ml-auto text-muted-foreground">
-                    Used when you press Next or Quick Approve.
-                  </span>
-                </div>
-              )}
 
               <FacultyTriagePanel
                 key={`triage-speed-${campus.id}-${leadsRefreshKey}`}
@@ -1071,6 +1039,7 @@ export default function ApproveCampusModal({
             </div>
           ) : (
           <>
+
 
 
           {/* Single Stepper */}
