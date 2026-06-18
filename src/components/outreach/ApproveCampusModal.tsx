@@ -1137,6 +1137,8 @@ export default function ApproveCampusModal({
                   </Button>
                 </div>
 
+                <ProgramLevelChips campus={campus} />
+
                 <div className="pt-1 text-center text-[11px] text-muted-foreground">
                   {triageStats.leads} lead{triageStats.leads === 1 ? "" : "s"} · {triageStats.kept} kept
                 </div>
