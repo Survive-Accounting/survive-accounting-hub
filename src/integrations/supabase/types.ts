@@ -3127,6 +3127,7 @@ export type Database = {
           id: string
           name: string
           status: string
+          template_id: string | null
           total_campuses: number
           total_leads: number
           updated_at: string
@@ -3142,6 +3143,7 @@ export type Database = {
           id?: string
           name: string
           status?: string
+          template_id?: string | null
           total_campuses?: number
           total_leads?: number
           updated_at?: string
@@ -3157,6 +3159,7 @@ export type Database = {
           id?: string
           name?: string
           status?: string
+          template_id?: string | null
           total_campuses?: number
           total_leads?: number
           updated_at?: string
@@ -3167,6 +3170,13 @@ export type Database = {
             columns: ["audience_id"]
             isOneToOne: false
             referencedRelation: "outreach_audiences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_email_templates"
             referencedColumns: ["id"]
           },
         ]
