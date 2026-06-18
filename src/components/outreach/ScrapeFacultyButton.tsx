@@ -102,7 +102,9 @@ export function ScrapeFacultyButton({
       // Fallback: select-and-prompt
       window.prompt("Copy this link:", url);
     }
+    onStep1Click?.();
   };
+
 
   const run = async () => {
     const list = urlList.map((u) => u.trim()).filter(Boolean);
