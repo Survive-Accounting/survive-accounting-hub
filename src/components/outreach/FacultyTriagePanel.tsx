@@ -350,6 +350,29 @@ export function FacultyTriagePanel({
     }
   };
 
+  /** Apply (or remove) a single tag on a specific set of rows, regardless of
+   *  the current selection. Used by the Step #3 chip panel. */
+  const applyTagToIds = async (ids: string[], tag: string, mode: "add" | "remove") => {
+    if (ids.length === 0) return;
+    setRows((prev) => prev.map((r) => {
+      if (!ids.includes(r.id)) return r;
+      const cur = r.title_tags ?? [];
+      const next = mode === "add"
+        ? Array.from(new Set([...cur, tag]))
+        : cur.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+      return { ...r, title_tags: next };
+    }));
+    try {
+      await setTriageTagsBulk(ids, mode, [tag], tagsCurrentById);
+      toast.success(
+        `${mode === "add" ? "Tagged" : "Untagged"} ${ids.length} matching row${ids.length === 1 ? "" : "s"} · "${tag}"`,
+      );
+    } catch (e) {
+      toast.error(`Tagging failed: ${e instanceof Error ? e.message : "unknown"}`);
+      void load();
+    }
+  };
+
   const onImport = async () => {
     setImporting(true);
     try {
