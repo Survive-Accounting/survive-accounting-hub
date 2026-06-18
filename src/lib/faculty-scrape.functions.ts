@@ -359,7 +359,9 @@ async function enrichProfileEmails(
       };
     }
   } else {
-    // Fallback: per-URL parallel scrape with bounded concurrency.
+    // Fallback: per-URL parallel scrape with bounded concurrency. Uses the
+    // FULL scrape (markdown + rawHtml) so the mailto: fallback can fire
+    // when batch scrape silently returns nothing for rawHtml.
     let cursor = 0;
     const workers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, toEnrich.length) }, async () => {
       while (true) {
@@ -367,16 +369,16 @@ async function enrichProfileEmails(
         if (i >= toEnrich.length) return;
         const person = toEnrich[i];
         try {
-          const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
-          const { email, how } = pickEmail(profileText, "");
-          const profileCreds = detectCredentials(profileText.slice(0, 4000));
+          const { markdown, rawHtml } = await firecrawlScrapeFull(fcKey, person.profile_url!);
+          const { email, how } = pickEmail(markdown, rawHtml);
+          const profileCreds = detectCredentials(markdown.slice(0, 4000));
           if (email) enriched++;
           outcomes.push({
             url: person.profile_url!,
             name: `${person.first_name} ${person.last_name}`.trim(),
-            result: email ? how : (profileText ? "no_email" : "empty"),
-            mdLen: profileText.length,
-            htmlLen: 0,
+            result: email ? how : (markdown || rawHtml ? "no_email" : "empty"),
+            mdLen: markdown.length,
+            htmlLen: rawHtml.length,
           });
           enrichedRows[i] = {
             ...person,
