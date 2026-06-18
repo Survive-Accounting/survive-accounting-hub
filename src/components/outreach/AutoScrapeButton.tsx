@@ -103,10 +103,13 @@ export function AutoScrapeButton({
   campusId,
   campusName,
   onScraped,
+  exposeApi,
 }: {
   campusId: string;
   campusName: string;
   onScraped?: () => void;
+  /** Lets the parent grab a stable trigger + busy state to render its own start button elsewhere. */
+  exposeApi?: (api: { start: () => void; busy: boolean }) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<RunLog | null>(null);
@@ -267,6 +270,15 @@ export function AutoScrapeButton({
       setBusy(false);
     }
   };
+
+  // Surface a stable trigger so parents (e.g. the empty-state "Start Scrape"
+  // button in FacultyTriagePanel) can kick off the same flow.
+  useEffect(() => {
+    exposeApi?.({ start: () => { void handleRun(); }, busy });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, campusId, exposeApi]);
+
+
 
   const copyBundle = async () => {
     if (!log) return;

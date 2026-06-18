@@ -84,6 +84,7 @@ function LeadFinderPage() {
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [triageStats, setTriageStats] = useState<TriageStats>({ leads: 0, kept: 0, pending: 0, tagged: 0 });
+  const [scrapeApi, setScrapeApi] = useState<{ start: () => void; busy: boolean }>({ start: () => {}, busy: false });
 
   // Total leads imported to date (all-time count of outreach_leads rows).
   const totalLeadsQuery = useQuery({
@@ -267,6 +268,7 @@ function LeadFinderPage() {
                 campusId={campus.id}
                 campusName={campus.school_name}
                 onScraped={() => setRefreshKey((k) => k + 1)}
+                exposeApi={setScrapeApi}
               />
               <button
                 type="button"
@@ -316,6 +318,8 @@ function LeadFinderPage() {
               refreshToken={refreshKey}
               hideHeader
               onStatsChange={setTriageStats}
+              onStartScrape={scrapeApi.start}
+              isScraping={scrapeApi.busy}
             />
           ) : campusQuery.isError ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
