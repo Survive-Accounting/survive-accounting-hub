@@ -216,6 +216,30 @@ function SpeedNextButton({
   );
 }
 
+/** Retro eBay-style fixed-width odometer. Pads to 6 digits, classic black box. */
+function LeadOdometer({ value }: { value: number }) {
+  const digits = String(Math.max(0, Math.min(999999, value))).padStart(6, "0").split("");
+  return (
+    <div className="mt-0.5 inline-flex items-center gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Leads Found
+      </span>
+      <span className="inline-flex overflow-hidden rounded-sm border border-zinc-700 shadow-inner">
+        {digits.map((d, i) => (
+          <span
+            key={i}
+            className="inline-flex h-4 w-3 items-center justify-center bg-zinc-900 font-mono text-[10px] font-bold leading-none text-amber-300"
+            style={{ borderRight: i < digits.length - 1 ? "1px solid #3f3f46" : undefined }}
+          >
+            {d}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+
 /** Compact BS / MAcc / PhD chip row. Detected levels are solid; missing
  * levels render faded. Tooltip on each chip shows the matched snippet. */
 function ProgramLevelChips({ campus }: { campus: Campus | null }) {
