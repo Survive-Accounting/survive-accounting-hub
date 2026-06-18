@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, Sparkles } from "lucide-react";
+import { Check, X, ExternalLink, Loader2, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
