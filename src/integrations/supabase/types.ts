@@ -1152,6 +1152,7 @@ export type Database = {
           enrollment_source_year: string | null
           enrollment_updated_at: string | null
           faculty_page_url: string | null
+          faculty_scrape_cache: Json | null
           generated_theme_json: Json | null
           has_bachelors_accounting: boolean
           has_masters_accounting: boolean
@@ -1284,6 +1285,7 @@ export type Database = {
           enrollment_source_year?: string | null
           enrollment_updated_at?: string | null
           faculty_page_url?: string | null
+          faculty_scrape_cache?: Json | null
           generated_theme_json?: Json | null
           has_bachelors_accounting?: boolean
           has_masters_accounting?: boolean
@@ -1416,6 +1418,7 @@ export type Database = {
           enrollment_source_year?: string | null
           enrollment_updated_at?: string | null
           faculty_page_url?: string | null
+          faculty_scrape_cache?: Json | null
           generated_theme_json?: Json | null
           has_bachelors_accounting?: boolean
           has_masters_accounting?: boolean

@@ -787,6 +787,7 @@ async function processUrls(
   droppedNoContact: number;
   programLevels: ProgramLevelDetection;
   programLevelSources: string[];
+  cache: Record<string, { markdown: string; links: string[]; scraped_at: string }>;
 }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const perPage: Array<{
@@ -802,6 +803,7 @@ async function processUrls(
     error: string | null;
   }> = [];
   const rowsToInsert: Array<Record<string, unknown>> = [];
+  const cache: Record<string, { markdown: string; links: string[]; scraped_at: string }> = {};
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
   const programLevelSources: string[] = [];
   let totalDroppedNoContact = 0;
@@ -814,6 +816,14 @@ async function processUrls(
       const url = urls[i];
       try {
         const { markdown: md, links } = await firecrawlScrapeWithLinks(fcKey, url);
+        // Cache the rendered directory page so RMP reverse-lookup (and future
+        // enrichment passes) can name-match without re-scraping. Cap markdown
+        // at 200KB per URL to keep the JSONB column reasonable.
+        cache[url] = {
+          markdown: md ? md.slice(0, 200_000) : "",
+          links: links.slice(0, 2000),
+          scraped_at: new Date().toISOString(),
+        };
         if (!md) {
           perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: links.length, error: "empty content" });
           continue;
@@ -915,7 +925,7 @@ async function processUrls(
     }
   }
 
-  return { perPage, inserted, skippedDuplicates, droppedNoContact: totalDroppedNoContact, programLevels, programLevelSources };
+  return { perPage, inserted, skippedDuplicates, droppedNoContact: totalDroppedNoContact, programLevels, programLevelSources, cache };
 }
 
 function requireKeys() {
@@ -964,7 +974,10 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
     const result = await processUrls(fcKey, aiKey, data.campusId, data.urls, { allowNoContact: data.allowNoContact });
     await supabaseAdmin
       .from("campuses")
-      .update({ faculty_page_url: data.urls.join("\n") })
+      .update({
+        faculty_page_url: data.urls.join("\n"),
+        faculty_scrape_cache: result.cache,
+      } as never)
       .eq("id", data.campusId);
     await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
     return { ok: true, ...result };
@@ -1076,6 +1089,10 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
     }
 
     const result = await processUrls(fcKey, aiKey, data.campusId, ranked);
+    await supabaseAdmin
+      .from("campuses")
+      .update({ faculty_scrape_cache: result.cache } as never)
+      .eq("id", data.campusId);
     await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
 
     return {

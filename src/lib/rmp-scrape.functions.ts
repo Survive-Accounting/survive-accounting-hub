@@ -207,7 +207,14 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     // Load existing campus_lead_suggestions + outreach_leads for the campus
     // to match by name. We update BOTH so triage rows show RMP before import,
     // and already-imported leads get scored for the campaign builder.
-    const [{ data: suggestions, error: sErr }, { data: leads, error: lErr }] = await Promise.all([
+    // Also load the cached faculty directory pages so we can REVERSE-LOOKUP
+    // any RMP professors that didn't match an existing row — scan cached
+    // markdown for their name, insert a new lead suggestion if found.
+    const [
+      { data: suggestions, error: sErr },
+      { data: leads, error: lErr },
+      { data: campusRow, error: cErr },
+    ] = await Promise.all([
       supabaseAdmin
         .from("campus_lead_suggestions")
         .select("id,first_name,last_name")
@@ -218,9 +225,15 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         .from("outreach_leads")
         .select("id,first_name,last_name")
         .eq("campus_id", data.campusId),
+      supabaseAdmin
+        .from("campuses")
+        .select("faculty_scrape_cache")
+        .eq("id", data.campusId)
+        .maybeSingle(),
     ]);
     if (sErr) throw new Error(`load suggestions: ${sErr.message}`);
     if (lErr) throw new Error(`load leads: ${lErr.message}`);
+    if (cErr) throw new Error(`load campus: ${cErr.message}`);
 
     const sugByName = new Map<string, string>();
     for (const s of (suggestions ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
@@ -234,6 +247,7 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     const nowIso = new Date().toISOString();
     let suggestionsUpdated = 0;
     let leadsUpdated = 0;
+    const unmatchedTeachers: RmpTeacherNode[] = [];
 
     for (const t of allAccountingTeachers) {
       const key = nameKey(t.firstName, t.lastName);
@@ -249,6 +263,7 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       if (t.avgDifficulty != null) update.rmp_difficulty = t.avgDifficulty;
 
       const sId = sugByName.get(key);
+      const lId = leadByName.get(key);
       if (sId) {
         const { error } = await supabaseAdmin
           .from("campus_lead_suggestions")
@@ -256,7 +271,6 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           .eq("id", sId);
         if (!error) suggestionsUpdated += 1;
       }
-      const lId = leadByName.get(key);
       if (lId) {
         const { error } = await supabaseAdmin
           .from("outreach_leads")
@@ -264,9 +278,124 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           .eq("id", lId);
         if (!error) leadsUpdated += 1;
       }
+      if (!sId && !lId) unmatchedTeachers.push(t);
     }
 
-    const totalMatched = suggestionsUpdated + leadsUpdated;
+    // ----- REVERSE LOOKUP: scan cached directory pages for unmatched profs ----
+    const cache = (campusRow as { faculty_scrape_cache?: Record<string, { markdown?: string; links?: string[] }> } | null)?.faculty_scrape_cache ?? {};
+    const cachePages = Object.entries(cache);
+    let reverseInserted = 0;
+    const reverseRows: Array<Record<string, unknown>> = [];
+    if (cachePages.length > 0 && unmatchedTeachers.length > 0) {
+      for (const t of unmatchedTeachers) {
+        const fn = (t.firstName ?? "").trim();
+        const ln = (t.lastName ?? "").trim();
+        if (!fn || !ln) continue;
+        // Allow middle initials / particles between first & last (e.g. "Jane A. Doe", "Jane van Doe").
+        const re = new RegExp(`\\b${escapeRe(fn)}\\b[\\s\\S]{0,40}?\\b${escapeRe(ln)}\\b`, "i");
+        let hitUrl: string | null = null;
+        let hitMd = "";
+        let hitIdx = -1;
+        for (const [pageUrl, payload] of cachePages) {
+          const md = payload?.markdown ?? "";
+          if (!md) continue;
+          const m = md.match(re);
+          if (m && m.index != null) {
+            hitUrl = pageUrl;
+            hitMd = md;
+            hitIdx = m.index;
+            break;
+          }
+        }
+        if (!hitUrl) continue;
+
+        // Pull nearest email from a ±600-char window around the name hit.
+        const windowText = hitMd.slice(Math.max(0, hitIdx - 300), hitIdx + 600);
+        const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+        const email = emailMatch ? emailMatch[0].toLowerCase() : null;
+
+        // Slug-match against cached links on same host (last-name only).
+        const links = (cache[hitUrl]?.links ?? []) as string[];
+        const lnSlug = ln.toLowerCase().replace(/[^a-z]/g, "");
+        const fnSlug = fn.toLowerCase().replace(/[^a-z]/g, "");
+        let profileUrlFromDir: string | null = null;
+        try {
+          const dirHost = new URL(hitUrl).hostname.replace(/^www\./, "").toLowerCase();
+          for (const link of links) {
+            try {
+              const u = new URL(link);
+              const h = u.hostname.replace(/^www\./, "").toLowerCase();
+              if (h !== dirHost && !h.endsWith(`.${dirHost}`)) continue;
+              const last = (u.pathname.split("/").filter(Boolean).at(-1) ?? "").toLowerCase();
+              if (!last) continue;
+              if (last === lnSlug || last === `${fnSlug}-${lnSlug}` || last === `${lnSlug}-${fnSlug}` || last === `${fnSlug}.${lnSlug}`) {
+                profileUrlFromDir = link;
+                break;
+              }
+            } catch { /* skip */ }
+          }
+        } catch { /* skip */ }
+
+        const rmpProfileUrl = `https://www.ratemyprofessors.com/professor/${t.legacyId}`;
+        reverseRows.push({
+          campus_id: data.campusId,
+          first_name: fn,
+          last_name: ln,
+          title: null,
+          email,
+          source_url: profileUrlFromDir ?? hitUrl,
+          research_mode: "faculty_scrape",
+          research_label: "rmp_reverse_lookup_v1",
+          status: "pending",
+          lead_type: "professor",
+          rmp_checked_at: nowIso,
+          rmp_profile_url: rmpProfileUrl,
+          rmp_rating: t.avgRating,
+          rmp_num_ratings: t.numRatings,
+          rmp_difficulty: t.avgDifficulty,
+          rmp_would_take_again: t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0 ? t.wouldTakeAgainPercent : null,
+          notes: `RMP reverse-lookup: name matched on ${hitUrl}`,
+          raw_payload: {
+            source: "rmp_reverse_lookup",
+            directory_url: hitUrl,
+            rmp_legacy_id: t.legacyId,
+            rmp_department: t.department,
+            found_email: !!email,
+            found_profile_url: !!profileUrlFromDir,
+          },
+        });
+      }
+
+      if (reverseRows.length > 0) {
+        // Dedupe against ACTIVE suggestions for this campus by email and by name.
+        const candEmails = reverseRows.map((r) => r.email).filter((e): e is string => !!e);
+        let existingEmails = new Set<string>();
+        if (candEmails.length > 0) {
+          const { data: ex } = await supabaseAdmin
+            .from("campus_lead_suggestions")
+            .select("email")
+            .eq("campus_id", data.campusId)
+            .is("archived_at", null)
+            .in("email", candEmails);
+          existingEmails = new Set((ex ?? []).map((r: { email: string | null }) => r.email).filter((e): e is string => !!e));
+        }
+        const toInsert = reverseRows.filter((r) => {
+          const e = r.email as string | null;
+          if (e && existingEmails.has(e)) return false;
+          // Also skip if the name now exists in sugByName (we picked it up in
+          // a concurrent run); not strictly required but keeps it tidy.
+          const k = nameKey(r.first_name as string, r.last_name as string);
+          if (sugByName.has(k)) return false;
+          return true;
+        });
+        if (toInsert.length > 0) {
+          const { error } = await supabaseAdmin.from("campus_lead_suggestions").insert(toInsert as never);
+          if (!error) reverseInserted = toInsert.length;
+        }
+      }
+    }
+
+    const totalMatched = suggestionsUpdated + leadsUpdated + reverseInserted;
     // Attribute matches to the first URL for the summary toast.
     if (perPage.length > 0) perPage[0].matched = totalMatched;
 
@@ -274,9 +403,16 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       perPage,
       totalFound: allAccountingTeachers.length,
       totalMatched,
-      totalUpdated: totalMatched,
+      totalUpdated: suggestionsUpdated + leadsUpdated,
+      reverseInserted,
+      reverseAttempted: unmatchedTeachers.length,
+      cachedPages: cachePages.length,
     };
   });
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export const resetCampusLeads = createServerFn({ method: "POST" })
   .inputValidator((data: { campusId: string }) =>
