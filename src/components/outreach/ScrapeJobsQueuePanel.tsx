@@ -15,6 +15,7 @@ import {
   type ScrapeJob,
 } from "@/lib/scrape-jobs";
 import { ScrapeMetricsPanel } from "./ScrapeMetricsPanel";
+import { AiSuggestionsPanel } from "./AiSuggestionsPanel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 
