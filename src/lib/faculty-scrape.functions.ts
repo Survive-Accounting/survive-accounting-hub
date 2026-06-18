@@ -1549,6 +1549,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { aiKey, fcKey } = requireKeys();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const startedAt = Date.now();
     const result = await processUrls(fcKey, aiKey, data.campusId, data.urls, { allowNoContact: data.allowNoContact });
 
     // ---- Map fallback ---------------------------------------------------
@@ -1559,6 +1560,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
     const inputHosts = Array.from(new Set(data.urls.map((u) => {
       try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
     }).filter(Boolean)));
+    let mapFallbackUsed = false;
     if (totalEmails < MAP_FALLBACK_EMAIL_THRESHOLD && inputHosts.length > 0) {
       try {
         const mapped = await firecrawlMap(fcKey, `https://${inputHosts[0]}`, "faculty accounting");
@@ -1567,6 +1569,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
           .filter((u) => !already.has(normalizeUrl(u)))
           .slice(0, 3);
         if (fallbackUrls.length > 0) {
+          mapFallbackUsed = true;
           const fb = await processUrls(fcKey, aiKey, data.campusId, fallbackUrls, { allowNoContact: data.allowNoContact });
           result.perPage.push(...fb.perPage);
           result.inserted += fb.inserted;
@@ -1591,6 +1594,34 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
       } as never)
       .eq("id", data.campusId);
     await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
+
+    // Auto debug bundle + AI suggestion (Tier 1 + Tier 2). Best-effort.
+    try {
+      const { data: campusRow } = await supabaseAdmin
+        .from("campuses")
+        .select("name")
+        .eq("id", data.campusId)
+        .maybeSingle();
+      const { recordAndAnalyzeBundle } = await import("@/lib/scrape-debug.server");
+      const COST_FACULTY_SCRAPE_USD = 0.04;
+      await recordAndAnalyzeBundle({
+        campusId: data.campusId,
+        campusName: (campusRow as { name?: string } | null)?.name ?? null,
+        kind: "faculty",
+        scrapeJobId: null,
+        durationMs: Date.now() - startedAt,
+        inputUrls: data.urls,
+        perPage: result.perPage,
+        inserted: result.inserted,
+        skippedDuplicates: result.skippedDuplicates,
+        droppedNoContact: result.droppedNoContact,
+        mapFallbackUsed,
+        costEstimateUsd: COST_FACULTY_SCRAPE_USD * Math.max(1, result.perPage.length / 3),
+      });
+    } catch (e) {
+      console.warn("[scrapeCampusFaculty] debug bundle failed:", e instanceof Error ? e.message : String(e));
+    }
+
     return { ok: true, ...result };
   });
 
