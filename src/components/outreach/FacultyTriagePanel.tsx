@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -70,6 +70,22 @@ export function FacultyTriagePanel({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Clear selection when clicking outside the panel (ignore Radix portals: dropdowns/dialogs/popovers/tooltips/toasts)
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      if (selected.size === 0) return;
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (panelRef.current?.contains(t)) return;
+      if (t.closest('[data-radix-popper-content-wrapper],[role="menu"],[role="dialog"],[role="tooltip"],[data-sonner-toaster],[data-radix-portal]')) return;
+      setSelected(new Set());
+      setLastClickedId(null);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [selected.size]);
 
   const sortedRows = useMemo(() => {
     const collator = new Intl.Collator(undefined, { sensitivity: "base" });
@@ -228,7 +244,7 @@ export function FacultyTriagePanel({
   
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div ref={panelRef} className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <div>
           <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
