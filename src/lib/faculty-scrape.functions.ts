@@ -1262,7 +1262,10 @@ async function processUrls(
       if (i >= urls.length) return;
       const url = urls[i];
       try {
-        const { markdown: md, links } = await firecrawlScrapeWithLinks(fcKey, url);
+        const initial = await firecrawlScrapeWithLinks(fcKey, url);
+        let md = initial.markdown;
+        const links = initial.links;
+        const initialRawHtml = initial.rawHtml;
         // Cache the rendered directory page so RMP reverse-lookup (and future
         // enrichment passes) can name-match without re-scraping. Cap markdown
         // at 200KB per URL to keep the JSONB column reasonable.
@@ -1280,10 +1283,72 @@ async function processUrls(
           programLevels = mergeDetections(programLevels, pageDetection);
           if (!programLevelSources.includes(url)) programLevelSources.push(url);
         }
-        const parsedPeople = extractDirectoryMarkdownPeople(md);
-        const aiPeople = await callLovableAi(aiKey, url, md);
-        const merged = mergePeople(parsedPeople, aiPeople);
+        let parsedPeople = extractDirectoryMarkdownPeople(md);
+        let aiPeople = await callLovableAi(aiKey, url, md);
+        let merged = mergePeople(parsedPeople, aiPeople);
+
+        // ---- JS-pagination walker -----------------------------------------
+        // If page-1 yielded few people AND we see pagination signals in the
+        // markdown/rawHtml, re-scrape with Firecrawl `actions` that click
+        // Next/Load more up to MAX_PAGINATION_PAGES times. Re-run the
+        // extractor over the concatenated multi-page payload. Generalizable:
+        // works for any school whose directory paginates without a URL
+        // change (IU Kelley, many Drupal/WordPress sites, etc.).
+        const isNewsForPagination = looksLikeNewsPage(url);
+        let pagination: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number } | null = null;
+        if (!isNewsForPagination) {
+          const pdetect = detectPagination(md, initialRawHtml, merged.length);
+          if (pdetect.paginated) {
+            try {
+              const walk = await scrapeWithPaginationActions(fcKey, url, MAX_PAGINATION_PAGES);
+              if (!walk.clickMissed && walk.combinedText.length > md.length) {
+                const combinedExtract = extractDirectoryMarkdownPeople(walk.combinedText);
+                const combinedAi = await callLovableAi(aiKey, url, walk.combinedText.slice(0, 80_000));
+                const reMerged = mergePeople(
+                  mergePeople(parsedPeople, combinedExtract),
+                  mergePeople(aiPeople, combinedAi),
+                );
+                pagination = {
+                  paginated: true,
+                  signal: pdetect.signal,
+                  pagesWalked: walk.pagesWalked,
+                  clickMissed: false,
+                  gained: Math.max(0, reMerged.length - merged.length),
+                };
+                if (reMerged.length > merged.length) {
+                  parsedPeople = mergePeople(parsedPeople, combinedExtract);
+                  aiPeople = mergePeople(aiPeople, combinedAi);
+                  merged = reMerged;
+                  // Replace cache markdown with the richer multi-page text so
+                  // downstream RMP reverse-lookup can match every prof.
+                  md = walk.combinedText.slice(0, 200_000);
+                  cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+                }
+              } else {
+                pagination = {
+                  paginated: true,
+                  signal: pdetect.signal,
+                  pagesWalked: walk.pagesWalked,
+                  clickMissed: true,
+                  gained: 0,
+                };
+              }
+            } catch (e) {
+              // Pagination is best-effort. Log to perPage error suffix; keep page-1 results.
+              pagination = {
+                paginated: true,
+                signal: pdetect.signal,
+                pagesWalked: 0,
+                clickMissed: true,
+                gained: 0,
+              };
+              console.warn(`[pagination] ${url}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+        }
+
         const extracted = merged.length;
+
         // News/blog/spotlight page → names here are almost never tenure-track
         // faculty (student spotlights, alumni profiles, press features). Skip
         // expensive per-profile enrichment, skip directory sweep + inference,
