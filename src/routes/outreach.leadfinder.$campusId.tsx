@@ -354,80 +354,24 @@ function LeadFinderPage() {
   );
 }
 
-function OvernightAutoImportCard() {
-  const [queueing, setQueueing] = useState(false);
-  const statusQuery = useQuery({
-    queryKey: ["faculty-batch-status"],
-    queryFn: () => getFacultyBatchStatus(),
-    refetchInterval: 15_000,
-  });
-  const q = statusQuery.data?.queue ?? { pending: 0, running: 0, done: 0, failed: 0 };
-  const r = statusQuery.data?.last12h ?? { imported: 0, skipped: 0, failed: 0 };
-  const active = (q.pending ?? 0) + (q.running ?? 0);
-
-  const handleQueue = async () => {
-    setQueueing(true);
-    try {
-      const res = await enqueueAllPendingCampuses() as { queued: number; scanned: number };
-      toast.success(`Queued ${res.queued} campus${res.queued === 1 ? "" : "es"} for overnight auto-import`);
-      void statusQuery.refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to queue");
-    } finally {
-      setQueueing(false);
-    }
-  };
-
-  return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-xs shadow-sm dark:border-amber-900/40 dark:bg-amber-950/20">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-col">
-          <div className="text-sm font-semibold text-foreground">Overnight auto-import 🌙</div>
-          <div className="text-[11px] text-muted-foreground">
-            Scrape faculty + auto-import matching titles across all eligible campuses. Runs every 2 min.
-          </div>
-        </div>
-        <Button size="sm" onClick={handleQueue} disabled={queueing}>
-          {queueing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-          Queue all pending campuses
-        </Button>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        <span><strong className="text-foreground">{q.pending}</strong> pending</span>
-        <span><strong className="text-foreground">{q.running}</strong> running</span>
-        <span><strong className="text-foreground">{q.done}</strong> done</span>
-        <span><strong className="text-foreground">{q.failed}</strong> failed</span>
-        <span className="ml-auto">
-          Last 12h: <strong className="text-foreground">{r.imported}</strong> imported
-          {r.failed > 0 ? <> · <strong className="text-destructive">{r.failed}</strong> errors</> : null}
-        </span>
-      </div>
-      {active === 0 && (q.done > 0 || q.failed > 0) ? (
-        <div className="mt-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
-          Queue idle — all campuses processed.
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-
-function TestAutoScrapeButton({ campusId, onDone }: { campusId: string; onDone: () => void }) {
+function ResetCampusLeadsButton({
+  campusId, campusName, onDone,
+}: { campusId: string; campusName: string; onDone: () => void }) {
   const [running, setRunning] = useState(false);
   const handleClick = async () => {
+    const ok = window.confirm(
+      `Reset all scraped leads + suggestions for ${campusName}?\n\nThis deletes outreach_leads with source 'faculty_scrape' or 'rmp_scrape' and all unimported suggestions for this campus. Manually-added leads are preserved.`,
+    );
+    if (!ok) return;
     setRunning(true);
     try {
-      const r = await testAutoScrapeCampus({ data: { campusId } }) as {
-        discovered: number; chosenUrls: string[]; cached: boolean; message: string;
+      const r = await resetCampusLeads({ data: { campusId } }) as {
+        leadsDeleted: number; suggestionsDeleted: number;
       };
-      if (r.chosenUrls.length > 0) {
-        toast.success(r.message, { duration: 6000 });
-      } else {
-        toast.error(r.message);
-      }
+      toast.success(`Reset ${campusName}: deleted ${r.leadsDeleted} lead(s) and ${r.suggestionsDeleted} suggestion(s).`);
       onDone();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Test scrape failed");
+      toast.error(e instanceof Error ? e.message : "Reset failed");
     } finally {
       setRunning(false);
     }
@@ -435,14 +379,107 @@ function TestAutoScrapeButton({ campusId, onDone }: { campusId: string; onDone: 
   return (
     <Button
       size="sm"
-      variant="outline"
+      variant="ghost"
       onClick={handleClick}
       disabled={running}
-      className="h-7 gap-1.5 px-2.5 text-[11px]"
+      className="h-7 gap-1.5 px-2.5 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+      title="Delete all scraped leads + suggestions for this campus so you can re-scrape from scratch"
     >
       {running
-        ? <><Loader2 className="h-3 w-3 animate-spin" /> Testing…</>
-        : <><Sparkles className="h-3 w-3" /> Test Automated Scrape</>}
+        ? <><Loader2 className="h-3 w-3 animate-spin" /> Resetting…</>
+        : <><Trash2 className="h-3 w-3" /> Reset campus leads</>}
     </Button>
   );
+}
+
+function RmpScrapePanel({
+  campusId, campusName, onScraped,
+}: { campusId: string; campusName: string; onScraped: () => void }) {
+  const [urls, setUrls] = useState("");
+  const [running, setRunning] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load saved RMP URLs on mount.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data } = await supabase
+        .from("campuses")
+        .select("rmp_page_url")
+        .eq("id", campusId)
+        .maybeSingle();
+      if (!active) return;
+      const v = ((data as { rmp_page_url?: string | null } | null)?.rmp_page_url ?? "").trim();
+      setUrls(v);
+      setLoaded(true);
+    })();
+    return () => { active = false; };
+  }, [campusId]);
+
+  const handleScrape = async () => {
+    const list = urls.split(/\r?\n/).map((u) => u.trim()).filter((u) => /^https?:\/\//i.test(u));
+    if (list.length === 0) {
+      toast.error("Paste at least one RateMyProfessors URL.");
+      return;
+    }
+    setRunning(true);
+    toast.info(`Scraping RMP for ${campusName} in background…`);
+    try {
+      const r = await scrapeCampusRmp({ data: { campusId, urls: list } }) as {
+        perPage: Array<{ url: string; found: number; matched: number; error?: string }>;
+        totalFound: number; totalMatched: number; totalUpdated: number;
+      };
+      const errs = r.perPage.filter((p) => p.error);
+      if (errs.length > 0) {
+        toast.warning(
+          `RMP: ${r.totalFound} prof(s) found, ${r.totalUpdated} matched to leads. ${errs.length} URL(s) failed.`,
+          { description: errs.map((e) => `${e.url}: ${e.error}`).join("\n").slice(0, 300) },
+        );
+      } else {
+        toast.success(
+          `RMP: ${r.totalFound} prof(s) found → ${r.totalUpdated} lead(s) updated with rating/difficulty.`,
+        );
+      }
+      onScraped();
+    } catch (e) {
+      toast.error(`RMP scrape failed: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card/60 px-4 py-3 shadow-sm">
+      <div className="mb-2 flex items-center gap-2">
+        <Star className="h-3.5 w-3.5 text-amber-500" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          RateMyProfessors URLs
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          (school search or individual profile · one per line)
+        </span>
+      </div>
+      <textarea
+        value={urls}
+        onChange={(e) => setUrls(e.target.value)}
+        placeholder={loaded
+          ? "https://www.ratemyprofessors.com/search/professors/XXXX?q=accounting"
+          : "Loading saved URLs…"}
+        disabled={!loaded}
+        rows={3}
+        className="w-full rounded-md border border-input bg-background px-2 py-1.5 font-mono text-[11px]"
+      />
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-[10px] italic text-muted-foreground">
+          Cross-references by name; updates rating, # ratings, % take again, and difficulty on existing leads.
+        </span>
+        <Button size="sm" onClick={handleScrape} disabled={running || !loaded} className="h-7 gap-1.5 text-[11px]">
+          {running
+            ? <><Loader2 className="h-3 w-3 animate-spin" /> Scraping RMP…</>
+            : <><Star className="h-3 w-3" /> Scrape RMP</>}
+        </Button>
+      </div>
+    </div>
+  );
+}
 }
