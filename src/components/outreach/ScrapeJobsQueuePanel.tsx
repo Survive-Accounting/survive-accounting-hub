@@ -3,13 +3,14 @@
 // still running. Clicking a row jumps to that campus's leadfinder page.
 // Jobs are persisted in the `scrape_jobs` table and streamed via realtime, so
 // the HUD survives reloads and a server-side watchdog auto-fails stuck rows.
-import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X, ShieldAlert } from "lucide-react";
+import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X, ShieldAlert, Ban } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   useScrapeJobs,
   clearFinishedScrapeJobs,
   runScrapeJobsWatchdog,
+  cancelScrapeJob,
   type ScrapeJob,
 } from "@/lib/scrape-jobs";
 
@@ -79,7 +80,7 @@ export function ScrapeJobsQueuePanel() {
       </div>
       <ul className="max-h-64 space-y-0.5 overflow-y-auto">
         {jobs.map((j) => (
-          <li key={j.id}>
+          <li key={j.id} className="group/job flex items-center gap-1">
             <Link
               to="/outreach/leadfinder/$campusId"
               params={{ campusId: j.campusId }}
@@ -88,7 +89,7 @@ export function ScrapeJobsQueuePanel() {
                   ? `${j.kind === "faculty" ? "Faculty" : "RMP"} · ${j.status} · ${j.message}`
                   : `${j.kind === "faculty" ? "Faculty" : "RMP"} · ${j.status}`
               }
-              className="flex items-center gap-1.5 rounded px-1.5 py-1 text-[11px] hover:bg-sidebar-accent"
+              className="flex flex-1 items-center gap-1.5 rounded px-1.5 py-1 text-[11px] hover:bg-sidebar-accent"
             >
               <JobIcon kind={j.kind} />
               <span className="flex-1 truncate text-sidebar-foreground">{j.campusName}</span>
@@ -97,6 +98,19 @@ export function ScrapeJobsQueuePanel() {
                 {timeAgo(j.endedAt ?? j.startedAt)}
               </span>
             </Link>
+            {j.status === "running" && (
+              <button
+                type="button"
+                onClick={() => {
+                  void cancelScrapeJob(j.id);
+                  toast.info(`Cancelled ${j.campusName} — server task may still finish in background.`);
+                }}
+                title="Cancel this scrape (frees the UI; server task continues but is ignored)"
+                className="rounded p-0.5 text-sidebar-foreground/40 opacity-0 transition hover:bg-sidebar-accent hover:text-rose-600 group-hover/job:opacity-100"
+              >
+                <Ban className="h-3 w-3" />
+              </button>
+            )}
           </li>
         ))}
       </ul>

@@ -102,7 +102,10 @@ const HARD_EXCLUDE = [
 // 4-digit year in path (e.g. /2024/, /2007-2008) = archived directory PDFs.
 const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
 const TEACHING_TITLE_RE = /\b(professor|instructor|lecturer|adjunct|clinical|teaching|faculty|dean|chair|practice|visiting)\b/i;
-const PROFILE_ENRICH_LIMIT = 60;
+const PROFILE_ENRICH_LIMIT = 12;
+const PROFILE_ENRICH_CONCURRENCY = 4;
+const PROFILE_SCRAPE_TIMEOUT_MS = 20_000;
+const URL_PROCESS_CONCURRENCY = 3;
 
 // Credential detection — used both to flag the row and to strip trailing
 // credentials from displayed names ("Jane Doe, PhD, CPA" → "Jane Doe").
@@ -195,33 +198,45 @@ function mergePeople(...groups: Extracted[][]): Extracted[] {
 }
 
 async function enrichProfileEmails(fcKey: string, people: Extracted[], sourceUrl: string): Promise<Extracted[]> {
-  let enriched = 0;
-  const out: Extracted[] = [];
   const sourceKey = normalizeUrl(sourceUrl);
-
-  for (const person of people) {
-    if (person.email || !person.profile_url || normalizeUrl(person.profile_url) === sourceKey || enriched >= PROFILE_ENRICH_LIMIT) {
-      out.push(person);
-      continue;
-    }
-    try {
-      const profileText = await firecrawlScrape(fcKey, person.profile_url);
-      const email = extractBestEmail(profileText);
-      // Profile pages often disclose credentials the index page hid.
-      const profileCreds = detectCredentials(profileText.slice(0, 4000));
-      out.push({
-        ...person,
-        email: email ?? person.email,
-        is_phd: person.is_phd || profileCreds.is_phd,
-        is_cpa: person.is_cpa || profileCreds.is_cpa,
-      });
-      enriched++;
-    } catch {
-      out.push(person);
+  // Partition: people that already have an email (or no profile) pass through
+  // untouched; the rest go into a bounded-parallel enrichment pool.
+  const passThrough: Extracted[] = [];
+  const toEnrich: Extracted[] = [];
+  for (const p of people) {
+    if (p.email || !p.profile_url || normalizeUrl(p.profile_url) === sourceKey) {
+      passThrough.push(p);
+    } else if (toEnrich.length < PROFILE_ENRICH_LIMIT) {
+      toEnrich.push(p);
+    } else {
+      passThrough.push(p);
     }
   }
 
-  return out;
+  const enriched: Extracted[] = new Array(toEnrich.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, toEnrich.length) }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= toEnrich.length) return;
+      const person = toEnrich[i];
+      try {
+        const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
+        const email = extractBestEmail(profileText);
+        const profileCreds = detectCredentials(profileText.slice(0, 4000));
+        enriched[i] = {
+          ...person,
+          email: email ?? person.email,
+          is_phd: person.is_phd || profileCreds.is_phd,
+          is_cpa: person.is_cpa || profileCreds.is_cpa,
+        };
+      } catch {
+        enriched[i] = person;
+      }
+    }
+  });
+  await Promise.all(workers);
+  return [...passThrough, ...enriched];
 }
 
 function rankFacultyUrls(links: string[]): string[] {
@@ -289,7 +304,7 @@ async function firecrawlSearch(apiKey: string, query: string): Promise<string[]>
   return web.map((r) => r.url).filter(Boolean);
 }
 
-async function firecrawlScrape(apiKey: string, url: string): Promise<string> {
+async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS): Promise<string> {
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/scrape",
     {
@@ -297,7 +312,7 @@ async function firecrawlScrape(apiKey: string, url: string): Promise<string> {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
     },
-    FIRECRAWL_SCRAPE_TIMEOUT_MS,
+    timeoutMs,
     "Firecrawl scrape",
   );
   if (!res.ok) {
@@ -575,45 +590,54 @@ async function processUrls(
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
   const programLevelSources: string[] = [];
 
-  for (const url of urls) {
-    try {
-      const md = await firecrawlScrape(fcKey, url);
-      if (!md) {
-        perPage.push({ url, found: 0, error: "empty content" });
-        continue;
+  // Process URLs with bounded concurrency so a 5-URL auto-discover doesn't
+  // serially burn 5× the Firecrawl + AI round-trip time.
+  let urlCursor = 0;
+  const urlWorkers = Array.from({ length: Math.min(URL_PROCESS_CONCURRENCY, urls.length) }, async () => {
+    while (true) {
+      const i = urlCursor++;
+      if (i >= urls.length) return;
+      const url = urls[i];
+      try {
+        const md = await firecrawlScrape(fcKey, url);
+        if (!md) {
+          perPage.push({ url, found: 0, error: "empty content" });
+          continue;
+        }
+        const pageDetection = detectProgramLevels(md);
+        if (pageDetection.bachelors || pageDetection.masters || pageDetection.phd) {
+          programLevels = mergeDetections(programLevels, pageDetection);
+          if (!programLevelSources.includes(url)) programLevelSources.push(url);
+        }
+        const parsedPeople = extractDirectoryMarkdownPeople(md);
+        const aiPeople = await callLovableAi(aiKey, url, md);
+        const people = await enrichProfileEmails(fcKey, mergePeople(parsedPeople, aiPeople), url);
+        perPage.push({ url, found: people.length, error: null });
+        for (const p of people) {
+          if (!p.email && !p.profile_url) continue;
+          rowsToInsert.push({
+            campus_id: campusId,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            title: p.title,
+            email: p.email,
+            source_url: p.profile_url ?? url,
+            research_mode: "faculty_scrape",
+            research_label: "faculty_scrape_v2_firecrawl",
+            status: "pending",
+            lead_type: "professor",
+            is_phd: p.is_phd,
+            is_cpa: p.is_cpa,
+            notes: `Scraped from ${url}`,
+            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
+          });
+        }
+      } catch (e) {
+        perPage.push({ url, found: 0, error: e instanceof Error ? e.message : String(e) });
       }
-      const pageDetection = detectProgramLevels(md);
-      if (pageDetection.bachelors || pageDetection.masters || pageDetection.phd) {
-        programLevels = mergeDetections(programLevels, pageDetection);
-        if (!programLevelSources.includes(url)) programLevelSources.push(url);
-      }
-      const parsedPeople = extractDirectoryMarkdownPeople(md);
-      const aiPeople = await callLovableAi(aiKey, url, md);
-      const people = await enrichProfileEmails(fcKey, mergePeople(parsedPeople, aiPeople), url);
-      perPage.push({ url, found: people.length, error: null });
-      for (const p of people) {
-        if (!p.email && !p.profile_url) continue;
-        rowsToInsert.push({
-          campus_id: campusId,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          title: p.title,
-          email: p.email,
-          source_url: p.profile_url ?? url,
-          research_mode: "faculty_scrape",
-          research_label: "faculty_scrape_v2_firecrawl",
-          status: "pending",
-          lead_type: "professor",
-          is_phd: p.is_phd,
-          is_cpa: p.is_cpa,
-          notes: `Scraped from ${url}`,
-          raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
-        });
-      }
-    } catch (e) {
-      perPage.push({ url, found: 0, error: e instanceof Error ? e.message : String(e) });
     }
-  }
+  });
+  await Promise.all(urlWorkers);
 
   let inserted = 0;
   let skippedDuplicates = 0;

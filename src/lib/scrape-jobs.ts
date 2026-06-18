@@ -233,6 +233,25 @@ export async function clearFinishedScrapeJobs() {
   await supabase.from("scrape_jobs").delete().in("id", realIds);
 }
 
+/**
+ * Cancel a running job from the UI. The orphaned server-side fetch keeps
+ * running in the worker (we can't abort a cross-request fetch), but the
+ * HUD is freed immediately so Lee can move on, and the DB row is flipped
+ * to error so the watchdog won't touch it later.
+ */
+export async function cancelScrapeJob(id: string, message = "Cancelled by user"): Promise<void> {
+  const idx = jobs.findIndex((j) => j.id === id);
+  if (idx >= 0) {
+    jobs[idx] = { ...jobs[idx], status: "error", message, endedAt: Date.now() };
+    emit();
+  }
+  if (id.startsWith("tmp-")) return;
+  await supabase
+    .from("scrape_jobs")
+    .update({ status: "error", message, finished_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
 /** Manually trigger the server-side watchdog (8-min stale → error). */
 export async function runScrapeJobsWatchdog(): Promise<number> {
   const { data, error } = await supabase.rpc("fail_stale_scrape_jobs");
