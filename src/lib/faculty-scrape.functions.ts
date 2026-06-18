@@ -1105,8 +1105,39 @@ async function processUrls(
         // Deterministic fallback: pair people without a profile_url to a
         // slug-matched link from the directory page (e.g. /faculty/friedman).
         const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
-        const { people: people, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
+        const { people: enrichedPeople, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
 
+        // Recovery pass A — directory markdown sweep. Many .edu directories
+        // list "Name ... email" in a card on the listing page even though the
+        // individual profile page hides it. Free (uses the markdown we
+        // already fetched). Tag as 'directory' so the UI shows it as a
+        // medium-confidence find.
+        let directoryFilled = 0;
+        const afterDirectorySweep = enrichedPeople.map((p) => {
+          if (p.email) return { ...p, email_confidence: p.email_confidence ?? "verified" as const };
+          const hit = findEmailNearName(md, p.first_name, p.last_name);
+          if (!hit) return p;
+          directoryFilled++;
+          return { ...p, email: hit, email_confidence: "directory" as const };
+        });
+
+        // Recovery pass B — pattern inference. If ≥3 captured emails in this
+        // department agree on one local-part pattern + domain, synthesize
+        // emails for the leftover misses. Flagged as 'inferred' so a human
+        // can spot-check before any send. Skipped automatically when the
+        // sample is too sparse to be confident.
+        const pat = inferDepartmentPattern(afterDirectorySweep);
+        let inferredFilled = 0;
+        const afterInference = afterDirectorySweep.map((p) => {
+          if (p.email) return p;
+          if (!pat) return p;
+          const local = applyPattern(pat.pattern, p.first_name, p.last_name);
+          if (!local) return p;
+          inferredFilled++;
+          return { ...p, email: `${local}@${pat.domain}`, email_confidence: "inferred" as const };
+        });
+
+        const people = afterInference;
         const withEmail = people.filter((p) => !!p.email).length;
         const withProfileUrl = people.filter((p) => !!p.profile_url).length;
         let pageDropped = 0;
@@ -1129,7 +1160,18 @@ async function processUrls(
             is_phd: p.is_phd,
             is_cpa: p.is_cpa,
             notes: hasContact ? `Scraped from ${url}` : `Scraped (name only) from ${url}`,
-            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa, name_only: !hasContact },
+            raw_payload: {
+              source_page: url,
+              title: p.title,
+              profile_url: p.profile_url,
+              is_phd: p.is_phd,
+              is_cpa: p.is_cpa,
+              name_only: !hasContact,
+              email_confidence: p.email_confidence ?? (p.email ? "verified" : null),
+              ...(p.email_confidence === "inferred" && pat
+                ? { inferred_pattern: pat.pattern, inferred_domain: pat.domain, inferred_sample_size: pat.sampleSize }
+                : {}),
+            },
           });
         }
         totalDroppedNoContact += pageDropped;
@@ -1140,12 +1182,13 @@ async function processUrls(
           withEmail,
           withProfileUrl,
           slugMatched,
-          enriched,
+          enriched: enriched + directoryFilled + inferredFilled,
           droppedNoContact: pageDropped,
           links: links.length,
           error: null,
           enrichOutcomes,
         });
+
 
       } catch (e) {
         perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: 0, error: e instanceof Error ? e.message : String(e) });
