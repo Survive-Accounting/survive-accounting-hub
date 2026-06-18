@@ -866,3 +866,89 @@ export function FacultyTriagePanel({
     </div>
   );
 }
+
+// Sleek empty state — Apple/Stripe-style. When idle: a single pill-shaped
+// "Start Scrape" CTA that pulses softly. When scraping: a hypnotic rotating
+// conic-gradient ring with a soft halo, twisting until results arrive.
+function EmptyState({
+  isScraping,
+  onStartScrape,
+}: {
+  isScraping: boolean;
+  onStartScrape?: () => void;
+}) {
+  if (isScraping) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-5 px-4 py-16 text-center">
+        <div className="relative h-16 w-16">
+          {/* outer halo */}
+          <div
+            className="absolute inset-0 rounded-full opacity-60 blur-xl"
+            style={{
+              background:
+                "conic-gradient(from 0deg, hsl(var(--primary)) 0%, transparent 40%, hsl(var(--primary)) 100%)",
+              animation: "spin 2.4s linear infinite",
+            }}
+          />
+          {/* rotating conic ring */}
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background:
+                "conic-gradient(from 0deg, hsl(var(--primary)) 0deg, hsl(var(--primary) / 0.05) 140deg, hsl(var(--primary)) 360deg)",
+              WebkitMask:
+                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
+              mask:
+                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
+              animation: "spin 1.1s linear infinite",
+            }}
+          />
+          {/* counter-rotating accent arc */}
+          <div
+            className="absolute inset-1.5 rounded-full"
+            style={{
+              background:
+                "conic-gradient(from 0deg, transparent 0deg, transparent 260deg, hsl(var(--primary)) 360deg)",
+              WebkitMask:
+                "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
+              mask:
+                "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
+              animation: "spin 1.8s linear infinite reverse",
+            }}
+          />
+          {/* center dot */}
+          <div className="absolute inset-0 m-auto h-1.5 w-1.5 rounded-full bg-primary/80" />
+        </div>
+        <div className="space-y-1">
+          <div className="text-sm font-medium tracking-tight text-foreground">
+            Scraping faculty…
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Discovering URLs · parsing directory · matching ratings
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 px-4 py-16 text-center">
+      <button
+        type="button"
+        onClick={onStartScrape}
+        disabled={!onStartScrape}
+        className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-foreground px-7 py-3 text-sm font-medium text-background shadow-lg shadow-foreground/10 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-foreground/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span
+          aria-hidden
+          className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 ease-out group-hover:translate-x-full"
+        />
+        <Sparkles className="h-4 w-4" />
+        <span className="relative">Start Scrape</span>
+      </button>
+      <div className="text-[11px] text-muted-foreground">
+        Auto-discovers URLs, scrapes faculty, matches RMP ratings.
+      </div>
+    </div>
+  );
+}
