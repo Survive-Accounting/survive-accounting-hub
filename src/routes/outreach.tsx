@@ -236,8 +236,8 @@ function OutreachPage() {
                     campuses={campuses}
                     filters={filters}
                     onFiltersChange={setFilters}
-                    onReview={(c) => { setReviewInitialStep("1"); setReviewing(c); }}
-                    onImportLeads={(c) => { setReviewInitialStep("3"); setReviewing(c); }}
+                    onReview={(c) => openLeadFinder(c.id)}
+                    onImportLeads={(c) => openLeadFinder(c.id)}
                     onAssignPatch={handleAssignPatch}
                     campusPhones={phonesQuery.data}
                     onTogglePersonalPhone={handleTogglePersonalPhone}
