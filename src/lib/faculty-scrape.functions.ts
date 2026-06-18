@@ -590,45 +590,54 @@ async function processUrls(
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
   const programLevelSources: string[] = [];
 
-  for (const url of urls) {
-    try {
-      const md = await firecrawlScrape(fcKey, url);
-      if (!md) {
-        perPage.push({ url, found: 0, error: "empty content" });
-        continue;
+  // Process URLs with bounded concurrency so a 5-URL auto-discover doesn't
+  // serially burn 5× the Firecrawl + AI round-trip time.
+  let urlCursor = 0;
+  const urlWorkers = Array.from({ length: Math.min(URL_PROCESS_CONCURRENCY, urls.length) }, async () => {
+    while (true) {
+      const i = urlCursor++;
+      if (i >= urls.length) return;
+      const url = urls[i];
+      try {
+        const md = await firecrawlScrape(fcKey, url);
+        if (!md) {
+          perPage.push({ url, found: 0, error: "empty content" });
+          continue;
+        }
+        const pageDetection = detectProgramLevels(md);
+        if (pageDetection.bachelors || pageDetection.masters || pageDetection.phd) {
+          programLevels = mergeDetections(programLevels, pageDetection);
+          if (!programLevelSources.includes(url)) programLevelSources.push(url);
+        }
+        const parsedPeople = extractDirectoryMarkdownPeople(md);
+        const aiPeople = await callLovableAi(aiKey, url, md);
+        const people = await enrichProfileEmails(fcKey, mergePeople(parsedPeople, aiPeople), url);
+        perPage.push({ url, found: people.length, error: null });
+        for (const p of people) {
+          if (!p.email && !p.profile_url) continue;
+          rowsToInsert.push({
+            campus_id: campusId,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            title: p.title,
+            email: p.email,
+            source_url: p.profile_url ?? url,
+            research_mode: "faculty_scrape",
+            research_label: "faculty_scrape_v2_firecrawl",
+            status: "pending",
+            lead_type: "professor",
+            is_phd: p.is_phd,
+            is_cpa: p.is_cpa,
+            notes: `Scraped from ${url}`,
+            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
+          });
+        }
+      } catch (e) {
+        perPage.push({ url, found: 0, error: e instanceof Error ? e.message : String(e) });
       }
-      const pageDetection = detectProgramLevels(md);
-      if (pageDetection.bachelors || pageDetection.masters || pageDetection.phd) {
-        programLevels = mergeDetections(programLevels, pageDetection);
-        if (!programLevelSources.includes(url)) programLevelSources.push(url);
-      }
-      const parsedPeople = extractDirectoryMarkdownPeople(md);
-      const aiPeople = await callLovableAi(aiKey, url, md);
-      const people = await enrichProfileEmails(fcKey, mergePeople(parsedPeople, aiPeople), url);
-      perPage.push({ url, found: people.length, error: null });
-      for (const p of people) {
-        if (!p.email && !p.profile_url) continue;
-        rowsToInsert.push({
-          campus_id: campusId,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          title: p.title,
-          email: p.email,
-          source_url: p.profile_url ?? url,
-          research_mode: "faculty_scrape",
-          research_label: "faculty_scrape_v2_firecrawl",
-          status: "pending",
-          lead_type: "professor",
-          is_phd: p.is_phd,
-          is_cpa: p.is_cpa,
-          notes: `Scraped from ${url}`,
-          raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
-        });
-      }
-    } catch (e) {
-      perPage.push({ url, found: 0, error: e instanceof Error ? e.message : String(e) });
     }
-  }
+  });
+  await Promise.all(urlWorkers);
 
   let inserted = 0;
   let skippedDuplicates = 0;
