@@ -37,6 +37,8 @@ export function FacultyTriagePanel({
   refreshToken,
   hideHeader = false,
   onStatsChange,
+  onStartScrape,
+  isScraping = false,
 }: {
   campusId: string;
   campusName: string;
@@ -46,6 +48,10 @@ export function FacultyTriagePanel({
   hideHeader?: boolean;
   /** Fires whenever counts change so the parent can mirror them in its own toolbar. */
   onStatsChange?: (s: TriageStats) => void;
+  /** When provided, the empty state shows a "Start Scrape" button that calls this. */
+  onStartScrape?: () => void;
+  /** True while a scrape is in flight — replaces the empty state with a sleek loader. */
+  isScraping?: boolean;
 }) {
   const [rows, setRows] = useState<TriageRow[]>([]);
   const [loading, setLoading] = useState(true);
