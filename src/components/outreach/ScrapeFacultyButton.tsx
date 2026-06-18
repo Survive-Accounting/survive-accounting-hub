@@ -16,8 +16,16 @@ import {
 import {
   isScrapingCampus,
   trackCampusScrape,
-  useIsScrapingCampus,
+  useScrapingCampusInfo,
+  clearCampusScrape,
 } from "@/lib/faculty-scrape-queue";
+
+// Slim a raw error message into something short and human for a toast.
+function slickErr(e: unknown, fallback = "unknown error"): string {
+  const raw = e instanceof Error ? e.message : typeof e === "string" ? e : fallback;
+  // Strip noisy prefixes / huge JSON dumps; cap length.
+  return raw.replace(/\s+/g, " ").trim().slice(0, 180) || fallback;
+}
 
 export function ScrapeFacultyButton({
   campusId,
