@@ -102,10 +102,13 @@ const HARD_EXCLUDE = [
 // 4-digit year in path (e.g. /2024/, /2007-2008) = archived directory PDFs.
 const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
 const TEACHING_TITLE_RE = /\b(professor|instructor|lecturer|adjunct|clinical|teaching|faculty|dean|chair|practice|visiting)\b/i;
-const PROFILE_ENRICH_LIMIT = 12;
+const PROFILE_ENRICH_LIMIT = 50;
 const PROFILE_ENRICH_CONCURRENCY = 4;
 const PROFILE_SCRAPE_TIMEOUT_MS = 20_000;
 const URL_PROCESS_CONCURRENCY = 3;
+const DIRECTORY_WAIT_MS = 1500;
+const BATCH_SCRAPE_TIMEOUT_MS = 90_000;
+
 
 // Credential detection — used both to flag the row and to strip trailing
 // credentials from displayed names ("Jane Doe, PhD, CPA" → "Jane Doe").
@@ -197,10 +200,58 @@ function mergePeople(...groups: Extracted[][]): Extracted[] {
   return Array.from(byKey.values());
 }
 
-async function enrichProfileEmails(fcKey: string, people: Extracted[], sourceUrl: string): Promise<Extracted[]> {
+/**
+ * Try to attach a profile_url to people the AI returned with no link, using
+ * the full set of links Firecrawl pulled off the directory page. A profile
+ * URL counts as a match when (a) it's on the same host as the directory and
+ * (b) its last path segment looks like the person's last name (allowing
+ * "lastname", "firstname-lastname", or "lastname-firstname").
+ */
+function attachProfileUrlsFromLinks(
+  people: Extracted[],
+  directoryUrl: string,
+  links: string[],
+): { people: Extracted[]; matched: number } {
+  let dirHost = "";
+  try { dirHost = new URL(directoryUrl).hostname.replace(/^www\./, "").toLowerCase(); } catch { /* ignore */ }
+  if (!dirHost) return { people, matched: 0 };
+
+  // Index candidate links by their last path segment, on the same host only.
+  const slugIndex = new Map<string, string>();
+  for (const link of links) {
+    try {
+      const u = new URL(link);
+      const host = u.hostname.replace(/^www\./, "").toLowerCase();
+      if (host !== dirHost && !host.endsWith(`.${dirHost}`)) continue;
+      const segs = u.pathname.split("/").filter(Boolean);
+      const last = (segs.at(-1) ?? "").toLowerCase();
+      if (!last || last.length < 3 || /\.(pdf|jpg|png|gif|svg)$/i.test(last)) continue;
+      if (!slugIndex.has(last)) slugIndex.set(last, normalizeUrl(link));
+    } catch { /* ignore */ }
+  }
+
+  let matched = 0;
+  const out = people.map((p) => {
+    if (p.profile_url) return p;
+    const ln = (p.last_name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    const fn = (p.first_name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    if (!ln) return p;
+    const candidates = [ln, `${fn}-${ln}`, `${ln}-${fn}`, `${fn}.${ln}`, `${fn}_${ln}`];
+    for (const slug of candidates) {
+      const hit = slugIndex.get(slug);
+      if (hit) { matched++; return { ...p, profile_url: hit }; }
+    }
+    return p;
+  });
+  return { people: out, matched };
+}
+
+async function enrichProfileEmails(
+  fcKey: string,
+  people: Extracted[],
+  sourceUrl: string,
+): Promise<{ people: Extracted[]; enriched: number }> {
   const sourceKey = normalizeUrl(sourceUrl);
-  // Partition: people that already have an email (or no profile) pass through
-  // untouched; the rest go into a bounded-parallel enrichment pool.
   const passThrough: Extracted[] = [];
   const toEnrich: Extracted[] = [];
   for (const p of people) {
@@ -212,32 +263,65 @@ async function enrichProfileEmails(fcKey: string, people: Extracted[], sourceUrl
       passThrough.push(p);
     }
   }
+  if (toEnrich.length === 0) return { people: passThrough, enriched: 0 };
 
-  const enriched: Extracted[] = new Array(toEnrich.length);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, toEnrich.length) }, async () => {
-    while (true) {
-      const i = cursor++;
-      if (i >= toEnrich.length) return;
+  // Prefer Firecrawl batchScrape: one upstream call, server-side concurrency,
+  // far faster + more reliable than N parallel scrape calls from the worker.
+  const urls = toEnrich.map((p) => p.profile_url!).filter(Boolean);
+  let scraped: Map<string, string> | null = null;
+  try {
+    scraped = await firecrawlBatchScrape(fcKey, urls);
+  } catch {
+    scraped = null; // fall back to per-URL scrape below
+  }
+
+  let enriched = 0;
+  const enrichedRows: Extracted[] = new Array(toEnrich.length);
+
+  if (scraped && scraped.size > 0) {
+    for (let i = 0; i < toEnrich.length; i++) {
       const person = toEnrich[i];
-      try {
-        const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
-        const email = extractBestEmail(profileText);
-        const profileCreds = detectCredentials(profileText.slice(0, 4000));
-        enriched[i] = {
-          ...person,
-          email: email ?? person.email,
-          is_phd: person.is_phd || profileCreds.is_phd,
-          is_cpa: person.is_cpa || profileCreds.is_cpa,
-        };
-      } catch {
-        enriched[i] = person;
-      }
+      const md = scraped.get(normalizeUrl(person.profile_url!)) ?? "";
+      const email = md ? extractBestEmail(md) : null;
+      const profileCreds = md ? detectCredentials(md.slice(0, 4000)) : { is_phd: false, is_cpa: false };
+      if (email) enriched++;
+      enrichedRows[i] = {
+        ...person,
+        email: email ?? person.email,
+        is_phd: person.is_phd || profileCreds.is_phd,
+        is_cpa: person.is_cpa || profileCreds.is_cpa,
+      };
     }
-  });
-  await Promise.all(workers);
-  return [...passThrough, ...enriched];
+  } else {
+    // Fallback: per-URL parallel scrape with bounded concurrency.
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, toEnrich.length) }, async () => {
+      while (true) {
+        const i = cursor++;
+        if (i >= toEnrich.length) return;
+        const person = toEnrich[i];
+        try {
+          const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
+          const email = extractBestEmail(profileText);
+          const profileCreds = detectCredentials(profileText.slice(0, 4000));
+          if (email) enriched++;
+          enrichedRows[i] = {
+            ...person,
+            email: email ?? person.email,
+            is_phd: person.is_phd || profileCreds.is_phd,
+            is_cpa: person.is_cpa || profileCreds.is_cpa,
+          };
+        } catch {
+          enrichedRows[i] = person;
+        }
+      }
+    });
+    await Promise.all(workers);
+  }
+
+  return { people: [...passThrough, ...enrichedRows], enriched };
 }
+
 
 function rankFacultyUrls(links: string[]): string[] {
   const scored = links
@@ -322,6 +406,86 @@ async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = 
   const json = await res.json() as { data?: { markdown?: string }; markdown?: string };
   return json.data?.markdown ?? json.markdown ?? "";
 }
+
+/**
+ * Variant that also returns every hyperlink found on the page. We use this on
+ * directory pages so we can (a) feed the AI a clean URL list to populate
+ * profile_url, and (b) deterministically slug-match leftover names back to
+ * profile pages on the same host.
+ */
+async function firecrawlScrapeWithLinks(
+  apiKey: string,
+  url: string,
+  timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS,
+): Promise<{ markdown: string; links: string[] }> {
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown", "links"],
+        onlyMainContent: true,
+        waitFor: DIRECTORY_WAIT_MS,
+      }),
+    },
+    timeoutMs,
+    "Firecrawl scrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: { markdown?: string; links?: Array<string | { url?: string }> };
+    markdown?: string;
+    links?: Array<string | { url?: string }>;
+  };
+  const markdown = json.data?.markdown ?? json.markdown ?? "";
+  const rawLinks = json.data?.links ?? json.links ?? [];
+  const links = rawLinks
+    .map((l) => (typeof l === "string" ? l : l?.url ?? ""))
+    .filter((l): l is string => !!l && /^https?:\/\//i.test(l));
+  return { markdown, links: Array.from(new Set(links)) };
+}
+
+/**
+ * Batch-scrape multiple profile pages in a single Firecrawl call. Firecrawl
+ * handles concurrency server-side, which is dramatically faster + more
+ * reliable than N parallel /scrape calls from our worker.
+ */
+async function firecrawlBatchScrape(
+  apiKey: string,
+  urls: string[],
+): Promise<Map<string, string>> {
+  if (urls.length === 0) return new Map();
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/batch/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ urls, formats: ["markdown"], onlyMainContent: true, ignoreInvalidURLs: true }),
+    },
+    BATCH_SCRAPE_TIMEOUT_MS,
+    "Firecrawl batchScrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl batchScrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: Array<{ markdown?: string; metadata?: { sourceURL?: string; url?: string } }>;
+  };
+  const out = new Map<string, string>();
+  for (const row of json.data ?? []) {
+    const src = row.metadata?.sourceURL ?? row.metadata?.url;
+    if (!src) continue;
+    out.set(normalizeUrl(src), row.markdown ?? "");
+  }
+  return out;
+}
+
 
 async function firecrawlMap(apiKey: string, url: string, search: string): Promise<string[]> {
   const res = await fetchWithTimeout(
@@ -578,20 +742,42 @@ async function processUrls(
   campusId: string,
   urls: string[],
 ): Promise<{
-  perPage: Array<{ url: string; found: number; error: string | null }>;
+  perPage: Array<{
+    url: string;
+    found: number;
+    extracted: number;
+    withEmail: number;
+    withProfileUrl: number;
+    slugMatched: number;
+    enriched: number;
+    droppedNoContact: number;
+    links: number;
+    error: string | null;
+  }>;
   inserted: number;
   skippedDuplicates: number;
+  droppedNoContact: number;
   programLevels: ProgramLevelDetection;
   programLevelSources: string[];
 }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const perPage: Array<{ url: string; found: number; error: string | null }> = [];
+  const perPage: Array<{
+    url: string;
+    found: number;
+    extracted: number;
+    withEmail: number;
+    withProfileUrl: number;
+    slugMatched: number;
+    enriched: number;
+    droppedNoContact: number;
+    links: number;
+    error: string | null;
+  }> = [];
   const rowsToInsert: Array<Record<string, unknown>> = [];
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
   const programLevelSources: string[] = [];
+  let totalDroppedNoContact = 0;
 
-  // Process URLs with bounded concurrency so a 5-URL auto-discover doesn't
-  // serially burn 5× the Firecrawl + AI round-trip time.
   let urlCursor = 0;
   const urlWorkers = Array.from({ length: Math.min(URL_PROCESS_CONCURRENCY, urls.length) }, async () => {
     while (true) {
@@ -599,9 +785,9 @@ async function processUrls(
       if (i >= urls.length) return;
       const url = urls[i];
       try {
-        const md = await firecrawlScrape(fcKey, url);
+        const { markdown: md, links } = await firecrawlScrapeWithLinks(fcKey, url);
         if (!md) {
-          perPage.push({ url, found: 0, error: "empty content" });
+          perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: links.length, error: "empty content" });
           continue;
         }
         const pageDetection = detectProgramLevels(md);
@@ -611,10 +797,20 @@ async function processUrls(
         }
         const parsedPeople = extractDirectoryMarkdownPeople(md);
         const aiPeople = await callLovableAi(aiKey, url, md);
-        const people = await enrichProfileEmails(fcKey, mergePeople(parsedPeople, aiPeople), url);
-        perPage.push({ url, found: people.length, error: null });
+        const merged = mergePeople(parsedPeople, aiPeople);
+        const extracted = merged.length;
+        // Deterministic fallback: pair people without a profile_url to a
+        // slug-matched link from the directory page (e.g. /faculty/friedman).
+        const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
+        const { people: people, enriched } = await enrichProfileEmails(fcKey, withSlugs, url);
+
+        const withEmail = people.filter((p) => !!p.email).length;
+        const withProfileUrl = people.filter((p) => !!p.profile_url).length;
+        let pageDropped = 0;
+        let pageInserted = 0;
         for (const p of people) {
-          if (!p.email && !p.profile_url) continue;
+          if (!p.email && !p.profile_url) { pageDropped++; continue; }
+          pageInserted++;
           rowsToInsert.push({
             campus_id: campusId,
             first_name: p.first_name,
@@ -632,11 +828,25 @@ async function processUrls(
             raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
           });
         }
+        totalDroppedNoContact += pageDropped;
+        perPage.push({
+          url,
+          found: pageInserted,
+          extracted,
+          withEmail,
+          withProfileUrl,
+          slugMatched,
+          enriched,
+          droppedNoContact: pageDropped,
+          links: links.length,
+          error: null,
+        });
       } catch (e) {
-        perPage.push({ url, found: 0, error: e instanceof Error ? e.message : String(e) });
+        perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: 0, error: e instanceof Error ? e.message : String(e) });
       }
     }
   });
+
   await Promise.all(urlWorkers);
 
   let inserted = 0;
@@ -676,7 +886,7 @@ async function processUrls(
     }
   }
 
-  return { perPage, inserted, skippedDuplicates, programLevels, programLevelSources };
+  return { perPage, inserted, skippedDuplicates, droppedNoContact: totalDroppedNoContact, programLevels, programLevelSources };
 }
 
 function requireKeys() {
