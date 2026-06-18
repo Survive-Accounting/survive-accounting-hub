@@ -742,20 +742,42 @@ async function processUrls(
   campusId: string,
   urls: string[],
 ): Promise<{
-  perPage: Array<{ url: string; found: number; error: string | null }>;
+  perPage: Array<{
+    url: string;
+    found: number;
+    extracted: number;
+    withEmail: number;
+    withProfileUrl: number;
+    slugMatched: number;
+    enriched: number;
+    droppedNoContact: number;
+    links: number;
+    error: string | null;
+  }>;
   inserted: number;
   skippedDuplicates: number;
+  droppedNoContact: number;
   programLevels: ProgramLevelDetection;
   programLevelSources: string[];
 }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const perPage: Array<{ url: string; found: number; error: string | null }> = [];
+  const perPage: Array<{
+    url: string;
+    found: number;
+    extracted: number;
+    withEmail: number;
+    withProfileUrl: number;
+    slugMatched: number;
+    enriched: number;
+    droppedNoContact: number;
+    links: number;
+    error: string | null;
+  }> = [];
   const rowsToInsert: Array<Record<string, unknown>> = [];
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
   const programLevelSources: string[] = [];
+  let totalDroppedNoContact = 0;
 
-  // Process URLs with bounded concurrency so a 5-URL auto-discover doesn't
-  // serially burn 5× the Firecrawl + AI round-trip time.
   let urlCursor = 0;
   const urlWorkers = Array.from({ length: Math.min(URL_PROCESS_CONCURRENCY, urls.length) }, async () => {
     while (true) {
@@ -763,9 +785,9 @@ async function processUrls(
       if (i >= urls.length) return;
       const url = urls[i];
       try {
-        const md = await firecrawlScrape(fcKey, url);
+        const { markdown: md, links } = await firecrawlScrapeWithLinks(fcKey, url);
         if (!md) {
-          perPage.push({ url, found: 0, error: "empty content" });
+          perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: links.length, error: "empty content" });
           continue;
         }
         const pageDetection = detectProgramLevels(md);
@@ -775,10 +797,20 @@ async function processUrls(
         }
         const parsedPeople = extractDirectoryMarkdownPeople(md);
         const aiPeople = await callLovableAi(aiKey, url, md);
-        const people = await enrichProfileEmails(fcKey, mergePeople(parsedPeople, aiPeople), url);
-        perPage.push({ url, found: people.length, error: null });
+        const merged = mergePeople(parsedPeople, aiPeople);
+        const extracted = merged.length;
+        // Deterministic fallback: pair people without a profile_url to a
+        // slug-matched link from the directory page (e.g. /faculty/friedman).
+        const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
+        const { people: people, enriched } = await enrichProfileEmails(fcKey, withSlugs, url);
+
+        const withEmail = people.filter((p) => !!p.email).length;
+        const withProfileUrl = people.filter((p) => !!p.profile_url).length;
+        let pageDropped = 0;
+        let pageInserted = 0;
         for (const p of people) {
-          if (!p.email && !p.profile_url) continue;
+          if (!p.email && !p.profile_url) { pageDropped++; continue; }
+          pageInserted++;
           rowsToInsert.push({
             campus_id: campusId,
             first_name: p.first_name,
@@ -796,11 +828,25 @@ async function processUrls(
             raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
           });
         }
+        totalDroppedNoContact += pageDropped;
+        perPage.push({
+          url,
+          found: pageInserted,
+          extracted,
+          withEmail,
+          withProfileUrl,
+          slugMatched,
+          enriched,
+          droppedNoContact: pageDropped,
+          links: links.length,
+          error: null,
+        });
       } catch (e) {
-        perPage.push({ url, found: 0, error: e instanceof Error ? e.message : String(e) });
+        perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: 0, error: e instanceof Error ? e.message : String(e) });
       }
     }
   });
+
   await Promise.all(urlWorkers);
 
   let inserted = 0;
