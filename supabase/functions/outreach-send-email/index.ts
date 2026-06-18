@@ -120,6 +120,9 @@ function familyCode(code: string | undefined | null, anchor?: string | null): st
   const am = a.match(/^([A-Za-z&-]+)\s+/);
   if (cm && am && cm[1].toUpperCase() === am[1].toUpperCase()) return cm[2];
   return c;
+}
+
+
 
 /** Render **bold** and _italic_ markdown in a pre-escaped string segment. */
 function applyBold(html: string): string {
@@ -130,11 +133,20 @@ function applyBold(html: string): string {
 
 function renderHtml(body: string, surviveLinkUrl: string) {
   const anchor = `<a href="${escapeHtml(surviveLinkUrl)}" style="color:#CE1126;text-decoration:underline;">SurviveAccounting.com</a>`;
-  const paras = body.split(/\n\n+/).map((p) => {
-    // Escape + linebreaks + bold across the WHOLE paragraph first so that
-    // **bold spans crossing the {surviveaccounting.com} token still pair up.
+  // Strip any horizontal-rule lines the author included (---, ***, ___).
+  const cleaned = body
+    .split(/\n/)
+    .filter((line) => !/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line))
+    .join("\n");
+  const paras = cleaned.split(/\n\n+/).map((p) => {
+    const trimmed = p.trim();
+    if (!trimmed) return "";
+    const isPs = /^P\.?\s?S\.?\b/i.test(trimmed);
     const rendered = applyBold(escapeHtml(p).replace(/\n/g, "<br/>"));
     const withLinks = rendered.split(SA_LINK_TOKEN).join(anchor);
+    if (isPs) {
+      return `<p style="margin:28px 0 14px;line-height:1.55;color:#6b7280;font-size:13.5px;font-style:italic;">${withLinks}</p>`;
+    }
     return `<p style="margin:0 0 14px;line-height:1.55;color:#1f2937;font-size:15px;">${withLinks}</p>`;
   }).join("");
   return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:600px;">${paras}</div>`;
