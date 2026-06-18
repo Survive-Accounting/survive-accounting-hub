@@ -1430,6 +1430,9 @@ async function processUrls(
               ...(p.email_confidence === "inferred" && pat
                 ? { inferred_pattern: pat.pattern, inferred_domain: pat.domain, inferred_sample_size: pat.sampleSize }
                 : {}),
+              ...(pagination && pagination.pagesWalked > 1
+                ? { pagination: { pagesWalked: pagination.pagesWalked, signal: pagination.signal, gained: pagination.gained } }
+                : {}),
             },
           });
         }
@@ -1446,7 +1449,9 @@ async function processUrls(
           links: links.length,
           error: null,
           enrichOutcomes,
+          pagination: pagination ?? undefined,
         });
+
 
 
       } catch (e) {
