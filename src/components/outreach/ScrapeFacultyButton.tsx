@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Globe, Loader2, Wand2 } from "lucide-react";
+import { GraduationCap, Globe, Loader2, Wand2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { scrapeCampusFaculty, autoDiscoverCampusFaculty } from "@/lib/faculty-scrape.functions";
+import {
+  isScrapingCampus,
+  trackCampusScrape,
+  useIsScrapingCampus,
+} from "@/lib/faculty-scrape-queue";
 
 export function ScrapeFacultyButton({
   campusId,
@@ -25,11 +30,11 @@ export function ScrapeFacultyButton({
 }) {
   const [open, setOpen] = useState(false);
   const [urls, setUrls] = useState("");
-  const [busy, setBusy] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [loadingUrls, setLoadingUrls] = useState(false);
   const scrape = useServerFn(scrapeCampusFaculty);
   const discover = useServerFn(autoDiscoverCampusFaculty);
+  const scraping = useIsScrapingCampus(campusId);
 
   const openModal = async () => {
     setOpen(true);
@@ -46,6 +51,11 @@ export function ScrapeFacultyButton({
     }
   };
 
+  const openFacultyGoogle = () => {
+    const q = `${campusName} accounting faculty directory`;
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}`, "_blank", "noopener,noreferrer");
+  };
+
   const run = async () => {
     const list = urls
       .split(/\r?\n/)
@@ -55,26 +65,31 @@ export function ScrapeFacultyButton({
       toast.error("Paste at least one URL.");
       return;
     }
-    setBusy(true);
-    try {
-      const result = await scrape({ data: { campusId, urls: list } });
-      const errors = result.perPage.filter((p) => p.error);
-      if (errors.length > 0) {
-        toast.warning(
-          `Scraped ${result.perPage.length - errors.length}/${result.perPage.length} pages. ${result.inserted} new candidates added. ${errors.length} URL(s) failed.`,
-        );
-      } else {
-        toast.success(
-          `Found ${result.inserted} new candidates from ${result.perPage.length} page(s). ${result.skippedDuplicates ? `Skipped ${result.skippedDuplicates} duplicates.` : ""}`,
-        );
-      }
-      setOpen(false);
-      onScraped?.();
-    } catch (e) {
-      toast.error(`Scrape failed: ${e instanceof Error ? e.message : "unknown error"}`);
-    } finally {
-      setBusy(false);
+    if (isScrapingCampus(campusId)) {
+      toast.error("Already scraping this campus — wait for it to finish.");
+      return;
     }
+    setOpen(false);
+    toast.info(`Scraping ${campusName} in background…`);
+    const promise = (async () => {
+      try {
+        const result = await scrape({ data: { campusId, urls: list } });
+        const errors = result.perPage.filter((p) => p.error);
+        if (errors.length > 0) {
+          toast.warning(
+            `${campusName}: ${result.perPage.length - errors.length}/${result.perPage.length} pages scraped. ${result.inserted} new candidates. ${errors.length} URL(s) failed.`,
+          );
+        } else {
+          toast.success(
+            `${campusName}: ${result.inserted} new candidates from ${result.perPage.length} page(s).${result.skippedDuplicates ? ` Skipped ${result.skippedDuplicates} duplicates.` : ""}`,
+          );
+        }
+        onScraped?.();
+      } catch (e) {
+        toast.error(`${campusName} scrape failed: ${e instanceof Error ? e.message : "unknown error"}`);
+      }
+    })();
+    trackCampusScrape(campusId, promise);
   };
 
   const runAutoDiscover = async () => {
@@ -119,21 +134,32 @@ export function ScrapeFacultyButton({
           </Button>
         )}
         {!hideScrapeUrls && (
-          <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
-            <Globe className="h-3.5 w-3.5" />
-            Scrape URLs
-          </Button>
+          <>
+            <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
+              {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+              {scraping ? "Scraping…" : "Scrape URLs"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openFacultyGoogle}
+              title="Open Google search for this school's accounting faculty directory"
+              aria-label="Open Google faculty search"
+            >
+              <GraduationCap className="h-3.5 w-3.5" />
+            </Button>
+          </>
         )}
       </div>
 
-      <Dialog open={open} onOpenChange={(v) => { if (!busy) setOpen(v); }}>
+      <Dialog open={open} onOpenChange={(v) => setOpen(v)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Scrape faculty pages — {campusName}</DialogTitle>
             <DialogDescription className="pt-1">
               Paste one URL per line. Include each filter/tab as its own line
               (e.g. <code>?role=instructor</code>, <code>?role=staff</code>) so
-              non-tenure-track folks aren't missed. Pages are fetched via Firecrawl.
+              non-tenure-track folks aren't missed. Pages are fetched via Firecrawl in the background.
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -142,15 +168,14 @@ export function ScrapeFacultyButton({
             rows={6}
             placeholder={loadingUrls ? "Loading saved URLs…" : "https://accountancy.example.edu/faculty\nhttps://accountancy.example.edu/faculty?role=instructor"}
             className="font-mono text-xs"
-            disabled={busy}
           />
           <div className="text-[11px] text-muted-foreground">
-            Names without an email or profile URL are dropped (no pattern-guessing). Results land in the triage table below — nothing is added to the email queue until you import.
+            Names without an email or profile URL are dropped (no pattern-guessing). Results land in the triage table below — nothing is added to the email queue until you import. Scrape runs in the background so you can move to the next campus immediately.
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
-            <Button onClick={run} disabled={busy}>
-              {busy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scraping…</> : "Scrape pages"}
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={run}>
+              <Globe className="h-3.5 w-3.5" /> Start scrape in background
             </Button>
           </DialogFooter>
         </DialogContent>
