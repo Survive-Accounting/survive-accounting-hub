@@ -336,3 +336,61 @@ function LeadFinderPage() {
     </>
   );
 }
+
+function OvernightAutoImportCard() {
+  const [queueing, setQueueing] = useState(false);
+  const statusQuery = useQuery({
+    queryKey: ["faculty-batch-status"],
+    queryFn: () => getFacultyBatchStatus(),
+    refetchInterval: 15_000,
+  });
+  const q = statusQuery.data?.queue ?? { pending: 0, running: 0, done: 0, failed: 0 };
+  const r = statusQuery.data?.last12h ?? { imported: 0, skipped: 0, failed: 0 };
+  const active = (q.pending ?? 0) + (q.running ?? 0);
+
+  const handleQueue = async () => {
+    setQueueing(true);
+    try {
+      const res = await enqueueAllPendingCampuses() as { queued: number; scanned: number };
+      toast.success(`Queued ${res.queued} campus${res.queued === 1 ? "" : "es"} for overnight auto-import`);
+      void statusQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to queue");
+    } finally {
+      setQueueing(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-xs shadow-sm dark:border-amber-900/40 dark:bg-amber-950/20">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col">
+          <div className="text-sm font-semibold text-foreground">Overnight auto-import 🌙</div>
+          <div className="text-[11px] text-muted-foreground">
+            Scrape faculty + auto-import matching titles across all eligible campuses. Runs every 2 min.
+          </div>
+        </div>
+        <Button size="sm" onClick={handleQueue} disabled={queueing}>
+          {queueing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+          Queue all pending campuses
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <span><strong className="text-foreground">{q.pending}</strong> pending</span>
+        <span><strong className="text-foreground">{q.running}</strong> running</span>
+        <span><strong className="text-foreground">{q.done}</strong> done</span>
+        <span><strong className="text-foreground">{q.failed}</strong> failed</span>
+        <span className="ml-auto">
+          Last 12h: <strong className="text-foreground">{r.imported}</strong> imported
+          {r.failed > 0 ? <> · <strong className="text-destructive">{r.failed}</strong> errors</> : null}
+        </span>
+      </div>
+      {active === 0 && (q.done > 0 || q.failed > 0) ? (
+        <div className="mt-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+          Queue idle — all campuses processed.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
