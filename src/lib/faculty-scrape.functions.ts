@@ -563,10 +563,14 @@ async function processUrls(
   perPage: Array<{ url: string; found: number; error: string | null }>;
   inserted: number;
   skippedDuplicates: number;
+  programLevels: ProgramLevelDetection;
+  programLevelSources: string[];
 }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const perPage: Array<{ url: string; found: number; error: string | null }> = [];
   const rowsToInsert: Array<Record<string, unknown>> = [];
+  let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
+  const programLevelSources: string[] = [];
 
   for (const url of urls) {
     try {
@@ -574,6 +578,11 @@ async function processUrls(
       if (!md) {
         perPage.push({ url, found: 0, error: "empty content" });
         continue;
+      }
+      const pageDetection = detectProgramLevels(md);
+      if (pageDetection.bachelors || pageDetection.masters || pageDetection.phd) {
+        programLevels = mergeDetections(programLevels, pageDetection);
+        if (!programLevelSources.includes(url)) programLevelSources.push(url);
       }
       const parsedPeople = extractDirectoryMarkdownPeople(md);
       const aiPeople = await callLovableAi(aiKey, url, md);
