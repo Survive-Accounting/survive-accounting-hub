@@ -232,8 +232,9 @@ export default function ApproveCampusModal({
 }) {
   const [step, setStep] = useState(initialStep ?? "1");
   const [speedMode, setSpeedMode] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try { return window.localStorage.getItem("sa-speed-mode") === "yes"; } catch { return false; }
+    if (typeof window === "undefined") return true;
+    // Default ON; only off if user explicitly disabled it ("no"). Legacy panels are "advanced".
+    try { return window.localStorage.getItem("sa-speed-mode") !== "no"; } catch { return true; }
   });
   const toggleSpeedMode = (next: boolean) => {
     setSpeedMode(next);
