@@ -296,6 +296,66 @@ export type Database = {
           },
         ]
       }
+      campus_greek_chapters: {
+        Row: {
+          archived_at: string | null
+          campus_id: string
+          chapter_designation: string | null
+          chapter_url: string | null
+          created_at: string
+          discovery_source: string | null
+          exec_page_url: string | null
+          greek_org_id: string | null
+          id: string
+          notes: string | null
+          status: Database["public"]["Enums"]["greek_chapter_status"]
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          campus_id: string
+          chapter_designation?: string | null
+          chapter_url?: string | null
+          created_at?: string
+          discovery_source?: string | null
+          exec_page_url?: string | null
+          greek_org_id?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["greek_chapter_status"]
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          campus_id?: string
+          chapter_designation?: string | null
+          chapter_url?: string | null
+          created_at?: string
+          discovery_source?: string | null
+          exec_page_url?: string | null
+          greek_org_id?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["greek_chapter_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campus_greek_chapters_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campus_greek_chapters_greek_org_id_fkey"
+            columns: ["greek_org_id"]
+            isOneToOne: false
+            referencedRelation: "greek_orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campus_intelligence: {
         Row: {
           adoption_count_intermediate: number | null
@@ -548,6 +608,7 @@ export type Database = {
           archived_by: string | null
           archived_reason: string | null
           campus_id: string
+          chapter_id: string | null
           confidence: number | null
           courses_found: Json | null
           created_at: string
@@ -560,6 +621,7 @@ export type Database = {
           last_name: string | null
           lead_type: string
           notes: string | null
+          position: string | null
           raw_payload: Json | null
           research_label: string | null
           research_mode: string
@@ -571,6 +633,7 @@ export type Database = {
           teaches_intro_2: boolean | null
           teaching_evidence_notes: string | null
           teaching_evidence_url: string | null
+          term: string | null
           title: string | null
           title_tags: string[]
           updated_at: string
@@ -581,6 +644,7 @@ export type Database = {
           archived_by?: string | null
           archived_reason?: string | null
           campus_id: string
+          chapter_id?: string | null
           confidence?: number | null
           courses_found?: Json | null
           created_at?: string
@@ -593,6 +657,7 @@ export type Database = {
           last_name?: string | null
           lead_type?: string
           notes?: string | null
+          position?: string | null
           raw_payload?: Json | null
           research_label?: string | null
           research_mode?: string
@@ -604,6 +669,7 @@ export type Database = {
           teaches_intro_2?: boolean | null
           teaching_evidence_notes?: string | null
           teaching_evidence_url?: string | null
+          term?: string | null
           title?: string | null
           title_tags?: string[]
           updated_at?: string
@@ -614,6 +680,7 @@ export type Database = {
           archived_by?: string | null
           archived_reason?: string | null
           campus_id?: string
+          chapter_id?: string | null
           confidence?: number | null
           courses_found?: Json | null
           created_at?: string
@@ -626,6 +693,7 @@ export type Database = {
           last_name?: string | null
           lead_type?: string
           notes?: string | null
+          position?: string | null
           raw_payload?: Json | null
           research_label?: string | null
           research_mode?: string
@@ -637,6 +705,7 @@ export type Database = {
           teaches_intro_2?: boolean | null
           teaching_evidence_notes?: string | null
           teaching_evidence_url?: string | null
+          term?: string | null
           title?: string | null
           title_tags?: string[]
           updated_at?: string
@@ -647,6 +716,13 @@ export type Database = {
             columns: ["campus_id"]
             isOneToOne: false
             referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campus_lead_suggestions_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "campus_greek_chapters"
             referencedColumns: ["id"]
           },
         ]
@@ -2729,6 +2805,51 @@ export type Database = {
           },
         ]
       }
+      greek_orgs: {
+        Row: {
+          council: Database["public"]["Enums"]["greek_council"]
+          created_at: string
+          founded_year: number | null
+          id: string
+          is_active: boolean
+          letters: string | null
+          name: string
+          national_website: string | null
+          nickname: string | null
+          notes: string | null
+          org_type: Database["public"]["Enums"]["greek_org_type"]
+          updated_at: string
+        }
+        Insert: {
+          council: Database["public"]["Enums"]["greek_council"]
+          created_at?: string
+          founded_year?: number | null
+          id?: string
+          is_active?: boolean
+          letters?: string | null
+          name: string
+          national_website?: string | null
+          nickname?: string | null
+          notes?: string | null
+          org_type: Database["public"]["Enums"]["greek_org_type"]
+          updated_at?: string
+        }
+        Update: {
+          council?: Database["public"]["Enums"]["greek_council"]
+          created_at?: string
+          founded_year?: number | null
+          id?: string
+          is_active?: boolean
+          letters?: string | null
+          name?: string
+          national_website?: string | null
+          nickname?: string | null
+          notes?: string | null
+          org_type?: Database["public"]["Enums"]["greek_org_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       landing_page_events: {
         Row: {
           campus_id: string | null
@@ -3208,6 +3329,7 @@ export type Database = {
           affiliation: string | null
           bounced_at: string | null
           campus_id: string | null
+          chapter_id: string | null
           clicks_count: number | null
           complained_at: string | null
           course_notes: string | null
@@ -3228,6 +3350,7 @@ export type Database = {
           last_name: string | null
           notes: string | null
           opens_count: number | null
+          position: string | null
           replied_at: string | null
           scheduled_send_at: string | null
           school_id: string | null
@@ -3237,6 +3360,7 @@ export type Database = {
           skip_landing_page: boolean | null
           source: string | null
           status: string | null
+          term: string | null
           title_tags: string[]
           updated_at: string
         }
@@ -3244,6 +3368,7 @@ export type Database = {
           affiliation?: string | null
           bounced_at?: string | null
           campus_id?: string | null
+          chapter_id?: string | null
           clicks_count?: number | null
           complained_at?: string | null
           course_notes?: string | null
@@ -3264,6 +3389,7 @@ export type Database = {
           last_name?: string | null
           notes?: string | null
           opens_count?: number | null
+          position?: string | null
           replied_at?: string | null
           scheduled_send_at?: string | null
           school_id?: string | null
@@ -3273,6 +3399,7 @@ export type Database = {
           skip_landing_page?: boolean | null
           source?: string | null
           status?: string | null
+          term?: string | null
           title_tags?: string[]
           updated_at?: string
         }
@@ -3280,6 +3407,7 @@ export type Database = {
           affiliation?: string | null
           bounced_at?: string | null
           campus_id?: string | null
+          chapter_id?: string | null
           clicks_count?: number | null
           complained_at?: string | null
           course_notes?: string | null
@@ -3300,6 +3428,7 @@ export type Database = {
           last_name?: string | null
           notes?: string | null
           opens_count?: number | null
+          position?: string | null
           replied_at?: string | null
           scheduled_send_at?: string | null
           school_id?: string | null
@@ -3309,6 +3438,7 @@ export type Database = {
           skip_landing_page?: boolean | null
           source?: string | null
           status?: string | null
+          term?: string | null
           title_tags?: string[]
           updated_at?: string
         }
@@ -3318,6 +3448,13 @@ export type Database = {
             columns: ["campus_id"]
             isOneToOne: false
             referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_leads_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "campus_greek_chapters"
             referencedColumns: ["id"]
           },
           {
@@ -4536,7 +4673,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      greek_chapter_status: "active" | "inactive" | "suspended" | "unknown"
+      greek_council: "IFC" | "NIC" | "NPC" | "NPHC" | "MGC" | "local" | "other"
+      greek_org_type: "fraternity" | "sorority"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4663,6 +4802,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      greek_chapter_status: ["active", "inactive", "suspended", "unknown"],
+      greek_council: ["IFC", "NIC", "NPC", "NPHC", "MGC", "local", "other"],
+      greek_org_type: ["fraternity", "sorority"],
+    },
   },
 } as const
