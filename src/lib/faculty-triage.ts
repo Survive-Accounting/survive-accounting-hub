@@ -77,7 +77,9 @@ export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
       rmp_would_take_again: r.rmp_would_take_again,
       rmp_profile_url: r.rmp_profile_url,
       email_confidence,
+      pagination_pages_walked,
     };
+
   });
 
   // Mark rows that are already imported as outreach_leads (by email match
