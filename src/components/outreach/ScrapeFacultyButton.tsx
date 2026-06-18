@@ -351,10 +351,13 @@ export function ScrapeFacultyButton({
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #1</span>
                 {copyFacultyLinkBtn}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #2 · Paste Scrape URL</span>
-                {scrapeUrlsBtn}
-                {resetBtn}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #2 · Paste Scrape URL</span>
+                  {scrapeUrlsBtn}
+                  {resetBtn}
+                </div>
+                {urlPanel}
               </div>
               <button
                 type="button"
