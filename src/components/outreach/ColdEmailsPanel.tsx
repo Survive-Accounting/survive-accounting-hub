@@ -401,11 +401,26 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
           </div>
         </section>
 
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button onClick={generate} className="bg-[#14213D] text-white hover:bg-[#14213D]/90">
             Generate Queue
           </Button>
+          <Button
+            type="button"
+            variant={forceOleMiss ? "default" : "outline"}
+            onClick={() => setForceOleMiss((v) => !v)}
+            className={forceOleMiss ? "bg-[#CE1126] text-white hover:bg-[#CE1126]/90" : ""}
+            title="Pin Ole Miss to #1 and send ALL its imported leads first"
+          >
+            {forceOleMiss ? "✓ Forcing Ole Miss #1" : "Force Ole Miss"}
+          </Button>
+          {forceOleMiss && (
+            <span className="text-xs text-muted-foreground">
+              Ole Miss pinned to #1 — all its imported leads send first, then schedule continues under the daily cap.
+            </span>
+          )}
         </div>
+
 
         {/* Queue table */}
         {ordered.length > 0 && (
