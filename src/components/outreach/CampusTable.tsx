@@ -58,6 +58,34 @@ export default function CampusTable({
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
+  // Set of campus_ids that have at least one imported outreach lead.
+  const importedCampusesQuery = useQuery({
+    queryKey: ["campuses-with-imported-leads"],
+    queryFn: async () => {
+      const ids = new Set<string>();
+      const pageSize = 1000;
+      let from = 0;
+      // Paginate through distinct-ish campus_ids by selecting just the column.
+      // outreach_leads is bounded enough that this is fine; we just need presence.
+      while (true) {
+        const { data, error } = await supabase
+          .from("outreach_leads")
+          .select("campus_id")
+          .not("campus_id", "is", null)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const r of data) if (r.campus_id) ids.add(r.campus_id);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return ids;
+    },
+    staleTime: 30_000,
+  });
+  const importedCampusIds = importedCampusesQuery.data ?? new Set<string>();
+
+
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
