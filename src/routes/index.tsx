@@ -113,10 +113,11 @@ function Home() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
-        headline="Let's Make Accounting Feel Easy"
-        subtext="Get virtual tutoring from a 10+ year expert who knows your exams. Every session is designed to reduce stress, boost confidence, and help you ace your next test."
+        headline="Ace Your Next Exam"
+        subtext="Get expert 1-on-1 tutoring tailored to your course. Reduce stress, boost confidence, and ace your next exam."
         ctaSlot={<HeroCta />}
       />
+
       <Reviews />
       <ContactForm />
       
