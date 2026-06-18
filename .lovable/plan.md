@@ -1,45 +1,59 @@
-# Speed Mode: PhD/CPA automation + UI minimalize
+# Speed Mode minimalize — build plan
 
-## 1. Confirmed: PhD → "Dr." prefix
+PhD/Dr. greeting is already live. Scrape auto-flags PhD/CPA and the toolbar refactor (unified scrape button, inline program/shorthand, split Next button) shipped last turn. This plan covers the remaining cuts based on your answers.
 
-`supabase/functions/outreach-send-email/index.ts` already does this:
+## 1. "Show advanced" toggle in Approve Campus modal
 
-```ts
-const greetingName = lead.is_phd
-  ? `Dr. ${(lead.last_name ?? "").trim() || firstName}`
-  : firstName;
-// then: replace {recipient name} with greetingName
-```
+`ApproveCampusModal.tsx` currently always renders the legacy multi-step research stack above Faculty Triage. We'll hide it behind a small toggle.
 
-So any lead with `is_phd = true` gets `Dr. {LastName}` wherever the template uses `{recipient name}`. No code change needed — just need scrape to actually flag them (next item).
+- Add `showAdvanced` state (default `false`, persisted to `localStorage` key `outreach.approveModal.showAdvanced` so it sticks per user).
+- Wrap the legacy blocks in `{showAdvanced && (...)}`:
+  - Step 1/2/3 tabs
+  - `BatchResearchPanel` / `CleanProfessorResearchPanel` mounted inside the modal
+  - `TextbookCoveragePanel`
+  - `ProgramAndCoursesPanel`
+  - `ClassScheduleIntelligencePanel`
+  - Any "AI research" buttons in the modal header that aren't part of Speed Mode
+- Add a tiny `Show advanced ▾` link-style toggle in the modal footer (or far-right of the new toolbar) so it's discoverable but out of the way.
+- Speed Mode toolbar + Faculty Triage stay always-visible.
 
-## 2. Auto-flag PhD / CPA during scrape
+Nothing is deleted — all four panels remain mounted-on-demand so you can resurrect anytime.
 
-Today `faculty-scrape.functions.ts` extracts `title` but never sets `is_phd` / `is_cpa`. Update the pipeline to set both booleans before insert in **all three paths** (markdown parser, AI extraction, multi-page extraction):
+## 2. Trim Faculty Triage columns (#5)
 
-- PhD regex on `name + title`: `/\b(Ph\.?\s?D|D\.?B\.?A|Ed\.?D|D\.?Phil|Doctorate)\b/i`
-- CPA regex: `/\bC\.?P\.?A\b/i`
-- Also strip trailing credentials from the displayed name (e.g. "Jane Doe, PhD, CPA" → name "Jane Doe", flags both true)
-- Tell the AI extractor to return `credentials: string[]` so we don't rely on regex alone, then OR the regex result with the AI signal
+Edits in `FacultyTriagePanel.tsx`:
 
-Insert these into `campus_lead_suggestions` so the triage panel checkboxes are pre-ticked. Manual override on the panel still wins.
+- Merge `PhD` + `CPA` into one `Creds` cell containing two compact toggle chips (`PhD` / `CPA`), each clickable like the current checkboxes. Saves ~100px.
+- Hide the `Source` column. Render the source link as a small `↗` icon that appears on row hover inside the Name cell (uses existing `hover-card` if needed, but a CSS `group-hover:opacity-100` is enough).
+- Only render the `Tags` column when at least one row in the current list has tags. Otherwise the column header and cells are omitted, and tags still appear in the amber bulk-tag bar when rows are selected.
+- Keep click-to-select on Name/Title cells exactly as today (your answer to #5).
 
-## 3. Top 5 UI minimalize suggestions for the modal
+Final default columns: **Name · Title · Email · Creds · Decision** (5). With tags present: **Name · Title · Email · Tags · Creds · Decision**.
 
-The Approve modal is ~1960 lines with experiments piled on. My ranked cuts:
+## 3. Archive (not delete) per your answer
 
-1. **Collapse the 3-button scrape row into one "Scrape" button with a dropdown** (URL / Crawl / PDF). Today: 3 separate top-row buttons + their associated modals. Saves horizontal real-estate and groups the mental model ("get faculty from somewhere").
-2. **Remove the multi-step "Step 1 / Step 2 / Step 3" tabs and the AI-research panel above triage.** In Speed Mode you only ever use Faculty Triage + Program name + Scrape. The legacy steps (textbook family pickers, course code research, etc.) are dead weight in Speed Mode and slow page load.
-3. **Move Program name / Shorthand into a small inline header next to the school title** (one line: `Alabama State · Department of Accounting · Culver`). Currently it's a whole boxed section taking ~80px vertically.
-4. **Drop the "Next filter" pill bar from the modal header** and move it to a small icon-dropdown on the Next button itself (`Next ▾`). Right now it eats a full row but is a one-time setting per session.
-5. **Trim Faculty Triage columns**: merge `PhD` + `CPA` into a single `Creds` cell with two tiny toggle chips, hide `Source` behind a hover on the row, and drop the `Tags` column for rows with no tags (only render the column header when at least one row has tags). Keeps the table scannable at 4 columns: Name · Title · Email · Decision.
+No code removal. Just unmount from the modal when `showAdvanced` is off:
+- `TextbookCoveragePanel`
+- `ClassScheduleIntelligencePanel`
+- `BatchResearchPanel`
+- `CleanProfessorResearchPanel`
+- `ProgramAndCoursesPanel`
 
-## 4. What I need from you before building
+All five files stay in `src/components/outreach/` untouched. `BatchResearchSettingsModal.tsx` also stays (it's reachable from outside the Approve modal).
 
-Please reply approve/deny per item (1–5). Plus:
+## 4. Files touched
 
-- **For #2**: OK to fully *remove* the legacy step tabs / AI research panel from the modal, or do you want them kept behind a "Show advanced" toggle for non-Speed-Mode use? (If Speed Mode is becoming the only mode, I'd vote remove.)
-- **For #5**: Should the row stay clickable for range-select (current behavior) if we hide Source on hover, or do you want a dedicated select checkbox column instead?
-- **Anything I should *archive* rather than delete** (textbook coverage panel, class schedule intel, etc.) so we can resurrect later if needed?
+- `src/components/outreach/ApproveCampusModal.tsx` — advanced toggle, conditional rendering, footer link
+- `src/components/outreach/FacultyTriagePanel.tsx` — merge Creds, hover-only Source, conditional Tags column
 
-Once you confirm, I'll ship #1 (PhD/Dr. is already live) + #2 (auto-flag) + whichever of the 5 you greenlight.
+No DB migration. No server-function changes. No edge-function changes.
+
+## 5. Verification
+
+- Open Approve Campus modal → confirm only toolbar + Faculty Triage render by default.
+- Click `Show advanced` → all legacy panels appear; reload page → preference persists.
+- Triage with 0 tagged rows → no Tags column. Tag one → column appears.
+- Click PhD/CPA chips → values save (same handler as today).
+- Hover row → source icon appears in Name cell; click opens directory page in new tab.
+
+Approve to build.

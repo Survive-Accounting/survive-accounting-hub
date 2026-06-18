@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -192,6 +192,7 @@ export function FacultyTriagePanel({
   const keptCount = rows.filter((r) => toTriageStatus(r.status) === "kept").length;
   const pendingCount = rows.filter((r) => toTriageStatus(r.status) === "pending_triage").length;
   const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
+  const hasAnyTags = taggedCount > 0;
 
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -293,10 +294,8 @@ export function FacultyTriagePanel({
                 </button>
               </TableHead>
               <TableHead className="w-[20%]">Email</TableHead>
-              <TableHead className="w-[18%]">Tags</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead className="w-[50px] text-center">PhD</TableHead>
-              <TableHead className="w-[50px] text-center">CPA</TableHead>
+              {hasAnyTags && <TableHead className="w-[18%]">Tags</TableHead>}
+              <TableHead className="w-[110px] text-center">Creds</TableHead>
               <TableHead className="w-[140px] text-center">Decision</TableHead>
             </TableRow>
           </TableHeader>
@@ -309,6 +308,7 @@ export function FacultyTriagePanel({
                 <TableRow
                   key={r.id}
                   className={[
+                    "group",
                     status === "skipped" ? "opacity-50" : "",
                     status === "kept" ? "bg-emerald-50/40" : "",
                     isSel ? "ring-1 ring-inset ring-amber-400 bg-amber-50/60" : "",
@@ -319,7 +319,21 @@ export function FacultyTriagePanel({
                     onClick={(e) => onRowClick(r.id, e)}
                     title="Click to select. Shift-click to fill range. Cmd/Ctrl-click to toggle."
                   >
-                    {(r.first_name ?? "") + " " + (r.last_name ?? "")}
+                    <span className="inline-flex items-center gap-1.5">
+                      {(r.first_name ?? "") + " " + (r.last_name ?? "")}
+                      {r.source_url && (
+                        <a
+                          href={r.source_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                          title="Open source page"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </span>
                   </TableCell>
                   <TableCell
                     className="cursor-pointer select-none text-xs text-muted-foreground"
@@ -335,44 +349,60 @@ export function FacultyTriagePanel({
                       <span className="text-amber-700">no email found</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-xs">
-                    {tags.length === 0 ? (
-                      <span className="text-muted-foreground">—</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {tags.map((t) => (
-                          <Badge
-                            key={t}
-                            variant="outline"
-                            className="cursor-pointer border-amber-300 bg-amber-50 text-[10px] text-amber-900 hover:bg-amber-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Quick remove just this tag from this row
-                              const next = tags.filter((x) => x !== t);
-                              update(r.id, { title_tags: next });
-                              setTriageTagsBulk([r.id], "replace", next, tagsCurrentById)
-                                .catch(() => void load());
-                            }}
-                            title="Click to remove"
-                          >
-                            {t} ✕
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {r.source_url ? (
-                      <a href={r.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
-                        <ExternalLink className="h-3 w-3" /> source
-                      </a>
-                    ) : "—"}
-                  </TableCell>
+                  {hasAnyTags && (
+                    <TableCell className="text-xs">
+                      {tags.length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {tags.map((t) => (
+                            <Badge
+                              key={t}
+                              variant="outline"
+                              className="cursor-pointer border-amber-300 bg-amber-50 text-[10px] text-amber-900 hover:bg-amber-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const next = tags.filter((x) => x !== t);
+                                update(r.id, { title_tags: next });
+                                setTriageTagsBulk([r.id], "replace", next, tagsCurrentById)
+                                  .catch(() => void load());
+                              }}
+                              title="Click to remove"
+                            >
+                              {t} ✕
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="text-center">
-                    <Checkbox checked={!!r.is_phd} onCheckedChange={(v) => onFlag(r.id, "is_phd", !!v)} />
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Checkbox checked={!!r.is_cpa} onCheckedChange={(v) => onFlag(r.id, "is_cpa", !!v)} />
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onFlag(r.id, "is_phd", !r.is_phd)}
+                        className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition ${
+                          r.is_phd
+                            ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="Toggle PhD"
+                      >
+                        PhD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onFlag(r.id, "is_cpa", !r.is_cpa)}
+                        className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition ${
+                          r.is_cpa
+                            ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="Toggle CPA"
+                      >
+                        CPA
+                      </button>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-center gap-1">
