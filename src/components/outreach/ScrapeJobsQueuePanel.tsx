@@ -1,13 +1,18 @@
 // Sidebar HUD showing recent faculty + RMP scrape jobs across campuses so Lee
 // can fire off many in parallel and still see which succeeded / failed / are
 // still running. Clicking a row jumps to that campus's leadfinder page.
-import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X } from "lucide-react";
+// Jobs are persisted in the `scrape_jobs` table and streamed via realtime, so
+// the HUD survives reloads and a server-side watchdog auto-fails stuck rows.
+import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X, ShieldAlert } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   useScrapeJobs,
   clearFinishedScrapeJobs,
+  runScrapeJobsWatchdog,
   type ScrapeJob,
 } from "@/lib/scrape-jobs";
+
 
 function timeAgo(ts: number): string {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
