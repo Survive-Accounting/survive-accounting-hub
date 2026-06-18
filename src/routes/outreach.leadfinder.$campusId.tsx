@@ -323,6 +323,6 @@ function LeadFinderPage() {
           </div>
         </div>
       </div>
-    </AdminGate>
+    </>
   );
 }
