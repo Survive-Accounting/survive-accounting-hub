@@ -417,12 +417,13 @@ function TestAutoScrapeButton({ campusId, onDone }: { campusId: string; onDone: 
     setRunning(true);
     try {
       const r = await testAutoScrapeCampus({ data: { campusId } }) as {
-        scraped: number; tagged: number; urls: number;
+        discovered: number; chosenUrls: string[]; cached: boolean; message: string;
       };
-      toast.success(
-        `Test scrape complete · ${r.scraped} new from ${r.urls} URL${r.urls === 1 ? "" : "s"} · ${r.tagged} auto-tagged`,
-        { duration: 4500 },
-      );
+      if (r.chosenUrls.length > 0) {
+        toast.success(r.message, { duration: 6000 });
+      } else {
+        toast.error(r.message);
+      }
       onDone();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Test scrape failed");
