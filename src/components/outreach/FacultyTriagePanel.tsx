@@ -74,6 +74,34 @@ export function FacultyTriagePanel({
 
   useEffect(() => { void load(); }, [load, refreshToken]);
 
+  // Auto-tag intro-likely rows with "Intro Target" as soon as they appear
+  // (once per row, idempotent). Lets the user skip Step #3 — every checked
+  // row will be imported when they click Import Leads.
+  const autoTaggedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (loading || rows.length === 0) return;
+    const toTag: string[] = [];
+    for (const r of rows) {
+      if (autoTaggedRef.current.has(r.id)) continue;
+      autoTaggedRef.current.add(r.id);
+      const hasTag = (r.title_tags ?? [])
+        .map((t) => t.toLowerCase())
+        .includes(INTRO_TARGET_TAG.toLowerCase());
+      if (!hasTag && isIntroLikely(r.title)) toTag.push(r.id);
+    }
+    if (toTag.length === 0) return;
+    // Optimistic local update, then persist quietly.
+    setRows((prev) => prev.map((r) =>
+      toTag.includes(r.id)
+        ? { ...r, title_tags: Array.from(new Set([...(r.title_tags ?? []), INTRO_TARGET_TAG])) }
+        : r,
+    ));
+    void setTriageTagsBulk(toTag, "add", [INTRO_TARGET_TAG], tagsCurrentById)
+      .catch(() => { /* surface only on retry */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, loading]);
+
+
   // Clear selection on Esc
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -412,104 +440,10 @@ export function FacultyTriagePanel({
       )}
 
 
-      {/* Step #3 — Review / Edit Tags. Click any chip to apply (or remove) its
-          tag from every matching row, no selection required. */}
-      {!loading && rows.length > 0 && (
-        <div className="space-y-2 border-b border-border bg-muted/30 px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Step #3 · Apply Tags
-            </div>
-            {introMatchIds.length > 0 && (
-              <button
-                type="button"
-                onClick={() => applyTagToIds(introMatchIds, INTRO_TARGET_TAG, introAllTagged ? "remove" : "add")}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-                  introAllTagged
-                    ? "border border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                    : "bg-amber-500 text-white hover:bg-amber-600"
-                }`}
-                title={`Intro 1 / Intro 2 likely teachers · matches lecturer, adjunct, instructor, visiting, teaching/clinical prof, etc. (excludes deans/chairs/emeritus)`}
-              >
-                {introAllTagged ? (
-                  <><Check className="h-3 w-3" /> Intro Target applied ({introMatchIds.length})</>
-                ) : (
-                  <>Tag all {introMatchIds.length} Intro-likely as "{INTRO_TARGET_TAG}"</>
-                )}
-              </button>
-            )}
-          </div>
+      {/* Step #3 chip panel removed — intro-likely rows are auto-tagged on load
+          and shown as checked rows below. Power users can still adjust tags via
+          the toolbar (All tags dropdown / new-tag input). */}
 
-          {/* Detected role chips */}
-          {roleChips.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Detected:</span>
-              {roleChips.map(({ label, intro, matchedIds, allTagged }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => applyTagToIds(matchedIds, label, allTagged ? "remove" : "add")}
-                  title={
-                    allTagged
-                      ? `Click to remove "${label}" from ${matchedIds.length} matching row${matchedIds.length === 1 ? "" : "s"}`
-                      : `Click to tag ${matchedIds.length} matching row${matchedIds.length === 1 ? "" : "s"} as "${label}"`
-                  }
-                  className={`inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-medium transition ${
-                    allTagged
-                      ? "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      : intro
-                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
-                      : "border-muted-foreground/30 bg-background text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {allTagged ? <Check className="h-3 w-3" /> : <span>+</span>}
-                  {label}
-                  <span className={allTagged ? "text-emerald-600/80" : "text-muted-foreground/80"}>
-                    ({matchedIds.length})
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="text-[11px] italic text-muted-foreground">
-              No role keywords matched these titles yet.
-            </div>
-          )}
-
-          {/* Past-campus suggestions */}
-          {pastCampusSuggestions.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From past campuses:</span>
-              {pastCampusSuggestions.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => {
-                    // Apply to every row whose title contains any word from `tag`.
-                    const words = tag.toLowerCase().match(/[a-z][a-z\-]{2,}/g) ?? [];
-                    const ids = rows
-                      .filter((r) => {
-                        const t = (r.title ?? "").toLowerCase();
-                        return words.some((w) => t.includes(w));
-                      })
-                      .map((r) => r.id);
-                    if (ids.length === 0) {
-                      toast.info(`No titles on this campus match "${tag}". Select rows manually to apply it.`);
-                      return;
-                    }
-                    void applyTagToIds(ids, tag, "add");
-                  }}
-                  className="inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-muted-foreground/40 bg-background px-2 text-[11px] font-medium text-foreground/80 hover:bg-muted"
-                  title={`Reuse "${tag}" from another campus`}
-                >
-                  + {tag}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-xs">
 
@@ -635,6 +569,9 @@ export function FacultyTriagePanel({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px] text-center">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground" title="Import?">Imp</span>
+              </TableHead>
               <TableHead className="w-[18%]">
                 <button type="button" onClick={() => toggleSort("name")}
                   className="inline-flex items-center gap-1 hover:text-foreground">
@@ -651,6 +588,7 @@ export function FacultyTriagePanel({
               <TableHead className="w-[110px] text-center">Creds</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {sortedRows.map((r) => {
               const isSel = selected.has(r.id);
@@ -664,6 +602,32 @@ export function FacultyTriagePanel({
                     isSel ? "ring-1 ring-inset ring-amber-400 bg-amber-50/60" : "",
                   ].join(" ")}
                 >
+                  <TableCell className="text-center align-middle">
+                    <input
+                      type="checkbox"
+                      checked={hasTags}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        if (checked) {
+                          void applyTagToIds([r.id], INTRO_TARGET_TAG, "add");
+                        } else {
+                          // Remove every tag from this row so it won't import.
+                          const cur = r.title_tags ?? [];
+                          if (cur.length === 0) return;
+                          setRows((prev) => prev.map((x) =>
+                            x.id === r.id ? { ...x, title_tags: [] } : x,
+                          ));
+                          void setTriageTagsBulk([r.id], "remove", cur, tagsCurrentById)
+                            .catch((err) => {
+                              toast.error(`Could not update: ${err instanceof Error ? err.message : "unknown"}`);
+                              void load();
+                            });
+                        }
+                      }}
+                      className="h-4 w-4 cursor-pointer accent-emerald-600"
+                      title={hasTags ? "Will be imported as a lead. Uncheck to skip." : "Check to import this row as a lead."}
+                    />
+                  </TableCell>
                   <TableCell
                     className="cursor-pointer select-none font-medium"
                     onClick={(e) => onRowClick(r.id, e)}
@@ -671,6 +635,7 @@ export function FacultyTriagePanel({
                     onMouseEnter={() => onRowMouseEnter(r.id)}
                     title="Click to select. Click + drag across rows for multi-select. Shift-click for range."
                   >
+
                     <span className="inline-flex items-center gap-1.5">
                       {(r.first_name ?? "") + " " + (r.last_name ?? "")}
                       {r.source_url && (

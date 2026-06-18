@@ -31,6 +31,8 @@ export function ScrapeFacultyButton({
   campusId,
   campusName,
   onScraped,
+  onStep1Click,
+  flameStep,
   hideAutoDiscover = false,
   hideScrapeUrls = false,
   layout = "row",
@@ -38,11 +40,16 @@ export function ScrapeFacultyButton({
   campusId: string;
   campusName: string;
   onScraped?: () => void;
+  /** Fires after the user clicks "Copy Faculty Link" (Step #1). */
+  onStep1Click?: () => void;
+  /** Which step is currently flame-highlighted (1 or 2). Other values = no flame. */
+  flameStep?: 1 | 2 | 3 | null;
   hideAutoDiscover?: boolean;
   hideScrapeUrls?: boolean;
   /** "row" = legacy inline; "stacked" = numbered VA-friendly checklist. */
   layout?: "row" | "stacked";
 }) {
+
   const [expanded, setExpanded] = useState(false);
   const [urlList, setUrlList] = useState<string[]>([""]);
   const [discovering, setDiscovering] = useState(false);
@@ -95,7 +102,9 @@ export function ScrapeFacultyButton({
       // Fallback: select-and-prompt
       window.prompt("Copy this link:", url);
     }
+    onStep1Click?.();
   };
+
 
   const run = async () => {
     const list = urlList.map((u) => u.trim()).filter(Boolean);
@@ -227,7 +236,7 @@ export function ScrapeFacultyButton({
       variant="outline"
       onClick={copyFacultyGoogleLink}
       title="Copy a Google search link for this school's accounting faculty directory. Paste it in a new tab."
-      className="gap-1.5"
+      className={`gap-1.5 ${flameStep === 1 ? "flame-focus" : ""}`}
     >
       <GraduationCap className="h-3.5 w-3.5" /> Copy Faculty Link
     </Button>
@@ -240,11 +249,13 @@ export function ScrapeFacultyButton({
       onClick={togglePanel}
       title="Add the faculty page URL(s) and start a scrape"
       aria-expanded={expanded}
+      className={flameStep === 2 ? "flame-focus" : ""}
     >
       {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
       {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URL"}
     </Button>
   );
+
 
   const urlPanel = expanded && (
     <div className="w-full max-w-md space-y-1.5 rounded-md border border-border bg-background p-2 text-left">
