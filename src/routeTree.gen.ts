@@ -17,6 +17,7 @@ import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
+import { Route as OutreachScraperTrendsRouteImport } from './routes/outreach.scraper-trends'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
@@ -65,6 +66,11 @@ const TSlugRoute = TSlugRouteImport.update({
   id: '/t/$slug',
   path: '/t/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OutreachScraperTrendsRoute = OutreachScraperTrendsRouteImport.update({
+  id: '/scraper-trends',
+  path: '/scraper-trends',
+  getParentRoute: () => OutreachRoute,
 } as any)
 const OShortRefRoute = OShortRefRouteImport.update({
   id: '/o/$shortRef',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/scraper-trends'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -194,6 +204,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/scraper-trends'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -212,6 +223,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/scraper-trends'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -292,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/outreach/scraper-trends': {
+      id: '/outreach/scraper-trends'
+      path: '/scraper-trends'
+      fullPath: '/outreach/scraper-trends'
+      preLoaderRoute: typeof OutreachScraperTrendsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/o/$shortRef': {
       id: '/o/$shortRef'
       path: '/o/$shortRef'
@@ -368,11 +387,13 @@ const CeqRouteChildren: CeqRouteChildren = {
 const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
 interface OutreachRouteChildren {
+  OutreachScraperTrendsRoute: typeof OutreachScraperTrendsRoute
   OutreachLeadfinderCampusIdRoute: typeof OutreachLeadfinderCampusIdRoute
   OutreachLeadfinderIndexRoute: typeof OutreachLeadfinderIndexRoute
 }
 
 const OutreachRouteChildren: OutreachRouteChildren = {
+  OutreachScraperTrendsRoute: OutreachScraperTrendsRoute,
   OutreachLeadfinderCampusIdRoute: OutreachLeadfinderCampusIdRoute,
   OutreachLeadfinderIndexRoute: OutreachLeadfinderIndexRoute,
 }
@@ -396,3 +417,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
