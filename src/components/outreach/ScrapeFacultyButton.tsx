@@ -265,8 +265,9 @@ export function ScrapeFacultyButton({
       ref={fileInputRef}
       type="file"
       accept="application/pdf,.pdf"
+      multiple
       className="hidden"
-      onChange={(e) => onPdfChosen(e.target.files?.[0] ?? null)}
+      onChange={(e) => onPdfChosen(e.target.files)}
     />
   );
 
