@@ -425,8 +425,10 @@ async function firecrawlScrapeWithLinks(
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         url,
-        formats: ["markdown", "links"],
-        onlyMainContent: true,
+        // Directory pages: take EVERYTHING. onlyMainContent often strips
+        // card-grid nav containing the profile links we need to enrich.
+        formats: ["markdown", "links", "rawHtml"],
+        onlyMainContent: false,
         waitFor: DIRECTORY_WAIT_MS,
       }),
     },
@@ -438,16 +440,37 @@ async function firecrawlScrapeWithLinks(
     throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
   }
   const json = await res.json() as {
-    data?: { markdown?: string; links?: Array<string | { url?: string }> };
+    data?: { markdown?: string; links?: Array<string | { url?: string }>; rawHtml?: string; html?: string };
     markdown?: string;
     links?: Array<string | { url?: string }>;
+    rawHtml?: string;
+    html?: string;
   };
   const markdown = json.data?.markdown ?? json.markdown ?? "";
   const rawLinks = json.data?.links ?? json.links ?? [];
-  const links = rawLinks
+  const fromLinksField = rawLinks
     .map((l) => (typeof l === "string" ? l : l?.url ?? ""))
     .filter((l): l is string => !!l && /^https?:\/\//i.test(l));
-  return { markdown, links: Array.from(new Set(links)) };
+
+  // Fallback: pull <a href> from rawHtml. The links[] format can miss
+  // JS-rendered card hrefs even with waitFor; rawHtml is post-render.
+  const rawHtml = json.data?.rawHtml ?? json.data?.html ?? json.rawHtml ?? json.html ?? "";
+  const fromHtml: string[] = [];
+  if (rawHtml) {
+    const reAbs = /<a[^>]+href=["'](https?:\/\/[^"']+)["']/gi;
+    const reRel = /<a[^>]+href=["'](\/[^"']+)["']/gi;
+    let m: RegExpExecArray | null;
+    while ((m = reAbs.exec(rawHtml)) !== null) fromHtml.push(m[1]);
+    try {
+      const base = new URL(url);
+      while ((m = reRel.exec(rawHtml)) !== null) {
+        try { fromHtml.push(new URL(m[1], base).toString()); } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }
+
+  const all = Array.from(new Set([...fromLinksField, ...fromHtml]));
+  return { markdown, links: all };
 }
 
 /**
