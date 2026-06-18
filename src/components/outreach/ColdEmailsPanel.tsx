@@ -102,6 +102,7 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
   const [ordered, setOrdered] = useState<RankedCampus[]>([]);
   const [generated, setGenerated] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [forceOleMiss, setForceOleMiss] = useState(false);
 
   const leadsQ = useQuery({
     queryKey: ["cold-imported-lead-counts-rmp"],
@@ -127,15 +128,35 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
     else if (initialTemplates[0]) setTemplateId(initialTemplates[0].id);
   }, [initialTemplates, templateId]);
 
-  const ranked = useMemo(
-    () => rankCampuses(campuses, importedByCampus, rmpByCampus, crit),
-    [campuses, importedByCampus, rmpByCampus, crit],
-  );
+  const isOleMiss = (c: Campus) => {
+    const n = (c.school_name ?? "").toLowerCase();
+    return n.includes("ole miss") || n.includes("university of mississippi");
+  };
+
+  const ranked = useMemo(() => {
+    const base = rankCampuses(campuses, importedByCampus, rmpByCampus, crit);
+    if (!forceOleMiss) return base;
+    const idx = base.findIndex((r) => isOleMiss(r.campus));
+    if (idx <= 0) return base;
+    const next = [...base];
+    const [om] = next.splice(idx, 1);
+    next.unshift(om);
+    return next;
+  }, [campuses, importedByCampus, rmpByCampus, crit, forceOleMiss]);
 
   // Keep ordered in sync with the latest ranking until the user reorders.
   useEffect(() => {
     if (!generated) setOrdered(ranked);
   }, [ranked, generated]);
+
+  // When Ole Miss is forced, send ALL its imported leads instead of perCampusCap.
+  const countsByCampus = useMemo<Record<string, number>>(() => {
+    if (!forceOleMiss) return {};
+    const om = ordered.find((r) => isOleMiss(r.campus));
+    if (!om) return {};
+    const n = importedByCampus[om.campus.id] ?? 0;
+    return n > 0 ? { [om.campus.id]: n } : {};
+  }, [forceOleMiss, ordered, importedByCampus]);
 
   const schedule = useMemo(
     () =>
@@ -144,9 +165,11 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
         perCampusCap,
         sendDays,
         startDate: new Date(startDate + "T00:00:00"),
+        countsByCampus,
       }),
-    [ordered, dailyCap, perCampusCap, sendDays, startDate],
+    [ordered, dailyCap, perCampusCap, sendDays, startDate, countsByCampus],
   );
+
 
   const toggleDay = (d: number) =>
     setSendDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
