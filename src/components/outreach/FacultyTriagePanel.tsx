@@ -390,8 +390,7 @@ export function FacultyTriagePanel({
                   Title {sortIcon("title")}
                 </button>
               </TableHead>
-              <TableHead className="w-[20%]">Email</TableHead>
-              {hasAnyTags && <TableHead className="w-[18%]">Tags</TableHead>}
+              <TableHead className="w-[24%]">Email</TableHead>
               <TableHead className="w-[110px] text-center">Creds</TableHead>
               <TableHead className="w-[140px] text-center">Decision</TableHead>
             </TableRow>
@@ -400,7 +399,6 @@ export function FacultyTriagePanel({
             {sortedRows.map((r) => {
               const status = toTriageStatus(r.status);
               const isSel = selected.has(r.id);
-              const tags = r.title_tags ?? [];
               return (
                 <TableRow
                   key={r.id}
