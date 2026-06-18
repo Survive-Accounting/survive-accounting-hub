@@ -25,18 +25,33 @@ export const testAutoScrapeCampus = createServerFn({ method: "POST" })
     };
 
     const { data: campus, error: campusErr } = await supabaseAdmin
-      .from("campuses").select("faculty_page_url").eq("id", data.campusId).maybeSingle();
+      .from("campuses").select("faculty_page_url,website_url,accounting_department_url,domains").eq("id", data.campusId).maybeSingle();
     if (campusErr) throw new Error(`campus read: ${campusErr.message}`);
     if (!campus) throw new Error("campus not found");
     const urls = ((campus.faculty_page_url as string | null) ?? "")
       .split(/\r?\n/).map((u) => u.trim())
       .filter((u) => /^https?:\/\//i.test(u)).slice(0, 10);
-    if (urls.length === 0) throw new Error("This campus has no faculty_page_url set.");
 
-    const scrape = await scrapeCampusFaculty({ data: { campusId: data.campusId, urls } }) as {
-      perPage?: Array<{ inserted?: number }>;
-    };
-    const scraped = (scrape.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    let scraped = 0;
+    let discoveredUrls: string[] = [];
+    if (urls.length === 0) {
+      const hasSeed = !!(campus.website_url || campus.accounting_department_url
+        || ((campus.domains as string[] | null) ?? []).length > 0);
+      if (!hasSeed) throw new Error("No faculty_page_url and no website/domains on this campus to auto-discover from.");
+      const { autoDiscoverCampusFaculty } = await import("@/lib/faculty-scrape.functions");
+      const disc = await autoDiscoverCampusFaculty({ data: { campusId: data.campusId, maxPages: 5 } }) as {
+        perPage?: Array<{ inserted?: number }>;
+        chosenUrls?: string[];
+      };
+      scraped = (disc.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+      discoveredUrls = disc.chosenUrls ?? [];
+    } else {
+      const scrape = await scrapeCampusFaculty({ data: { campusId: data.campusId, urls } }) as {
+        perPage?: Array<{ inserted?: number }>;
+      };
+      scraped = (scrape.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    }
+
 
     const { data: sugs } = await supabaseAdmin
       .from("campus_lead_suggestions")
