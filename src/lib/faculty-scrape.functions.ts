@@ -1165,20 +1165,23 @@ async function processUrls(
         // already fetched). Tag as 'directory' so the UI shows it as a
         // medium-confidence find.
         let directoryFilled = 0;
-        const afterDirectorySweep = enrichedPeople.map((p) => {
-          if (p.email) return { ...p, email_confidence: p.email_confidence ?? "verified" as const };
-          const hit = findEmailNearName(md, p.first_name, p.last_name);
-          if (!hit) return p;
-          directoryFilled++;
-          return { ...p, email: hit, email_confidence: "directory" as const };
-        });
+        const afterDirectorySweep = isNewsPage
+          ? enrichedPeople.map((p) => ({ ...p, email_confidence: "news" as const }))
+          : enrichedPeople.map((p) => {
+              if (p.email) return { ...p, email_confidence: p.email_confidence ?? "verified" as const };
+              const hit = findEmailNearName(md, p.first_name, p.last_name);
+              if (!hit) return p;
+              directoryFilled++;
+              return { ...p, email: hit, email_confidence: "directory" as const };
+            });
 
         // Recovery pass B — pattern inference. If ≥3 captured emails in this
         // department agree on one local-part pattern + domain, synthesize
         // emails for the leftover misses. Flagged as 'inferred' so a human
         // can spot-check before any send. Skipped automatically when the
-        // sample is too sparse to be confident.
-        const pat = inferDepartmentPattern(afterDirectorySweep);
+        // sample is too sparse to be confident. Also skipped on news pages —
+        // synthesizing a "faculty" email for a student spotlight is wrong.
+        const pat = isNewsPage ? null : inferDepartmentPattern(afterDirectorySweep);
         let inferredFilled = 0;
         const afterInference = afterDirectorySweep.map((p) => {
           if (p.email) return p;
