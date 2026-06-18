@@ -582,11 +582,10 @@ export function FacultyTriagePanel({
       {loading ? (
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading candidates…</div>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-muted-foreground">
-          <Inbox className="h-6 w-6" />
-          <div className="text-sm">No candidates yet.</div>
-          <div className="text-[11px]">Click <strong>Scrape faculty</strong> above to pull names from the school's directory page(s).</div>
-        </div>
+        <EmptyState
+          isScraping={isScraping}
+          onStartScrape={onStartScrape}
+        />
       ) : (
         <Table>
           <TableHeader>
