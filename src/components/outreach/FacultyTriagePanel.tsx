@@ -46,6 +46,7 @@ export function FacultyTriagePanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [customTag, setCustomTag] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
   const qc = useQueryClient();
 
   const load = useCallback(async () => {
