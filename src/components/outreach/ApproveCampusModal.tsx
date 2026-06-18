@@ -39,6 +39,7 @@ import ClassScheduleIntelligencePanel from "./ClassScheduleIntelligencePanel";
 import { ScrapeFacultyButton } from "./ScrapeFacultyButton";
 import { FacultyTriagePanel } from "./FacultyTriagePanel";
 import { supabase } from "@/integrations/supabase/client";
+import { getAdminWho } from "@/components/AdminGate";
 
 type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
 
