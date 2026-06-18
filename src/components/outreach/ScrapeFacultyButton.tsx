@@ -33,12 +33,15 @@ export function ScrapeFacultyButton({
   onScraped,
   hideAutoDiscover = false,
   hideScrapeUrls = false,
+  layout = "row",
 }: {
   campusId: string;
   campusName: string;
   onScraped?: () => void;
   hideAutoDiscover?: boolean;
   hideScrapeUrls?: boolean;
+  /** "row" = legacy inline; "stacked" = numbered VA-friendly checklist. */
+  layout?: "row" | "stacked";
 }) {
   const [open, setOpen] = useState(false);
   const [urls, setUrls] = useState("");
