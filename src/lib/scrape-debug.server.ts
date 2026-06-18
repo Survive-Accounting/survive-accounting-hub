@@ -130,6 +130,9 @@ applies_to_verticals (array of vertical strings from the list above, [] if unive
       severity: String(parsed.severity ?? "low").slice(0, 12),
       title: String(parsed.title ?? "").slice(0, 200),
       suggestion: String(parsed.suggestion ?? "").slice(0, 2000),
+      applies_to_verticals: Array.isArray(parsed.applies_to_verticals)
+        ? (parsed.applies_to_verticals as unknown[]).filter((v): v is string => typeof v === "string").slice(0, 12)
+        : [],
       raw: parsed,
     };
   } catch (e) {
