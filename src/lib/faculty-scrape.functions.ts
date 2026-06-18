@@ -196,7 +196,14 @@ async function enrichProfileEmails(fcKey: string, people: Extracted[], sourceUrl
     try {
       const profileText = await firecrawlScrape(fcKey, person.profile_url);
       const email = extractBestEmail(profileText);
-      out.push({ ...person, email: email ?? person.email });
+      // Profile pages often disclose credentials the index page hid.
+      const profileCreds = detectCredentials(profileText.slice(0, 4000));
+      out.push({
+        ...person,
+        email: email ?? person.email,
+        is_phd: person.is_phd || profileCreds.is_phd,
+        is_cpa: person.is_cpa || profileCreds.is_cpa,
+      });
       enriched++;
     } catch {
       out.push(person);
