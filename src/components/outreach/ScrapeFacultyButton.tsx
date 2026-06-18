@@ -155,49 +155,53 @@ export function ScrapeFacultyButton({
 
   const onPickPdf = () => fileInputRef.current?.click();
 
-  const onPdfChosen = async (file: File | null) => {
-    if (!file) return;
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      toast.error("Please choose a .pdf file.");
-      return;
-    }
-    if (file.size > 12 * 1024 * 1024) {
-      toast.error("PDF is larger than 12 MB — try splitting it.");
-      return;
-    }
-    if (isScrapingCampus(campusId)) {
-      toast.error("Already scraping this campus — wait for it to finish.");
-      return;
-    }
-    // Read as base64 (strip data:...;base64, prefix)
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(typeof fr.result === "string" ? fr.result : "");
-      fr.onerror = () => reject(fr.error ?? new Error("Could not read PDF"));
-      fr.readAsDataURL(file);
-    });
-    const base64 = dataUrl.includes(",") ? dataUrl.slice(dataUrl.indexOf(",") + 1) : dataUrl;
-    if (!base64) {
-      toast.error("Could not read PDF.");
-      return;
-    }
-    toast.info(`Scanning ${file.name} in background…`);
-    const promise = (async () => {
-      try {
-        const result = await scrapePdf({ data: { campusId, filename: file.name, fileBase64: base64 } });
-        toast.success(
-          `${campusName}: ${result.inserted} new candidate${result.inserted === 1 ? "" : "s"} from ${file.name} (${result.found} found).${result.skippedDuplicates ? ` Skipped ${result.skippedDuplicates} duplicates.` : ""}`,
-        );
-        onScraped?.();
-      } catch (e) {
-        toast.error("PDF scan failed", { description: slickErr(e) });
+  const onPdfChosen = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files);
+    for (const file of list) {
+      if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+        toast.error(`Skipped ${file.name} — not a PDF.`);
+        continue;
       }
-    })();
-    trackCampusScrape(campusId, promise, {
-      onTimeout: () => toast.error(`${campusName} PDF scan timed out`, {
-        description: "No response in 3 minutes — the job slot was released. Try again or split the PDF.",
-      }),
-    });
+      if (file.size > 12 * 1024 * 1024) {
+        toast.error(`${file.name} is larger than 12 MB — try splitting it.`);
+        continue;
+      }
+      if (isScrapingCampus(campusId)) {
+        toast.error("Already scraping this campus — wait for it to finish, then upload more.");
+        break;
+      }
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(typeof fr.result === "string" ? fr.result : "");
+        fr.onerror = () => reject(fr.error ?? new Error("Could not read PDF"));
+        fr.readAsDataURL(file);
+      });
+      const base64 = dataUrl.includes(",") ? dataUrl.slice(dataUrl.indexOf(",") + 1) : dataUrl;
+      if (!base64) {
+        toast.error(`Could not read ${file.name}.`);
+        continue;
+      }
+      toast.info(`Scanning ${file.name} in background…`);
+      const promise = (async () => {
+        try {
+          const result = await scrapePdf({ data: { campusId, filename: file.name, fileBase64: base64 } });
+          toast.success(
+            `${campusName}: ${result.inserted} new candidate${result.inserted === 1 ? "" : "s"} from ${file.name} (${result.found} found).${result.skippedDuplicates ? ` Skipped ${result.skippedDuplicates} duplicates.` : ""}`,
+          );
+          onScraped?.();
+        } catch (e) {
+          toast.error(`${file.name} scan failed`, { description: slickErr(e) });
+        }
+      })();
+      trackCampusScrape(campusId, promise, {
+        onTimeout: () => toast.error(`${campusName} PDF scan timed out`, {
+          description: "No response in 3 minutes — the job slot was released. Try again or split the PDF.",
+        }),
+      });
+      // Wait for this one to finish before starting the next so we don't trip the single-slot guard.
+      await promise;
+    }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -261,15 +265,16 @@ export function ScrapeFacultyButton({
       ref={fileInputRef}
       type="file"
       accept="application/pdf,.pdf"
+      multiple
       className="hidden"
-      onChange={(e) => onPdfChosen(e.target.files?.[0] ?? null)}
+      onChange={(e) => onPdfChosen(e.target.files)}
     />
   );
 
   return (
     <>
       {layout === "stacked" ? (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col items-center gap-2">
           {!hideAutoDiscover && (
             <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
               {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -279,17 +284,24 @@ export function ScrapeFacultyButton({
           {!hideScrapeUrls && (
             <>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">#1</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #1</span>
                 {copyFacultyLinkBtn}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">#2</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #2 · Paste Scrape URL</span>
                 {scrapeUrlsBtn}
                 {resetBtn}
               </div>
-              <div className="flex items-center gap-2 pl-6">
-                {importPdfBtn}
-              </div>
+              <button
+                type="button"
+                onClick={onPickPdf}
+                disabled={scraping}
+                title="Rarely needed. Upload one or more PDFs (e.g. print-to-PDF of the faculty page) — OCR scans for leads."
+                className="mt-0.5 inline-flex items-center gap-1 text-[11px] italic text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                <FileUp className="h-3 w-3" />
+                Scrape failed? Import Website PDFs
+              </button>
               {hiddenFileInput}
             </>
           )}

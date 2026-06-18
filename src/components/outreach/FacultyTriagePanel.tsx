@@ -28,15 +28,23 @@ function toTriageStatus(status: string | null): "pending_triage" | "kept" | "ski
 
 type SortKey = "title" | "name";
 
+export type TriageStats = { leads: number; kept: number; pending: number; tagged: number };
+
 export function FacultyTriagePanel({
   campusId,
   campusName,
   refreshToken,
+  hideHeader = false,
+  onStatsChange,
 }: {
   campusId: string;
   campusName: string;
   /** Bumped after a scrape completes to force a reload. */
   refreshToken?: number;
+  /** Hide the panel's internal header (use when parent provides its own import button & stats). */
+  hideHeader?: boolean;
+  /** Fires whenever counts change so the parent can mirror them in its own toolbar. */
+  onStatsChange?: (s: TriageStats) => void;
 }) {
   const [rows, setRows] = useState<TriageRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,28 +249,32 @@ export function FacultyTriagePanel({
   const keptCount = rows.filter((r) => toTriageStatus(r.status) === "kept").length;
   const pendingCount = rows.filter((r) => toTriageStatus(r.status) === "pending_triage").length;
   const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
-  
+
+  useEffect(() => {
+    onStatsChange?.({ leads: rows.length, kept: keptCount, pending: pendingCount, tagged: taggedCount });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows.length, keptCount, pendingCount, taggedCount]);
 
   return (
     <div ref={panelRef} className="rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-        <div>
-          <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {loading
-              ? "Loading…"
-              : `${rows.length} candidate${rows.length === 1 ? "" : "s"} · ${pendingCount} pending · ${keptCount} kept · ${taggedCount} tagged`}
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <div>
+            <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${keptCount} kept`}
+            </div>
           </div>
+          <Button
+            size="sm"
+            onClick={onImport}
+            disabled={importing || keptCount === 0}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {importing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing…</> : <>Import {keptCount} kept lead{keptCount === 1 ? "" : "s"}</>}
+          </Button>
         </div>
-        <Button
-          size="sm"
-          onClick={onImport}
-          disabled={importing || keptCount === 0}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          {importing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing…</> : <>Import {keptCount} kept lead{keptCount === 1 ? "" : "s"}</>}
-        </Button>
-      </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-xs">
         <Tag className="h-3.5 w-3.5 text-muted-foreground" />
