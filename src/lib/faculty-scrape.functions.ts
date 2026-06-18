@@ -186,6 +186,45 @@ function extractBestEmail(pageText: string): string | null {
   return emails[0] ?? null;
 }
 
+/**
+ * Recover emails that are obfuscated to defeat naive scrapers, e.g.
+ *   "jane.doe [at] anderson.ucla.edu"
+ *   "jane (dot) doe (at) ucla (dot) edu"
+ *   "jane DOT doe AT ucla DOT edu"
+ * Returns the first plausible email it can reconstruct, or null.
+ */
+function extractObfuscatedEmail(pageText: string): string | null {
+  if (!pageText) return null;
+  // Normalize " (dot) ", " [dot] ", " DOT ", etc. → "."  and same for "at" → "@"
+  // Only inside short windows around an obvious "at" marker so we don't
+  // mangle real text.
+  const re = /([A-Za-z0-9._+\-]+)\s*[\[\(]?\s*(?:at|@)\s*[\]\)]?\s*([A-Za-z0-9.\-]+(?:\s*[\[\(]?\s*(?:dot|\.)\s*[\]\)]?\s*[A-Za-z0-9.\-]+)+)/gi;
+  const dotRe = /\s*[\[\(]?\s*(?:dot|\.)\s*[\]\)]?\s*/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(pageText)) !== null) {
+    const local = m[1].trim();
+    const domain = m[2].replace(dotRe, ".").replace(/\s+/g, "").toLowerCase();
+    if (!/^[a-z0-9.\-]+\.[a-z]{2,}$/.test(domain)) continue;
+    const email = `${local.toLowerCase()}@${domain}`;
+    if (/^(info|contact|admissions|support|webmaster)@/i.test(email)) continue;
+    return email;
+  }
+  return null;
+}
+
+/** Pull the first non-generic mailto: href out of a raw HTML blob. */
+function extractMailtoFromHtml(rawHtml: string): string | null {
+  if (!rawHtml) return null;
+  const matches = Array.from(rawHtml.matchAll(/mailto:([^"'?<>\s]+)/gi)).map((m) => m[1].trim().toLowerCase());
+  for (const e of matches) {
+    if (!e.includes("@")) continue;
+    if (/^(info|contact|admissions|support|webmaster|noreply|no-reply)@/i.test(e)) continue;
+    return e;
+  }
+  return null;
+}
+
+
 function mergePeople(...groups: Extracted[][]): Extracted[] {
   const byKey = new Map<string, Extracted>();
   for (const person of groups.flat()) {
@@ -254,7 +293,11 @@ async function enrichProfileEmails(
   fcKey: string,
   people: Extracted[],
   sourceUrl: string,
-): Promise<{ people: Extracted[]; enriched: number }> {
+): Promise<{
+  people: Extracted[];
+  enriched: number;
+  outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }>;
+}> {
   const sourceKey = normalizeUrl(sourceUrl);
   const passThrough: Extracted[] = [];
   const toEnrich: Extracted[] = [];
@@ -267,12 +310,13 @@ async function enrichProfileEmails(
       passThrough.push(p);
     }
   }
-  if (toEnrich.length === 0) return { people: passThrough, enriched: 0 };
+  const outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }> = [];
+  if (toEnrich.length === 0) return { people: passThrough, enriched: 0, outcomes };
 
   // Prefer Firecrawl batchScrape: one upstream call, server-side concurrency,
   // far faster + more reliable than N parallel scrape calls from the worker.
   const urls = toEnrich.map((p) => p.profile_url!).filter(Boolean);
-  let scraped: Map<string, string> | null = null;
+  let scraped: Map<string, { markdown: string; rawHtml: string }> | null = null;
   try {
     scraped = await firecrawlBatchScrape(fcKey, urls);
   } catch {
@@ -282,13 +326,31 @@ async function enrichProfileEmails(
   let enriched = 0;
   const enrichedRows: Extracted[] = new Array(toEnrich.length);
 
+  const pickEmail = (md: string, html: string): { email: string | null; how: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" } => {
+    if (!md && !html) return { email: null, how: "empty" };
+    const plain = extractBestEmail(md);
+    if (plain) return { email: plain, how: "ok" };
+    const obf = extractObfuscatedEmail(md) ?? extractObfuscatedEmail(html);
+    if (obf) return { email: obf, how: "obfuscated" };
+    const mail = extractMailtoFromHtml(html);
+    if (mail) return { email: mail, how: "mailto" };
+    return { email: null, how: "no_email" };
+  };
+
   if (scraped && scraped.size > 0) {
     for (let i = 0; i < toEnrich.length; i++) {
       const person = toEnrich[i];
-      const md = scraped.get(normalizeUrl(person.profile_url!)) ?? "";
-      const email = md ? extractBestEmail(md) : null;
-      const profileCreds = md ? detectCredentials(md.slice(0, 4000)) : { is_phd: false, is_cpa: false };
+      const payload = scraped.get(normalizeUrl(person.profile_url!)) ?? { markdown: "", rawHtml: "" };
+      const { email, how } = pickEmail(payload.markdown, payload.rawHtml);
+      const profileCreds = payload.markdown ? detectCredentials(payload.markdown.slice(0, 4000)) : { is_phd: false, is_cpa: false };
       if (email) enriched++;
+      outcomes.push({
+        url: person.profile_url!,
+        name: `${person.first_name} ${person.last_name}`.trim(),
+        result: email ? how : (payload.markdown || payload.rawHtml ? "no_email" : "empty"),
+        mdLen: payload.markdown.length,
+        htmlLen: payload.rawHtml.length,
+      });
       enrichedRows[i] = {
         ...person,
         email: email ?? person.email,
@@ -306,9 +368,16 @@ async function enrichProfileEmails(
         const person = toEnrich[i];
         try {
           const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
-          const email = extractBestEmail(profileText);
+          const { email, how } = pickEmail(profileText, "");
           const profileCreds = detectCredentials(profileText.slice(0, 4000));
           if (email) enriched++;
+          outcomes.push({
+            url: person.profile_url!,
+            name: `${person.first_name} ${person.last_name}`.trim(),
+            result: email ? how : (profileText ? "no_email" : "empty"),
+            mdLen: profileText.length,
+            htmlLen: 0,
+          });
           enrichedRows[i] = {
             ...person,
             email: email ?? person.email,
@@ -316,6 +385,13 @@ async function enrichProfileEmails(
             is_cpa: person.is_cpa || profileCreds.is_cpa,
           };
         } catch {
+          outcomes.push({
+            url: person.profile_url!,
+            name: `${person.first_name} ${person.last_name}`.trim(),
+            result: "error",
+            mdLen: 0,
+            htmlLen: 0,
+          });
           enrichedRows[i] = person;
         }
       }
@@ -323,8 +399,9 @@ async function enrichProfileEmails(
     await Promise.all(workers);
   }
 
-  return { people: [...passThrough, ...enrichedRows], enriched };
+  return { people: [...passThrough, ...enrichedRows], enriched, outcomes };
 }
+
 
 
 function rankFacultyUrls(links: string[]): string[] {
@@ -485,14 +562,24 @@ async function firecrawlScrapeWithLinks(
 async function firecrawlBatchScrape(
   apiKey: string,
   urls: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, { markdown: string; rawHtml: string }>> {
   if (urls.length === 0) return new Map();
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/batch/scrape",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ urls, formats: ["markdown"], onlyMainContent: true, ignoreInvalidURLs: true }),
+      body: JSON.stringify({
+        urls,
+        // rawHtml: gives us mailto: hrefs even when markdown is stripped /
+        //   the page is fully JS-rendered.
+        // waitFor: many .edu profile pages (Anderson UCLA, etc.) need ~2s
+        //   for the email link to mount.
+        formats: ["markdown", "rawHtml"],
+        onlyMainContent: false,
+        waitFor: 2500,
+        ignoreInvalidURLs: true,
+      }),
     },
     BATCH_SCRAPE_TIMEOUT_MS,
     "Firecrawl batchScrape",
@@ -502,16 +589,20 @@ async function firecrawlBatchScrape(
     throw new Error(slickHttpError("Firecrawl batchScrape", res.status, body));
   }
   const json = await res.json() as {
-    data?: Array<{ markdown?: string; metadata?: { sourceURL?: string; url?: string } }>;
+    data?: Array<{ markdown?: string; rawHtml?: string; html?: string; metadata?: { sourceURL?: string; url?: string } }>;
   };
-  const out = new Map<string, string>();
+  const out = new Map<string, { markdown: string; rawHtml: string }>();
   for (const row of json.data ?? []) {
     const src = row.metadata?.sourceURL ?? row.metadata?.url;
     if (!src) continue;
-    out.set(normalizeUrl(src), row.markdown ?? "");
+    out.set(normalizeUrl(src), {
+      markdown: row.markdown ?? "",
+      rawHtml: row.rawHtml ?? row.html ?? "",
+    });
   }
   return out;
 }
+
 
 
 async function firecrawlMap(apiKey: string, url: string, search: string): Promise<string[]> {
@@ -781,6 +872,7 @@ async function processUrls(
     droppedNoContact: number;
     links: number;
     error: string | null;
+    enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
   }>;
   inserted: number;
   skippedDuplicates: number;
@@ -801,7 +893,9 @@ async function processUrls(
     droppedNoContact: number;
     links: number;
     error: string | null;
+    enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
   }> = [];
+
   const rowsToInsert: Array<Record<string, unknown>> = [];
   const cache: Record<string, { markdown: string; links: string[]; scraped_at: string }> = {};
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
@@ -840,7 +934,7 @@ async function processUrls(
         // Deterministic fallback: pair people without a profile_url to a
         // slug-matched link from the directory page (e.g. /faculty/friedman).
         const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
-        const { people: people, enriched } = await enrichProfileEmails(fcKey, withSlugs, url);
+        const { people: people, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
 
         const withEmail = people.filter((p) => !!p.email).length;
         const withProfileUrl = people.filter((p) => !!p.profile_url).length;
@@ -879,7 +973,9 @@ async function processUrls(
           droppedNoContact: pageDropped,
           links: links.length,
           error: null,
+          enrichOutcomes,
         });
+
       } catch (e) {
         perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: 0, error: e instanceof Error ? e.message : String(e) });
       }
