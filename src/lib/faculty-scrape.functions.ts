@@ -8,6 +8,12 @@
 // and status='pending' for human review.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import {
+  detectProgramLevels,
+  mergeDetections,
+  EMPTY_DETECTION,
+  type ProgramLevelDetection,
+} from "@/lib/program-levels";
 
 // ---- Network hardening -----------------------------------------------------
 // Every outbound fetch (Firecrawl + AI gateway) has a hard timeout so a single
