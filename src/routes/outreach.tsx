@@ -2,7 +2,7 @@
 // Reads the real database; falls back to mock data if the backend is unreachable.
 import { AdminGate } from "@/components/AdminGate";
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Settings, Users } from "lucide-react";
@@ -16,13 +16,9 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { HomeDashboard } from "@/components/outreach/HomeDashboard";
-import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import { BatchResearchSettingsModal } from "@/components/outreach/BatchResearchSettingsModal";
 import { CampusLeadsStatsPanel } from "@/components/outreach/CampusLeadsStatsPanel";
-import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
-import { supabase } from "@/integrations/supabase/client";
-import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
 import AddCampusModal from "@/components/outreach/AddCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
@@ -56,20 +52,20 @@ export const Route = createFileRoute("/outreach")({
 });
 
 function OutreachPage() {
+  const navigate = useNavigate();
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [usingMock, setUsingMock] = useState(false);
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [reviewing, setReviewing] = useState<Campus | null>(null);
-  const [reviewHistory, setReviewHistory] = useState<string[]>([]);
-  const [reviewInitialStep, setReviewInitialStep] = useState<string | undefined>(undefined);
-  const [autoResearchId, setAutoResearchId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importCampusId, setImportCampusId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
   const [batchSettingsOpen, setBatchSettingsOpen] = useState(false);
+
+  const openLeadFinder = (campusId: string) =>
+    navigate({ to: "/outreach/leadfinder/$campusId", params: { campusId } });
 
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
@@ -236,8 +232,8 @@ function OutreachPage() {
                     campuses={campuses}
                     filters={filters}
                     onFiltersChange={setFilters}
-                    onReview={(c) => { setReviewInitialStep("1"); setReviewing(c); }}
-                    onImportLeads={(c) => { setReviewInitialStep("3"); setReviewing(c); }}
+                    onReview={(c) => openLeadFinder(c.id)}
+                    onImportLeads={(c) => openLeadFinder(c.id)}
                     onAssignPatch={handleAssignPatch}
                     campusPhones={phonesQuery.data}
                     onTogglePersonalPhone={handleTogglePersonalPhone}
@@ -298,114 +294,16 @@ function OutreachPage() {
         usingMock={usingMock}
         onImported={() => qc.invalidateQueries({ queryKey: ["outreach-leads"] })}
       />
-      <ResearchErrorBoundary onReset={() => { setReviewing(null); setAutoResearchId(null); setReviewInitialStep(undefined); }}>
-        <ApproveCampusModal
-          campus={reviewing ? campuses.find((c) => c.id === reviewing.id) ?? null : null}
-          autoStartResearch={autoResearchId}
-          initialStep={reviewInitialStep}
-          canGoBack={reviewHistory.length > 0}
-          onBack={() => {
-            setReviewHistory((prev) => {
-              if (prev.length === 0) return prev;
-              const next = [...prev];
-              const prevId = next.pop()!;
-              const prevCampus = campuses.find((c) => c.id === prevId);
-              if (prevCampus) {
-                if (reviewing) refreshClaim(reviewing.id).catch(() => {});
-                setReviewing(prevCampus);
-                setAutoResearchId(null);
-                setReviewInitialStep(undefined);
-              } else {
-                toast.info("Previous campus is no longer in the queue.");
-              }
-              return next;
-            });
-          }}
-          onClose={() => {
-            if (reviewing) refreshClaim(reviewing.id).catch(() => {});
-            setReviewing(null);
-            setReviewHistory([]);
-            setAutoResearchId(null);
-            setReviewInitialStep(undefined);
-          }}
-          onPatch={(id, patch) => {
-            patchCampus(id, patch);
-            refreshClaim(id).catch(() => {});
-          }}
-          onApprove={(id, patch) => {
-            patchCampus(id, patch);
-            markClaimApproved(id)
-              .catch(() => {})
-              .finally(() => qc.invalidateQueries({ queryKey: ["campus-queue"] }));
-          }}
-          onNext={async (currentId, filter) => {
-            const visited = new Set<string>([...reviewHistory, currentId]);
-            let pool = [...campuses]
-              .filter((c) => !c.archived && c.approval_status !== "approved" && !visited.has(c.id));
-            if (filter === "sec_only") pool = pool.filter((c) => c.is_sec);
-            if (filter === "with_leads" || filter === "without_leads") {
-              try {
-                const ids = pool.map((c) => c.id);
-                if (ids.length > 0) {
-                  const { data } = await supabase
-                    .from("campus_lead_suggestions")
-                    .select("campus_id")
-                    .eq("research_mode", "faculty_scrape")
-                    .is("archived_at", null)
-                    .in("campus_id", ids);
-                  const withLeads = new Set(((data ?? []) as Array<{ campus_id: string | null }>)
-                    .map((r) => r.campus_id).filter((x): x is string => !!x));
-                  pool = pool.filter((c) => filter === "with_leads" ? withLeads.has(c.id) : !withLeads.has(c.id));
-                }
-              } catch {
-                /* fall through to unfiltered pool */
-              }
-            }
-            if (filter === "highest_value") {
-              pool = pool.sort((a, b) => {
-                const ta = a.tuition_out_state ?? a.tuition_in_state ?? 0;
-                const tb = b.tuition_out_state ?? b.tuition_in_state ?? 0;
-                const ea = a.total_enrollment ?? 0;
-                const eb = b.total_enrollment ?? 0;
-                return (tb * eb) - (ta * ea);
-              });
-            }
-            const nextCampus = pool[0];
-            if (!nextCampus) {
-              toast.info(
-                filter === "all"
-                  ? "No more campuses to review."
-                  : `No more campuses matching filter "${filter.replace("_", " ")}".`,
-              );
-              setReviewing(null);
-              setReviewHistory([]);
-              setAutoResearchId(null);
-              setReviewInitialStep(undefined);
-              return;
-            }
-            refreshClaim(currentId).catch(() => {});
-            setReviewHistory((prev) => [...prev, currentId]);
-            setReviewing(nextCampus);
-            setAutoResearchId(null);
-            setReviewInitialStep(undefined);
-          }}
-        />
-
-      </ResearchErrorBoundary>
 
       <AddCampusModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onCreated={async (created, autoResearch) => {
-          // Refresh the campuses list so the new row appears, then open
-          // the approval modal (auto-triggering AI research if requested).
+        onCreated={async (created) => {
           const refreshed = await campusQuery.refetch();
           const fresh = refreshed.data?.find((c) => c.id === created.id);
           if (fresh) {
-            setReviewing(fresh);
-            if (autoResearch) setAutoResearchId(created.id);
+            openLeadFinder(fresh.id);
           } else {
-            // Fallback: at least invalidate so the table updates.
             qc.invalidateQueries({ queryKey: ["campuses"] });
           }
         }}
