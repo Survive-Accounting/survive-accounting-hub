@@ -84,6 +84,7 @@ function LeadFinderPage() {
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [triageStats, setTriageStats] = useState<TriageStats>({ leads: 0, kept: 0, pending: 0, tagged: 0 });
+  const [scrapeApi, setScrapeApi] = useState<{ start: () => void; busy: boolean }>({ start: () => {}, busy: false });
 
   // Total leads imported to date (all-time count of outreach_leads rows).
   const totalLeadsQuery = useQuery({
