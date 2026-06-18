@@ -167,13 +167,14 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
   );
 }
 
-export type NextCampusFilter = "all" | "with_leads" | "without_leads" | "sec_only";
+export type NextCampusFilter = "all" | "with_leads" | "without_leads" | "sec_only" | "highest_value";
 
 const NEXT_FILTER_LABELS: Record<NextCampusFilter, string> = {
   all: "All",
   with_leads: "With leads",
   without_leads: "Without leads",
   sec_only: "SEC only 🏈",
+  highest_value: "Highest value 💰",
 };
 
 /** Compact Next button with an inline filter picker — replaces the legacy
