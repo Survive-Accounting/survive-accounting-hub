@@ -17,12 +17,17 @@ export type TriageRow = {
   notes: string | null;
   created_at: string;
   title_tags: string[] | null;
+  rmp_rating: number | null;
+  rmp_num_ratings: number | null;
+  rmp_difficulty: number | null;
+  rmp_would_take_again: number | null;
+  rmp_profile_url: string | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
   const { data, error } = await supabase
     .from("campus_lead_suggestions")
-    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags")
+    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags,rmp_rating,rmp_num_ratings,rmp_difficulty,rmp_would_take_again,rmp_profile_url")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .is("archived_at", null)
@@ -30,6 +35,7 @@ export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
   if (error) throw error;
   return (data ?? []) as TriageRow[];
 }
+
 
 export async function setTriageFlag(id: string, patch: { is_phd?: boolean; is_cpa?: boolean }) {
   const { error } = await supabase.from("campus_lead_suggestions").update(patch).eq("id", id);
