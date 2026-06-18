@@ -121,6 +121,7 @@ export function ScrapeJobsQueuePanel() {
           </li>
         ))}
       </ul>
+      </>)}
     </div>
   );
 }
