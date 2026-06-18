@@ -101,6 +101,39 @@ export async function fetchDistinctLeadTitleTags(): Promise<string[]> {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+/** Pull (title, title_tags) pairs from triage rows on *other* campuses so we
+ *  can surface tags previously used on the same kinds of titles seen here.
+ *  Returns a list of { tag, sourceTitle } pairs deduped by tag. */
+export async function fetchTagsFromOtherCampuses(
+  excludeCampusId: string,
+): Promise<Array<{ tag: string; sourceTitle: string }>> {
+  const { data, error } = await supabase
+    .from("campus_lead_suggestions")
+    .select("title,title_tags")
+    .neq("campus_id", excludeCampusId)
+    .eq("research_mode", "faculty_scrape")
+    .is("archived_at", null)
+    .not("title_tags", "is", null)
+    .limit(5000);
+  if (error) throw error;
+  const seen = new Set<string>();
+  const out: Array<{ tag: string; sourceTitle: string }> = [];
+  for (const r of (data ?? []) as Array<{ title: string | null; title_tags: string[] | null }>) {
+    const title = (r.title ?? "").trim();
+    if (!title) continue;
+    for (const raw of r.title_tags ?? []) {
+      const tag = (raw ?? "").trim();
+      if (!tag) continue;
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ tag, sourceTitle: title });
+    }
+  }
+  return out;
+}
+
+
 export async function importKeptLeads(campusId: string): Promise<{ inserted: number; skipped: number; mergedTags: number }> {
   // Pull all kept rows
   const { data: kept, error: keptErr } = await supabase

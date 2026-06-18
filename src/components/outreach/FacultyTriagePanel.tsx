@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown } from "lucide-react";
+import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 
@@ -16,9 +16,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
+  fetchTagsFromOtherCampuses,
   fetchTriageRows, importKeptLeads, setTriageFlag, setTriageStatus,
   setTriageTagsBulk, type TriageRow,
 } from "@/lib/faculty-triage";
+import {
+  INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
+} from "@/lib/role-keywords";
 
 function toTriageStatus(status: string | null): "pending_triage" | "kept" | "skipped" {
   if (status === "accepted" || status === "kept") return "kept";
@@ -30,24 +34,6 @@ type SortKey = "title" | "name";
 
 export type TriageStats = { leads: number; kept: number; pending: number; tagged: number };
 
-/** Role keywords we recognize inside a faculty member's title. The matched
- *  form (capitalized) is suggested as a tag the user can apply with one click. */
-const ROLE_TAG_KEYWORDS: Array<{ re: RegExp; label: string }> = [
-  { re: /\bteaching\s+assistant\b/i, label: "Teaching Assistant" },
-  { re: /\bgraduate\s+assistant\b/i, label: "Graduate Assistant" },
-  { re: /\bassistant\s+professor\b/i, label: "Assistant Professor" },
-  { re: /\bassociate\s+professor\b/i, label: "Associate Professor" },
-  { re: /\b(full\s+)?professor\b/i, label: "Professor" },
-  { re: /\bprofessor\s+emeritus\b|\bemeritus\b/i, label: "Emeritus" },
-  { re: /\binstructor\b/i, label: "Instructor" },
-  { re: /\blecturer\b/i, label: "Lecturer" },
-  { re: /\badjunct\b/i, label: "Adjunct" },
-  { re: /\bgrader\b/i, label: "Grader" },
-  { re: /\bchair(?:person)?\b/i, label: "Chair" },
-  { re: /\bdean\b/i, label: "Dean" },
-  { re: /\bdirector\b/i, label: "Director" },
-  { re: /\bvisiting\b/i, label: "Visiting" },
-];
 
 
 export function FacultyTriagePanel({
@@ -236,7 +222,6 @@ export function FacultyTriagePanel({
 
   /** Tag suggestions for the current selection. Combines:
    *   - role keywords detected in any selected person's title
-   *     (Instructor, Lecturer, Adjunct, Grader, Teaching Assistant, etc.)
    *   - tags already in use elsewhere in this campus that match a selected title
    *  Excludes tags every selected row already has. */
   const suggestedTags = useMemo(() => {
@@ -245,18 +230,82 @@ export function FacultyTriagePanel({
     for (const r of selectedRows) {
       const title = (r.title ?? "").trim();
       if (!title) continue;
-      for (const { re, label } of ROLE_TAG_KEYWORDS) {
-        if (re.test(title)) out.add(label);
-      }
+      for (const label of matchRoles(title)) out.add(label);
       for (const t of allKnownTags) {
         if (t.toLowerCase() === title.toLowerCase()) out.add(t);
       }
     }
-    // Drop tags every selected row already has.
     const everyHas = (tag: string) =>
       selectedRows.every((r) => (r.title_tags ?? []).map((x) => x.toLowerCase()).includes(tag.toLowerCase()));
     return Array.from(out).filter((t) => !everyHas(t)).sort();
   }, [selectedRows, allKnownTags]);
+
+  /** Step #3 — title-driven chips. Each role keyword that matches at least one
+   *  row in this campus becomes a one-click chip. Click = add tag to every
+   *  matching row. Click again (when every match already has the tag) = remove. */
+  const roleChips = useMemo(() => {
+    return ROLE_KEYWORDS.map(({ label, re, intro }) => {
+      const matchedIds: string[] = [];
+      for (const r of rows) if (re.test((r.title ?? "").trim())) matchedIds.push(r.id);
+      if (matchedIds.length === 0) return null;
+      const allTagged = matchedIds.every((id) =>
+        (rows.find((r) => r.id === id)?.title_tags ?? [])
+          .map((t) => t.toLowerCase())
+          .includes(label.toLowerCase()),
+      );
+      return { label, intro, matchedIds, allTagged };
+    }).filter((x): x is { label: string; intro: boolean; matchedIds: string[]; allTagged: boolean } => x !== null);
+  }, [rows]);
+
+  /** Rows that qualify as Intro 1 / Intro 2 likely teachers. */
+  const introMatchIds = useMemo(
+    () => rows.filter((r) => isIntroLikely(r.title)).map((r) => r.id),
+    [rows],
+  );
+  const introAllTagged = useMemo(
+    () =>
+      introMatchIds.length > 0 &&
+      introMatchIds.every((id) =>
+        (rows.find((r) => r.id === id)?.title_tags ?? [])
+          .map((t) => t.toLowerCase())
+          .includes(INTRO_TARGET_TAG.toLowerCase()),
+      ),
+    [rows, introMatchIds],
+  );
+
+  /** Cross-campus tag suggestions: tags used on prior campuses whose source
+   *  titles share keywords with titles seen on this campus. Excludes tags
+   *  already represented by a built-in role chip or already in use here. */
+  const pastTagsQuery = useQuery({
+    queryKey: ["faculty-triage-past-tags", campusId],
+    queryFn: () => fetchTagsFromOtherCampuses(campusId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const pastCampusSuggestions = useMemo(() => {
+    const past = pastTagsQuery.data ?? [];
+    if (past.length === 0 || rows.length === 0) return [] as string[];
+    const builtin = new Set(ROLE_KEYWORDS.map((k) => k.label.toLowerCase()));
+    const here = new Set(allKnownTags.map((t) => t.toLowerCase()));
+    // Build a vocabulary of significant words from this campus's titles.
+    const stop = new Set(["the","of","and","for","a","an","in","on","to","at","de","la"]);
+    const vocab = new Set<string>();
+    for (const r of rows) {
+      for (const w of ((r.title ?? "").toLowerCase().match(/[a-z][a-z\-]{2,}/g) ?? [])) {
+        if (!stop.has(w)) vocab.add(w);
+      }
+    }
+    const out: string[] = [];
+    for (const { tag, sourceTitle } of past) {
+      if (builtin.has(tag.toLowerCase())) continue;
+      if (here.has(tag.toLowerCase())) continue;
+      const words = (sourceTitle.toLowerCase().match(/[a-z][a-z\-]{2,}/g) ?? [])
+        .filter((w) => !stop.has(w));
+      if (words.some((w) => vocab.has(w))) out.push(tag);
+    }
+    return Array.from(new Set(out)).slice(0, 8);
+  }, [pastTagsQuery.data, rows, allKnownTags]);
+
 
 
   /** Remove a tag from every row in this campus (used by the dropdown ×). */
@@ -295,6 +344,29 @@ export function FacultyTriagePanel({
     try {
       await setTriageTagsBulk(ids, mode, tags, tagsCurrentById);
       toast.success(`${mode === "add" ? "Tagged" : mode === "remove" ? "Untagged" : "Replaced tags on"} ${ids.length} row${ids.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error(`Tagging failed: ${e instanceof Error ? e.message : "unknown"}`);
+      void load();
+    }
+  };
+
+  /** Apply (or remove) a single tag on a specific set of rows, regardless of
+   *  the current selection. Used by the Step #3 chip panel. */
+  const applyTagToIds = async (ids: string[], tag: string, mode: "add" | "remove") => {
+    if (ids.length === 0) return;
+    setRows((prev) => prev.map((r) => {
+      if (!ids.includes(r.id)) return r;
+      const cur = r.title_tags ?? [];
+      const next = mode === "add"
+        ? Array.from(new Set([...cur, tag]))
+        : cur.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+      return { ...r, title_tags: next };
+    }));
+    try {
+      await setTriageTagsBulk(ids, mode, [tag], tagsCurrentById);
+      toast.success(
+        `${mode === "add" ? "Tagged" : "Untagged"} ${ids.length} matching row${ids.length === 1 ? "" : "s"} · "${tag}"`,
+      );
     } catch (e) {
       toast.error(`Tagging failed: ${e instanceof Error ? e.message : "unknown"}`);
       void load();
@@ -350,7 +422,107 @@ export function FacultyTriagePanel({
         </div>
       )}
 
+      {/* Step #3 — Review / Edit Tags. Click any chip to apply (or remove) its
+          tag from every matching row, no selection required. */}
+      {!loading && rows.length > 0 && (
+        <div className="space-y-2 border-b border-border bg-muted/30 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              Step #3 · Review / Edit Tags
+            </div>
+            {introMatchIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => applyTagToIds(introMatchIds, INTRO_TARGET_TAG, introAllTagged ? "remove" : "add")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
+                  introAllTagged
+                    ? "border border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    : "bg-amber-500 text-white hover:bg-amber-600"
+                }`}
+                title={`Intro 1 / Intro 2 likely teachers · matches lecturer, adjunct, instructor, visiting, teaching/clinical prof, etc. (excludes deans/chairs/emeritus)`}
+              >
+                {introAllTagged ? (
+                  <><Check className="h-3 w-3" /> Intro Target applied ({introMatchIds.length})</>
+                ) : (
+                  <>Tag all {introMatchIds.length} Intro-likely as "{INTRO_TARGET_TAG}"</>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Detected role chips */}
+          {roleChips.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Detected:</span>
+              {roleChips.map(({ label, intro, matchedIds, allTagged }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => applyTagToIds(matchedIds, label, allTagged ? "remove" : "add")}
+                  title={
+                    allTagged
+                      ? `Click to remove "${label}" from ${matchedIds.length} matching row${matchedIds.length === 1 ? "" : "s"}`
+                      : `Click to tag ${matchedIds.length} matching row${matchedIds.length === 1 ? "" : "s"} as "${label}"`
+                  }
+                  className={`inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-medium transition ${
+                    allTagged
+                      ? "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : intro
+                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+                      : "border-muted-foreground/30 bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {allTagged ? <Check className="h-3 w-3" /> : <span>+</span>}
+                  {label}
+                  <span className={allTagged ? "text-emerald-600/80" : "text-muted-foreground/80"}>
+                    ({matchedIds.length})
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[11px] italic text-muted-foreground">
+              No role keywords matched these titles yet.
+            </div>
+          )}
+
+          {/* Past-campus suggestions */}
+          {pastCampusSuggestions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From past campuses:</span>
+              {pastCampusSuggestions.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => {
+                    // Apply to every row whose title contains any word from `tag`.
+                    const words = tag.toLowerCase().match(/[a-z][a-z\-]{2,}/g) ?? [];
+                    const ids = rows
+                      .filter((r) => {
+                        const t = (r.title ?? "").toLowerCase();
+                        return words.some((w) => t.includes(w));
+                      })
+                      .map((r) => r.id);
+                    if (ids.length === 0) {
+                      toast.info(`No titles on this campus match "${tag}". Select rows manually to apply it.`);
+                      return;
+                    }
+                    void applyTagToIds(ids, tag, "add");
+                  }}
+                  className="inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-muted-foreground/40 bg-background px-2 text-[11px] font-medium text-foreground/80 hover:bg-muted"
+                  title={`Reuse "${tag}" from another campus`}
+                >
+                  + {tag}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-xs">
+
         <Tag className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-muted-foreground">
           {selected.size > 0 ? <><span className="font-medium text-foreground">{selected.size} selected</span> — tag as:</> : "Select rows to tag — pick from:"}
