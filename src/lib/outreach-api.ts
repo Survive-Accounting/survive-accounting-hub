@@ -2352,6 +2352,7 @@ interface OutreachLeadRow {
   last_name: string | null;
   is_phd: boolean | null;
   status: string | null;
+  title_tags: string[] | null;
 }
 
 interface SuggestionMatchRow {
