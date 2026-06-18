@@ -2,8 +2,9 @@
 // Loads supabaseAdmin and the scrape server fn. NEVER import this from a
 // client-reachable module at top level — only from server routes / inside
 // server-fn handlers via `await import()`.
-import { scrapeCampusFaculty } from "@/lib/faculty-scrape.functions";
+import { scrapeCampusFaculty, autoDiscoverCampusFaculty } from "@/lib/faculty-scrape.functions";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
 
 // Auto-tag regex: matches any title containing one of these whole words.
 // Mirrors what Lee was doing by hand in Step #3.
