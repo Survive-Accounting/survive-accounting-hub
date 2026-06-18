@@ -248,59 +248,123 @@ export function FacultyTriagePanel({
         </Button>
       </div>
 
-      {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50/70 px-4 py-2 text-xs">
-          <Tag className="h-3.5 w-3.5 text-amber-700" />
-          <span className="font-medium text-amber-900">
-            {selected.size} selected
-          </span>
-          <span className="text-amber-700">— tag as:</span>
-          {distinctTitleStringsInSelection.map((t) => (
-            <Button
-              key={t}
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[11px] border-amber-300 bg-white hover:bg-amber-100"
-              onClick={() => applyTagsToSelection([t], "add")}
-            >
-              <Plus className="h-3 w-3" /> {t}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-xs">
+        <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-muted-foreground">
+          {selected.size > 0 ? <><span className="font-medium text-foreground">{selected.size} selected</span> — tag as:</> : "Select rows to tag — pick from:"}
+        </span>
+
+        {/* All tags dropdown (A–Z). Click a tag to add to selection; × deletes from every row in this campus. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-[11px]">
+              All tags ({allKnownTags.length}) <ChevronDown className="h-3 w-3" />
             </Button>
-          ))}
-          <div className="flex items-center gap-1">
-            <Input
-              value={customTag}
-              onChange={(e) => setCustomTag(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && customTag.trim()) {
-                  applyTagsToSelection([customTag.trim()], "add");
-                  setCustomTag("");
-                }
-              }}
-              placeholder="custom tag…"
-              className="h-6 w-32 text-[11px]"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[11px]"
-              disabled={!customTag.trim()}
-              onClick={() => {
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-h-72 w-64 overflow-y-auto">
+            {allKnownTags.length === 0 ? (
+              <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">
+                No tags yet. Type below and Add.
+              </div>
+            ) : (
+              allKnownTags.map((t) => (
+                <DropdownMenuItem
+                  key={t}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    if (selected.size === 0) {
+                      toast.info("Select at least one row first.");
+                      return;
+                    }
+                    applyTagsToSelection([t], "add");
+                  }}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
+                  <span className="truncate">{t}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      void removeTagFromCampus(t);
+                    }}
+                    className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title="Delete this tag from every person in this campus"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Quick-add per-selection title chips (only when selection has distinct titles). */}
+        {selected.size > 0 && distinctTitleStringsInSelection.length > 0 && distinctTitleStringsInSelection.length <= 3 && (
+          <>
+            {distinctTitleStringsInSelection.map((t) => (
+              <Button
+                key={t}
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => applyTagsToSelection([t], "add")}
+                title={`Tag selection as "${t}"`}
+              >
+                + {t}
+              </Button>
+            ))}
+          </>
+        )}
+
+        <div className="flex items-center gap-1">
+          <Input
+            value={customTag}
+            onChange={(e) => setCustomTag(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && customTag.trim()) {
+                if (selected.size === 0) { toast.info("Select at least one row first."); return; }
                 applyTagsToSelection([customTag.trim()], "add");
                 setCustomTag("");
-              }}
-            >
-              Add
-            </Button>
-          </div>
+              }
+            }}
+            placeholder="new tag…"
+            className="h-7 w-36 text-[11px]"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px]"
+            disabled={!customTag.trim() || selected.size === 0}
+            onClick={() => {
+              applyTagsToSelection([customTag.trim()], "add");
+              setCustomTag("");
+            }}
+            title={selected.size === 0 ? "Select rows first" : "Add this tag to the selected rows"}
+          >
+            Add
+          </Button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground"
+          title="Open instructions"
+        >
+          <HelpCircle className="h-3 w-3" /> How this works?
+        </button>
+
+        {selected.size > 0 && (
           <button
             type="button"
-            className="ml-auto text-[11px] text-amber-800 underline"
+            className="ml-auto text-[11px] text-muted-foreground underline"
             onClick={() => { setSelected(new Set()); setLastClickedId(null); }}
           >
             Clear selection (Esc)
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {loading ? (
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading candidates…</div>
