@@ -180,6 +180,14 @@ export default function ApproveCampusModal({
   initialStep?: string;
 }) {
   const [step, setStep] = useState(initialStep ?? "1");
+  const [speedMode, setSpeedMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return window.localStorage.getItem("sa-speed-mode") === "yes"; } catch { return false; }
+  });
+  const toggleSpeedMode = (next: boolean) => {
+    setSpeedMode(next);
+    try { window.localStorage.setItem("sa-speed-mode", next ? "yes" : "no"); } catch { /* ignore */ }
+  };
   const [familyCodes, setFamilyCodes] = useState<Record<string, string>>({});
   const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
   const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
