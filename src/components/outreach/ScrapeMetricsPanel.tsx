@@ -128,7 +128,7 @@ function fmtPct(n: number | null): string {
 }
 
 export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [metrics, setMetrics] = useState<Metrics>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
