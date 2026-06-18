@@ -436,8 +436,9 @@ export function FacultyTriagePanel({
           <div>
             <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
             <div className="text-[11px] text-muted-foreground">
-              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${taggedCount} tagged`}
+              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${importedCount} imported · ${taggedCount} tagged`}
             </div>
+
           </div>
           <Button
             size="sm"
