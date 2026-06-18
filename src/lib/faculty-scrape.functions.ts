@@ -65,6 +65,9 @@ const ScrapeInputSchema = z.object({
 const DiscoverInputSchema = z.object({
   campusId: z.string().uuid(),
   maxPages: z.number().int().min(1).max(10).default(5),
+  /** If true, only discover & rank URLs (save to faculty_page_url); skip the
+   *  heavy AI scrape. Keeps the Worker request under 30s. */
+  discoverOnly: z.boolean().default(false),
 });
 
 const PdfInputSchema = z.object({
@@ -789,11 +792,27 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       };
     }
 
-    const result = await processUrls(fcKey, aiKey, data.campusId, ranked);
+    // Save discovered URLs to campus.faculty_page_url so subsequent runs (or
+    // the manual "Scrape faculty" button) can use them without re-discovering.
     await supabaseAdmin
       .from("campuses")
       .update({ faculty_page_url: ranked.join("\n") })
       .eq("id", data.campusId);
+
+    if (data.discoverOnly) {
+      return {
+        ok: true,
+        discovered: allLinks.length,
+        scraped: 0,
+        inserted: 0,
+        skippedDuplicates: 0,
+        perPage: [],
+        chosenUrls: ranked,
+        mapErrors,
+      };
+    }
+
+    const result = await processUrls(fcKey, aiKey, data.campusId, ranked);
     await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
 
     return {

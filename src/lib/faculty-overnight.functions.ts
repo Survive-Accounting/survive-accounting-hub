@@ -10,66 +10,53 @@ export const testAutoScrapeCampus = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({ campusId: z.string().uuid() }).parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { scrapeCampusFaculty } = await import("@/lib/faculty-scrape.functions");
-
-    const TITLE_MATCH_RE = /\b(instructor|adjunct|associate|assistant|lecturer|teaching)\b/i;
-    const AUTO_TAG = "Intro Target";
-    const uniq = (arr: string[]) => {
-      const seen = new Set<string>(); const out: string[] = [];
-      for (const raw of arr) {
-        const t = (raw ?? "").trim(); if (!t) continue;
-        const k = t.toLowerCase(); if (seen.has(k)) continue;
-        seen.add(k); out.push(t);
-      }
-      return out;
-    };
 
     const { data: campus, error: campusErr } = await supabaseAdmin
-      .from("campuses").select("faculty_page_url,website_url,accounting_department_url,domains").eq("id", data.campusId).maybeSingle();
+      .from("campuses")
+      .select("faculty_page_url,website_url,accounting_department_url,domains")
+      .eq("id", data.campusId)
+      .maybeSingle();
     if (campusErr) throw new Error(`campus read: ${campusErr.message}`);
     if (!campus) throw new Error("campus not found");
-    const urls = ((campus.faculty_page_url as string | null) ?? "")
+
+    const existingUrls = ((campus.faculty_page_url as string | null) ?? "")
       .split(/\r?\n/).map((u) => u.trim())
-      .filter((u) => /^https?:\/\//i.test(u)).slice(0, 10);
+      .filter((u) => /^https?:\/\//i.test(u));
 
-    let scraped = 0;
-    let discoveredUrls: string[] = [];
-    if (urls.length === 0) {
-      const hasSeed = !!(campus.website_url || campus.accounting_department_url
-        || ((campus.domains as string[] | null) ?? []).length > 0);
-      if (!hasSeed) throw new Error("No faculty_page_url and no website/domains on this campus to auto-discover from.");
-      const { autoDiscoverCampusFaculty } = await import("@/lib/faculty-scrape.functions");
-      const disc = await autoDiscoverCampusFaculty({ data: { campusId: data.campusId, maxPages: 5 } }) as {
-        perPage?: Array<{ inserted?: number }>;
-        chosenUrls?: string[];
+    const hasSeed = !!(campus.website_url || campus.accounting_department_url
+      || ((campus.domains as string[] | null) ?? []).length > 0);
+
+    // If we already have URLs cached, just return them — discovery is the
+    // expensive step. Otherwise run discovery (search + map only, no scrape)
+    // and save the ranked URLs back to faculty_page_url.
+    if (existingUrls.length > 0) {
+      return {
+        ok: true,
+        discovered: existingUrls.length,
+        chosenUrls: existingUrls,
+        cached: true,
+        message: `Using ${existingUrls.length} cached URL${existingUrls.length === 1 ? "" : "s"} — click "Scrape faculty" to extract leads.`,
       };
-      scraped = (disc.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
-      discoveredUrls = disc.chosenUrls ?? [];
-    } else {
-      const scrape = await scrapeCampusFaculty({ data: { campusId: data.campusId, urls } }) as {
-        perPage?: Array<{ inserted?: number }>;
-      };
-      scraped = (scrape.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    }
+    if (!hasSeed) {
+      throw new Error("No faculty URL, website, or domains on this campus. Add one of those first.");
     }
 
+    const { autoDiscoverCampusFaculty } = await import("@/lib/faculty-scrape.functions");
+    const disc = await autoDiscoverCampusFaculty({
+      data: { campusId: data.campusId, maxPages: 5, discoverOnly: true },
+    }) as { chosenUrls?: string[]; discovered?: number; mapErrors?: string[] };
 
-    const { data: sugs } = await supabaseAdmin
-      .from("campus_lead_suggestions")
-      .select("id,title,title_tags")
-      .eq("campus_id", data.campusId)
-      .eq("research_mode", "faculty_scrape")
-      .is("archived_at", null);
-    const matches = (sugs ?? []).filter((r: { title: string | null }) =>
-      TITLE_MATCH_RE.test(r.title ?? ""),
-    ) as Array<{ id: string; title_tags: string[] | null }>;
-    for (const r of matches) {
-      const next = uniq([...(r.title_tags ?? []), AUTO_TAG]);
-      await supabaseAdmin
-        .from("campus_lead_suggestions")
-        .update({ title_tags: next, status: "accepted" })
-        .eq("id", r.id);
-    }
-    return { scraped, tagged: matches.length, urls: urls.length || discoveredUrls.length, discovered: discoveredUrls };
+    const chosen = disc.chosenUrls ?? [];
+    return {
+      ok: true,
+      discovered: disc.discovered ?? 0,
+      chosenUrls: chosen,
+      cached: false,
+      message: chosen.length > 0
+        ? `Found ${chosen.length} faculty URL${chosen.length === 1 ? "" : "s"} — click "Scrape faculty" to extract leads.`
+        : `Discovery ran but found no faculty pages. ${(disc.mapErrors ?? []).join("; ")}`,
+    };
   });
 
 
