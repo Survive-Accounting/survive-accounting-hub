@@ -241,6 +241,11 @@ function LeadFinderPage() {
           </h1>
           {campus && (
             <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-[11px]">
+              <AutoScrapeButton
+                campusId={campus.id}
+                campusName={campus.school_name}
+                onScraped={() => setRefreshKey((k) => k + 1)}
+              />
               <button
                 type="button"
                 onClick={() => setShowManualSteps((v) => !v)}
