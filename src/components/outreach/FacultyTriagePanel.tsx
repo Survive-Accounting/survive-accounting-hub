@@ -587,7 +587,9 @@ export function FacultyTriagePanel({
                 </button>
               </TableHead>
               <TableHead className="w-[24%]">Email</TableHead>
+              <TableHead className="w-[90px] text-center" title="RateMyProfessors rating (lower = better lead)">RMP</TableHead>
               <TableHead className="w-[110px] text-center">Creds</TableHead>
+
             </TableRow>
           </TableHeader>
 
