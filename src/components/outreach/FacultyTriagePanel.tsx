@@ -30,6 +30,26 @@ type SortKey = "title" | "name";
 
 export type TriageStats = { leads: number; kept: number; pending: number; tagged: number };
 
+/** Role keywords we recognize inside a faculty member's title. The matched
+ *  form (capitalized) is suggested as a tag the user can apply with one click. */
+const ROLE_TAG_KEYWORDS: Array<{ re: RegExp; label: string }> = [
+  { re: /\bteaching\s+assistant\b/i, label: "Teaching Assistant" },
+  { re: /\bgraduate\s+assistant\b/i, label: "Graduate Assistant" },
+  { re: /\bassistant\s+professor\b/i, label: "Assistant Professor" },
+  { re: /\bassociate\s+professor\b/i, label: "Associate Professor" },
+  { re: /\b(full\s+)?professor\b/i, label: "Professor" },
+  { re: /\bprofessor\s+emeritus\b|\bemeritus\b/i, label: "Emeritus" },
+  { re: /\binstructor\b/i, label: "Instructor" },
+  { re: /\blecturer\b/i, label: "Lecturer" },
+  { re: /\badjunct\b/i, label: "Adjunct" },
+  { re: /\bgrader\b/i, label: "Grader" },
+  { re: /\bchair(?:person)?\b/i, label: "Chair" },
+  { re: /\bdean\b/i, label: "Dean" },
+  { re: /\bdirector\b/i, label: "Director" },
+  { re: /\bvisiting\b/i, label: "Visiting" },
+];
+
+
 export function FacultyTriagePanel({
   campusId,
   campusName,
