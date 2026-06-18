@@ -42,7 +42,7 @@ export async function processOneCampus(campusId: string): Promise<CampusRunResul
   // 1. Read faculty URLs off the campus.
   const { data: campus, error: campusErr } = await supabaseAdmin
     .from("campuses")
-    .select("faculty_page_url")
+    .select("faculty_page_url,website_url,accounting_department_url,domains")
     .eq("id", campusId)
     .maybeSingle();
   if (campusErr) { result.error = `campus read: ${campusErr.message}`; return result; }
@@ -52,18 +52,30 @@ export async function processOneCampus(campusId: string): Promise<CampusRunResul
     .map((u) => u.trim())
     .filter((u) => /^https?:\/\//i.test(u))
     .slice(0, 10);
-  if (urls.length === 0) { result.error = "no faculty_page_url"; return result; }
 
-  // 2. Scrape (this populates campus_lead_suggestions).
+  // 2. Scrape. If no URL set, auto-discover first (Firecrawl search+map).
+  //    autoDiscoverCampusFaculty saves the discovered URLs back to
+  //    faculty_page_url AND runs the scrape, so we use its result directly.
   try {
-    const scrape = await scrapeCampusFaculty({ data: { campusId, urls } }) as {
-      perPage?: Array<{ inserted?: number }>;
-    };
-    result.scraped = (scrape.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    if (urls.length === 0) {
+      const hasSeed = !!(campus.website_url || campus.accounting_department_url
+        || ((campus.domains as string[] | null) ?? []).length > 0);
+      if (!hasSeed) { result.error = "no faculty_page_url and no website/domains to discover from"; return result; }
+      const disc = await autoDiscoverCampusFaculty({ data: { campusId, maxPages: 5 } }) as {
+        perPage?: Array<{ inserted?: number }>;
+      };
+      result.scraped = (disc.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    } else {
+      const scrape = await scrapeCampusFaculty({ data: { campusId, urls } }) as {
+        perPage?: Array<{ inserted?: number }>;
+      };
+      result.scraped = (scrape.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    }
   } catch (e) {
     result.error = `scrape: ${e instanceof Error ? e.message : String(e)}`;
     return result;
   }
+
 
   // 3. Pull every fresh suggestion for this campus and auto-tag matches.
   const { data: sugs, error: sugErr } = await supabaseAdmin
