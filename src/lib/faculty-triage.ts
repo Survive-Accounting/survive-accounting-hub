@@ -48,7 +48,19 @@ export async function setTriageStatus(id: string, status: "pending_triage" | "ke
 }
 
 function uniq(arr: string[]): string[] {
-  return Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean)));
+  // Case-insensitive dedupe; keep first occurrence's casing so "PhD" wins over
+  // a later "phd". Prevents the same tag showing up twice on a lead.
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of arr) {
+    const t = raw.trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
 }
 
 export async function setTriageTagsBulk(
