@@ -103,10 +103,13 @@ export function AutoScrapeButton({
   campusId,
   campusName,
   onScraped,
+  exposeApi,
 }: {
   campusId: string;
   campusName: string;
   onScraped?: () => void;
+  /** Lets the parent grab a stable trigger + busy state to render its own start button elsewhere. */
+  exposeApi?: (api: { start: () => void; busy: boolean }) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<RunLog | null>(null);
