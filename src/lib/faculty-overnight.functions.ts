@@ -73,26 +73,31 @@ export const testAutoScrapeCampus = createServerFn({ method: "POST" })
   });
 
 
-/** Enqueue every non-archived campus that has a faculty_page_url and zero
- *  existing outreach_leads. Idempotent — already-queued campuses are skipped
- *  by the unique constraint on (campus_id). */
+/** Enqueue every non-archived campus that EITHER has a faculty_page_url OR
+ *  has a website/domain/accounting URL we can auto-discover from. Skips any
+ *  campus that already has imported leads. Idempotent. */
 export const enqueueAllPendingCampuses = createServerFn({ method: "POST" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-  // Active campuses with a faculty URL.
   const { data: candidates, error: e1 } = await supabaseAdmin
     .from("campuses")
-    .select("id,faculty_page_url,archived_at")
+    .select("id,faculty_page_url,website_url,accounting_department_url,domains,archived_at")
     .is("archived_at", null);
   if (e1) throw new Error(e1.message);
-  const withUrl = (candidates ?? []).filter((c: { faculty_page_url: string | null }) => {
+  const eligible = (candidates ?? []).filter((c: {
+    faculty_page_url: string | null;
+    website_url: string | null;
+    accounting_department_url: string | null;
+    domains: string[] | null;
+  }) => {
     const v = (c.faculty_page_url ?? "").trim();
-    return v.length > 0 && /^https?:\/\//im.test(v);
+    if (v.length > 0 && /^https?:\/\//im.test(v)) return true;
+    return !!(c.website_url || c.accounting_department_url || (c.domains ?? []).length > 0);
   });
 
-  // Drop any campus that already has imported leads.
-  const ids = withUrl.map((c: { id: string }) => c.id);
+  const ids = eligible.map((c: { id: string }) => c.id);
   if (ids.length === 0) return { queued: 0, scanned: 0 };
+
   const { data: withLeads } = await supabaseAdmin
     .from("outreach_leads")
     .select("campus_id")
