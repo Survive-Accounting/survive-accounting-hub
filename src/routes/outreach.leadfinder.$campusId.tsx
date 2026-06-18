@@ -5,11 +5,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 // AdminGate + Toaster are provided by the /outreach layout.
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Star, Trash2, X, Globe } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Search, Star, Trash2, X, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
 import { ScrapeFacultyButton } from "@/components/outreach/ScrapeFacultyButton";
 import { FacultyTriagePanel, type TriageStats } from "@/components/outreach/FacultyTriagePanel";
 import { fetchCampuses } from "@/lib/outreach-api";
