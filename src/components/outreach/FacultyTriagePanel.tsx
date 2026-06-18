@@ -392,14 +392,14 @@ export function FacultyTriagePanel({
     }
   };
 
-  const keptCount = rows.filter((r) => toTriageStatus(r.status) === "kept").length;
-  const pendingCount = rows.filter((r) => toTriageStatus(r.status) === "pending_triage").length;
   const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
+  const untaggedCount = rows.length - taggedCount;
 
   useEffect(() => {
-    onStatsChange?.({ leads: rows.length, kept: keptCount, pending: pendingCount, tagged: taggedCount });
+    // `kept` mirrors `tagged` now — tagging is the keep signal.
+    onStatsChange?.({ leads: rows.length, kept: taggedCount, pending: untaggedCount, tagged: taggedCount });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows.length, keptCount, pendingCount, taggedCount]);
+  }, [rows.length, taggedCount, untaggedCount]);
 
   return (
     <div ref={panelRef} className="rounded-lg border border-border bg-card">
@@ -408,19 +408,20 @@ export function FacultyTriagePanel({
           <div>
             <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
             <div className="text-[11px] text-muted-foreground">
-              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${keptCount} kept`}
+              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${taggedCount} tagged`}
             </div>
           </div>
           <Button
             size="sm"
             onClick={onImport}
-            disabled={importing || keptCount === 0}
+            disabled={importing || taggedCount === 0}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {importing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing…</> : <>Import {keptCount} kept lead{keptCount === 1 ? "" : "s"}</>}
+            {importing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing…</> : <>Import {taggedCount} tagged lead{taggedCount === 1 ? "" : "s"}</>}
           </Button>
         </div>
       )}
+
 
       {/* Step #3 — Review / Edit Tags. Click any chip to apply (or remove) its
           tag from every matching row, no selection required. */}
