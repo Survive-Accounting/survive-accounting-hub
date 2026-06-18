@@ -204,8 +204,22 @@ export function ScrapeFacultyButton({
           <>
             <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
               {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-              {scraping ? "Scraping…" : "Scrape URLs"}
+              {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URLs"}
             </Button>
+            {stuck && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-amber-700 hover:text-amber-900"
+                onClick={() => {
+                  clearCampusScrape(campusId);
+                  toast.info("Cleared stuck scrape slot — you can start a new one.");
+                }}
+                title="The previous scrape has been running over 60s — reset the slot so you can try again"
+              >
+                <X className="h-3.5 w-3.5" /> Reset
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
