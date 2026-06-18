@@ -224,6 +224,130 @@ function extractMailtoFromHtml(rawHtml: string): string | null {
   return null;
 }
 
+const GENERIC_LOCALS_RE = /^(info|contact|admissions|support|webmaster|noreply|no-reply|help|hello|office|admin)$/i;
+
+/**
+ * Look for an email that appears near a person's name inside a larger blob
+ * of markdown (typically the directory page). Many .edu directories list
+ * "Jane Doe ... jane.doe@uni.edu" in a single card even though the
+ * individual profile page hides the email.
+ */
+function findEmailNearName(
+  pageText: string,
+  firstName: string,
+  lastName: string,
+): string | null {
+  if (!pageText || !lastName) return null;
+  const ln = lastName.toLowerCase().replace(/[^a-z]/g, "");
+  const fn = (firstName ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  if (ln.length < 3) return null;
+  const haystack = pageText.toLowerCase();
+  const nameRe = new RegExp(`\\b${fn ? `${fn}[\\s,.'\\-]+` : ""}${ln}\\b`, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = nameRe.exec(haystack)) !== null) {
+    const start = Math.max(0, m.index - 300);
+    const end = Math.min(pageText.length, m.index + m[0].length + 500);
+    const window = pageText.slice(start, end);
+    const emails = window.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [];
+    for (const raw of emails) {
+      const e = raw.toLowerCase();
+      const local = e.split("@")[0];
+      if (GENERIC_LOCALS_RE.test(local)) continue;
+      // Prefer an email whose local part actually contains the last name —
+      // avoids picking a generic departmental email that happened to sit near
+      // the card.
+      if (local.replace(/[^a-z]/g, "").includes(ln)) return e;
+    }
+    // Fall back to first non-generic email in the window.
+    for (const raw of emails) {
+      const e = raw.toLowerCase();
+      const local = e.split("@")[0];
+      if (!GENERIC_LOCALS_RE.test(local)) return e;
+    }
+  }
+  return null;
+}
+
+/**
+ * Detect the dominant email pattern for a department from the emails we DID
+ * capture. Returns a function that, given (firstName, lastName), produces an
+ * inferred email — but only when ≥3 captured emails agree on one pattern
+ * with the same domain. Otherwise returns null (don't guess).
+ *
+ * Supported patterns (the ones .edu IT departments actually use):
+ *   first.last, first_last, firstlast, flast, lastf, first, last,
+ *   firstinitial.last
+ */
+type EmailPattern =
+  | "first.last" | "first_last" | "firstlast" | "flast" | "lastf"
+  | "first" | "last" | "f.last" | "first.l";
+
+function clean(s: string): string {
+  return s.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+function patternFor(local: string, fn: string, ln: string): EmailPattern | null {
+  const f = clean(fn);
+  const l = clean(ln);
+  if (!f || !l) return null;
+  const lo = local.toLowerCase();
+  if (lo === `${f}.${l}`) return "first.last";
+  if (lo === `${f}_${l}`) return "first_last";
+  if (lo === `${f}${l}`) return "firstlast";
+  if (lo === `${f[0]}${l}`) return "flast";
+  if (lo === `${l}${f[0]}`) return "lastf";
+  if (lo === `${f[0]}.${l}`) return "f.last";
+  if (lo === `${f}.${l[0]}`) return "first.l";
+  if (lo === f) return "first";
+  if (lo === l) return "last";
+  return null;
+}
+
+function applyPattern(pattern: EmailPattern, fn: string, ln: string): string | null {
+  const f = clean(fn);
+  const l = clean(ln);
+  if (!f || !l) return null;
+  switch (pattern) {
+    case "first.last": return `${f}.${l}`;
+    case "first_last": return `${f}_${l}`;
+    case "firstlast":  return `${f}${l}`;
+    case "flast":      return `${f[0]}${l}`;
+    case "lastf":      return `${l}${f[0]}`;
+    case "f.last":     return `${f[0]}.${l}`;
+    case "first.l":    return `${f}.${l[0]}`;
+    case "first":      return f;
+    case "last":       return l;
+  }
+}
+
+function inferDepartmentPattern(
+  people: Extracted[],
+): { domain: string; pattern: EmailPattern; sampleSize: number } | null {
+  // Bucket: domain -> pattern -> count
+  const tally = new Map<string, Map<EmailPattern, number>>();
+  for (const p of people) {
+    if (!p.email || !p.first_name || !p.last_name) continue;
+    const [local, domain] = p.email.split("@");
+    if (!local || !domain) continue;
+    const pat = patternFor(local, p.first_name, p.last_name);
+    if (!pat) continue;
+    const inner = tally.get(domain) ?? new Map<EmailPattern, number>();
+    inner.set(pat, (inner.get(pat) ?? 0) + 1);
+    tally.set(domain, inner);
+  }
+  let best: { domain: string; pattern: EmailPattern; sampleSize: number } | null = null;
+  for (const [domain, patterns] of tally) {
+    for (const [pattern, count] of patterns) {
+      if (count < 3) continue; // safety threshold — never infer from sparse data
+      if (!best || count > best.sampleSize) {
+        best = { domain, pattern, sampleSize: count };
+      }
+    }
+  }
+  return best;
+}
+
+
 
 function mergePeople(...groups: Extracted[][]): Extracted[] {
   const byKey = new Map<string, Extracted>();
