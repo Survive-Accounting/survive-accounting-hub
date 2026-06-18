@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { GraduationCap, Globe, Loader2, Wand2, FileUp } from "lucide-react";
+import { GraduationCap, Globe, Loader2, Wand2, FileUp, X } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
