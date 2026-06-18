@@ -69,12 +69,15 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       ? `site:${domains[0]} accounting faculty`
       : `"${name}" accounting faculty directory`;
     let facultyResults: Array<{ title: string; link: string }> = [];
+    const facultyStart = Date.now();
+    let facultyMs = 0;
     try {
       facultyResults = await serpSearch(serpKey, facultyQuery, 10);
     } catch (e) {
       notes.push(`faculty serp: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      facultyMs = Date.now() - facultyStart;
     }
-    // Prefer results on the campus domain whose URL/title look like a directory
     const keep = (link: string, title: string) => {
       const h = hostOf(link);
       const domainOk = domains.length === 0 || domains.some((d) => h === d || h.endsWith(`.${d}`));
@@ -88,7 +91,6 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       new Set(facultyResults.filter((r) => keep(r.link, r.title)).map((r) => r.link)),
     ).slice(0, 2);
     if (facultyUrls.length === 0 && facultyResults[0]) {
-      // Fall back to the first organic result even if heuristics dropped it.
       facultyUrls.push(facultyResults[0].link);
       notes.push("faculty: heuristic dropped all results; using top organic result");
     }
@@ -96,28 +98,39 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
     // --- RMP URL discovery --------------------------------------------------
     const rmpQuery = `site:ratemyprofessors.com/school "${name}"`;
     let rmpUrl: string | null = null;
+    let rmpResults: Array<{ title: string; link: string }> = [];
+    const rmpStart = Date.now();
+    let rmpMs = 0;
     try {
-      const rmpResults = await serpSearch(serpKey, rmpQuery, 5);
+      rmpResults = await serpSearch(serpKey, rmpQuery, 5);
       const schoolHit = rmpResults.find((r) => /ratemyprofessors\.com\/school\/\d+/i.test(r.link));
       if (schoolHit) rmpUrl = schoolHit.link;
       else if (rmpResults[0]) {
-        // Try a looser query that doesn't require /school/ in the URL
         const loose = await serpSearch(serpKey, `site:ratemyprofessors.com "${name}"`, 5);
+        rmpResults = rmpResults.concat(loose);
         const hit2 = loose.find((r) => /ratemyprofessors\.com\/school\/\d+/i.test(r.link));
         if (hit2) rmpUrl = hit2.link;
       }
       if (!rmpUrl) notes.push("rmp: no /school/<id> URL found in top results");
     } catch (e) {
       notes.push(`rmp serp: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      rmpMs = Date.now() - rmpStart;
     }
 
     return {
       ok: true,
       campusName: name,
+      domains,
       facultyUrls,
       rmpUrl,
       facultyQuery,
       rmpQuery,
+      facultyMs,
+      rmpMs,
+      facultyResults: facultyResults.slice(0, 10),
+      rmpResults: rmpResults.slice(0, 10),
       notes,
     };
   });
+
