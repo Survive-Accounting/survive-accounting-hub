@@ -312,7 +312,7 @@ async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = 
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
     },
-    FIRECRAWL_SCRAPE_TIMEOUT_MS,
+    timeoutMs,
     "Firecrawl scrape",
   );
   if (!res.ok) {
