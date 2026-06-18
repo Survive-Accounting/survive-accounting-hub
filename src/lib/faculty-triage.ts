@@ -22,6 +22,8 @@ export type TriageRow = {
   rmp_difficulty: number | null;
   rmp_would_take_again: number | null;
   rmp_profile_url: string | null;
+  /** outreach_leads.id if this person has already been imported as a lead for this campus. */
+  imported_lead_id: string | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
@@ -33,8 +35,40 @@ export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
     .is("archived_at", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []) as TriageRow[];
+  const rows = (data ?? []) as Omit<TriageRow, "imported_lead_id">[];
+
+  // Mark rows that are already imported as outreach_leads (by email match
+  // within this campus). Lets the triage UI pre-check those boxes and offer
+  // an "un-import" toggle without re-importing duplicates.
+  const emails = Array.from(new Set(
+    rows.map((r) => (r.email ?? "").toLowerCase().trim()).filter(Boolean),
+  ));
+  const importedByEmail = new Map<string, string>();
+  if (emails.length > 0) {
+    const { data: leads } = await supabase
+      .from("outreach_leads")
+      .select("id,email")
+      .eq("campus_id", campusId)
+      .in("email", emails);
+    for (const l of (leads ?? []) as Array<{ id: string; email: string | null }>) {
+      const key = (l.email ?? "").toLowerCase();
+      if (key && !importedByEmail.has(key)) importedByEmail.set(key, l.id);
+    }
+  }
+  return rows.map((r) => ({
+    ...r,
+    imported_lead_id: importedByEmail.get((r.email ?? "").toLowerCase()) ?? null,
+  }));
 }
+
+/** Delete the outreach_lead row for this suggestion's email (un-import).
+ *  Cascades clean up campaign_leads / send_log / email_events. */
+export async function unimportLead(leadId: string): Promise<void> {
+  const { error } = await supabase.from("outreach_leads").delete().eq("id", leadId);
+  if (error) throw error;
+}
+
+
 
 
 export async function setTriageFlag(id: string, patch: { is_phd?: boolean; is_cpa?: boolean }) {
@@ -217,12 +251,13 @@ export async function importTaggedLeads(campusId: string): Promise<{ inserted: n
     inserted = toInsert.length;
   }
 
-  // Archive every tagged row (imported or merged) so triage clears out.
-  const ids = rows.map((r) => r.id);
-  await supabase.from("campus_lead_suggestions").update({ archived_at: new Date().toISOString(), archived_reason: "imported", archive_label: "faculty_scrape_import" }).in("id", ids);
+  // NOTE: we intentionally do NOT archive the suggestions after import. They
+  // stay in triage so Lee can see which rows are already imported (checkbox
+  // pre-filled via imported_lead_id) and toggle them off to un-import.
 
   return { inserted, skipped: withEmail.length - inserted, mergedTags };
 }
+
 
 /** @deprecated Kept/Skip flow removed — use importTaggedLeads. */
 export const importKeptLeads = importTaggedLeads;

@@ -18,8 +18,9 @@ import {
 import {
   fetchTagsFromOtherCampuses,
   fetchTriageRows, importKeptLeads, setTriageFlag,
-  setTriageTagsBulk, type TriageRow,
+  setTriageTagsBulk, unimportLead, type TriageRow,
 } from "@/lib/faculty-triage";
+
 import {
   INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
 } from "@/lib/role-keywords";
@@ -413,14 +414,20 @@ export function FacultyTriagePanel({
     }
   };
 
-  const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
-  const untaggedCount = rows.length - taggedCount;
+  const importedCount = rows.filter((r) => r.imported_lead_id).length;
+  // "tagged" for the Import button = tagged AND not yet imported. Already-
+  // imported rows show as checked but don't re-trigger an insert.
+  const taggedCount = rows.filter(
+    (r) => (r.title_tags ?? []).length > 0 && !r.imported_lead_id,
+  ).length;
+  const untaggedCount = rows.length - taggedCount - importedCount;
 
   useEffect(() => {
     // `kept` mirrors `tagged` now — tagging is the keep signal.
     onStatsChange?.({ leads: rows.length, kept: taggedCount, pending: untaggedCount, tagged: taggedCount });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows.length, taggedCount, untaggedCount]);
+
 
   return (
     <div ref={panelRef} className="rounded-lg border border-border bg-card">
@@ -429,8 +436,9 @@ export function FacultyTriagePanel({
           <div>
             <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
             <div className="text-[11px] text-muted-foreground">
-              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${taggedCount} tagged`}
+              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${importedCount} imported · ${taggedCount} tagged`}
             </div>
+
           </div>
           <Button
             size="sm"
@@ -601,25 +609,49 @@ export function FacultyTriagePanel({
             {sortedRows.map((r) => {
               const isSel = selected.has(r.id);
               const hasTags = (r.title_tags ?? []).length > 0;
+              const isImported = !!r.imported_lead_id;
+              const checked = isImported || hasTags;
               return (
                 <TableRow
                   key={r.id}
                   className={[
                     "group",
-                    hasTags ? "bg-emerald-50/40" : "",
+                    isImported ? "bg-sky-50/60" : hasTags ? "bg-emerald-50/40" : "",
                     isSel ? "ring-1 ring-inset ring-amber-400 bg-amber-50/60" : "",
                   ].join(" ")}
                 >
                   <TableCell className="text-center align-middle">
                     <input
                       type="checkbox"
-                      checked={hasTags}
+                      checked={checked}
                       onChange={(e) => {
-                        const checked = e.target.checked;
-                        if (checked) {
+                        const next = e.target.checked;
+                        if (!next && isImported) {
+                          // Un-import: delete the outreach_lead. Cascades take
+                          // care of campaign_leads / send_log / email_events.
+                          const who = `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || r.email || "this lead";
+                          if (!confirm(`Un-import ${who}? This deletes the lead row and removes it from any campaigns.`)) return;
+                          const leadId = r.imported_lead_id!;
+                          setRows((prev) => prev.map((x) =>
+                            x.id === r.id ? { ...x, imported_lead_id: null, title_tags: [] } : x,
+                          ));
+                          void unimportLead(leadId)
+                            .then(() => {
+                              toast.success(`Un-imported ${who}`);
+                              qc.invalidateQueries({ queryKey: ["outreach-leads"] });
+                              qc.invalidateQueries({ queryKey: ["outreach-leads-total"] });
+                              qc.invalidateQueries({ queryKey: ["campus-lead-stats"] });
+                              qc.invalidateQueries({ queryKey: ["cold-imported-lead-counts-rmp"] });
+                            })
+                            .catch((err) => {
+                              toast.error(`Un-import failed: ${err instanceof Error ? err.message : "unknown"}`);
+                              void load();
+                            });
+                          return;
+                        }
+                        if (next) {
                           void applyTagToIds([r.id], INTRO_TARGET_TAG, "add");
                         } else {
-                          // Remove every tag from this row so it won't import.
                           const cur = r.title_tags ?? [];
                           if (cur.length === 0) return;
                           setRows((prev) => prev.map((x) =>
@@ -632,10 +664,17 @@ export function FacultyTriagePanel({
                             });
                         }
                       }}
-                      className="h-4 w-4 cursor-pointer accent-emerald-600"
-                      title={hasTags ? "Will be imported as a lead. Uncheck to skip." : "Check to import this row as a lead."}
+                      className={`h-4 w-4 cursor-pointer ${isImported ? "accent-sky-600" : "accent-emerald-600"}`}
+                      title={
+                        isImported
+                          ? "Already imported as a lead. Uncheck to un-import (deletes the lead)."
+                          : hasTags
+                            ? "Will be imported as a lead. Uncheck to skip."
+                            : "Check to import this row as a lead."
+                      }
                     />
                   </TableCell>
+
                   <TableCell
                     className="cursor-pointer select-none font-medium"
                     onClick={(e) => onRowClick(r.id, e)}
