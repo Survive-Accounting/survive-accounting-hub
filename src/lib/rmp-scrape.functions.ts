@@ -111,19 +111,21 @@ async function rmpGraphql<T>(variables: Record<string, unknown>): Promise<T> {
   }
 }
 
+type TeachersPage = {
+  search: {
+    teachers: {
+      edges: Array<{ cursor: string; node: RmpTeacherNode }>;
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    };
+  };
+};
+
 async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeacherNode[]> {
   const out: RmpTeacherNode[] = [];
   let cursor: string | null = null;
   // Safety cap — most accounting departments are small; bail after ~5 pages.
   for (let page = 0; page < 5; page++) {
-    const data = await rmpGraphql<{
-      search: {
-        teachers: {
-          edges: Array<{ cursor: string; node: RmpTeacherNode }>;
-          pageInfo: { hasNextPage: boolean; endCursor: string | null };
-        };
-      };
-    }>({
+    const data: TeachersPage = await rmpGraphql<TeachersPage>({
       count: PAGE_SIZE,
       cursor,
       query: { schoolID: schoolGlobalId, text: "" },
@@ -136,6 +138,7 @@ async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeac
   }
   return out;
 }
+
 
 function isAccountingDept(dept: string | null): boolean {
   if (!dept) return false;
