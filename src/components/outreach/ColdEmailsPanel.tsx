@@ -126,7 +126,6 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
         const { data, error } = await supabase
           .from("outreach_leads")
           .select("id,campus_id")
-          .is("archived_at", null as never)
           .in("campus_id", campusIds);
         if (error) throw error;
         const byCampus = new Map<string, string[]>();
