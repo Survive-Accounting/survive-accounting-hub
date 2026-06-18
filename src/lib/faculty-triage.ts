@@ -134,16 +134,19 @@ export async function fetchTagsFromOtherCampuses(
 }
 
 
-export async function importKeptLeads(campusId: string): Promise<{ inserted: number; skipped: number; mergedTags: number }> {
-  // Pull all kept rows
-  const { data: kept, error: keptErr } = await supabase
+/** Import every triage row that has at least one tag applied. Tagging IS the
+ *  keep signal — there is no separate Keep/Skip step anymore. Untagged rows
+ *  are left in triage so the user can revisit. */
+export async function importTaggedLeads(campusId: string): Promise<{ inserted: number; skipped: number; mergedTags: number }> {
+  const { data, error } = await supabase
     .from("campus_lead_suggestions")
     .select("id,first_name,last_name,email,title,is_phd,notes,title_tags")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
-    .eq("status", "accepted");
-  if (keptErr) throw keptErr;
-  const rows = (kept ?? []) as Array<{
+    .is("archived_at", null)
+    .not("title_tags", "is", null);
+  if (error) throw error;
+  const rows = ((data ?? []) as Array<{
     id: string;
     first_name: string | null;
     last_name: string | null;
@@ -152,7 +155,7 @@ export async function importKeptLeads(campusId: string): Promise<{ inserted: num
     is_phd: boolean | null;
     notes: string | null;
     title_tags: string[] | null;
-  }>;
+  }>).filter((r) => (r.title_tags ?? []).length > 0);
   if (rows.length === 0) return { inserted: 0, skipped: 0, mergedTags: 0 };
 
   const withEmail = rows.filter((r) => r.email && r.email.includes("@"));
@@ -177,7 +180,6 @@ export async function importKeptLeads(campusId: string): Promise<{ inserted: num
     const tags = uniq(r.title_tags ?? []);
     const match = existingByEmail.get(key);
     if (match) {
-      // Merge tags onto the existing lead
       const merged = uniq([...(match.title_tags ?? []), ...tags]);
       if (merged.length !== (match.title_tags ?? []).length) {
         const { error } = await supabase
@@ -209,12 +211,15 @@ export async function importKeptLeads(campusId: string): Promise<{ inserted: num
     inserted = toInsert.length;
   }
 
-  // Mark all kept rows as imported so they vanish from triage
+  // Archive every tagged row (imported or merged) so triage clears out.
   const ids = rows.map((r) => r.id);
   await supabase.from("campus_lead_suggestions").update({ archived_at: new Date().toISOString(), archived_reason: "imported", archive_label: "faculty_scrape_import" }).in("id", ids);
 
   return { inserted, skipped: withEmail.length - inserted, mergedTags };
 }
+
+/** @deprecated Kept/Skip flow removed — use importTaggedLeads. */
+export const importKeptLeads = importTaggedLeads;
 
 export async function archiveAllLeads(): Promise<{
   outreach_leads_archived: number;

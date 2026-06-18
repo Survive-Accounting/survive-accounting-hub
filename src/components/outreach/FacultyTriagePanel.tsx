@@ -17,18 +17,12 @@ import {
 } from "@/components/ui/table";
 import {
   fetchTagsFromOtherCampuses,
-  fetchTriageRows, importKeptLeads, setTriageFlag, setTriageStatus,
+  fetchTriageRows, importKeptLeads, setTriageFlag,
   setTriageTagsBulk, type TriageRow,
 } from "@/lib/faculty-triage";
 import {
   INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
 } from "@/lib/role-keywords";
-
-function toTriageStatus(status: string | null): "pending_triage" | "kept" | "skipped" {
-  if (status === "accepted" || status === "kept") return "kept";
-  if (status === "rejected" || status === "skipped") return "skipped";
-  return "pending_triage";
-}
 
 type SortKey = "title" | "name";
 
@@ -138,11 +132,6 @@ export function FacultyTriagePanel({
     catch (e) { toast.error(`Save failed: ${e instanceof Error ? e.message : "unknown"}`); void load(); }
   };
 
-  const onStatus = async (id: string, status: "kept" | "skipped" | "pending_triage") => {
-    update(id, { status });
-    try { await setTriageStatus(id, status); }
-    catch (e) { toast.error(`Save failed: ${e instanceof Error ? e.message : "unknown"}`); void load(); }
-  };
 
   const onRowClick = (id: string, e: React.MouseEvent) => {
     if (suppressClickRef.current) { suppressClickRef.current = false; return; }
@@ -392,14 +381,14 @@ export function FacultyTriagePanel({
     }
   };
 
-  const keptCount = rows.filter((r) => toTriageStatus(r.status) === "kept").length;
-  const pendingCount = rows.filter((r) => toTriageStatus(r.status) === "pending_triage").length;
   const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
+  const untaggedCount = rows.length - taggedCount;
 
   useEffect(() => {
-    onStatsChange?.({ leads: rows.length, kept: keptCount, pending: pendingCount, tagged: taggedCount });
+    // `kept` mirrors `tagged` now — tagging is the keep signal.
+    onStatsChange?.({ leads: rows.length, kept: taggedCount, pending: untaggedCount, tagged: taggedCount });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows.length, keptCount, pendingCount, taggedCount]);
+  }, [rows.length, taggedCount, untaggedCount]);
 
   return (
     <div ref={panelRef} className="rounded-lg border border-border bg-card">
@@ -408,19 +397,20 @@ export function FacultyTriagePanel({
           <div>
             <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
             <div className="text-[11px] text-muted-foreground">
-              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${keptCount} kept`}
+              {loading ? "Loading…" : `${rows.length} lead${rows.length === 1 ? "" : "s"} · ${taggedCount} tagged`}
             </div>
           </div>
           <Button
             size="sm"
             onClick={onImport}
-            disabled={importing || keptCount === 0}
+            disabled={importing || taggedCount === 0}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {importing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing…</> : <>Import {keptCount} kept lead{keptCount === 1 ? "" : "s"}</>}
+            {importing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing…</> : <>Import {taggedCount} tagged lead{taggedCount === 1 ? "" : "s"}</>}
           </Button>
         </div>
       )}
+
 
       {/* Step #3 — Review / Edit Tags. Click any chip to apply (or remove) its
           tag from every matching row, no selection required. */}
@@ -429,7 +419,7 @@ export function FacultyTriagePanel({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Step #3 · Review / Edit Tags
+              Step #3 · Apply Tags
             </div>
             {introMatchIds.length > 0 && (
               <button
@@ -659,20 +649,18 @@ export function FacultyTriagePanel({
               </TableHead>
               <TableHead className="w-[24%]">Email</TableHead>
               <TableHead className="w-[110px] text-center">Creds</TableHead>
-              <TableHead className="w-[140px] text-center">Decision</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedRows.map((r) => {
-              const status = toTriageStatus(r.status);
               const isSel = selected.has(r.id);
+              const hasTags = (r.title_tags ?? []).length > 0;
               return (
                 <TableRow
                   key={r.id}
                   className={[
                     "group",
-                    status === "skipped" ? "opacity-50" : "",
-                    status === "kept" ? "bg-emerald-50/40" : "",
+                    hasTags ? "bg-emerald-50/40" : "",
                     isSel ? "ring-1 ring-inset ring-amber-400 bg-amber-50/60" : "",
                   ].join(" ")}
                 >
@@ -716,7 +704,6 @@ export function FacultyTriagePanel({
                       <span className="text-amber-700">no email found</span>
                     )}
                   </TableCell>
-                  {/* Tags column intentionally removed — manage tags via the bulk bar above. */}
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button
@@ -743,26 +730,6 @@ export function FacultyTriagePanel({
                       >
                         CPA
                       </button>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        size="sm"
-                        variant={status === "kept" ? "default" : "outline"}
-                        className={status === "kept" ? "h-7 bg-emerald-600 hover:bg-emerald-700 px-2 text-xs" : "h-7 px-2 text-xs"}
-                        onClick={() => onStatus(r.id, status === "kept" ? "pending_triage" : "kept")}
-                      >
-                        <Check className="h-3 w-3" /> Keep
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={status === "skipped" ? "default" : "outline"}
-                        className={status === "skipped" ? "h-7 bg-muted-foreground hover:bg-muted-foreground/90 px-2 text-xs" : "h-7 px-2 text-xs"}
-                        onClick={() => onStatus(r.id, status === "skipped" ? "pending_triage" : "skipped")}
-                      >
-                        <X className="h-3 w-3" /> Skip
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -804,10 +771,10 @@ export function FacultyTriagePanel({
               </ul>
             </div>
             <div>
-              <div className="font-semibold">Keep vs Skip</div>
+              <div className="font-semibold">Importing</div>
               <ul className="ml-4 list-disc text-muted-foreground">
-                <li><strong>Keep</strong> = include this person when you click <em>Import kept leads</em>.</li>
-                <li><strong>Skip</strong> = ignore this person.</li>
+                <li>Any row with at least one tag is imported as a lead when you click <em>Step #4 · Import Leads</em>.</li>
+                <li>Untagged rows are left alone — no Keep/Skip needed.</li>
               </ul>
             </div>
           </div>
