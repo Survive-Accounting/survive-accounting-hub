@@ -414,14 +414,20 @@ export function FacultyTriagePanel({
     }
   };
 
-  const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
-  const untaggedCount = rows.length - taggedCount;
+  const importedCount = rows.filter((r) => r.imported_lead_id).length;
+  // "tagged" for the Import button = tagged AND not yet imported. Already-
+  // imported rows show as checked but don't re-trigger an insert.
+  const taggedCount = rows.filter(
+    (r) => (r.title_tags ?? []).length > 0 && !r.imported_lead_id,
+  ).length;
+  const untaggedCount = rows.length - taggedCount - importedCount;
 
   useEffect(() => {
     // `kept` mirrors `tagged` now — tagging is the keep signal.
     onStatsChange?.({ leads: rows.length, kept: taggedCount, pending: untaggedCount, tagged: taggedCount });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows.length, taggedCount, untaggedCount]);
+
 
   return (
     <div ref={panelRef} className="rounded-lg border border-border bg-card">
