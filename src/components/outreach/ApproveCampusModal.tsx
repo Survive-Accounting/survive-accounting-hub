@@ -1098,8 +1098,19 @@ export default function ApproveCampusModal({
 
 
           {speedMode ? (
-            <div className="space-y-4 pt-2">
-              {/* Program identity + live triage stats. */}
+            <div className="space-y-4 pt-1">
+              {/* Brand banner + retro lead counter */}
+              <div className="flex flex-col items-center gap-1 pt-1">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Survive Accounting
+                </div>
+                <div className="font-serif text-base font-semibold tracking-tight text-foreground">
+                  USA College Campus Lead Finder<sup className="ml-0.5 text-[8px] align-super">™</sup>
+                </div>
+                <LeadOdometer value={triageStats.leads} />
+              </div>
+
+              {/* Program identity (shorthand archived) + degree-level chips. */}
               <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="w-20 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Program</label>
@@ -1120,40 +1131,9 @@ export default function ApproveCampusModal({
                     className="h-8 flex-1 min-w-[240px] rounded-md border border-input bg-background px-2 text-xs"
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="w-20 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Shorthand</label>
-                  <input
-                    type="text"
-                    value={programShorthand}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setProgramShorthand(v);
-                      if (shorthandTimer.current) window.clearTimeout(shorthandTimer.current);
-                      shorthandTimer.current = window.setTimeout(() => {
-                        writePatch({ program_shorthand: v.trim() || null } as Partial<Campus>);
-                      }, 500);
-                    }}
-                    placeholder="e.g. Accounting"
-                    title="Short label used in emails — merge tag {program shorthand}"
-                    className="h-8 flex-1 min-w-[200px] rounded-md border border-input bg-background px-2 text-xs"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={applyShorthandSuggestion}
-                    title="Guess a short label from the program name"
-                    className="h-8 gap-1 text-[11px]"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" /> Suggest
-                  </Button>
-                </div>
-
                 <ProgramLevelChips campus={campus} />
-
-                <div className="pt-1 text-center text-[11px] text-muted-foreground">
-                  {triageStats.leads} lead{triageStats.leads === 1 ? "" : "s"} · {triageStats.kept} kept
-                </div>
               </div>
+
 
               {/* Primary action row — Back · Import Leads · Next. Centered with breathing room. */}
               <div className="flex justify-center py-3">
