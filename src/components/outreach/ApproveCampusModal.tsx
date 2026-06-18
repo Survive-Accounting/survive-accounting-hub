@@ -1067,6 +1067,18 @@ export default function ApproveCampusModal({
                     className="h-7 w-[180px] rounded-md border border-input bg-background px-2 text-xs"
                   />
                   <div className="ml-auto flex items-center gap-2">
+                    {onBack && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={onBack}
+                        disabled={!canGoBack}
+                        title={canGoBack ? "Go back to the previous campus" : "No previous campus in this session"}
+                        className="gap-1"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" /> Back
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={onClose}>
                       Close
                     </Button>
