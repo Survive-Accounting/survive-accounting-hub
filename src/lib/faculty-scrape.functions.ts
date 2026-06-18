@@ -224,14 +224,19 @@ function rankFacultyUrls(links: string[]): string[] {
 }
 
 async function firecrawlSearch(apiKey: string, query: string): Promise<string[]> {
-  const res = await fetch("https://api.firecrawl.dev/v2/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query, limit: 10 }),
-  });
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/search",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ query, limit: 10 }),
+    },
+    FIRECRAWL_SEARCH_TIMEOUT_MS,
+    "Firecrawl search",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`firecrawl search ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(slickHttpError("Firecrawl search", res.status, body));
   }
   const json = await res.json() as {
     data?: { web?: Array<{ url: string }> } | Array<{ url: string }>;
@@ -242,32 +247,38 @@ async function firecrawlSearch(apiKey: string, query: string): Promise<string[]>
 }
 
 async function firecrawlScrape(apiKey: string, url: string): Promise<string> {
-  const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      url,
-      formats: ["markdown"],
-      onlyMainContent: true,
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+    },
+    FIRECRAWL_SCRAPE_TIMEOUT_MS,
+    "Firecrawl scrape",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`firecrawl scrape ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
   }
   const json = await res.json() as { data?: { markdown?: string }; markdown?: string };
   return json.data?.markdown ?? json.markdown ?? "";
 }
 
 async function firecrawlMap(apiKey: string, url: string, search: string): Promise<string[]> {
-  const res = await fetch("https://api.firecrawl.dev/v2/map", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ url, search, limit: 200, includeSubdomains: true }),
-  });
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/map",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ url, search, limit: 200, includeSubdomains: true }),
+    },
+    FIRECRAWL_MAP_TIMEOUT_MS,
+    "Firecrawl map",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`firecrawl map ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(slickHttpError("Firecrawl map", res.status, body));
   }
   const json = await res.json() as { links?: Array<string | { url: string }>; data?: { links?: Array<string | { url: string }> } };
   const raw = json.links ?? json.data?.links ?? [];
