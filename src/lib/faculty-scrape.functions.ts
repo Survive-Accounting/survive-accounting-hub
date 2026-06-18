@@ -414,8 +414,11 @@ async function callLovableAiWithPdf(
     "3. Capture every teaching role: Professor, Associate/Assistant Professor, Instructor, Lecturer, Adjunct, Clinical, Teaching Professor, Professor of Practice, Visiting. " +
     "4. Exclude clearly non-accounting faculty (finance, economics, marketing, IS, etc.) unless the page explicitly lists them under accounting. " +
     "5. Exclude purely administrative staff with no teaching title unless their title contains an instructional keyword. " +
-    "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url }] }. " +
-    "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null.";
+    "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url, is_phd, is_cpa }] }. " +
+    "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null. " +
+    "8. is_phd = true if the person's name, title, or bio shows a doctorate credential (PhD, Ph.D., DBA, EdD, DPhil, JSD, or 'Doctorate'). Otherwise false. " +
+    "9. is_cpa = true if their name, title, or bio shows the CPA credential (CPA or C.P.A.). Otherwise false. " +
+    "10. Do NOT include credentials (PhD, CPA, MBA, JD, Esq., etc.) inside first_name or last_name — return the clean human name only.";
 
   const res = await fetchWithTimeout(
     "https://ai.gateway.lovable.dev/v1/chat/completions",
