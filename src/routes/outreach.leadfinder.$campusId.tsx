@@ -110,6 +110,7 @@ function LeadFinderPage() {
   const [history, setHistory] = useState<string[]>(readHistory);
   useEffect(() => { writeHistory(history); }, [history]);
   const canGoBack = history.length > 0;
+  const [showManualSteps, setShowManualSteps] = useState(false);
 
   // Flame focus state machine: 1 = Copy Faculty Link, 2 = Scrape URL,
   // 3 = Import Leads, null = done. Resets when the campus changes.
