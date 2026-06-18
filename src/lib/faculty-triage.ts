@@ -16,12 +16,13 @@ export type TriageRow = {
   status: string | null;
   notes: string | null;
   created_at: string;
+  title_tags: string[] | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
   const { data, error } = await supabase
     .from("campus_lead_suggestions")
-    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at")
+    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .is("archived_at", null)
@@ -46,11 +47,53 @@ export async function setTriageStatus(id: string, status: "pending_triage" | "ke
   if (error) throw error;
 }
 
-export async function importKeptLeads(campusId: string): Promise<{ inserted: number; skipped: number }> {
+function uniq(arr: string[]): string[] {
+  return Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean)));
+}
+
+export async function setTriageTagsBulk(
+  ids: string[],
+  mode: "add" | "remove" | "replace",
+  tags: string[],
+  currentById: Map<string, string[]>,
+): Promise<void> {
+  if (ids.length === 0) return;
+  const clean = uniq(tags);
+  for (const id of ids) {
+    const current = currentById.get(id) ?? [];
+    let next: string[];
+    if (mode === "replace") next = clean;
+    else if (mode === "add") next = uniq([...current, ...clean]);
+    else next = current.filter((t) => !clean.includes(t));
+    const { error } = await supabase
+      .from("campus_lead_suggestions")
+      .update({ title_tags: next })
+      .eq("id", id);
+    if (error) throw error;
+  }
+}
+
+export async function fetchDistinctLeadTitleTags(): Promise<string[]> {
+  // Pull a wide slice and unique client-side. text[] columns can't be DISTINCT'd
+  // through PostgREST cleanly, so this is the simplest path.
+  const { data, error } = await supabase
+    .from("outreach_leads")
+    .select("title_tags")
+    .not("title_tags", "is", null)
+    .limit(5000);
+  if (error) throw error;
+  const set = new Set<string>();
+  for (const r of (data ?? []) as Array<{ title_tags: string[] | null }>) {
+    for (const t of r.title_tags ?? []) if (t) set.add(t);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+export async function importKeptLeads(campusId: string): Promise<{ inserted: number; skipped: number; mergedTags: number }> {
   // Pull all kept rows
   const { data: kept, error: keptErr } = await supabase
     .from("campus_lead_suggestions")
-    .select("id,first_name,last_name,email,title,is_phd,notes")
+    .select("id,first_name,last_name,email,title,is_phd,notes,title_tags")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .eq("status", "accepted");
@@ -63,34 +106,56 @@ export async function importKeptLeads(campusId: string): Promise<{ inserted: num
     title: string | null;
     is_phd: boolean | null;
     notes: string | null;
+    title_tags: string[] | null;
   }>;
-  if (rows.length === 0) return { inserted: 0, skipped: 0 };
+  if (rows.length === 0) return { inserted: 0, skipped: 0, mergedTags: 0 };
 
   const withEmail = rows.filter((r) => r.email && r.email.includes("@"));
-  if (withEmail.length === 0) return { inserted: 0, skipped: rows.length };
+  if (withEmail.length === 0) return { inserted: 0, skipped: rows.length, mergedTags: 0 };
 
   // De-dupe against existing outreach_leads for this campus
   const emails = withEmail.map((r) => r.email!.toLowerCase());
   const { data: existing } = await supabase
     .from("outreach_leads")
-    .select("email")
+    .select("id,email,title_tags")
     .eq("campus_id", campusId)
     .in("email", emails);
-  const existingSet = new Set((existing ?? []).map((r: { email: string | null }) => (r.email ?? "").toLowerCase()));
+  const existingByEmail = new Map(
+    ((existing ?? []) as Array<{ id: string; email: string | null; title_tags: string[] | null }>)
+      .map((r) => [(r.email ?? "").toLowerCase(), r]),
+  );
 
-  const toInsert = withEmail
-    .filter((r) => !existingSet.has(r.email!.toLowerCase()))
-    .map((r) => ({
+  const toInsert: Array<Record<string, unknown>> = [];
+  let mergedTags = 0;
+  for (const r of withEmail) {
+    const key = r.email!.toLowerCase();
+    const tags = uniq(r.title_tags ?? []);
+    const match = existingByEmail.get(key);
+    if (match) {
+      // Merge tags onto the existing lead
+      const merged = uniq([...(match.title_tags ?? []), ...tags]);
+      if (merged.length !== (match.title_tags ?? []).length) {
+        const { error } = await supabase
+          .from("outreach_leads")
+          .update({ title_tags: merged })
+          .eq("id", match.id);
+        if (!error) mergedTags += 1;
+      }
+      continue;
+    }
+    toInsert.push({
       campus_id: campusId,
       first_name: r.first_name,
       last_name: r.last_name,
-      email: r.email!.toLowerCase(),
+      email: key,
       affiliation: r.title,
       is_phd: r.is_phd ?? false,
       status: "new",
       source: "faculty_scrape",
       notes: r.notes,
-    }));
+      title_tags: tags,
+    });
+  }
 
   let inserted = 0;
   if (toInsert.length > 0) {
@@ -103,7 +168,7 @@ export async function importKeptLeads(campusId: string): Promise<{ inserted: num
   const ids = rows.map((r) => r.id);
   await supabase.from("campus_lead_suggestions").update({ archived_at: new Date().toISOString(), archived_reason: "imported", archive_label: "faculty_scrape_import" }).in("id", ids);
 
-  return { inserted, skipped: rows.length - inserted };
+  return { inserted, skipped: withEmail.length - inserted, mergedTags };
 }
 
 export async function archiveAllLeads(): Promise<{
