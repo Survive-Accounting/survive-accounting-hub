@@ -625,6 +625,12 @@ export type Database = {
           raw_payload: Json | null
           research_label: string | null
           research_mode: string
+          rmp_checked_at: string | null
+          rmp_difficulty: number | null
+          rmp_num_ratings: number | null
+          rmp_profile_url: string | null
+          rmp_rating: number | null
+          rmp_would_take_again: number | null
           source_url: string | null
           status: string
           teaches_intermediate_1: boolean | null
@@ -661,6 +667,12 @@ export type Database = {
           raw_payload?: Json | null
           research_label?: string | null
           research_mode?: string
+          rmp_checked_at?: string | null
+          rmp_difficulty?: number | null
+          rmp_num_ratings?: number | null
+          rmp_profile_url?: string | null
+          rmp_rating?: number | null
+          rmp_would_take_again?: number | null
           source_url?: string | null
           status?: string
           teaches_intermediate_1?: boolean | null
@@ -697,6 +709,12 @@ export type Database = {
           raw_payload?: Json | null
           research_label?: string | null
           research_mode?: string
+          rmp_checked_at?: string | null
+          rmp_difficulty?: number | null
+          rmp_num_ratings?: number | null
+          rmp_profile_url?: string | null
+          rmp_rating?: number | null
+          rmp_would_take_again?: number | null
           source_url?: string | null
           status?: string
           teaches_intermediate_1?: boolean | null

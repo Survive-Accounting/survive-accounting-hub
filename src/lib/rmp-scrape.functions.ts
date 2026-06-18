@@ -1,110 +1,149 @@
-// RateMyProfessors scrape — uses Firecrawl with a click-loop on the
-// "Show More" button so we get past the initial paginated batch on a school
-// listing page. Extracted professors are matched by name to existing
-// outreach_leads for the same campus and the rmp_* columns are populated.
+// RateMyProfessors scrape — calls RMP's public GraphQL API directly using the
+// well-known anonymous credentials embedded in their web app. We extract the
+// legacy school ID from the pasted URL, query every professor at that school
+// (paginated), filter to Accounting-ish departments, and match by name to
+// existing campus_lead_suggestions + outreach_leads for the same campus.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const FIRECRAWL_SCRAPE_URL = "https://api.firecrawl.dev/v2/scrape";
-const SCRAPE_TIMEOUT_MS = 90_000;
+const RMP_GRAPHQL_URL = "https://www.ratemyprofessors.com/graphql";
+// Public credential baked into RMP's own JS bundle: "test:test" base64.
+const RMP_AUTH = "Basic dGVzdDp0ZXN0";
+const PAGE_SIZE = 1000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
-type RmpProfessor = {
-  firstName?: string | null;
-  lastName?: string | null;
-  department?: string | null;
-  profileUrl?: string | null;
-  overallRating?: number | null;
-  numRatings?: number | null;
-  wouldTakeAgainPercent?: number | null;
-  levelOfDifficulty?: number | null;
+type RmpTeacherNode = {
+  id: string;
+  legacyId: number;
+  firstName: string | null;
+  lastName: string | null;
+  department: string | null;
+  avgRating: number | null;
+  numRatings: number | null;
+  avgDifficulty: number | null;
+  wouldTakeAgainPercent: number | null;
 };
 
+const TEACHERS_QUERY = `
+query TeacherSearchPaginationQuery(
+  $count: Int!
+  $cursor: String
+  $query: TeacherSearchQuery!
+) {
+  search: newSearch {
+    teachers(query: $query, first: $count, after: $cursor) {
+      edges {
+        cursor
+        node {
+          id
+          legacyId
+          firstName
+          lastName
+          department
+          avgRating
+          numRatings
+          avgDifficulty
+          wouldTakeAgainPercent
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      resultCount
+    }
+  }
+}`;
+
 function nameKey(first: string | null | undefined, last: string | null | undefined): string {
-  return `${(first ?? "").trim().toLowerCase()}|${(last ?? "").trim().toLowerCase()}`;
+  const f = (first ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+  const l = (last ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+  return `${f}|${l}`;
 }
 
-// JS run inside Firecrawl's browser to expand the paginated list. Tolerates
-// the button being absent / renamed — it just bails out of the loop instead
-// of failing the whole scrape (which is what a `click` action would do).
-const SHOW_MORE_JS = `
-(async () => {
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  for (let i = 0; i < 12; i++) {
-    // Scroll to bottom first so lazy-rendered buttons mount.
-    window.scrollTo(0, document.body.scrollHeight);
-    await sleep(600);
-    const btn = Array.from(document.querySelectorAll('button, a'))
-      .find(el => /show\\s*more/i.test((el.textContent || '').trim()));
-    if (!btn) break;
-    try { btn.click(); } catch (e) { break; }
-    await sleep(1500);
+/** Extract the numeric legacy school ID from any RMP URL form we see. */
+function extractSchoolLegacyId(url: string): number | null {
+  // /search/professors/1391, /school/1391, /school?sid=1391, /campusRatings.jsp?sid=1391
+  const patterns = [
+    /\/search\/professors\/(\d+)/i,
+    /\/school\/(\d+)/i,
+    /[?&]sid=(\d+)/i,
+    /[?&]schoolID=(\d+)/i,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return Number(m[1]);
   }
-  window.scrollTo(0, document.body.scrollHeight);
-  await sleep(800);
-})();
-`;
+  return null;
+}
 
-type FirecrawlActions = Array<Record<string, unknown>>;
+function encodeSchoolGlobalId(legacyId: number): string {
+  // RMP uses base64("School-<legacyId>") for the GraphQL schoolID arg.
+  return Buffer.from(`School-${legacyId}`).toString("base64");
+}
 
-async function postFirecrawl(url: string, apiKey: string, actions: FirecrawlActions | null): Promise<RmpProfessor[]> {
+async function rmpGraphql<T>(variables: Record<string, unknown>): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), SCRAPE_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const body: Record<string, unknown> = {
-      url,
-      onlyMainContent: false,
-      waitFor: 2500,
-      formats: [
-        {
-          type: "json",
-          prompt:
-            'Extract every professor card visible on this RateMyProfessors page. Return JSON shaped as {"professors": [{"firstName","lastName","department","profileUrl","overallRating","numRatings","wouldTakeAgainPercent","levelOfDifficulty"}]}. overallRating and levelOfDifficulty are numbers 0-5. wouldTakeAgainPercent is a number 0-100 or null if not shown. numRatings is an integer. Skip cards without a name. If the page is a single professor profile, return one item.',
-        },
-      ],
-    };
-    if (actions) body.actions = actions;
-    const res = await fetch(FIRECRAWL_SCRAPE_URL, {
+    const res = await fetch(RMP_GRAPHQL_URL, {
       method: "POST",
       signal: ctrl.signal,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: RMP_AUTH,
+        // RMP rejects requests without a browser-ish UA.
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ query: TEACHERS_QUERY, variables }),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`Firecrawl ${res.status}: ${text.slice(0, 200)}`);
+      throw new Error(`RMP ${res.status}: ${text.slice(0, 200)}`);
     }
-    const json = (await res.json()) as {
-      success?: boolean;
-      data?: { json?: { professors?: RmpProfessor[] } };
-      error?: string;
-    };
-    if (json.success === false) throw new Error(json.error ?? "Firecrawl returned success=false");
-    const profs = json.data?.json?.professors ?? [];
-    return Array.isArray(profs) ? profs : [];
+    const json = (await res.json()) as { data?: T; errors?: Array<{ message: string }> };
+    if (json.errors?.length) throw new Error(`RMP GraphQL: ${json.errors.map((e) => e.message).join("; ")}`);
+    if (!json.data) throw new Error("RMP GraphQL: empty data");
+    return json.data;
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function firecrawlScrapeRmp(url: string, apiKey: string): Promise<RmpProfessor[]> {
-  // First try with a JS-based Show-More expander.
-  try {
-    return await postFirecrawl(url, apiKey, [
-      { type: "wait", milliseconds: 2000 },
-      { type: "executeJavascript", script: SHOW_MORE_JS },
-      { type: "wait", milliseconds: 1500 },
-    ]);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // Fall back to a plain scrape (no actions) so we at least get the first page.
-    if (/SCRAPE_ACTION_ERROR|Action.*failed|ActionError/i.test(msg)) {
-      return await postFirecrawl(url, apiKey, null);
-    }
-    throw e;
+type TeachersPage = {
+  search: {
+    teachers: {
+      edges: Array<{ cursor: string; node: RmpTeacherNode }>;
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    };
+  };
+};
+
+async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeacherNode[]> {
+  const out: RmpTeacherNode[] = [];
+  let cursor: string | null = null;
+  // Safety cap — most accounting departments are small; bail after ~5 pages.
+  for (let page = 0; page < 5; page++) {
+    const data: TeachersPage = await rmpGraphql<TeachersPage>({
+      count: PAGE_SIZE,
+      cursor,
+      query: { schoolID: schoolGlobalId, text: "" },
+    });
+    const edges = data.search?.teachers?.edges ?? [];
+    for (const e of edges) out.push(e.node);
+    const pi = data.search?.teachers?.pageInfo;
+    if (!pi?.hasNextPage || !pi.endCursor) break;
+    cursor = pi.endCursor;
   }
+  return out;
+}
+
+
+function isAccountingDept(dept: string | null): boolean {
+  if (!dept) return false;
+  const d = dept.toLowerCase();
+  return d.includes("accounting") || d.includes("accountancy");
 }
 
 export const scrapeCampusRmp = createServerFn({ method: "POST" })
@@ -117,8 +156,6 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const apiKey = process.env.FIRECRAWL_API_KEY;
-    if (!apiKey) throw new Error("FIRECRAWL_API_KEY not configured");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Save URLs back to the campus so they persist for next time.
@@ -128,13 +165,31 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       .eq("id", data.campusId);
 
     const perPage: Array<{ url: string; found: number; matched: number; error?: string }> = [];
-    const allProfs: RmpProfessor[] = [];
+    const allAccountingTeachers: RmpTeacherNode[] = [];
+    const seenLegacy = new Set<number>();
 
     for (const url of data.urls) {
+      const legacy = extractSchoolLegacyId(url);
+      if (legacy == null) {
+        perPage.push({
+          url,
+          found: 0,
+          matched: 0,
+          error: "Could not find a school ID in this URL. Paste an RMP school or search URL (e.g. .../search/professors/1391).",
+        });
+        continue;
+      }
       try {
-        const profs = await firecrawlScrapeRmp(url, apiKey);
-        allProfs.push(...profs);
-        perPage.push({ url, found: profs.length, matched: 0 });
+        const teachers = await fetchAllTeachersAtSchool(encodeSchoolGlobalId(legacy));
+        const accounting = teachers.filter((t) => isAccountingDept(t.department));
+        let added = 0;
+        for (const t of accounting) {
+          if (seenLegacy.has(t.legacyId)) continue;
+          seenLegacy.add(t.legacyId);
+          allAccountingTeachers.push(t);
+          added += 1;
+        }
+        perPage.push({ url, found: added, matched: 0 });
       } catch (e) {
         perPage.push({
           url,
@@ -145,71 +200,81 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       }
     }
 
-    if (allProfs.length === 0) {
+    if (allAccountingTeachers.length === 0) {
       return { perPage, totalFound: 0, totalMatched: 0, totalUpdated: 0 };
     }
 
-    // Load existing outreach_leads for the campus to match by name.
-    const { data: leads, error: leadsErr } = await supabaseAdmin
-      .from("outreach_leads")
-      .select("id,first_name,last_name")
-      .eq("campus_id", data.campusId);
-    if (leadsErr) throw new Error(`load leads: ${leadsErr.message}`);
+    // Load existing campus_lead_suggestions + outreach_leads for the campus
+    // to match by name. We update BOTH so triage rows show RMP before import,
+    // and already-imported leads get scored for the campaign builder.
+    const [{ data: suggestions, error: sErr }, { data: leads, error: lErr }] = await Promise.all([
+      supabaseAdmin
+        .from("campus_lead_suggestions")
+        .select("id,first_name,last_name")
+        .eq("campus_id", data.campusId)
+        .eq("research_mode", "faculty_scrape")
+        .is("archived_at", null),
+      supabaseAdmin
+        .from("outreach_leads")
+        .select("id,first_name,last_name")
+        .eq("campus_id", data.campusId),
+    ]);
+    if (sErr) throw new Error(`load suggestions: ${sErr.message}`);
+    if (lErr) throw new Error(`load leads: ${lErr.message}`);
 
-    const byName = new Map<string, string>();
+    const sugByName = new Map<string, string>();
+    for (const s of (suggestions ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
+      sugByName.set(nameKey(s.first_name, s.last_name), s.id);
+    }
+    const leadByName = new Map<string, string>();
     for (const l of (leads ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
-      byName.set(nameKey(l.first_name, l.last_name), l.id);
+      leadByName.set(nameKey(l.first_name, l.last_name), l.id);
     }
 
-    let totalUpdated = 0;
     const nowIso = new Date().toISOString();
+    let suggestionsUpdated = 0;
+    let leadsUpdated = 0;
 
-    // Build per-URL match counts as we update.
-    const urlMatchTally = new Map<string, number>();
+    for (const t of allAccountingTeachers) {
+      const key = nameKey(t.firstName, t.lastName);
+      const profileUrl = `https://www.ratemyprofessors.com/professor/${t.legacyId}`;
+      const update: Record<string, unknown> = {
+        rmp_checked_at: nowIso,
+        rmp_profile_url: profileUrl,
+      };
+      if (t.avgRating != null) update.rmp_rating = t.avgRating;
+      if (t.numRatings != null) update.rmp_num_ratings = t.numRatings;
+      if (t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0)
+        update.rmp_would_take_again = t.wouldTakeAgainPercent;
+      if (t.avgDifficulty != null) update.rmp_difficulty = t.avgDifficulty;
 
-    for (const p of allProfs) {
-      const id = byName.get(nameKey(p.firstName, p.lastName));
-      if (!id) continue;
-      const update: Record<string, unknown> = { rmp_checked_at: nowIso };
-      if (p.overallRating != null) update.rmp_rating = p.overallRating;
-      if (p.numRatings != null) update.rmp_num_ratings = p.numRatings;
-      if (p.wouldTakeAgainPercent != null) update.rmp_would_take_again = p.wouldTakeAgainPercent;
-      if (p.levelOfDifficulty != null) update.rmp_difficulty = p.levelOfDifficulty;
-      if (p.profileUrl) update.rmp_profile_url = p.profileUrl;
-      const { error: upErr } = await supabaseAdmin
-        .from("outreach_leads")
-        .update(update as never)
-        .eq("id", id);
-      if (!upErr) {
-        totalUpdated += 1;
-        // best-effort attribution to the first URL that contained the page;
-        // we don't track per-URL provenance, so just bump the first one.
-        const first = data.urls[0];
-        urlMatchTally.set(first, (urlMatchTally.get(first) ?? 0) + 1);
+      const sId = sugByName.get(key);
+      if (sId) {
+        const { error } = await supabaseAdmin
+          .from("campus_lead_suggestions")
+          .update(update as never)
+          .eq("id", sId);
+        if (!error) suggestionsUpdated += 1;
+      }
+      const lId = leadByName.get(key);
+      if (lId) {
+        const { error } = await supabaseAdmin
+          .from("outreach_leads")
+          .update(update as never)
+          .eq("id", lId);
+        if (!error) leadsUpdated += 1;
       }
     }
 
-    // Stamp every same-campus lead as "checked" (even non-matches) so we know
-    // they were considered.
-    const allLeadIds = (leads ?? []).map((l) => (l as { id: string }).id);
-    if (allLeadIds.length > 0) {
-      await supabaseAdmin
-        .from("outreach_leads")
-        .update({ rmp_checked_at: nowIso } as never)
-        .in("id", allLeadIds)
-        .is("rmp_checked_at", null);
-    }
-
-    // Apply rough per-URL match counts to the response.
-    for (const row of perPage) {
-      row.matched = urlMatchTally.get(row.url) ?? 0;
-    }
+    const totalMatched = suggestionsUpdated + leadsUpdated;
+    // Attribute matches to the first URL for the summary toast.
+    if (perPage.length > 0) perPage[0].matched = totalMatched;
 
     return {
       perPage,
-      totalFound: allProfs.length,
-      totalMatched: totalUpdated,
-      totalUpdated,
+      totalFound: allAccountingTeachers.length,
+      totalMatched,
+      totalUpdated: totalMatched,
     };
   });
 
@@ -220,7 +285,6 @@ export const resetCampusLeads = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Count first so we can show a confirm summary if needed.
     const { count: leadsBefore } = await supabaseAdmin
       .from("outreach_leads")
       .select("id", { count: "exact", head: true })
