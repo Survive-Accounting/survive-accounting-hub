@@ -89,7 +89,13 @@ type Extracted = {
   profile_url: string | null;
   is_phd: boolean;
   is_cpa: boolean;
+  /** How the email was sourced. Absent/'verified' = scraped directly from
+   *  the page. 'directory' = found near the name on the directory page.
+   *  'inferred' = synthesized from the dept's dominant email pattern; the
+   *  UI shows these as "guessed" so a human can spot-check before send. */
+  email_confidence?: "verified" | "directory" | "inferred";
 };
+
 
 // Path segments (between slashes) that strongly indicate a faculty roster page.
 const STRONG_PATH_TOKENS = ["faculty", "faculty-and-staff", "faculty-staff", "directory", "people", "our-people", "our-team", "team", "staff", "instructors"];
@@ -223,6 +229,130 @@ function extractMailtoFromHtml(rawHtml: string): string | null {
   }
   return null;
 }
+
+const GENERIC_LOCALS_RE = /^(info|contact|admissions|support|webmaster|noreply|no-reply|help|hello|office|admin)$/i;
+
+/**
+ * Look for an email that appears near a person's name inside a larger blob
+ * of markdown (typically the directory page). Many .edu directories list
+ * "Jane Doe ... jane.doe@uni.edu" in a single card even though the
+ * individual profile page hides the email.
+ */
+function findEmailNearName(
+  pageText: string,
+  firstName: string,
+  lastName: string,
+): string | null {
+  if (!pageText || !lastName) return null;
+  const ln = lastName.toLowerCase().replace(/[^a-z]/g, "");
+  const fn = (firstName ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  if (ln.length < 3) return null;
+  const haystack = pageText.toLowerCase();
+  const nameRe = new RegExp(`\\b${fn ? `${fn}[\\s,.'\\-]+` : ""}${ln}\\b`, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = nameRe.exec(haystack)) !== null) {
+    const start = Math.max(0, m.index - 300);
+    const end = Math.min(pageText.length, m.index + m[0].length + 500);
+    const window = pageText.slice(start, end);
+    const emails = window.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [];
+    for (const raw of emails) {
+      const e = raw.toLowerCase();
+      const local = e.split("@")[0];
+      if (GENERIC_LOCALS_RE.test(local)) continue;
+      // Prefer an email whose local part actually contains the last name —
+      // avoids picking a generic departmental email that happened to sit near
+      // the card.
+      if (local.replace(/[^a-z]/g, "").includes(ln)) return e;
+    }
+    // Fall back to first non-generic email in the window.
+    for (const raw of emails) {
+      const e = raw.toLowerCase();
+      const local = e.split("@")[0];
+      if (!GENERIC_LOCALS_RE.test(local)) return e;
+    }
+  }
+  return null;
+}
+
+/**
+ * Detect the dominant email pattern for a department from the emails we DID
+ * capture. Returns a function that, given (firstName, lastName), produces an
+ * inferred email — but only when ≥3 captured emails agree on one pattern
+ * with the same domain. Otherwise returns null (don't guess).
+ *
+ * Supported patterns (the ones .edu IT departments actually use):
+ *   first.last, first_last, firstlast, flast, lastf, first, last,
+ *   firstinitial.last
+ */
+type EmailPattern =
+  | "first.last" | "first_last" | "firstlast" | "flast" | "lastf"
+  | "first" | "last" | "f.last" | "first.l";
+
+function clean(s: string): string {
+  return s.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+function patternFor(local: string, fn: string, ln: string): EmailPattern | null {
+  const f = clean(fn);
+  const l = clean(ln);
+  if (!f || !l) return null;
+  const lo = local.toLowerCase();
+  if (lo === `${f}.${l}`) return "first.last";
+  if (lo === `${f}_${l}`) return "first_last";
+  if (lo === `${f}${l}`) return "firstlast";
+  if (lo === `${f[0]}${l}`) return "flast";
+  if (lo === `${l}${f[0]}`) return "lastf";
+  if (lo === `${f[0]}.${l}`) return "f.last";
+  if (lo === `${f}.${l[0]}`) return "first.l";
+  if (lo === f) return "first";
+  if (lo === l) return "last";
+  return null;
+}
+
+function applyPattern(pattern: EmailPattern, fn: string, ln: string): string | null {
+  const f = clean(fn);
+  const l = clean(ln);
+  if (!f || !l) return null;
+  switch (pattern) {
+    case "first.last": return `${f}.${l}`;
+    case "first_last": return `${f}_${l}`;
+    case "firstlast":  return `${f}${l}`;
+    case "flast":      return `${f[0]}${l}`;
+    case "lastf":      return `${l}${f[0]}`;
+    case "f.last":     return `${f[0]}.${l}`;
+    case "first.l":    return `${f}.${l[0]}`;
+    case "first":      return f;
+    case "last":       return l;
+  }
+}
+
+function inferDepartmentPattern(
+  people: Extracted[],
+): { domain: string; pattern: EmailPattern; sampleSize: number } | null {
+  // Bucket: domain -> pattern -> count
+  const tally = new Map<string, Map<EmailPattern, number>>();
+  for (const p of people) {
+    if (!p.email || !p.first_name || !p.last_name) continue;
+    const [local, domain] = p.email.split("@");
+    if (!local || !domain) continue;
+    const pat = patternFor(local, p.first_name, p.last_name);
+    if (!pat) continue;
+    const inner = tally.get(domain) ?? new Map<EmailPattern, number>();
+    inner.set(pat, (inner.get(pat) ?? 0) + 1);
+    tally.set(domain, inner);
+  }
+  let best: { domain: string; pattern: EmailPattern; sampleSize: number } | null = null;
+  for (const [domain, patterns] of tally) {
+    for (const [pattern, count] of patterns) {
+      if (count < 3) continue; // safety threshold — never infer from sparse data
+      if (!best || count > best.sampleSize) {
+        best = { domain, pattern, sampleSize: count };
+      }
+    }
+  }
+  return best;
+}
+
 
 
 function mergePeople(...groups: Extracted[][]): Extracted[] {
@@ -359,7 +489,9 @@ async function enrichProfileEmails(
       };
     }
   } else {
-    // Fallback: per-URL parallel scrape with bounded concurrency.
+    // Fallback: per-URL parallel scrape with bounded concurrency. Uses the
+    // FULL scrape (markdown + rawHtml) so the mailto: fallback can fire
+    // when batch scrape silently returns nothing for rawHtml.
     let cursor = 0;
     const workers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, toEnrich.length) }, async () => {
       while (true) {
@@ -367,16 +499,16 @@ async function enrichProfileEmails(
         if (i >= toEnrich.length) return;
         const person = toEnrich[i];
         try {
-          const profileText = await firecrawlScrape(fcKey, person.profile_url!, PROFILE_SCRAPE_TIMEOUT_MS);
-          const { email, how } = pickEmail(profileText, "");
-          const profileCreds = detectCredentials(profileText.slice(0, 4000));
+          const { markdown, rawHtml } = await firecrawlScrapeFull(fcKey, person.profile_url!);
+          const { email, how } = pickEmail(markdown, rawHtml);
+          const profileCreds = detectCredentials(markdown.slice(0, 4000));
           if (email) enriched++;
           outcomes.push({
             url: person.profile_url!,
             name: `${person.first_name} ${person.last_name}`.trim(),
-            result: email ? how : (profileText ? "no_email" : "empty"),
-            mdLen: profileText.length,
-            htmlLen: 0,
+            result: email ? how : (markdown || rawHtml ? "no_email" : "empty"),
+            mdLen: markdown.length,
+            htmlLen: rawHtml.length,
           });
           enrichedRows[i] = {
             ...person,
@@ -469,13 +601,29 @@ async function firecrawlSearch(apiKey: string, query: string): Promise<string[]>
   return web.map((r) => r.url).filter(Boolean);
 }
 
-async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS): Promise<string> {
+// (firecrawlScrape removed: profile enrichment fallback now uses
+//  firecrawlScrapeFull below so rawHtml — and the mailto: fallback — work.)
+
+
+/** Per-URL scrape that returns both markdown AND rawHtml. Used in the profile
+ *  enrichment fallback so mailto: hrefs (the main JS-mounted email vector
+ *  across .edu sites) can be recovered when markdown stripping hides them. */
+async function firecrawlScrapeFull(
+  apiKey: string,
+  url: string,
+  timeoutMs: number = PROFILE_SCRAPE_TIMEOUT_MS,
+): Promise<{ markdown: string; rawHtml: string }> {
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/scrape",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+      body: JSON.stringify({
+        url,
+        formats: ["markdown", "rawHtml"],
+        onlyMainContent: false,
+        waitFor: 2500,
+      }),
     },
     timeoutMs,
     "Firecrawl scrape",
@@ -484,8 +632,16 @@ async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = 
     const body = await res.text().catch(() => "");
     throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
   }
-  const json = await res.json() as { data?: { markdown?: string }; markdown?: string };
-  return json.data?.markdown ?? json.markdown ?? "";
+  const json = await res.json() as {
+    data?: { markdown?: string; rawHtml?: string; html?: string };
+    markdown?: string;
+    rawHtml?: string;
+    html?: string;
+  };
+  return {
+    markdown: json.data?.markdown ?? json.markdown ?? "",
+    rawHtml: json.data?.rawHtml ?? json.data?.html ?? json.rawHtml ?? json.html ?? "",
+  };
 }
 
 /**
@@ -934,8 +1090,39 @@ async function processUrls(
         // Deterministic fallback: pair people without a profile_url to a
         // slug-matched link from the directory page (e.g. /faculty/friedman).
         const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
-        const { people: people, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
+        const { people: enrichedPeople, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
 
+        // Recovery pass A — directory markdown sweep. Many .edu directories
+        // list "Name ... email" in a card on the listing page even though the
+        // individual profile page hides it. Free (uses the markdown we
+        // already fetched). Tag as 'directory' so the UI shows it as a
+        // medium-confidence find.
+        let directoryFilled = 0;
+        const afterDirectorySweep = enrichedPeople.map((p) => {
+          if (p.email) return { ...p, email_confidence: p.email_confidence ?? "verified" as const };
+          const hit = findEmailNearName(md, p.first_name, p.last_name);
+          if (!hit) return p;
+          directoryFilled++;
+          return { ...p, email: hit, email_confidence: "directory" as const };
+        });
+
+        // Recovery pass B — pattern inference. If ≥3 captured emails in this
+        // department agree on one local-part pattern + domain, synthesize
+        // emails for the leftover misses. Flagged as 'inferred' so a human
+        // can spot-check before any send. Skipped automatically when the
+        // sample is too sparse to be confident.
+        const pat = inferDepartmentPattern(afterDirectorySweep);
+        let inferredFilled = 0;
+        const afterInference = afterDirectorySweep.map((p) => {
+          if (p.email) return p;
+          if (!pat) return p;
+          const local = applyPattern(pat.pattern, p.first_name, p.last_name);
+          if (!local) return p;
+          inferredFilled++;
+          return { ...p, email: `${local}@${pat.domain}`, email_confidence: "inferred" as const };
+        });
+
+        const people = afterInference;
         const withEmail = people.filter((p) => !!p.email).length;
         const withProfileUrl = people.filter((p) => !!p.profile_url).length;
         let pageDropped = 0;
@@ -958,7 +1145,18 @@ async function processUrls(
             is_phd: p.is_phd,
             is_cpa: p.is_cpa,
             notes: hasContact ? `Scraped from ${url}` : `Scraped (name only) from ${url}`,
-            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa, name_only: !hasContact },
+            raw_payload: {
+              source_page: url,
+              title: p.title,
+              profile_url: p.profile_url,
+              is_phd: p.is_phd,
+              is_cpa: p.is_cpa,
+              name_only: !hasContact,
+              email_confidence: p.email_confidence ?? (p.email ? "verified" : null),
+              ...(p.email_confidence === "inferred" && pat
+                ? { inferred_pattern: pat.pattern, inferred_domain: pat.domain, inferred_sample_size: pat.sampleSize }
+                : {}),
+            },
           });
         }
         totalDroppedNoContact += pageDropped;
@@ -969,12 +1167,13 @@ async function processUrls(
           withEmail,
           withProfileUrl,
           slugMatched,
-          enriched,
+          enriched: enriched + directoryFilled + inferredFilled,
           droppedNoContact: pageDropped,
           links: links.length,
           error: null,
           enrichOutcomes,
         });
+
 
       } catch (e) {
         perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: 0, error: e instanceof Error ? e.message : String(e) });

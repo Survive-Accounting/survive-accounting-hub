@@ -24,18 +24,49 @@ export type TriageRow = {
   rmp_profile_url: string | null;
   /** outreach_leads.id if this person has already been imported as a lead for this campus. */
   imported_lead_id: string | null;
+  /** How the email was sourced. 'verified' = scraped directly; 'directory' =
+   *  found near the name on the dept directory; 'inferred' = synthesized
+   *  from the dept's dominant email pattern (needs spot-check). */
+  email_confidence: "verified" | "directory" | "inferred" | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
   const { data, error } = await supabase
     .from("campus_lead_suggestions")
-    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags,rmp_rating,rmp_num_ratings,rmp_difficulty,rmp_would_take_again,rmp_profile_url")
+    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags,rmp_rating,rmp_num_ratings,rmp_difficulty,rmp_would_take_again,rmp_profile_url,raw_payload")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .is("archived_at", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  const rows = (data ?? []) as Omit<TriageRow, "imported_lead_id">[];
+  const rawRows = (data ?? []) as Array<Omit<TriageRow, "imported_lead_id" | "email_confidence"> & { raw_payload: unknown }>;
+  const rows: Omit<TriageRow, "imported_lead_id">[] = rawRows.map((r) => {
+    const payload = (r.raw_payload ?? null) as { email_confidence?: string | null } | null;
+    const conf = payload?.email_confidence;
+    const email_confidence: TriageRow["email_confidence"] =
+      conf === "inferred" || conf === "directory" || conf === "verified" ? conf : null;
+    return {
+      id: r.id,
+      campus_id: r.campus_id,
+      first_name: r.first_name,
+      last_name: r.last_name,
+      title: r.title,
+      email: r.email,
+      source_url: r.source_url,
+      is_phd: r.is_phd,
+      is_cpa: r.is_cpa,
+      status: r.status,
+      notes: r.notes,
+      created_at: r.created_at,
+      title_tags: r.title_tags,
+      rmp_rating: r.rmp_rating,
+      rmp_num_ratings: r.rmp_num_ratings,
+      rmp_difficulty: r.rmp_difficulty,
+      rmp_would_take_again: r.rmp_would_take_again,
+      rmp_profile_url: r.rmp_profile_url,
+      email_confidence,
+    };
+  });
 
   // Mark rows that are already imported as outreach_leads (by email match
   // within this campus). Lets the triage UI pre-check those boxes and offer
