@@ -1,6 +1,8 @@
 // Ported from the original app (components/outreach/ApproveCampusModal.tsx).
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Users, Wand2, Wrench, XCircle, Zap,
 } from "lucide-react";
@@ -358,6 +360,8 @@ export default function ApproveCampusModal({
   const [leadsRefreshKey, setLeadsRefreshKey] = useState(0);
   const [triageStats, setTriageStats] = useState<TriageStats>({ leads: 0, kept: 0, pending: 0, tagged: 0 });
   const [importingLeads, setImportingLeads] = useState(false);
+  const qc = useQueryClient();
+
 
   const markTouched = (fieldId: string) =>
     setAiTouched((prev) => (prev.has(fieldId) ? prev : new Set(prev).add(fieldId)));
@@ -1095,6 +1099,11 @@ export default function ApproveCampusModal({
       if (result.skipped) parts.push(`skipped ${result.skipped} duplicate`);
       toast.success(parts.join(" · "));
       setLeadsRefreshKey((k) => k + 1);
+      qc.invalidateQueries({ queryKey: ["outreach-leads"] });
+      qc.invalidateQueries({ queryKey: ["campus-lead-stats"] });
+      qc.invalidateQueries({ queryKey: ["cold-imported-lead-counts-rmp"] });
+      qc.invalidateQueries({ queryKey: ["lead-suggestions"] });
+
     } catch (e) {
       toast.error(`Import failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
