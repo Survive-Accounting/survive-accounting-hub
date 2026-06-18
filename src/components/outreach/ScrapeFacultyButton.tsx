@@ -48,7 +48,8 @@ export function ScrapeFacultyButton({
   const scrape = useServerFn(scrapeCampusFaculty);
   const discover = useServerFn(autoDiscoverCampusFaculty);
   const scrapePdf = useServerFn(scrapeCampusFacultyPdf);
-  const scraping = useIsScrapingCampus(campusId);
+  const { scraping, elapsedMs } = useScrapingCampusInfo(campusId);
+  const stuck = scraping && elapsedMs > 60_000;
 
   const openModal = async () => {
     setOpen(true);
