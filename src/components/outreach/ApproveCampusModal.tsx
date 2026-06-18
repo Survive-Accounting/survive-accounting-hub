@@ -1,6 +1,8 @@
 // Ported from the original app (components/outreach/ApproveCampusModal.tsx).
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Users, Wand2, Wrench, XCircle, Zap,
 } from "lucide-react";
