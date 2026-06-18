@@ -173,9 +173,10 @@ function LeadFinderPage() {
   };
 
   return (
-    <AdminGate>
+    <>
       <Toaster richColors position="top-center" />
-      <div className="min-h-screen bg-background pb-28">
+      <div className="relative flex flex-1 flex-col bg-background pb-20">
+
         {/* Navy top bar */}
         <header
           className="text-white"
