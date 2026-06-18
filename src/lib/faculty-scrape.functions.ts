@@ -601,24 +601,9 @@ async function firecrawlSearch(apiKey: string, query: string): Promise<string[]>
   return web.map((r) => r.url).filter(Boolean);
 }
 
-async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS): Promise<string> {
-  const res = await fetchWithTimeout(
-    "https://api.firecrawl.dev/v2/scrape",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
-    },
-    timeoutMs,
-    "Firecrawl scrape",
-  );
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
-  }
-  const json = await res.json() as { data?: { markdown?: string }; markdown?: string };
-  return json.data?.markdown ?? json.markdown ?? "";
-}
+// (firecrawlScrape removed: profile enrichment fallback now uses
+//  firecrawlScrapeFull below so rawHtml — and the mailto: fallback — work.)
+
 
 /** Per-URL scrape that returns both markdown AND rawHtml. Used in the profile
  *  enrichment fallback so mailto: hrefs (the main JS-mounted email vector
