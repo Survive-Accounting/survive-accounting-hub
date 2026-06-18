@@ -74,6 +74,34 @@ export function FacultyTriagePanel({
 
   useEffect(() => { void load(); }, [load, refreshToken]);
 
+  // Auto-tag intro-likely rows with "Intro Target" as soon as they appear
+  // (once per row, idempotent). Lets the user skip Step #3 — every checked
+  // row will be imported when they click Import Leads.
+  const autoTaggedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (loading || rows.length === 0) return;
+    const toTag: string[] = [];
+    for (const r of rows) {
+      if (autoTaggedRef.current.has(r.id)) continue;
+      autoTaggedRef.current.add(r.id);
+      const hasTag = (r.title_tags ?? [])
+        .map((t) => t.toLowerCase())
+        .includes(INTRO_TARGET_TAG.toLowerCase());
+      if (!hasTag && isIntroLikely(r.title)) toTag.push(r.id);
+    }
+    if (toTag.length === 0) return;
+    // Optimistic local update, then persist quietly.
+    setRows((prev) => prev.map((r) =>
+      toTag.includes(r.id)
+        ? { ...r, title_tags: Array.from(new Set([...(r.title_tags ?? []), INTRO_TARGET_TAG])) }
+        : r,
+    ));
+    void setTriageTagsBulk(toTag, "add", [INTRO_TARGET_TAG], tagsCurrentById)
+      .catch(() => { /* surface only on retry */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, loading]);
+
+
   // Clear selection on Esc
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
