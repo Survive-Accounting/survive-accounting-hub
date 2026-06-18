@@ -132,11 +132,6 @@ export function FacultyTriagePanel({
     catch (e) { toast.error(`Save failed: ${e instanceof Error ? e.message : "unknown"}`); void load(); }
   };
 
-  const onStatus = async (id: string, status: "kept" | "skipped" | "pending_triage") => {
-    update(id, { status });
-    try { await setTriageStatus(id, status); }
-    catch (e) { toast.error(`Save failed: ${e instanceof Error ? e.message : "unknown"}`); void load(); }
-  };
 
   const onRowClick = (id: string, e: React.MouseEvent) => {
     if (suppressClickRef.current) { suppressClickRef.current = false; return; }
