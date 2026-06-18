@@ -26,8 +26,9 @@ export type TriageRow = {
   imported_lead_id: string | null;
   /** How the email was sourced. 'verified' = scraped directly; 'directory' =
    *  found near the name on the dept directory; 'inferred' = synthesized
-   *  from the dept's dominant email pattern (needs spot-check). */
-  email_confidence: "verified" | "directory" | "inferred" | null;
+   *  from the dept's dominant email pattern (needs spot-check); 'news' =
+   *  pulled from a blog/spotlight page (likely not faculty). */
+  email_confidence: "verified" | "directory" | "inferred" | "news" | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
