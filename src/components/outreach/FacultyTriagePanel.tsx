@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, HelpCircle } from "lucide-react";
+import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -30,6 +30,26 @@ type SortKey = "title" | "name";
 
 export type TriageStats = { leads: number; kept: number; pending: number; tagged: number };
 
+/** Role keywords we recognize inside a faculty member's title. The matched
+ *  form (capitalized) is suggested as a tag the user can apply with one click. */
+const ROLE_TAG_KEYWORDS: Array<{ re: RegExp; label: string }> = [
+  { re: /\bteaching\s+assistant\b/i, label: "Teaching Assistant" },
+  { re: /\bgraduate\s+assistant\b/i, label: "Graduate Assistant" },
+  { re: /\bassistant\s+professor\b/i, label: "Assistant Professor" },
+  { re: /\bassociate\s+professor\b/i, label: "Associate Professor" },
+  { re: /\b(full\s+)?professor\b/i, label: "Professor" },
+  { re: /\bprofessor\s+emeritus\b|\bemeritus\b/i, label: "Emeritus" },
+  { re: /\binstructor\b/i, label: "Instructor" },
+  { re: /\blecturer\b/i, label: "Lecturer" },
+  { re: /\badjunct\b/i, label: "Adjunct" },
+  { re: /\bgrader\b/i, label: "Grader" },
+  { re: /\bchair(?:person)?\b/i, label: "Chair" },
+  { re: /\bdean\b/i, label: "Dean" },
+  { re: /\bdirector\b/i, label: "Director" },
+  { re: /\bvisiting\b/i, label: "Visiting" },
+];
+
+
 export function FacultyTriagePanel({
   campusId,
   campusName,
@@ -55,6 +75,10 @@ export function FacultyTriagePanel({
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [customTag, setCustomTag] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  // Click-and-drag selection. Refs so we don't churn renders during mousemove.
+  const dragAnchorRef = useRef<string | null>(null);
+  const dragMovedRef = useRef(false);
+  const suppressClickRef = useRef(false);
   const qc = useQueryClient();
 
   const load = useCallback(async () => {
@@ -135,6 +159,7 @@ export function FacultyTriagePanel({
   };
 
   const onRowClick = (id: string, e: React.MouseEvent) => {
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     setSelected((prev) => {
       const next = new Set(prev);
       if (e.shiftKey && lastClickedId) {
@@ -158,6 +183,38 @@ export function FacultyTriagePanel({
     setLastClickedId(id);
   };
 
+  // Drag-select: hold mouse down on a row, drag across rows to highlight all
+  // of them at once. A real drag (≥2 rows touched) suppresses the trailing
+  // click so we don't accidentally toggle the anchor row off.
+  const onRowMouseDown = (id: string) => {
+    dragAnchorRef.current = id;
+    dragMovedRef.current = false;
+  };
+  const onRowMouseEnter = (id: string) => {
+    if (!dragAnchorRef.current) return;
+    dragMovedRef.current = true;
+    setSelected((prev) => {
+      const order = sortedRows.map((r) => r.id);
+      const a = order.indexOf(dragAnchorRef.current!);
+      const b = order.indexOf(id);
+      if (a < 0 || b < 0) return prev;
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      const next = new Set(prev);
+      for (let i = lo; i <= hi; i++) next.add(order[i]);
+      return next;
+    });
+  };
+  useEffect(() => {
+    function onUp() {
+      if (dragMovedRef.current) suppressClickRef.current = true;
+      dragAnchorRef.current = null;
+      dragMovedRef.current = false;
+    }
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+  }, []);
+
+
   const selectedRows = useMemo(
     () => sortedRows.filter((r) => selected.has(r.id)),
     [sortedRows, selected],
@@ -169,14 +226,6 @@ export function FacultyTriagePanel({
     return m;
   }, [rows]);
 
-  const distinctTitleStringsInSelection = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of selectedRows) {
-      const t = (r.title ?? "").trim();
-      if (t) set.add(t);
-    }
-    return Array.from(set).sort();
-  }, [selectedRows]);
 
   /** Every tag currently applied to any row in this campus, A–Z. */
   const allKnownTags = useMemo(() => {
@@ -184,6 +233,31 @@ export function FacultyTriagePanel({
     for (const r of rows) for (const t of r.title_tags ?? []) set.add(t);
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [rows]);
+
+  /** Tag suggestions for the current selection. Combines:
+   *   - role keywords detected in any selected person's title
+   *     (Instructor, Lecturer, Adjunct, Grader, Teaching Assistant, etc.)
+   *   - tags already in use elsewhere in this campus that match a selected title
+   *  Excludes tags every selected row already has. */
+  const suggestedTags = useMemo(() => {
+    if (selectedRows.length === 0) return [] as string[];
+    const out = new Set<string>();
+    for (const r of selectedRows) {
+      const title = (r.title ?? "").trim();
+      if (!title) continue;
+      for (const { re, label } of ROLE_TAG_KEYWORDS) {
+        if (re.test(title)) out.add(label);
+      }
+      for (const t of allKnownTags) {
+        if (t.toLowerCase() === title.toLowerCase()) out.add(t);
+      }
+    }
+    // Drop tags every selected row already has.
+    const everyHas = (tag: string) =>
+      selectedRows.every((r) => (r.title_tags ?? []).map((x) => x.toLowerCase()).includes(tag.toLowerCase()));
+    return Array.from(out).filter((t) => !everyHas(t)).sort();
+  }, [selectedRows, allKnownTags]);
+
 
   /** Remove a tag from every row in this campus (used by the dropdown ×). */
   const removeTagFromCampus = async (tag: string) => {
@@ -327,23 +401,24 @@ export function FacultyTriagePanel({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Quick-add per-selection title chips (only when selection has distinct titles). */}
-        {selected.size > 0 && distinctTitleStringsInSelection.length > 0 && distinctTitleStringsInSelection.length <= 3 && (
+        {/* Suggested tags — role keywords detected in selected titles. */}
+        {selected.size > 0 && suggestedTags.length > 0 && (
           <>
-            {distinctTitleStringsInSelection.map((t) => (
-              <Button
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Suggested:</span>
+            {suggestedTags.slice(0, 6).map((t) => (
+              <button
                 key={t}
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-[11px]"
+                type="button"
                 onClick={() => applyTagsToSelection([t], "add")}
-                title={`Tag selection as "${t}"`}
+                title={`Tag ${selected.size} selected as "${t}"`}
+                className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 text-[11px] font-medium text-primary hover:bg-primary/10"
               >
                 + {t}
-              </Button>
+              </button>
             ))}
           </>
         )}
+
 
         <div className="flex items-center gap-1">
           <Input
@@ -374,14 +449,6 @@ export function FacultyTriagePanel({
           </Button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setHelpOpen(true)}
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground"
-          title="Open instructions"
-        >
-          <HelpCircle className="h-3 w-3" /> How this works?
-        </button>
 
         {selected.size > 0 && (
           <button
@@ -440,7 +507,9 @@ export function FacultyTriagePanel({
                   <TableCell
                     className="cursor-pointer select-none font-medium"
                     onClick={(e) => onRowClick(r.id, e)}
-                    title="Click to select. Shift-click to fill range. Cmd/Ctrl-click to toggle."
+                    onMouseDown={(e) => { if (e.button === 0) onRowMouseDown(r.id); }}
+                    onMouseEnter={() => onRowMouseEnter(r.id)}
+                    title="Click to select. Click + drag across rows for multi-select. Shift-click for range."
                   >
                     <span className="inline-flex items-center gap-1.5">
                       {(r.first_name ?? "") + " " + (r.last_name ?? "")}
@@ -461,10 +530,13 @@ export function FacultyTriagePanel({
                   <TableCell
                     className="cursor-pointer select-none text-xs text-muted-foreground"
                     onClick={(e) => onRowClick(r.id, e)}
-                    title="Click to select. Shift-click to fill range."
+                    onMouseDown={(e) => { if (e.button === 0) onRowMouseDown(r.id); }}
+                    onMouseEnter={() => onRowMouseEnter(r.id)}
+                    title="Click to select. Click + drag across rows for multi-select."
                   >
                     {r.title ?? "—"}
                   </TableCell>
+
                   <TableCell className="text-xs">
                     {r.email ? (
                       <a href={`mailto:${r.email}`} className="text-primary hover:underline">{r.email}</a>

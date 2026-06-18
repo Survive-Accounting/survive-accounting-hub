@@ -216,6 +216,30 @@ function SpeedNextButton({
   );
 }
 
+/** Retro eBay-style fixed-width odometer. Pads to 6 digits, classic black box. */
+function LeadOdometer({ value }: { value: number }) {
+  const digits = String(Math.max(0, Math.min(999999, value))).padStart(6, "0").split("");
+  return (
+    <div className="mt-0.5 inline-flex items-center gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Leads Found
+      </span>
+      <span className="inline-flex overflow-hidden rounded-sm border border-zinc-700 shadow-inner">
+        {digits.map((d, i) => (
+          <span
+            key={i}
+            className="inline-flex h-4 w-3 items-center justify-center bg-zinc-900 font-mono text-[10px] font-bold leading-none text-amber-300"
+            style={{ borderRight: i < digits.length - 1 ? "1px solid #3f3f46" : undefined }}
+          >
+            {d}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+
 /** Compact BS / MAcc / PhD chip row. Detected levels are solid; missing
  * levels render faded. Tooltip on each chip shows the matched snippet. */
 function ProgramLevelChips({ campus }: { campus: Campus | null }) {
@@ -1091,43 +1115,26 @@ export default function ApproveCampusModal({
       <Dialog open={!!campus} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="max-w-4xl sm:max-w-4xl max-h-[94vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between gap-3 text-base">
-              <span>Research &amp; Approve Campus — {campus.school_name}</span>
-              <div className="flex items-center gap-3">
-                {isLeeAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => toggleSpeedMode(!speedMode)}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-                      speedMode
-                        ? "border-amber-500 bg-amber-500/15 text-amber-700"
-                        : "border-border bg-background text-muted-foreground hover:text-foreground"
-                    }`}
-                    title={speedMode ? "Turn off Speed Mode to show advanced research panels" : "Speed Mode: scrape + triage only (hides advanced panels)"}
-                  >
-                    <Zap className="h-3 w-3" />
-                    {speedMode ? "Speed Mode · ON" : "Show advanced"}
-                  </button>
-                )}
-                <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-                  {autoSaving ? (
-                    <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
-                  ) : lastSavedAt ? (
-                    <><Save className="h-3 w-3 text-emerald-600" /> Auto-saved</>
-                  ) : null}
-                </span>
-              </div>
+            <DialogTitle className="text-base">
+              <span>{campus.school_name}</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {speedMode
-                ? "Speed Mode: paste faculty URL, start scrape, approve, next."
-                : "Review course codes, textbook matches, and suggested leads before approving outreach."}
-            </DialogDescription>
           </DialogHeader>
 
+
           {speedMode ? (
-            <div className="space-y-4 pt-2">
-              {/* Program identity + live triage stats. */}
+            <div className="space-y-4 pt-1">
+              {/* Brand banner + retro lead counter */}
+              <div className="flex flex-col items-center gap-1 pt-1">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Survive Accounting
+                </div>
+                <div className="font-serif text-base font-semibold tracking-tight text-foreground">
+                  USA College Campus Lead Finder<sup className="ml-0.5 text-[8px] align-super">™</sup>
+                </div>
+                <LeadOdometer value={triageStats.leads} />
+              </div>
+
+              {/* Program identity (shorthand archived) + degree-level chips. */}
               <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="w-20 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Program</label>
@@ -1148,40 +1155,9 @@ export default function ApproveCampusModal({
                     className="h-8 flex-1 min-w-[240px] rounded-md border border-input bg-background px-2 text-xs"
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="w-20 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Shorthand</label>
-                  <input
-                    type="text"
-                    value={programShorthand}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setProgramShorthand(v);
-                      if (shorthandTimer.current) window.clearTimeout(shorthandTimer.current);
-                      shorthandTimer.current = window.setTimeout(() => {
-                        writePatch({ program_shorthand: v.trim() || null } as Partial<Campus>);
-                      }, 500);
-                    }}
-                    placeholder="e.g. Accounting"
-                    title="Short label used in emails — merge tag {program shorthand}"
-                    className="h-8 flex-1 min-w-[200px] rounded-md border border-input bg-background px-2 text-xs"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={applyShorthandSuggestion}
-                    title="Guess a short label from the program name"
-                    className="h-8 gap-1 text-[11px]"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" /> Suggest
-                  </Button>
-                </div>
-
                 <ProgramLevelChips campus={campus} />
-
-                <div className="pt-1 text-center text-[11px] text-muted-foreground">
-                  {triageStats.leads} lead{triageStats.leads === 1 ? "" : "s"} · {triageStats.kept} kept
-                </div>
               </div>
+
 
               {/* Primary action row — Back · Import Leads · Next. Centered with breathing room. */}
               <div className="flex justify-center py-3">

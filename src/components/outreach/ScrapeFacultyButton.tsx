@@ -364,10 +364,9 @@ export function ScrapeFacultyButton({
                 onClick={onPickPdf}
                 disabled={scraping}
                 title="Rarely needed. Upload one or more PDFs (e.g. print-to-PDF of the faculty page) — OCR scans for leads."
-                className="mt-0.5 inline-flex items-center gap-1 text-[11px] italic text-muted-foreground hover:text-foreground disabled:opacity-50"
+                className="mt-4 inline-flex items-center gap-1 text-[11px] italic text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground disabled:opacity-50"
               >
-                <FileUp className="h-3 w-3" />
-                Scrape failed? Import Website PDFs
+                Scrape failed? <span className="not-italic">Import Website PDFs</span>
               </button>
               {hiddenFileInput}
             </>
