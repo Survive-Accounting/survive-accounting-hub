@@ -31,6 +31,8 @@ export function ScrapeFacultyButton({
   campusId,
   campusName,
   onScraped,
+  onStep1Click,
+  flameStep,
   hideAutoDiscover = false,
   hideScrapeUrls = false,
   layout = "row",
@@ -38,11 +40,16 @@ export function ScrapeFacultyButton({
   campusId: string;
   campusName: string;
   onScraped?: () => void;
+  /** Fires after the user clicks "Copy Faculty Link" (Step #1). */
+  onStep1Click?: () => void;
+  /** Which step is currently flame-highlighted (1 or 2). Other values = no flame. */
+  flameStep?: 1 | 2 | 3 | null;
   hideAutoDiscover?: boolean;
   hideScrapeUrls?: boolean;
   /** "row" = legacy inline; "stacked" = numbered VA-friendly checklist. */
   layout?: "row" | "stacked";
 }) {
+
   const [expanded, setExpanded] = useState(false);
   const [urlList, setUrlList] = useState<string[]>([""]);
   const [discovering, setDiscovering] = useState(false);
