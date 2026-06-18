@@ -39,13 +39,19 @@ function StatusIcon({ status }: { status: ScrapeJob["status"] }) {
 
 export function ScrapeJobsQueuePanel() {
   const jobs = useScrapeJobs();
-  if (jobs.length === 0) return null;
 
   const running = jobs.filter((j) => j.status === "running").length;
   const finished = jobs.length - running;
+  // Bump metrics refresh whenever a job transitions (new finish time appears).
+  const lastFinish = jobs.reduce((m, j) => Math.max(m, j.endedAt ?? 0), 0);
+  const metricsKey = jobs.length * 1_000_000 + Math.floor(lastFinish / 1000);
 
+  // Always render the wrapper so the metrics panel is visible even with no
+  // active jobs; hide just the queue list when jobs is empty.
   return (
     <div className="border-t border-sidebar-border px-2 py-2 group-data-[collapsible=icon]:hidden">
+      <ScrapeMetricsPanel refreshKey={metricsKey} />
+      {jobs.length > 0 && (<>
       <div className="flex items-center justify-between px-1 pb-1">
         <div className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/60">
           Scrape Queue {running > 0 && <span className="text-amber-600">· {running} running</span>}
