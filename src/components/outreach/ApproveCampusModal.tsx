@@ -166,12 +166,14 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
 }
 
 export default function ApproveCampusModal({
-  campus, onClose, onPatch, onApprove, autoStartResearch, initialStep,
+  campus, onClose, onPatch, onApprove, onNext, autoStartResearch, initialStep,
 }: {
   campus: Campus | null;
   onClose: () => void;
   onPatch: (id: string, patch: Partial<Campus>) => void;
   onApprove: (id: string, patch: Partial<Campus>) => void;
+  /** Advance to the next campus in the queue. When provided, Speed Mode shows a "Next" button. */
+  onNext?: (currentCampusId: string) => void;
   /** When set to a campus id, automatically kick off full AI research once after the modal opens. */
   autoStartResearch?: string | null;
   /** Optional step to land on when the modal opens (default "1"). */
