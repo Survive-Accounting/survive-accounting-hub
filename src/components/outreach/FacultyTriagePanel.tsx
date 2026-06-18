@@ -159,6 +159,7 @@ export function FacultyTriagePanel({
   };
 
   const onRowClick = (id: string, e: React.MouseEvent) => {
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     setSelected((prev) => {
       const next = new Set(prev);
       if (e.shiftKey && lastClickedId) {
@@ -181,6 +182,38 @@ export function FacultyTriagePanel({
     });
     setLastClickedId(id);
   };
+
+  // Drag-select: hold mouse down on a row, drag across rows to highlight all
+  // of them at once. A real drag (≥2 rows touched) suppresses the trailing
+  // click so we don't accidentally toggle the anchor row off.
+  const onRowMouseDown = (id: string) => {
+    dragAnchorRef.current = id;
+    dragMovedRef.current = false;
+  };
+  const onRowMouseEnter = (id: string) => {
+    if (!dragAnchorRef.current) return;
+    dragMovedRef.current = true;
+    setSelected((prev) => {
+      const order = sortedRows.map((r) => r.id);
+      const a = order.indexOf(dragAnchorRef.current!);
+      const b = order.indexOf(id);
+      if (a < 0 || b < 0) return prev;
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      const next = new Set(prev);
+      for (let i = lo; i <= hi; i++) next.add(order[i]);
+      return next;
+    });
+  };
+  useEffect(() => {
+    function onUp() {
+      if (dragMovedRef.current) suppressClickRef.current = true;
+      dragAnchorRef.current = null;
+      dragMovedRef.current = false;
+    }
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+  }, []);
+
 
   const selectedRows = useMemo(
     () => sortedRows.filter((r) => selected.has(r.id)),
