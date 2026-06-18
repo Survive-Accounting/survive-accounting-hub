@@ -328,55 +328,45 @@ function LeadFinderPage() {
         {/* Sticky bottom action bar — stays inside the SidebarInset */}
         <div className="sticky bottom-0 z-20 mt-auto border-t border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
 
-          <div className="mx-auto flex max-w-6xl items-center justify-center gap-3 px-4 py-3">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleBack}
-              disabled={!canGoBack}
-              className="gap-1.5"
-              title={canGoBack ? "Previous campus" : "No previous campus in this session"}
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleImport}
-              disabled={importing || triageStats.tagged === 0}
-              className={`gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 ${flameStep === 3 ? "flame-focus flame-focus-strong" : ""}`}
-              title="Import every tagged faculty member as a lead"
-            >
-              {importing
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
-                : <><CheckCircle2 className="h-4 w-4" /> Import Leads ({triageStats.tagged})</>}
-            </Button>
-
-            <div className="inline-flex overflow-hidden rounded-md border bg-secondary">
-              <button
-                type="button"
+          <div className="mx-auto grid max-w-6xl grid-cols-3 items-center gap-3 px-4 py-3">
+            <div className="flex justify-start">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleBack}
+                disabled={!canGoBack}
+                className="gap-1.5"
+                title={canGoBack ? "Previous campus" : "No previous campus in this session"}
+              >
+                <ArrowLeft className="h-4 w-4" /> Back
+              </Button>
+            </div>
+            <div className="flex justify-center">
+              <Button
+                size="sm"
+                onClick={handleImport}
+                disabled={importing || triageStats.tagged === 0}
+                className={`gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 ${flameStep === 3 ? "flame-focus flame-focus-strong" : ""}`}
+                title="Import every tagged faculty member as a lead"
+              >
+                {importing
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
+                  : <><CheckCircle2 className="h-4 w-4" /> Import Leads ({triageStats.tagged})</>}
+              </Button>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={handleNext}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium hover:bg-secondary/80"
+                className="gap-1.5"
                 title={`Next campus · ${FILTER_LABELS[nextFilter]}`}
               >
-                Next <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-              <Select value={nextFilter} onValueChange={(v) => updateFilter(v as NextFilter)}>
-                <SelectTrigger
-                  className="h-auto rounded-none border-0 border-l border-border/60 bg-transparent px-2 text-[11px] focus:ring-0"
-                  aria-label="Choose which campuses to advance through"
-                >
-                  <span className="text-muted-foreground">{FILTER_LABELS[nextFilter]}</span>
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {(Object.keys(FILTER_LABELS) as NextFilter[]).map((k) => (
-                    <SelectItem key={k} value={k} className="text-xs">
-                      {FILTER_LABELS[k]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                Next <ArrowRight className="h-4 w-4" />
+              </Button>
             </div>
           </div>
+
         </div>
       </div>
     </>
