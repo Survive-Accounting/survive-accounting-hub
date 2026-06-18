@@ -837,7 +837,8 @@ async function processUrls(
         let pageDropped = 0;
         let pageInserted = 0;
         for (const p of people) {
-          if (!p.email && !p.profile_url) { pageDropped++; continue; }
+          const hasContact = !!p.email || !!p.profile_url;
+          if (!hasContact && !options.allowNoContact) { pageDropped++; continue; }
           pageInserted++;
           rowsToInsert.push({
             campus_id: campusId,
@@ -852,8 +853,8 @@ async function processUrls(
             lead_type: "professor",
             is_phd: p.is_phd,
             is_cpa: p.is_cpa,
-            notes: `Scraped from ${url}`,
-            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
+            notes: hasContact ? `Scraped from ${url}` : `Scraped (name only) from ${url}`,
+            raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa, name_only: !hasContact },
           });
         }
         totalDroppedNoContact += pageDropped;
