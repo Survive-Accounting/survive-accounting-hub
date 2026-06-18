@@ -15,7 +15,7 @@ import { FacultyTriagePanel, type TriageStats } from "@/components/outreach/Facu
 import { fetchCampuses } from "@/lib/outreach-api";
 import { importKeptLeads } from "@/lib/faculty-triage";
 import { supabase } from "@/integrations/supabase/client";
-import { enqueueAllPendingCampuses, getFacultyBatchStatus } from "@/lib/faculty-overnight.functions";
+import { enqueueAllPendingCampuses, getFacultyBatchStatus, testAutoScrapeCampus } from "@/lib/faculty-overnight.functions";
 import type { Campus } from "@/lib/outreach-mock";
 
 const LOGO_URL =
