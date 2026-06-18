@@ -524,14 +524,24 @@ async function firecrawlScrapeWithLinks(
 async function firecrawlBatchScrape(
   apiKey: string,
   urls: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, { markdown: string; rawHtml: string }>> {
   if (urls.length === 0) return new Map();
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/batch/scrape",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ urls, formats: ["markdown"], onlyMainContent: true, ignoreInvalidURLs: true }),
+      body: JSON.stringify({
+        urls,
+        // rawHtml: gives us mailto: hrefs even when markdown is stripped /
+        //   the page is fully JS-rendered.
+        // waitFor: many .edu profile pages (Anderson UCLA, etc.) need ~2s
+        //   for the email link to mount.
+        formats: ["markdown", "rawHtml"],
+        onlyMainContent: false,
+        waitFor: 2500,
+        ignoreInvalidURLs: true,
+      }),
     },
     BATCH_SCRAPE_TIMEOUT_MS,
     "Firecrawl batchScrape",
@@ -541,16 +551,20 @@ async function firecrawlBatchScrape(
     throw new Error(slickHttpError("Firecrawl batchScrape", res.status, body));
   }
   const json = await res.json() as {
-    data?: Array<{ markdown?: string; metadata?: { sourceURL?: string; url?: string } }>;
+    data?: Array<{ markdown?: string; rawHtml?: string; html?: string; metadata?: { sourceURL?: string; url?: string } }>;
   };
-  const out = new Map<string, string>();
+  const out = new Map<string, { markdown: string; rawHtml: string }>();
   for (const row of json.data ?? []) {
     const src = row.metadata?.sourceURL ?? row.metadata?.url;
     if (!src) continue;
-    out.set(normalizeUrl(src), row.markdown ?? "");
+    out.set(normalizeUrl(src), {
+      markdown: row.markdown ?? "",
+      rawHtml: row.rawHtml ?? row.html ?? "",
+    });
   }
   return out;
 }
+
 
 
 async function firecrawlMap(apiKey: string, url: string, search: string): Promise<string[]> {
