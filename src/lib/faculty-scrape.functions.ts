@@ -794,6 +794,7 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       .from("campuses")
       .update({ faculty_page_url: ranked.join("\n") })
       .eq("id", data.campusId);
+    await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
 
     return {
       ok: true,
