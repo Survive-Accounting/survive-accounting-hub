@@ -300,23 +300,28 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
 
   const user = `Source URL: ${sourceUrl}\n\nPage content (markdown):\n${truncated}`;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    },
+    AI_TIMEOUT_MS,
+    "AI gateway",
+  );
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`AI gateway ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(slickHttpError("AI gateway", res.status, body));
   }
 
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
