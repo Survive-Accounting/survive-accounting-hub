@@ -1226,7 +1226,9 @@ async function processUrls(
     links: number;
     error: string | null;
     enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
+    pagination?: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number };
   }>;
+
   inserted: number;
   skippedDuplicates: number;
   droppedNoContact: number;
