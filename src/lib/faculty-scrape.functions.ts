@@ -974,7 +974,10 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
     const result = await processUrls(fcKey, aiKey, data.campusId, data.urls, { allowNoContact: data.allowNoContact });
     await supabaseAdmin
       .from("campuses")
-      .update({ faculty_page_url: data.urls.join("\n") })
+      .update({
+        faculty_page_url: data.urls.join("\n"),
+        faculty_scrape_cache: result.cache,
+      } as never)
       .eq("id", data.campusId);
     await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
     return { ok: true, ...result };
