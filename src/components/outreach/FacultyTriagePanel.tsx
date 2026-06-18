@@ -21,7 +21,7 @@ import {
   setTriageTagsBulk, type TriageRow,
 } from "@/lib/faculty-triage";
 import {
-  EXCLUDE_INTRO_RE, INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
+  INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
 } from "@/lib/role-keywords";
 
 function toTriageStatus(status: string | null): "pending_triage" | "kept" | "skipped" {
