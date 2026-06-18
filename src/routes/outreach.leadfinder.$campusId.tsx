@@ -5,7 +5,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 // AdminGate + Toaster are provided by the /outreach layout.
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Star, Trash2, X, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger,
@@ -395,26 +395,49 @@ function ResetCampusLeadsButton({
 function RmpScrapePanel({
   campusId, campusName, onScraped,
 }: { campusId: string; campusName: string; onScraped: () => void }) {
+  const [expanded, setExpanded] = useState(false);
   const [urls, setUrls] = useState("");
   const [running, setRunning] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // Load saved RMP URLs on mount.
+  // Reset per-campus state when switching campuses.
   useEffect(() => {
-    let active = true;
-    void (async () => {
+    setExpanded(false);
+    setUrls("");
+    setLoaded(false);
+  }, [campusId]);
+
+  const loadSavedUrls = async () => {
+    if (loaded) return;
+    try {
       const { data } = await supabase
         .from("campuses")
         .select("rmp_page_url")
         .eq("id", campusId)
         .maybeSingle();
-      if (!active) return;
       const v = ((data as { rmp_page_url?: string | null } | null)?.rmp_page_url ?? "").trim();
-      setUrls(v);
+      setUrls((prev) => (prev.trim() ? prev : v));
+    } catch { /* ignore */ } finally {
       setLoaded(true);
-    })();
-    return () => { active = false; };
-  }, [campusId]);
+    }
+  };
+
+  const copyRmpGoogleLink = async () => {
+    const q = `${campusName} accounting site:ratemyprofessors.com`;
+    const url = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("RMP search link copied — paste in a new tab.");
+    } catch {
+      window.prompt("Copy this link:", url);
+    }
+  };
+
+  const togglePanel = async () => {
+    if (expanded) { setExpanded(false); return; }
+    setExpanded(true);
+    await loadSavedUrls();
+  };
 
   const handleScrape = async () => {
     const list = urls.split(/\r?\n/).map((u) => u.trim()).filter((u) => /^https?:\/\//i.test(u));
@@ -423,6 +446,7 @@ function RmpScrapePanel({
       return;
     }
     setRunning(true);
+    setExpanded(false);
     toast.info(`Scraping RMP for ${campusName} in background…`);
     try {
       const r = await scrapeCampusRmp({ data: { campusId, urls: list } }) as {
@@ -450,34 +474,64 @@ function RmpScrapePanel({
 
   return (
     <div className="rounded-xl border border-border bg-card/60 px-4 py-3 shadow-sm">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2">
         <Star className="h-3.5 w-3.5 text-amber-500" />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          RateMyProfessors URLs
-        </span>
-        <span className="text-[10px] text-muted-foreground">
-          (school search or individual profile · one per line)
+          RateMyProfessors
         </span>
       </div>
-      <textarea
-        value={urls}
-        onChange={(e) => setUrls(e.target.value)}
-        placeholder={loaded
-          ? "https://www.ratemyprofessors.com/search/professors/XXXX?q=accounting"
-          : "Loading saved URLs…"}
-        disabled={!loaded}
-        rows={3}
-        className="w-full rounded-md border border-input bg-background px-2 py-1.5 font-mono text-[11px]"
-      />
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-[10px] italic text-muted-foreground">
-          Cross-references by name; updates rating, # ratings, % take again, and difficulty on existing leads.
-        </span>
-        <Button size="sm" onClick={handleScrape} disabled={running || !loaded} className="h-7 gap-1.5 text-[11px]">
-          {running
-            ? <><Loader2 className="h-3 w-3 animate-spin" /> Scraping RMP…</>
-            : <><Star className="h-3 w-3" /> Scrape RMP</>}
-        </Button>
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #1</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={copyRmpGoogleLink}
+            title="Copy a Google search link for this school's RateMyProfessors page. Paste it in a new tab."
+            className="gap-1.5"
+          >
+            <Star className="h-3.5 w-3.5 text-amber-500" /> Copy RMP Link
+          </Button>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #2 · Paste RMP URL</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={togglePanel}
+              aria-expanded={expanded}
+              title="Paste the RateMyProfessors URL(s) and start the scrape"
+            >
+              {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+              {running ? "Scraping…" : "Scrape RMP"}
+            </Button>
+          </div>
+          {expanded && (
+            <div className="w-full max-w-md space-y-1.5 rounded-md border border-border bg-background p-2 text-left">
+              {!loaded && (
+                <div className="text-[11px] text-muted-foreground">Loading saved URLs…</div>
+              )}
+              <textarea
+                value={urls}
+                onChange={(e) => setUrls(e.target.value)}
+                placeholder="https://www.ratemyprofessors.com/search/professors/XXXX?q=accounting"
+                disabled={!loaded}
+                rows={3}
+                autoFocus
+                className="w-full rounded-md border border-input bg-background px-2 py-1.5 font-mono text-[11px]"
+              />
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] italic text-muted-foreground">
+                  One URL per line. Updates rating, # ratings, % take again, difficulty on matched leads.
+                </span>
+                <Button size="sm" onClick={handleScrape} disabled={running || !loaded} className="h-7 gap-1.5 text-[11px]">
+                  <Star className="h-3 w-3" /> Start scrape
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
