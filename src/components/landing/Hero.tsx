@@ -268,7 +268,36 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               </button>
             </div>
             )}
+
+            <ul
+              className="hero-anim-btn mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
+              style={{ listStyle: "none", padding: 0, margin: 0 }}
+            >
+              {[
+                { icon: "🟢", label: "Available Summer 2026" },
+                { icon: "📚", label: "Any Intro or Intermediate course" },
+                { icon: "🎓", label: "1,000+ students helped since 2015" },
+              ].map((b) => (
+                <li
+                  key={b.label}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] sm:text-[12.5px]"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                    color: "rgba(255,255,255,0.82)",
+                    fontFamily: "Inter, sans-serif",
+                    backdropFilter: "blur(6px)",
+                    WebkitBackdropFilter: "blur(6px)",
+                    letterSpacing: "0.005em",
+                  }}
+                >
+                  <span aria-hidden="true" className="text-[13px] leading-none">{b.icon}</span>
+                  <span>{b.label}</span>
+                </li>
+              ))}
+            </ul>
           </div>
+
         </div>
       </div>
     </section>
