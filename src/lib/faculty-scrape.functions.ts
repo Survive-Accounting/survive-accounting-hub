@@ -326,6 +326,86 @@ async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = 
   return json.data?.markdown ?? json.markdown ?? "";
 }
 
+/**
+ * Variant that also returns every hyperlink found on the page. We use this on
+ * directory pages so we can (a) feed the AI a clean URL list to populate
+ * profile_url, and (b) deterministically slug-match leftover names back to
+ * profile pages on the same host.
+ */
+async function firecrawlScrapeWithLinks(
+  apiKey: string,
+  url: string,
+  timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS,
+): Promise<{ markdown: string; links: string[] }> {
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown", "links"],
+        onlyMainContent: true,
+        waitFor: DIRECTORY_WAIT_MS,
+      }),
+    },
+    timeoutMs,
+    "Firecrawl scrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: { markdown?: string; links?: Array<string | { url?: string }> };
+    markdown?: string;
+    links?: Array<string | { url?: string }>;
+  };
+  const markdown = json.data?.markdown ?? json.markdown ?? "";
+  const rawLinks = json.data?.links ?? json.links ?? [];
+  const links = rawLinks
+    .map((l) => (typeof l === "string" ? l : l?.url ?? ""))
+    .filter((l): l is string => !!l && /^https?:\/\//i.test(l));
+  return { markdown, links: Array.from(new Set(links)) };
+}
+
+/**
+ * Batch-scrape multiple profile pages in a single Firecrawl call. Firecrawl
+ * handles concurrency server-side, which is dramatically faster + more
+ * reliable than N parallel /scrape calls from our worker.
+ */
+async function firecrawlBatchScrape(
+  apiKey: string,
+  urls: string[],
+): Promise<Map<string, string>> {
+  if (urls.length === 0) return new Map();
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/batch/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ urls, formats: ["markdown"], onlyMainContent: true, ignoreInvalidURLs: true }),
+    },
+    BATCH_SCRAPE_TIMEOUT_MS,
+    "Firecrawl batchScrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl batchScrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: Array<{ markdown?: string; metadata?: { sourceURL?: string; url?: string } }>;
+  };
+  const out = new Map<string, string>();
+  for (const row of json.data ?? []) {
+    const src = row.metadata?.sourceURL ?? row.metadata?.url;
+    if (!src) continue;
+    out.set(normalizeUrl(src), row.markdown ?? "");
+  }
+  return out;
+}
+
+
 async function firecrawlMap(apiKey: string, url: string, search: string): Promise<string[]> {
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/map",
