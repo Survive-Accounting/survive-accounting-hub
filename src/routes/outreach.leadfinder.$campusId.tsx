@@ -482,4 +482,3 @@ function RmpScrapePanel({
     </div>
   );
 }
-}
