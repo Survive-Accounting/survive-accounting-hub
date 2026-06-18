@@ -198,6 +198,24 @@ export function ScrapeFacultyButton({
             >
               <GraduationCap className="h-3.5 w-3.5" />
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onPickPdf}
+              disabled={scraping}
+              title="Upload a PDF (e.g. print-to-PDF of a faculty page) — OCR scans for leads"
+              aria-label="Upload faculty PDF"
+            >
+              <FileUp className="h-3.5 w-3.5" />
+              PDF
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => onPdfChosen(e.target.files?.[0] ?? null)}
+            />
           </>
         )}
       </div>
