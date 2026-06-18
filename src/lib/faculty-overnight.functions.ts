@@ -25,18 +25,33 @@ export const testAutoScrapeCampus = createServerFn({ method: "POST" })
     };
 
     const { data: campus, error: campusErr } = await supabaseAdmin
-      .from("campuses").select("faculty_page_url").eq("id", data.campusId).maybeSingle();
+      .from("campuses").select("faculty_page_url,website_url,accounting_department_url,domains").eq("id", data.campusId).maybeSingle();
     if (campusErr) throw new Error(`campus read: ${campusErr.message}`);
     if (!campus) throw new Error("campus not found");
     const urls = ((campus.faculty_page_url as string | null) ?? "")
       .split(/\r?\n/).map((u) => u.trim())
       .filter((u) => /^https?:\/\//i.test(u)).slice(0, 10);
-    if (urls.length === 0) throw new Error("This campus has no faculty_page_url set.");
 
-    const scrape = await scrapeCampusFaculty({ data: { campusId: data.campusId, urls } }) as {
-      perPage?: Array<{ inserted?: number }>;
-    };
-    const scraped = (scrape.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    let scraped = 0;
+    let discoveredUrls: string[] = [];
+    if (urls.length === 0) {
+      const hasSeed = !!(campus.website_url || campus.accounting_department_url
+        || ((campus.domains as string[] | null) ?? []).length > 0);
+      if (!hasSeed) throw new Error("No faculty_page_url and no website/domains on this campus to auto-discover from.");
+      const { autoDiscoverCampusFaculty } = await import("@/lib/faculty-scrape.functions");
+      const disc = await autoDiscoverCampusFaculty({ data: { campusId: data.campusId, maxPages: 5 } }) as {
+        perPage?: Array<{ inserted?: number }>;
+        chosenUrls?: string[];
+      };
+      scraped = (disc.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+      discoveredUrls = disc.chosenUrls ?? [];
+    } else {
+      const scrape = await scrapeCampusFaculty({ data: { campusId: data.campusId, urls } }) as {
+        perPage?: Array<{ inserted?: number }>;
+      };
+      scraped = (scrape.perPage ?? []).reduce((n, p) => n + (p.inserted ?? 0), 0);
+    }
+
 
     const { data: sugs } = await supabaseAdmin
       .from("campus_lead_suggestions")
@@ -54,30 +69,35 @@ export const testAutoScrapeCampus = createServerFn({ method: "POST" })
         .update({ title_tags: next, status: "accepted" })
         .eq("id", r.id);
     }
-    return { scraped, tagged: matches.length, urls: urls.length };
+    return { scraped, tagged: matches.length, urls: urls.length || discoveredUrls.length, discovered: discoveredUrls };
   });
 
 
-/** Enqueue every non-archived campus that has a faculty_page_url and zero
- *  existing outreach_leads. Idempotent — already-queued campuses are skipped
- *  by the unique constraint on (campus_id). */
+/** Enqueue every non-archived campus that EITHER has a faculty_page_url OR
+ *  has a website/domain/accounting URL we can auto-discover from. Skips any
+ *  campus that already has imported leads. Idempotent. */
 export const enqueueAllPendingCampuses = createServerFn({ method: "POST" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-  // Active campuses with a faculty URL.
   const { data: candidates, error: e1 } = await supabaseAdmin
     .from("campuses")
-    .select("id,faculty_page_url,archived_at")
+    .select("id,faculty_page_url,website_url,accounting_department_url,domains,archived_at")
     .is("archived_at", null);
   if (e1) throw new Error(e1.message);
-  const withUrl = (candidates ?? []).filter((c: { faculty_page_url: string | null }) => {
+  const eligible = (candidates ?? []).filter((c: {
+    faculty_page_url: string | null;
+    website_url: string | null;
+    accounting_department_url: string | null;
+    domains: string[] | null;
+  }) => {
     const v = (c.faculty_page_url ?? "").trim();
-    return v.length > 0 && /^https?:\/\//im.test(v);
+    if (v.length > 0 && /^https?:\/\//im.test(v)) return true;
+    return !!(c.website_url || c.accounting_department_url || (c.domains ?? []).length > 0);
   });
 
-  // Drop any campus that already has imported leads.
-  const ids = withUrl.map((c: { id: string }) => c.id);
+  const ids = eligible.map((c: { id: string }) => c.id);
   if (ids.length === 0) return { queued: 0, scanned: 0 };
+
   const { data: withLeads } = await supabaseAdmin
     .from("outreach_leads")
     .select("campus_id")
@@ -85,7 +105,7 @@ export const enqueueAllPendingCampuses = createServerFn({ method: "POST" }).hand
   const haveLeads = new Set((withLeads ?? []).map((r: { campus_id: string | null }) => r.campus_id));
   const target = ids.filter((id) => !haveLeads.has(id));
 
-  if (target.length === 0) return { queued: 0, scanned: withUrl.length };
+  if (target.length === 0) return { queued: 0, scanned: eligible.length };
 
   // Insert; unique constraint on campus_id makes this safely idempotent.
   const rows = target.map((campus_id) => ({ campus_id, status: "pending" }));
@@ -93,7 +113,8 @@ export const enqueueAllPendingCampuses = createServerFn({ method: "POST" }).hand
     .from("outreach_faculty_batch_queue")
     .upsert(rows as never, { onConflict: "campus_id", ignoreDuplicates: true, count: "exact" });
   if (e2) throw new Error(e2.message);
-  return { queued: count ?? target.length, scanned: withUrl.length };
+  return { queued: count ?? target.length, scanned: eligible.length };
+
 });
 
 /** Lightweight status summary for the morning report card. */
