@@ -996,10 +996,10 @@ export default function ApproveCampusModal({
                         ? "border-amber-500 bg-amber-500/15 text-amber-700"
                         : "border-border bg-background text-muted-foreground hover:text-foreground"
                     }`}
-                    title="Speed Mode: hide everything except faculty scrape + triage"
+                    title={speedMode ? "Turn off Speed Mode to show advanced research panels" : "Speed Mode: scrape + triage only (hides advanced panels)"}
                   >
                     <Zap className="h-3 w-3" />
-                    Speed Mode{speedMode ? " · ON" : ""}
+                    {speedMode ? "Speed Mode · ON" : "Show advanced"}
                   </button>
                 )}
                 <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
