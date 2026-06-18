@@ -271,6 +271,15 @@ export function AutoScrapeButton({
     }
   };
 
+  // Surface a stable trigger so parents (e.g. the empty-state "Start Scrape"
+  // button in FacultyTriagePanel) can kick off the same flow.
+  useEffect(() => {
+    exposeApi?.({ start: () => { void handleRun(); }, busy });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, campusId, exposeApi]);
+
+
+
   const copyBundle = async () => {
     if (!log) return;
     const text = buildBundle(log);
