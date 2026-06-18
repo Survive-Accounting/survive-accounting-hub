@@ -192,6 +192,7 @@ export function FacultyTriagePanel({
   const keptCount = rows.filter((r) => toTriageStatus(r.status) === "kept").length;
   const pendingCount = rows.filter((r) => toTriageStatus(r.status) === "pending_triage").length;
   const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
+  const hasAnyTags = taggedCount > 0;
 
   return (
     <div className="rounded-lg border border-border bg-card">
