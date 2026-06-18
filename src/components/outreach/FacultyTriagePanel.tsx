@@ -445,6 +445,7 @@ export function FacultyTriagePanel({
           the toolbar (All tags dropdown / new-tag input). */}
 
 
+      {false && (
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-xs">
 
         <Tag className="h-3.5 w-3.5 text-muted-foreground" />
@@ -556,6 +557,7 @@ export function FacultyTriagePanel({
           </button>
         )}
       </div>
+      )}
 
       {loading ? (
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading candidates…</div>
