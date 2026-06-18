@@ -293,10 +293,8 @@ export function FacultyTriagePanel({
                 </button>
               </TableHead>
               <TableHead className="w-[20%]">Email</TableHead>
-              <TableHead className="w-[18%]">Tags</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead className="w-[50px] text-center">PhD</TableHead>
-              <TableHead className="w-[50px] text-center">CPA</TableHead>
+              {hasAnyTags && <TableHead className="w-[18%]">Tags</TableHead>}
+              <TableHead className="w-[110px] text-center">Creds</TableHead>
               <TableHead className="w-[140px] text-center">Decision</TableHead>
             </TableRow>
           </TableHeader>
@@ -309,6 +307,7 @@ export function FacultyTriagePanel({
                 <TableRow
                   key={r.id}
                   className={[
+                    "group",
                     status === "skipped" ? "opacity-50" : "",
                     status === "kept" ? "bg-emerald-50/40" : "",
                     isSel ? "ring-1 ring-inset ring-amber-400 bg-amber-50/60" : "",
