@@ -1145,10 +1145,19 @@ async function processUrls(
         const aiPeople = await callLovableAi(aiKey, url, md);
         const merged = mergePeople(parsedPeople, aiPeople);
         const extracted = merged.length;
+        // News/blog/spotlight page → names here are almost never tenure-track
+        // faculty (student spotlights, alumni profiles, press features). Skip
+        // expensive per-profile enrichment, skip directory sweep + inference,
+        // and tag every row 'news' so reviewers can deprioritize them.
+        const isNewsPage = looksLikeNewsPage(url);
         // Deterministic fallback: pair people without a profile_url to a
         // slug-matched link from the directory page (e.g. /faculty/friedman).
-        const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
-        const { people: enrichedPeople, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
+        const { people: withSlugs, matched: slugMatched } = isNewsPage
+          ? { people: merged, matched: 0 }
+          : attachProfileUrlsFromLinks(merged, url, links);
+        const { people: enrichedPeople, enriched, outcomes: enrichOutcomes } = isNewsPage
+          ? { people: withSlugs, enriched: 0, outcomes: [] as Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error" | "skipped_host"; mdLen: number; htmlLen: number }> }
+          : await enrichProfileEmails(fcKey, withSlugs, url);
 
         // Recovery pass A — directory markdown sweep. Many .edu directories
         // list "Name ... email" in a card on the listing page even though the
