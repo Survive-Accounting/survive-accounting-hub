@@ -475,7 +475,7 @@ export function mockCampusesForDate(dateISO: string, all: Campus[]): Campus[] {
 }
 
 // ----- Email templates (in-memory until Supabase is wired) -----
-export type TemplateKind = "initial" | "follow_up_1" | "follow_up_2" | "follow_up_3";
+export type TemplateKind = "initial" | "initial_greek_orgs" | "follow_up_1" | "follow_up_2" | "follow_up_3";
 export type LeadType = "professors" | "bap_advisors" | "accounting_departments" | "cpa_alumni";
 export const LEAD_TYPES: { id: LeadType; label: string; coming_soon: boolean }[] = [
   { id: "professors",            label: "Professors",             coming_soon: false },
