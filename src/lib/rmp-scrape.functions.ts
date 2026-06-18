@@ -23,10 +23,46 @@ function nameKey(first: string | null | undefined, last: string | null | undefin
   return `${(first ?? "").trim().toLowerCase()}|${(last ?? "").trim().toLowerCase()}`;
 }
 
-async function firecrawlScrapeRmp(url: string, apiKey: string): Promise<RmpProfessor[]> {
+// JS run inside Firecrawl's browser to expand the paginated list. Tolerates
+// the button being absent / renamed — it just bails out of the loop instead
+// of failing the whole scrape (which is what a `click` action would do).
+const SHOW_MORE_JS = `
+(async () => {
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  for (let i = 0; i < 12; i++) {
+    // Scroll to bottom first so lazy-rendered buttons mount.
+    window.scrollTo(0, document.body.scrollHeight);
+    await sleep(600);
+    const btn = Array.from(document.querySelectorAll('button, a'))
+      .find(el => /show\\s*more/i.test((el.textContent || '').trim()));
+    if (!btn) break;
+    try { btn.click(); } catch (e) { break; }
+    await sleep(1500);
+  }
+  window.scrollTo(0, document.body.scrollHeight);
+  await sleep(800);
+})();
+`;
+
+type FirecrawlActions = Array<Record<string, unknown>>;
+
+async function postFirecrawl(url: string, apiKey: string, actions: FirecrawlActions | null): Promise<RmpProfessor[]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), SCRAPE_TIMEOUT_MS);
   try {
+    const body: Record<string, unknown> = {
+      url,
+      onlyMainContent: false,
+      waitFor: 2500,
+      formats: [
+        {
+          type: "json",
+          prompt:
+            'Extract every professor card visible on this RateMyProfessors page. Return JSON shaped as {"professors": [{"firstName","lastName","department","profileUrl","overallRating","numRatings","wouldTakeAgainPercent","levelOfDifficulty"}]}. overallRating and levelOfDifficulty are numbers 0-5. wouldTakeAgainPercent is a number 0-100 or null if not shown. numRatings is an integer. Skip cards without a name. If the page is a single professor profile, return one item.',
+        },
+      ],
+    };
+    if (actions) body.actions = actions;
     const res = await fetch(FIRECRAWL_SCRAPE_URL, {
       method: "POST",
       signal: ctrl.signal,
@@ -34,42 +70,11 @@ async function firecrawlScrapeRmp(url: string, apiKey: string): Promise<RmpProfe
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        url,
-        onlyMainContent: false,
-        waitFor: 2000,
-        // Click "Show More" up to 10 times to expand the paginated list.
-        actions: [
-          { type: "wait", milliseconds: 2000 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-          { type: "click", selector: 'button:has-text("Show More")' },
-          { type: "wait", milliseconds: 1200 },
-        ],
-        formats: [
-          {
-            type: "json",
-            prompt:
-              'Extract every professor card visible on this RateMyProfessors page. Return JSON shaped as {"professors": [{"firstName","lastName","department","profileUrl","overallRating","numRatings","wouldTakeAgainPercent","levelOfDifficulty"}]}. overallRating and levelOfDifficulty are numbers 0-5. wouldTakeAgainPercent is a number 0-100 or null if not shown. numRatings is an integer. Skip cards without a name. If the page is a single professor profile, return one item.',
-          },
-        ],
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`Firecrawl ${res.status}: ${body.slice(0, 160)}`);
+      const text = await res.text().catch(() => "");
+      throw new Error(`Firecrawl ${res.status}: ${text.slice(0, 200)}`);
     }
     const json = (await res.json()) as {
       success?: boolean;
@@ -81,6 +86,24 @@ async function firecrawlScrapeRmp(url: string, apiKey: string): Promise<RmpProfe
     return Array.isArray(profs) ? profs : [];
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function firecrawlScrapeRmp(url: string, apiKey: string): Promise<RmpProfessor[]> {
+  // First try with a JS-based Show-More expander.
+  try {
+    return await postFirecrawl(url, apiKey, [
+      { type: "wait", milliseconds: 2000 },
+      { type: "executeJavascript", script: SHOW_MORE_JS },
+      { type: "wait", milliseconds: 1500 },
+    ]);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Fall back to a plain scrape (no actions) so we at least get the first page.
+    if (/SCRAPE_ACTION_ERROR|Action.*failed|ActionError/i.test(msg)) {
+      return await postFirecrawl(url, apiKey, null);
+    }
+    throw e;
   }
 }
 
