@@ -19,6 +19,13 @@ const DiscoverInputSchema = z.object({
   maxPages: z.number().int().min(1).max(10).default(5),
 });
 
+const PdfInputSchema = z.object({
+  campusId: z.string().uuid(),
+  filename: z.string().min(1).max(200),
+  // base64-encoded PDF bytes (without data: prefix). Cap ~12MB encoded.
+  fileBase64: z.string().min(100).max(16_000_000),
+});
+
 type Extracted = {
   first_name: string;
   last_name: string;
