@@ -488,6 +488,45 @@ async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = 
   return json.data?.markdown ?? json.markdown ?? "";
 }
 
+/** Per-URL scrape that returns both markdown AND rawHtml. Used in the profile
+ *  enrichment fallback so mailto: hrefs (the main JS-mounted email vector
+ *  across .edu sites) can be recovered when markdown stripping hides them. */
+async function firecrawlScrapeFull(
+  apiKey: string,
+  url: string,
+  timeoutMs: number = PROFILE_SCRAPE_TIMEOUT_MS,
+): Promise<{ markdown: string; rawHtml: string }> {
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown", "rawHtml"],
+        onlyMainContent: false,
+        waitFor: 2500,
+      }),
+    },
+    timeoutMs,
+    "Firecrawl scrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: { markdown?: string; rawHtml?: string; html?: string };
+    markdown?: string;
+    rawHtml?: string;
+    html?: string;
+  };
+  return {
+    markdown: json.data?.markdown ?? json.markdown ?? "",
+    rawHtml: json.data?.rawHtml ?? json.data?.html ?? json.rawHtml ?? json.html ?? "",
+  };
+}
+
 /**
  * Variant that also returns every hyperlink found on the page. We use this on
  * directory pages so we can (a) feed the AI a clean URL list to populate
