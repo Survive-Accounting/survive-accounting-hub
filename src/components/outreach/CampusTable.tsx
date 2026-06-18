@@ -199,7 +199,14 @@ export default function CampusTable({
                     </td>
                     <td className="px-3 py-3.5 font-medium align-top">
                       <div className="inline-flex items-center gap-1.5">
+                        {importedCampusIds.has(s.id) && (
+                          <CheckCircle2
+                            className="h-4 w-4 text-emerald-600 shrink-0"
+                            aria-label="Leads imported"
+                          />
+                        )}
                         <span>{s.school_name}</span>
+
                         {s.is_sec && (
                           <span title="SEC Conference" className="text-base leading-none" aria-label="SEC">🏈</span>
                         )}
