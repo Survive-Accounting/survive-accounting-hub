@@ -201,6 +201,50 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
       </div>
 
       <div className="mb-4">
+        <Label className="text-xs mb-2 block">
+          Title tags ({titleTags.length} selected
+          {availableTitleTags.length > 0 ? ` of ${availableTitleTags.length}` : ""})
+        </Label>
+        {availableTitleTags.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            No title tags on leads yet. Tag candidates in the Faculty triage panel to enable targeting by title.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {availableTitleTags.map((t) => {
+              const on = titleTags.includes(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setTitleTags((prev) => on ? prev.filter((x) => x !== t) : [...prev, t]);
+                    setPreview(null);
+                  }}
+                  className={`rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                    on
+                      ? "border-amber-400 bg-amber-100 text-amber-900"
+                      : "border-border bg-card text-muted-foreground hover:bg-accent/40"
+                  }`}
+                >
+                  {t}
+                </button>
+              );
+            })}
+            {titleTags.length > 0 && (
+              <button type="button" className="text-[11px] text-muted-foreground underline ml-1"
+                onClick={() => { setTitleTags([]); setPreview(null); }}>
+                clear
+              </button>
+            )}
+          </div>
+        )}
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Leads must have at least one selected tag (e.g. Lecturer, Instructor). Leave empty to include all.
+        </p>
+      </div>
+
+      <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
           <Label className="text-xs">Specific campuses ({selectedCampusIds.length} selected)</Label>
           <div className="flex gap-3 text-[11px]">
