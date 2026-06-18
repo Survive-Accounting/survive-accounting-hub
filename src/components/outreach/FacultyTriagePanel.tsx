@@ -602,6 +602,32 @@ export function FacultyTriagePanel({
                     isSel ? "ring-1 ring-inset ring-amber-400 bg-amber-50/60" : "",
                   ].join(" ")}
                 >
+                  <TableCell className="text-center align-middle">
+                    <input
+                      type="checkbox"
+                      checked={hasTags}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        if (checked) {
+                          void applyTagToIds([r.id], INTRO_TARGET_TAG, "add");
+                        } else {
+                          // Remove every tag from this row so it won't import.
+                          const cur = r.title_tags ?? [];
+                          if (cur.length === 0) return;
+                          setRows((prev) => prev.map((x) =>
+                            x.id === r.id ? { ...x, title_tags: [] } : x,
+                          ));
+                          void setTriageTagsBulk([r.id], "remove", cur, tagsCurrentById)
+                            .catch((err) => {
+                              toast.error(`Could not update: ${err instanceof Error ? err.message : "unknown"}`);
+                              void load();
+                            });
+                        }
+                      }}
+                      className="h-4 w-4 cursor-pointer accent-emerald-600"
+                      title={hasTags ? "Will be imported as a lead. Uncheck to skip." : "Check to import this row as a lead."}
+                    />
+                  </TableCell>
                   <TableCell
                     className="cursor-pointer select-none font-medium"
                     onClick={(e) => onRowClick(r.id, e)}
@@ -609,6 +635,7 @@ export function FacultyTriagePanel({
                     onMouseEnter={() => onRowMouseEnter(r.id)}
                     title="Click to select. Click + drag across rows for multi-select. Shift-click for range."
                   >
+
                     <span className="inline-flex items-center gap-1.5">
                       {(r.first_name ?? "") + " " + (r.last_name ?? "")}
                       {r.source_url && (
