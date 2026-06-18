@@ -105,7 +105,7 @@ export const enqueueAllPendingCampuses = createServerFn({ method: "POST" }).hand
   const haveLeads = new Set((withLeads ?? []).map((r: { campus_id: string | null }) => r.campus_id));
   const target = ids.filter((id) => !haveLeads.has(id));
 
-  if (target.length === 0) return { queued: 0, scanned: withUrl.length };
+  if (target.length === 0) return { queued: 0, scanned: eligible.length };
 
   // Insert; unique constraint on campus_id makes this safely idempotent.
   const rows = target.map((campus_id) => ({ campus_id, status: "pending" }));
@@ -113,7 +113,8 @@ export const enqueueAllPendingCampuses = createServerFn({ method: "POST" }).hand
     .from("outreach_faculty_batch_queue")
     .upsert(rows as never, { onConflict: "campus_id", ignoreDuplicates: true, count: "exact" });
   if (e2) throw new Error(e2.message);
-  return { queued: count ?? target.length, scanned: withUrl.length };
+  return { queued: count ?? target.length, scanned: eligible.length };
+
 });
 
 /** Lightweight status summary for the morning report card. */
