@@ -186,6 +186,45 @@ function extractBestEmail(pageText: string): string | null {
   return emails[0] ?? null;
 }
 
+/**
+ * Recover emails that are obfuscated to defeat naive scrapers, e.g.
+ *   "jane.doe [at] anderson.ucla.edu"
+ *   "jane (dot) doe (at) ucla (dot) edu"
+ *   "jane DOT doe AT ucla DOT edu"
+ * Returns the first plausible email it can reconstruct, or null.
+ */
+function extractObfuscatedEmail(pageText: string): string | null {
+  if (!pageText) return null;
+  // Normalize " (dot) ", " [dot] ", " DOT ", etc. → "."  and same for "at" → "@"
+  // Only inside short windows around an obvious "at" marker so we don't
+  // mangle real text.
+  const re = /([A-Za-z0-9._+\-]+)\s*[\[\(]?\s*(?:at|@)\s*[\]\)]?\s*([A-Za-z0-9.\-]+(?:\s*[\[\(]?\s*(?:dot|\.)\s*[\]\)]?\s*[A-Za-z0-9.\-]+)+)/gi;
+  const dotRe = /\s*[\[\(]?\s*(?:dot|\.)\s*[\]\)]?\s*/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(pageText)) !== null) {
+    const local = m[1].trim();
+    const domain = m[2].replace(dotRe, ".").replace(/\s+/g, "").toLowerCase();
+    if (!/^[a-z0-9.\-]+\.[a-z]{2,}$/.test(domain)) continue;
+    const email = `${local.toLowerCase()}@${domain}`;
+    if (/^(info|contact|admissions|support|webmaster)@/i.test(email)) continue;
+    return email;
+  }
+  return null;
+}
+
+/** Pull the first non-generic mailto: href out of a raw HTML blob. */
+function extractMailtoFromHtml(rawHtml: string): string | null {
+  if (!rawHtml) return null;
+  const matches = Array.from(rawHtml.matchAll(/mailto:([^"'?<>\s]+)/gi)).map((m) => m[1].trim().toLowerCase());
+  for (const e of matches) {
+    if (!e.includes("@")) continue;
+    if (/^(info|contact|admissions|support|webmaster|noreply|no-reply)@/i.test(e)) continue;
+    return e;
+  }
+  return null;
+}
+
+
 function mergePeople(...groups: Extracted[][]): Extracted[] {
   const byKey = new Map<string, Extracted>();
   for (const person of groups.flat()) {
