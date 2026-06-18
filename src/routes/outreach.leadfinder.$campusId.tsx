@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
+// AdminGate + Toaster are provided by the /outreach layout.
 import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, X } from "lucide-react";
-
-import { AdminGate } from "@/components/AdminGate";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger,
