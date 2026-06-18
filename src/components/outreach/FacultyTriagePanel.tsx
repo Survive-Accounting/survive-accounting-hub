@@ -659,7 +659,6 @@ export function FacultyTriagePanel({
               </TableHead>
               <TableHead className="w-[24%]">Email</TableHead>
               <TableHead className="w-[110px] text-center">Creds</TableHead>
-              <TableHead className="w-[140px] text-center">Decision</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
