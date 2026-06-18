@@ -768,6 +768,7 @@ async function processUrls(
   aiKey: string,
   campusId: string,
   urls: string[],
+  options: { allowNoContact?: boolean } = {},
 ): Promise<{
   perPage: Array<{
     url: string;
