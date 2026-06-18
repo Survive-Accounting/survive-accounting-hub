@@ -765,11 +765,12 @@ export const scrapeCampusFacultyPdf = createServerFn({ method: "POST" })
     const aiKey = process.env.LOVABLE_API_KEY;
     if (!aiKey) throw new Error("LOVABLE_API_KEY is not configured on the server");
     const people = await callLovableAiWithPdf(aiKey, data.filename, data.fileBase64);
-    const { inserted, skippedDuplicates } = await insertExtractedPeople(
+    const { inserted, skippedDuplicates, droppedNoContact } = await insertExtractedPeople(
       data.campusId,
       people,
       `PDF: ${data.filename}`,
       "faculty_scrape_pdf_v1",
+      { allowNoContact: true },
     );
-    return { ok: true, found: people.length, inserted, skippedDuplicates };
+    return { ok: true, found: people.length, inserted, skippedDuplicates, droppedNoContact };
   });
