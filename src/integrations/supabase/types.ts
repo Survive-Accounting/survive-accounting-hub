@@ -1173,6 +1173,7 @@ export type Database = {
           rmp_match_confidence: number | null
           rmp_match_notes: string | null
           rmp_match_status: string | null
+          rmp_page_url: string | null
           rmp_raw_matches_json: Json | null
           rmp_school_id: string | null
           rmp_school_name: string | null
@@ -1304,6 +1305,7 @@ export type Database = {
           rmp_match_confidence?: number | null
           rmp_match_notes?: string | null
           rmp_match_status?: string | null
+          rmp_page_url?: string | null
           rmp_raw_matches_json?: Json | null
           rmp_school_id?: string | null
           rmp_school_name?: string | null
@@ -1435,6 +1437,7 @@ export type Database = {
           rmp_match_confidence?: number | null
           rmp_match_notes?: string | null
           rmp_match_status?: string | null
+          rmp_page_url?: string | null
           rmp_raw_matches_json?: Json | null
           rmp_school_id?: string | null
           rmp_school_name?: string | null
@@ -3245,85 +3248,6 @@ export type Database = {
         }
         Relationships: []
       }
-      outreach_faculty_batch_queue: {
-        Row: {
-          campus_id: string
-          created_at: string
-          error: string | null
-          finished_at: string | null
-          id: string
-          started_at: string | null
-          status: string
-        }
-        Insert: {
-          campus_id: string
-          created_at?: string
-          error?: string | null
-          finished_at?: string | null
-          id?: string
-          started_at?: string | null
-          status?: string
-        }
-        Update: {
-          campus_id?: string
-          created_at?: string
-          error?: string | null
-          finished_at?: string | null
-          id?: string
-          started_at?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "outreach_faculty_batch_queue_campus_id_fkey"
-            columns: ["campus_id"]
-            isOneToOne: true
-            referencedRelation: "campuses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      outreach_faculty_batch_runs: {
-        Row: {
-          campus_id: string
-          error: string | null
-          finished_at: string
-          id: string
-          imported: number
-          scraped: number
-          skipped: number
-          tagged: number
-        }
-        Insert: {
-          campus_id: string
-          error?: string | null
-          finished_at?: string
-          id?: string
-          imported?: number
-          scraped?: number
-          skipped?: number
-          tagged?: number
-        }
-        Update: {
-          campus_id?: string
-          error?: string | null
-          finished_at?: string
-          id?: string
-          imported?: number
-          scraped?: number
-          skipped?: number
-          tagged?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "outreach_faculty_batch_runs_campus_id_fkey"
-            columns: ["campus_id"]
-            isOneToOne: false
-            referencedRelation: "campuses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       outreach_leads: {
         Row: {
           affiliation: string | null
@@ -3352,6 +3276,12 @@ export type Database = {
           opens_count: number | null
           position: string | null
           replied_at: string | null
+          rmp_checked_at: string | null
+          rmp_difficulty: number | null
+          rmp_num_ratings: number | null
+          rmp_profile_url: string | null
+          rmp_rating: number | null
+          rmp_would_take_again: number | null
           scheduled_send_at: string | null
           school_id: string | null
           sent_at: string | null
@@ -3391,6 +3321,12 @@ export type Database = {
           opens_count?: number | null
           position?: string | null
           replied_at?: string | null
+          rmp_checked_at?: string | null
+          rmp_difficulty?: number | null
+          rmp_num_ratings?: number | null
+          rmp_profile_url?: string | null
+          rmp_rating?: number | null
+          rmp_would_take_again?: number | null
           scheduled_send_at?: string | null
           school_id?: string | null
           sent_at?: string | null
@@ -3430,6 +3366,12 @@ export type Database = {
           opens_count?: number | null
           position?: string | null
           replied_at?: string | null
+          rmp_checked_at?: string | null
+          rmp_difficulty?: number | null
+          rmp_num_ratings?: number | null
+          rmp_profile_url?: string | null
+          rmp_rating?: number | null
+          rmp_would_take_again?: number | null
           scheduled_send_at?: string | null
           school_id?: string | null
           sent_at?: string | null

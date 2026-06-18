@@ -25,7 +25,6 @@ import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreac
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
-import { Route as ApiPublicHooksFacultyOvernightBatchRouteImport } from './routes/api/public/hooks/faculty-overnight-batch'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -109,12 +108,6 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
-const ApiPublicHooksFacultyOvernightBatchRoute =
-  ApiPublicHooksFacultyOvernightBatchRouteImport.update({
-    id: '/api/public/hooks/faculty-overnight-batch',
-    path: '/api/public/hooks/faculty-overnight-batch',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -133,7 +126,6 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
-  '/api/public/hooks/faculty-overnight-batch': typeof ApiPublicHooksFacultyOvernightBatchRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -152,7 +144,6 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
-  '/api/public/hooks/faculty-overnight-batch': typeof ApiPublicHooksFacultyOvernightBatchRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -172,7 +163,6 @@ export interface FileRoutesById {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
-  '/api/public/hooks/faculty-overnight-batch': typeof ApiPublicHooksFacultyOvernightBatchRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -193,7 +183,6 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/outreach/leadfinder/'
-    | '/api/public/hooks/faculty-overnight-batch'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -212,7 +201,6 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/outreach/leadfinder'
-    | '/api/public/hooks/faculty-overnight-batch'
   id:
     | '__root__'
     | '/'
@@ -231,7 +219,6 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
     | '/outreach/leadfinder/'
-    | '/api/public/hooks/faculty-overnight-batch'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -245,7 +232,6 @@ export interface RootRouteChildren {
   OShortRefRoute: typeof OShortRefRoute
   TSlugRoute: typeof TSlugRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
-  ApiPublicHooksFacultyOvernightBatchRoute: typeof ApiPublicHooksFacultyOvernightBatchRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -362,13 +348,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
     }
-    '/api/public/hooks/faculty-overnight-batch': {
-      id: '/api/public/hooks/faculty-overnight-batch'
-      path: '/api/public/hooks/faculty-overnight-batch'
-      fullPath: '/api/public/hooks/faculty-overnight-batch'
-      preLoaderRoute: typeof ApiPublicHooksFacultyOvernightBatchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -413,8 +392,6 @@ const rootRouteChildren: RootRouteChildren = {
   OShortRefRoute: OShortRefRoute,
   TSlugRoute: TSlugRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
-  ApiPublicHooksFacultyOvernightBatchRoute:
-    ApiPublicHooksFacultyOvernightBatchRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
