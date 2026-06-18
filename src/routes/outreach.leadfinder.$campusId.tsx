@@ -96,15 +96,28 @@ function LeadFinderPage() {
   useEffect(() => { writeHistory(history); }, [history]);
   const canGoBack = history.length > 0;
 
+  // Flame focus state machine: 1 = Copy Faculty Link, 2 = Scrape URL,
+  // 3 = Import Leads, null = done. Resets when the campus changes.
+  const [flameStep, setFlameStep] = useState<1 | 2 | 3 | null>(1);
+  useEffect(() => { setFlameStep(1); }, [campusId]);
+  // After a scrape finishes (refreshKey bumps), advance flame to Step #3.
+  useEffect(() => {
+    if (refreshKey > 0) setFlameStep(3);
+  }, [refreshKey]);
+
   const handleImport = async () => {
     if (!campus || triageStats.tagged === 0) return;
     setImporting(true);
     try {
       const r = await importKeptLeads(campus.id);
-      const parts = [`Imported ${r.inserted} new lead${r.inserted === 1 ? "" : "s"}`];
+      const parts = [`🔥 Imported ${r.inserted} lead${r.inserted === 1 ? "" : "s"} from ${campus.school_name}`];
       if (r.mergedTags) parts.push(`merged tags onto ${r.mergedTags} existing`);
       if (r.skipped) parts.push(`skipped ${r.skipped} duplicate`);
-      toast.success(parts.join(" · "));
+      toast.success(parts.join(" · "), {
+        duration: 4500,
+        action: { label: "Next campus →", onClick: () => { void handleNext(); } },
+      });
+      setFlameStep(null);
       setRefreshKey((k) => k + 1);
     } catch (e) {
       toast.error(`Import failed: ${e instanceof Error ? e.message : "unknown"}`);
@@ -112,6 +125,7 @@ function LeadFinderPage() {
       setImporting(false);
     }
   };
+
 
   const handleBack = () => {
     if (history.length === 0) return;
