@@ -8,6 +8,12 @@
 // and status='pending' for human review.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import {
+  detectProgramLevels,
+  mergeDetections,
+  EMPTY_DETECTION,
+  type ProgramLevelDetection,
+} from "@/lib/program-levels";
 
 // ---- Network hardening -----------------------------------------------------
 // Every outbound fetch (Firecrawl + AI gateway) has a hard timeout so a single
@@ -557,10 +563,14 @@ async function processUrls(
   perPage: Array<{ url: string; found: number; error: string | null }>;
   inserted: number;
   skippedDuplicates: number;
+  programLevels: ProgramLevelDetection;
+  programLevelSources: string[];
 }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const perPage: Array<{ url: string; found: number; error: string | null }> = [];
   const rowsToInsert: Array<Record<string, unknown>> = [];
+  let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
+  const programLevelSources: string[] = [];
 
   for (const url of urls) {
     try {
@@ -568,6 +578,11 @@ async function processUrls(
       if (!md) {
         perPage.push({ url, found: 0, error: "empty content" });
         continue;
+      }
+      const pageDetection = detectProgramLevels(md);
+      if (pageDetection.bachelors || pageDetection.masters || pageDetection.phd) {
+        programLevels = mergeDetections(programLevels, pageDetection);
+        if (!programLevelSources.includes(url)) programLevelSources.push(url);
       }
       const parsedPeople = extractDirectoryMarkdownPeople(md);
       const aiPeople = await callLovableAi(aiKey, url, md);
@@ -634,7 +649,7 @@ async function processUrls(
     }
   }
 
-  return { perPage, inserted, skippedDuplicates };
+  return { perPage, inserted, skippedDuplicates, programLevels, programLevelSources };
 }
 
 function requireKeys() {
@@ -643,6 +658,36 @@ function requireKeys() {
   const fcKey = process.env.FIRECRAWL_API_KEY;
   if (!fcKey) throw new Error("FIRECRAWL_API_KEY is not configured on the server");
   return { aiKey, fcKey };
+}
+
+// OR-merge detected program levels into the campus row. Never clears an
+// existing `true` — different pages cover different programs, and a single
+// empty page shouldn't erase what an earlier run found.
+async function persistProgramLevels(
+  campusId: string,
+  detection: ProgramLevelDetection,
+  sourceUrls: string[],
+): Promise<void> {
+  if (!detection.bachelors && !detection.masters && !detection.phd) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: existing } = await supabaseAdmin
+    .from("campuses")
+    .select("has_bachelors_accounting,has_masters_accounting,has_phd_accounting")
+    .eq("id", campusId)
+    .maybeSingle();
+  const next = {
+    has_bachelors_accounting: Boolean((existing as { has_bachelors_accounting?: boolean } | null)?.has_bachelors_accounting) || detection.bachelors,
+    has_masters_accounting: Boolean((existing as { has_masters_accounting?: boolean } | null)?.has_masters_accounting) || detection.masters,
+    has_phd_accounting: Boolean((existing as { has_phd_accounting?: boolean } | null)?.has_phd_accounting) || detection.phd,
+    program_levels_evidence: {
+      bachelors: detection.evidence.bachelors,
+      masters: detection.evidence.masters,
+      phd: detection.evidence.phd,
+      source_urls: sourceUrls,
+      detected_at: new Date().toISOString(),
+    },
+  };
+  await supabaseAdmin.from("campuses").update(next).eq("id", campusId);
 }
 
 export const scrapeCampusFaculty = createServerFn({ method: "POST" })
@@ -655,6 +700,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
       .from("campuses")
       .update({ faculty_page_url: data.urls.join("\n") })
       .eq("id", data.campusId);
+    await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
     return { ok: true, ...result };
   });
 
@@ -748,6 +794,7 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       .from("campuses")
       .update({ faculty_page_url: ranked.join("\n") })
       .eq("id", data.campusId);
+    await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
 
     return {
       ok: true,

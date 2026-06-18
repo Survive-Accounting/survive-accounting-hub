@@ -1,80 +1,78 @@
-# Triage cleanup + Speed Mode toolbar redo
+## Goal
 
-Two files touched. No DB / no server changes.
+While we're already pulling the faculty/department pages with Firecrawl, also detect which degree levels the accounting program offers — **Bachelors**, **Masters**, **PhD** — and store it on the campus so we can filter on it later (e.g. "MAcc schools only", "no PhD programs").
 
-## 1. `FacultyTriagePanel.tsx`
+We get this almost for free because the markdown is already in memory during the scrape.
 
-**Remove**
-- `Source` column entirely (link still surfaces on row hover in the Name cell — keep that)
-- `Tags` column entirely (tags are only managed via the bulk bar now)
+## How detection works
 
-**Redesign the bulk-tag bar** (only visible when ≥1 row selected). New layout, left-to-right:
+For each page Firecrawl returns during a scrape run, run a small regex pass over the combined markdown. Three independent boolean signals:
 
-```
-[8 selected] [tag as ▾]  [+ custom tag input] [Add]   [How this works?]  [Clear (Esc)]
-```
+- **has_bachelors** — matches like `BBA`, `BSBA`, `B\.S\.? in Accounting`, `Bachelor of (Science|Business|Accountancy)`, `undergraduate (major|degree|program) in accounting`.
+- **has_masters** — `MAcc`, `MAcy`, `MSA`, `MS in Accounting`, `Master of (Accountancy|Science in Accounting|Professional Accounting)`, `MBA … Accounting concentration`, `graduate (program|degree) in accounting`.
+- **has_phd** — `Ph\.?D\.? in Accounting`, `Doctorate in Accounting`, `DBA … Accounting`, `doctoral program`.
 
-- `tag as ▾` is a single dropdown listing **every tag that exists in this campus** (union of all `title_tags` across rows + every custom tag ever added), sorted A–Z. Click a tag in the dropdown → it's added to every selected row. Each dropdown item has a small × on the right; clicking × deletes that tag from every row in the campus (with confirm).
-- Custom tag input + Add behaves as today; adding a new custom tag makes it immediately appear in the dropdown for future use.
-- "How this works?" is a tiny underlined link → opens a small modal with VA-friendly instructions:
+Each match also captures a short snippet (±80 chars) so we can show the user *why* we flagged it.
 
-```
-How tagging & triage works
+Results from multiple scraped pages and multiple URLs in one run are OR-ed together at the campus level.
 
-• Click a name to select that row. Shift-click another to fill a range.
-  Cmd/Ctrl-click toggles one row.
-• Press Esc to clear selection.
+### Why regex first, not AI
 
-• Tags are short labels you put on a person (like "Assistant Professor"
-  or "Intermediate I"). You can pick a tag from the dropdown or type a
-  new one in "custom tag". The tag is added to every selected row.
+The AI call already runs per page to extract faculty — adding another structured field to that prompt is the obvious "smarter" path, but:
 
-• Pick a tag in the dropdown to add it. Click the × next to a tag in
-  the dropdown to remove it from every person in this campus.
+1. Regex is deterministic, free, and instant.
+2. Degree names are highly standardized in accounting departments.
+3. We can always add an AI fallback later for the small set of campuses where regex finds nothing (see "Optional follow-up").
 
-• PhD and CPA are NOT tags — they have their own buttons because:
-    – PhD turns on the "Dr. {LastName}" greeting in emails.
-    – CPA helps us send the right pitch for licensed accountants.
-  Always tick these when you see PhD, Ph.D., D.B.A., or CPA in the title.
+So step one is regex-only.
 
-• Keep = include this person when you click "Import kept leads".
-  Skip = ignore this person.
+## Where it gets stored
+
+Add three booleans + a JSON evidence blob to `campuses`:
+
+```text
+has_bachelors_accounting   boolean   default false
+has_masters_accounting     boolean   default false
+has_phd_accounting         boolean   default false
+program_levels_evidence    jsonb              -- { bachelors: [snippets], masters: [...], phd: [...], detected_at, source_urls }
 ```
 
-## 2. `ApproveCampusModal.tsx` — Speed Mode toolbar
+Update rule on each scrape run: **OR-merge** with existing values (never clear a `true` based on a single empty scrape — different pages cover different programs). `program_levels_evidence` is overwritten with the latest run's findings.
 
-Restructure the dense toolbar into a tiny numbered checklist so a VA can follow it top-to-bottom. Grad cap = the existing 🎓 school icon at the top-left of the toolbar.
+## UI surface
 
-```
-🎓 University of Pennsylvania        [Copy Faculty Link]   ← Step #1
-  ┌─ #2 Paste URL to Scrape ────────────────────────────────────┐
-  │  [Scrape URL ▾]  [Crawl multi-page]                          │
-  │  [Import PDF]   (?)  ← tooltip: "Only use if scrape fails"   │
-  └──────────────────────────────────────────────────────────────┘
-  Program: [..............] Shorthand: [........]    [Close] [Back] [Quick Approve] [Next ▾]
-```
+Small, low-noise additions only:
 
-- **#1 Copy Faculty Link**: button next to the school name. On click it copies
-  `https://www.google.com/search?q={school_name}+accounting+faculty+directory`
-  to the clipboard and toasts "Search link copied — paste in a new tab".
-  Does NOT open a tab (Google was blocking it).
-- **#2 Paste URL to Scrape**: groups the existing Scrape URL + multi-page crawl buttons under a small "#2" label.
-- **Import PDF** moves below the scrape buttons with a small `?` hover-tooltip: `Only use if scrape fails`.
-- Program / Shorthand / Close / Back / Quick Approve / Next stay on a second row exactly as they are now.
+- **ApproveCampusModal header** — under the program shorthand row, a single line of compact chips: `BS · MAcc · PhD`. Detected levels are solid; undetected are faded. Tooltip on each chip shows the matched snippet.
+- **Campus list/table** — wherever campuses are listed for triage, add a tiny `BS/MAcc/PhD` column rendered the same way. No filter UI yet — just the data — since the user said "useful later".
 
-## 3. Files touched
+Nothing else changes in the scrape flow. Same button, same URL panel.
 
-- `src/components/outreach/FacultyTriagePanel.tsx`
-- `src/components/outreach/ApproveCampusModal.tsx`
+## Where it plugs in
 
-Plus one new tiny component for the help modal:
-- `src/components/outreach/TriageHelpModal.tsx`
+In `src/lib/faculty-scrape.functions.ts`, both `scrapeCampusFaculty` and `autoDiscoverCampusFaculty` already loop scraped pages to feed the AI extractor. In that same loop:
 
-## 4. Verification
+1. Run `detectProgramLevels(markdown)` → `{ bachelors, masters, phd, evidence }`.
+2. Accumulate across pages.
+3. After the run finishes (and before returning), `UPDATE campuses SET has_*_accounting = existing OR detected, program_levels_evidence = {...} WHERE id = campusId`.
 
-- Triage table renders 4 columns: Name · Title · Email · Creds · Decision.
-- Selecting rows shows the new bulk bar; dropdown lists all known tags A–Z; deleting from dropdown removes from every row; custom tag persists into the dropdown.
-- "How this works?" opens the help modal with the copy above.
-- Toolbar shows #1/#2 layout; Copy Faculty Link copies a Google search URL; Import PDF sits below with the tooltip.
+No new Firecrawl calls, no new AI calls, no new round trips.
 
-Approve to build.
+## Technical details
+
+- New file `src/lib/program-levels.ts` exporting `detectProgramLevels(markdown: string)` — pure function, fully unit-testable, no I/O.
+- New migration adds the three boolean columns + jsonb column to `campuses` with defaults so existing rows are valid.
+- Server function uses the existing authenticated supabase client to update `campuses` — no new RLS work since the table is already writable by the same callers.
+- TypeScript types for `campuses` regenerate automatically from the migration; the modal and list read the new fields directly.
+
+## Optional follow-up (not in this plan)
+
+If after a week of runs we see campuses where regex misses (e.g. only a PDF catalog mentions the MAcc), add a one-shot AI classification on the merged markdown as a fallback — gated to only run when all three flags are still false after regex. Decide later based on real data.
+
+## Files touched
+
+- `supabase/migrations/<new>.sql` — add 4 columns to `campuses`.
+- `src/lib/program-levels.ts` — new, regex detector.
+- `src/lib/faculty-scrape.functions.ts` — call detector in both entry points, OR-merge, persist.
+- `src/components/outreach/ApproveCampusModal.tsx` — chip row under shorthand.
+- Campus list component (wherever the triage list lives) — small chip cell.
