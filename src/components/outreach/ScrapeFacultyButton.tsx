@@ -188,7 +188,7 @@ export function ScrapeFacultyButton({
           const result = await scrapePdf({ data: { campusId, filename: file.name, fileBase64: base64 } });
           const extras: string[] = [];
           if (result.skippedDuplicates) extras.push(`skipped ${result.skippedDuplicates} duplicate${result.skippedDuplicates === 1 ? "" : "s"}`);
-          if (result.droppedNoContact) extras.push(`${result.droppedNoContact} had no email — add manually in triage`);
+          if (result.droppedNoContact) extras.push(`${result.droppedNoContact} unusable (no name or contact)`);
           toast.success(
             `${campusName}: ${result.inserted} new candidate${result.inserted === 1 ? "" : "s"} from ${file.name} (${result.found} found)${extras.length ? ` · ${extras.join(" · ")}` : ""}.`,
           );
