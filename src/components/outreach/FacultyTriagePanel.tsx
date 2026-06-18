@@ -402,6 +402,7 @@ export function FacultyTriagePanel({
       if (result.skipped) parts.push(`skipped ${result.skipped} duplicate`);
       toast.success(parts.join(" · "));
       qc.invalidateQueries({ queryKey: ["outreach-leads"] });
+      qc.invalidateQueries({ queryKey: ["outreach-leads-total"] });
       qc.invalidateQueries({ queryKey: ["campus-lead-stats"] });
       qc.invalidateQueries({ queryKey: ["cold-imported-lead-counts-rmp"] });
       qc.invalidateQueries({ queryKey: ["lead-suggestions"] });
