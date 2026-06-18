@@ -515,7 +515,9 @@ export function FacultyTriagePanel({
                   <TableCell
                     className="cursor-pointer select-none font-medium"
                     onClick={(e) => onRowClick(r.id, e)}
-                    title="Click to select. Shift-click to fill range. Cmd/Ctrl-click to toggle."
+                    onMouseDown={(e) => { if (e.button === 0) onRowMouseDown(r.id); }}
+                    onMouseEnter={() => onRowMouseEnter(r.id)}
+                    title="Click to select. Click + drag across rows for multi-select. Shift-click for range."
                   >
                     <span className="inline-flex items-center gap-1.5">
                       {(r.first_name ?? "") + " " + (r.last_name ?? "")}
@@ -536,10 +538,13 @@ export function FacultyTriagePanel({
                   <TableCell
                     className="cursor-pointer select-none text-xs text-muted-foreground"
                     onClick={(e) => onRowClick(r.id, e)}
-                    title="Click to select. Shift-click to fill range."
+                    onMouseDown={(e) => { if (e.button === 0) onRowMouseDown(r.id); }}
+                    onMouseEnter={() => onRowMouseEnter(r.id)}
+                    title="Click to select. Click + drag across rows for multi-select."
                   >
                     {r.title ?? "—"}
                   </TableCell>
+
                   <TableCell className="text-xs">
                     {r.email ? (
                       <a href={`mailto:${r.email}`} className="text-primary hover:underline">{r.email}</a>
