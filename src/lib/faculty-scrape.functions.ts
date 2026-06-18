@@ -700,6 +700,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
       .from("campuses")
       .update({ faculty_page_url: data.urls.join("\n") })
       .eq("id", data.campusId);
+    await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
     return { ok: true, ...result };
   });
 
