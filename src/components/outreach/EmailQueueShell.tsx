@@ -1,5 +1,4 @@
-// Email Queue tab: lead-type card selector → per-type templates + broadcasts.
-// Only "professors" is active; other cards are greyed out (coming soon).
+// Email Queue tab: Cold Emails (priority queue) + Standard Campaigns.
 import { useState } from "react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,6 +10,8 @@ import { EmailTemplatesPanel } from "@/components/outreach/EmailTemplatesPanel";
 import { CampaignBuilder } from "@/components/outreach/CampaignBuilder";
 import { CampaignsListPanel } from "@/components/outreach/CampaignsListPanel";
 import { GlobalDailyLimitCard } from "@/components/outreach/GlobalDailyLimitCard";
+import { ColdEmailsPanel } from "@/components/outreach/ColdEmailsPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
 
