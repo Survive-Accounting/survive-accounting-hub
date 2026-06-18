@@ -54,6 +54,7 @@ async function callGemini(apiKey: string, bundle: ScrapeBundleInput): Promise<{
   severity: string;
   title: string;
   suggestion: string;
+  applies_to_verticals: string[];
   raw: unknown;
 } | null> {
   const stats = summarize(bundle);
@@ -83,11 +84,15 @@ async function callGemini(apiKey: string, bundle: ScrapeBundleInput): Promise<{
   };
 
   const system = `You analyze faculty-scrape debug bundles from a US university scraper.
-Your job is to suggest ONE generalizable improvement that would help across ANY university.
-Avoid school-specific advice; focus on patterns (WordPress directories, JS pagination, mailto obfuscation,
-news-page false positives, mdLen=0 hosts, hidden emails, profile-URL ambiguity, etc.).
+Your job is to suggest ONE generalizable improvement that would help across ANY university
+AND to flag which OTHER verticals would benefit from the same fix (accounting_firms,
+law_firms, investment_banks, consultancies, hospitals, government, nonprofits, other).
+Avoid school-specific advice; focus on patterns (WordPress directories, JS pagination,
+mailto obfuscation, news-page false positives, mdLen=0 hosts, hidden emails, profile-URL
+ambiguity, etc.).
 Return strict JSON with keys: pattern_tag (short snake_case like "wp_directory_mdlen_zero"),
-severity ("low"|"med"|"high"), title (<=80 chars), suggestion (<=600 chars, actionable).`;
+severity ("low"|"med"|"high"), title (<=80 chars), suggestion (<=600 chars, actionable),
+applies_to_verticals (array of vertical strings from the list above, [] if university-specific).`;
 
   const body = {
     model: "google/gemini-3-flash-preview",
@@ -125,6 +130,9 @@ severity ("low"|"med"|"high"), title (<=80 chars), suggestion (<=600 chars, acti
       severity: String(parsed.severity ?? "low").slice(0, 12),
       title: String(parsed.title ?? "").slice(0, 200),
       suggestion: String(parsed.suggestion ?? "").slice(0, 2000),
+      applies_to_verticals: Array.isArray(parsed.applies_to_verticals)
+        ? (parsed.applies_to_verticals as unknown[]).filter((v): v is string => typeof v === "string").slice(0, 12)
+        : [],
       raw: parsed,
     };
   } catch (e) {
@@ -191,6 +199,7 @@ export async function recordAndAnalyzeBundle(input: ScrapeBundleInput): Promise<
       severity: ai.severity,
       title: ai.title,
       suggestion: ai.suggestion,
+      applies_to_verticals: ai.applies_to_verticals,
       raw: ai.raw as never,
     } as never);
   } catch (e) {

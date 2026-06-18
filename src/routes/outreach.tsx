@@ -150,6 +150,17 @@ function OutreachPage() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
+                    isActive={pathname.startsWith("/outreach/scraper-trends")}
+                    onClick={() => navigate({ to: "/outreach/scraper-trends" })}
+                    tooltip="Scraper Trends"
+                  >
+                    <Layers className="h-4 w-4" />
+                    <span>Scraper Trends</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton
                     isActive={isIndex && tab === "schools"}
                     onClick={() => goTab("schools")}
                     tooltip="Campuses"

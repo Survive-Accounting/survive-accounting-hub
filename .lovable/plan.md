@@ -1,62 +1,86 @@
-## Problem
+## Quick answers first
 
-Many university directories render only the first page server-side and load pages 2+ via JavaScript without changing the URL (IU Kelley Accounting: 10 of ~70 profs scraped). Firecrawl's default single-shot scrape misses everything past page 1.
+- **Is the AI free?** No, but it's *cheap*. Lovable AI Gateway deducts from your credit balance. Each AI call on `google/gemini-3-flash-preview` (the model we already use for per-scrape suggestions) costs a fraction of a cent — a weekly verdict over 500 scrapes is well under 1 credit. You said you have an abundance, so this is comfortably in budget.
+- **Cross-vertical applicability** — yes, this is real. A "WordPress directory with hidden mailto" pattern applies just as much to mid-market accounting firms, regional CPA partnerships, boutique investment banks, and law firms as it does to universities. We can have the AI explicitly tag which suggestions generalize and to which verticals.
 
-This is a generic pattern — Drupal Views, WordPress admin-ajax, custom XHR tables, "Load more" buttons, infinite scroll — not IU-specific. Fixing it lifts reliability across every school using a CMS-driven directory.
+## What you'll get
 
-## Approach (three layers, generic)
+1. **Trends Dashboard** — a new tab under `/outreach` called "Scraper Trends" with:
+   - Line charts (last 30 / 90 / 365 days): emails per scrape, success rate, cost per contact, host-fail rate, % runs needing pagination walker, % runs needing map fallback, avg duration.
+   - Vertical lines on the chart marking "Fix Milestones" (e.g. "added JS-pagination walker — Dec 18").
+   - Latest AI Verdict card at the top: a 1-paragraph summary of "what got better/worse this week, which fix did it, and what other verticals would benefit."
 
-### 1. Pagination detector
-After the initial scrape of a `facultyUrl`, inspect the returned HTML/markdown for any of these signals:
-- Pagination controls: `.pagination`, `[aria-label*="page" i]`, `a[rel="next"]`, buttons with text `Next`, `›`, `»`, or numeric `1 2 3 …`
-- "Load more" / "Show more" buttons
-- Inline JS referencing `?page=`, `&p=`, `chunk.php`, `admin-ajax.php`, `/api/`, `wp-json`
-- Result count vs. card count mismatch (e.g. page text says "Showing 1–10 of 67")
+2. **Fix Milestones** — one-click "Mark fix shipped" button (also in the AI Suggestions panel — when you copy a suggestion and ship it, mark it). Stored in a new table so the chart and the AI can correlate metric changes to fixes.
 
-If any signal fires AND extracted-prof count is below a threshold (default 15), mark the URL as `paginated: true` and trigger the page-walker.
+3. **AI Verdicts** — periodic + on-demand rollup analysis. The AI gets the last 30 days of `scrape_debug_bundles`, all fix milestones in that window, and the recurring `scrape_improvement_suggestions`. It writes a verdict with three sections:
+   - **What improved / regressed** (with metric deltas)
+   - **Which fix moved the needle** (correlates milestones to metric changes)
+   - **Cross-vertical applicability** (which fixes/patterns would help scraping accounting firms, investment banks, law firms, hospitals, consultancies, etc. — useful both for Survive Accounting student leads and for any future scraper you build)
 
-### 2. Firecrawl `actions` page-walker (primary)
-Re-scrape the same URL with Firecrawl `actions`:
+4. **Cross-vertical tags on existing suggestions** — extend the per-scrape suggestion prompt to also output `applies_to_verticals: ["accounting_firms", "law_firms", ...]`, surfaced as little chips in the AI Suggestions panel.
+
+## Defaults I'll use (push back if any are wrong)
+
+- Verdict runs **on-demand only** via a "Generate verdict now" button. No cron — keeps credit spend predictable and you'll likely want to run it after batch scrape sessions anyway. Easy to add a weekly schedule later.
+- Trends page is gated under `/outreach` and only visible to authenticated users (matches the rest of the outreach surface).
+- Charts use Recharts (already installed in this project).
+- The "Mark fix shipped" button lives in the AI Suggestions panel (one click on a suggestion to mark it shipped, optionally with a free-text note).
+
+## Cost ballpark
+
+- Per-scrape suggestion (already running): ~$0.0005 each.
+- Verdict generation: ~$0.005–$0.01 each (larger context window over rolled-up bundles).
+- Storage: negligible — JSONB payloads, capped per-page markdown.
+
+## Technical details
+
+**Migration (one migration, four objects):**
+
+```sql
+CREATE TABLE public.scraper_fix_milestones (
+  id uuid pk,
+  name text NOT NULL,
+  description text,
+  deployed_at timestamptz NOT NULL default now(),
+  tags text[] default '{}',
+  suggestion_id uuid references scrape_improvement_suggestions(id) on delete set null,
+  created_at, updated_at
+);
+
+CREATE TABLE public.scraper_performance_verdicts (
+  id uuid pk,
+  window_start timestamptz NOT NULL,
+  window_end timestamptz NOT NULL,
+  model text,
+  summary text,                -- 1-paragraph headline
+  what_changed jsonb,          -- {improved:[{metric, delta_pct, note}], regressed:[...]}
+  fix_attribution jsonb,       -- [{milestone_id, name, impact_summary, metric}]
+  vertical_applicability jsonb,-- [{vertical, applicable_patterns:[...], notes}]
+  metrics_snapshot jsonb,      -- aggregates the AI was given
+  created_at
+);
+
+ALTER TABLE public.scrape_improvement_suggestions
+  ADD COLUMN applies_to_verticals text[] default '{}',
+  ADD COLUMN shipped_at timestamptz,
+  ADD COLUMN milestone_id uuid references scraper_fix_milestones(id) on delete set null;
 ```
-[
-  { type: 'scrape' },
-  { type: 'click', selector: '.pagination a:has-text("Next"), a[rel="next"], button:has-text("Load more")' },
-  { type: 'wait', milliseconds: 1500 },
-  { type: 'scrape' },
-  ... (repeat up to MAX_PAGES = 10)
-]
-```
-Concatenate the HTML from each `scrape` step, then run the existing extractor over the combined HTML. Stop early when:
-- Click selector not found
-- Two consecutive pages produce zero new email addresses
-- Hit `MAX_PAGES` cap
 
-### 3. Sitemap/map fallback (backup, already partially in place)
-If actions yield < 5 new profs OR the click selector never matches, run `firecrawl.map(rootDomain, { search: '<dept> faculty profile', limit: 200 })` and filter results to URL patterns matching the seed (`profile.html?id=`, `/people/`, `/faculty/`, `/directory/`). Enqueue those as individual profile fetches. This is the IU-style escape hatch: even when JS pagination is unscrapable, profile-detail URLs are usually static and discoverable via sitemap.
+All four objects get the standard `authenticated` SELECT/INSERT/UPDATE/DELETE grants + RLS (matches your existing pattern).
 
-## Wiring into existing system
+**Server functions** (`src/lib/scraper-trends.functions.ts`):
+- `getScraperTrends({ days })` → aggregates `scrape_debug_bundles` by day into a time-series shape suitable for Recharts. Also returns fix milestones in the window.
+- `listFixMilestones()` / `createFixMilestone({ name, description, suggestionId?, tags? })` / `markSuggestionShipped({ suggestionId, milestoneId? })`.
+- `generatePerformanceVerdict({ days })` → builds a compact rollup (daily aggregates + recurring patterns + recent milestones), calls Gemini Flash with a fixed prompt asking for the three sections above, stores in `scraper_performance_verdicts`.
+- `listPerformanceVerdicts({ limit })` → for the dashboard card.
 
-- **`src/lib/faculty-scrape.functions.ts`**: After the first `firecrawlScrape` of each `facultyUrl`, run `detectPagination(html)`. If positive, call new `scrapeWithActionsPagination(url, maxPages)` and feed combined HTML back into the existing extractor. Track `pagesWalked`, `actionsUsed`, and any click-selector miss in the per-URL debug record.
-- **`src/lib/auto-scrape.functions.ts`**: No change to URL discovery; the detector runs after fetch.
-- **`FacultyTriagePanel.tsx`**: Show a small "paginated (Np)" badge on rows whose source URL used the walker, so you can verify it's firing.
-- **Scrape Metrics**: Add counters — `paginated_urls_detected`, `pages_walked_total`, `pagination_fallback_to_map`. These prove the fix is active across schools, not just IU.
+**UI:**
+- New route: `src/routes/_authenticated/outreach/scraper-trends.tsx` — full dashboard page.
+- Update `AiSuggestionsPanel`: show `applies_to_verticals` chips, add a "Mark shipped" inline button that creates a milestone.
+- Update the per-scrape AI prompt in `src/lib/scrape-debug.server.ts` to also return `applies_to_verticals`.
+- Add a sidebar link "Scraper Trends" under the outreach section.
 
-## Cost & safety
-
-- Firecrawl `actions` costs ~1 credit per `scrape` step. Capping at `MAX_PAGES = 10` means worst case +10 credits per directory; typical case (3–4 real pages) +3–4.
-- Detector is HTML-only, no extra fetch.
-- `MAX_PAGES` and the click-selector list are constants at the top of the file for easy tuning.
-
-## Expected outcome on IU Kelley Accounting
-
-- Detector fires: pagination controls present, only 10 extracted of "Showing 1–10 of 67"
-- Walker clicks `Next` 6 times → combined HTML contains all 7 page snapshots → extractor pulls ~67 profs
-- Total cost: ~7 Firecrawl credits for that URL instead of 1, vs. ~60 profs missed
-
-## Files to edit
-
-- `src/lib/faculty-scrape.functions.ts` — add `detectPagination`, `scrapeWithActionsPagination`, wire into the per-URL loop
-- `src/components/outreach/FacultyTriagePanel.tsx` — paginated badge
-- `src/components/outreach/ScrapeMetricsPanel.tsx` — three new counters
-
-No DB migration, no schema change, no new dependency (Firecrawl SDK already supports `actions`).
+**Out of scope (call out if you want them):**
+- Running verdicts automatically on a cron (would need pg_cron + a public webhook route).
+- Backfilling `applies_to_verticals` on existing suggestions (cheap re-analysis run, ~few credits).
+- Charting per-campus trends (this plan ships workspace-wide trends only).
