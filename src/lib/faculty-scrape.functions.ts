@@ -769,7 +769,7 @@ async function firecrawlScrapeWithLinks(
   apiKey: string,
   url: string,
   timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS,
-): Promise<{ markdown: string; links: string[] }> {
+): Promise<{ markdown: string; links: string[]; rawHtml: string }> {
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/scrape",
     {
