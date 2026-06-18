@@ -1059,6 +1059,9 @@ export type Database = {
           enrollment_updated_at: string | null
           faculty_page_url: string | null
           generated_theme_json: Json | null
+          has_bachelors_accounting: boolean
+          has_masters_accounting: boolean
+          has_phd_accounting: boolean
           hipolabs_raw_json: Json | null
           hipolabs_status: string | null
           id: string
@@ -1085,6 +1088,7 @@ export type Database = {
           preview_slug: string | null
           priority_score: number | null
           priority_tier: string | null
+          program_levels_evidence: Json | null
           program_shorthand: string | null
           ready_for_outreach: boolean | null
           region: string | null
@@ -1186,6 +1190,9 @@ export type Database = {
           enrollment_updated_at?: string | null
           faculty_page_url?: string | null
           generated_theme_json?: Json | null
+          has_bachelors_accounting?: boolean
+          has_masters_accounting?: boolean
+          has_phd_accounting?: boolean
           hipolabs_raw_json?: Json | null
           hipolabs_status?: string | null
           id?: string
@@ -1212,6 +1219,7 @@ export type Database = {
           preview_slug?: string | null
           priority_score?: number | null
           priority_tier?: string | null
+          program_levels_evidence?: Json | null
           program_shorthand?: string | null
           ready_for_outreach?: boolean | null
           region?: string | null
@@ -1313,6 +1321,9 @@ export type Database = {
           enrollment_updated_at?: string | null
           faculty_page_url?: string | null
           generated_theme_json?: Json | null
+          has_bachelors_accounting?: boolean
+          has_masters_accounting?: boolean
+          has_phd_accounting?: boolean
           hipolabs_raw_json?: Json | null
           hipolabs_status?: string | null
           id?: string
@@ -1339,6 +1350,7 @@ export type Database = {
           preview_slug?: string | null
           priority_score?: number | null
           priority_tier?: string | null
+          program_levels_evidence?: Json | null
           program_shorthand?: string | null
           ready_for_outreach?: boolean | null
           region?: string | null
