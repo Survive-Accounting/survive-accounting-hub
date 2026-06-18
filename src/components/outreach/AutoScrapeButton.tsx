@@ -197,15 +197,23 @@ export function AutoScrapeButton({
               const obj = (r ?? {}) as Record<string, unknown>;
               const ins = typeof obj.inserted === "number" ? obj.inserted : 0;
               const dup = typeof obj.skippedDuplicates === "number" ? obj.skippedDuplicates : 0;
-              const status: StepStatus = ins > 0 ? "ok" : (dup > 0 ? "warn" : "warn");
-              const summary = `+${ins} new candidate(s), ${dup} duplicate(s) from ${found.facultyUrls.length} url(s)`;
+              const dropped = typeof obj.droppedNoContact === "number" ? obj.droppedNoContact : 0;
+              const perPage = Array.isArray(obj.perPage) ? obj.perPage as Array<Record<string, unknown>> : [];
+              const extracted = perPage.reduce((a, p) => a + (typeof p.extracted === "number" ? p.extracted : 0), 0);
+              const slugMatched = perPage.reduce((a, p) => a + (typeof p.slugMatched === "number" ? p.slugMatched : 0), 0);
+              const enriched = perPage.reduce((a, p) => a + (typeof p.enriched === "number" ? p.enriched : 0), 0);
+              const status: StepStatus = ins > 0 ? "ok" : "warn";
+              const summary =
+                `+${ins} new (${dup} dup, ${dropped} no-contact) · ` +
+                `AI extracted ${extracted}, slug-matched ${slugMatched} profile url(s), enriched ${enriched} email(s)`;
               finishStep(s2, { status, summary, data: r });
-              job.succeed(summary);
+              job.succeed(`+${ins} new (${dup} dup, ${dropped} dropped)`);
             })
             .catch((e) => {
               finishStep(s2, { status: "error", error: shortErr(e) });
               job.fail(shortErr(e));
             }),
+
         );
       } else {
         pushStep({ key: "faculty", label: "2. Firecrawl + parse faculty", status: "skipped", startedAt: Date.now(), finishedAt: Date.now(), summary: "No faculty URLs to scrape" });
