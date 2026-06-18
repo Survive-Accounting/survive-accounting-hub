@@ -318,6 +318,8 @@ function LeadFinderPage() {
               refreshToken={refreshKey}
               hideHeader
               onStatsChange={setTriageStats}
+              onStartScrape={scrapeApi.start}
+              isScraping={scrapeApi.busy}
             />
           ) : campusQuery.isError ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
