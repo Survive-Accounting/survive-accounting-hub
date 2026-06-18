@@ -271,8 +271,9 @@ function LeadFinderPage() {
           ) : null}
         </div>
 
-        {/* Sticky bottom action bar */}
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        {/* Sticky bottom action bar — stays inside the SidebarInset */}
+        <div className="sticky bottom-0 z-20 mt-auto border-t border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+
           <div className="mx-auto flex max-w-6xl items-center justify-center gap-3 px-4 py-3">
             <Button
               size="sm"
