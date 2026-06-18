@@ -186,65 +186,66 @@ export function AutoScrapeButton({
           (found.rmpUrl ? " + RMP school page" : " (no RMP)"),
       );
 
-      // Step 2: faculty scrape
-      const tasks: Promise<unknown>[] = [];
+      // Step 2: faculty scrape — MUST complete before RMP so the directory
+      // markdown is cached in `faculty_scrape_cache`. RMP's reverse-lookup
+      // step reads that cache to recover names that didn't match a
+      // forward-extracted lead.
       if (found.facultyUrls.length > 0) {
         const s2 = pushStep({ key: "faculty", label: "2. Firecrawl + parse faculty", status: "running", startedAt: Date.now() });
         const job = startScrapeJob({ campusId, campusName, kind: "faculty" });
-        tasks.push(
-          facultyFn({ data: { campusId, urls: found.facultyUrls, allowNoContact: true } })
-            .then((r) => {
-              const obj = (r ?? {}) as Record<string, unknown>;
-              const ins = typeof obj.inserted === "number" ? obj.inserted : 0;
-              const dup = typeof obj.skippedDuplicates === "number" ? obj.skippedDuplicates : 0;
-              const dropped = typeof obj.droppedNoContact === "number" ? obj.droppedNoContact : 0;
-              const perPage = Array.isArray(obj.perPage) ? obj.perPage as Array<Record<string, unknown>> : [];
-              const extracted = perPage.reduce((a, p) => a + (typeof p.extracted === "number" ? p.extracted : 0), 0);
-              const slugMatched = perPage.reduce((a, p) => a + (typeof p.slugMatched === "number" ? p.slugMatched : 0), 0);
-              const enriched = perPage.reduce((a, p) => a + (typeof p.enriched === "number" ? p.enriched : 0), 0);
-              const status: StepStatus = ins > 0 ? "ok" : "warn";
-              const summary =
-                `+${ins} new (${dup} dup, ${dropped} no-contact) · ` +
-                `AI extracted ${extracted}, slug-matched ${slugMatched} profile url(s), enriched ${enriched} email(s)`;
-              finishStep(s2, { status, summary, data: r });
-              job.succeed(`+${ins} new (${dup} dup, ${dropped} dropped)`);
-            })
-            .catch((e) => {
-              finishStep(s2, { status: "error", error: shortErr(e) });
-              job.fail(shortErr(e));
-            }),
-
-        );
+        try {
+          const r = await facultyFn({ data: { campusId, urls: found.facultyUrls, allowNoContact: true } });
+          const obj = (r ?? {}) as Record<string, unknown>;
+          const ins = typeof obj.inserted === "number" ? obj.inserted : 0;
+          const dup = typeof obj.skippedDuplicates === "number" ? obj.skippedDuplicates : 0;
+          const dropped = typeof obj.droppedNoContact === "number" ? obj.droppedNoContact : 0;
+          const perPage = Array.isArray(obj.perPage) ? obj.perPage as Array<Record<string, unknown>> : [];
+          const extracted = perPage.reduce((a, p) => a + (typeof p.extracted === "number" ? p.extracted : 0), 0);
+          const slugMatched = perPage.reduce((a, p) => a + (typeof p.slugMatched === "number" ? p.slugMatched : 0), 0);
+          const enriched = perPage.reduce((a, p) => a + (typeof p.enriched === "number" ? p.enriched : 0), 0);
+          const status: StepStatus = ins > 0 ? "ok" : "warn";
+          const summary =
+            `+${ins} new (${dup} dup, ${dropped} no-contact) · ` +
+            `AI extracted ${extracted}, slug-matched ${slugMatched} profile url(s), enriched ${enriched} email(s)`;
+          finishStep(s2, { status, summary, data: r });
+          job.succeed(`+${ins} new (${dup} dup, ${dropped} dropped)`);
+        } catch (e) {
+          finishStep(s2, { status: "error", error: shortErr(e) });
+          job.fail(shortErr(e));
+        }
       } else {
         pushStep({ key: "faculty", label: "2. Firecrawl + parse faculty", status: "skipped", startedAt: Date.now(), finishedAt: Date.now(), summary: "No faculty URLs to scrape" });
       }
 
-      // Step 3: RMP scrape
+      // Step 3: RMP scrape (runs AFTER faculty so reverse-lookup has cache)
       if (found.rmpUrl) {
         const s3 = pushStep({ key: "rmp", label: "3. RMP school scrape + match", status: "running", startedAt: Date.now() });
         const job = startScrapeJob({ campusId, campusName, kind: "rmp" });
         const rmpUrl = found.rmpUrl;
-        tasks.push(
-          rmpFn({ data: { campusId, urls: [rmpUrl] } })
-            .then((r) => {
-              const obj = (r ?? {}) as Record<string, unknown>;
-              const matched = typeof obj.matched === "number" ? obj.matched : (typeof obj.totalMatched === "number" ? obj.totalMatched : 0);
-              const found2 = typeof obj.found === "number" ? obj.found : (typeof obj.totalFound === "number" ? obj.totalFound : 0);
-              const status: StepStatus = matched > 0 ? "ok" : "warn";
-              const summary = `matched ${matched}/${found2} profs from RMP`;
-              finishStep(s3, { status, summary, data: r });
-              job.succeed(summary);
-            })
-            .catch((e) => {
-              finishStep(s3, { status: "error", error: shortErr(e) });
-              job.fail(shortErr(e));
-            }),
-        );
+        try {
+          const r = await rmpFn({ data: { campusId, urls: [rmpUrl] } });
+          const obj = (r ?? {}) as Record<string, unknown>;
+          const matched = typeof obj.totalMatched === "number" ? obj.totalMatched : 0;
+          const found2 = typeof obj.totalFound === "number" ? obj.totalFound : 0;
+          const reverseInserted = typeof obj.reverseInserted === "number" ? obj.reverseInserted : 0;
+          const reverseAttempted = typeof obj.reverseAttempted === "number" ? obj.reverseAttempted : 0;
+          const cachedPages = typeof obj.cachedPages === "number" ? obj.cachedPages : 0;
+          const status: StepStatus = matched > 0 ? "ok" : "warn";
+          const summary =
+            `matched ${matched}/${found2} profs from RMP` +
+            (reverseAttempted > 0
+              ? ` · reverse-lookup: +${reverseInserted}/${reverseAttempted} new from ${cachedPages} cached page(s)`
+              : ` · no reverse lookup (cachedPages=${cachedPages})`);
+          finishStep(s3, { status, summary, data: r });
+          job.succeed(summary);
+        } catch (e) {
+          finishStep(s3, { status: "error", error: shortErr(e) });
+          job.fail(shortErr(e));
+        }
       } else {
         pushStep({ key: "rmp", label: "3. RMP school scrape + match", status: "skipped", startedAt: Date.now(), finishedAt: Date.now(), summary: "No RMP URL discovered" });
       }
 
-      await Promise.all(tasks);
 
       const anyError = run.steps.some((s) => s.status === "error");
       const anyWarn = run.steps.some((s) => s.status === "warn");
