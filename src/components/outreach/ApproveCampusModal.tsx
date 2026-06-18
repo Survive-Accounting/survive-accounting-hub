@@ -167,6 +167,55 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
 
 export type NextCampusFilter = "all" | "with_leads" | "without_leads" | "sec_only";
 
+const NEXT_FILTER_LABELS: Record<NextCampusFilter, string> = {
+  all: "All",
+  with_leads: "With leads",
+  without_leads: "Without leads",
+  sec_only: "SEC only 🏈",
+};
+
+/** Compact Next button with an inline filter picker — replaces the legacy
+ *  "Next filter:" pill row. */
+function SpeedNextButton({
+  filter,
+  setFilter,
+  onNext,
+}: {
+  filter: NextCampusFilter;
+  setFilter: (v: NextCampusFilter) => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border bg-secondary">
+      <button
+        type="button"
+        onClick={onNext}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium hover:bg-secondary/80"
+        title={`Advance to the next campus filtered by: ${NEXT_FILTER_LABELS[filter]}`}
+      >
+        Next <ArrowRight className="h-3.5 w-3.5" />
+      </button>
+      <Select value={filter} onValueChange={(v) => setFilter(v as NextCampusFilter)}>
+        <SelectTrigger
+          className="h-auto rounded-none border-0 border-l border-border/60 bg-transparent px-2 text-[11px] focus:ring-0"
+          aria-label="Choose which campuses to advance through"
+        >
+          <span className="text-muted-foreground">{NEXT_FILTER_LABELS[filter]}</span>
+        </SelectTrigger>
+        <SelectContent align="end">
+          {(Object.keys(NEXT_FILTER_LABELS) as NextCampusFilter[]).map((k) => (
+            <SelectItem key={k} value={k} className="text-xs">
+              {NEXT_FILTER_LABELS[k]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+
+
 export default function ApproveCampusModal({
   campus, onClose, onPatch, onApprove, onNext, autoStartResearch, initialStep,
 }: {
