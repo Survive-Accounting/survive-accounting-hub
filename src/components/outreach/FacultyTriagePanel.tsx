@@ -17,18 +17,12 @@ import {
 } from "@/components/ui/table";
 import {
   fetchTagsFromOtherCampuses,
-  fetchTriageRows, importKeptLeads, setTriageFlag, setTriageStatus,
+  fetchTriageRows, importKeptLeads, setTriageFlag,
   setTriageTagsBulk, type TriageRow,
 } from "@/lib/faculty-triage";
 import {
   INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
 } from "@/lib/role-keywords";
-
-function toTriageStatus(status: string | null): "pending_triage" | "kept" | "skipped" {
-  if (status === "accepted" || status === "kept") return "kept";
-  if (status === "rejected" || status === "skipped") return "skipped";
-  return "pending_triage";
-}
 
 type SortKey = "title" | "name";
 
