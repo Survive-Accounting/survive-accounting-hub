@@ -439,10 +439,10 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         const toInsert = reverseRows.filter((r) => {
           const e = r.email as string | null;
           if (e && existingEmails.has(e)) return false;
-          // Also skip if the name now exists in sugByName (we picked it up in
-          // a concurrent run); not strictly required but keeps it tidy.
-          const k = nameKey(r.first_name as string, r.last_name as string);
-          if (sugByName.has(k)) return false;
+          // Belt-and-suspenders: use the same fuzzy resolver as the matching
+          // pass so middle initials / RMP-anonymized first names don't slip
+          // through and create duplicates of profs we already have.
+          if (resolveId(r.first_name as string, r.last_name as string, sugByName, sugByLast)) return false;
           return true;
         });
         if (toInsert.length > 0) {
