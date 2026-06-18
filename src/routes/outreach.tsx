@@ -27,6 +27,8 @@ import { TutoringRequestsPanel } from "@/components/outreach/TutoringRequestsPan
 // WaitlistCard removed from sidebar layout
 import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import { ArchiveAllLeadsButton } from "@/components/outreach/ArchiveAllLeadsButton";
+import { ScrapeJobsQueuePanel } from "@/components/outreach/ScrapeJobsQueuePanel";
+
 import { AudiencesPanel } from "@/components/outreach/AudiencesPanel";
 import {
   DEFAULT_CAMPUS_FILTERS,
@@ -206,6 +208,7 @@ function OutreachPage() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
+          <ScrapeJobsQueuePanel />
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -219,6 +222,7 @@ function OutreachPage() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
+
 
       <SidebarInset>
         <div className="flex min-h-screen flex-col bg-background">

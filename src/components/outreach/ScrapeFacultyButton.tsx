@@ -19,6 +19,8 @@ import {
   useScrapingCampusInfo,
   clearCampusScrape,
 } from "@/lib/faculty-scrape-queue";
+import { startScrapeJob } from "@/lib/scrape-jobs";
+
 
 // Slim a raw error message into something short and human for a toast.
 function slickErr(e: unknown, fallback = "unknown error"): string {
@@ -126,24 +128,28 @@ export function ScrapeFacultyButton({
     }
     setExpanded(false);
     toast.info(`Scraping ${campusName} in background…`);
+    const job = startScrapeJob({ campusId, campusName, kind: "faculty" });
     const promise = (async () => {
       try {
         const result = await scrape({ data: { campusId, urls: list } });
         const errors = result.perPage.filter((p) => p.error);
         if (errors.length > 0) {
-          toast.warning(
-            `${campusName}: ${result.perPage.length - errors.length}/${result.perPage.length} pages scraped. ${result.inserted} new candidates. ${errors.length} URL(s) failed.`,
-          );
+          const msg = `${result.perPage.length - errors.length}/${result.perPage.length} pages, +${result.inserted} new, ${errors.length} failed`;
+          toast.warning(`${campusName}: ${msg}.`);
+          job.succeed(msg);
         } else {
-          toast.success(
-            `${campusName}: ${result.inserted} new candidates from ${result.perPage.length} page(s).${result.skippedDuplicates ? ` Skipped ${result.skippedDuplicates} duplicates.` : ""}`,
-          );
+          const msg = `+${result.inserted} new from ${result.perPage.length} page(s)${result.skippedDuplicates ? ` (skipped ${result.skippedDuplicates})` : ""}`;
+          toast.success(`${campusName}: ${msg}.`);
+          job.succeed(msg);
         }
         onScraped?.();
       } catch (e) {
-        toast.error(`${campusName} scrape failed`, { description: slickErr(e) });
+        const msg = slickErr(e);
+        toast.error(`${campusName} scrape failed`, { description: msg });
+        job.fail(msg);
       }
     })();
+
     trackCampusScrape(campusId, promise, {
       onTimeout: () => toast.error(`${campusName} scrape timed out`, {
         description: "No response in 3 minutes — the job slot was released. Try again or use PDF upload.",
@@ -213,20 +219,24 @@ export function ScrapeFacultyButton({
         continue;
       }
       toast.info(`Scanning ${file.name} in background…`);
+      const job = startScrapeJob({ campusId, campusName, kind: "faculty" });
       const promise = (async () => {
         try {
           const result = await scrapePdf({ data: { campusId, filename: file.name, fileBase64: base64 } });
           const extras: string[] = [];
-          if (result.skippedDuplicates) extras.push(`skipped ${result.skippedDuplicates} duplicate${result.skippedDuplicates === 1 ? "" : "s"}`);
-          if (result.droppedNoContact) extras.push(`${result.droppedNoContact} unusable (no name or contact)`);
-          toast.success(
-            `${campusName}: ${result.inserted} new candidate${result.inserted === 1 ? "" : "s"} from ${file.name} (${result.found} found)${extras.length ? ` · ${extras.join(" · ")}` : ""}.`,
-          );
+          if (result.skippedDuplicates) extras.push(`skipped ${result.skippedDuplicates} dup${result.skippedDuplicates === 1 ? "" : "s"}`);
+          if (result.droppedNoContact) extras.push(`${result.droppedNoContact} unusable`);
+          const summary = `+${result.inserted} from ${file.name} (${result.found} found)${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
+          toast.success(`${campusName}: ${summary}.`);
+          job.succeed(summary);
           onScraped?.();
         } catch (e) {
-          toast.error(`${file.name} scan failed`, { description: slickErr(e) });
+          const msg = slickErr(e);
+          toast.error(`${file.name} scan failed`, { description: msg });
+          job.fail(msg);
         }
       })();
+
       trackCampusScrape(campusId, promise, {
         onTimeout: () => toast.error(`${campusName} PDF scan timed out`, {
           description: "No response in 3 minutes — the job slot was released. Try again or split the PDF.",
