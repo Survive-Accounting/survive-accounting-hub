@@ -244,7 +244,7 @@ export function FacultyTriagePanel({
   
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div ref={panelRef} className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <div>
           <div className="text-sm font-semibold">Faculty triage — {campusName}</div>
