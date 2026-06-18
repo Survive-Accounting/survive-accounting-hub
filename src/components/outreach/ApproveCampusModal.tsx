@@ -885,6 +885,25 @@ export default function ApproveCampusModal({
     onClose();
   };
 
+  const quickApprove = () => {
+    if (!campus) return;
+    onApprove(campus.id, {
+      approval_status: "approved",
+      ready_for_outreach: true,
+    });
+    toast.success(`Approved ${campus.school_name}`);
+    if (onNext) {
+      onNext(campus.id);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleNext = () => {
+    if (!campus || !onNext) return;
+    onNext(campus.id);
+  };
+
   if (!campus) return null;
 
   const steps = [
