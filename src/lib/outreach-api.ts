@@ -2318,6 +2318,8 @@ export interface CampaignAudienceFilters {
   minConfidence?: number;
   /** Which research run to pull suggestions from. Default: 'clean_professor_only'. */
   researchMode?: "all" | "broad" | "clean_professor_only";
+  /** Restrict to outreach_leads whose title_tags overlap this set. */
+  titleTags?: string[];
 }
 
 export interface CampaignAudiencePreviewLead {
