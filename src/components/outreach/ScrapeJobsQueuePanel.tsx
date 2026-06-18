@@ -15,6 +15,7 @@ import {
   type ScrapeJob,
 } from "@/lib/scrape-jobs";
 import { ScrapeMetricsPanel } from "./ScrapeMetricsPanel";
+import { AiSuggestionsPanel } from "./AiSuggestionsPanel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 
@@ -52,6 +53,7 @@ export function ScrapeJobsQueuePanel() {
   return (
     <div className="border-t border-sidebar-border px-2 py-2 group-data-[collapsible=icon]:hidden">
       <ScrapeMetricsPanel refreshKey={metricsKey} />
+      <AiSuggestionsPanel />
       {jobs.length > 0 && (
         <Collapsible open={queueOpen} onOpenChange={setQueueOpen} className="px-1">
           <div className="flex items-center justify-between pb-1">

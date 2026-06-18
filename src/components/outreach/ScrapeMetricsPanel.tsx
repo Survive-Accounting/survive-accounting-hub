@@ -4,8 +4,10 @@
 // refreshes whenever a job finishes (the queue component already subscribes
 // to realtime; we just re-query on visibility changes + a slow timer).
 import { useEffect, useState } from "react";
-import { ChevronDown, BarChart3, RefreshCw } from "lucide-react";
+import { ChevronDown, BarChart3, RefreshCw, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { listRecentDebugBundles } from "@/lib/scrape-debug.functions";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
@@ -177,15 +179,37 @@ export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
             <span>
               {metrics.successJobs} ok · {metrics.errorJobs} err · total {fmtUsd(metrics.totalCostUsd, 2)}
             </span>
-            <button
-              type="button"
-              onClick={() => { void refresh(); }}
-              disabled={loading}
-              title={loadedAt ? `Refreshed ${new Date(loadedAt).toLocaleTimeString()}` : "Refresh"}
-              className="rounded p-0.5 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-50"
-            >
-              <RefreshCw className={`h-2.5 w-2.5 ${loading ? "animate-spin" : ""}`} />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const { bundles } = await listRecentDebugBundles({ data: { limit: 5 } });
+                    if (!bundles.length) { toast.info("No debug bundles yet"); return; }
+                    const text = bundles.map((b) => {
+                      return `=== ${b.campus_name ?? b.campus_id} · ${b.kind} · ${new Date(b.created_at).toLocaleString()} ===\n${b.summary ?? ""}\n${JSON.stringify(b.payload, null, 2)}`;
+                    }).join("\n\n");
+                    await navigator.clipboard.writeText(text);
+                    toast.success(`Copied last ${bundles.length} debug bundle${bundles.length === 1 ? "" : "s"} — paste into chat for analysis`);
+                  } catch (e) {
+                    toast.error(`Copy failed: ${e instanceof Error ? e.message : String(e)}`);
+                  }
+                }}
+                title="Copy last 5 debug bundles to clipboard"
+                className="rounded p-0.5 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              >
+                <Copy className="h-2.5 w-2.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => { void refresh(); }}
+                disabled={loading}
+                title={loadedAt ? `Refreshed ${new Date(loadedAt).toLocaleTimeString()}` : "Refresh"}
+                className="rounded p-0.5 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-50"
+              >
+                <RefreshCw className={`h-2.5 w-2.5 ${loading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
           </div>
           <div className="text-[9px] italic text-sidebar-foreground/45">
             Est. ${COST_FACULTY_SCRAPE_USD.toFixed(3)}/faculty, ${COST_RMP_SCRAPE_USD.toFixed(3)}/RMP scrape.
