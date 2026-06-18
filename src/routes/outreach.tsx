@@ -21,6 +21,7 @@ import CampusTable from "@/components/outreach/CampusTable";
 import { BatchResearchSettingsModal } from "@/components/outreach/BatchResearchSettingsModal";
 import { CampusLeadsStatsPanel } from "@/components/outreach/CampusLeadsStatsPanel";
 import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
+import { supabase } from "@/integrations/supabase/client";
 import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
 import AddCampusModal from "@/components/outreach/AddCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
