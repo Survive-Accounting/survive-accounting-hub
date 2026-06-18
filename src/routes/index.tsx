@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
-import { MessageCircle, Check } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
