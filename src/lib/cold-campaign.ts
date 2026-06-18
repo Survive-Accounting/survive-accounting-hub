@@ -110,10 +110,11 @@ export interface ScheduleEntry {
   count: number; // emails scheduled for this campus on this date
 }
 
-/** Walk the ranked queue, packing emails into M–F days with daily/per-campus caps. */
+/** Walk the ranked queue, packing emails into M–F days with daily/per-campus caps.
+ *  Optional `countsByCampus` overrides perCampusCap for specific campuses. */
 export function buildSchedule(
   ranked: RankedCampus[],
-  cfg: ColdScheduleConfig,
+  cfg: ColdScheduleConfig & { countsByCampus?: Record<string, number> },
 ): { entries: ScheduleEntry[]; firstSendByCampus: Record<string, Date>; totalEmails: number; totalDays: number; finishDate: Date | null } {
   const entries: ScheduleEntry[] = [];
   const firstSendByCampus: Record<string, Date> = {};
@@ -121,8 +122,6 @@ export function buildSchedule(
     return { entries, firstSendByCampus, totalEmails: 0, totalDays: 0, finishDate: null };
   }
 
-  // For v1, assume each campus contributes exactly `perCampusCap` emails
-  // (placeholder for actual lead counts not yet imported).
   let cursor = startOfDay(cfg.startDate);
   cursor = nextValidDay(cursor, cfg.sendDays);
   let dayTotal = 0;
@@ -130,26 +129,33 @@ export function buildSchedule(
   let totalEmails = 0;
 
   for (const r of ranked) {
-    const cap = cfg.perCampusCap;
-    if (dayTotal + cap > cfg.dailyCap) {
-      // advance to next valid day
-      cursor = nextValidDay(addDays(cursor, 1), cfg.sendDays);
-      dayTotal = 0;
-    }
-    entries.push({ campusId: r.campus.id, sendDate: new Date(cursor), count: cap });
-    firstSendByCampus[r.campus.id] = new Date(cursor);
-    dayTotal += cap;
-    totalEmails += cap;
-    finish = new Date(cursor);
-    if (dayTotal >= cfg.dailyCap) {
-      cursor = nextValidDay(addDays(cursor, 1), cfg.sendDays);
-      dayTotal = 0;
+    const override = cfg.countsByCampus?.[r.campus.id];
+    let remaining = Math.max(1, override ?? cfg.perCampusCap);
+    while (remaining > 0) {
+      let space = cfg.dailyCap - dayTotal;
+      if (space <= 0) {
+        cursor = nextValidDay(addDays(cursor, 1), cfg.sendDays);
+        dayTotal = 0;
+        space = cfg.dailyCap;
+      }
+      const take = Math.min(remaining, space);
+      entries.push({ campusId: r.campus.id, sendDate: new Date(cursor), count: take });
+      if (!firstSendByCampus[r.campus.id]) firstSendByCampus[r.campus.id] = new Date(cursor);
+      dayTotal += take;
+      remaining -= take;
+      totalEmails += take;
+      finish = new Date(cursor);
+      if (dayTotal >= cfg.dailyCap) {
+        cursor = nextValidDay(addDays(cursor, 1), cfg.sendDays);
+        dayTotal = 0;
+      }
     }
   }
 
   const totalDays = uniqueDays(entries).length;
   return { entries, firstSendByCampus, totalEmails, totalDays, finishDate: finish };
 }
+
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
