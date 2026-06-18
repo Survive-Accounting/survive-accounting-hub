@@ -269,14 +269,13 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
             </div>
             )}
 
+            {!ctaSlot && (
             <ul
               className="hero-anim-btn mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
               style={{ listStyle: "none", padding: 0, margin: 0 }}
             >
               {[
-                { icon: "🟢", label: "Available Summer 2026" },
-                { icon: "📚", label: "Any Intro or Intermediate course" },
-                { icon: "🎓", label: "1,000+ students helped since 2015" },
+                { icon: "☀️", label: "Available Summer 2026" },
               ].map((b) => (
                 <li
                   key={b.label}
@@ -296,6 +295,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
                 </li>
               ))}
             </ul>
+            )}
           </div>
 
         </div>
