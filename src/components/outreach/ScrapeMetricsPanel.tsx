@@ -18,30 +18,26 @@ const COST_FACULTY_SCRAPE_USD = 0.04;
 const COST_RMP_SCRAPE_USD = 0.005;
 
 type Metrics = {
-  totalJobs: number;
+  avgDurationMs: number | null;
+  avgContactsPerDept: number | null;
+  avgCostPerDeptUsd: number | null;
+  avgCostPerContactUsd: number | null;
+  successRatePct: number | null;
+  totalDepts: number;       // unique campuses with a successful faculty scrape
+  totalContacts: number;    // active campus_lead_suggestions from scrapes
+  totalCostUsd: number;
   successJobs: number;
   errorJobs: number;
-  facultySuccess: number;
-  rmpSuccess: number;
-  uniqueDepts: number;        // unique campuses with a successful faculty scrape
-  totalLeads: number;         // active campus_lead_suggestions from scrapes
-  avgDurationMs: number | null;
-  totalCostUsd: number;
-  avgCostUsd: number | null;
-  costPerDeptUsd: number | null;
-  costPerLeadUsd: number | null;
 };
 
 const EMPTY: Metrics = {
-  totalJobs: 0, successJobs: 0, errorJobs: 0,
-  facultySuccess: 0, rmpSuccess: 0, uniqueDepts: 0, totalLeads: 0,
-  avgDurationMs: null, totalCostUsd: 0, avgCostUsd: null,
-  costPerDeptUsd: null, costPerLeadUsd: null,
+  avgDurationMs: null, avgContactsPerDept: null, avgCostPerDeptUsd: null,
+  avgCostPerContactUsd: null, successRatePct: null,
+  totalDepts: 0, totalContacts: 0, totalCostUsd: 0,
+  successJobs: 0, errorJobs: 0,
 };
 
 async function loadMetrics(): Promise<Metrics> {
-  // Pull every finished job — payload is small (~9 cols, finished jobs only)
-  // and we need durations + per-campus uniqueness. Cap to a generous limit.
   const [{ data: jobs }, { count: leadsCount }] = await Promise.all([
     supabase
       .from("scrape_jobs")
@@ -89,27 +85,23 @@ async function loadMetrics(): Promise<Metrics> {
 
   const totalCostUsd =
     facultySuccess * COST_FACULTY_SCRAPE_USD + rmpSuccess * COST_RMP_SCRAPE_USD;
-  const avgCostUsd = successJobs > 0 ? totalCostUsd / successJobs : null;
-  const avgDurationMs = durationCount > 0 ? totalDurationMs / durationCount : null;
-  const totalLeads = leadsCount ?? 0;
+  const totalDepts = facultyCampuses.size;
+  const totalContacts = leadsCount ?? 0;
+  const totalJobs = successJobs + errorJobs;
 
   return {
-    totalJobs: successJobs + errorJobs,
+    avgDurationMs: durationCount > 0 ? totalDurationMs / durationCount : null,
+    avgContactsPerDept: totalDepts > 0 ? totalContacts / totalDepts : null,
+    avgCostPerDeptUsd: totalDepts > 0
+      ? (facultySuccess * COST_FACULTY_SCRAPE_USD) / totalDepts
+      : null,
+    avgCostPerContactUsd: totalContacts > 0 ? totalCostUsd / totalContacts : null,
+    successRatePct: totalJobs > 0 ? (successJobs / totalJobs) * 100 : null,
+    totalDepts,
+    totalContacts,
+    totalCostUsd,
     successJobs,
     errorJobs,
-    facultySuccess,
-    rmpSuccess,
-    uniqueDepts: facultyCampuses.size,
-    totalLeads,
-    avgDurationMs,
-    totalCostUsd,
-    avgCostUsd,
-    // Cost-per-dept only counts faculty cost (RMP is per-campus anyway and
-    // cheap enough not to muddy the per-department number).
-    costPerDeptUsd: facultyCampuses.size > 0
-      ? (facultySuccess * COST_FACULTY_SCRAPE_USD) / facultyCampuses.size
-      : null,
-    costPerLeadUsd: totalLeads > 0 ? totalCostUsd / totalLeads : null,
   };
 }
 
@@ -125,6 +117,14 @@ function fmtMs(ms: number | null): string {
   const m = Math.floor(s / 60);
   const rem = Math.round(s - m * 60);
   return `${m}m ${rem}s`;
+}
+function fmtInt(n: number | null): string {
+  if (n == null) return "—";
+  return Math.round(n).toLocaleString();
+}
+function fmtPct(n: number | null): string {
+  if (n == null) return "—";
+  return `${n.toFixed(1)}%`;
 }
 
 export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
@@ -144,8 +144,6 @@ export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
     }
   };
 
-  // Load on mount + whenever the queue says a job state changed (refreshKey)
-  // + every 60s as a safety net while the panel is open.
   useEffect(() => { void refresh(); }, [refreshKey]);
   useEffect(() => {
     if (!open) return;
@@ -159,7 +157,7 @@ export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
         <BarChart3 className="h-3 w-3 text-sidebar-foreground/60" />
         <span className="uppercase tracking-wide">Scrape Metrics</span>
         <span className="ml-1 font-mono tabular-nums text-sidebar-foreground/55">
-          {metrics.uniqueDepts}d · {fmtUsd(metrics.totalCostUsd, 2)}
+          {fmtInt(metrics.totalDepts)}d · {fmtInt(metrics.totalContacts)}c
         </span>
         <ChevronDown
           className={`ml-auto h-3 w-3 text-sidebar-foreground/50 transition-transform ${open ? "rotate-180" : ""}`}
@@ -167,19 +165,17 @@ export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="mt-1 space-y-1 rounded border border-sidebar-border/60 bg-sidebar-accent/30 px-2 py-1.5 text-[10.5px] text-sidebar-foreground/90">
-          <Row k="ACCY depts scraped" v={`${metrics.uniqueDepts}`} />
-          <Row k="Total leads" v={`${metrics.totalLeads}`} />
+          <Row k="Average time" v={fmtMs(metrics.avgDurationMs)} />
+          <Row k="Average contacts per dept" v={fmtInt(metrics.avgContactsPerDept)} />
+          <Row k="Average cost per dept" v={fmtUsd(metrics.avgCostPerDeptUsd)} />
+          <Row k="Average cost per contact" v={fmtUsd(metrics.avgCostPerContactUsd)} />
+          <Row k="Success rate" v={fmtPct(metrics.successRatePct)} />
           <div className="my-1 border-t border-sidebar-border/50" />
-          <Row k="Avg time / scrape" v={fmtMs(metrics.avgDurationMs)} />
-          <Row k="Avg cost / scrape" v={fmtUsd(metrics.avgCostUsd)} />
-          <div className="my-1 border-t border-sidebar-border/50" />
-          <Row k="Total scrape cost" v={fmtUsd(metrics.totalCostUsd, 2)} strong />
-          <Row k="~ Cost / dept" v={fmtUsd(metrics.costPerDeptUsd)} />
-          <Row k="~ Cost / lead" v={fmtUsd(metrics.costPerLeadUsd)} />
+          <Row k="Total departments scraped" v={fmtInt(metrics.totalDepts)} strong />
+          <Row k="Total contacts found" v={fmtInt(metrics.totalContacts)} strong />
           <div className="mt-1.5 flex items-center justify-between gap-1 pt-1 text-[9.5px] text-sidebar-foreground/50">
             <span>
-              {metrics.successJobs} ok · {metrics.errorJobs} err
-              {" · "}f:{metrics.facultySuccess} r:{metrics.rmpSuccess}
+              {metrics.successJobs} ok · {metrics.errorJobs} err · total {fmtUsd(metrics.totalCostUsd, 2)}
             </span>
             <button
               type="button"
