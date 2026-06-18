@@ -63,6 +63,12 @@ function OutreachPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
   const [batchSettingsOpen, setBatchSettingsOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isIndex = pathname === "/outreach" || pathname === "/outreach/";
+  const goTab = (t: string) => {
+    setTab(t);
+    if (!isIndex) navigate({ to: "/outreach" });
+  };
 
   const openLeadFinder = (campusId: string) =>
     navigate({ to: "/outreach/leadfinder/$campusId", params: { campusId } });
