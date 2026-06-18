@@ -2,7 +2,7 @@
 // Reads the real database; falls back to mock data if the backend is unreachable.
 import { AdminGate } from "@/components/AdminGate";
 import { useEffect, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouterState, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Settings, Users, Search } from "lucide-react";
