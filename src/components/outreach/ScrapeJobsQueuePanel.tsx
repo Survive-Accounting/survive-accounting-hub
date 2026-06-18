@@ -114,9 +114,6 @@ export function ScrapeJobsQueuePanel() {
           </li>
         ))}
       </ul>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
