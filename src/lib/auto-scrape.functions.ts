@@ -122,17 +122,34 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       const h = hostOf(link);
       const domainOk = domains.length === 0 || domains.some((d) => h === d || h.endsWith(`.${d}`));
       if (!domainOk) return false;
+      // Hard-drop dated blog post URLs — they're news, never rosters.
+      if (BLOG_DATE_RE.test(link)) return false;
       const txt = `${link} ${title}`.toLowerCase();
-      const badHints = ["/news", "/event", "/blog", "/podcast", "/profile/", "/people/", "/award"];
+      const badHints = ["/news", "/event", "/blog", "/podcast", "/profile/", "/people/", "/award", "/spotlight", "/story", "/stories"];
       if (badHints.some((b) => txt.includes(b)) && !txt.includes("faculty") && !txt.includes("staff") && !txt.includes("directory")) return false;
       return true;
     };
-    const facultyUrls = Array.from(
+    const rawKept = Array.from(
       new Set(facultyResults.filter((r) => keep(r.link, r.title)).map((r) => r.link)),
-    ).slice(0, 2);
-    if (facultyUrls.length === 0 && facultyResults[0]) {
-      facultyUrls.push(facultyResults[0].link);
+    );
+    // Canonicalize: when a kept URL is a profile-detail page, prepend its
+    // parent directory so the actual roster gets scraped too.
+    const facultyUrls: string[] = [];
+    for (const link of rawKept) {
+      for (const parent of deriveDirectoryParents(link)) {
+        if (!facultyUrls.includes(parent)) facultyUrls.push(parent);
+      }
+      if (!facultyUrls.includes(link)) facultyUrls.push(link);
+    }
+    const facultyUrlsCapped = facultyUrls.slice(0, 3);
+    if (facultyUrlsCapped.length === 0 && facultyResults[0]) {
+      // Last-ditch fallback. Still avoid obvious blog posts.
+      const first = facultyResults.find((r) => !BLOG_DATE_RE.test(r.link)) ?? facultyResults[0];
+      facultyUrlsCapped.push(first.link);
       notes.push("faculty: heuristic dropped all results; using top organic result");
+    }
+    if (facultyUrlsCapped.length > rawKept.length) {
+      notes.push(`faculty: added ${facultyUrlsCapped.length - rawKept.length} parent directory URL(s)`);
     }
 
     // --- RMP URL discovery --------------------------------------------------
