@@ -102,10 +102,13 @@ const HARD_EXCLUDE = [
 // 4-digit year in path (e.g. /2024/, /2007-2008) = archived directory PDFs.
 const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
 const TEACHING_TITLE_RE = /\b(professor|instructor|lecturer|adjunct|clinical|teaching|faculty|dean|chair|practice|visiting)\b/i;
-const PROFILE_ENRICH_LIMIT = 12;
+const PROFILE_ENRICH_LIMIT = 50;
 const PROFILE_ENRICH_CONCURRENCY = 4;
 const PROFILE_SCRAPE_TIMEOUT_MS = 20_000;
 const URL_PROCESS_CONCURRENCY = 3;
+const DIRECTORY_WAIT_MS = 1500;
+const BATCH_SCRAPE_TIMEOUT_MS = 90_000;
+
 
 // Credential detection — used both to flag the row and to strip trailing
 // credentials from displayed names ("Jane Doe, PhD, CPA" → "Jane Doe").
