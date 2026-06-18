@@ -489,19 +489,24 @@ async function insertExtractedPeople(
   people: Extracted[],
   sourceLabel: string,
   researchLabel: string,
-): Promise<{ inserted: number; skippedDuplicates: number }> {
-  if (people.length === 0) return { inserted: 0, skippedDuplicates: 0 };
+  options: { allowNoContact?: boolean } = {},
+): Promise<{ inserted: number; skippedDuplicates: number; droppedNoContact: number }> {
+  if (people.length === 0) return { inserted: 0, skippedDuplicates: 0, droppedNoContact: 0 };
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const rowsToInsert: Array<Record<string, unknown>> = [];
+  let droppedNoContact = 0;
   for (const p of people) {
-    if (!p.email && !p.profile_url) continue;
+    const hasContact = !!p.email || !!p.profile_url;
+    if (!hasContact && !options.allowNoContact) { droppedNoContact++; continue; }
+    // Require at least a name when we have no contact info, otherwise the row is useless.
+    if (!hasContact && !(p.first_name || p.last_name)) { droppedNoContact++; continue; }
     rowsToInsert.push({
       campus_id: campusId,
       first_name: p.first_name,
       last_name: p.last_name,
       title: p.title,
       email: p.email,
-      source_url: p.profile_url ?? null,
+      source_url: p.profile_url ?? (options.allowNoContact ? sourceLabel : null),
       research_mode: "faculty_scrape",
       research_label: researchLabel,
       status: "pending",
@@ -512,7 +517,7 @@ async function insertExtractedPeople(
       raw_payload: { source: sourceLabel, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
     });
   }
-  if (rowsToInsert.length === 0) return { inserted: 0, skippedDuplicates: 0 };
+  if (rowsToInsert.length === 0) return { inserted: 0, skippedDuplicates: 0, droppedNoContact };
   const seen = new Set<string>();
   const unique = rowsToInsert.filter((r) => {
     const key = (r.email as string | null) ?? `${r.first_name}|${r.last_name}|${r.source_url}`;
