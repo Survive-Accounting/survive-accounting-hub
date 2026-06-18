@@ -499,6 +499,48 @@ export function FacultyTriagePanel({
           </TableBody>
         </Table>
       )}
+
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>How tagging &amp; triage works</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm leading-relaxed">
+            <div>
+              <div className="font-semibold">Selecting rows</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li>Click a <em>Name</em> or <em>Title</em> cell to select that row.</li>
+                <li><kbd className="rounded border px-1 text-xs">Shift</kbd>-click another row to fill the range.</li>
+                <li><kbd className="rounded border px-1 text-xs">Cmd</kbd>/<kbd className="rounded border px-1 text-xs">Ctrl</kbd>-click to toggle one row.</li>
+                <li>Press <kbd className="rounded border px-1 text-xs">Esc</kbd> to clear selection.</li>
+              </ul>
+            </div>
+            <div>
+              <div className="font-semibold">Tags</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li>Tags are short labels like <em>Assistant Professor</em> or <em>Intermediate I</em>.</li>
+                <li>Open <strong>All tags</strong> and click one to add it to every selected row.</li>
+                <li>Type in <em>new tag</em> and click <strong>Add</strong> to create a brand-new tag. It will show up in <strong>All tags</strong> after.</li>
+                <li>Click the <strong>×</strong> next to a tag in the dropdown to delete it from every person in this campus.</li>
+              </ul>
+            </div>
+            <div>
+              <div className="font-semibold">PhD &amp; CPA (not tags)</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li>Tick <strong>PhD</strong> if you see <em>PhD</em>, <em>Ph.D.</em>, <em>D.B.A.</em>, or <em>Ed.D.</em> — this turns on the “Dr. {`{LastName}`}” greeting in emails.</li>
+                <li>Tick <strong>CPA</strong> if you see <em>CPA</em> — used to send the right pitch.</li>
+              </ul>
+            </div>
+            <div>
+              <div className="font-semibold">Keep vs Skip</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li><strong>Keep</strong> = include this person when you click <em>Import kept leads</em>.</li>
+                <li><strong>Skip</strong> = ignore this person.</li>
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
