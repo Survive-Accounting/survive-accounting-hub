@@ -1087,23 +1087,11 @@ export default function ApproveCampusModal({
           </DialogHeader>
 
           {speedMode ? (
-            <div className="space-y-3 pt-2">
-              {/* Unified Speed Mode toolbar — collapses scrape + program + filter
-                  + actions into a single dense row. */}
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
-                {/* Scrape steps — VA-friendly numbered checklist. */}
-                <ScrapeFacultyButton
-                  campusId={campus.id}
-                  campusName={campus.school_name}
-                  onScraped={() => setLeadsRefreshKey((k) => k + 1)}
-                  hideAutoDiscover
-                  layout="stacked"
-                />
-
-                <div className="border-t border-border/60" />
-
-                {/* Program details + actions row. */}
+            <div className="space-y-4 pt-2">
+              {/* Program identity + live triage stats. */}
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                 <div className="flex flex-wrap items-center gap-2">
+                  <label className="w-20 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Program</label>
                   <input
                     type="text"
                     value={programName}
@@ -1116,10 +1104,13 @@ export default function ApproveCampusModal({
                         writePatch({ accounting_department_name: v.trim() || null });
                       }, 500);
                     }}
-                    placeholder="Program — {program}"
-                    title="Program name — merge tag {program}"
-                    className="h-7 w-[200px] rounded-md border border-input bg-background px-2 text-xs"
+                    placeholder="e.g. Department of Accounting and Finance"
+                    title="Full program name — merge tag {program}"
+                    className="h-8 flex-1 min-w-[240px] rounded-md border border-input bg-background px-2 text-xs"
                   />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="w-20 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Shorthand</label>
                   <input
                     type="text"
                     value={programShorthand}
@@ -1131,38 +1122,70 @@ export default function ApproveCampusModal({
                         writePatch({ program_shorthand: v.trim() || null } as Partial<Campus>);
                       }, 500);
                     }}
-                    placeholder="Shorthand — {program shorthand}"
-                    title="Program shorthand — merge tag {program shorthand}"
-                    className="h-7 w-[180px] rounded-md border border-input bg-background px-2 text-xs"
+                    placeholder="e.g. Accounting"
+                    title="Short label used in emails — merge tag {program shorthand}"
+                    className="h-8 flex-1 min-w-[200px] rounded-md border border-input bg-background px-2 text-xs"
                   />
-                  <div className="ml-auto flex items-center gap-2">
-                    {onBack && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={onBack}
-                        disabled={!canGoBack}
-                        title={canGoBack ? "Go back to the previous campus" : "No previous campus in this session"}
-                        className="gap-1"
-                      >
-                        <ArrowLeft className="h-3.5 w-3.5" /> Back
-                      </Button>
-                    )}
-                    <Button size="sm" variant="outline" onClick={onClose}>
-                      Close
-                    </Button>
-                    <Button size="sm" onClick={quickApprove} className="gap-1.5">
-                      <CheckCircle2 className="h-4 w-4" /> Quick Approve
-                    </Button>
-                    {onNext && (
-                      <SpeedNextButton
-                        filter={nextFilter}
-                        setFilter={updateNextFilter}
-                        onNext={handleNext}
-                      />
-                    )}
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={applyShorthandSuggestion}
+                    title="Guess a short label from the program name"
+                    className="h-8 gap-1 text-[11px]"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Suggest
+                  </Button>
                 </div>
+
+                <div className="pt-1 text-center text-[11px] text-muted-foreground">
+                  {triageStats.leads} lead{triageStats.leads === 1 ? "" : "s"} · {triageStats.kept} kept
+                </div>
+              </div>
+
+              {/* Primary action row — Back · Import Leads · Next. Centered with breathing room. */}
+              <div className="flex justify-center py-3">
+                <div className="inline-flex items-center gap-3">
+                  {onBack && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onBack}
+                      disabled={!canGoBack}
+                      title={canGoBack ? "Go back to the previous campus" : "No previous campus in this session"}
+                      className="gap-1.5"
+                    >
+                      <ArrowLeft className="h-4 w-4" /> Back
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={handleImportLeads}
+                    disabled={importingLeads || triageStats.kept === 0}
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {importingLeads
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
+                      : <><CheckCircle2 className="h-4 w-4" /> Import Leads ({triageStats.kept})</>}
+                  </Button>
+                  {onNext && (
+                    <SpeedNextButton
+                      filter={nextFilter}
+                      setFilter={updateNextFilter}
+                      onNext={handleNext}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Scrape steps — centered VA-friendly checklist. */}
+              <div className="rounded-lg border bg-muted/30 px-3 py-4">
+                <ScrapeFacultyButton
+                  campusId={campus.id}
+                  campusName={campus.school_name}
+                  onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                  hideAutoDiscover
+                  layout="stacked"
+                />
               </div>
 
               <FacultyTriagePanel
@@ -1170,6 +1193,8 @@ export default function ApproveCampusModal({
                 campusId={campus.id}
                 campusName={campus.school_name}
                 refreshToken={leadsRefreshKey}
+                hideHeader
+                onStatsChange={setTriageStats}
               />
             </div>
           ) : (
