@@ -430,6 +430,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*recipient\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, prefixMerge)
+      .replace(/\{\s*program\s*shorthand\s*\}/gi, programShorthandMerge)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
