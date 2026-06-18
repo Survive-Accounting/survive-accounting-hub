@@ -663,15 +663,14 @@ export function FacultyTriagePanel({
           </TableHeader>
           <TableBody>
             {sortedRows.map((r) => {
-              const status = toTriageStatus(r.status);
               const isSel = selected.has(r.id);
+              const hasTags = (r.title_tags ?? []).length > 0;
               return (
                 <TableRow
                   key={r.id}
                   className={[
                     "group",
-                    status === "skipped" ? "opacity-50" : "",
-                    status === "kept" ? "bg-emerald-50/40" : "",
+                    hasTags ? "bg-emerald-50/40" : "",
                     isSel ? "ring-1 ring-inset ring-amber-400 bg-amber-50/60" : "",
                   ].join(" ")}
                 >
@@ -715,7 +714,6 @@ export function FacultyTriagePanel({
                       <span className="text-amber-700">no email found</span>
                     )}
                   </TableCell>
-                  {/* Tags column intentionally removed — manage tags via the bulk bar above. */}
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button
@@ -742,26 +740,6 @@ export function FacultyTriagePanel({
                       >
                         CPA
                       </button>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        size="sm"
-                        variant={status === "kept" ? "default" : "outline"}
-                        className={status === "kept" ? "h-7 bg-emerald-600 hover:bg-emerald-700 px-2 text-xs" : "h-7 px-2 text-xs"}
-                        onClick={() => onStatus(r.id, status === "kept" ? "pending_triage" : "kept")}
-                      >
-                        <Check className="h-3 w-3" /> Keep
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={status === "skipped" ? "default" : "outline"}
-                        className={status === "skipped" ? "h-7 bg-muted-foreground hover:bg-muted-foreground/90 px-2 text-xs" : "h-7 px-2 text-xs"}
-                        onClick={() => onStatus(r.id, status === "skipped" ? "pending_triage" : "skipped")}
-                      >
-                        <X className="h-3 w-3" /> Skip
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
