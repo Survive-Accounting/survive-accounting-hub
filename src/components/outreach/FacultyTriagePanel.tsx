@@ -446,33 +446,7 @@ export function FacultyTriagePanel({
                       <span className="text-amber-700">no email found</span>
                     )}
                   </TableCell>
-                  {hasAnyTags && (
-                    <TableCell className="text-xs">
-                      {tags.length === 0 ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {tags.map((t) => (
-                            <Badge
-                              key={t}
-                              variant="outline"
-                              className="cursor-pointer border-amber-300 bg-amber-50 text-[10px] text-amber-900 hover:bg-amber-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const next = tags.filter((x) => x !== t);
-                                update(r.id, { title_tags: next });
-                                setTriageTagsBulk([r.id], "replace", next, tagsCurrentById)
-                                  .catch(() => void load());
-                              }}
-                              title="Click to remove"
-                            >
-                              {t} ✕
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </TableCell>
-                  )}
+                  {/* Tags column intentionally removed — manage tags via the bulk bar above. */}
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button
