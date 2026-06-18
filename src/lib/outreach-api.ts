@@ -2318,6 +2318,8 @@ export interface CampaignAudienceFilters {
   minConfidence?: number;
   /** Which research run to pull suggestions from. Default: 'clean_professor_only'. */
   researchMode?: "all" | "broad" | "clean_professor_only";
+  /** Restrict to outreach_leads whose title_tags overlap this set. */
+  titleTags?: string[];
 }
 
 export interface CampaignAudiencePreviewLead {
@@ -2350,6 +2352,7 @@ interface OutreachLeadRow {
   last_name: string | null;
   is_phd: boolean | null;
   status: string | null;
+  title_tags: string[] | null;
 }
 
 interface SuggestionMatchRow {
@@ -2429,12 +2432,15 @@ export async function previewCampaignAudience(
   // Pull leads (paginated).
   const leads: OutreachLeadRow[] = [];
   let from = 0;
+  const titleTagSet = filters.titleTags && filters.titleTags.length
+    ? new Set(filters.titleTags) : null;
   for (let i = 0; i < 50; i++) {
     let q: any = supabase
       .from("outreach_leads")
-      .select("id,campus_id,school_id,email,first_name,last_name,is_phd,status")
+      .select("id,campus_id,school_id,email,first_name,last_name,is_phd,status,title_tags")
       .range(from, from + 999);
     if (effectiveCampusIds) q = q.in("campus_id", effectiveCampusIds);
+    if (titleTagSet) q = q.overlaps("title_tags", Array.from(titleTagSet));
     const { data, error } = await q;
     if (error) throw error;
     const rows = (data ?? []) as unknown as OutreachLeadRow[];

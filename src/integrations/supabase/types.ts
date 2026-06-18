@@ -572,6 +572,7 @@ export type Database = {
           teaching_evidence_notes: string | null
           teaching_evidence_url: string | null
           title: string | null
+          title_tags: string[]
           updated_at: string
         }
         Insert: {
@@ -604,6 +605,7 @@ export type Database = {
           teaching_evidence_notes?: string | null
           teaching_evidence_url?: string | null
           title?: string | null
+          title_tags?: string[]
           updated_at?: string
         }
         Update: {
@@ -636,6 +638,7 @@ export type Database = {
           teaching_evidence_notes?: string | null
           teaching_evidence_url?: string | null
           title?: string | null
+          title_tags?: string[]
           updated_at?: string
         }
         Relationships: [
@@ -3140,6 +3143,7 @@ export type Database = {
           skip_landing_page: boolean | null
           source: string | null
           status: string | null
+          title_tags: string[]
           updated_at: string
         }
         Insert: {
@@ -3175,6 +3179,7 @@ export type Database = {
           skip_landing_page?: boolean | null
           source?: string | null
           status?: string | null
+          title_tags?: string[]
           updated_at?: string
         }
         Update: {
@@ -3210,6 +3215,7 @@ export type Database = {
           skip_landing_page?: boolean | null
           source?: string | null
           status?: string | null
+          title_tags?: string[]
           updated_at?: string
         }
         Relationships: [

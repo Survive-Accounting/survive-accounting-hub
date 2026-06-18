@@ -26,6 +26,7 @@ import {
   type Audience,
 } from "@/lib/outreach-api";
 import { applyAudienceFilters, normalizeAudienceFilters } from "@/lib/audience-filters";
+import { fetchDistinctLeadTitleTags } from "@/lib/faculty-triage";
 import { AudienceEditorModal } from "@/components/outreach/AudienceEditorModal";
 import type { Campus } from "@/lib/outreach-mock";
 
@@ -40,10 +41,17 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
   const [audienceId, setAudienceId] = useState<string>("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAudience, setEditingAudience] = useState<Audience | null>(null);
+  const [titleTags, setTitleTags] = useState<string[]>([]);
 
   const audiencesQ = useQuery({ queryKey: ["audiences"], queryFn: listAudiences });
   const audiences = audiencesQ.data ?? [];
   const currentAudience = audiences.find((a) => a.id === audienceId) ?? null;
+
+  const titleTagsQ = useQuery({
+    queryKey: ["outreach-lead-title-tags"],
+    queryFn: fetchDistinctLeadTitleTags,
+  });
+  const availableTitleTags = titleTagsQ.data ?? [];
 
   const filteredCampuses = useMemo(() => {
     const q = campusSearch.trim().toLowerCase();
@@ -63,7 +71,7 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
 
   const previewMut = useMutation({
     mutationFn: async () => previewCampaignAudience(
-      { ...filters, selectedCampusIds },
+      { ...filters, selectedCampusIds, titleTags: titleTags.length ? titleTags : undefined },
       campuses,
     ),
     onSuccess: (data) => {
@@ -80,7 +88,7 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
       return createCampaignFromPreview({
         name: name.trim(),
         dailyLimit,
-        filters: { ...filters, selectedCampusIds },
+        filters: { ...filters, selectedCampusIds, titleTags: titleTags.length ? titleTags : undefined },
         selectedLeadIds: preview.eligibleLeadIds,
       });
     },
@@ -190,6 +198,50 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
           campuses={campuses}
           onReset={() => { reset(); setPreview(null); }}
         />
+      </div>
+
+      <div className="mb-4">
+        <Label className="text-xs mb-2 block">
+          Title tags ({titleTags.length} selected
+          {availableTitleTags.length > 0 ? ` of ${availableTitleTags.length}` : ""})
+        </Label>
+        {availableTitleTags.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            No title tags on leads yet. Tag candidates in the Faculty triage panel to enable targeting by title.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {availableTitleTags.map((t) => {
+              const on = titleTags.includes(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setTitleTags((prev) => on ? prev.filter((x) => x !== t) : [...prev, t]);
+                    setPreview(null);
+                  }}
+                  className={`rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                    on
+                      ? "border-amber-400 bg-amber-100 text-amber-900"
+                      : "border-border bg-card text-muted-foreground hover:bg-accent/40"
+                  }`}
+                >
+                  {t}
+                </button>
+              );
+            })}
+            {titleTags.length > 0 && (
+              <button type="button" className="text-[11px] text-muted-foreground underline ml-1"
+                onClick={() => { setTitleTags([]); setPreview(null); }}>
+                clear
+              </button>
+            )}
+          </div>
+        )}
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Leads must have at least one selected tag (e.g. Lecturer, Instructor). Leave empty to include all.
+        </p>
       </div>
 
       <div className="mb-4">
