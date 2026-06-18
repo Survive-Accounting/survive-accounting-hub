@@ -2,7 +2,7 @@
 // Reads the real database; falls back to mock data if the backend is unreachable.
 import { AdminGate } from "@/components/AdminGate";
 import { useEffect, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouterState, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Settings, Users, Search } from "lucide-react";
@@ -63,6 +63,12 @@ function OutreachPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
   const [batchSettingsOpen, setBatchSettingsOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isIndex = pathname === "/outreach" || pathname === "/outreach/";
+  const goTab = (t: string) => {
+    setTab(t);
+    if (!isIndex) navigate({ to: "/outreach" });
+  };
 
   const openLeadFinder = (campusId: string) =>
     navigate({ to: "/outreach/leadfinder/$campusId", params: { campusId } });
@@ -120,8 +126,8 @@ function OutreachPage() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    isActive={tab === "home"}
-                    onClick={() => setTab("home")}
+                    isActive={isIndex && tab === "home"}
+                    onClick={() => goTab("home")}
                     tooltip="Home"
                   >
                     <Home className="h-4 w-4" />
@@ -131,6 +137,7 @@ function OutreachPage() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
+                    isActive={pathname.startsWith("/outreach/leadfinder")}
                     onClick={() => navigate({ to: "/outreach/leadfinder" })}
                     tooltip="Lead Finder™"
                   >
@@ -141,8 +148,8 @@ function OutreachPage() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    isActive={tab === "schools"}
-                    onClick={() => setTab("schools")}
+                    isActive={isIndex && tab === "schools"}
+                    onClick={() => goTab("schools")}
                     tooltip="Campuses"
                   >
                     <GraduationCap className="h-4 w-4" />
@@ -166,11 +173,11 @@ function OutreachPage() {
                           <SidebarMenuSubItem key={item.value}>
                             <SidebarMenuSubButton
                               asChild
-                              isActive={tab === item.value}
+                              isActive={isIndex && tab === item.value}
                             >
                               <button
                                 type="button"
-                                onClick={() => setTab(item.value)}
+                                onClick={() => goTab(item.value)}
                                 className="flex w-full items-center gap-2"
                               >
                                 <item.icon className="h-3.5 w-3.5" />
@@ -186,8 +193,8 @@ function OutreachPage() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    isActive={tab === "texts"}
-                    onClick={() => setTab("texts")}
+                    isActive={isIndex && tab === "texts"}
+                    onClick={() => goTab("texts")}
                     tooltip="Students"
                   >
                     <Layers className="h-4 w-4" />
@@ -214,7 +221,7 @@ function OutreachPage() {
       </Sidebar>
 
       <SidebarInset>
-        <div className="min-h-screen bg-background">
+        <div className="flex min-h-screen flex-col bg-background">
           <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur">
             <SidebarTrigger />
             <span className="text-sm font-semibold">Outreach Dashboard</span>
@@ -222,84 +229,91 @@ function OutreachPage() {
               <span className="ml-2 text-xs text-amber-600">(sample data — database unreachable)</span>
             )}
           </header>
-          <div className="mx-auto max-w-7xl px-6 py-6">
-            <OutreachBanner />
+          {isIndex ? (
+            <div className="mx-auto w-full max-w-7xl px-6 py-6">
+              <OutreachBanner />
 
-            <Tabs value={tab} onValueChange={setTab} className="space-y-6 mt-4">
-              <TabsContent value="home" className="space-y-8">
-                <HomeDashboard onCreateCampaign={() => setTab("templates")} />
-              </TabsContent>
+              <Tabs value={tab} onValueChange={setTab} className="space-y-6 mt-4">
+                <TabsContent value="home" className="space-y-8">
+                  <HomeDashboard onCreateCampaign={() => setTab("templates")} />
+                </TabsContent>
 
-              <TabsContent value="schools" className="space-y-6">
-                <CampusLeadsStatsPanel
-                  campuses={campuses}
-                  onOpenSettings={() => setBatchSettingsOpen(true)}
-                />
-                <div className="flex items-center justify-between gap-2">
-                  <ArchiveAllLeadsButton />
-                  <button
-                    onClick={() => setAddOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
-                  >
-                    + Add Campus
-                  </button>
-                </div>
-                {campusQuery.isLoading ? (
-                  <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-                    Loading campuses…
-                  </div>
-                ) : (
-                  <CampusTable
+                <TabsContent value="schools" className="space-y-6">
+                  <CampusLeadsStatsPanel
                     campuses={campuses}
-                    filters={filters}
-                    onFiltersChange={setFilters}
-                    onReview={(c) => openLeadFinder(c.id)}
-                    onImportLeads={(c) => openLeadFinder(c.id)}
-                    onAssignPatch={handleAssignPatch}
-                    campusPhones={phonesQuery.data}
-                    onTogglePersonalPhone={handleTogglePersonalPhone}
-                    selectedIds={selectedIds}
-                    onToggleSelect={(id, value) =>
-                      setSelectedIds((prev) => {
-                        const next = new Set(prev);
-                        if (value) next.add(id); else next.delete(id);
-                        return next;
-                      })
-                    }
-                    onToggleSelectAll={(ids, value) =>
-                      setSelectedIds(value ? new Set(ids) : new Set())
-                    }
+                    onOpenSettings={() => setBatchSettingsOpen(true)}
                   />
-                )}
-                <LeadsPanel campuses={campuses} />
-              </TabsContent>
+                  <div className="flex items-center justify-between gap-2">
+                    <ArchiveAllLeadsButton />
+                    <button
+                      onClick={() => setAddOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
+                    >
+                      + Add Campus
+                    </button>
+                  </div>
+                  {campusQuery.isLoading ? (
+                    <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+                      Loading campuses…
+                    </div>
+                  ) : (
+                    <CampusTable
+                      campuses={campuses}
+                      filters={filters}
+                      onFiltersChange={setFilters}
+                      onReview={(c) => openLeadFinder(c.id)}
+                      onImportLeads={(c) => openLeadFinder(c.id)}
+                      onAssignPatch={handleAssignPatch}
+                      campusPhones={phonesQuery.data}
+                      onTogglePersonalPhone={handleTogglePersonalPhone}
+                      selectedIds={selectedIds}
+                      onToggleSelect={(id, value) =>
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (value) next.add(id); else next.delete(id);
+                          return next;
+                        })
+                      }
+                      onToggleSelectAll={(ids, value) =>
+                        setSelectedIds(value ? new Set(ids) : new Set())
+                      }
+                    />
+                  )}
+                  <LeadsPanel campuses={campuses} />
+                </TabsContent>
 
-              <TabsContent value="audiences" className="space-y-4">
-                <AudiencesPanel campuses={campuses} />
-              </TabsContent>
+                <TabsContent value="audiences" className="space-y-4">
+                  <AudiencesPanel campuses={campuses} />
+                </TabsContent>
 
-              <TabsContent value="templates" className="space-y-4">
-                <EmailQueueShell campuses={campuses} />
-              </TabsContent>
+                <TabsContent value="templates" className="space-y-4">
+                  <EmailQueueShell campuses={campuses} />
+                </TabsContent>
 
-              <TabsContent value="texts" className="space-y-4">
-                <Tabs defaultValue="requests" className="space-y-4">
-                  <TabsList className="grid w-full max-w-md grid-cols-2">
-                    <TabsTrigger value="requests">Requests</TabsTrigger>
-                    <TabsTrigger value="conversations">Conversations</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="requests" className="space-y-4">
-                    <TutoringRequestsPanel />
-                  </TabsContent>
-                  <TabsContent value="conversations" className="space-y-4">
-                    <TextsPanel campuses={campuses} />
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-            </Tabs>
-          </div>
+                <TabsContent value="texts" className="space-y-4">
+                  <Tabs defaultValue="requests" className="space-y-4">
+                    <TabsList className="grid w-full max-w-md grid-cols-2">
+                      <TabsTrigger value="requests">Requests</TabsTrigger>
+                      <TabsTrigger value="conversations">Conversations</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="requests" className="space-y-4">
+                      <TutoringRequestsPanel />
+                    </TabsContent>
+                    <TabsContent value="conversations" className="space-y-4">
+                      <TextsPanel campuses={campuses} />
+                    </TabsContent>
+                  </Tabs>
+                </TabsContent>
+              </Tabs>
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col">
+              <Outlet />
+            </div>
+          )}
         </div>
       </SidebarInset>
+
 
       <BatchResearchSettingsModal
         open={batchSettingsOpen}

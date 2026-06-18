@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
+// AdminGate + Toaster are provided by the /outreach layout.
 import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, X } from "lucide-react";
-
-import { AdminGate } from "@/components/AdminGate";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger,
@@ -174,9 +173,10 @@ function LeadFinderPage() {
   };
 
   return (
-    <AdminGate>
+    <>
       <Toaster richColors position="top-center" />
-      <div className="min-h-screen bg-background pb-28">
+      <div className="relative flex flex-1 flex-col bg-background pb-20">
+
         {/* Navy top bar */}
         <header
           className="text-white"
@@ -271,8 +271,9 @@ function LeadFinderPage() {
           ) : null}
         </div>
 
-        {/* Sticky bottom action bar */}
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        {/* Sticky bottom action bar — stays inside the SidebarInset */}
+        <div className="sticky bottom-0 z-20 mt-auto border-t border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+
           <div className="mx-auto flex max-w-6xl items-center justify-center gap-3 px-4 py-3">
             <Button
               size="sm"
@@ -323,6 +324,6 @@ function LeadFinderPage() {
           </div>
         </div>
       </div>
-    </AdminGate>
+    </>
   );
 }
