@@ -237,7 +237,28 @@ function LeadFinderPage() {
 
         {/* Campus name + actions */}
         <div className="mx-auto max-w-6xl px-4 pt-6 text-center">
+          <div className="mb-3 flex items-center justify-center gap-2 text-[11px]">
+            <span className="text-muted-foreground">Sort by</span>
+            <div className="inline-flex overflow-hidden rounded-md border bg-secondary">
+              <Select value={nextFilter} onValueChange={(v) => updateFilter(v as NextFilter)}>
+                <SelectTrigger
+                  className="h-7 rounded-none border-0 bg-transparent px-2 text-[11px] focus:ring-0"
+                  aria-label="Choose which campuses to advance through"
+                >
+                  <span className="text-muted-foreground">{FILTER_LABELS[nextFilter]}</span>
+                </SelectTrigger>
+                <SelectContent align="center">
+                  {(Object.keys(FILTER_LABELS) as NextFilter[]).map((k) => (
+                    <SelectItem key={k} value={k} className="text-xs">
+                      {FILTER_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
+
             {campus?.school_name ?? (campusQuery.isLoading ? "Loading…" : "Campus not found")}
           </h1>
           {campus && (
