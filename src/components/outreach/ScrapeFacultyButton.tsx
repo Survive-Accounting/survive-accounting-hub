@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { GraduationCap, Globe, Loader2, Wand2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { GraduationCap, Globe, Loader2, Wand2, FileUp } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,11 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { scrapeCampusFaculty, autoDiscoverCampusFaculty } from "@/lib/faculty-scrape.functions";
+import {
+  scrapeCampusFaculty,
+  autoDiscoverCampusFaculty,
+  scrapeCampusFacultyPdf,
+} from "@/lib/faculty-scrape.functions";
 import {
   isScrapingCampus,
   trackCampusScrape,
