@@ -216,7 +216,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
-            {headline ?? "Let's Make Accounting Exams Simple"}
+            {headline ?? "Ace Your Next Exam"}
           </h1>
 
           <p
@@ -226,13 +226,14 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               fontFamily: "Inter, sans-serif",
               fontSize: "17px",
               lineHeight: 1.65,
-              maxWidth: 680,
+              maxWidth: 620,
               textShadow: "0 2px 20px rgba(0,0,0,0.3)",
             }}
           >
             {subtext ??
-              "Get laid-back virtual tutoring from a pro. Simplify difficult concepts, build confidence, and perform better on exams."}
+              "Get expert 1-on-1 tutoring tailored to your course. Reduce stress, boost confidence, and ace your next exam."}
           </p>
+
 
           <div className="mt-8 flex flex-col items-center gap-4">
             {ctaSlot ?? (
@@ -267,7 +268,36 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
               </button>
             </div>
             )}
+
+            <ul
+              className="hero-anim-btn mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
+              style={{ listStyle: "none", padding: 0, margin: 0 }}
+            >
+              {[
+                { icon: "🟢", label: "Available Summer 2026" },
+                { icon: "📚", label: "Any Intro or Intermediate course" },
+                { icon: "🎓", label: "1,000+ students helped since 2015" },
+              ].map((b) => (
+                <li
+                  key={b.label}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] sm:text-[12.5px]"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.16)",
+                    color: "rgba(255,255,255,0.82)",
+                    fontFamily: "Inter, sans-serif",
+                    backdropFilter: "blur(6px)",
+                    WebkitBackdropFilter: "blur(6px)",
+                    letterSpacing: "0.005em",
+                  }}
+                >
+                  <span aria-hidden="true" className="text-[13px] leading-none">{b.icon}</span>
+                  <span>{b.label}</span>
+                </li>
+              ))}
+            </ul>
           </div>
+
         </div>
       </div>
     </section>

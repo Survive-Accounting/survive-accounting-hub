@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
-import { MessageCircle, Check } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
@@ -74,31 +74,34 @@ function HeroCta() {
         <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
 
-      <div
-        className="hero-anim-btn mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5"
-        style={{
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.18)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-        }}
+      <ul
+        className="hero-anim-btn mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
+        style={{ listStyle: "none", padding: 0, margin: 0 }}
       >
-        <Check
-          className="w-4 h-4"
-          strokeWidth={3}
-          style={{ color: "#7CFFB2" }}
-        />
-        <span
-          className="text-[13px] font-medium"
-          style={{
-            color: "rgba(255,255,255,0.92)",
-            fontFamily: "Inter, sans-serif",
-            letterSpacing: "0.01em",
-          }}
-        >
-          1,000+ students helped since 2015
-        </span>
-      </div>
+        {[
+          { icon: "🟢", label: "Available Summer 2026" },
+          { icon: "📚", label: "Any Intro or Intermediate course" },
+          { icon: "🎓", label: "1,000+ students helped since 2015" },
+        ].map((b) => (
+          <li
+            key={b.label}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] sm:text-[12.5px]"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.16)",
+              color: "rgba(255,255,255,0.82)",
+              fontFamily: "Inter, sans-serif",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+              letterSpacing: "0.005em",
+            }}
+          >
+            <span aria-hidden="true" className="text-[13px] leading-none">{b.icon}</span>
+            <span>{b.label}</span>
+          </li>
+        ))}
+      </ul>
+
     </div>
   );
 }
@@ -110,10 +113,11 @@ function Home() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: "#F8FAFC" }}>
       <Hero
-        headline="Let's Make Accounting Feel Easy"
-        subtext="Get virtual tutoring from a 10+ year expert who knows your exams. Every session is designed to reduce stress, boost confidence, and help you ace your next test."
+        headline="Ace Your Next Exam"
+        subtext="Get expert 1-on-1 tutoring tailored to your course. Reduce stress, boost confidence, and ace your next exam."
         ctaSlot={<HeroCta />}
       />
+
       <Reviews />
       <ContactForm />
       
