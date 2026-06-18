@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { GraduationCap, Globe, Loader2, Wand2, FileUp, X } from "lucide-react";
+import { GraduationCap, Globe, Loader2, Wand2, FileUp, X, Plus } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,8 +43,8 @@ export function ScrapeFacultyButton({
   /** "row" = legacy inline; "stacked" = numbered VA-friendly checklist. */
   layout?: "row" | "stacked";
 }) {
-  const [open, setOpen] = useState(false);
-  const [urls, setUrls] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [urlList, setUrlList] = useState<string[]>([""]);
   const [discovering, setDiscovering] = useState(false);
   const [loadingUrls, setLoadingUrls] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -54,8 +54,9 @@ export function ScrapeFacultyButton({
   const { scraping, elapsedMs } = useScrapingCampusInfo(campusId);
   const stuck = scraping && elapsedMs > 60_000;
 
-  const openModal = async () => {
-    setOpen(true);
+  const togglePanel = async () => {
+    if (expanded) { setExpanded(false); return; }
+    setExpanded(true);
     setLoadingUrls(true);
     try {
       const { data } = await supabase
@@ -63,11 +64,26 @@ export function ScrapeFacultyButton({
         .select("faculty_page_url")
         .eq("id", campusId)
         .maybeSingle();
-      if (data?.faculty_page_url) setUrls(data.faculty_page_url);
+      const saved = (data?.faculty_page_url ?? "")
+        .split(/\r?\n/)
+        .map((u) => u.trim())
+        .filter(Boolean);
+      // Only overwrite if user hasn't typed anything yet
+      setUrlList((prev) => {
+        const hasUserInput = prev.some((u) => u.trim());
+        if (hasUserInput) return prev;
+        return saved.length > 0 ? saved : [""];
+      });
     } catch { /* ignore */ } finally {
       setLoadingUrls(false);
     }
   };
+
+  const addUrlField = () => setUrlList((prev) => [...prev, ""]);
+  const removeUrlField = (idx: number) =>
+    setUrlList((prev) => (prev.length <= 1 ? [""] : prev.filter((_, i) => i !== idx)));
+  const updateUrl = (idx: number, value: string) =>
+    setUrlList((prev) => prev.map((u, i) => (i === idx ? value : u)));
 
   const copyFacultyGoogleLink = async () => {
     const q = `${campusName} accounting faculty directory`;
@@ -82,19 +98,16 @@ export function ScrapeFacultyButton({
   };
 
   const run = async () => {
-    const list = urls
-      .split(/\r?\n/)
-      .map((u) => u.trim())
-      .filter(Boolean);
+    const list = urlList.map((u) => u.trim()).filter(Boolean);
     if (list.length === 0) {
-      toast.error("Paste at least one URL.");
+      toast.error("Add at least one URL.");
       return;
     }
     if (isScrapingCampus(campusId)) {
       toast.error("Already scraping this campus — wait for it to finish.");
       return;
     }
-    setOpen(false);
+    setExpanded(false);
     toast.info(`Scraping ${campusName} in background…`);
     const promise = (async () => {
       try {
@@ -128,7 +141,7 @@ export function ScrapeFacultyButton({
       const chosenUrls = result?.chosenUrls ?? [];
       const perPage = result?.perPage ?? [];
       if (chosenUrls.length > 0) {
-        setUrls(chosenUrls.join("\n"));
+        setUrlList(chosenUrls.length > 0 ? chosenUrls : [""]);
       }
       const errs = perPage.filter((p) => p.error);
       const summary = `Firecrawl mapped ${result?.discovered ?? 0} links → scraped ${result?.scraped ?? 0} faculty pages → added ${result?.inserted ?? 0} candidates${result?.skippedDuplicates ? ` (skipped ${result.skippedDuplicates} dupes)` : ""}${errs.length ? `, ${errs.length} page error(s)` : ""}.`;
@@ -221,10 +234,58 @@ export function ScrapeFacultyButton({
   );
 
   const scrapeUrlsBtn = (
-    <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={togglePanel}
+      title="Add the faculty page URL(s) and start a scrape"
+      aria-expanded={expanded}
+    >
       {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
       {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URL"}
     </Button>
+  );
+
+  const urlPanel = expanded && (
+    <div className="w-full max-w-md space-y-1.5 rounded-md border border-border bg-background p-2 text-left">
+      {loadingUrls && (
+        <div className="text-[11px] text-muted-foreground">Loading saved URLs…</div>
+      )}
+      {urlList.map((u, idx) => (
+        <div key={idx} className="flex items-center gap-1.5">
+          <input
+            type="url"
+            value={u}
+            onChange={(e) => updateUrl(idx, e.target.value)}
+            placeholder="Paste faculty page URL"
+            className="h-7 flex-1 rounded-md border border-input bg-background px-2 font-mono text-[11px]"
+            autoFocus={idx === urlList.length - 1 && !u}
+          />
+          {urlList.length > 1 && (
+            <button
+              type="button"
+              onClick={() => removeUrlField(idx)}
+              title="Remove this URL"
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      ))}
+      <div className="flex items-center justify-between pt-1">
+        <button
+          type="button"
+          onClick={addUrlField}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" /> Add another URL
+        </button>
+        <Button size="sm" onClick={run} disabled={scraping} className="h-7 gap-1.5 text-[11px]">
+          <Globe className="h-3 w-3" /> Start scrape
+        </Button>
+      </div>
+    </div>
   );
 
   const resetBtn = stuck && (
@@ -290,10 +351,13 @@ export function ScrapeFacultyButton({
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #1</span>
                 {copyFacultyLinkBtn}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #2 · Paste Scrape URL</span>
-                {scrapeUrlsBtn}
-                {resetBtn}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #2 · Paste Scrape URL</span>
+                  {scrapeUrlsBtn}
+                  {resetBtn}
+                </div>
+                {urlPanel}
               </div>
               <button
                 type="button"
@@ -310,53 +374,27 @@ export function ScrapeFacultyButton({
           )}
         </div>
       ) : (
-        <div className="flex gap-2">
-          {!hideAutoDiscover && (
-            <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
-              {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              {discovering ? "Discovering…" : "Auto-discover faculty"}
-            </Button>
-          )}
-          {!hideScrapeUrls && (
-            <>
-              {scrapeUrlsBtn}
-              {resetBtn}
-              {copyFacultyLinkBtn}
-              {importPdfBtn}
-              {hiddenFileInput}
-            </>
-          )}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            {!hideAutoDiscover && (
+              <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
+                {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                {discovering ? "Discovering…" : "Auto-discover faculty"}
+              </Button>
+            )}
+            {!hideScrapeUrls && (
+              <>
+                {scrapeUrlsBtn}
+                {resetBtn}
+                {copyFacultyLinkBtn}
+                {importPdfBtn}
+                {hiddenFileInput}
+              </>
+            )}
+          </div>
+          {!hideScrapeUrls && urlPanel}
         </div>
       )}
-
-      <Dialog open={open} onOpenChange={(v) => setOpen(v)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Scrape faculty pages — {campusName}</DialogTitle>
-            <DialogDescription className="pt-1">
-              Paste one URL per line. Include each filter/tab as its own line
-              (e.g. <code>?role=instructor</code>, <code>?role=staff</code>) so
-              non-tenure-track folks aren't missed. Pages are fetched via Firecrawl in the background.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={urls}
-            onChange={(e) => setUrls(e.target.value)}
-            rows={6}
-            placeholder={loadingUrls ? "Loading saved URLs…" : "https://accountancy.example.edu/faculty\nhttps://accountancy.example.edu/faculty?role=instructor"}
-            className="font-mono text-xs"
-          />
-          <div className="text-[11px] text-muted-foreground">
-            Names without an email or profile URL are dropped (no pattern-guessing). Results land in the triage table below — nothing is added to the email queue until you import. Scrape runs in the background so you can move to the next campus immediately.
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={run}>
-              <Globe className="h-3.5 w-3.5" /> Start scrape in background
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
