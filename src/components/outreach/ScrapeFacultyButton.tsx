@@ -36,8 +36,10 @@ export function ScrapeFacultyButton({
   const [urls, setUrls] = useState("");
   const [discovering, setDiscovering] = useState(false);
   const [loadingUrls, setLoadingUrls] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrape = useServerFn(scrapeCampusFaculty);
   const discover = useServerFn(autoDiscoverCampusFaculty);
+  const scrapePdf = useServerFn(scrapeCampusFacultyPdf);
   const scraping = useIsScrapingCampus(campusId);
 
   const openModal = async () => {
