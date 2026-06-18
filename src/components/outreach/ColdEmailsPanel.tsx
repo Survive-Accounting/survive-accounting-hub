@@ -236,8 +236,10 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
               return b.badness - a.badness;
             });
           }
-          for (const row of arr.slice(0, perCampusCap)) selectedLeadIds.push(row.id);
+          const cap = countsByCampus[cid] ?? perCampusCap;
+          for (const row of arr.slice(0, cap)) selectedLeadIds.push(row.id);
         }
+
       }
 
       const result = await createCampaignFromPreview({
