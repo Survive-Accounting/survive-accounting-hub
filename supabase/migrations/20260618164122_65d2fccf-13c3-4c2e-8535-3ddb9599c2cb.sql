@@ -1,0 +1,1 @@
+ALTER TABLE public.campuses ADD COLUMN IF NOT EXISTS faculty_scrape_cache JSONB;
