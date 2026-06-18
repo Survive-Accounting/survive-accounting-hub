@@ -43,8 +43,8 @@ export function ScrapeFacultyButton({
   /** "row" = legacy inline; "stacked" = numbered VA-friendly checklist. */
   layout?: "row" | "stacked";
 }) {
-  const [open, setOpen] = useState(false);
-  const [urls, setUrls] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [urlList, setUrlList] = useState<string[]>([""]);
   const [discovering, setDiscovering] = useState(false);
   const [loadingUrls, setLoadingUrls] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -54,8 +54,9 @@ export function ScrapeFacultyButton({
   const { scraping, elapsedMs } = useScrapingCampusInfo(campusId);
   const stuck = scraping && elapsedMs > 60_000;
 
-  const openModal = async () => {
-    setOpen(true);
+  const togglePanel = async () => {
+    if (expanded) { setExpanded(false); return; }
+    setExpanded(true);
     setLoadingUrls(true);
     try {
       const { data } = await supabase
@@ -63,11 +64,26 @@ export function ScrapeFacultyButton({
         .select("faculty_page_url")
         .eq("id", campusId)
         .maybeSingle();
-      if (data?.faculty_page_url) setUrls(data.faculty_page_url);
+      const saved = (data?.faculty_page_url ?? "")
+        .split(/\r?\n/)
+        .map((u) => u.trim())
+        .filter(Boolean);
+      // Only overwrite if user hasn't typed anything yet
+      setUrlList((prev) => {
+        const hasUserInput = prev.some((u) => u.trim());
+        if (hasUserInput) return prev;
+        return saved.length > 0 ? saved : [""];
+      });
     } catch { /* ignore */ } finally {
       setLoadingUrls(false);
     }
   };
+
+  const addUrlField = () => setUrlList((prev) => [...prev, ""]);
+  const removeUrlField = (idx: number) =>
+    setUrlList((prev) => (prev.length <= 1 ? [""] : prev.filter((_, i) => i !== idx)));
+  const updateUrl = (idx: number, value: string) =>
+    setUrlList((prev) => prev.map((u, i) => (i === idx ? value : u)));
 
   const copyFacultyGoogleLink = async () => {
     const q = `${campusName} accounting faculty directory`;
