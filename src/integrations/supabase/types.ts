@@ -3823,41 +3823,50 @@ export type Database = {
       }
       scrape_improvement_suggestions: {
         Row: {
+          applies_to_verticals: string[]
           bundle_id: string | null
           campus_id: string | null
           campus_name: string | null
           created_at: string
           id: string
+          milestone_id: string | null
           model: string | null
           pattern_tag: string | null
           raw: Json | null
           severity: string | null
+          shipped_at: string | null
           suggestion: string
           title: string | null
         }
         Insert: {
+          applies_to_verticals?: string[]
           bundle_id?: string | null
           campus_id?: string | null
           campus_name?: string | null
           created_at?: string
           id?: string
+          milestone_id?: string | null
           model?: string | null
           pattern_tag?: string | null
           raw?: Json | null
           severity?: string | null
+          shipped_at?: string | null
           suggestion: string
           title?: string | null
         }
         Update: {
+          applies_to_verticals?: string[]
           bundle_id?: string | null
           campus_id?: string | null
           campus_name?: string | null
           created_at?: string
           id?: string
+          milestone_id?: string | null
           model?: string | null
           pattern_tag?: string | null
           raw?: Json | null
           severity?: string | null
+          shipped_at?: string | null
           suggestion?: string
           title?: string | null
         }
@@ -3867,6 +3876,13 @@ export type Database = {
             columns: ["bundle_id"]
             isOneToOne: false
             referencedRelation: "scrape_debug_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scrape_improvement_suggestions_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "scraper_fix_milestones"
             referencedColumns: ["id"]
           },
         ]
@@ -3904,6 +3920,86 @@ export type Database = {
           message?: string | null
           started_at?: string
           status?: string
+        }
+        Relationships: []
+      }
+      scraper_fix_milestones: {
+        Row: {
+          created_at: string
+          deployed_at: string
+          description: string | null
+          id: string
+          name: string
+          suggestion_id: string | null
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deployed_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          suggestion_id?: string | null
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deployed_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          suggestion_id?: string | null
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scraper_fix_milestones_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "scrape_improvement_suggestions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scraper_performance_verdicts: {
+        Row: {
+          created_at: string
+          fix_attribution: Json | null
+          id: string
+          metrics_snapshot: Json | null
+          model: string | null
+          summary: string | null
+          vertical_applicability: Json | null
+          what_changed: Json | null
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          fix_attribution?: Json | null
+          id?: string
+          metrics_snapshot?: Json | null
+          model?: string | null
+          summary?: string | null
+          vertical_applicability?: Json | null
+          what_changed?: Json | null
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          created_at?: string
+          fix_attribution?: Json | null
+          id?: string
+          metrics_snapshot?: Json | null
+          model?: string | null
+          summary?: string | null
+          vertical_applicability?: Json | null
+          what_changed?: Json | null
+          window_end?: string
+          window_start?: string
         }
         Relationships: []
       }
