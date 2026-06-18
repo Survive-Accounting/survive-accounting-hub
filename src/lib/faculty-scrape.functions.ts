@@ -925,7 +925,7 @@ async function processUrls(
     }
   }
 
-  return { perPage, inserted, skippedDuplicates, droppedNoContact: totalDroppedNoContact, programLevels, programLevelSources };
+  return { perPage, inserted, skippedDuplicates, droppedNoContact: totalDroppedNoContact, programLevels, programLevelSources, cache };
 }
 
 function requireKeys() {
