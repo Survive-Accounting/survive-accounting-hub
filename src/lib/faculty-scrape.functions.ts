@@ -19,6 +19,13 @@ const DiscoverInputSchema = z.object({
   maxPages: z.number().int().min(1).max(10).default(5),
 });
 
+const PdfInputSchema = z.object({
+  campusId: z.string().uuid(),
+  filename: z.string().min(1).max(200),
+  // base64-encoded PDF bytes (without data: prefix). Cap ~12MB encoded.
+  fileBase64: z.string().min(100).max(16_000_000),
+});
+
 type Extracted = {
   first_name: string;
   last_name: string;
@@ -286,6 +293,138 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
   return out;
 }
 
+/**
+ * Send a PDF directly to the Lovable AI Gateway (Gemini supports PDFs natively
+ * via the OpenAI-compatible `file` content block) and ask for the same
+ * { people: [...] } JSON shape that callLovableAi produces from markdown.
+ */
+async function callLovableAiWithPdf(
+  apiKey: string,
+  filename: string,
+  pdfBase64: string,
+): Promise<Extracted[]> {
+  const system =
+    "You extract faculty/instructor/lecturer/adjunct directory entries from an accounting department PDF " +
+    "(typically a printout of a faculty webpage). " +
+    "RULES: " +
+    "1. ONLY emit a person if their full name appears verbatim in the PDF. " +
+    "2. NEVER invent or pattern-guess an email. If no email appears for that person, set email to null. " +
+    "3. Capture every teaching role: Professor, Associate/Assistant Professor, Instructor, Lecturer, Adjunct, Clinical, Teaching Professor, Professor of Practice, Visiting. " +
+    "4. Exclude clearly non-accounting faculty (finance, economics, marketing, IS, etc.) unless the page explicitly lists them under accounting. " +
+    "5. Exclude purely administrative staff with no teaching title unless their title contains an instructional keyword. " +
+    "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url }] }. " +
+    "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null.";
+
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `Extract every accounting faculty member from this PDF (source filename: ${filename}). Return JSON only.` },
+            { type: "file", file: { filename, file_data: `data:application/pdf;base64,${pdfBase64}` } },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`AI gateway ${res.status}: ${body.slice(0, 300)}`);
+  }
+  const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const content = json.choices?.[0]?.message?.content ?? "{}";
+  let parsed: unknown;
+  try { parsed = JSON.parse(content); } catch {
+    throw new Error(`AI returned non-JSON: ${content.slice(0, 200)}`);
+  }
+  const people = (parsed as { people?: unknown }).people;
+  if (!Array.isArray(people)) return [];
+  const out: Extracted[] = [];
+  for (const p of people) {
+    if (!p || typeof p !== "object") continue;
+    const r = p as Record<string, unknown>;
+    const fn = typeof r.first_name === "string" ? r.first_name.trim() : "";
+    const ln = typeof r.last_name === "string" ? r.last_name.trim() : "";
+    if (!fn && !ln) continue;
+    out.push({
+      first_name: fn,
+      last_name: ln,
+      title: typeof r.title === "string" ? r.title.trim() || null : null,
+      email: typeof r.email === "string" && r.email.includes("@") ? r.email.trim().toLowerCase() : null,
+      profile_url: typeof r.profile_url === "string" && /^https?:\/\//i.test(r.profile_url) ? r.profile_url.trim() : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * Insert extracted people into campus_lead_suggestions with the standard
+ * dedupe-against-active-rows rules. Shared by URL and PDF scrape paths.
+ */
+async function insertExtractedPeople(
+  campusId: string,
+  people: Extracted[],
+  sourceLabel: string,
+  researchLabel: string,
+): Promise<{ inserted: number; skippedDuplicates: number }> {
+  if (people.length === 0) return { inserted: 0, skippedDuplicates: 0 };
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const rowsToInsert: Array<Record<string, unknown>> = [];
+  for (const p of people) {
+    if (!p.email && !p.profile_url) continue;
+    rowsToInsert.push({
+      campus_id: campusId,
+      first_name: p.first_name,
+      last_name: p.last_name,
+      title: p.title,
+      email: p.email,
+      source_url: p.profile_url ?? null,
+      research_mode: "faculty_scrape",
+      research_label: researchLabel,
+      status: "pending",
+      lead_type: "professor",
+      notes: `Scraped from ${sourceLabel}`,
+      raw_payload: { source: sourceLabel, title: p.title, profile_url: p.profile_url },
+    });
+  }
+  if (rowsToInsert.length === 0) return { inserted: 0, skippedDuplicates: 0 };
+  const seen = new Set<string>();
+  const unique = rowsToInsert.filter((r) => {
+    const key = (r.email as string | null) ?? `${r.first_name}|${r.last_name}|${r.source_url}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const emails = unique.map((r) => r.email).filter((e): e is string => !!e);
+  let existingEmails = new Set<string>();
+  if (emails.length > 0) {
+    const { data: existing } = await supabaseAdmin
+      .from("campus_lead_suggestions")
+      .select("email")
+      .eq("campus_id", campusId)
+      .is("archived_at", null)
+      .in("email", emails);
+    existingEmails = new Set((existing ?? []).map((r: { email: string | null }) => r.email).filter((e): e is string => !!e));
+  }
+  let skipped = 0;
+  const toInsert = unique.filter((r) => {
+    const e = r.email as string | null;
+    if (e && existingEmails.has(e)) { skipped++; return false; }
+    return true;
+  });
+  if (toInsert.length === 0) return { inserted: 0, skippedDuplicates: skipped };
+  const { error } = await supabaseAdmin.from("campus_lead_suggestions").insert(toInsert as never);
+  if (error) throw new Error(`insert failed: ${error.message}`);
+  return { inserted: toInsert.length, skippedDuplicates: skipped };
+}
+
 async function processUrls(
   fcKey: string,
   aiKey: string,
@@ -493,4 +632,19 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       mapErrors,
       ...result,
     };
+  });
+
+export const scrapeCampusFacultyPdf = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => PdfInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    const aiKey = process.env.LOVABLE_API_KEY;
+    if (!aiKey) throw new Error("LOVABLE_API_KEY is not configured on the server");
+    const people = await callLovableAiWithPdf(aiKey, data.filename, data.fileBase64);
+    const { inserted, skippedDuplicates } = await insertExtractedPeople(
+      data.campusId,
+      people,
+      `PDF: ${data.filename}`,
+      "faculty_scrape_pdf_v1",
+    );
+    return { ok: true, found: people.length, inserted, skippedDuplicates };
   });

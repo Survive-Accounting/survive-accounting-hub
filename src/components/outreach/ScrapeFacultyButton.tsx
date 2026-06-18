@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { GraduationCap, Globe, Loader2, Wand2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { GraduationCap, Globe, Loader2, Wand2, FileUp } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,11 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { scrapeCampusFaculty, autoDiscoverCampusFaculty } from "@/lib/faculty-scrape.functions";
+import {
+  scrapeCampusFaculty,
+  autoDiscoverCampusFaculty,
+  scrapeCampusFacultyPdf,
+} from "@/lib/faculty-scrape.functions";
 import {
   isScrapingCampus,
   trackCampusScrape,
@@ -32,8 +36,10 @@ export function ScrapeFacultyButton({
   const [urls, setUrls] = useState("");
   const [discovering, setDiscovering] = useState(false);
   const [loadingUrls, setLoadingUrls] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrape = useServerFn(scrapeCampusFaculty);
   const discover = useServerFn(autoDiscoverCampusFaculty);
+  const scrapePdf = useServerFn(scrapeCampusFacultyPdf);
   const scraping = useIsScrapingCampus(campusId);
 
   const openModal = async () => {
@@ -124,6 +130,50 @@ export function ScrapeFacultyButton({
     }
   };
 
+  const onPickPdf = () => fileInputRef.current?.click();
+
+  const onPdfChosen = async (file: File | null) => {
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Please choose a .pdf file.");
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      toast.error("PDF is larger than 12 MB — try splitting it.");
+      return;
+    }
+    if (isScrapingCampus(campusId)) {
+      toast.error("Already scraping this campus — wait for it to finish.");
+      return;
+    }
+    // Read as base64 (strip data:...;base64, prefix)
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(typeof fr.result === "string" ? fr.result : "");
+      fr.onerror = () => reject(fr.error ?? new Error("Could not read PDF"));
+      fr.readAsDataURL(file);
+    });
+    const base64 = dataUrl.includes(",") ? dataUrl.slice(dataUrl.indexOf(",") + 1) : dataUrl;
+    if (!base64) {
+      toast.error("Could not read PDF.");
+      return;
+    }
+    toast.info(`Scanning ${file.name} in background…`);
+    const promise = (async () => {
+      try {
+        const result = await scrapePdf({ data: { campusId, filename: file.name, fileBase64: base64 } });
+        toast.success(
+          `${campusName}: ${result.inserted} new candidate${result.inserted === 1 ? "" : "s"} from ${file.name} (${result.found} found).${result.skippedDuplicates ? ` Skipped ${result.skippedDuplicates} duplicates.` : ""}`,
+        );
+        onScraped?.();
+      } catch (e) {
+        toast.error(`PDF scan failed: ${e instanceof Error ? e.message : "unknown error"}`);
+      }
+    })();
+    trackCampusScrape(campusId, promise);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <>
       <div className="flex gap-2">
@@ -148,6 +198,24 @@ export function ScrapeFacultyButton({
             >
               <GraduationCap className="h-3.5 w-3.5" />
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onPickPdf}
+              disabled={scraping}
+              title="Upload a PDF (e.g. print-to-PDF of a faculty page) — OCR scans for leads"
+              aria-label="Upload faculty PDF"
+            >
+              <FileUp className="h-3.5 w-3.5" />
+              PDF
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => onPdfChosen(e.target.files?.[0] ?? null)}
+            />
           </>
         )}
       </div>
