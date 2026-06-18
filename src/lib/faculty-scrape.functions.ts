@@ -581,8 +581,10 @@ async function processUrls(
           research_label: "faculty_scrape_v2_firecrawl",
           status: "pending",
           lead_type: "professor",
+          is_phd: p.is_phd,
+          is_cpa: p.is_cpa,
           notes: `Scraped from ${url}`,
-          raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url },
+          raw_payload: { source_page: url, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
         });
       }
     } catch (e) {
