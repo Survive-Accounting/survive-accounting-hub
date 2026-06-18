@@ -921,6 +921,21 @@ export default function ApproveCampusModal({
             <DialogTitle className="flex items-center justify-between gap-3 text-base">
               <span>Research &amp; Approve Campus — {campus.school_name}</span>
               <div className="flex items-center gap-3">
+                {isLeeAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => toggleSpeedMode(!speedMode)}
+                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                      speedMode
+                        ? "border-amber-500 bg-amber-500/15 text-amber-700"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Speed Mode: hide everything except faculty scrape + triage"
+                  >
+                    <Zap className="h-3 w-3" />
+                    Speed Mode{speedMode ? " · ON" : ""}
+                  </button>
+                )}
                 <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                   {autoSaving ? (
                     <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
@@ -931,9 +946,46 @@ export default function ApproveCampusModal({
               </div>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Review course codes, textbook matches, and suggested leads before approving outreach.
+              {speedMode
+                ? "Speed Mode: paste faculty URL, start scrape, approve, next."
+                : "Review course codes, textbook matches, and suggested leads before approving outreach."}
             </DialogDescription>
           </DialogHeader>
+
+          {speedMode ? (
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                <ScrapeFacultyButton
+                  campusId={campus.id}
+                  campusName={campus.school_name}
+                  onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                  hideAutoDiscover
+                />
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={onClose}>
+                    Close
+                  </Button>
+                  <Button size="sm" onClick={quickApprove} className="gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" /> Quick Approve
+                  </Button>
+                  {onNext && (
+                    <Button size="sm" variant="secondary" onClick={handleNext} className="gap-1.5">
+                      Next <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <FacultyTriagePanel
+                key={`triage-speed-${campus.id}-${leadsRefreshKey}`}
+                campusId={campus.id}
+                campusName={campus.school_name}
+                refreshToken={leadsRefreshKey}
+              />
+            </div>
+          ) : (
+          <>
+
 
           {/* Single Stepper */}
           <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-2">
