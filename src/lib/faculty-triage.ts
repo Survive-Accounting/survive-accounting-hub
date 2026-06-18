@@ -251,12 +251,13 @@ export async function importTaggedLeads(campusId: string): Promise<{ inserted: n
     inserted = toInsert.length;
   }
 
-  // Archive every tagged row (imported or merged) so triage clears out.
-  const ids = rows.map((r) => r.id);
-  await supabase.from("campus_lead_suggestions").update({ archived_at: new Date().toISOString(), archived_reason: "imported", archive_label: "faculty_scrape_import" }).in("id", ids);
+  // NOTE: we intentionally do NOT archive the suggestions after import. They
+  // stay in triage so Lee can see which rows are already imported (checkbox
+  // pre-filled via imported_lead_id) and toggle them off to un-import.
 
   return { inserted, skipped: withEmail.length - inserted, mergedTags };
 }
+
 
 /** @deprecated Kept/Skip flow removed — use importTaggedLeads. */
 export const importKeptLeads = importTaggedLeads;
