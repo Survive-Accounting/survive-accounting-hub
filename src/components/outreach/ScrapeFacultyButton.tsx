@@ -141,7 +141,7 @@ export function ScrapeFacultyButton({
       const chosenUrls = result?.chosenUrls ?? [];
       const perPage = result?.perPage ?? [];
       if (chosenUrls.length > 0) {
-        setUrls(chosenUrls.join("\n"));
+        setUrlList(chosenUrls.length > 0 ? chosenUrls : [""]);
       }
       const errs = perPage.filter((p) => p.error);
       const summary = `Firecrawl mapped ${result?.discovered ?? 0} links → scraped ${result?.scraped ?? 0} faculty pages → added ${result?.inserted ?? 0} candidates${result?.skippedDuplicates ? ` (skipped ${result.skippedDuplicates} dupes)` : ""}${errs.length ? `, ${errs.length} page error(s)` : ""}.`;
