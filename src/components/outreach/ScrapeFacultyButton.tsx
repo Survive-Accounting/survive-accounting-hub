@@ -374,53 +374,27 @@ export function ScrapeFacultyButton({
           )}
         </div>
       ) : (
-        <div className="flex gap-2">
-          {!hideAutoDiscover && (
-            <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
-              {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              {discovering ? "Discovering…" : "Auto-discover faculty"}
-            </Button>
-          )}
-          {!hideScrapeUrls && (
-            <>
-              {scrapeUrlsBtn}
-              {resetBtn}
-              {copyFacultyLinkBtn}
-              {importPdfBtn}
-              {hiddenFileInput}
-            </>
-          )}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            {!hideAutoDiscover && (
+              <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
+                {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                {discovering ? "Discovering…" : "Auto-discover faculty"}
+              </Button>
+            )}
+            {!hideScrapeUrls && (
+              <>
+                {scrapeUrlsBtn}
+                {resetBtn}
+                {copyFacultyLinkBtn}
+                {importPdfBtn}
+                {hiddenFileInput}
+              </>
+            )}
+          </div>
+          {!hideScrapeUrls && urlPanel}
         </div>
       )}
-
-      <Dialog open={open} onOpenChange={(v) => setOpen(v)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Scrape faculty pages — {campusName}</DialogTitle>
-            <DialogDescription className="pt-1">
-              Paste one URL per line. Include each filter/tab as its own line
-              (e.g. <code>?role=instructor</code>, <code>?role=staff</code>) so
-              non-tenure-track folks aren't missed. Pages are fetched via Firecrawl in the background.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={urls}
-            onChange={(e) => setUrls(e.target.value)}
-            rows={6}
-            placeholder={loadingUrls ? "Loading saved URLs…" : "https://accountancy.example.edu/faculty\nhttps://accountancy.example.edu/faculty?role=instructor"}
-            className="font-mono text-xs"
-          />
-          <div className="text-[11px] text-muted-foreground">
-            Names without an email or profile URL are dropped (no pattern-guessing). Results land in the triage table below — nothing is added to the email queue until you import. Scrape runs in the background so you can move to the next campus immediately.
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={run}>
-              <Globe className="h-3.5 w-3.5" /> Start scrape in background
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
