@@ -274,7 +274,7 @@ export function ScrapeFacultyButton({
   return (
     <>
       {layout === "stacked" ? (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col items-center gap-2">
           {!hideAutoDiscover && (
             <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
               {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -284,17 +284,24 @@ export function ScrapeFacultyButton({
           {!hideScrapeUrls && (
             <>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">#1</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #1</span>
                 {copyFacultyLinkBtn}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">#2</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step #2 · Paste Scrape URL</span>
                 {scrapeUrlsBtn}
                 {resetBtn}
               </div>
-              <div className="flex items-center gap-2 pl-6">
-                {importPdfBtn}
-              </div>
+              <button
+                type="button"
+                onClick={onPickPdf}
+                disabled={scraping}
+                title="Rarely needed. Upload one or more PDFs (e.g. print-to-PDF of the faculty page) — OCR scans for leads."
+                className="mt-0.5 inline-flex items-center gap-1 text-[11px] italic text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                <FileUp className="h-3 w-3" />
+                Scrape failed? Import Website PDFs
+              </button>
               {hiddenFileInput}
             </>
           )}
