@@ -872,6 +872,7 @@ async function processUrls(
     droppedNoContact: number;
     links: number;
     error: string | null;
+    enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
   }>;
   inserted: number;
   skippedDuplicates: number;
@@ -892,7 +893,9 @@ async function processUrls(
     droppedNoContact: number;
     links: number;
     error: string | null;
+    enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
   }> = [];
+
   const rowsToInsert: Array<Record<string, unknown>> = [];
   const cache: Record<string, { markdown: string; links: string[]; scraped_at: string }> = {};
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
