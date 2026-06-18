@@ -191,81 +191,54 @@ function LeadFinderPage() {
       <Toaster richColors position="top-center" />
       <div className="relative flex flex-1 flex-col bg-background pb-20">
 
-        {/* Navy top bar */}
+        {/* Navy top bar — centered brand */}
         <header
           className="text-white"
           style={{ background: "linear-gradient(180deg, #0b1f3a 0%, #0a1830 100%)" }}
         >
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-3 md:grid-cols-[minmax(0,1fr)_2fr] md:items-center md:gap-6">
-            {/* Left: logo + title + counter */}
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <div className="flex items-center gap-3">
-                <img
-                  src={LOGO_URL}
-                  alt="Survive Accounting"
-                  className="h-5 w-auto object-contain brightness-0 invert"
-                  draggable={false}
-                />
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/90 transition hover:bg-white/20"
-                  title="Back to Outreach Dashboard"
-                >
-                  <ArrowLeft className="h-3 w-3" /> Dashboard
-                </button>
-              </div>
-              <div className="font-serif text-sm font-semibold tracking-tight">
-                USA College Campus Lead Finder
-                <sup className="ml-0.5 text-[8px] align-super">™</sup>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                  Leads Found
-                </span>
-                <LeadOdometer value={triageStats.leads} />
-              </div>
+          <div className="mx-auto flex max-w-6xl flex-col items-center gap-1.5 px-4 py-4 text-center">
+            <img
+              src={LOGO_URL}
+              alt="Survive Accounting"
+              className="h-5 w-auto object-contain brightness-0 invert"
+              draggable={false}
+            />
+            <div className="font-serif text-base font-semibold tracking-tight">
+              USA College Campus Lead Finder
+              <sup className="ml-0.5 text-[8px] align-super">™</sup>
             </div>
-
-            {/* Right: scrape steps */}
-            <div className="flex flex-col gap-2 rounded-lg bg-white/5 p-3 ring-1 ring-white/10">
-              {campus ? (
-                <ScrapeFacultyButton
-                  campusId={campus.id}
-                  campusName={campus.school_name}
-                  onScraped={() => setRefreshKey((k) => k + 1)}
-                  hideAutoDiscover
-                  layout="stacked"
-                />
-              ) : (
-                <div className="text-xs text-white/60">Loading campus…</div>
-              )}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                Leads Found
+              </span>
+              <LeadOdometer value={triageStats.leads} />
             </div>
           </div>
         </header>
 
-        {/* Campus name + close */}
-        <div className="mx-auto max-w-6xl px-4 pt-6">
-          <div className="flex items-start justify-between gap-3">
-            <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
-              {campus?.school_name ?? (campusQuery.isLoading ? "Loading…" : "Campus not found")}
-            </h1>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted"
-              aria-label="Close"
-              title="Back to dashboard"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            <Link to="/outreach" className="underline-offset-2 hover:underline">
-              ← Outreach Dashboard
-            </Link>
-          </div>
+        {/* Campus name */}
+        <div className="mx-auto max-w-6xl px-4 pt-6 text-center">
+          <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
+            {campus?.school_name ?? (campusQuery.isLoading ? "Loading…" : "Campus not found")}
+          </h1>
         </div>
+
+        {/* Steps strip — Step #1, Step #2 (scrape), Step #3 lives in bottom bar */}
+        {campus && (
+          <div className="mx-auto mt-4 w-full max-w-3xl px-4">
+            <div className="rounded-xl border border-border bg-card/60 px-4 py-3 shadow-sm">
+              <ScrapeFacultyButton
+                campusId={campus.id}
+                campusName={campus.school_name}
+                onScraped={() => setRefreshKey((k) => k + 1)}
+                onStep1Click={() => setFlameStep((s) => (s === 1 ? 2 : s))}
+                flameStep={flameStep}
+                hideAutoDiscover
+                layout="stacked"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Table (compact text) */}
         <div className="mx-auto max-w-6xl px-4 pt-4 text-xs">
@@ -283,6 +256,7 @@ function LeadFinderPage() {
               Could not load campus.
             </div>
           ) : null}
+
         </div>
 
         {/* Sticky bottom action bar — stays inside the SidebarInset */}
