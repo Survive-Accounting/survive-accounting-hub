@@ -92,8 +92,10 @@ type Extracted = {
   /** How the email was sourced. Absent/'verified' = scraped directly from
    *  the page. 'directory' = found near the name on the directory page.
    *  'inferred' = synthesized from the dept's dominant email pattern; the
-   *  UI shows these as "guessed" so a human can spot-check before send. */
-  email_confidence?: "verified" | "directory" | "inferred";
+   *  UI shows these as "guessed" so a human can spot-check before send.
+   *  'news' = name pulled from a news/blog/spotlight page; almost never a
+   *  tenure-track contact — flagged so reviewers can deprioritize. */
+  email_confidence?: "verified" | "directory" | "inferred" | "news";
 };
 
 
