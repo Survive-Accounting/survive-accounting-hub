@@ -771,10 +771,10 @@ export function FacultyTriagePanel({
               </ul>
             </div>
             <div>
-              <div className="font-semibold">Keep vs Skip</div>
+              <div className="font-semibold">Importing</div>
               <ul className="ml-4 list-disc text-muted-foreground">
-                <li><strong>Keep</strong> = include this person when you click <em>Import kept leads</em>.</li>
-                <li><strong>Skip</strong> = ignore this person.</li>
+                <li>Any row with at least one tag is imported as a lead when you click <em>Step #4 · Import Leads</em>.</li>
+                <li>Untagged rows are left alone — no Keep/Skip needed.</li>
               </ul>
             </div>
           </div>
