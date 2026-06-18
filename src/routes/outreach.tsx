@@ -126,8 +126,8 @@ function OutreachPage() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    isActive={tab === "home"}
-                    onClick={() => setTab("home")}
+                    isActive={isIndex && tab === "home"}
+                    onClick={() => goTab("home")}
                     tooltip="Home"
                   >
                     <Home className="h-4 w-4" />
@@ -137,6 +137,7 @@ function OutreachPage() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
+                    isActive={pathname.startsWith("/outreach/leadfinder")}
                     onClick={() => navigate({ to: "/outreach/leadfinder" })}
                     tooltip="Lead Finder™"
                   >
@@ -147,8 +148,8 @@ function OutreachPage() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    isActive={tab === "schools"}
-                    onClick={() => setTab("schools")}
+                    isActive={isIndex && tab === "schools"}
+                    onClick={() => goTab("schools")}
                     tooltip="Campuses"
                   >
                     <GraduationCap className="h-4 w-4" />
@@ -172,11 +173,11 @@ function OutreachPage() {
                           <SidebarMenuSubItem key={item.value}>
                             <SidebarMenuSubButton
                               asChild
-                              isActive={tab === item.value}
+                              isActive={isIndex && tab === item.value}
                             >
                               <button
                                 type="button"
-                                onClick={() => setTab(item.value)}
+                                onClick={() => goTab(item.value)}
                                 className="flex w-full items-center gap-2"
                               >
                                 <item.icon className="h-3.5 w-3.5" />
@@ -192,8 +193,8 @@ function OutreachPage() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    isActive={tab === "texts"}
-                    onClick={() => setTab("texts")}
+                    isActive={isIndex && tab === "texts"}
+                    onClick={() => goTab("texts")}
                     tooltip="Students"
                   >
                     <Layers className="h-4 w-4" />
