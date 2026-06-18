@@ -39,6 +39,7 @@ import ClassScheduleIntelligencePanel from "./ClassScheduleIntelligencePanel";
 import { ScrapeFacultyButton } from "./ScrapeFacultyButton";
 import { FacultyTriagePanel } from "./FacultyTriagePanel";
 import { supabase } from "@/integrations/supabase/client";
+import { getAdminWho } from "@/components/AdminGate";
 
 type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
 
@@ -314,7 +315,9 @@ export default function ApproveCampusModal({
   const step1Done = codesArray.length > 0;
   const step2Done = FAMILIES.every((f) => (familyStatus[f.key] ?? "not_checked") !== "not_checked");
   const step3Done = skipLeadImport || leadSummary.accepted > 0;
-  const canApprove = step1Done && step2Done && step3Done;
+  const isLeeAdmin = getAdminWho() === "lee";
+  const stepsComplete = step1Done && step2Done && step3Done;
+  const canApprove = stepsComplete || isLeeAdmin;
 
   const aggregateTextbookStatus = (status: Record<string, FamilyStatus>): TextbookStatus => {
     const vals = FAMILIES.map((f) => status[f.key] ?? "not_checked");
@@ -1630,7 +1633,9 @@ export default function ApproveCampusModal({
                     </ul>
                     {missing.length > 0 && (
                       <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800">
-                        <div className="font-semibold mb-0.5">Cannot approve yet:</div>
+                        <div className="font-semibold mb-0.5">
+                          {isLeeAdmin ? "Outstanding items (admin override available):" : "Cannot approve yet:"}
+                        </div>
                         <ul className="list-disc pl-4 space-y-0.5">
                           {missing.map((m) => <li key={m}>{m}</li>)}
                         </ul>
@@ -1772,10 +1777,11 @@ export default function ApproveCampusModal({
             <Button
               disabled={!canApprove}
               onClick={approve}
-              title={!canApprove ? "Complete all steps to approve" : ""}
+              title={!canApprove ? "Complete all steps to approve" : isLeeAdmin && !stepsComplete ? "Admin override — approving with incomplete steps" : ""}
+              variant={isLeeAdmin && !stepsComplete ? "secondary" : "default"}
             >
               <CheckCircle2 className="h-4 w-4" />
-              Approve Campus
+              {isLeeAdmin && !stepsComplete ? "Approve Anyway (Admin)" : "Approve Campus"}
             </Button>
           </DialogFooter>
 
