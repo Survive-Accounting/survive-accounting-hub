@@ -961,7 +961,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { aiKey, fcKey } = requireKeys();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const result = await processUrls(fcKey, aiKey, data.campusId, data.urls);
+    const result = await processUrls(fcKey, aiKey, data.campusId, data.urls, { allowNoContact: data.allowNoContact });
     await supabaseAdmin
       .from("campuses")
       .update({ faculty_page_url: data.urls.join("\n") })
