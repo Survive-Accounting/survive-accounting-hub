@@ -3,13 +3,14 @@
 // still running. Clicking a row jumps to that campus's leadfinder page.
 // Jobs are persisted in the `scrape_jobs` table and streamed via realtime, so
 // the HUD survives reloads and a server-side watchdog auto-fails stuck rows.
-import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X, ShieldAlert } from "lucide-react";
+import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X, ShieldAlert, Ban } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   useScrapeJobs,
   clearFinishedScrapeJobs,
   runScrapeJobsWatchdog,
+  cancelScrapeJob,
   type ScrapeJob,
 } from "@/lib/scrape-jobs";
 
