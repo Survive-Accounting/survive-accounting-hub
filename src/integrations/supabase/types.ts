@@ -3758,6 +3758,42 @@ export type Database = {
           },
         ]
       }
+      scrape_jobs: {
+        Row: {
+          campus_id: string
+          campus_name: string
+          created_at: string
+          finished_at: string | null
+          id: string
+          kind: string
+          message: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          campus_id: string
+          campus_name: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          kind: string
+          message?: string | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          campus_id?: string
+          campus_name?: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          message?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       session_prep_submissions: {
         Row: {
           appointment_at: string | null
@@ -4640,7 +4676,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      fail_stale_scrape_jobs: { Args: never; Returns: number }
     }
     Enums: {
       greek_chapter_status: "active" | "inactive" | "suspended" | "unknown"

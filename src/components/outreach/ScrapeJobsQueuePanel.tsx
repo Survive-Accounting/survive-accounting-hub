@@ -1,13 +1,18 @@
 // Sidebar HUD showing recent faculty + RMP scrape jobs across campuses so Lee
 // can fire off many in parallel and still see which succeeded / failed / are
 // still running. Clicking a row jumps to that campus's leadfinder page.
-import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X } from "lucide-react";
+// Jobs are persisted in the `scrape_jobs` table and streamed via realtime, so
+// the HUD survives reloads and a server-side watchdog auto-fails stuck rows.
+import { Landmark, GraduationCap, Loader2, CheckCircle2, XCircle, X, ShieldAlert } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   useScrapeJobs,
   clearFinishedScrapeJobs,
+  runScrapeJobsWatchdog,
   type ScrapeJob,
 } from "@/lib/scrape-jobs";
+
 
 function timeAgo(ts: number): string {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -43,16 +48,34 @@ export function ScrapeJobsQueuePanel() {
         <div className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/60">
           Scrape Queue {running > 0 && <span className="text-amber-600">· {running} running</span>}
         </div>
-        {finished > 0 && (
-          <button
-            type="button"
-            onClick={clearFinishedScrapeJobs}
-            title="Clear finished jobs"
-            className="rounded p-0.5 text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
+        <div className="flex items-center gap-0.5">
+          {running > 0 && (
+            <button
+              type="button"
+              onClick={async () => {
+                const n = await runScrapeJobsWatchdog();
+                toast.success(
+                  n > 0 ? `Force-failed ${n} stuck job${n === 1 ? "" : "s"}` : "No stuck jobs (>8m old)",
+                );
+              }}
+              title="Force-fail any job stuck running for more than 8 minutes"
+              className="rounded p-0.5 text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            >
+              <ShieldAlert className="h-3 w-3" />
+            </button>
+          )}
+          {finished > 0 && (
+            <button
+              type="button"
+              onClick={() => { void clearFinishedScrapeJobs(); }}
+              title="Clear finished jobs"
+              className="rounded p-0.5 text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
       </div>
       <ul className="max-h-64 space-y-0.5 overflow-y-auto">
         {jobs.map((j) => (
