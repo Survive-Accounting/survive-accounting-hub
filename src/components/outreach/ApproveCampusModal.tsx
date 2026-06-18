@@ -1777,10 +1777,11 @@ export default function ApproveCampusModal({
             <Button
               disabled={!canApprove}
               onClick={approve}
-              title={!canApprove ? "Complete all steps to approve" : ""}
+              title={!canApprove ? "Complete all steps to approve" : isLeeAdmin && !stepsComplete ? "Admin override — approving with incomplete steps" : ""}
+              variant={isLeeAdmin && !stepsComplete ? "secondary" : "default"}
             >
               <CheckCircle2 className="h-4 w-4" />
-              Approve Campus
+              {isLeeAdmin && !stepsComplete ? "Approve Anyway (Admin)" : "Approve Campus"}
             </Button>
           </DialogFooter>
 
