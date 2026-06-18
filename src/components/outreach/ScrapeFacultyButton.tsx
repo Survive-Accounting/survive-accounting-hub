@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GraduationCap, Globe, Loader2, Wand2, FileUp, X, Plus } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -60,6 +60,14 @@ export function ScrapeFacultyButton({
   const scrapePdf = useServerFn(scrapeCampusFacultyPdf);
   const { scraping, elapsedMs } = useScrapingCampusInfo(campusId);
   const stuck = scraping && elapsedMs > 60_000;
+
+  // Reset per-campus state when switching campuses so URLs from a previous
+  // campus don't leak into the new one's Scrape URL panel.
+  useEffect(() => {
+    setExpanded(false);
+    setUrlList([""]);
+    setLoadingUrls(false);
+  }, [campusId]);
 
   const togglePanel = async () => {
     if (expanded) { setExpanded(false); return; }
