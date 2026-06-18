@@ -56,20 +56,20 @@ export const Route = createFileRoute("/outreach")({
 });
 
 function OutreachPage() {
+  const navigate = useNavigate();
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [usingMock, setUsingMock] = useState(false);
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [reviewing, setReviewing] = useState<Campus | null>(null);
-  const [reviewHistory, setReviewHistory] = useState<string[]>([]);
-  const [reviewInitialStep, setReviewInitialStep] = useState<string | undefined>(undefined);
-  const [autoResearchId, setAutoResearchId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importCampusId, setImportCampusId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const qc = useQueryClient();
   const [tab, setTab] = useState("home");
   const [batchSettingsOpen, setBatchSettingsOpen] = useState(false);
+
+  const openLeadFinder = (campusId: string) =>
+    navigate({ to: "/outreach/leadfinder/$campusId", params: { campusId } });
 
   // ----- Campuses: real data, mock fallback -----
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
