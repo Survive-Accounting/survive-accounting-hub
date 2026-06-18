@@ -284,6 +284,7 @@ Deno.serve(async (req) => {
     let courseFamilyStatus: Record<string, string> = {};
     let courseFamilyCodes: Record<string, string> = {};
     let programName = "";
+    let programShorthand = "";
     let coursesText = "";
     let fullCoursesText = "";
     let prefixText = "";
@@ -291,7 +292,7 @@ Deno.serve(async (req) => {
     if (lead.campus_id) {
       const { data: campus } = await admin
         .from("campuses")
-        .select("slug, approval_status, course_family_status_json, course_family_codes_json, accounting_department_name, course_codes_json, use_personal_phone")
+        .select("slug, approval_status, course_family_status_json, course_family_codes_json, accounting_department_name, program_shorthand, course_codes_json, use_personal_phone")
         .eq("id", lead.campus_id)
         .single();
       if (campus?.approval_status === "approved" && campus?.slug) {
@@ -307,6 +308,7 @@ Deno.serve(async (req) => {
         courseFamilyCodes = campus.course_family_codes_json as Record<string, string>;
       }
       programName = (campus?.accounting_department_name ?? "").trim();
+      programShorthand = (campus?.program_shorthand ?? "").trim();
       if (Array.isArray(campus?.course_codes_json)) {
         const codes = (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string");
         coursesText = joinCourses(codes);
