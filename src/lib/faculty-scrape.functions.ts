@@ -506,8 +506,10 @@ async function insertExtractedPeople(
       research_label: researchLabel,
       status: "pending",
       lead_type: "professor",
+      is_phd: p.is_phd,
+      is_cpa: p.is_cpa,
       notes: `Scraped from ${sourceLabel}`,
-      raw_payload: { source: sourceLabel, title: p.title, profile_url: p.profile_url },
+      raw_payload: { source: sourceLabel, title: p.title, profile_url: p.profile_url, is_phd: p.is_phd, is_cpa: p.is_cpa },
     });
   }
   if (rowsToInsert.length === 0) return { inserted: 0, skippedDuplicates: 0 };
