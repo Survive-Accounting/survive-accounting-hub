@@ -192,7 +192,7 @@ export function AutoScrapeButton({
         const s2 = pushStep({ key: "faculty", label: "2. Firecrawl + parse faculty", status: "running", startedAt: Date.now() });
         const job = startScrapeJob({ campusId, campusName, kind: "faculty" });
         tasks.push(
-          facultyFn({ data: { campusId, urls: found.facultyUrls } })
+          facultyFn({ data: { campusId, urls: found.facultyUrls, allowNoContact: true } })
             .then((r) => {
               const obj = (r ?? {}) as Record<string, unknown>;
               const ins = typeof obj.inserted === "number" ? obj.inserted : 0;
