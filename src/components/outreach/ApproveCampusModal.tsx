@@ -1633,7 +1633,9 @@ export default function ApproveCampusModal({
                     </ul>
                     {missing.length > 0 && (
                       <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-800">
-                        <div className="font-semibold mb-0.5">Cannot approve yet:</div>
+                        <div className="font-semibold mb-0.5">
+                          {isLeeAdmin ? "Outstanding items (admin override available):" : "Cannot approve yet:"}
+                        </div>
                         <ul className="list-disc pl-4 space-y-0.5">
                           {missing.map((m) => <li key={m}>{m}</li>)}
                         </ul>
