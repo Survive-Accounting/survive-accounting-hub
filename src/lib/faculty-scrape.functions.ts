@@ -460,15 +460,21 @@ async function callLovableAiWithPdf(
   for (const p of people) {
     if (!p || typeof p !== "object") continue;
     const r = p as Record<string, unknown>;
-    const fn = typeof r.first_name === "string" ? r.first_name.trim() : "";
-    const ln = typeof r.last_name === "string" ? r.last_name.trim() : "";
-    if (!fn && !ln) continue;
+    const fnRaw = typeof r.first_name === "string" ? r.first_name.trim() : "";
+    const lnRaw = typeof r.last_name === "string" ? r.last_name.trim() : "";
+    if (!fnRaw && !lnRaw) continue;
+    const title = typeof r.title === "string" ? r.title.trim() || null : null;
+    const regexCreds = detectCredentials(fnRaw, lnRaw, title);
+    const aiPhd = r.is_phd === true;
+    const aiCpa = r.is_cpa === true;
     out.push({
-      first_name: fn,
-      last_name: ln,
-      title: typeof r.title === "string" ? r.title.trim() || null : null,
+      first_name: stripCredentials(fnRaw),
+      last_name: stripCredentials(lnRaw),
+      title,
       email: typeof r.email === "string" && r.email.includes("@") ? r.email.trim().toLowerCase() : null,
       profile_url: typeof r.profile_url === "string" && /^https?:\/\//i.test(r.profile_url) ? r.profile_url.trim() : null,
+      is_phd: aiPhd || regexCreds.is_phd,
+      is_cpa: aiCpa || regexCreds.is_cpa,
     });
   }
   return out;
