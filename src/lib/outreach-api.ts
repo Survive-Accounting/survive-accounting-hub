@@ -2567,6 +2567,7 @@ export async function createCampaignFromPreview(input: {
   filters: CampaignAudienceFilters;
   selectedLeadIds: string[];
   createdBy?: string | null;
+  templateId?: string | null;
 }): Promise<{ campaign_id: string; total_leads: number; total_campuses: number }> {
   const dailyLimit = input.dailyLimit > 0 ? input.dailyLimit : 50;
 
@@ -2612,6 +2613,7 @@ export async function createCampaignFromPreview(input: {
       daily_limit: dailyLimit,
       estimated_days: estimatedDays,
       created_by: input.createdBy ?? null,
+      template_id: input.templateId ?? null,
     })
     .select("id")
     .single();
