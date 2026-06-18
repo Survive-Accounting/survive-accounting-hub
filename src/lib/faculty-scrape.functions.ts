@@ -60,6 +60,10 @@ function slickHttpError(label: string, status: number, body: string): string {
 const ScrapeInputSchema = z.object({
   campusId: z.string().uuid(),
   urls: z.array(z.string().url()).min(1).max(10),
+  /** When true, save name-only rows (no email/profile URL) anchored to the
+   *  directory URL. Used by the auto-scrape pipeline so RMP enrichment can
+   *  still match by name on card-only directories. */
+  allowNoContact: z.boolean().optional().default(false),
 });
 
 const DiscoverInputSchema = z.object({
