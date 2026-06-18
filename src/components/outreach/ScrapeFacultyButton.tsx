@@ -137,7 +137,7 @@ export function ScrapeFacultyButton({
       }
       onScraped?.();
     } catch (e) {
-      toast.error(`Auto-discover failed: ${e instanceof Error ? e.message : "unknown error"}`);
+      toast.error("Auto-discover failed", { description: slickErr(e) });
     } finally {
       setDiscovering(false);
     }
