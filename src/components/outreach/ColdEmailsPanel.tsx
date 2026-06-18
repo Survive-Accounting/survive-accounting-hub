@@ -31,8 +31,7 @@ const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 async function fetchImportedLeadCounts(): Promise<Record<string, number>> {
   const { data, error } = await supabase
     .from("outreach_leads")
-    .select("campus_id")
-    .is("archived_at", null as never);
+    .select("campus_id");
   if (error) throw error;
   const map: Record<string, number> = {};
   for (const r of (data ?? []) as Array<{ campus_id: string | null }>) {
