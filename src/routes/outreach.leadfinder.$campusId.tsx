@@ -268,6 +268,7 @@ function LeadFinderPage() {
                 campusId={campus.id}
                 campusName={campus.school_name}
                 onScraped={() => setRefreshKey((k) => k + 1)}
+                exposeApi={setScrapeApi}
               />
               <button
                 type="button"
