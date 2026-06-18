@@ -1085,6 +1085,7 @@ export type Database = {
           preview_slug: string | null
           priority_score: number | null
           priority_tier: string | null
+          program_shorthand: string | null
           ready_for_outreach: boolean | null
           region: string | null
           review_notes: string | null
@@ -1211,6 +1212,7 @@ export type Database = {
           preview_slug?: string | null
           priority_score?: number | null
           priority_tier?: string | null
+          program_shorthand?: string | null
           ready_for_outreach?: boolean | null
           region?: string | null
           review_notes?: string | null
@@ -1337,6 +1339,7 @@ export type Database = {
           preview_slug?: string | null
           priority_score?: number | null
           priority_tier?: string | null
+          program_shorthand?: string | null
           ready_for_outreach?: boolean | null
           region?: string | null
           review_notes?: string | null

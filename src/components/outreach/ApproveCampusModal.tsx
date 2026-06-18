@@ -207,7 +207,9 @@ export default function ApproveCampusModal({
   const [familyBooks, setFamilyBooks] = useState<Record<string, FamilyBook>>({});
   const [familyTerms, setFamilyTerms] = useState<Record<string, CourseFamilyTerms>>({});
   const [programName, setProgramName] = useState("");
+  const [programShorthand, setProgramShorthand] = useState("");
   const programTimer = useRef<number | null>(null);
+  const shorthandTimer = useRef<number | null>(null);
   const [isbnLookup, setIsbnLookup] = useState<Record<string, "idle" | "loading" | "found" | "notfound">>({});
   const bookTimer = useRef<number | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
@@ -299,6 +301,7 @@ export default function ApproveCampusModal({
 
     setIsbnLookup({});
     setProgramName(campus.accounting_department_name ?? "");
+    setProgramShorthand((campus as Campus & { program_shorthand?: string | null }).program_shorthand ?? "");
     setLastSavedAt(null);
     setAiResult(null);
     setAiResearching(false);
@@ -986,7 +989,49 @@ export default function ApproveCampusModal({
                       Next <ArrowRight className="h-4 w-4" />
                     </Button>
                   )}
+              </div>
+
+              <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-background px-3 py-2 text-[11px]">
+                <div className="flex flex-1 min-w-[180px] flex-col gap-1">
+                  <label className="font-medium text-muted-foreground">
+                    Program name <span className="font-normal opacity-70">— {"{program}"}</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={programName}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setProgramName(v);
+                      markTouched("program");
+                      if (programTimer.current) window.clearTimeout(programTimer.current);
+                      programTimer.current = window.setTimeout(() => {
+                        writePatch({ accounting_department_name: v.trim() || null });
+                      }, 500);
+                    }}
+                    placeholder="e.g. Culver School of Business"
+                    className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                  />
                 </div>
+                <div className="flex w-[200px] flex-col gap-1">
+                  <label className="font-medium text-muted-foreground">
+                    Shorthand <span className="font-normal opacity-70">— {"{program shorthand}"}</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={programShorthand}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setProgramShorthand(v);
+                      if (shorthandTimer.current) window.clearTimeout(shorthandTimer.current);
+                      shorthandTimer.current = window.setTimeout(() => {
+                        writePatch({ program_shorthand: v.trim() || null } as Partial<Campus>);
+                      }, 500);
+                    }}
+                    placeholder="e.g. Culver"
+                    className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                  />
+                </div>
+              </div>
               </div>
 
               {onNext && (

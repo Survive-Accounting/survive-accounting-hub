@@ -195,6 +195,7 @@ Deno.serve(async (req) => {
         .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
         .replace(/\{\s*recipient\s*name\s*\}/gi, "Dr. Smith")
         .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, samplePrefix)
+        .replace(/\{\s*program\s*shorthand\s*\}/gi, "Culver")
         .replace(/\{\s*program\s*\}/gi, samplePogram)
         .replace(/\{\s*courses\s*\}/gi, sampleCourses)
         .replace(/\{\s*phone\s*\}/gi, samplePhone)
@@ -284,6 +285,7 @@ Deno.serve(async (req) => {
     let courseFamilyStatus: Record<string, string> = {};
     let courseFamilyCodes: Record<string, string> = {};
     let programName = "";
+    let programShorthand = "";
     let coursesText = "";
     let fullCoursesText = "";
     let prefixText = "";
@@ -291,7 +293,7 @@ Deno.serve(async (req) => {
     if (lead.campus_id) {
       const { data: campus } = await admin
         .from("campuses")
-        .select("slug, approval_status, course_family_status_json, course_family_codes_json, accounting_department_name, course_codes_json, use_personal_phone")
+        .select("slug, approval_status, course_family_status_json, course_family_codes_json, accounting_department_name, program_shorthand, course_codes_json, use_personal_phone")
         .eq("id", lead.campus_id)
         .single();
       if (campus?.approval_status === "approved" && campus?.slug) {
@@ -307,6 +309,7 @@ Deno.serve(async (req) => {
         courseFamilyCodes = campus.course_family_codes_json as Record<string, string>;
       }
       programName = (campus?.accounting_department_name ?? "").trim();
+      programShorthand = (campus?.program_shorthand ?? "").trim();
       if (Array.isArray(campus?.course_codes_json)) {
         const codes = (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string");
         coursesText = joinCourses(codes);
@@ -317,6 +320,8 @@ Deno.serve(async (req) => {
     }
     // Graceful fallbacks when research hasn't captured these yet.
     const programMerge = programName || "accounting program";
+    // Fallback chain: explicit shorthand → full program name → "your program".
+    const programShorthandMerge = programShorthand || programName || "your program";
     const coursesMerge = coursesText || "Intro and Intermediate Accounting";
     const fullCoursesMerge = fullCoursesText || coursesMerge;
     const prefixMerge = prefixText || "accounting";
@@ -398,6 +403,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*recipient\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, prefixMerge)
+      .replace(/\{\s*program\s*shorthand\s*\}/gi, programShorthandMerge)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
@@ -425,6 +431,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*first\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*recipient\s*name\s*\}/gi, greetingName)
       .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, prefixMerge)
+      .replace(/\{\s*program\s*shorthand\s*\}/gi, programShorthandMerge)
       .replace(/\{\s*program\s*\}/gi, programMerge)
       .replace(/\{\s*courses\s*\}/gi, coursesMerge)
       .replace(/\{\s*full\s*codes\s*\}/gi, fullCoursesMerge)
