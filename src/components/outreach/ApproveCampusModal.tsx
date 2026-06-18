@@ -989,6 +989,34 @@ export default function ApproveCampusModal({
                 </div>
               </div>
 
+              {onNext && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 text-[11px]">
+                  <span className="font-medium text-muted-foreground">Next filter:</span>
+                  {([
+                    ["all", "All"],
+                    ["with_leads", "With leads"],
+                    ["without_leads", "Without leads"],
+                    ["sec_only", "SEC only 🏈"],
+                  ] as Array<[NextCampusFilter, string]>).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => updateNextFilter(val)}
+                      className={`rounded-full border px-2.5 py-0.5 transition ${
+                        nextFilter === val
+                          ? "border-amber-500 bg-amber-100 text-amber-900"
+                          : "border-border bg-card text-muted-foreground hover:bg-accent/40"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <span className="ml-auto text-muted-foreground">
+                    Used when you press Next or Quick Approve.
+                  </span>
+                </div>
+              )}
+
               <FacultyTriagePanel
                 key={`triage-speed-${campus.id}-${leadsRefreshKey}`}
                 campusId={campus.id}
