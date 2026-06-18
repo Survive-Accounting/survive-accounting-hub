@@ -906,7 +906,7 @@ export default function ApproveCampusModal({
     });
     toast.success(`Approved ${campus.school_name}`);
     if (onNext) {
-      onNext(campus.id);
+      onNext(campus.id, nextFilter);
     } else {
       onClose();
     }
@@ -914,7 +914,7 @@ export default function ApproveCampusModal({
 
   const handleNext = () => {
     if (!campus || !onNext) return;
-    onNext(campus.id);
+    onNext(campus.id, nextFilter);
   };
 
   if (!campus) return null;
