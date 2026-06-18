@@ -314,7 +314,7 @@ export default function ApproveCampusModal({
     if (typeof window === "undefined") return "all";
     try {
       const v = window.localStorage.getItem("sa-speed-next-filter");
-      return v === "with_leads" || v === "without_leads" || v === "sec_only" || v === "all" ? v : "all";
+      return v === "with_leads" || v === "without_leads" || v === "sec_only" || v === "highest_value" || v === "all" ? v : "all";
     } catch { return "all"; }
   });
   const updateNextFilter = (v: NextCampusFilter) => {
