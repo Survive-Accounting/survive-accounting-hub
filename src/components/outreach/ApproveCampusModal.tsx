@@ -1091,39 +1091,11 @@ export default function ApproveCampusModal({
       <Dialog open={!!campus} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="max-w-4xl sm:max-w-4xl max-h-[94vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between gap-3 text-base">
-              <span>Research &amp; Approve Campus — {campus.school_name}</span>
-              <div className="flex items-center gap-3">
-                {isLeeAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => toggleSpeedMode(!speedMode)}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-                      speedMode
-                        ? "border-amber-500 bg-amber-500/15 text-amber-700"
-                        : "border-border bg-background text-muted-foreground hover:text-foreground"
-                    }`}
-                    title={speedMode ? "Turn off Speed Mode to show advanced research panels" : "Speed Mode: scrape + triage only (hides advanced panels)"}
-                  >
-                    <Zap className="h-3 w-3" />
-                    {speedMode ? "Speed Mode · ON" : "Show advanced"}
-                  </button>
-                )}
-                <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-                  {autoSaving ? (
-                    <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
-                  ) : lastSavedAt ? (
-                    <><Save className="h-3 w-3 text-emerald-600" /> Auto-saved</>
-                  ) : null}
-                </span>
-              </div>
+            <DialogTitle className="text-base">
+              <span>{campus.school_name}</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {speedMode
-                ? "Speed Mode: paste faculty URL, start scrape, approve, next."
-                : "Review course codes, textbook matches, and suggested leads before approving outreach."}
-            </DialogDescription>
           </DialogHeader>
+
 
           {speedMode ? (
             <div className="space-y-4 pt-2">
