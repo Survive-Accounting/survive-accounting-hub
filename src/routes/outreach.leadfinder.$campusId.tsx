@@ -232,22 +232,13 @@ function LeadFinderPage() {
           </div>
         </header>
 
-        {/* Overnight auto-import panel */}
-        <div className="mx-auto mt-4 w-full max-w-3xl px-4">
-          <OvernightAutoImportCard />
-        </div>
-
-        {/* Campus name + Test Automated Scrape */}
+        {/* Campus name + actions */}
         <div className="mx-auto max-w-6xl px-4 pt-6 text-center">
           <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
             {campus?.school_name ?? (campusQuery.isLoading ? "Loading…" : "Campus not found")}
           </h1>
           {campus && (
             <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-[11px]">
-              <TestAutoScrapeButton
-                campusId={campus.id}
-                onDone={() => setRefreshKey((k) => k + 1)}
-              />
               <button
                 type="button"
                 onClick={() => setShowManualSteps((v) => !v)}
@@ -255,13 +246,18 @@ function LeadFinderPage() {
               >
                 {showManualSteps ? "Hide manual steps" : "Show manual steps"}
               </button>
+              <ResetCampusLeadsButton
+                campusId={campus.id}
+                campusName={campus.school_name}
+                onDone={() => setRefreshKey((k) => k + 1)}
+              />
             </div>
           )}
         </div>
 
         {/* Steps strip — Step #1, Step #2 (scrape), Step #3 lives in bottom bar */}
         {campus && showManualSteps && (
-          <div className="mx-auto mt-4 w-full max-w-3xl px-4">
+          <div className="mx-auto mt-4 w-full max-w-3xl space-y-3 px-4">
             <div className="rounded-xl border border-border bg-card/60 px-4 py-3 shadow-sm">
               <ScrapeFacultyButton
                 campusId={campus.id}
@@ -273,6 +269,11 @@ function LeadFinderPage() {
                 layout="stacked"
               />
             </div>
+            <RmpScrapePanel
+              campusId={campus.id}
+              campusName={campus.school_name}
+              onScraped={() => setRefreshKey((k) => k + 1)}
+            />
           </div>
         )}
 
