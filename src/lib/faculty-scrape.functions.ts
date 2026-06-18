@@ -470,7 +470,16 @@ async function enrichProfileEmails(
       passThrough.push(p);
     }
   }
-  const outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error"; mdLen: number; htmlLen: number }> = [];
+  const outcomes: Array<{ url: string; name: string; result: "ok" | "obfuscated" | "mailto" | "empty" | "no_email" | "error" | "skipped_host"; mdLen: number; htmlLen: number }> = [];
+  // Track per-host fail counts so anti-bot blocks on one host don't burn the
+  // whole enrichment budget. Both batch and fallback paths update this map.
+  const hostFailures = new Map<string, number>();
+  const hostOf = (u: string): string => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; } };
+  const isHostBlocked = (u: string): boolean => (hostFailures.get(hostOf(u)) ?? 0) >= PER_HOST_FAIL_LIMIT;
+  const bumpHost = (u: string, fail: boolean) => {
+    const h = hostOf(u); if (!h) return;
+    if (fail) hostFailures.set(h, (hostFailures.get(h) ?? 0) + 1);
+  };
   if (toEnrich.length === 0) return { people: passThrough, enriched: 0, outcomes };
 
   // Prefer Firecrawl batchScrape: one upstream call, server-side concurrency,
