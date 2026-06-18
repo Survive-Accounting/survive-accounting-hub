@@ -649,7 +649,7 @@ async function processUrls(
     }
   }
 
-  return { perPage, inserted, skippedDuplicates };
+  return { perPage, inserted, skippedDuplicates, programLevels, programLevelSources };
 }
 
 function requireKeys() {
