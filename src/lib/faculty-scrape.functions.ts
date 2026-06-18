@@ -934,7 +934,7 @@ async function processUrls(
         // Deterministic fallback: pair people without a profile_url to a
         // slug-matched link from the directory page (e.g. /faculty/friedman).
         const { people: withSlugs, matched: slugMatched } = attachProfileUrlsFromLinks(merged, url, links);
-        const { people: people, enriched } = await enrichProfileEmails(fcKey, withSlugs, url);
+        const { people: people, enriched, outcomes: enrichOutcomes } = await enrichProfileEmails(fcKey, withSlugs, url);
 
         const withEmail = people.filter((p) => !!p.email).length;
         const withProfileUrl = people.filter((p) => !!p.profile_url).length;
@@ -973,7 +973,9 @@ async function processUrls(
           droppedNoContact: pageDropped,
           links: links.length,
           error: null,
+          enrichOutcomes,
         });
+
       } catch (e) {
         perPage.push({ url, found: 0, extracted: 0, withEmail: 0, withProfileUrl: 0, slugMatched: 0, enriched: 0, droppedNoContact: 0, links: 0, error: e instanceof Error ? e.message : String(e) });
       }
