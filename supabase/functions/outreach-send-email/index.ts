@@ -406,6 +406,7 @@ Deno.serve(async (req) => {
       .replace(/\{\s*intermediate\s*1\s*\}/gi, intermediate1Code)
       .replace(/\{\s*intermediate\s*2\s*\}/gi, intermediate2Code)
       .replace(/\{\s*phone\s*\}/gi, campusPhone)
+      .replace(/\{\s*chapter\s*nickname\s*\}/gi, "your chapter")
       .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
       .replace(/\[First Name\]/g, greetingName)
       .replace(/\[Booking Link\]/g, BOOKING_LINK)
