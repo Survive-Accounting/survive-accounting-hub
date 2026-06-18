@@ -787,6 +787,7 @@ async function processUrls(
   droppedNoContact: number;
   programLevels: ProgramLevelDetection;
   programLevelSources: string[];
+  cache: Record<string, { markdown: string; links: string[]; scraped_at: string }>;
 }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const perPage: Array<{
@@ -802,6 +803,7 @@ async function processUrls(
     error: string | null;
   }> = [];
   const rowsToInsert: Array<Record<string, unknown>> = [];
+  const cache: Record<string, { markdown: string; links: string[]; scraped_at: string }> = {};
   let programLevels: ProgramLevelDetection = EMPTY_DETECTION;
   const programLevelSources: string[] = [];
   let totalDroppedNoContact = 0;
