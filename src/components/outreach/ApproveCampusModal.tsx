@@ -217,7 +217,7 @@ function SpeedNextButton({
 
 
 export default function ApproveCampusModal({
-  campus, onClose, onPatch, onApprove, onNext, autoStartResearch, initialStep,
+  campus, onClose, onPatch, onApprove, onNext, onBack, canGoBack, autoStartResearch, initialStep,
 }: {
   campus: Campus | null;
   onClose: () => void;
@@ -225,6 +225,10 @@ export default function ApproveCampusModal({
   onApprove: (id: string, patch: Partial<Campus>) => void;
   /** Advance to the next campus in the queue. When provided, Speed Mode shows a "Next" button. */
   onNext?: (currentCampusId: string, filter: NextCampusFilter) => void;
+  /** Go back to the previously reviewed campus. */
+  onBack?: () => void;
+  /** Whether there is a previous campus in the history stack. */
+  canGoBack?: boolean;
   /** When set to a campus id, automatically kick off full AI research once after the modal opens. */
   autoStartResearch?: string | null;
   /** Optional step to land on when the modal opens (default "1"). */
