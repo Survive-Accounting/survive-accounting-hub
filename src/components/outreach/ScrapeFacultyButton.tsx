@@ -33,12 +33,15 @@ export function ScrapeFacultyButton({
   onScraped,
   hideAutoDiscover = false,
   hideScrapeUrls = false,
+  layout = "row",
 }: {
   campusId: string;
   campusName: string;
   onScraped?: () => void;
   hideAutoDiscover?: boolean;
   hideScrapeUrls?: boolean;
+  /** "row" = legacy inline; "stacked" = numbered VA-friendly checklist. */
+  layout?: "row" | "stacked";
 }) {
   const [open, setOpen] = useState(false);
   const [urls, setUrls] = useState("");
@@ -66,9 +69,16 @@ export function ScrapeFacultyButton({
     }
   };
 
-  const openFacultyGoogle = () => {
+  const copyFacultyGoogleLink = async () => {
     const q = `${campusName} accounting faculty directory`;
-    window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}`, "_blank", "noopener,noreferrer");
+    const url = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Search link copied — paste in a new tab.");
+    } catch {
+      // Fallback: select-and-prompt
+      window.prompt("Copy this link:", url);
+    }
   };
 
   const run = async () => {
@@ -191,65 +201,118 @@ export function ScrapeFacultyButton({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const copyFacultyLinkBtn = (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={copyFacultyGoogleLink}
+      title="Copy a Google search link for this school's accounting faculty directory. Paste it in a new tab."
+      className="gap-1.5"
+    >
+      <GraduationCap className="h-3.5 w-3.5" /> Copy Faculty Link
+    </Button>
+  );
+
+  const scrapeUrlsBtn = (
+    <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
+      {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+      {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URL"}
+    </Button>
+  );
+
+  const resetBtn = stuck && (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="text-amber-700 hover:text-amber-900"
+      onClick={() => {
+        clearCampusScrape(campusId);
+        toast.info("Cleared stuck scrape slot — you can start a new one.");
+      }}
+      title="The previous scrape has been running over 60s — reset the slot so you can try again"
+    >
+      <X className="h-3.5 w-3.5" /> Reset
+    </Button>
+  );
+
+  const importPdfBtn = (
+    <span className="inline-flex items-center gap-1">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onPickPdf}
+        disabled={scraping}
+        title="Only use if scrape fails. Upload a PDF (e.g. print-to-PDF of the faculty page) — OCR scans for leads."
+        className="gap-1.5"
+      >
+        <FileUp className="h-3.5 w-3.5" /> Import PDF
+      </Button>
+      <span
+        className="cursor-help text-[10px] text-muted-foreground"
+        title="Only use if scrape fails"
+      >
+        ⓘ
+      </span>
+    </span>
+  );
+
+  const hiddenFileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="application/pdf,.pdf"
+      className="hidden"
+      onChange={(e) => onPdfChosen(e.target.files?.[0] ?? null)}
+    />
+  );
+
   return (
     <>
-      <div className="flex gap-2">
-        {!hideAutoDiscover && (
-          <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
-            {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-            {discovering ? "Discovering…" : "Auto-discover faculty"}
-          </Button>
-        )}
-        {!hideScrapeUrls && (
-          <>
-            <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
-              {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-              {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URLs"}
+      {layout === "stacked" ? (
+        <div className="flex flex-col gap-1.5">
+          {!hideAutoDiscover && (
+            <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
+              {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+              {discovering ? "Discovering…" : "Auto-discover faculty"}
             </Button>
-            {stuck && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-amber-700 hover:text-amber-900"
-                onClick={() => {
-                  clearCampusScrape(campusId);
-                  toast.info("Cleared stuck scrape slot — you can start a new one.");
-                }}
-                title="The previous scrape has been running over 60s — reset the slot so you can try again"
-              >
-                <X className="h-3.5 w-3.5" /> Reset
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={openFacultyGoogle}
-              title="Open Google search for this school's accounting faculty directory"
-              aria-label="Open Google faculty search"
-            >
-              <GraduationCap className="h-3.5 w-3.5" />
+          )}
+          {!hideScrapeUrls && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">#1</span>
+                {copyFacultyLinkBtn}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">#2</span>
+                {scrapeUrlsBtn}
+                {resetBtn}
+              </div>
+              <div className="flex items-center gap-2 pl-6">
+                {importPdfBtn}
+              </div>
+              {hiddenFileInput}
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          {!hideAutoDiscover && (
+            <Button size="sm" variant="default" onClick={runAutoDiscover} disabled={discovering} title="Use Firecrawl to map this campus's site, pick faculty pages automatically, and extract candidates">
+              {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+              {discovering ? "Discovering…" : "Auto-discover faculty"}
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onPickPdf}
-              disabled={scraping}
-              title="Upload a PDF (e.g. print-to-PDF of a faculty page) — OCR scans for leads"
-              aria-label="Upload faculty PDF"
-            >
-              <FileUp className="h-3.5 w-3.5" />
-              PDF
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf,.pdf"
-              className="hidden"
-              onChange={(e) => onPdfChosen(e.target.files?.[0] ?? null)}
-            />
-          </>
-        )}
-      </div>
+          )}
+          {!hideScrapeUrls && (
+            <>
+              {scrapeUrlsBtn}
+              {resetBtn}
+              {copyFacultyLinkBtn}
+              {importPdfBtn}
+              {hiddenFileInput}
+            </>
+          )}
+        </div>
+      )}
 
       <Dialog open={open} onOpenChange={(v) => setOpen(v)}>
         <DialogContent className="max-w-2xl">

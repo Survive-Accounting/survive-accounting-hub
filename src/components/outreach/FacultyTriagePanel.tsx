@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, Plus } from "lucide-react";
+import { Check, X, ExternalLink, Loader2, Inbox, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -41,6 +46,7 @@ export function FacultyTriagePanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [customTag, setCustomTag] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
   const qc = useQueryClient();
 
   const load = useCallback(async () => {
@@ -148,6 +154,33 @@ export function FacultyTriagePanel({
     return Array.from(set).sort();
   }, [selectedRows]);
 
+  /** Every tag currently applied to any row in this campus, A–Z. */
+  const allKnownTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) for (const t of r.title_tags ?? []) set.add(t);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [rows]);
+
+  /** Remove a tag from every row in this campus (used by the dropdown ×). */
+  const removeTagFromCampus = async (tag: string) => {
+    if (!confirm(`Remove tag "${tag}" from every person in this campus?`)) return;
+    const targets = rows.filter((r) => (r.title_tags ?? []).includes(tag));
+    if (targets.length === 0) return;
+    const ids = targets.map((r) => r.id);
+    setRows((prev) => prev.map((r) =>
+      ids.includes(r.id)
+        ? { ...r, title_tags: (r.title_tags ?? []).filter((t) => t !== tag) }
+        : r,
+    ));
+    try {
+      await setTriageTagsBulk(ids, "remove", [tag], tagsCurrentById);
+      toast.success(`Removed "${tag}" from ${ids.length} row${ids.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error(`Could not remove tag: ${e instanceof Error ? e.message : "unknown"}`);
+      void load();
+    }
+  };
+
   const applyTagsToSelection = async (tags: string[], mode: "add" | "remove" | "replace") => {
     if (selected.size === 0 || tags.length === 0) return;
     const ids = Array.from(selected);
@@ -192,7 +225,7 @@ export function FacultyTriagePanel({
   const keptCount = rows.filter((r) => toTriageStatus(r.status) === "kept").length;
   const pendingCount = rows.filter((r) => toTriageStatus(r.status) === "pending_triage").length;
   const taggedCount = rows.filter((r) => (r.title_tags ?? []).length > 0).length;
-  const hasAnyTags = taggedCount > 0;
+  
 
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -215,59 +248,123 @@ export function FacultyTriagePanel({
         </Button>
       </div>
 
-      {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50/70 px-4 py-2 text-xs">
-          <Tag className="h-3.5 w-3.5 text-amber-700" />
-          <span className="font-medium text-amber-900">
-            {selected.size} selected
-          </span>
-          <span className="text-amber-700">— tag as:</span>
-          {distinctTitleStringsInSelection.map((t) => (
-            <Button
-              key={t}
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[11px] border-amber-300 bg-white hover:bg-amber-100"
-              onClick={() => applyTagsToSelection([t], "add")}
-            >
-              <Plus className="h-3 w-3" /> {t}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-xs">
+        <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-muted-foreground">
+          {selected.size > 0 ? <><span className="font-medium text-foreground">{selected.size} selected</span> — tag as:</> : "Select rows to tag — pick from:"}
+        </span>
+
+        {/* All tags dropdown (A–Z). Click a tag to add to selection; × deletes from every row in this campus. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-[11px]">
+              All tags ({allKnownTags.length}) <ChevronDown className="h-3 w-3" />
             </Button>
-          ))}
-          <div className="flex items-center gap-1">
-            <Input
-              value={customTag}
-              onChange={(e) => setCustomTag(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && customTag.trim()) {
-                  applyTagsToSelection([customTag.trim()], "add");
-                  setCustomTag("");
-                }
-              }}
-              placeholder="custom tag…"
-              className="h-6 w-32 text-[11px]"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[11px]"
-              disabled={!customTag.trim()}
-              onClick={() => {
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-h-72 w-64 overflow-y-auto">
+            {allKnownTags.length === 0 ? (
+              <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">
+                No tags yet. Type below and Add.
+              </div>
+            ) : (
+              allKnownTags.map((t) => (
+                <DropdownMenuItem
+                  key={t}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    if (selected.size === 0) {
+                      toast.info("Select at least one row first.");
+                      return;
+                    }
+                    applyTagsToSelection([t], "add");
+                  }}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
+                  <span className="truncate">{t}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      void removeTagFromCampus(t);
+                    }}
+                    className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title="Delete this tag from every person in this campus"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Quick-add per-selection title chips (only when selection has distinct titles). */}
+        {selected.size > 0 && distinctTitleStringsInSelection.length > 0 && distinctTitleStringsInSelection.length <= 3 && (
+          <>
+            {distinctTitleStringsInSelection.map((t) => (
+              <Button
+                key={t}
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => applyTagsToSelection([t], "add")}
+                title={`Tag selection as "${t}"`}
+              >
+                + {t}
+              </Button>
+            ))}
+          </>
+        )}
+
+        <div className="flex items-center gap-1">
+          <Input
+            value={customTag}
+            onChange={(e) => setCustomTag(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && customTag.trim()) {
+                if (selected.size === 0) { toast.info("Select at least one row first."); return; }
                 applyTagsToSelection([customTag.trim()], "add");
                 setCustomTag("");
-              }}
-            >
-              Add
-            </Button>
-          </div>
+              }
+            }}
+            placeholder="new tag…"
+            className="h-7 w-36 text-[11px]"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px]"
+            disabled={!customTag.trim() || selected.size === 0}
+            onClick={() => {
+              applyTagsToSelection([customTag.trim()], "add");
+              setCustomTag("");
+            }}
+            title={selected.size === 0 ? "Select rows first" : "Add this tag to the selected rows"}
+          >
+            Add
+          </Button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground"
+          title="Open instructions"
+        >
+          <HelpCircle className="h-3 w-3" /> How this works?
+        </button>
+
+        {selected.size > 0 && (
           <button
             type="button"
-            className="ml-auto text-[11px] text-amber-800 underline"
+            className="ml-auto text-[11px] text-muted-foreground underline"
             onClick={() => { setSelected(new Set()); setLastClickedId(null); }}
           >
             Clear selection (Esc)
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {loading ? (
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading candidates…</div>
@@ -293,8 +390,7 @@ export function FacultyTriagePanel({
                   Title {sortIcon("title")}
                 </button>
               </TableHead>
-              <TableHead className="w-[20%]">Email</TableHead>
-              {hasAnyTags && <TableHead className="w-[18%]">Tags</TableHead>}
+              <TableHead className="w-[24%]">Email</TableHead>
               <TableHead className="w-[110px] text-center">Creds</TableHead>
               <TableHead className="w-[140px] text-center">Decision</TableHead>
             </TableRow>
@@ -303,7 +399,6 @@ export function FacultyTriagePanel({
             {sortedRows.map((r) => {
               const status = toTriageStatus(r.status);
               const isSel = selected.has(r.id);
-              const tags = r.title_tags ?? [];
               return (
                 <TableRow
                   key={r.id}
@@ -349,33 +444,7 @@ export function FacultyTriagePanel({
                       <span className="text-amber-700">no email found</span>
                     )}
                   </TableCell>
-                  {hasAnyTags && (
-                    <TableCell className="text-xs">
-                      {tags.length === 0 ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {tags.map((t) => (
-                            <Badge
-                              key={t}
-                              variant="outline"
-                              className="cursor-pointer border-amber-300 bg-amber-50 text-[10px] text-amber-900 hover:bg-amber-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const next = tags.filter((x) => x !== t);
-                                update(r.id, { title_tags: next });
-                                setTriageTagsBulk([r.id], "replace", next, tagsCurrentById)
-                                  .catch(() => void load());
-                              }}
-                              title="Click to remove"
-                            >
-                              {t} ✕
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </TableCell>
-                  )}
+                  {/* Tags column intentionally removed — manage tags via the bulk bar above. */}
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button
@@ -430,6 +499,48 @@ export function FacultyTriagePanel({
           </TableBody>
         </Table>
       )}
+
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>How tagging &amp; triage works</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm leading-relaxed">
+            <div>
+              <div className="font-semibold">Selecting rows</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li>Click a <em>Name</em> or <em>Title</em> cell to select that row.</li>
+                <li><kbd className="rounded border px-1 text-xs">Shift</kbd>-click another row to fill the range.</li>
+                <li><kbd className="rounded border px-1 text-xs">Cmd</kbd>/<kbd className="rounded border px-1 text-xs">Ctrl</kbd>-click to toggle one row.</li>
+                <li>Press <kbd className="rounded border px-1 text-xs">Esc</kbd> to clear selection.</li>
+              </ul>
+            </div>
+            <div>
+              <div className="font-semibold">Tags</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li>Tags are short labels like <em>Assistant Professor</em> or <em>Intermediate I</em>.</li>
+                <li>Open <strong>All tags</strong> and click one to add it to every selected row.</li>
+                <li>Type in <em>new tag</em> and click <strong>Add</strong> to create a brand-new tag. It will show up in <strong>All tags</strong> after.</li>
+                <li>Click the <strong>×</strong> next to a tag in the dropdown to delete it from every person in this campus.</li>
+              </ul>
+            </div>
+            <div>
+              <div className="font-semibold">PhD &amp; CPA (not tags)</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li>Tick <strong>PhD</strong> if you see <em>PhD</em>, <em>Ph.D.</em>, <em>D.B.A.</em>, or <em>Ed.D.</em> — this turns on the “Dr. {`{LastName}`}” greeting in emails.</li>
+                <li>Tick <strong>CPA</strong> if you see <em>CPA</em> — used to send the right pitch.</li>
+              </ul>
+            </div>
+            <div>
+              <div className="font-semibold">Keep vs Skip</div>
+              <ul className="ml-4 list-disc text-muted-foreground">
+                <li><strong>Keep</strong> = include this person when you click <em>Import kept leads</em>.</li>
+                <li><strong>Skip</strong> = ignore this person.</li>
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

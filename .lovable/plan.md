@@ -1,59 +1,80 @@
-# Speed Mode minimalize — build plan
+# Triage cleanup + Speed Mode toolbar redo
 
-PhD/Dr. greeting is already live. Scrape auto-flags PhD/CPA and the toolbar refactor (unified scrape button, inline program/shorthand, split Next button) shipped last turn. This plan covers the remaining cuts based on your answers.
+Two files touched. No DB / no server changes.
 
-## 1. "Show advanced" toggle in Approve Campus modal
+## 1. `FacultyTriagePanel.tsx`
 
-`ApproveCampusModal.tsx` currently always renders the legacy multi-step research stack above Faculty Triage. We'll hide it behind a small toggle.
+**Remove**
+- `Source` column entirely (link still surfaces on row hover in the Name cell — keep that)
+- `Tags` column entirely (tags are only managed via the bulk bar now)
 
-- Add `showAdvanced` state (default `false`, persisted to `localStorage` key `outreach.approveModal.showAdvanced` so it sticks per user).
-- Wrap the legacy blocks in `{showAdvanced && (...)}`:
-  - Step 1/2/3 tabs
-  - `BatchResearchPanel` / `CleanProfessorResearchPanel` mounted inside the modal
-  - `TextbookCoveragePanel`
-  - `ProgramAndCoursesPanel`
-  - `ClassScheduleIntelligencePanel`
-  - Any "AI research" buttons in the modal header that aren't part of Speed Mode
-- Add a tiny `Show advanced ▾` link-style toggle in the modal footer (or far-right of the new toolbar) so it's discoverable but out of the way.
-- Speed Mode toolbar + Faculty Triage stay always-visible.
+**Redesign the bulk-tag bar** (only visible when ≥1 row selected). New layout, left-to-right:
 
-Nothing is deleted — all four panels remain mounted-on-demand so you can resurrect anytime.
+```
+[8 selected] [tag as ▾]  [+ custom tag input] [Add]   [How this works?]  [Clear (Esc)]
+```
 
-## 2. Trim Faculty Triage columns (#5)
+- `tag as ▾` is a single dropdown listing **every tag that exists in this campus** (union of all `title_tags` across rows + every custom tag ever added), sorted A–Z. Click a tag in the dropdown → it's added to every selected row. Each dropdown item has a small × on the right; clicking × deletes that tag from every row in the campus (with confirm).
+- Custom tag input + Add behaves as today; adding a new custom tag makes it immediately appear in the dropdown for future use.
+- "How this works?" is a tiny underlined link → opens a small modal with VA-friendly instructions:
 
-Edits in `FacultyTriagePanel.tsx`:
+```
+How tagging & triage works
 
-- Merge `PhD` + `CPA` into one `Creds` cell containing two compact toggle chips (`PhD` / `CPA`), each clickable like the current checkboxes. Saves ~100px.
-- Hide the `Source` column. Render the source link as a small `↗` icon that appears on row hover inside the Name cell (uses existing `hover-card` if needed, but a CSS `group-hover:opacity-100` is enough).
-- Only render the `Tags` column when at least one row in the current list has tags. Otherwise the column header and cells are omitted, and tags still appear in the amber bulk-tag bar when rows are selected.
-- Keep click-to-select on Name/Title cells exactly as today (your answer to #5).
+• Click a name to select that row. Shift-click another to fill a range.
+  Cmd/Ctrl-click toggles one row.
+• Press Esc to clear selection.
 
-Final default columns: **Name · Title · Email · Creds · Decision** (5). With tags present: **Name · Title · Email · Tags · Creds · Decision**.
+• Tags are short labels you put on a person (like "Assistant Professor"
+  or "Intermediate I"). You can pick a tag from the dropdown or type a
+  new one in "custom tag". The tag is added to every selected row.
 
-## 3. Archive (not delete) per your answer
+• Pick a tag in the dropdown to add it. Click the × next to a tag in
+  the dropdown to remove it from every person in this campus.
 
-No code removal. Just unmount from the modal when `showAdvanced` is off:
-- `TextbookCoveragePanel`
-- `ClassScheduleIntelligencePanel`
-- `BatchResearchPanel`
-- `CleanProfessorResearchPanel`
-- `ProgramAndCoursesPanel`
+• PhD and CPA are NOT tags — they have their own buttons because:
+    – PhD turns on the "Dr. {LastName}" greeting in emails.
+    – CPA helps us send the right pitch for licensed accountants.
+  Always tick these when you see PhD, Ph.D., D.B.A., or CPA in the title.
 
-All five files stay in `src/components/outreach/` untouched. `BatchResearchSettingsModal.tsx` also stays (it's reachable from outside the Approve modal).
+• Keep = include this person when you click "Import kept leads".
+  Skip = ignore this person.
+```
 
-## 4. Files touched
+## 2. `ApproveCampusModal.tsx` — Speed Mode toolbar
 
-- `src/components/outreach/ApproveCampusModal.tsx` — advanced toggle, conditional rendering, footer link
-- `src/components/outreach/FacultyTriagePanel.tsx` — merge Creds, hover-only Source, conditional Tags column
+Restructure the dense toolbar into a tiny numbered checklist so a VA can follow it top-to-bottom. Grad cap = the existing 🎓 school icon at the top-left of the toolbar.
 
-No DB migration. No server-function changes. No edge-function changes.
+```
+🎓 University of Pennsylvania        [Copy Faculty Link]   ← Step #1
+  ┌─ #2 Paste URL to Scrape ────────────────────────────────────┐
+  │  [Scrape URL ▾]  [Crawl multi-page]                          │
+  │  [Import PDF]   (?)  ← tooltip: "Only use if scrape fails"   │
+  └──────────────────────────────────────────────────────────────┘
+  Program: [..............] Shorthand: [........]    [Close] [Back] [Quick Approve] [Next ▾]
+```
 
-## 5. Verification
+- **#1 Copy Faculty Link**: button next to the school name. On click it copies
+  `https://www.google.com/search?q={school_name}+accounting+faculty+directory`
+  to the clipboard and toasts "Search link copied — paste in a new tab".
+  Does NOT open a tab (Google was blocking it).
+- **#2 Paste URL to Scrape**: groups the existing Scrape URL + multi-page crawl buttons under a small "#2" label.
+- **Import PDF** moves below the scrape buttons with a small `?` hover-tooltip: `Only use if scrape fails`.
+- Program / Shorthand / Close / Back / Quick Approve / Next stay on a second row exactly as they are now.
 
-- Open Approve Campus modal → confirm only toolbar + Faculty Triage render by default.
-- Click `Show advanced` → all legacy panels appear; reload page → preference persists.
-- Triage with 0 tagged rows → no Tags column. Tag one → column appears.
-- Click PhD/CPA chips → values save (same handler as today).
-- Hover row → source icon appears in Name cell; click opens directory page in new tab.
+## 3. Files touched
+
+- `src/components/outreach/FacultyTriagePanel.tsx`
+- `src/components/outreach/ApproveCampusModal.tsx`
+
+Plus one new tiny component for the help modal:
+- `src/components/outreach/TriageHelpModal.tsx`
+
+## 4. Verification
+
+- Triage table renders 4 columns: Name · Title · Email · Creds · Decision.
+- Selecting rows shows the new bulk bar; dropdown lists all known tags A–Z; deleting from dropdown removes from every row; custom tag persists into the dropdown.
+- "How this works?" opens the help modal with the copy above.
+- Toolbar shows #1/#2 layout; Copy Faculty Link copies a Google search URL; Import PDF sits below with the tooltip.
 
 Approve to build.
