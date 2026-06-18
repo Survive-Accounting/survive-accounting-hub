@@ -236,15 +236,30 @@ function LeadFinderPage() {
           <OvernightAutoImportCard />
         </div>
 
-        {/* Campus name */}
+        {/* Campus name + Test Automated Scrape */}
         <div className="mx-auto max-w-6xl px-4 pt-6 text-center">
           <h1 className="truncate text-3xl font-bold tracking-tight text-foreground">
             {campus?.school_name ?? (campusQuery.isLoading ? "Loading…" : "Campus not found")}
           </h1>
+          {campus && (
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-[11px]">
+              <TestAutoScrapeButton
+                campusId={campus.id}
+                onDone={() => setRefreshKey((k) => k + 1)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowManualSteps((v) => !v)}
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                {showManualSteps ? "Hide manual steps" : "Show manual steps"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Steps strip — Step #1, Step #2 (scrape), Step #3 lives in bottom bar */}
-        {campus && (
+        {campus && showManualSteps && (
           <div className="mx-auto mt-4 w-full max-w-3xl px-4">
             <div className="rounded-xl border border-border bg-card/60 px-4 py-3 shadow-sm">
               <ScrapeFacultyButton
