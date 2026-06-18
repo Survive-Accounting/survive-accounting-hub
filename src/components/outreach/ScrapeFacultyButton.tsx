@@ -234,10 +234,58 @@ export function ScrapeFacultyButton({
   );
 
   const scrapeUrlsBtn = (
-    <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={togglePanel}
+      title="Add the faculty page URL(s) and start a scrape"
+      aria-expanded={expanded}
+    >
       {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
       {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URL"}
     </Button>
+  );
+
+  const urlPanel = expanded && (
+    <div className="w-full max-w-md space-y-1.5 rounded-md border border-border bg-background p-2 text-left">
+      {loadingUrls && (
+        <div className="text-[11px] text-muted-foreground">Loading saved URLs…</div>
+      )}
+      {urlList.map((u, idx) => (
+        <div key={idx} className="flex items-center gap-1.5">
+          <input
+            type="url"
+            value={u}
+            onChange={(e) => updateUrl(idx, e.target.value)}
+            placeholder="Paste faculty page URL"
+            className="h-7 flex-1 rounded-md border border-input bg-background px-2 font-mono text-[11px]"
+            autoFocus={idx === urlList.length - 1 && !u}
+          />
+          {urlList.length > 1 && (
+            <button
+              type="button"
+              onClick={() => removeUrlField(idx)}
+              title="Remove this URL"
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      ))}
+      <div className="flex items-center justify-between pt-1">
+        <button
+          type="button"
+          onClick={addUrlField}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" /> Add another URL
+        </button>
+        <Button size="sm" onClick={run} disabled={scraping} className="h-7 gap-1.5 text-[11px]">
+          <Globe className="h-3 w-3" /> Start scrape
+        </Button>
+      </div>
+    </div>
   );
 
   const resetBtn = stuck && (
