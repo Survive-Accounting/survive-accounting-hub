@@ -5,7 +5,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 // AdminGate + Toaster are provided by the /outreach layout.
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger,
@@ -15,7 +15,7 @@ import { FacultyTriagePanel, type TriageStats } from "@/components/outreach/Facu
 import { fetchCampuses } from "@/lib/outreach-api";
 import { importKeptLeads } from "@/lib/faculty-triage";
 import { supabase } from "@/integrations/supabase/client";
-import { enqueueAllPendingCampuses, getFacultyBatchStatus, testAutoScrapeCampus } from "@/lib/faculty-overnight.functions";
+import { scrapeCampusRmp, resetCampusLeads } from "@/lib/rmp-scrape.functions";
 import type { Campus } from "@/lib/outreach-mock";
 
 const LOGO_URL =
