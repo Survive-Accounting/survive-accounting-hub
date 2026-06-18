@@ -40,6 +40,8 @@ import { ScrapeFacultyButton } from "./ScrapeFacultyButton";
 import { FacultyTriagePanel } from "./FacultyTriagePanel";
 import { supabase } from "@/integrations/supabase/client";
 import { getAdminWho } from "@/components/AdminGate";
+import { importKeptLeads } from "@/lib/faculty-triage";
+import type { TriageStats } from "./FacultyTriagePanel";
 
 type FamilyStatus = "matches" | "likely_match" | "different" | "not_found" | "not_offered" | "not_checked";
 
