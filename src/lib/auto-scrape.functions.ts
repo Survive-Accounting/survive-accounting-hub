@@ -125,6 +125,18 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       // Hard-drop dated blog post URLs — they're news, never rosters.
       if (BLOG_DATE_RE.test(link)) return false;
       const txt = `${link} ${title}`.toLowerCase();
+      // Drop blog/news subdomains (e.g. accountingblog.kelley.iu.edu,
+      // news.school.edu) unless the title/path explicitly signals a roster.
+      // These pages mostly contain dated posts and dilute extraction signal.
+      const labels = h.split(".");
+      const leftmost = labels[0] ?? "";
+      const isBlogOrNewsSub =
+        labels.length >= 3 && /(blog|news|newsroom)/i.test(leftmost);
+      const rosterSignal = /faculty|staff|directory|people/.test(txt);
+      if (isBlogOrNewsSub && !rosterSignal) {
+        notes.push(`faculty: dropped blog/news subdomain ${h}`);
+        return false;
+      }
       const badHints = ["/news", "/event", "/blog", "/podcast", "/profile/", "/people/", "/award", "/spotlight", "/story", "/stories"];
       if (badHints.some((b) => txt.includes(b)) && !txt.includes("faculty") && !txt.includes("staff") && !txt.includes("directory")) return false;
       return true;
