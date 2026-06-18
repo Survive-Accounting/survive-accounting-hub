@@ -16,13 +16,9 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { OutreachBanner } from "@/components/outreach/OutreachBanner";
 import { HomeDashboard } from "@/components/outreach/HomeDashboard";
-import { refreshClaim, markClaimApproved } from "@/lib/outreach-queue";
 import CampusTable from "@/components/outreach/CampusTable";
 import { BatchResearchSettingsModal } from "@/components/outreach/BatchResearchSettingsModal";
 import { CampusLeadsStatsPanel } from "@/components/outreach/CampusLeadsStatsPanel";
-import ApproveCampusModal from "@/components/outreach/ApproveCampusModal";
-import { supabase } from "@/integrations/supabase/client";
-import { ResearchErrorBoundary } from "@/components/outreach/ResearchErrorBoundary";
 import AddCampusModal from "@/components/outreach/AddCampusModal";
 import ImportLeadsDialog from "@/components/outreach/ImportLeadsDialog";
 import { LeadsPanel } from "@/components/outreach/LeadsPanel";
