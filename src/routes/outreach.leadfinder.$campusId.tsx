@@ -222,9 +222,10 @@ function LeadFinderPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                Leads Found
+                Lead Count
               </span>
-              <LeadOdometer value={triageStats.leads} />
+              <LeadOdometer value={totalLeadsQuery.data ?? 0} />
+
             </div>
           </div>
         </header>
