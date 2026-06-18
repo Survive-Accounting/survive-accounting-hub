@@ -1,79 +1,79 @@
+Speed up Lee's per-campus faculty workflow inside `ApproveCampusModal` (the "Approve Campus" review screen).
 
-# Simplify the Outreach dashboard
+## 1. Grad-cap Google shortcut next to "Scrape URLs"
 
-## 1. Sidebar cleanup (`src/routes/outreach.tsx`)
+In `src/components/outreach/ScrapeFacultyButton.tsx`, render a small 🎓 icon-button immediately after the "Scrape URLs" button. Clicking it opens (in a new tab):
 
-- Drop the `SidebarGroupLabel` ("Outreach") above Home.
-- Keep `Sidebar collapsible="icon"` and the header `SidebarTrigger` so the sidebar can collapse to a narrow icon strip and re-open from the trigger.
-- Add a footer (`SidebarFooter`) in the bottom-left with a single **Admin settings** button (gear icon). Clicking it opens `BatchResearchSettingsModal` (today's "AI Research Settings").
-- Keep Home / Campaigns (collapsible group) / Students items unchanged.
+```
+https://www.google.com/search?q={encoded school name}%20accounting%20faculty%20directory
+```
 
-## 2. Home dashboard simplification (`src/components/outreach/HomeDashboard.tsx`)
+- Pass `campusName` (already a prop) — no other wiring needed.
+- Tooltip: "Open Google faculty search".
+- Always visible (not gated by `hideScrapeUrls`).
 
-Strip the page down to two sections:
+## 2. Background scrapes
 
-- **Student requests** (new unified panel — replaces `StudentIntakesPanel`).
-- **Active campaigns** (kept, with a new "View metrics" button per card).
+In `ScrapeFacultyButton.run()`, stop awaiting the scrape before closing the dialog. Flow becomes:
 
-Remove from the home view:
-- Outreach Snapshot stat grid
-- Student Funnel stat grid
-- Quick-action buttons: Import Accepted Leads, AI Research Settings (moved to sidebar footer), View Texts
-- "Campus approval queue" `<details>` block in `outreach.tsx` and the `CampusQueuePanel` import/usage
-- "Create Campaign" quick-action stays at the top of the home view (only remaining action)
+1. User clicks "Scrape pages".
+2. Dialog closes immediately and a toast appears: "Scraping {campusName} in background…".
+3. The `scrape({ data: ... })` promise runs in the background; on resolve, show the existing success/warning toast and call `onScraped?.()` so the triage panel refreshes if the modal is still open. On reject, show the existing error toast.
 
-## 3. New Student Requests panel (`src/components/outreach/StudentRequestsPanel.tsx`)
+Track in-flight scrapes in a small module-level `Set<string>` keyed by `campusId` so a second click on the same campus is blocked (toast: "Already scraping this campus"). No global queue UI — just toasts.
 
-A single chronological log fed by two sources:
+Also save the pasted URL list to `campuses.faculty_page_url` (current behavior already happens server-side in `scrapeCampusFaculty`) before the dialog closes so the next time Lee opens it the URL is remembered even if the scrape is still running.
 
-- **Inbound SMS messages** — `sms_messages` joined to `sms_conversations` (filter `direction = 'inbound'`).
-- **Syllabus uploads** — `student_intake_submissions` rows where `syllabus_file_url is not null`, surfaced as a "Syllabus uploaded" event.
+## 3. Speed Mode (Lee only) inside `ApproveCampusModal`
 
-Columns: Type icon · Student (name / phone / email) · Preview (text body or filename) · When · Replied? (checkbox) · open button.
+Add a header toggle visible only when `getAdminWho() === "lee"`. Persist the choice in `localStorage` (`sa-speed-mode`).
 
-Behavior:
-- Sorted by event time desc; default 50, "Load more".
-- Filter chips: All / Texts / Syllabi / Unreplied.
-- Clicking a row opens a **Conversation modal** (see §4).
-- Replied checkbox toggles persisted state (see §5) optimistically with React Query mutation.
+When Speed Mode is ON, the modal collapses to a single tall pane:
 
-## 4. Conversation modal (`src/components/outreach/StudentConversationModal.tsx`)
+```text
+┌─ Campus header ──────────────────────────────┐
+│ {school name}        [🎓] [Scrape URLs]      │
+│ [Speed Mode ✓]   [Quick Approve]  [Next →]   │
+├──────────────────────────────────────────────┤
+│ FacultyTriagePanel (full height, scrolls)    │
+└──────────────────────────────────────────────┘
+```
 
-Reuses logic from `TextsPanel`/SMS components to show a single student thread:
+- The 4-step Tabs are hidden; only `FacultyTriagePanel` and the scrape controls render.
+- All other sections (program, courses, textbooks, debug, "Mark Needs Lee") are hidden.
+- The footer also hides the normal Approve button — Quick Approve replaces it.
 
-- Resolves the SMS conversation by phone (text events) or by intake.phone/email (syllabus events).
-- Shows full inbound/outbound message history with timestamps.
-- Composer at the bottom: textarea + Send → existing send pathway (`sms-process-outbox` / outbound insert pattern used by `TextsPanel`).
-- For syllabus events: includes a link to view the uploaded file (signed URL from `student-syllabi` bucket) at the top.
+### Quick Approve
+Calls the same `onApprove(campus.id, { approval_status: "approved", ready_for_outreach: true })` path the current Approve button uses (Lee already bypasses `canApprove` checks per the earlier admin-override change). Shows "Approved {campus.name}" toast and does NOT close — it transitions straight into Next.
 
-## 5. Reply tracking (DB)
+### Next
+- Closes the current modal and asks the parent for the next campus.
+- New prop on `ApproveCampusModal`: `onNext?: (currentCampusId: string) => void`.
+- In `src/routes/outreach.tsx`, implement `onNext`:
+  - Compute the next campus from the queue/table currently shown. Use the same ordering as `CampusQueuePanel` (campuses queryClient cache, filtered to those claimed by Lee, then unclaimed, sorted by tuition desc).
+  - `setReviewing({ id: nextId })`. If no next campus, toast "No more campuses in queue" and close.
 
-A new migration adds persistent "replied" flags:
+When Speed Mode is OFF, the modal renders exactly as today (no change to existing tabs/buttons).
 
-- `sms_messages.replied_by_lee boolean not null default false` (for inbound SMS rows)
-- `student_intake_submissions.replied_by_lee boolean not null default false` (for syllabus-upload rows)
+## 4. Persisted background scrape state across modal switches
 
-Both default false, indexed for fast unreplied filtering. Toggled via `createServerFn` mutations gated by `requireSupabaseAuth` + admin role check, then invalidating the `["student-requests"]` query.
+Because clicking Next closes the modal mid-scrape, move the in-flight tracker out of the button into a module-level singleton in `ScrapeFacultyButton.tsx` (or a tiny `src/lib/faculty-scrape-queue.ts`):
 
-## 6. Active Campaigns — View Metrics modal
+```ts
+const inflight = new Map<string, Promise<void>>();
+export function isScrapingCampus(id: string) { return inflight.has(id); }
+```
 
-Per card in `HomeDashboard`, add a **View Metrics** button.
+The "Scrape URLs" button label shows "Scraping…" with a spinner if `isScrapingCampus(campusId)` is true on mount (poll once per second via `useEffect` interval while open, cleared on unmount). On completion the toast still fires globally via Sonner, so Lee sees results even after he's moved on to the next campus.
 
-New `CampaignMetricsModal` (`src/components/outreach/CampaignMetricsModal.tsx`) shows two big cards in a 2-column grid:
+## Files touched
 
-- **Audience** card — focused stats: total leads, by status (queued / sent / replied / bounced / unsubscribed), eligible remaining, daily cap, est. days to finish. Built from `outreach_campaign_leads` aggregates for this campaign id.
-- **Emails** card — focused stats per step: sent, opens, open rate, replies, reply rate, bounces, complaints. Aggregated from `outreach_email_events` for this campaign.
+- `src/components/outreach/ScrapeFacultyButton.tsx` — grad-cap button, background scrape, inflight tracker.
+- `src/components/outreach/ApproveCampusModal.tsx` — Speed Mode toggle (Lee-only), collapsed layout, Quick Approve, Next, `onNext` prop.
+- `src/routes/outreach.tsx` — pass `onNext` that advances through the current queue order.
 
-Both are slim, read-only stat blocks (no panel reuse) so the modal stays focused on "how is this campaign performing".
+## Not in scope
 
-## 7. Cleanup
-
-- Remove unused imports (`CampusQueuePanel`) and unused dashboard props (`onImportLeads`, `onOpenAISettings`, `onViewTexts`) from `HomeDashboard`.
-- Delete `StudentIntakesPanel` usage; file can stay until next pass.
-
-## Technical notes
-
-- Query keys: `["student-requests", filter]`, `["campaign-metrics-detail", campaignId]`.
-- All Supabase access through the existing browser `supabase` client for reads (admin-gated route) and `createServerFn` for the reply-flag mutations.
-- No changes to existing campaign list fetching; metrics modal does its own query on demand.
-- Sidebar uses the existing shadcn `Sidebar` + `SidebarFooter` primitives.
+- No new edge function, schema, or migration.
+- No changes to triage panel internals.
+- No background scrape UI list — just toasts + per-button spinner.

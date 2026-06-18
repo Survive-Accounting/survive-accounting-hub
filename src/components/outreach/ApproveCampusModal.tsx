@@ -2,7 +2,7 @@
 // Autosave patches go to the parent via onPatch; Supabase wiring lands later.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Users, Wand2, Wrench, XCircle,
+  AlertTriangle, ArrowRight, BookOpen, Bug, Check, CheckCircle2, ChevronDown, Clipboard, ExternalLink, FileText, Loader2, RefreshCw, Save, Sparkles, Store, Users, Wand2, Wrench, XCircle, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -166,18 +166,28 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
 }
 
 export default function ApproveCampusModal({
-  campus, onClose, onPatch, onApprove, autoStartResearch, initialStep,
+  campus, onClose, onPatch, onApprove, onNext, autoStartResearch, initialStep,
 }: {
   campus: Campus | null;
   onClose: () => void;
   onPatch: (id: string, patch: Partial<Campus>) => void;
   onApprove: (id: string, patch: Partial<Campus>) => void;
+  /** Advance to the next campus in the queue. When provided, Speed Mode shows a "Next" button. */
+  onNext?: (currentCampusId: string) => void;
   /** When set to a campus id, automatically kick off full AI research once after the modal opens. */
   autoStartResearch?: string | null;
   /** Optional step to land on when the modal opens (default "1"). */
   initialStep?: string;
 }) {
   const [step, setStep] = useState(initialStep ?? "1");
+  const [speedMode, setSpeedMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return window.localStorage.getItem("sa-speed-mode") === "yes"; } catch { return false; }
+  });
+  const toggleSpeedMode = (next: boolean) => {
+    setSpeedMode(next);
+    try { window.localStorage.setItem("sa-speed-mode", next ? "yes" : "no"); } catch { /* ignore */ }
+  };
   const [familyCodes, setFamilyCodes] = useState<Record<string, string>>({});
   const [familyTitles, setFamilyTitles] = useState<Record<string, string>>({});
   const [familyStatus, setFamilyStatus] = useState<Record<string, FamilyStatus>>({});
@@ -875,6 +885,25 @@ export default function ApproveCampusModal({
     onClose();
   };
 
+  const quickApprove = () => {
+    if (!campus) return;
+    onApprove(campus.id, {
+      approval_status: "approved",
+      ready_for_outreach: true,
+    });
+    toast.success(`Approved ${campus.school_name}`);
+    if (onNext) {
+      onNext(campus.id);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleNext = () => {
+    if (!campus || !onNext) return;
+    onNext(campus.id);
+  };
+
   if (!campus) return null;
 
   const steps = [
@@ -892,6 +921,21 @@ export default function ApproveCampusModal({
             <DialogTitle className="flex items-center justify-between gap-3 text-base">
               <span>Research &amp; Approve Campus — {campus.school_name}</span>
               <div className="flex items-center gap-3">
+                {isLeeAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => toggleSpeedMode(!speedMode)}
+                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                      speedMode
+                        ? "border-amber-500 bg-amber-500/15 text-amber-700"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Speed Mode: hide everything except faculty scrape + triage"
+                  >
+                    <Zap className="h-3 w-3" />
+                    Speed Mode{speedMode ? " · ON" : ""}
+                  </button>
+                )}
                 <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                   {autoSaving ? (
                     <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
@@ -902,9 +946,46 @@ export default function ApproveCampusModal({
               </div>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Review course codes, textbook matches, and suggested leads before approving outreach.
+              {speedMode
+                ? "Speed Mode: paste faculty URL, start scrape, approve, next."
+                : "Review course codes, textbook matches, and suggested leads before approving outreach."}
             </DialogDescription>
           </DialogHeader>
+
+          {speedMode ? (
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                <ScrapeFacultyButton
+                  campusId={campus.id}
+                  campusName={campus.school_name}
+                  onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                  hideAutoDiscover
+                />
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={onClose}>
+                    Close
+                  </Button>
+                  <Button size="sm" onClick={quickApprove} className="gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" /> Quick Approve
+                  </Button>
+                  {onNext && (
+                    <Button size="sm" variant="secondary" onClick={handleNext} className="gap-1.5">
+                      Next <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <FacultyTriagePanel
+                key={`triage-speed-${campus.id}-${leadsRefreshKey}`}
+                campusId={campus.id}
+                campusName={campus.school_name}
+                refreshToken={leadsRefreshKey}
+              />
+            </div>
+          ) : (
+          <>
+
 
           {/* Single Stepper */}
           <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-2">
@@ -1784,7 +1865,8 @@ export default function ApproveCampusModal({
               {isLeeAdmin && !stepsComplete ? "Approve Anyway (Admin)" : "Approve Campus"}
             </Button>
           </DialogFooter>
-
+          </>
+          )}
         </DialogContent>
       </Dialog>
     </TooltipProvider>
