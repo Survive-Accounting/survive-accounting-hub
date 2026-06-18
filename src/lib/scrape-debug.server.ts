@@ -54,6 +54,7 @@ async function callGemini(apiKey: string, bundle: ScrapeBundleInput): Promise<{
   severity: string;
   title: string;
   suggestion: string;
+  applies_to_verticals: string[];
   raw: unknown;
 } | null> {
   const stats = summarize(bundle);
