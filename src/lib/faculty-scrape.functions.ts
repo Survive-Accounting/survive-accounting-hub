@@ -120,6 +120,34 @@ const PROFILE_SCRAPE_TIMEOUT_MS = 20_000;
 const URL_PROCESS_CONCURRENCY = 3;
 const DIRECTORY_WAIT_MS = 3500;
 const BATCH_SCRAPE_TIMEOUT_MS = 90_000;
+// After this many empty/error fetches from the same host inside one enrichment
+// pass, skip the rest. Anti-bot blocks usually fail every URL on that host —
+// no point burning credits + 20s of timeout per profile.
+const PER_HOST_FAIL_LIMIT = 2;
+// If the primary scrape returns fewer than this many emails AND we have a
+// usable root domain, run one Firecrawl `map` fallback to discover the real
+// faculty roster page and re-scrape.
+const MAP_FALLBACK_EMAIL_THRESHOLD = 5;
+
+// URL shape hints: news/blog/spotlight pages produce names that are almost
+// always students, alumni, or one-off featured profiles — not tenure-track
+// faculty. We still extract them, but tag email_confidence='news' and skip
+// per-profile enrichment so we don't burn credits chasing dated blog posts.
+const NEWS_PATH_RE = /(\/spotlight|\/news|\/blog|\/stor(y|ies)|\/press|\/article|\/alumni-profile|\/feature|\/podcast)\b/i;
+const BLOG_DATE_PATH_RE = /\/(?:19|20)\d{2}\/\d{1,2}\/\d{1,2}\//;
+
+function looksLikeNewsPage(rawUrl: string): boolean {
+  try {
+    const u = new URL(rawUrl);
+    const path = u.pathname.toLowerCase();
+    if (NEWS_PATH_RE.test(path)) return true;
+    if (BLOG_DATE_PATH_RE.test(path)) return true;
+    const host = u.hostname.toLowerCase();
+    if (/^blog\.|\.blog\./.test(host)) return true;
+    if (/^news\.|\.news\./.test(host)) return true;
+    return false;
+  } catch { return false; }
+}
 
 
 // Credential detection — used both to flag the row and to strip trailing
