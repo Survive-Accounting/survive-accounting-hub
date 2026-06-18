@@ -83,11 +83,15 @@ async function callGemini(apiKey: string, bundle: ScrapeBundleInput): Promise<{
   };
 
   const system = `You analyze faculty-scrape debug bundles from a US university scraper.
-Your job is to suggest ONE generalizable improvement that would help across ANY university.
-Avoid school-specific advice; focus on patterns (WordPress directories, JS pagination, mailto obfuscation,
-news-page false positives, mdLen=0 hosts, hidden emails, profile-URL ambiguity, etc.).
+Your job is to suggest ONE generalizable improvement that would help across ANY university
+AND to flag which OTHER verticals would benefit from the same fix (accounting_firms,
+law_firms, investment_banks, consultancies, hospitals, government, nonprofits, other).
+Avoid school-specific advice; focus on patterns (WordPress directories, JS pagination,
+mailto obfuscation, news-page false positives, mdLen=0 hosts, hidden emails, profile-URL
+ambiguity, etc.).
 Return strict JSON with keys: pattern_tag (short snake_case like "wp_directory_mdlen_zero"),
-severity ("low"|"med"|"high"), title (<=80 chars), suggestion (<=600 chars, actionable).`;
+severity ("low"|"med"|"high"), title (<=80 chars), suggestion (<=600 chars, actionable),
+applies_to_verticals (array of vertical strings from the list above, [] if university-specific).`;
 
   const body = {
     model: "google/gemini-3-flash-preview",
