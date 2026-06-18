@@ -185,13 +185,21 @@ function LeadFinderPage() {
           <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-3 md:grid-cols-[minmax(0,1fr)_2fr] md:items-center md:gap-6">
             {/* Left: logo + title + counter */}
             <div className="flex min-w-0 flex-col gap-1.5">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <img
                   src={LOGO_URL}
                   alt="Survive Accounting"
                   className="h-5 w-auto object-contain brightness-0 invert"
                   draggable={false}
                 />
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/90 transition hover:bg-white/20"
+                  title="Back to Outreach Dashboard"
+                >
+                  <ArrowLeft className="h-3 w-3" /> Dashboard
+                </button>
               </div>
               <div className="font-serif text-sm font-semibold tracking-tight">
                 USA College Campus Lead Finder

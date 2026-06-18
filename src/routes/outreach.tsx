@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Settings, Users } from "lucide-react";
+import { ChevronDown, Home, GraduationCap, Layers, Mail, Megaphone, Settings, Users, Search } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -104,7 +104,6 @@ function OutreachPage() {
 
 
   const campaignsItems = [
-    { value: "schools", label: "Campuses", icon: GraduationCap },
     { value: "audiences", label: "Audiences", icon: Users },
     { value: "templates", label: "Email Queue", icon: Mail },
   ] as const;
@@ -129,6 +128,28 @@ function OutreachPage() {
                     <span>Home</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate({ to: "/outreach/leadfinder" })}
+                    tooltip="Lead Finder™"
+                  >
+                    <Search className="h-4 w-4" />
+                    <span>Lead Finder<sup className="ml-0.5 text-[8px]">™</sup></span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={tab === "schools"}
+                    onClick={() => setTab("schools")}
+                    tooltip="Campuses"
+                  >
+                    <GraduationCap className="h-4 w-4" />
+                    <span>Campuses</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
 
                 <Collapsible defaultOpen={campaignsOpen} className="group/collapsible">
                   <SidebarMenuItem>

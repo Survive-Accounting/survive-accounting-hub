@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
+import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
@@ -75,6 +76,11 @@ const CeqCreateRoute = CeqCreateRouteImport.update({
   path: '/create',
   getParentRoute: () => CeqRoute,
 } as any)
+const OutreachLeadfinderIndexRoute = OutreachLeadfinderIndexRouteImport.update({
+  id: '/leadfinder/',
+  path: '/leadfinder/',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachSchoolSlugRoute = OutreachSchoolSlugRouteImport.update({
   id: '/outreach_/school/$slug',
   path: '/outreach/school/$slug',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
+  '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
+  '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -154,6 +162,7 @@ export interface FileRoutesById {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
+  '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
+    | '/outreach/leadfinder/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
+    | '/outreach/leadfinder'
   id:
     | '__root__'
     | '/'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
+    | '/outreach/leadfinder/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -294,6 +306,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CeqCreateRouteImport
       parentRoute: typeof CeqRoute
     }
+    '/outreach/leadfinder/': {
+      id: '/outreach/leadfinder/'
+      path: '/leadfinder'
+      fullPath: '/outreach/leadfinder/'
+      preLoaderRoute: typeof OutreachLeadfinderIndexRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach_/school/$slug': {
       id: '/outreach_/school/$slug'
       path: '/outreach/school/$slug'
@@ -350,10 +369,12 @@ const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
 interface OutreachRouteChildren {
   OutreachLeadfinderCampusIdRoute: typeof OutreachLeadfinderCampusIdRoute
+  OutreachLeadfinderIndexRoute: typeof OutreachLeadfinderIndexRoute
 }
 
 const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachLeadfinderCampusIdRoute: OutreachLeadfinderCampusIdRoute,
+  OutreachLeadfinderIndexRoute: OutreachLeadfinderIndexRoute,
 }
 
 const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
