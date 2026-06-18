@@ -373,28 +373,33 @@ async function callLovableAiWithPdf(
     "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url }] }. " +
     "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null.";
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: `Extract every accounting faculty member from this PDF (source filename: ${filename}). Return JSON only.` },
-            { type: "file", file: { filename, file_data: `data:application/pdf;base64,${pdfBase64}` } },
-          ],
-        },
-      ],
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `Extract every accounting faculty member from this PDF (source filename: ${filename}). Return JSON only.` },
+              { type: "file", file: { filename, file_data: `data:application/pdf;base64,${pdfBase64}` } },
+            ],
+          },
+        ],
+      }),
+    },
+    AI_PDF_TIMEOUT_MS,
+    "AI gateway (PDF)",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`AI gateway ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(slickHttpError("AI gateway (PDF)", res.status, body));
   }
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = json.choices?.[0]?.message?.content ?? "{}";
