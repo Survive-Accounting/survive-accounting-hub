@@ -55,10 +55,24 @@ query TeacherSearchPaginationQuery(
   }
 }`;
 
+/** Normalize a name into a match key. Uses ONLY the first token of the first
+ *  name (so "Julie Ann" and "Julie" collide), strips diacritics, and drops
+ *  punctuation. Returns `${first}|${last}` — `first` can be empty when the
+ *  source only gives an initial or nothing (RMP often does this). */
 function nameKey(first: string | null | undefined, last: string | null | undefined): string {
-  const f = (first ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+  const firstRaw = (first ?? "").trim().toLowerCase().normalize("NFKD");
+  // Take the first alphabetic token only; a single letter ("J") counts as
+  // empty so it falls through to the last-name fallback during matching.
+  const firstToken = (firstRaw.match(/[a-z]+/g) ?? [])[0] ?? "";
+  const f = firstToken.length >= 2 ? firstToken : "";
   const l = (last ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
   return `${f}|${l}`;
+}
+
+/** First-letter of first name, for last-name fallback disambiguation. */
+function firstInitial(first: string | null | undefined): string {
+  const m = (first ?? "").trim().toLowerCase().normalize("NFKD").match(/[a-z]/);
+  return m ? m[0] : "";
 }
 
 /** Extract the numeric legacy school ID from any RMP URL form we see. */
@@ -236,13 +250,57 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     if (cErr) throw new Error(`load campus: ${cErr.message}`);
 
     const sugByName = new Map<string, string>();
+    // last_name -> list of (firstInitial, id) for fallback when RMP only
+    // gives a first initial (or nothing). Keeps us from reverse-inserting
+    // a duplicate that we already have under a fuller name.
+    const sugByLast = new Map<string, Array<{ initial: string; id: string }>>();
     for (const s of (suggestions ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
       sugByName.set(nameKey(s.first_name, s.last_name), s.id);
+      const lastKey = (s.last_name ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+      if (lastKey) {
+        const arr = sugByLast.get(lastKey) ?? [];
+        arr.push({ initial: firstInitial(s.first_name), id: s.id });
+        sugByLast.set(lastKey, arr);
+      }
     }
     const leadByName = new Map<string, string>();
+    const leadByLast = new Map<string, Array<{ initial: string; id: string }>>();
     for (const l of (leads ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
       leadByName.set(nameKey(l.first_name, l.last_name), l.id);
+      const lastKey = (l.last_name ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+      if (lastKey) {
+        const arr = leadByLast.get(lastKey) ?? [];
+        arr.push({ initial: firstInitial(l.first_name), id: l.id });
+        leadByLast.set(lastKey, arr);
+      }
     }
+
+    /** Resolve to an existing id by (a) exact first+last key, or (b) last
+     *  name + matching first initial when one side has no full first name,
+     *  or (c) unique last-name match (only one prof with that last name in
+     *  the dept) when RMP gives an empty first. */
+    const resolveId = (
+      first: string | null,
+      last: string | null,
+      byName: Map<string, string>,
+      byLast: Map<string, Array<{ initial: string; id: string }>>,
+    ): string | undefined => {
+      const direct = byName.get(nameKey(first, last));
+      if (direct) return direct;
+      const lastKey = (last ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+      if (!lastKey) return undefined;
+      const candidates = byLast.get(lastKey) ?? [];
+      if (candidates.length === 0) return undefined;
+      const init = firstInitial(first);
+      if (init) {
+        const m = candidates.find((c) => c.initial === init);
+        if (m) return m.id;
+      } else if (candidates.length === 1) {
+        // RMP gave no first name and only one prof has this last name → safe.
+        return candidates[0].id;
+      }
+      return undefined;
+    };
 
     const nowIso = new Date().toISOString();
     let suggestionsUpdated = 0;
@@ -250,7 +308,6 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     const unmatchedTeachers: RmpTeacherNode[] = [];
 
     for (const t of allAccountingTeachers) {
-      const key = nameKey(t.firstName, t.lastName);
       const profileUrl = `https://www.ratemyprofessors.com/professor/${t.legacyId}`;
       const update: Record<string, unknown> = {
         rmp_checked_at: nowIso,
@@ -262,8 +319,8 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         update.rmp_would_take_again = t.wouldTakeAgainPercent;
       if (t.avgDifficulty != null) update.rmp_difficulty = t.avgDifficulty;
 
-      const sId = sugByName.get(key);
-      const lId = leadByName.get(key);
+      const sId = resolveId(t.firstName, t.lastName, sugByName, sugByLast);
+      const lId = resolveId(t.firstName, t.lastName, leadByName, leadByLast);
       if (sId) {
         const { error } = await supabaseAdmin
           .from("campus_lead_suggestions")
@@ -382,10 +439,10 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         const toInsert = reverseRows.filter((r) => {
           const e = r.email as string | null;
           if (e && existingEmails.has(e)) return false;
-          // Also skip if the name now exists in sugByName (we picked it up in
-          // a concurrent run); not strictly required but keeps it tidy.
-          const k = nameKey(r.first_name as string, r.last_name as string);
-          if (sugByName.has(k)) return false;
+          // Belt-and-suspenders: use the same fuzzy resolver as the matching
+          // pass so middle initials / RMP-anonymized first names don't slip
+          // through and create duplicates of profs we already have.
+          if (resolveId(r.first_name as string, r.last_name as string, sugByName, sugByLast)) return false;
           return true;
         });
         if (toInsert.length > 0) {
