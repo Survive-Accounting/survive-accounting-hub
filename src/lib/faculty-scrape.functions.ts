@@ -9,6 +9,48 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+// ---- Network hardening -----------------------------------------------------
+// Every outbound fetch (Firecrawl + AI gateway) has a hard timeout so a single
+// hung upstream call can't pin a background scrape forever. Timeouts are tuned
+// per call type: scrapes/AI are slowest, search/map are fastest.
+const FIRECRAWL_SCRAPE_TIMEOUT_MS = 60_000;
+const FIRECRAWL_MAP_TIMEOUT_MS = 45_000;
+const FIRECRAWL_SEARCH_TIMEOUT_MS = 45_000;
+const AI_TIMEOUT_MS = 90_000;
+const AI_PDF_TIMEOUT_MS = 180_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  label: string,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if ((e as { name?: string } | null)?.name === "AbortError") {
+      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
+    }
+    throw new Error(`${label} failed: ${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Turn upstream HTTP/AI errors into short human-readable strings.
+function slickHttpError(label: string, status: number, body: string): string {
+  const snippet = body.replace(/\s+/g, " ").trim().slice(0, 160);
+  if (status === 401 || status === 403) return `${label} auth error (${status}). Check API key.`;
+  if (status === 402) return `${label} out of credits (402).`;
+  if (status === 404) return `${label}: page not found (404).`;
+  if (status === 408 || status === 504) return `${label} upstream timeout (${status}).`;
+  if (status === 429) return `${label} rate-limited (429). Try again shortly.`;
+  if (status >= 500) return `${label} server error (${status}).`;
+  return `${label} ${status}${snippet ? `: ${snippet}` : ""}`;
+}
+
 const ScrapeInputSchema = z.object({
   campusId: z.string().uuid(),
   urls: z.array(z.string().url()).min(1).max(10),
