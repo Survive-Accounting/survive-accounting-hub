@@ -339,8 +339,9 @@ function OutreachPage() {
               .finally(() => qc.invalidateQueries({ queryKey: ["campus-queue"] }));
           }}
           onNext={async (currentId, filter) => {
+            const visited = new Set<string>([...reviewHistory, currentId]);
             let pool = [...campuses]
-              .filter((c) => !c.archived && c.approval_status !== "approved" && c.id !== currentId);
+              .filter((c) => !c.archived && c.approval_status !== "approved" && !visited.has(c.id));
             if (filter === "sec_only") pool = pool.filter((c) => c.is_sec);
             if (filter === "with_leads" || filter === "without_leads") {
               try {
@@ -360,12 +361,16 @@ function OutreachPage() {
                 /* fall through to unfiltered pool */
               }
             }
-            const sorted = pool.sort((a, b) => {
-              const ta = a.tuition_out_state ?? a.tuition_in_state ?? -1;
-              const tb = b.tuition_out_state ?? b.tuition_in_state ?? -1;
-              return tb - ta;
-            });
-            const nextCampus = sorted[0];
+            if (filter === "highest_value") {
+              pool = pool.sort((a, b) => {
+                const ta = a.tuition_out_state ?? a.tuition_in_state ?? 0;
+                const tb = b.tuition_out_state ?? b.tuition_in_state ?? 0;
+                const ea = a.total_enrollment ?? 0;
+                const eb = b.total_enrollment ?? 0;
+                return (tb * eb) - (ta * ea);
+              });
+            }
+            const nextCampus = pool[0];
             if (!nextCampus) {
               toast.info(
                 filter === "all"

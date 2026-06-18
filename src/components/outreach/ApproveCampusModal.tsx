@@ -167,13 +167,14 @@ function NotFoundHint({ show, message }: { show: boolean; message: string }) {
   );
 }
 
-export type NextCampusFilter = "all" | "with_leads" | "without_leads" | "sec_only";
+export type NextCampusFilter = "all" | "with_leads" | "without_leads" | "sec_only" | "highest_value";
 
 const NEXT_FILTER_LABELS: Record<NextCampusFilter, string> = {
   all: "All",
   with_leads: "With leads",
   without_leads: "Without leads",
   sec_only: "SEC only 🏈",
+  highest_value: "Highest value 💰",
 };
 
 /** Compact Next button with an inline filter picker — replaces the legacy
@@ -313,7 +314,7 @@ export default function ApproveCampusModal({
     if (typeof window === "undefined") return "all";
     try {
       const v = window.localStorage.getItem("sa-speed-next-filter");
-      return v === "with_leads" || v === "without_leads" || v === "sec_only" || v === "all" ? v : "all";
+      return v === "with_leads" || v === "without_leads" || v === "sec_only" || v === "highest_value" || v === "all" ? v : "all";
     } catch { return "all"; }
   });
   const updateNextFilter = (v: NextCampusFilter) => {
