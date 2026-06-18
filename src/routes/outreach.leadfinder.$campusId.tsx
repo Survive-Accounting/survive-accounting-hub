@@ -98,7 +98,7 @@ function LeadFinderPage() {
   const canGoBack = history.length > 0;
 
   const handleImport = async () => {
-    if (!campus || triageStats.kept === 0) return;
+    if (!campus || triageStats.tagged === 0) return;
     setImporting(true);
     try {
       const r = await importKeptLeads(campus.id);
