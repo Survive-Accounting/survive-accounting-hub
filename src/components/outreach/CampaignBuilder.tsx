@@ -71,7 +71,7 @@ export function CampaignBuilder({ campuses }: { campuses: Campus[] }) {
 
   const previewMut = useMutation({
     mutationFn: async () => previewCampaignAudience(
-      { ...filters, selectedCampusIds },
+      { ...filters, selectedCampusIds, titleTags: titleTags.length ? titleTags : undefined },
       campuses,
     ),
     onSuccess: (data) => {
