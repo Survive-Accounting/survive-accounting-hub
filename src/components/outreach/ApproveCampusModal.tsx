@@ -216,6 +216,45 @@ function SpeedNextButton({
   );
 }
 
+/** Compact BS / MAcc / PhD chip row. Detected levels are solid; missing
+ * levels render faded. Tooltip on each chip shows the matched snippet. */
+function ProgramLevelChips({ campus }: { campus: Campus | null }) {
+  if (!campus) return null;
+  const c = campus as Campus & {
+    has_bachelors_accounting?: boolean | null;
+    has_masters_accounting?: boolean | null;
+    has_phd_accounting?: boolean | null;
+    program_levels_evidence?: { bachelors?: string[]; masters?: string[]; phd?: string[] } | null;
+  };
+  const ev = c.program_levels_evidence ?? null;
+  const items: Array<{ key: string; label: string; on: boolean; snip: string | null }> = [
+    { key: "bs", label: "BS", on: !!c.has_bachelors_accounting, snip: ev?.bachelors?.[0] ?? null },
+    { key: "macc", label: "MAcc", on: !!c.has_masters_accounting, snip: ev?.masters?.[0] ?? null },
+    { key: "phd", label: "PhD", on: !!c.has_phd_accounting, snip: ev?.phd?.[0] ?? null },
+  ];
+  const anyKnown = items.some((i) => i.on);
+  return (
+    <div className="flex items-center justify-center gap-1.5 pt-1">
+      {items.map((i) => (
+        <span
+          key={i.key}
+          title={i.on ? (i.snip ?? `${i.label} program detected`) : `No ${i.label} program detected yet`}
+          className={
+            "inline-flex h-5 items-center rounded-full border px-2 text-[10px] font-medium " +
+            (i.on
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+              : "border-muted bg-muted/30 text-muted-foreground/60")
+          }
+        >
+          {i.label}
+        </span>
+      ))}
+      {!anyKnown && (
+        <span className="ml-1 text-[10px] italic text-muted-foreground/60">degrees detected on next scrape</span>
+      )}
+    </div>
+  );
+}
 
 
 export default function ApproveCampusModal({
