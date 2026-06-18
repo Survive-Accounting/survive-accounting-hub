@@ -429,7 +429,7 @@ export function FacultyTriagePanel({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Step #3 · Review / Edit Tags
+              Step #3 · Apply Tags
             </div>
             {introMatchIds.length > 0 && (
               <button
