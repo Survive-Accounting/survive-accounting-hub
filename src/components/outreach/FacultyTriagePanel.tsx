@@ -731,6 +731,7 @@ export function FacultyTriagePanel({
                             news
                           </span>
                         )}
+                        {r.email_confidence === "directory" && (
                           <span
                             className="rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
                             title="Pulled from the department directory listing rather than the personal profile page."
