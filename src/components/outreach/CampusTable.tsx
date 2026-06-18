@@ -1,10 +1,13 @@
 // Ported from the original app (ProfessorOutreach.tsx — SchoolsPanel table).
 import { Fragment, useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign,
+  ArrowDown, ArrowUp, BarChart3, Check, CheckCircle2, ChevronDown, Copy, DollarSign,
   Eye, MousePointerClick, Phone, RefreshCw, Upload, Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,34 @@ export default function CampusTable({
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Set of campus_ids that have at least one imported outreach lead.
+  const importedCampusesQuery = useQuery({
+    queryKey: ["campuses-with-imported-leads"],
+    queryFn: async () => {
+      const ids = new Set<string>();
+      const pageSize = 1000;
+      let from = 0;
+      // Paginate through distinct-ish campus_ids by selecting just the column.
+      // outreach_leads is bounded enough that this is fine; we just need presence.
+      while (true) {
+        const { data, error } = await supabase
+          .from("outreach_leads")
+          .select("campus_id")
+          .not("campus_id", "is", null)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const r of data) if (r.campus_id) ids.add(r.campus_id);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return ids;
+    },
+    staleTime: 30_000,
+  });
+  const importedCampusIds = importedCampusesQuery.data ?? new Set<string>();
+
 
 
   const toggleSort = (key: SortKey) => {
@@ -168,7 +199,14 @@ export default function CampusTable({
                     </td>
                     <td className="px-3 py-3.5 font-medium align-top">
                       <div className="inline-flex items-center gap-1.5">
+                        {importedCampusIds.has(s.id) && (
+                          <CheckCircle2
+                            className="h-4 w-4 text-emerald-600 shrink-0"
+                            aria-label="Leads imported"
+                          />
+                        )}
                         <span>{s.school_name}</span>
+
                         {s.is_sec && (
                           <span title="SEC Conference" className="text-base leading-none" aria-label="SEC">🏈</span>
                         )}
