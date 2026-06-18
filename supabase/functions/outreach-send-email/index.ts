@@ -203,6 +203,7 @@ Deno.serve(async (req) => {
         .replace(/\{\s*intro\s*2\s*\}/gi, familyCode("ACCY 202", "ACCY 201"))
         .replace(/\{\s*intermediate\s*1\s*\}/gi, "ACCY 303")
         .replace(/\{\s*intermediate\s*2\s*\}/gi, familyCode("ACCY 304", "ACCY 303"))
+        .replace(/\{\s*chapter\s*nickname\s*\}/gi, "the Pikes")
         .replace(/\{\s*surviveaccounting\.com\s*\}/gi, SA_LINK_TOKEN)
         .replace(/\[First Name\]/g, sampleFirst)
         .replace(/\[Booking Link\]/g, BOOKING_LINK)
