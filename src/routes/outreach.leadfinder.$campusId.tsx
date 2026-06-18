@@ -113,12 +113,11 @@ function LeadFinderPage() {
       const parts = [`🔥 Imported ${r.inserted} lead${r.inserted === 1 ? "" : "s"} from ${campus.school_name}`];
       if (r.mergedTags) parts.push(`merged tags onto ${r.mergedTags} existing`);
       if (r.skipped) parts.push(`skipped ${r.skipped} duplicate`);
-      toast.success(parts.join(" · "), {
-        duration: 4500,
-        action: { label: "Next campus →", onClick: () => { void handleNext(); } },
-      });
+      toast.success(parts.join(" · "), { duration: 3500 });
       setFlameStep(null);
-      setRefreshKey((k) => k + 1);
+      // Auto-advance to the next campus.
+      void handleNext();
+
     } catch (e) {
       toast.error(`Import failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
