@@ -513,10 +513,13 @@ async function enrichProfileEmails(
       const { email, how } = pickEmail(payload.markdown, payload.rawHtml);
       const profileCreds = payload.markdown ? detectCredentials(payload.markdown.slice(0, 4000)) : { is_phd: false, is_cpa: false };
       if (email) enriched++;
+      const result = email ? how : (payload.markdown || payload.rawHtml ? "no_email" : "empty");
+      // Empty payload from batch = treat as host failure for the fallback pass.
+      bumpHost(person.profile_url!, result === "empty");
       outcomes.push({
         url: person.profile_url!,
         name: `${person.first_name} ${person.last_name}`.trim(),
-        result: email ? how : (payload.markdown || payload.rawHtml ? "no_email" : "empty"),
+        result,
         mdLen: payload.markdown.length,
         htmlLen: payload.rawHtml.length,
       });
@@ -537,6 +540,19 @@ async function enrichProfileEmails(
         const i = cursor++;
         if (i >= toEnrich.length) return;
         const person = toEnrich[i];
+        // Anti-bot blocks usually fail every URL on the host. After 2 misses,
+        // skip the rest from that host — saves time + Firecrawl credits.
+        if (isHostBlocked(person.profile_url!)) {
+          outcomes.push({
+            url: person.profile_url!,
+            name: `${person.first_name} ${person.last_name}`.trim(),
+            result: "skipped_host",
+            mdLen: 0,
+            htmlLen: 0,
+          });
+          enrichedRows[i] = person;
+          continue;
+        }
         try {
           const { markdown, rawHtml } = await firecrawlScrapeFull(fcKey, person.profile_url!);
           const { email, how } = pickEmail(markdown, rawHtml);
