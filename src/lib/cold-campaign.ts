@@ -10,6 +10,8 @@ export interface ColdCriteria {
   leadTagEnabled: boolean;
   leadTagWeight: number;         // 0..10
   leadTags: string[];            // ['adjunct','instructor','lecturer']
+  rmpEnabled: boolean;
+  rmpWeight: number;             // 0..10 — prioritize low rating + high difficulty + low % take-again
 }
 
 export interface ColdScheduleConfig {
@@ -19,23 +21,45 @@ export interface ColdScheduleConfig {
   startDate: Date;
 }
 
+export interface RmpAggregate {
+  ratedCount: number;
+  avgRating: number | null;       // 0..5 (lower = worse prof)
+  avgDifficulty: number | null;   // 0..5 (higher = harder)
+  avgTakeAgain: number | null;    // 0..100 (lower = unpopular)
+}
+
 export interface RankedCampus {
   campus: Campus;
   score: number;
   tuitionEnroll: number; // tuition_out_state * total_enrollment
   importedLeads: number;
+  rmp: RmpAggregate;
+  rmpBadness: number;             // 0..1 — composite "tough/unpopular" score
+}
+
+/** 0..1 composite where 1 = worst-rated prof signal (low rating, high difficulty, low take-again). */
+export function rmpBadnessScore(agg: RmpAggregate): number {
+  if (agg.ratedCount === 0) return 0;
+  const parts: number[] = [];
+  if (agg.avgRating != null)     parts.push((5 - agg.avgRating) / 5);       // 0..1
+  if (agg.avgDifficulty != null) parts.push(agg.avgDifficulty / 5);         // 0..1
+  if (agg.avgTakeAgain != null)  parts.push((100 - agg.avgTakeAgain) / 100);// 0..1
+  if (parts.length === 0) return 0;
+  return parts.reduce((a, b) => a + b, 0) / parts.length;
 }
 
 /** Score a campus 0..1000ish, deterministic. */
 export function scoreCampus(
   c: Campus,
   importedLeads: number,
+  rmp: RmpAggregate,
   crit: ColdCriteria,
   maxTuitionEnroll: number,
-): { score: number; tuitionEnroll: number } {
+): { score: number; tuitionEnroll: number; rmpBadness: number } {
   const tuition = c.tuition_out_state ?? c.tuition_in_state ?? 0;
   const enroll = c.total_enrollment ?? 0;
   const tuitionEnroll = tuition * enroll;
+  const rmpBadness = rmpBadnessScore(rmp);
 
   let score = 0;
   if (crit.secEnabled && c.is_sec) score += crit.secWeight * 100;
@@ -43,15 +67,18 @@ export function scoreCampus(
     score += (tuitionEnroll / maxTuitionEnroll) * crit.tuitionEnrollWeight * 100;
   }
   if (crit.leadTagEnabled && importedLeads > 0) {
-    // Boost campuses with imported leads when lead-tag priority is on.
     score += Math.min(importedLeads, 25) * crit.leadTagWeight * 2;
   }
-  return { score, tuitionEnroll };
+  if (crit.rmpEnabled && rmp.ratedCount > 0) {
+    score += rmpBadness * crit.rmpWeight * 100;
+  }
+  return { score, tuitionEnroll, rmpBadness };
 }
 
 export function rankCampuses(
   campuses: Campus[],
   importedLeadsByCampus: Record<string, number>,
+  rmpByCampus: Record<string, RmpAggregate>,
   crit: ColdCriteria,
 ): RankedCampus[] {
   const active = campuses.filter((c) => !c.archived);
@@ -64,8 +91,9 @@ export function rankCampuses(
 
   const rows = active.map((c) => {
     const importedLeads = importedLeadsByCampus[c.id] ?? 0;
-    const { score, tuitionEnroll } = scoreCampus(c, importedLeads, crit, maxTE);
-    return { campus: c, score, tuitionEnroll, importedLeads };
+    const rmp = rmpByCampus[c.id] ?? { ratedCount: 0, avgRating: null, avgDifficulty: null, avgTakeAgain: null };
+    const { score, tuitionEnroll, rmpBadness } = scoreCampus(c, importedLeads, rmp, crit, maxTE);
+    return { campus: c, score, tuitionEnroll, importedLeads, rmp, rmpBadness };
   });
 
   rows.sort((a, b) => {

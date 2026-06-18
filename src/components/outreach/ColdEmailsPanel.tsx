@@ -3,17 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, Star } from "lucide-react";
 
 import type { Campus } from "@/lib/outreach-mock";
 import { supabase } from "@/integrations/supabase/client";
-import { createCampaignFromPreview } from "@/lib/outreach-api";
+import { createCampaignFromPreview, fetchTemplates } from "@/lib/outreach-api";
 import {
   rankCampuses,
   buildSchedule,
   formatShortDate,
   type ColdCriteria,
   type RankedCampus,
+  type RmpAggregate,
 } from "@/lib/cold-campaign";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,22 +24,51 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 const ALL_TAGS = ["adjunct", "instructor", "lecturer"] as const;
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
-async function fetchImportedLeadCounts(): Promise<Record<string, number>> {
+type LeadRmpRow = {
+  campus_id: string | null;
+  rmp_rating: number | null;
+  rmp_difficulty: number | null;
+  rmp_would_take_again: number | null;
+};
+
+async function fetchLeadCountsAndRmp(): Promise<{
+  counts: Record<string, number>;
+  rmpByCampus: Record<string, RmpAggregate>;
+}> {
   const { data, error } = await supabase
     .from("outreach_leads")
-    .select("campus_id");
+    .select("campus_id,rmp_rating,rmp_difficulty,rmp_would_take_again");
   if (error) throw error;
-  const map: Record<string, number> = {};
-  for (const r of (data ?? []) as Array<{ campus_id: string | null }>) {
+  const counts: Record<string, number> = {};
+  const buckets: Record<string, { ratings: number[]; diffs: number[]; takes: number[] }> = {};
+  for (const r of (data ?? []) as LeadRmpRow[]) {
     if (!r.campus_id) continue;
-    map[r.campus_id] = (map[r.campus_id] ?? 0) + 1;
+    counts[r.campus_id] = (counts[r.campus_id] ?? 0) + 1;
+    if (r.rmp_rating == null && r.rmp_difficulty == null && r.rmp_would_take_again == null) continue;
+    const b = buckets[r.campus_id] ?? (buckets[r.campus_id] = { ratings: [], diffs: [], takes: [] });
+    if (r.rmp_rating != null) b.ratings.push(Number(r.rmp_rating));
+    if (r.rmp_difficulty != null) b.diffs.push(Number(r.rmp_difficulty));
+    if (r.rmp_would_take_again != null) b.takes.push(Number(r.rmp_would_take_again));
   }
-  return map;
+  const rmpByCampus: Record<string, RmpAggregate> = {};
+  const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  for (const [campusId, b] of Object.entries(buckets)) {
+    rmpByCampus[campusId] = {
+      ratedCount: Math.max(b.ratings.length, b.diffs.length, b.takes.length),
+      avgRating: avg(b.ratings),
+      avgDifficulty: avg(b.diffs),
+      avgTakeAgain: avg(b.takes),
+    };
+  }
+  return { counts, rmpByCampus };
 }
 
 function nextWeekday(): Date {
@@ -55,6 +85,7 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
   const [perCampusCap, setPerCampusCap] = useState(5);
   const [startDate, setStartDate] = useState(() => nextWeekday().toISOString().slice(0, 10));
   const [sendDays, setSendDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [templateId, setTemplateId] = useState<string>("");
 
   const [crit, setCrit] = useState<ColdCriteria>({
     secEnabled: true,
@@ -64,18 +95,41 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
     leadTagEnabled: false,
     leadTagWeight: 3,
     leadTags: ["adjunct", "instructor", "lecturer"],
+    rmpEnabled: true,
+    rmpWeight: 7,
   });
 
   const [ordered, setOrdered] = useState<RankedCampus[]>([]);
   const [generated, setGenerated] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const leadsQ = useQuery({ queryKey: ["cold-imported-lead-counts"], queryFn: fetchImportedLeadCounts });
-  const importedByCampus = leadsQ.data ?? {};
+  const leadsQ = useQuery({
+    queryKey: ["cold-imported-lead-counts-rmp"],
+    queryFn: fetchLeadCountsAndRmp,
+  });
+  const importedByCampus = leadsQ.data?.counts ?? {};
+  const rmpByCampus = leadsQ.data?.rmpByCampus ?? {};
+
+  const templatesQ = useQuery({
+    queryKey: ["outreach-email-templates"],
+    queryFn: fetchTemplates,
+  });
+  const initialTemplates = useMemo(
+    () => (templatesQ.data ?? []).filter((t) => t.kind === "initial"),
+    [templatesQ.data],
+  );
+
+  // Auto-select the active initial template once loaded if none selected yet.
+  useEffect(() => {
+    if (templateId) return;
+    const active = initialTemplates.find((t) => t.is_active);
+    if (active) setTemplateId(active.id);
+    else if (initialTemplates[0]) setTemplateId(initialTemplates[0].id);
+  }, [initialTemplates, templateId]);
 
   const ranked = useMemo(
-    () => rankCampuses(campuses, importedByCampus, crit),
-    [campuses, importedByCampus, crit],
+    () => rankCampuses(campuses, importedByCampus, rmpByCampus, crit),
+    [campuses, importedByCampus, rmpByCampus, crit],
   );
 
   // Keep ordered in sync with the latest ranking until the user reorders.
@@ -117,25 +171,49 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
       toast.error("Generate the queue first.");
       return;
     }
+    if (launch && !templateId) {
+      toast.error("Pick an email template before launching.");
+      return;
+    }
     setSaving(true);
     try {
       // For launch, fetch lead IDs for selected campuses in priority order.
+      // When the RMP criterion is on, pick the "toughest/least liked" profs
+      // first within each campus (low rating + high difficulty + low take-again).
       let selectedLeadIds: string[] = [];
       if (launch) {
         const campusIds = ordered.map((r) => r.campus.id);
         const { data, error } = await supabase
           .from("outreach_leads")
-          .select("id,campus_id")
-          .in("campus_id", campusIds);
+          .select("id,campus_id,rmp_rating,rmp_difficulty,rmp_would_take_again");
         if (error) throw error;
-        const byCampus = new Map<string, string[]>();
-        for (const r of (data ?? []) as Array<{ id: string; campus_id: string }>) {
-          const list = byCampus.get(r.campus_id) ?? [];
-          if (list.length < perCampusCap) list.push(r.id);
-          byCampus.set(r.campus_id, list);
+        const campusSet = new Set(campusIds);
+        const byCampus = new Map<string, Array<{ id: string; badness: number; hasRmp: boolean }>>();
+        for (const r of (data ?? []) as Array<{
+          id: string; campus_id: string | null;
+          rmp_rating: number | null; rmp_difficulty: number | null; rmp_would_take_again: number | null;
+        }>) {
+          if (!r.campus_id || !campusSet.has(r.campus_id)) continue;
+          const parts: number[] = [];
+          if (r.rmp_rating != null) parts.push((5 - Number(r.rmp_rating)) / 5);
+          if (r.rmp_difficulty != null) parts.push(Number(r.rmp_difficulty) / 5);
+          if (r.rmp_would_take_again != null) parts.push((100 - Number(r.rmp_would_take_again)) / 100);
+          const hasRmp = parts.length > 0;
+          const badness = hasRmp ? parts.reduce((a, b) => a + b, 0) / parts.length : 0;
+          const arr = byCampus.get(r.campus_id) ?? [];
+          arr.push({ id: r.id, badness, hasRmp });
+          byCampus.set(r.campus_id, arr);
         }
         for (const cid of campusIds) {
-          for (const id of byCampus.get(cid) ?? []) selectedLeadIds.push(id);
+          const arr = byCampus.get(cid) ?? [];
+          if (crit.rmpEnabled) {
+            // Rated profs first (worst first), then unrated.
+            arr.sort((a, b) => {
+              if (a.hasRmp !== b.hasRmp) return a.hasRmp ? -1 : 1;
+              return b.badness - a.badness;
+            });
+          }
+          for (const row of arr.slice(0, perCampusCap)) selectedLeadIds.push(row.id);
         }
       }
 
@@ -147,6 +225,7 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
           titleTags: crit.leadTagEnabled ? crit.leadTags : undefined,
         },
         selectedLeadIds,
+        templateId: templateId || null,
       });
 
       toast.success(
@@ -187,6 +266,27 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
             <Label htmlFor="cold-per">Max emails per campus</Label>
             <Input id="cold-per" type="number" min={1} value={perCampusCap}
               onChange={(e) => setPerCampusCap(Math.max(1, Number(e.target.value) || 5))} />
+          </div>
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label>Email template (initial send)</Label>
+            <Select value={templateId} onValueChange={setTemplateId}>
+              <SelectTrigger>
+                <SelectValue placeholder={templatesQ.isLoading ? "Loading templates…" : "Pick an initial template"} />
+              </SelectTrigger>
+              <SelectContent>
+                {initialTemplates.length === 0 ? (
+                  <div className="px-2 py-3 text-xs text-muted-foreground">
+                    No initial templates found. Create one in Standard Campaigns → Email template.
+                  </div>
+                ) : (
+                  initialTemplates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name} {t.is_active ? "· active" : ""}{t.variant !== "default" ? ` · ${t.variant}` : ""}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
           <div className="sm:col-span-2 space-y-1.5">
             <Label>Send days</Label>
@@ -230,6 +330,13 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
             weight={crit.tuitionEnrollWeight}
             onEnabled={(v) => setCrit({ ...crit, tuitionEnrollEnabled: v })}
             onWeight={(w) => setCrit({ ...crit, tuitionEnrollWeight: w })}
+          />
+          <CriterionRow
+            label="RMP — tough/unpopular profs (low rating + high difficulty + low % take-again)"
+            enabled={crit.rmpEnabled}
+            weight={crit.rmpWeight}
+            onEnabled={(v) => setCrit({ ...crit, rmpEnabled: v })}
+            onWeight={(w) => setCrit({ ...crit, rmpWeight: w })}
           />
           <div className="space-y-2">
             <CriterionRow
@@ -290,6 +397,7 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
                     <th className="px-2 py-1.5 w-12">SEC</th>
                     <th className="px-2 py-1.5">Tuition×Enroll</th>
                     <th className="px-2 py-1.5">Imported Leads</th>
+                    <th className="px-2 py-1.5">RMP (★ / diff)</th>
                     <th className="px-2 py-1.5">Est. Send Day</th>
                     <th className="px-2 py-1.5 w-16"></th>
                   </tr>
@@ -298,6 +406,7 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
                   {ordered.map((r, idx) => {
                     const sendDate = schedule.firstSendByCampus[r.campus.id];
                     const imported = r.importedLeads;
+                    const rated = r.rmp.ratedCount;
                     return (
                       <tr key={r.campus.id} className="border-t border-border">
                         <td className="px-2 py-1.5 text-muted-foreground">{idx + 1}</td>
@@ -308,6 +417,16 @@ export function ColdEmailsPanel({ campuses }: { campuses: Campus[] }) {
                         </td>
                         <td className="px-2 py-1.5">
                           {imported > 0 ? <span className="font-medium">{imported}</span> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                          {rated > 0 ? (
+                            <span title={`${rated} rated leads`}>
+                              <Star className="mr-0.5 inline h-3 w-3 text-amber-500" />
+                              {r.rmp.avgRating != null ? r.rmp.avgRating.toFixed(1) : "—"}
+                              {" / "}
+                              {r.rmp.avgDifficulty != null ? r.rmp.avgDifficulty.toFixed(1) : "—"}
+                            </span>
+                          ) : "—"}
                         </td>
                         <td className="px-2 py-1.5 text-muted-foreground">{sendDate ? formatShortDate(sendDate) : ""}</td>
                         <td className="px-2 py-1.5">
