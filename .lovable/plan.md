@@ -1,75 +1,94 @@
-# Overnight Faculty Auto-Import
+## Goal
 
-Run the Step #1 → Step #2 → Step #3 flow with zero clicks across all 170 active campuses while you sleep.
+Stand up the database tonight to support a Greek Orgs side of Lead Finder. No new UI tabs or scraping yet — that comes in Phase 2 once you've slept on it. We reuse the existing `campus_lead_suggestions` / `outreach_leads` pipeline so the triage UI, audiences, and campaigns all work for chapter officers as soon as the scraper lands.
 
-## What it does, per campus
+## What gets built
 
-1. Read `campuses.faculty_page_url` (newline-separated). If empty → skip and log `no_url`.
-2. Call existing `scrapeCampusFaculty` logic on those URLs → fills `campus_lead_suggestions` exactly like the manual button does.
-3. Auto-tag every fresh suggestion whose `title` matches (case-insensitive):
-   `instructor | adjunct | associate | assistant | lecturer | teaching`
-   with tag `Intro Target` and set status `kept`.
-4. Run the existing `importTaggedLeads` logic → inserts into `outreach_leads`, archives suggestions, dedupes by email.
-5. Write a row to a new `outreach_faculty_batch_runs` log table: `{campus_id, scraped, tagged, imported, skipped, error, finished_at}`.
+### 1. New tables
 
-## Scope filter
+**`greek_orgs`** — national org master list (one row per Greek-letter org, not per chapter).
 
-Active campuses (`archived_at is null`) with **zero** existing `outreach_leads` for that campus, AND a non-empty `faculty_page_url`. That's your 170 list minus the 6 already done.
+- `name` ("Sigma Alpha Epsilon")
+- `nickname` ("SAE")
+- `letters` ("ΣΑΕ")
+- `org_type` enum: `fraternity` | `sorority` (NPHC sororities are still sororities)
+- `council` enum: `IFC` | `NIC` | `NPC` | `NPHC` | `MGC` | `local` | `other`
+- `national_website`, `founded_year`
+- `is_active` flag (lets us suppress dormant orgs without deleting)
+- Unique on lower(name)
 
-## Architecture (matches existing `run-campus-batch` pattern)
+**`campus_greek_chapters`** — per-campus chapter instance (this is the row we scrape exec pages for).
 
+- `campus_id` → `campuses`
+- `greek_org_id` → `greek_orgs` (nullable; allow "unrecognized local" rows)
+- `chapter_designation` ("Alpha Beta", "Theta Eta")
+- `chapter_url` (chapter's own site, e.g. `sae.indiana.edu`)
+- `exec_page_url` (the officers/exec board page — what the scraper hits)
+- `status` enum: `active` | `inactive` | `suspended` | `unknown`
+- `discovery_source` text ("manual" | "campus_greek_page" | "ai_search")
+- `notes`, `archived_at`
+- Unique on `(campus_id, greek_org_id, chapter_designation)` so re-scrapes are idempotent
+- Helpful index on `(campus_id) WHERE archived_at IS NULL`
+
+### 2. Extend the existing lead pipeline
+
+Add to **both** `campus_lead_suggestions` and `outreach_leads`:
+
+- `chapter_id uuid` → `campus_greek_chapters` (nullable; null = faculty lead)
+- `position text` (e.g. "President", "Academic Chair", "Treasurer")
+- `term text` (e.g. "Spring 2026")
+
+`research_mode` already exists on `campus_lead_suggestions` — Greek scrapes will write `'greek_scrape'`. No new triage table needed. Tags like `Intro Target` keep working; you can layer on `Exec Target` later.
+
+### 3. Seed data
+
+Pre-populate `greek_orgs` with the well-known national orgs so the scraper can match chapter rosters to known orgs out of the box:
+
+- **NPC** (Panhellenic sororities) — all 26 (Alpha Chi Omega … Zeta Tau Alpha)
+- **NIC** (mainstream fraternities) — ~50 active members (SAE, Sigma Chi, Phi Delt, Pike, ATO, etc.)
+- **NPHC** — the Divine 9 (Alphas, Kappas, Omegas, Sigmas, Iotas / AKA, Deltas, Zetas, SGRho)
+- **MGC** — top ~15 multicultural orgs (Lambda Theta Phi, Sigma Lambda Beta, Lambda Theta Alpha, Sigma Lambda Gamma, etc.)
+
+Roughly 100 seed rows. Unknown/local orgs get inserted with `greek_org_id = null` at scrape time.
+
+### 4. RLS
+
+Both new tables: admin-only writes/reads via the same `has_role('admin', auth.uid())` pattern the rest of `outreach_*` uses. `service_role` full access for server fns. No `anon` grant.
+
+## Phase 2 (NOT in tonight's plan — for reference)
+
+Once schema is in:
+
+1. **Discovery scrape** — for each of the 170 campuses, Firecrawl `search` "fraternity sorority life $campus", then AI-extract chapters → upserts `campus_greek_chapters`. Mirrors `faculty-scrape.functions.ts`.
+2. **Per-chapter exec scrape** — copy of `ScrapeFacultyButton` flow, scoped to a chapter row; pulls president / VP / academic chair / scholarship / treasurer / finance chair into `campus_lead_suggestions` with `chapter_id` set.
+3. **Lead Finder UI** — `/outreach/leadfinder` grows a `Faculty | Greek` tab toggle. Greek tab navigates campus → chapter → triage. Reuses `FacultyTriagePanel` with a chapter filter.
+4. **Overnight batch** — clone of `outreach_faculty_batch_queue` + worker for chapters.
+
+## Technical details
+
+Schema lives in one migration:
+
+```text
+0021_greek_orgs.sql
+├── CREATE TYPE greek_council, greek_org_type, greek_chapter_status
+├── CREATE TABLE greek_orgs (+ GRANT + RLS + admin policy)
+├── CREATE TABLE campus_greek_chapters (+ GRANT + RLS + admin policy)
+├── ALTER TABLE campus_lead_suggestions
+│     ADD COLUMN chapter_id, position, term
+├── ALTER TABLE outreach_leads
+│     ADD COLUMN chapter_id, position, term
+├── updated_at triggers on both new tables
+└── INSERT INTO greek_orgs (~100 seed rows: NPC, NIC, NPHC, MGC)
 ```
-pg_cron every 2 min
-   └─► POST /api/public/hooks/faculty-overnight-batch (apikey header)
-        ├─ picks up to 3 pending campuses from outreach_faculty_batch_queue
-        ├─ marks them running (claim row)
-        ├─ for each in parallel: scrape → auto-tag → import → log
-        └─ when queue empty: pg_cron unschedules itself (or stays idle)
-```
 
-Why a queue table instead of looping inline: Firecrawl scrapes take 20–90s each; one HTTP request can't safely cover 170. The queue lets each tick handle 3 in parallel (~9 campuses/min, full run finishes in ~20 min, well within overnight).
+`set_updated_at()` already exists — reuse it for the trigger.
 
-## New files
+No code changes ship tonight. After approval and the types regen, Phase 2 PRs can import the new tables immediately.
 
-- `migration/supabase-migrations/0020_faculty_overnight_batch.sql`
-  - `outreach_faculty_batch_queue (id, campus_id, status, started_at, finished_at, error)`
-  - `outreach_faculty_batch_runs (id, campus_id, scraped, tagged, imported, skipped, error, finished_at)`
-  - GRANTs + RLS (`authenticated` full, `service_role` all; no anon).
-  - pg_cron job calling the public route every 2 min with `apikey` header.
-- `src/lib/faculty-overnight.server.ts` — shared helpers: `processOneCampus(campusId)` reusing `processUrls` + `importTaggedLeads` logic (extracted to a server module so it's safe to import here without `?tss-serverfn-split` issues).
-- `src/routes/api/public/hooks/faculty-overnight-batch.ts` — TanStack server route, verifies `apikey` header against `SUPABASE_ANON_KEY`, claims up to 3 queue rows, processes in parallel.
-- `src/lib/faculty-overnight.functions.ts` — `enqueueAllPendingCampuses` server fn (admin-only) that you click once to seed the queue, returns `{queued: N}`.
+## Out of scope tonight
 
-## Minor UI
-
-Add a single button to the Lead Finder index page: **"Queue overnight auto-import (N campuses)"** that calls `enqueueAllPendingCampuses` and toasts the count. That's the only click required tonight.
-
-## Title-match regex (auto-tag rule)
-
-```ts
-/\b(instructor|adjunct|associate|assistant|lecturer|teaching)\b/i
-```
-
-Applied to `campus_lead_suggestions.title` immediately after scrape; matching rows get tag `Intro Target` and `status='kept'`, then `importTaggedLeads(campusId)` runs. Non-matches stay as `pending_triage` so you can still review them later if you want.
-
-## Safety / idempotency
-
-- Queue row status transitions: `pending → running → done | failed`. A stuck `running` row >10 min old gets requeued automatically at the start of each tick.
-- Existing dedupe in `importTaggedLeads` (by email + campus) prevents double-imports if a campus is re-run.
-- All writes use `supabaseAdmin` inside the public route handler (verified by `apikey` header).
-- Per-campus errors are caught, logged to `outreach_faculty_batch_runs.error`, and don't block the rest of the batch.
-
-## Morning report
-
-```sql
-select status, count(*) from outreach_faculty_batch_queue group by 1;
-select sum(imported) imported, sum(skipped) skipped, count(*) filter (where error is not null) failed
-from outreach_faculty_batch_runs where finished_at > now() - interval '12 hours';
-```
-
-I'll surface that as a small summary card on the Lead Finder page as well.
-
-## Out of scope (per your answers)
-
-- No Google / SerpAPI step — we use the `faculty_page_url` already stored on each campus.
-- No human-in-the-loop review — fully autonomous.
+- Discovery / exec scraping (Phase 2)
+- Lead Finder Greek tab UI (Phase 2)
+- Overnight batch automation (Phase 3)
+- Beta Alpha Psi / professional/honor accounting orgs (separate effort — you said skip)
+- Editing the faculty pipeline behavior
