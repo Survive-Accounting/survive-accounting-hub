@@ -279,12 +279,13 @@ function LeadFinderPage() {
             <Button
               size="sm"
               onClick={handleImport}
-              disabled={importing || triageStats.kept === 0}
+              disabled={importing || triageStats.tagged === 0}
               className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+              title="Step #4 — Import every tagged faculty member as a lead"
             >
               {importing
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
-                : <><CheckCircle2 className="h-4 w-4" /> Import Leads ({triageStats.kept})</>}
+                : <><CheckCircle2 className="h-4 w-4" /> Step #4 · Import Leads ({triageStats.tagged})</>}
             </Button>
             <div className="inline-flex overflow-hidden rounded-md border bg-secondary">
               <button
