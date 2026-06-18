@@ -195,6 +195,7 @@ Deno.serve(async (req) => {
         .replace(/\{\s*first\s*name\s*\}/gi, sampleFirst)
         .replace(/\{\s*recipient\s*name\s*\}/gi, "Dr. Smith")
         .replace(/\{\s*(?:campus\s*)?course\s*prefix\s*\}/gi, samplePrefix)
+        .replace(/\{\s*program\s*shorthand\s*\}/gi, "Culver")
         .replace(/\{\s*program\s*\}/gi, samplePogram)
         .replace(/\{\s*courses\s*\}/gi, sampleCourses)
         .replace(/\{\s*phone\s*\}/gi, samplePhone)
