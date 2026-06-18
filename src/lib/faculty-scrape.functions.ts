@@ -633,3 +633,18 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       ...result,
     };
   });
+
+export const scrapeCampusFacultyPdf = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => PdfInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    const aiKey = process.env.LOVABLE_API_KEY;
+    if (!aiKey) throw new Error("LOVABLE_API_KEY is not configured on the server");
+    const people = await callLovableAiWithPdf(aiKey, data.filename, data.fileBase64);
+    const { inserted, skippedDuplicates } = await insertExtractedPeople(
+      data.campusId,
+      people,
+      `PDF: ${data.filename}`,
+      "faculty_scrape_pdf_v1",
+    );
+    return { ok: true, found: people.length, inserted, skippedDuplicates };
+  });
