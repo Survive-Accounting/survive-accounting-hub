@@ -304,7 +304,7 @@ async function firecrawlSearch(apiKey: string, query: string): Promise<string[]>
   return web.map((r) => r.url).filter(Boolean);
 }
 
-async function firecrawlScrape(apiKey: string, url: string): Promise<string> {
+async function firecrawlScrape(apiKey: string, url: string, timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS): Promise<string> {
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/scrape",
     {
