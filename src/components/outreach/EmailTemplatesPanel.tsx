@@ -211,7 +211,7 @@ function TemplateFormDialog({
         <DialogHeader>
           <DialogTitle>Edit — {meta.label} · {variantLabel}</DialogTitle>
           <DialogDescription>
-            Merge tags: <code>{"{recipient name}"}</code> (automatic — "Dr. Lastname" for PhDs, first name otherwise; <code>{"{first name}"}</code> does the same), <code>{"{course prefix}"}</code> (e.g. "ACCY"), <code>{"{courses}"}</code> (collapsed, e.g. "ACCY 201, 202, 303, and 304"), <code>{"{full codes}"}</code> (uncollapsed), <code>{"{intro1}"}</code>/<code>{"{intro2}"}</code>/<code>{"{intermediate1}"}</code>/<code>{"{intermediate2}"}</code> (sibling auto-collapses prefix → "ACCY 201, 202"), <code>{"{program}"}</code>, <code>{"{phone}"}</code> (campus number, else your main line), <code>{"{surviveaccounting.com}"}</code> (the professor's personalized landing link).
+            Merge tags: <code>{"{recipient name}"}</code> (automatic — "Dr. Lastname" for PhDs, first name otherwise; <code>{"{first name}"}</code> does the same), <code>{"{course prefix}"}</code> (e.g. "ACCY"), <code>{"{courses}"}</code> (collapsed, e.g. "ACCY 201, 202, 303, and 304"), <code>{"{full codes}"}</code> (uncollapsed), <code>{"{intro1}"}</code>/<code>{"{intro2}"}</code>/<code>{"{intermediate1}"}</code>/<code>{"{intermediate2}"}</code> (sibling auto-collapses prefix → "ACCY 201, 202"), <code>{"{program}"}</code>, <code>{"{phone}"}</code> (campus number, else your main line), <code>{"{chapter nickname}"}</code> (Greek-orgs only — e.g. "the Pikes"), <code>{"{surviveaccounting.com}"}</code> (the recipient's personalized landing link).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
