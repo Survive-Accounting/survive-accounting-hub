@@ -1337,6 +1337,39 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
     const { aiKey, fcKey } = requireKeys();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await processUrls(fcKey, aiKey, data.campusId, data.urls, { allowNoContact: data.allowNoContact });
+
+    // ---- Map fallback ---------------------------------------------------
+    // If the primary scrape yielded <5 emails AND we have a root domain to
+    // map against, ask Firecrawl to find faculty-roster URLs we haven't
+    // tried yet. One map call (~$0.001) beats missing a whole department.
+    const totalEmails = result.perPage.reduce((s, p) => s + p.withEmail, 0);
+    const inputHosts = Array.from(new Set(data.urls.map((u) => {
+      try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
+    }).filter(Boolean)));
+    if (totalEmails < MAP_FALLBACK_EMAIL_THRESHOLD && inputHosts.length > 0) {
+      try {
+        const mapped = await firecrawlMap(fcKey, `https://${inputHosts[0]}`, "faculty accounting");
+        const already = new Set(data.urls.map(normalizeUrl));
+        const fallbackUrls = rankFacultyUrls(mapped)
+          .filter((u) => !already.has(normalizeUrl(u)))
+          .slice(0, 3);
+        if (fallbackUrls.length > 0) {
+          const fb = await processUrls(fcKey, aiKey, data.campusId, fallbackUrls, { allowNoContact: data.allowNoContact });
+          result.perPage.push(...fb.perPage);
+          result.inserted += fb.inserted;
+          result.skippedDuplicates += fb.skippedDuplicates;
+          result.droppedNoContact += fb.droppedNoContact;
+          Object.assign(result.cache, fb.cache);
+          if (fb.programLevels.bachelors || fb.programLevels.masters || fb.programLevels.phd) {
+            result.programLevels = mergeDetections(result.programLevels, fb.programLevels);
+            for (const s of fb.programLevelSources) {
+              if (!result.programLevelSources.includes(s)) result.programLevelSources.push(s);
+            }
+          }
+        }
+      } catch { /* map fallback is best-effort */ }
+    }
+
     await supabaseAdmin
       .from("campuses")
       .update({
