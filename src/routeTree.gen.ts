@@ -20,6 +20,7 @@ import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
+import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
@@ -79,6 +80,12 @@ const OutreachSchoolSlugRoute = OutreachSchoolSlugRouteImport.update({
   path: '/outreach/school/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OutreachLeadfinderCampusIdRoute =
+  OutreachLeadfinderCampusIdRouteImport.update({
+    id: '/leadfinder/$campusId',
+    path: '/leadfinder/$campusId',
+    getParentRoute: () => OutreachRoute,
+  } as any)
 const CeqIdTutorRoute = CeqIdTutorRouteImport.update({
   id: '/$id/tutor',
   path: '/$id/tutor',
@@ -100,7 +107,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
   '/onboard': typeof OnboardRoute
-  '/outreach': typeof OutreachRoute
+  '/outreach': typeof OutreachRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
@@ -110,13 +117,14 @@ export interface FileRoutesByFullPath {
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
   '/onboard': typeof OnboardRoute
-  '/outreach': typeof OutreachRoute
+  '/outreach': typeof OutreachRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
@@ -126,6 +134,7 @@ export interface FileRoutesByTo {
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
 }
 export interface FileRoutesById {
@@ -133,7 +142,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ceq': typeof CeqRouteWithChildren
   '/onboard': typeof OnboardRoute
-  '/outreach': typeof OutreachRoute
+  '/outreach': typeof OutreachRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
@@ -143,6 +152,7 @@ export interface FileRoutesById {
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
 }
 export interface FileRouteTypes {
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
   id:
     | '__root__'
@@ -193,6 +205,7 @@ export interface FileRouteTypes {
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -200,7 +213,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CeqRoute: typeof CeqRouteWithChildren
   OnboardRoute: typeof OnboardRoute
-  OutreachRoute: typeof OutreachRoute
+  OutreachRoute: typeof OutreachRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
   TermsRoute: typeof TermsRoute
@@ -288,6 +301,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachSchoolSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/outreach/leadfinder/$campusId': {
+      id: '/outreach/leadfinder/$campusId'
+      path: '/leadfinder/$campusId'
+      fullPath: '/outreach/leadfinder/$campusId'
+      preLoaderRoute: typeof OutreachLeadfinderCampusIdRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/ceq/$id/tutor': {
       id: '/ceq/$id/tutor'
       path: '/$id/tutor'
@@ -328,11 +348,23 @@ const CeqRouteChildren: CeqRouteChildren = {
 
 const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
+interface OutreachRouteChildren {
+  OutreachLeadfinderCampusIdRoute: typeof OutreachLeadfinderCampusIdRoute
+}
+
+const OutreachRouteChildren: OutreachRouteChildren = {
+  OutreachLeadfinderCampusIdRoute: OutreachLeadfinderCampusIdRoute,
+}
+
+const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
+  OutreachRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CeqRoute: CeqRouteWithChildren,
   OnboardRoute: OnboardRoute,
-  OutreachRoute: OutreachRoute,
+  OutreachRoute: OutreachRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
   TermsRoute: TermsRoute,
