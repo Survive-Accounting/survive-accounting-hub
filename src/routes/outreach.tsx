@@ -302,16 +302,12 @@ function OutreachPage() {
       <AddCampusModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onCreated={async (created, autoResearch) => {
-          // Refresh the campuses list so the new row appears, then open
-          // the approval modal (auto-triggering AI research if requested).
+        onCreated={async (created) => {
           const refreshed = await campusQuery.refetch();
           const fresh = refreshed.data?.find((c) => c.id === created.id);
           if (fresh) {
-            setReviewing(fresh);
-            if (autoResearch) setAutoResearchId(created.id);
+            openLeadFinder(fresh.id);
           } else {
-            // Fallback: at least invalidate so the table updates.
             qc.invalidateQueries({ queryKey: ["campuses"] });
           }
         }}
