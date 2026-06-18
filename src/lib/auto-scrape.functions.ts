@@ -179,7 +179,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       ok: true,
       campusName: name,
       domains,
-      facultyUrls,
+      facultyUrls: facultyUrlsCapped,
       rmpUrl,
       facultyQuery,
       rmpQuery,
