@@ -822,8 +822,90 @@ async function firecrawlScrapeWithLinks(
   }
 
   const all = Array.from(new Set([...fromLinksField, ...fromHtml]));
-  return { markdown, links: all };
+  return { markdown, links: all, rawHtml };
 }
+
+/**
+ * Firecrawl `actions` page-walker. For JS-paginated directories where the URL
+ * doesn't change (IU Kelley, Drupal Views, "Load more" buttons, etc.), this
+ * issues one Firecrawl scrape with up to MAX_PAGINATION_PAGES interleaved
+ *   [click Next → wait → scrape]
+ * actions, then returns the concatenated HTML across all step scrapes plus
+ * the final-state markdown.
+ *
+ * Generalizable: the click selector is a union of every common Next/Load more
+ * pattern we've seen. If it never matches, Firecrawl returns the same
+ * single-page HTML each time and our caller falls back to the map heuristic.
+ */
+async function scrapeWithPaginationActions(
+  apiKey: string,
+  url: string,
+  maxPages: number,
+): Promise<{ combinedText: string; combinedHtml: string; finalMarkdown: string; pagesWalked: number; clickMissed: boolean }> {
+  const actions: Array<Record<string, unknown>> = [
+    { type: "wait", milliseconds: 2000 },
+    { type: "scrape" },
+  ];
+  for (let i = 1; i < maxPages; i++) {
+    actions.push(
+      { type: "click", selector: PAGINATION_NEXT_SELECTOR },
+      { type: "wait", milliseconds: PAGINATION_STEP_WAIT_MS },
+      { type: "scrape" },
+    );
+  }
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown", "rawHtml"],
+        onlyMainContent: false,
+        actions,
+      }),
+    },
+    PAGINATION_ACTIONS_TIMEOUT_MS,
+    "Firecrawl actions scrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl actions scrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: {
+      markdown?: string;
+      rawHtml?: string;
+      html?: string;
+      actions?: {
+        scrapes?: Array<{ html?: string; rawHtml?: string; url?: string }>;
+      };
+    };
+  };
+  const stepScrapes = json.data?.actions?.scrapes ?? [];
+  const htmls: string[] = [];
+  for (const s of stepScrapes) {
+    const h = s.html ?? s.rawHtml ?? "";
+    if (h) htmls.push(h);
+  }
+  // Always include the final-state HTML in case the last "scrape" action's
+  // payload landed only at the top-level (Firecrawl behavior varies).
+  const finalHtml = json.data?.rawHtml ?? json.data?.html ?? "";
+  if (finalHtml && !htmls.includes(finalHtml)) htmls.push(finalHtml);
+
+  const combinedHtml = htmls.join("\n\n<!-- ## next page ## -->\n\n");
+  const combinedText = htmls.map(htmlToFlatText).join("\n\n---\n\n");
+  const finalMarkdown = json.data?.markdown ?? "";
+  // If two consecutive step HTMLs are identical, the click selector likely
+  // didn't match anything → no real pagination happened.
+  let identicalCount = 0;
+  for (let i = 1; i < htmls.length; i++) {
+    if (htmls[i] === htmls[i - 1]) identicalCount++;
+  }
+  const clickMissed = htmls.length <= 1 || identicalCount >= htmls.length - 1;
+  return { combinedText, combinedHtml, finalMarkdown, pagesWalked: htmls.length, clickMissed };
+}
+
 
 /**
  * Batch-scrape multiple profile pages in a single Firecrawl call. Firecrawl
