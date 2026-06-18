@@ -978,6 +978,66 @@ export default function ApproveCampusModal({
     onNext(campus.id, nextFilter);
   };
 
+  /** Heuristic shorthand from a program name. Strips "Department/School of",
+   *  then takes a short label suitable for an email merge tag. */
+  const suggestShorthand = (name: string): string => {
+    const n = name.trim();
+    if (!n) return "";
+    const stripped = n
+      .replace(/^(the\s+)?(department|school|college|division)\s+of\s+/i, "")
+      .replace(/\s+department$/i, "")
+      .replace(/\s+school$/i, "")
+      .trim();
+    // Common families
+    if (/\baccount/i.test(stripped)) {
+      if (/finance/i.test(stripped)) return "Accounting & Finance";
+      return "Accounting";
+    }
+    if (/business/i.test(stripped)) return "Business";
+    // Fallback: first 2 words, Title Case-ish
+    const words = stripped.split(/\s+/).slice(0, 3).join(" ");
+    return words || stripped;
+  };
+
+  const applyShorthandSuggestion = () => {
+    const s = suggestShorthand(programName);
+    if (!s) {
+      toast.info("Add a program name first, then I can guess a shorthand.");
+      return;
+    }
+    setProgramShorthand(s);
+    writePatch({ program_shorthand: s } as Partial<Campus>);
+  };
+
+  // Auto-suggest shorthand when program name lands but shorthand is empty.
+  useEffect(() => {
+    if (programName && !programShorthand) {
+      const s = suggestShorthand(programName);
+      if (s) {
+        setProgramShorthand(s);
+        writePatch({ program_shorthand: s } as Partial<Campus>);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programName]);
+
+  const handleImportLeads = async () => {
+    if (!campus || triageStats.kept === 0) return;
+    setImportingLeads(true);
+    try {
+      const result = await importKeptLeads(campus.id);
+      const parts = [`Imported ${result.inserted} new lead${result.inserted === 1 ? "" : "s"}`];
+      if (result.mergedTags) parts.push(`merged tags onto ${result.mergedTags} existing`);
+      if (result.skipped) parts.push(`skipped ${result.skipped} duplicate`);
+      toast.success(parts.join(" · "));
+      setLeadsRefreshKey((k) => k + 1);
+    } catch (e) {
+      toast.error(`Import failed: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setImportingLeads(false);
+    }
+  };
+
   if (!campus) return null;
 
   const steps = [
