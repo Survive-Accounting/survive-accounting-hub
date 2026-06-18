@@ -3124,6 +3124,85 @@ export type Database = {
         }
         Relationships: []
       }
+      outreach_faculty_batch_queue: {
+        Row: {
+          campus_id: string
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          campus_id: string
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          campus_id?: string
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_faculty_batch_queue_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: true
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_faculty_batch_runs: {
+        Row: {
+          campus_id: string
+          error: string | null
+          finished_at: string
+          id: string
+          imported: number
+          scraped: number
+          skipped: number
+          tagged: number
+        }
+        Insert: {
+          campus_id: string
+          error?: string | null
+          finished_at?: string
+          id?: string
+          imported?: number
+          scraped?: number
+          skipped?: number
+          tagged?: number
+        }
+        Update: {
+          campus_id?: string
+          error?: string | null
+          finished_at?: string
+          id?: string
+          imported?: number
+          scraped?: number
+          skipped?: number
+          tagged?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_faculty_batch_runs_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outreach_leads: {
         Row: {
           affiliation: string | null
