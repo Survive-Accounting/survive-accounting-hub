@@ -15,6 +15,7 @@ import { FacultyTriagePanel, type TriageStats } from "@/components/outreach/Facu
 import { fetchCampuses } from "@/lib/outreach-api";
 import { importKeptLeads } from "@/lib/faculty-triage";
 import { supabase } from "@/integrations/supabase/client";
+import { enqueueAllPendingCampuses, getFacultyBatchStatus } from "@/lib/faculty-overnight.functions";
 import type { Campus } from "@/lib/outreach-mock";
 
 const LOGO_URL =
@@ -229,6 +230,11 @@ function LeadFinderPage() {
             </div>
           </div>
         </header>
+
+        {/* Overnight auto-import panel */}
+        <div className="mx-auto mt-4 w-full max-w-3xl px-4">
+          <OvernightAutoImportCard />
+        </div>
 
         {/* Campus name */}
         <div className="mx-auto max-w-6xl px-4 pt-6 text-center">
