@@ -374,14 +374,6 @@ export function FacultyTriagePanel({
           </Button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setHelpOpen(true)}
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground"
-          title="Open instructions"
-        >
-          <HelpCircle className="h-3 w-3" /> How this works?
-        </button>
 
         {selected.size > 0 && (
           <button
