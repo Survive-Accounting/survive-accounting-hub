@@ -1,79 +1,51 @@
-Speed up Lee's per-campus faculty workflow inside `ApproveCampusModal` (the "Approve Campus" review screen).
+# Title Tags — triage selection + audience filter
 
-## 1. Grad-cap Google shortcut next to "Scrape URLs"
+Goal: in the Faculty Triage panel, quickly tag candidate rows by their Title string (free-form, verbatim — "Lecturer", "Instructor", "Part-Time Instructor", …). Tags persist onto the imported lead and become a filter in the Audience tool so you can do laser-targeted 50/day blasts and compare performance per title later.
 
-In `src/components/outreach/ScrapeFacultyButton.tsx`, render a small 🎓 icon-button immediately after the "Scrape URLs" button. Clicking it opens (in a new tab):
+## 1. Schema (one migration)
 
-```
-https://www.google.com/search?q={encoded school name}%20accounting%20faculty%20directory
-```
+- `campus_lead_suggestions.title_tags text[] not null default '{}'` — tag while triaging.
+- `outreach_leads.title_tags text[] not null default '{}'` — copied in on import; this is the long-lived field used by audiences.
+- GIN index on `outreach_leads.title_tags` for fast `&&` / `@>` audience filters.
+- `importKeptLeads` updated to copy `title_tags` from suggestion → lead, and to merge tags on existing duplicates instead of skipping the tag work.
 
-- Pass `campusName` (already a prop) — no other wiring needed.
-- Tooltip: "Open Google faculty search".
-- Always visible (not gated by `hideScrapeUrls`).
+## 2. Triage panel UX (`FacultyTriagePanel.tsx`)
 
-## 2. Background scrapes
+- New `Tags` column showing tag chips on each row (small, removable).
+- Click the column header to sort by Title (asc/desc toggle). Default sort becomes Title so duplicates cluster.
+- Row selection:
+  - Click anywhere on a row's Title cell → selects that row (highlight).
+  - Shift-click another Title cell → fills the range between them (the "reversi" behavior). Works on the currently-sorted order so a Title sort + shift-click captures every "Lecturer" in one move.
+  - Cmd/Ctrl-click toggles a single row.
+  - Click outside / Esc clears selection.
+- Floating action bar appears when ≥1 row is selected:
+  - "Tag N selected as…" → small combobox seeded with the distinct Title strings present in the selection (so one click adds "Lecturer" verbatim). Free-text entry also allowed; Enter commits.
+  - "Clear tags on selection".
+  - Multiple tags per lead allowed (array union; no duplicates).
+- Header counter updates to: `N candidates · N pending · N kept · N tagged` (tagged = suggestions with `title_tags` length > 0, per-campus only).
+- Tagging is independent of Keep/Skip — you can tag a row you haven't decided on yet, and tagging never auto-keeps. (Keep + Tag are common enough that we'll also show a one-click "Keep + tag as <Title>" option in the action bar when exactly one distinct Title is selected.)
 
-In `ScrapeFacultyButton.run()`, stop awaiting the scrape before closing the dialog. Flow becomes:
+## 3. Audience filter
 
-1. User clicks "Scrape pages".
-2. Dialog closes immediately and a toast appears: "Scraping {campusName} in background…".
-3. The `scrape({ data: ... })` promise runs in the background; on resolve, show the existing success/warning toast and call `onScraped?.()` so the triage panel refreshes if the modal is still open. On reject, show the existing error toast.
+- `AudienceEditorModal` + `audience-filters.ts`: new "Title tags" multi-select. Options come from the distinct set of tags currently on `outreach_leads.title_tags` (queried once when the modal opens).
+- Match mode: ANY (lead has at least one of the selected tags). Future "ALL" toggle is easy to add but out of scope now.
+- Persisted on the audience row alongside existing filters.
 
-Track in-flight scrapes in a small module-level `Set<string>` keyed by `campusId` so a second click on the same campus is blocked (toast: "Already scraping this campus"). No global queue UI — just toasts.
+## 4. Out of scope (called out for later)
 
-Also save the pasted URL list to `campuses.faculty_page_url` (current behavior already happens server-side in `scrapeCampusFaculty`) before the dialog closes so the next time Lee opens it the URL is remembered even if the scrape is still running.
-
-## 3. Speed Mode (Lee only) inside `ApproveCampusModal`
-
-Add a header toggle visible only when `getAdminWho() === "lee"`. Persist the choice in `localStorage` (`sa-speed-mode`).
-
-When Speed Mode is ON, the modal collapses to a single tall pane:
-
-```text
-┌─ Campus header ──────────────────────────────┐
-│ {school name}        [🎓] [Scrape URLs]      │
-│ [Speed Mode ✓]   [Quick Approve]  [Next →]   │
-├──────────────────────────────────────────────┤
-│ FacultyTriagePanel (full height, scrolls)    │
-└──────────────────────────────────────────────┘
-```
-
-- The 4-step Tabs are hidden; only `FacultyTriagePanel` and the scrape controls render.
-- All other sections (program, courses, textbooks, debug, "Mark Needs Lee") are hidden.
-- The footer also hides the normal Approve button — Quick Approve replaces it.
-
-### Quick Approve
-Calls the same `onApprove(campus.id, { approval_status: "approved", ready_for_outreach: true })` path the current Approve button uses (Lee already bypasses `canApprove` checks per the earlier admin-override change). Shows "Approved {campus.name}" toast and does NOT close — it transitions straight into Next.
-
-### Next
-- Closes the current modal and asks the parent for the next campus.
-- New prop on `ApproveCampusModal`: `onNext?: (currentCampusId: string) => void`.
-- In `src/routes/outreach.tsx`, implement `onNext`:
-  - Compute the next campus from the queue/table currently shown. Use the same ordering as `CampusQueuePanel` (campuses queryClient cache, filtered to those claimed by Lee, then unclaimed, sorted by tuition desc).
-  - `setReviewing({ id: nextId })`. If no next campus, toast "No more campuses in queue" and close.
-
-When Speed Mode is OFF, the modal renders exactly as today (no change to existing tabs/buttons).
-
-## 4. Persisted background scrape state across modal switches
-
-Because clicking Next closes the modal mid-scrape, move the in-flight tracker out of the button into a module-level singleton in `ScrapeFacultyButton.tsx` (or a tiny `src/lib/faculty-scrape-queue.ts`):
-
-```ts
-const inflight = new Map<string, Promise<void>>();
-export function isScrapingCampus(id: string) { return inflight.has(id); }
-```
-
-The "Scrape URLs" button label shows "Scraping…" with a spinner if `isScrapingCampus(campusId)` is true on mount (poll once per second via `useEffect` interval while open, cleared on unmount). On completion the toast still fires globally via Sonner, so Lee sees results even after he's moved on to the next campus.
+- No analytics dashboard per tag yet — tags are stored so we can slice send/open/reply stats later.
+- No tag rename / merge UI. If a typo sneaks in we can fix in SQL.
+- No global "tagged across all campuses" badge (you picked per-campus).
+- Curated/normalized tag vocabulary — staying free-form for now.
 
 ## Files touched
 
-- `src/components/outreach/ScrapeFacultyButton.tsx` — grad-cap button, background scrape, inflight tracker.
-- `src/components/outreach/ApproveCampusModal.tsx` — Speed Mode toggle (Lee-only), collapsed layout, Quick Approve, Next, `onNext` prop.
-- `src/routes/outreach.tsx` — pass `onNext` that advances through the current queue order.
+- new migration: add `title_tags` to both tables + GIN index.
+- `src/lib/faculty-triage.ts`: new `setTriageTags(id, tags)` + `bulkSetTriageTags(ids, addTags, removeTags)`; update `TriageRow` type; update `importKeptLeads` to carry tags forward (merge on conflict).
+- `src/components/outreach/FacultyTriagePanel.tsx`: sort, selection, action bar, tag chips, updated counter.
+- `src/lib/audience-filters.ts` + `src/components/outreach/AudienceEditorModal.tsx`: new `title_tags` filter, distinct-tag fetch helper.
+- `src/integrations/supabase/types.ts`: regenerated after migration approval.
 
-## Not in scope
+## Declutter note
 
-- No new edge function, schema, or migration.
-- No changes to triage panel internals.
-- No background scrape UI list — just toasts + per-button spinner.
+You asked me to flag stale dashboard pieces on future turns. Logging that as a standing instruction — next time you send a screenshot I'll call out specific panels/cards from older iterations that look safe to remove.
