@@ -713,11 +713,30 @@ export function FacultyTriagePanel({
 
                   <TableCell className="text-xs">
                     {r.email ? (
-                      <a href={`mailto:${r.email}`} className="text-primary hover:underline">{r.email}</a>
+                      <span className="inline-flex items-center gap-1.5">
+                        <a href={`mailto:${r.email}`} className="text-primary hover:underline">{r.email}</a>
+                        {r.email_confidence === "inferred" && (
+                          <span
+                            className="rounded border border-amber-400 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                            title="Synthesized from this department's dominant email pattern. Spot-check before sending."
+                          >
+                            guessed
+                          </span>
+                        )}
+                        {r.email_confidence === "directory" && (
+                          <span
+                            className="rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+                            title="Pulled from the department directory listing rather than the personal profile page."
+                          >
+                            directory
+                          </span>
+                        )}
+                      </span>
                     ) : (
                       <span className="text-amber-700">no email found</span>
                     )}
                   </TableCell>
+
                   <TableCell className="text-center text-xs tabular-nums">
                     {r.rmp_rating != null ? (
                       r.rmp_profile_url ? (
