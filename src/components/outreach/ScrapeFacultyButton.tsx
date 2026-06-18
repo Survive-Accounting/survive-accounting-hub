@@ -180,10 +180,14 @@ export function ScrapeFacultyButton({
         );
         onScraped?.();
       } catch (e) {
-        toast.error(`PDF scan failed: ${e instanceof Error ? e.message : "unknown error"}`);
+        toast.error("PDF scan failed", { description: slickErr(e) });
       }
     })();
-    trackCampusScrape(campusId, promise);
+    trackCampusScrape(campusId, promise, {
+      onTimeout: () => toast.error(`${campusName} PDF scan timed out`, {
+        description: "No response in 3 minutes — the job slot was released. Try again or split the PDF.",
+      }),
+    });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
