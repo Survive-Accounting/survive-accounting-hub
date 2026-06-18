@@ -1026,15 +1026,20 @@ export default function ApproveCampusModal({
             <div className="space-y-3 pt-2">
               {/* Unified Speed Mode toolbar — collapses scrape + program + filter
                   + actions into a single dense row. */}
-              <div className="rounded-lg border bg-muted/30 p-2">
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                {/* Scrape steps — VA-friendly numbered checklist. */}
+                <ScrapeFacultyButton
+                  campusId={campus.id}
+                  campusName={campus.school_name}
+                  onScraped={() => setLeadsRefreshKey((k) => k + 1)}
+                  hideAutoDiscover
+                  layout="stacked"
+                />
+
+                <div className="border-t border-border/60" />
+
+                {/* Program details + actions row. */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <ScrapeFacultyButton
-                    campusId={campus.id}
-                    campusName={campus.school_name}
-                    onScraped={() => setLeadsRefreshKey((k) => k + 1)}
-                    hideAutoDiscover
-                  />
-                  <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
                   <input
                     type="text"
                     value={programName}
