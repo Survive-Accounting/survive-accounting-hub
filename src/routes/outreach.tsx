@@ -365,8 +365,8 @@ function OutreachPage() {
               pool = pool.sort((a, b) => {
                 const ta = a.tuition_out_state ?? a.tuition_in_state ?? 0;
                 const tb = b.tuition_out_state ?? b.tuition_in_state ?? 0;
-                const ea = a.undergrad_enrollment ?? a.total_enrollment ?? 0;
-                const eb = b.undergrad_enrollment ?? b.total_enrollment ?? 0;
+                const ea = a.total_enrollment ?? 0;
+                const eb = b.total_enrollment ?? 0;
                 return (tb * eb) - (ta * ea);
               });
             }
