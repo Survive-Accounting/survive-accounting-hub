@@ -89,7 +89,13 @@ type Extracted = {
   profile_url: string | null;
   is_phd: boolean;
   is_cpa: boolean;
+  /** How the email was sourced. Absent/'verified' = scraped directly from
+   *  the page. 'directory' = found near the name on the directory page.
+   *  'inferred' = synthesized from the dept's dominant email pattern; the
+   *  UI shows these as "guessed" so a human can spot-check before send. */
+  email_confidence?: "verified" | "directory" | "inferred";
 };
+
 
 // Path segments (between slashes) that strongly indicate a faculty roster page.
 const STRONG_PATH_TOKENS = ["faculty", "faculty-and-staff", "faculty-staff", "directory", "people", "our-people", "our-team", "team", "staff", "instructors"];
