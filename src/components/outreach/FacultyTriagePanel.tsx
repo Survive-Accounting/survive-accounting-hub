@@ -723,7 +723,14 @@ export function FacultyTriagePanel({
                             guessed
                           </span>
                         )}
-                        {r.email_confidence === "directory" && (
+                        {r.email_confidence === "news" && (
+                          <span
+                            className="rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                            title="Name was pulled from a news/blog/spotlight page. Often a student or one-off feature — verify before sending."
+                          >
+                            news
+                          </span>
+                        )}
                           <span
                             className="rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
                             title="Pulled from the department directory listing rather than the personal profile page."
