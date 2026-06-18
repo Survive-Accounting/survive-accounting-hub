@@ -66,9 +66,16 @@ export function ScrapeFacultyButton({
     }
   };
 
-  const openFacultyGoogle = () => {
+  const copyFacultyGoogleLink = async () => {
     const q = `${campusName} accounting faculty directory`;
-    window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}`, "_blank", "noopener,noreferrer");
+    const url = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Search link copied — paste in a new tab.");
+    } catch {
+      // Fallback: select-and-prompt
+      window.prompt("Copy this link:", url);
+    }
   };
 
   const run = async () => {
