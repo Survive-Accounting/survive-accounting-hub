@@ -318,17 +318,40 @@ function OutreachPage() {
               .catch(() => {})
               .finally(() => qc.invalidateQueries({ queryKey: ["campus-queue"] }));
           }}
-          onNext={(currentId) => {
-            const sorted = [...campuses]
-              .filter((c) => !c.archived && c.approval_status !== "approved" && c.id !== currentId)
-              .sort((a, b) => {
-                const ta = a.tuition_out_state ?? a.tuition_in_state ?? -1;
-                const tb = b.tuition_out_state ?? b.tuition_in_state ?? -1;
-                return tb - ta;
-              });
+          onNext={async (currentId, filter) => {
+            let pool = [...campuses]
+              .filter((c) => !c.archived && c.approval_status !== "approved" && c.id !== currentId);
+            if (filter === "sec_only") pool = pool.filter((c) => c.is_sec);
+            if (filter === "with_leads" || filter === "without_leads") {
+              try {
+                const ids = pool.map((c) => c.id);
+                if (ids.length > 0) {
+                  const { data } = await supabase
+                    .from("campus_lead_suggestions")
+                    .select("campus_id")
+                    .eq("research_mode", "faculty_scrape")
+                    .is("archived_at", null)
+                    .in("campus_id", ids);
+                  const withLeads = new Set(((data ?? []) as Array<{ campus_id: string | null }>)
+                    .map((r) => r.campus_id).filter((x): x is string => !!x));
+                  pool = pool.filter((c) => filter === "with_leads" ? withLeads.has(c.id) : !withLeads.has(c.id));
+                }
+              } catch {
+                /* fall through to unfiltered pool */
+              }
+            }
+            const sorted = pool.sort((a, b) => {
+              const ta = a.tuition_out_state ?? a.tuition_in_state ?? -1;
+              const tb = b.tuition_out_state ?? b.tuition_in_state ?? -1;
+              return tb - ta;
+            });
             const nextCampus = sorted[0];
             if (!nextCampus) {
-              toast.info("No more campuses to review.");
+              toast.info(
+                filter === "all"
+                  ? "No more campuses to review."
+                  : `No more campuses matching filter "${filter.replace("_", " ")}".`,
+              );
               setReviewing(null);
               setAutoResearchId(null);
               setReviewInitialStep(undefined);
