@@ -660,6 +660,36 @@ function requireKeys() {
   return { aiKey, fcKey };
 }
 
+// OR-merge detected program levels into the campus row. Never clears an
+// existing `true` — different pages cover different programs, and a single
+// empty page shouldn't erase what an earlier run found.
+async function persistProgramLevels(
+  campusId: string,
+  detection: ProgramLevelDetection,
+  sourceUrls: string[],
+): Promise<void> {
+  if (!detection.bachelors && !detection.masters && !detection.phd) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: existing } = await supabaseAdmin
+    .from("campuses")
+    .select("has_bachelors_accounting,has_masters_accounting,has_phd_accounting")
+    .eq("id", campusId)
+    .maybeSingle();
+  const next = {
+    has_bachelors_accounting: Boolean((existing as { has_bachelors_accounting?: boolean } | null)?.has_bachelors_accounting) || detection.bachelors,
+    has_masters_accounting: Boolean((existing as { has_masters_accounting?: boolean } | null)?.has_masters_accounting) || detection.masters,
+    has_phd_accounting: Boolean((existing as { has_phd_accounting?: boolean } | null)?.has_phd_accounting) || detection.phd,
+    program_levels_evidence: {
+      bachelors: detection.evidence.bachelors,
+      masters: detection.evidence.masters,
+      phd: detection.evidence.phd,
+      source_urls: sourceUrls,
+      detected_at: new Date().toISOString(),
+    },
+  };
+  await supabaseAdmin.from("campuses").update(next).eq("id", campusId);
+}
+
 export const scrapeCampusFaculty = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ScrapeInputSchema.parse(input))
   .handler(async ({ data }) => {
