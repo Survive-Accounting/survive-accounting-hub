@@ -55,10 +55,24 @@ query TeacherSearchPaginationQuery(
   }
 }`;
 
+/** Normalize a name into a match key. Uses ONLY the first token of the first
+ *  name (so "Julie Ann" and "Julie" collide), strips diacritics, and drops
+ *  punctuation. Returns `${first}|${last}` — `first` can be empty when the
+ *  source only gives an initial or nothing (RMP often does this). */
 function nameKey(first: string | null | undefined, last: string | null | undefined): string {
-  const f = (first ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+  const firstRaw = (first ?? "").trim().toLowerCase().normalize("NFKD");
+  // Take the first alphabetic token only; a single letter ("J") counts as
+  // empty so it falls through to the last-name fallback during matching.
+  const firstToken = (firstRaw.match(/[a-z]+/g) ?? [])[0] ?? "";
+  const f = firstToken.length >= 2 ? firstToken : "";
   const l = (last ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
   return `${f}|${l}`;
+}
+
+/** First-letter of first name, for last-name fallback disambiguation. */
+function firstInitial(first: string | null | undefined): string {
+  const m = (first ?? "").trim().toLowerCase().normalize("NFKD").match(/[a-z]/);
+  return m ? m[0] : "";
 }
 
 /** Extract the numeric legacy school ID from any RMP URL form we see. */
