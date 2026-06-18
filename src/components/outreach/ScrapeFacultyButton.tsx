@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { GraduationCap, Globe, Loader2, Wand2, FileUp } from "lucide-react";
+import { GraduationCap, Globe, Loader2, Wand2, FileUp, X } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,16 @@ import {
 import {
   isScrapingCampus,
   trackCampusScrape,
-  useIsScrapingCampus,
+  useScrapingCampusInfo,
+  clearCampusScrape,
 } from "@/lib/faculty-scrape-queue";
+
+// Slim a raw error message into something short and human for a toast.
+function slickErr(e: unknown, fallback = "unknown error"): string {
+  const raw = e instanceof Error ? e.message : typeof e === "string" ? e : fallback;
+  // Strip noisy prefixes / huge JSON dumps; cap length.
+  return raw.replace(/\s+/g, " ").trim().slice(0, 180) || fallback;
+}
 
 export function ScrapeFacultyButton({
   campusId,
@@ -40,7 +48,8 @@ export function ScrapeFacultyButton({
   const scrape = useServerFn(scrapeCampusFaculty);
   const discover = useServerFn(autoDiscoverCampusFaculty);
   const scrapePdf = useServerFn(scrapeCampusFacultyPdf);
-  const scraping = useIsScrapingCampus(campusId);
+  const { scraping, elapsedMs } = useScrapingCampusInfo(campusId);
+  const stuck = scraping && elapsedMs > 60_000;
 
   const openModal = async () => {
     setOpen(true);
@@ -92,10 +101,14 @@ export function ScrapeFacultyButton({
         }
         onScraped?.();
       } catch (e) {
-        toast.error(`${campusName} scrape failed: ${e instanceof Error ? e.message : "unknown error"}`);
+        toast.error(`${campusName} scrape failed`, { description: slickErr(e) });
       }
     })();
-    trackCampusScrape(campusId, promise);
+    trackCampusScrape(campusId, promise, {
+      onTimeout: () => toast.error(`${campusName} scrape timed out`, {
+        description: "No response in 3 minutes — the job slot was released. Try again or use PDF upload.",
+      }),
+    });
   };
 
   const runAutoDiscover = async () => {
@@ -124,7 +137,7 @@ export function ScrapeFacultyButton({
       }
       onScraped?.();
     } catch (e) {
-      toast.error(`Auto-discover failed: ${e instanceof Error ? e.message : "unknown error"}`);
+      toast.error("Auto-discover failed", { description: slickErr(e) });
     } finally {
       setDiscovering(false);
     }
@@ -167,10 +180,14 @@ export function ScrapeFacultyButton({
         );
         onScraped?.();
       } catch (e) {
-        toast.error(`PDF scan failed: ${e instanceof Error ? e.message : "unknown error"}`);
+        toast.error("PDF scan failed", { description: slickErr(e) });
       }
     })();
-    trackCampusScrape(campusId, promise);
+    trackCampusScrape(campusId, promise, {
+      onTimeout: () => toast.error(`${campusName} PDF scan timed out`, {
+        description: "No response in 3 minutes — the job slot was released. Try again or split the PDF.",
+      }),
+    });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -187,8 +204,22 @@ export function ScrapeFacultyButton({
           <>
             <Button size="sm" variant="outline" onClick={openModal} title="Paste specific URLs to scrape">
               {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-              {scraping ? "Scraping…" : "Scrape URLs"}
+              {scraping ? `Scraping… ${Math.floor(elapsedMs / 1000)}s` : "Scrape URLs"}
             </Button>
+            {stuck && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-amber-700 hover:text-amber-900"
+                onClick={() => {
+                  clearCampusScrape(campusId);
+                  toast.info("Cleared stuck scrape slot — you can start a new one.");
+                }}
+                title="The previous scrape has been running over 60s — reset the slot so you can try again"
+              >
+                <X className="h-3.5 w-3.5" /> Reset
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

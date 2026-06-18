@@ -9,6 +9,48 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+// ---- Network hardening -----------------------------------------------------
+// Every outbound fetch (Firecrawl + AI gateway) has a hard timeout so a single
+// hung upstream call can't pin a background scrape forever. Timeouts are tuned
+// per call type: scrapes/AI are slowest, search/map are fastest.
+const FIRECRAWL_SCRAPE_TIMEOUT_MS = 60_000;
+const FIRECRAWL_MAP_TIMEOUT_MS = 45_000;
+const FIRECRAWL_SEARCH_TIMEOUT_MS = 45_000;
+const AI_TIMEOUT_MS = 90_000;
+const AI_PDF_TIMEOUT_MS = 180_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  label: string,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if ((e as { name?: string } | null)?.name === "AbortError") {
+      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
+    }
+    throw new Error(`${label} failed: ${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Turn upstream HTTP/AI errors into short human-readable strings.
+function slickHttpError(label: string, status: number, body: string): string {
+  const snippet = body.replace(/\s+/g, " ").trim().slice(0, 160);
+  if (status === 401 || status === 403) return `${label} auth error (${status}). Check API key.`;
+  if (status === 402) return `${label} out of credits (402).`;
+  if (status === 404) return `${label}: page not found (404).`;
+  if (status === 408 || status === 504) return `${label} upstream timeout (${status}).`;
+  if (status === 429) return `${label} rate-limited (429). Try again shortly.`;
+  if (status >= 500) return `${label} server error (${status}).`;
+  return `${label} ${status}${snippet ? `: ${snippet}` : ""}`;
+}
+
 const ScrapeInputSchema = z.object({
   campusId: z.string().uuid(),
   urls: z.array(z.string().url()).min(1).max(10),
@@ -182,14 +224,19 @@ function rankFacultyUrls(links: string[]): string[] {
 }
 
 async function firecrawlSearch(apiKey: string, query: string): Promise<string[]> {
-  const res = await fetch("https://api.firecrawl.dev/v2/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query, limit: 10 }),
-  });
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/search",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ query, limit: 10 }),
+    },
+    FIRECRAWL_SEARCH_TIMEOUT_MS,
+    "Firecrawl search",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`firecrawl search ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(slickHttpError("Firecrawl search", res.status, body));
   }
   const json = await res.json() as {
     data?: { web?: Array<{ url: string }> } | Array<{ url: string }>;
@@ -200,32 +247,38 @@ async function firecrawlSearch(apiKey: string, query: string): Promise<string[]>
 }
 
 async function firecrawlScrape(apiKey: string, url: string): Promise<string> {
-  const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      url,
-      formats: ["markdown"],
-      onlyMainContent: true,
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+    },
+    FIRECRAWL_SCRAPE_TIMEOUT_MS,
+    "Firecrawl scrape",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`firecrawl scrape ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(slickHttpError("Firecrawl scrape", res.status, body));
   }
   const json = await res.json() as { data?: { markdown?: string }; markdown?: string };
   return json.data?.markdown ?? json.markdown ?? "";
 }
 
 async function firecrawlMap(apiKey: string, url: string, search: string): Promise<string[]> {
-  const res = await fetch("https://api.firecrawl.dev/v2/map", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ url, search, limit: 200, includeSubdomains: true }),
-  });
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/map",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ url, search, limit: 200, includeSubdomains: true }),
+    },
+    FIRECRAWL_MAP_TIMEOUT_MS,
+    "Firecrawl map",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`firecrawl map ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(slickHttpError("Firecrawl map", res.status, body));
   }
   const json = await res.json() as { links?: Array<string | { url: string }>; data?: { links?: Array<string | { url: string }> } };
   const raw = json.links ?? json.data?.links ?? [];
@@ -247,23 +300,28 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
 
   const user = `Source URL: ${sourceUrl}\n\nPage content (markdown):\n${truncated}`;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    },
+    AI_TIMEOUT_MS,
+    "AI gateway",
+  );
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`AI gateway ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(slickHttpError("AI gateway", res.status, body));
   }
 
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
@@ -315,28 +373,33 @@ async function callLovableAiWithPdf(
     "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url }] }. " +
     "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null.";
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: `Extract every accounting faculty member from this PDF (source filename: ${filename}). Return JSON only.` },
-            { type: "file", file: { filename, file_data: `data:application/pdf;base64,${pdfBase64}` } },
-          ],
-        },
-      ],
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `Extract every accounting faculty member from this PDF (source filename: ${filename}). Return JSON only.` },
+              { type: "file", file: { filename, file_data: `data:application/pdf;base64,${pdfBase64}` } },
+            ],
+          },
+        ],
+      }),
+    },
+    AI_PDF_TIMEOUT_MS,
+    "AI gateway (PDF)",
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`AI gateway ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(slickHttpError("AI gateway (PDF)", res.status, body));
   }
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = json.choices?.[0]?.message?.content ?? "{}";
