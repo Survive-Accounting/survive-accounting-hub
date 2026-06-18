@@ -129,12 +129,69 @@ const PER_HOST_FAIL_LIMIT = 2;
 // faculty roster page and re-scrape.
 const MAP_FALLBACK_EMAIL_THRESHOLD = 5;
 
+// ---- JS-pagination handling -----------------------------------------------
+// Many .edu directories (Drupal Views, WordPress AJAX, custom XHR tables,
+// "Load more" buttons, infinite scroll) render only page 1 server-side and
+// fetch pages 2+ via JS that doesn't change the URL. A vanilla Firecrawl
+// scrape only sees page 1. We detect this pattern and re-scrape with
+// Firecrawl `actions` that click Next/Load more N times and capture HTML
+// from each step. Generalizable across schools.
+const MAX_PAGINATION_PAGES = 8;
+const MIN_EXTRACTED_BEFORE_PAGINATION = 15;
+const PAGINATION_STEP_WAIT_MS = 1500;
+const PAGINATION_ACTIONS_TIMEOUT_MS = 180_000;
+const PAGINATION_NEXT_SELECTOR =
+  'a[rel="next"], a.next, button.next, [aria-label*="Next" i], [aria-label*="next page" i], .pagination a:not(.disabled):not(.current), .pager__item--next a, .page-item:not(.disabled) a.page-link[aria-label*="next" i], button:has-text("Load more"), button:has-text("Show more"), a:has-text("Next"), a:has-text("›"), a:has-text("»")';
+// Markdown- or HTML-visible signals that the directory is paginated.
+const PAGINATION_SIGNALS: Array<{ name: string; re: RegExp }> = [
+  { name: "next-link", re: /(?:^|[\s>"'(])(next\s*(?:page|»|›)?|load\s+more|show\s+more|»|›)(?:[\s<"')]|$)/im },
+  { name: "showing-of", re: /\bshowing\s+\d+\s*[–\-to]+\s*\d+\s+of\s+\d+/i },
+  { name: "page-of", re: /\bpage\s+\d+\s+of\s+\d+\b/i },
+  { name: "rel-next", re: /<a[^>]+rel=["']next["']/i },
+  { name: "pagination-class", re: /class=["'][^"']*\bpagination\b/i },
+  { name: "aria-page", re: /aria-label=["'][^"']*\bpage\s*\d/i },
+  { name: "ajax-endpoint", re: /(\?page=\d+|&p=\d+|admin-ajax\.php|chunk\.php|wp-json|\/api\/[a-z-]+\/page)/i },
+  { name: "numeric-pager", re: /\n\s*\[?\s*1\s*\]?\s+\[?\s*2\s*\]?\s+\[?\s*3\s*\]?\s+\[?\s*4\s*\]?/m },
+];
+
+function detectPagination(markdown: string, rawHtml: string, extractedCount: number):
+  { paginated: boolean; signal?: string } {
+  if (extractedCount >= MIN_EXTRACTED_BEFORE_PAGINATION) return { paginated: false };
+  const hay = `${markdown}\n${rawHtml}`;
+  if (!hay.trim()) return { paginated: false };
+  for (const s of PAGINATION_SIGNALS) {
+    if (s.re.test(hay)) return { paginated: true, signal: s.name };
+  }
+  return { paginated: false };
+}
+
+/** Cheap HTML→text strip that keeps mailto: hrefs visible so the existing
+ *  email regex still matches. Used to feed the AI extractor a concatenated
+ *  multi-page payload from a Firecrawl actions walk. */
+function htmlToFlatText(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<a[^>]+href=["']mailto:([^"']+)["'][^>]*>([^<]*)<\/a>/gi, " $2 <$1> ")
+    .replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi, " $2 [$1] ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // URL shape hints: news/blog/spotlight pages produce names that are almost
 // always students, alumni, or one-off featured profiles — not tenure-track
 // faculty. We still extract them, but tag email_confidence='news' and skip
 // per-profile enrichment so we don't burn credits chasing dated blog posts.
 const NEWS_PATH_RE = /(\/spotlight|\/news|\/blog|\/stor(y|ies)|\/press|\/article|\/alumni-profile|\/feature|\/podcast)\b/i;
 const BLOG_DATE_PATH_RE = /\/(?:19|20)\d{2}\/\d{1,2}\/\d{1,2}\//;
+
 
 function looksLikeNewsPage(rawUrl: string): boolean {
   try {
@@ -712,7 +769,7 @@ async function firecrawlScrapeWithLinks(
   apiKey: string,
   url: string,
   timeoutMs: number = FIRECRAWL_SCRAPE_TIMEOUT_MS,
-): Promise<{ markdown: string; links: string[] }> {
+): Promise<{ markdown: string; links: string[]; rawHtml: string }> {
   const res = await fetchWithTimeout(
     "https://api.firecrawl.dev/v2/scrape",
     {
@@ -765,8 +822,90 @@ async function firecrawlScrapeWithLinks(
   }
 
   const all = Array.from(new Set([...fromLinksField, ...fromHtml]));
-  return { markdown, links: all };
+  return { markdown, links: all, rawHtml };
 }
+
+/**
+ * Firecrawl `actions` page-walker. For JS-paginated directories where the URL
+ * doesn't change (IU Kelley, Drupal Views, "Load more" buttons, etc.), this
+ * issues one Firecrawl scrape with up to MAX_PAGINATION_PAGES interleaved
+ *   [click Next → wait → scrape]
+ * actions, then returns the concatenated HTML across all step scrapes plus
+ * the final-state markdown.
+ *
+ * Generalizable: the click selector is a union of every common Next/Load more
+ * pattern we've seen. If it never matches, Firecrawl returns the same
+ * single-page HTML each time and our caller falls back to the map heuristic.
+ */
+async function scrapeWithPaginationActions(
+  apiKey: string,
+  url: string,
+  maxPages: number,
+): Promise<{ combinedText: string; combinedHtml: string; finalMarkdown: string; pagesWalked: number; clickMissed: boolean }> {
+  const actions: Array<Record<string, unknown>> = [
+    { type: "wait", milliseconds: 2000 },
+    { type: "scrape" },
+  ];
+  for (let i = 1; i < maxPages; i++) {
+    actions.push(
+      { type: "click", selector: PAGINATION_NEXT_SELECTOR },
+      { type: "wait", milliseconds: PAGINATION_STEP_WAIT_MS },
+      { type: "scrape" },
+    );
+  }
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown", "rawHtml"],
+        onlyMainContent: false,
+        actions,
+      }),
+    },
+    PAGINATION_ACTIONS_TIMEOUT_MS,
+    "Firecrawl actions scrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl actions scrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: {
+      markdown?: string;
+      rawHtml?: string;
+      html?: string;
+      actions?: {
+        scrapes?: Array<{ html?: string; rawHtml?: string; url?: string }>;
+      };
+    };
+  };
+  const stepScrapes = json.data?.actions?.scrapes ?? [];
+  const htmls: string[] = [];
+  for (const s of stepScrapes) {
+    const h = s.html ?? s.rawHtml ?? "";
+    if (h) htmls.push(h);
+  }
+  // Always include the final-state HTML in case the last "scrape" action's
+  // payload landed only at the top-level (Firecrawl behavior varies).
+  const finalHtml = json.data?.rawHtml ?? json.data?.html ?? "";
+  if (finalHtml && !htmls.includes(finalHtml)) htmls.push(finalHtml);
+
+  const combinedHtml = htmls.join("\n\n<!-- ## next page ## -->\n\n");
+  const combinedText = htmls.map(htmlToFlatText).join("\n\n---\n\n");
+  const finalMarkdown = json.data?.markdown ?? "";
+  // If two consecutive step HTMLs are identical, the click selector likely
+  // didn't match anything → no real pagination happened.
+  let identicalCount = 0;
+  for (let i = 1; i < htmls.length; i++) {
+    if (htmls[i] === htmls[i - 1]) identicalCount++;
+  }
+  const clickMissed = htmls.length <= 1 || identicalCount >= htmls.length - 1;
+  return { combinedText, combinedHtml, finalMarkdown, pagesWalked: htmls.length, clickMissed };
+}
+
 
 /**
  * Batch-scrape multiple profile pages in a single Firecrawl call. Firecrawl
@@ -1087,7 +1226,9 @@ async function processUrls(
     links: number;
     error: string | null;
     enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
+    pagination?: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number };
   }>;
+
   inserted: number;
   skippedDuplicates: number;
   droppedNoContact: number;
@@ -1108,7 +1249,9 @@ async function processUrls(
     links: number;
     error: string | null;
     enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
+    pagination?: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number };
   }> = [];
+
 
   const rowsToInsert: Array<Record<string, unknown>> = [];
   const cache: Record<string, { markdown: string; links: string[]; scraped_at: string }> = {};
@@ -1123,7 +1266,10 @@ async function processUrls(
       if (i >= urls.length) return;
       const url = urls[i];
       try {
-        const { markdown: md, links } = await firecrawlScrapeWithLinks(fcKey, url);
+        const initial = await firecrawlScrapeWithLinks(fcKey, url);
+        let md = initial.markdown;
+        const links = initial.links;
+        const initialRawHtml = initial.rawHtml;
         // Cache the rendered directory page so RMP reverse-lookup (and future
         // enrichment passes) can name-match without re-scraping. Cap markdown
         // at 200KB per URL to keep the JSONB column reasonable.
@@ -1141,10 +1287,72 @@ async function processUrls(
           programLevels = mergeDetections(programLevels, pageDetection);
           if (!programLevelSources.includes(url)) programLevelSources.push(url);
         }
-        const parsedPeople = extractDirectoryMarkdownPeople(md);
-        const aiPeople = await callLovableAi(aiKey, url, md);
-        const merged = mergePeople(parsedPeople, aiPeople);
+        let parsedPeople = extractDirectoryMarkdownPeople(md);
+        let aiPeople = await callLovableAi(aiKey, url, md);
+        let merged = mergePeople(parsedPeople, aiPeople);
+
+        // ---- JS-pagination walker -----------------------------------------
+        // If page-1 yielded few people AND we see pagination signals in the
+        // markdown/rawHtml, re-scrape with Firecrawl `actions` that click
+        // Next/Load more up to MAX_PAGINATION_PAGES times. Re-run the
+        // extractor over the concatenated multi-page payload. Generalizable:
+        // works for any school whose directory paginates without a URL
+        // change (IU Kelley, many Drupal/WordPress sites, etc.).
+        const isNewsForPagination = looksLikeNewsPage(url);
+        let pagination: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number } | null = null;
+        if (!isNewsForPagination) {
+          const pdetect = detectPagination(md, initialRawHtml, merged.length);
+          if (pdetect.paginated) {
+            try {
+              const walk = await scrapeWithPaginationActions(fcKey, url, MAX_PAGINATION_PAGES);
+              if (!walk.clickMissed && walk.combinedText.length > md.length) {
+                const combinedExtract = extractDirectoryMarkdownPeople(walk.combinedText);
+                const combinedAi = await callLovableAi(aiKey, url, walk.combinedText.slice(0, 80_000));
+                const reMerged = mergePeople(
+                  mergePeople(parsedPeople, combinedExtract),
+                  mergePeople(aiPeople, combinedAi),
+                );
+                pagination = {
+                  paginated: true,
+                  signal: pdetect.signal,
+                  pagesWalked: walk.pagesWalked,
+                  clickMissed: false,
+                  gained: Math.max(0, reMerged.length - merged.length),
+                };
+                if (reMerged.length > merged.length) {
+                  parsedPeople = mergePeople(parsedPeople, combinedExtract);
+                  aiPeople = mergePeople(aiPeople, combinedAi);
+                  merged = reMerged;
+                  // Replace cache markdown with the richer multi-page text so
+                  // downstream RMP reverse-lookup can match every prof.
+                  md = walk.combinedText.slice(0, 200_000);
+                  cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+                }
+              } else {
+                pagination = {
+                  paginated: true,
+                  signal: pdetect.signal,
+                  pagesWalked: walk.pagesWalked,
+                  clickMissed: true,
+                  gained: 0,
+                };
+              }
+            } catch (e) {
+              // Pagination is best-effort. Log to perPage error suffix; keep page-1 results.
+              pagination = {
+                paginated: true,
+                signal: pdetect.signal,
+                pagesWalked: 0,
+                clickMissed: true,
+                gained: 0,
+              };
+              console.warn(`[pagination] ${url}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+        }
+
         const extracted = merged.length;
+
         // News/blog/spotlight page → names here are almost never tenure-track
         // faculty (student spotlights, alumni profiles, press features). Skip
         // expensive per-profile enrichment, skip directory sweep + inference,
@@ -1226,6 +1434,9 @@ async function processUrls(
               ...(p.email_confidence === "inferred" && pat
                 ? { inferred_pattern: pat.pattern, inferred_domain: pat.domain, inferred_sample_size: pat.sampleSize }
                 : {}),
+              ...(pagination && pagination.pagesWalked > 1
+                ? { pagination: { pagesWalked: pagination.pagesWalked, signal: pagination.signal, gained: pagination.gained } }
+                : {}),
             },
           });
         }
@@ -1242,7 +1453,9 @@ async function processUrls(
           links: links.length,
           error: null,
           enrichOutcomes,
+          pagination: pagination ?? undefined,
         });
+
 
 
       } catch (e) {

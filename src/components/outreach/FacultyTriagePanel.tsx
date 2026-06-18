@@ -739,6 +739,15 @@ export function FacultyTriagePanel({
                             directory
                           </span>
                         )}
+                        {r.pagination_pages_walked && r.pagination_pages_walked > 1 && (
+                          <span
+                            className="rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+                            title={`Directory was JS-paginated. Scraper walked ${r.pagination_pages_walked} pages to find this row.`}
+                          >
+                            pg×{r.pagination_pages_walked}
+                          </span>
+                        )}
+
                       </span>
                     ) : (
                       <span className="text-amber-700">no email found</span>
