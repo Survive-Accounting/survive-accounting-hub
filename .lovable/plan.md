@@ -1,94 +1,67 @@
-## Goal
+# Cold Emails Campaign Builder
 
-Stand up the database tonight to support a Greek Orgs side of Lead Finder. No new UI tabs or scraping yet — that comes in Phase 2 once you've slept on it. We reuse the existing `campus_lead_suggestions` / `outreach_leads` pipeline so the triage UI, audiences, and campaigns all work for chapter officers as soon as the scraper lands.
+A new sub-tab inside **Campaigns → Email Queue** called **Cold Emails** that lets you spin up a 50/day, M–F, 5-per-campus cold campaign across all 170 campuses in priority order, then approve & launch.
 
-## What gets built
+## UI
 
-### 1. New tables
+Inside `EmailQueueShell.tsx` add a second tab strip above the existing professors content:
 
-**`greek_orgs`** — national org master list (one row per Greek-letter org, not per chapter).
+```text
+[ Cold Emails ]  [ Standard Campaigns ]
+```
 
-- `name` ("Sigma Alpha Epsilon")
-- `nickname` ("SAE")
-- `letters` ("ΣΑΕ")
-- `org_type` enum: `fraternity` | `sorority` (NPHC sororities are still sororities)
-- `council` enum: `IFC` | `NIC` | `NPC` | `NPHC` | `MGC` | `local` | `other`
-- `national_website`, `founded_year`
-- `is_active` flag (lets us suppress dormant orgs without deleting)
-- Unique on lower(name)
+Default to **Cold Emails**. The existing CampaignBuilder/CampaignsList/Templates/Broadcasts stays under "Standard Campaigns" untouched.
 
-**`campus_greek_chapters`** — per-campus chapter instance (this is the row we scrape exec pages for).
+### Cold Emails panel — single card, top→bottom
 
-- `campus_id` → `campuses`
-- `greek_org_id` → `greek_orgs` (nullable; allow "unrecognized local" rows)
-- `chapter_designation` ("Alpha Beta", "Theta Eta")
-- `chapter_url` (chapter's own site, e.g. `sae.indiana.edu`)
-- `exec_page_url` (the officers/exec board page — what the scraper hits)
-- `status` enum: `active` | `inactive` | `suspended` | `unknown`
-- `discovery_source` text ("manual" | "campus_greek_page" | "ai_search")
-- `notes`, `archived_at`
-- Unique on `(campus_id, greek_org_id, chapter_designation)` so re-scrapes are idempotent
-- Helpful index on `(campus_id) WHERE archived_at IS NULL`
+1. **Goals form** (compact, one row each)
+   - Campaign name (text)
+   - Daily send cap (number, default 50)
+   - Max emails per campus (number, default 5)
+   - Send window: start time + end time (default 9:00–15:00, campus-local)
+   - Send days: M T W T F chips (default all five)
+   - Start date (date picker, default next weekday)
 
-### 2. Extend the existing lead pipeline
+2. **Priority criteria** (checkbox + weight slider 0–10 each)
+   - SEC / Power conference boost
+   - Tuition × enrollment combo
+   - Lead-tag priority: adjunct / instructor / lecturer (multi-select)
 
-Add to **both** `campus_lead_suggestions` and `outreach_leads`:
+3. **Generate Queue** button → ranks all non-archived campuses with a deterministic score and renders the table below.
 
-- `chapter_id uuid` → `campus_greek_chapters` (nullable; null = faculty lead)
-- `position text` (e.g. "President", "Academic Chair", "Treasurer")
-- `term text` (e.g. "Spring 2026")
+4. **Priority queue table** (drag-to-reorder rows)
+   | # | Campus | SEC | Tuition×Enroll | Imported Leads | Est. Send Day |
+   |---|--------|-----|----------------|----------------|---------------|
+   | 1 | Univ. of Alabama | ● | $219M | – | Mon Jun 22 |
+   | 2 | LSU | ● | $401M | 12 | Mon Jun 22 |
+   | … | … | | | | |
 
-`research_mode` already exists on `campus_lead_suggestions` — Greek scrapes will write `'greek_scrape'`. No new triage table needed. Tags like `Intro Target` keep working; you can layer on `Exec Target` later.
+   - **Imported Leads** column: shows `–` if 0, count if >0 (placeholder — reads from `outreach_leads` count grouped by campus)
+   - Drag handle on left to manually reorder
+   - "Est. Send Day" computed from daily cap ÷ per-campus cap rolling forward M–F
 
-### 3. Seed data
+5. **Summary strip** (sticky bottom of card)
+   `170 campuses · 850 emails · ~17 send days · finishes ≈ Fri Jul 11`
 
-Pre-populate `greek_orgs` with the well-known national orgs so the scraper can match chapter rosters to known orgs out of the box:
-
-- **NPC** (Panhellenic sororities) — all 26 (Alpha Chi Omega … Zeta Tau Alpha)
-- **NIC** (mainstream fraternities) — ~50 active members (SAE, Sigma Chi, Phi Delt, Pike, ATO, etc.)
-- **NPHC** — the Divine 9 (Alphas, Kappas, Omegas, Sigmas, Iotas / AKA, Deltas, Zetas, SGRho)
-- **MGC** — top ~15 multicultural orgs (Lambda Theta Phi, Sigma Lambda Beta, Lambda Theta Alpha, Sigma Lambda Gamma, etc.)
-
-Roughly 100 seed rows. Unknown/local orgs get inserted with `greek_org_id = null` at scrape time.
-
-### 4. RLS
-
-Both new tables: admin-only writes/reads via the same `has_role('admin', auth.uid())` pattern the rest of `outreach_*` uses. `service_role` full access for server fns. No `anon` grant.
-
-## Phase 2 (NOT in tonight's plan — for reference)
-
-Once schema is in:
-
-1. **Discovery scrape** — for each of the 170 campuses, Firecrawl `search` "fraternity sorority life $campus", then AI-extract chapters → upserts `campus_greek_chapters`. Mirrors `faculty-scrape.functions.ts`.
-2. **Per-chapter exec scrape** — copy of `ScrapeFacultyButton` flow, scoped to a chapter row; pulls president / VP / academic chair / scholarship / treasurer / finance chair into `campus_lead_suggestions` with `chapter_id` set.
-3. **Lead Finder UI** — `/outreach/leadfinder` grows a `Faculty | Greek` tab toggle. Greek tab navigates campus → chapter → triage. Reuses `FacultyTriagePanel` with a chapter filter.
-4. **Overnight batch** — clone of `outreach_faculty_batch_queue` + worker for chapters.
+6. **Actions**
+   - **Save Draft** — persists the plan to `outreach_campaigns` (campaign_type='cold_sequence', status='draft')
+   - **Approve & Launch** — flips status to 'scheduled', enrolls the ranked queue into `outreach_campaign_leads` in order
 
 ## Technical details
 
-Schema lives in one migration:
-
-```text
-0021_greek_orgs.sql
-├── CREATE TYPE greek_council, greek_org_type, greek_chapter_status
-├── CREATE TABLE greek_orgs (+ GRANT + RLS + admin policy)
-├── CREATE TABLE campus_greek_chapters (+ GRANT + RLS + admin policy)
-├── ALTER TABLE campus_lead_suggestions
-│     ADD COLUMN chapter_id, position, term
-├── ALTER TABLE outreach_leads
-│     ADD COLUMN chapter_id, position, term
-├── updated_at triggers on both new tables
-└── INSERT INTO greek_orgs (~100 seed rows: NPC, NIC, NPHC, MGC)
-```
-
-`set_updated_at()` already exists — reuse it for the trigger.
-
-No code changes ship tonight. After approval and the types regen, Phase 2 PRs can import the new tables immediately.
+- **New file**: `src/components/outreach/ColdEmailsPanel.tsx` — the panel above.
+- **New file**: `src/lib/cold-campaign.ts` — pure ranking + scheduling helpers:
+  - `rankCampuses(campuses, criteria) → Campus[]`
+  - `buildSchedule(rankedCampuses, { dailyCap, perCampusCap, sendDays, startDate }) → { campusId, sendDate }[]`
+  - Score formula: `(SEC ? secWeight*100 : 0) + tuitionEnrollNorm*tuitionWeight*100 + leadTagBonus`
+- **Edit**: `src/components/outreach/EmailQueueShell.tsx` — wrap the existing professors content + new ColdEmailsPanel in a Tabs with Cold Emails first.
+- **Reuse existing infra**: `outreach_campaigns` + `outreach_campaign_leads` tables already exist with `campaign_type='cold_sequence'`. `enforce_single_active_cold_campaign` trigger already prevents lead double-enrollment. Save uses the existing API surface in `src/lib/outreach-api.ts` around line 2607.
+- **Imported leads count**: one query — `select campus_id, count(*) from outreach_leads where archived_at is null group by campus_id` — cached via React Query.
+- **Drag-to-reorder**: use `@dnd-kit/core` if already installed; otherwise simple ↑/↓ buttons in v1 (avoids new dep).
+- **No new tables/migrations**. No AI calls (deterministic ranking only, per your "Just the priority queue + schedule math" choice).
 
 ## Out of scope tonight
 
-- Discovery / exec scraping (Phase 2)
-- Lead Finder Greek tab UI (Phase 2)
-- Overnight batch automation (Phase 3)
-- Beta Alpha Psi / professional/honor accounting orgs (separate effort — you said skip)
-- Editing the faculty pipeline behavior
+- Email copy generation (you'll author the template in the existing Templates panel and reference it by name)
+- Actual send-time orchestration (handled by the existing scheduler that already processes `cold_sequence` campaigns)
+- Realtime "what shipped today" view — visible in the existing CampaignsListPanel after launch
