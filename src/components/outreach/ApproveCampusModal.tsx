@@ -1099,6 +1099,11 @@ export default function ApproveCampusModal({
       if (result.skipped) parts.push(`skipped ${result.skipped} duplicate`);
       toast.success(parts.join(" · "));
       setLeadsRefreshKey((k) => k + 1);
+      qc.invalidateQueries({ queryKey: ["outreach-leads"] });
+      qc.invalidateQueries({ queryKey: ["campus-lead-stats"] });
+      qc.invalidateQueries({ queryKey: ["cold-imported-lead-counts-rmp"] });
+      qc.invalidateQueries({ queryKey: ["lead-suggestions"] });
+
     } catch (e) {
       toast.error(`Import failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
