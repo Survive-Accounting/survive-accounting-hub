@@ -61,6 +61,7 @@ function OutreachPage() {
   const [filters, setFilters] = useState<CampusFilters>(DEFAULT_CAMPUS_FILTERS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Campus | null>(null);
+  const [reviewHistory, setReviewHistory] = useState<string[]>([]);
   const [reviewInitialStep, setReviewInitialStep] = useState<string | undefined>(undefined);
   const [autoResearchId, setAutoResearchId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
