@@ -1,10 +1,13 @@
 // Ported from the original app (ProfessorOutreach.tsx — SchoolsPanel table).
 import { Fragment, useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowUp, BarChart3, Check, ChevronDown, Copy, DollarSign,
+  ArrowDown, ArrowUp, BarChart3, Check, CheckCircle2, ChevronDown, Copy, DollarSign,
   Eye, MousePointerClick, Phone, RefreshCw, Upload, Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
