@@ -792,11 +792,27 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
       };
     }
 
-    const result = await processUrls(fcKey, aiKey, data.campusId, ranked);
+    // Save discovered URLs to campus.faculty_page_url so subsequent runs (or
+    // the manual "Scrape faculty" button) can use them without re-discovering.
     await supabaseAdmin
       .from("campuses")
       .update({ faculty_page_url: ranked.join("\n") })
       .eq("id", data.campusId);
+
+    if (data.discoverOnly) {
+      return {
+        ok: true,
+        discovered: allLinks.length,
+        scraped: 0,
+        inserted: 0,
+        skippedDuplicates: 0,
+        perPage: [],
+        chosenUrls: ranked,
+        mapErrors,
+      };
+    }
+
+    const result = await processUrls(fcKey, aiKey, data.campusId, ranked);
     await persistProgramLevels(data.campusId, result.programLevels, result.programLevelSources);
 
     return {
