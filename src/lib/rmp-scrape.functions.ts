@@ -366,10 +366,19 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         }
         if (!hitUrl) continue;
 
-        // Pull nearest email from a ±600-char window around the name hit.
-        const windowText = hitMd.slice(Math.max(0, hitIdx - 300), hitIdx + 600);
+        // Pull nearest email + title from a ±600-char window around the hit.
+        const winStart = Math.max(0, hitIdx - 300);
+        const windowText = hitMd.slice(winStart, hitIdx + 600);
         const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
         const email = emailMatch ? emailMatch[0].toLowerCase() : null;
+        // Re-find the name inside the window so we can scope the title search
+        // to text immediately before/after it (not the email's location).
+        const localNameRe = new RegExp(`\\b${escapeRe(fn)}\\b[\\s\\S]{0,40}?\\b${escapeRe(ln)}\\b`, "i");
+        const localHit = windowText.match(localNameRe);
+        const localStart = localHit?.index ?? 0;
+        const localEnd = localStart + (localHit?.[0].length ?? 0);
+        const title = extractTitleNear(windowText, localStart, localEnd);
+
 
         // Slug-match against cached links on same host (last-name only).
         const links = (cache[hitUrl]?.links ?? []) as string[];
