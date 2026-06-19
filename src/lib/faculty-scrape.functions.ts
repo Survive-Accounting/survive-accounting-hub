@@ -14,6 +14,7 @@ import {
   EMPTY_DETECTION,
   type ProgramLevelDetection,
 } from "@/lib/program-levels";
+import { parseDirectoryCards, cardMatchKey } from "@/lib/directory-cards";
 
 // ---- Network hardening -----------------------------------------------------
 // Every outbound fetch (Firecrawl + AI gateway) has a hard timeout so a single
@@ -325,6 +326,23 @@ const GENERIC_LOCALS_RE = /^(info|contact|admissions|support|webmaster|noreply|n
  * "Jane Doe ... jane.doe@uni.edu" in a single card even though the
  * individual profile page hides the email.
  */
+// Lines that mark a card boundary on a directory page. We never let the
+// "email near this name" search cross one of these — that's how Robert
+// Knisley used to inherit John Kniola's email.
+const CARD_DELIM_RE = /(?:^|\n)\s*(?:#{1,6}\s+|!\[|---+\s*$|\*\*\*+\s*$|<h[1-6][^>]*>)/g;
+
+function blockBoundsFor(pageText: string, hitIndex: number): { start: number; end: number } {
+  let start = 0;
+  let end = pageText.length;
+  CARD_DELIM_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CARD_DELIM_RE.exec(pageText)) !== null) {
+    if (m.index <= hitIndex) start = m.index;
+    else { end = m.index; break; }
+  }
+  return { start, end };
+}
+
 function findEmailNearName(
   pageText: string,
   firstName: string,
@@ -338,24 +356,31 @@ function findEmailNearName(
   const nameRe = new RegExp(`\\b${fn ? `${fn}[\\s,.'\\-]+` : ""}${ln}\\b`, "gi");
   let m: RegExpExecArray | null;
   while ((m = nameRe.exec(haystack)) !== null) {
-    const start = Math.max(0, m.index - 300);
-    const end = Math.min(pageText.length, m.index + m[0].length + 500);
+    // Constrain to the card block this name sits in — never cross a heading,
+    // image marker, or horizontal rule. Generalizes across verticals.
+    const { start, end } = blockBoundsFor(pageText, m.index);
     const window = pageText.slice(start, end);
     const emails = window.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [];
     for (const raw of emails) {
       const e = raw.toLowerCase();
       const local = e.split("@")[0];
       if (GENERIC_LOCALS_RE.test(local)) continue;
-      // Prefer an email whose local part actually contains the last name —
-      // avoids picking a generic departmental email that happened to sit near
-      // the card.
+      // Prefer an email whose local part actually contains the last name.
       if (local.replace(/[^a-z]/g, "").includes(ln)) return e;
     }
-    // Fall back to first non-generic email in the window.
+    // Block-bounded fallback: only return a non-generic email if it shares
+    // ANY letters with the last name (filters out the cross-card grabs).
     for (const raw of emails) {
       const e = raw.toLowerCase();
       const local = e.split("@")[0];
-      if (!GENERIC_LOCALS_RE.test(local)) return e;
+      if (GENERIC_LOCALS_RE.test(local)) continue;
+      const localClean = local.replace(/[^a-z]/g, "");
+      if (!localClean) continue;
+      // Accept only if the local part starts with the first initial of the
+      // last name, OR the last name starts with the first letter of the
+      // local part. Rejects neighbor emails whose local has nothing to do
+      // with this person.
+      if (localClean[0] === ln[0] || ln[0] === localClean[0]) return e;
     }
   }
   return null;
@@ -458,6 +483,62 @@ function mergePeople(...groups: Extracted[][]): Extracted[] {
     });
   }
   return Array.from(byKey.values());
+}
+
+/**
+ * Merge AI-extracted people INTO deterministic card-parsed people so the card
+ * email always wins. Tracks how often the AI email was overridden so the
+ * debug bundle can surface the metric to Scraper Trends. AI rows whose
+ * last-name+first-initial don't appear in the card set are appended (covers
+ * table/freeform layouts the card parser can't see).
+ */
+function mergeWithCardOverride(
+  cardPeople: Extracted[],
+  aiPeople: Extracted[],
+): { merged: Extracted[]; aiEmailOverridden: number } {
+  const idx = new Map<string, Extracted>();
+  for (const c of cardPeople) {
+    const key = cardMatchKey(c.first_name, c.last_name);
+    if (!key.startsWith("|") && !idx.has(key)) idx.set(key, c);
+  }
+  let aiEmailOverridden = 0;
+  for (const a of aiPeople) {
+    const key = cardMatchKey(a.first_name, a.last_name);
+    const c = idx.get(key);
+    if (c) {
+      // Backfill missing card fields from the AI row.
+      if (!c.title && a.title) c.title = a.title;
+      if (!c.is_phd && a.is_phd) c.is_phd = true;
+      if (!c.is_cpa && a.is_cpa) c.is_cpa = true;
+      if (!c.profile_url && a.profile_url) c.profile_url = a.profile_url;
+      // If the card already has an email, it wins. If AI disagreed, count it.
+      if (c.email && a.email && c.email !== a.email) aiEmailOverridden++;
+      if (!c.email && a.email) c.email = a.email;
+      continue;
+    }
+    cardPeople.push(a);
+    idx.set(key, a);
+  }
+  return { merged: cardPeople, aiEmailOverridden };
+}
+
+/** Convert a DirectoryCard into the Extracted shape used by the pipeline. */
+function cardsToExtracted(cards: ReturnType<typeof parseDirectoryCards>): Extracted[] {
+  return cards
+    .map((c) => {
+      if (!c.first_name || !c.last_name) return null;
+      const creds = detectCredentials(c.first_name, c.last_name, c.title);
+      return {
+        first_name: c.first_name,
+        last_name: c.last_name,
+        title: c.title,
+        email: c.email,
+        profile_url: c.profile_url ? normalizeUrl(c.profile_url) : null,
+        is_phd: creds.is_phd,
+        is_cpa: creds.is_cpa,
+      } as Extracted;
+    })
+    .filter((p): p is Extracted => !!p);
 }
 
 /**
@@ -1414,6 +1495,9 @@ async function processUrls(
     error: string | null;
     enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
     pagination?: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number };
+    cardBlocks?: number;
+    cardEmailsPaired?: number;
+    aiEmailOverridden?: number;
   }>;
 
   inserted: number;
@@ -1437,6 +1521,9 @@ async function processUrls(
     error: string | null;
     enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
     pagination?: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number };
+    cardBlocks?: number;
+    cardEmailsPaired?: number;
+    aiEmailOverridden?: number;
   }> = [];
 
 
@@ -1474,9 +1561,23 @@ async function processUrls(
           programLevels = mergeDetections(programLevels, pageDetection);
           if (!programLevelSources.includes(url)) programLevelSources.push(url);
         }
-        let parsedPeople = extractDirectoryMarkdownPeople(md);
+        // Deterministic card-block parser runs FIRST. It pairs name+email
+        // strictly within one card block, so we never assign a neighbor's
+        // email (the bug that produced Robert Knisley → jmkniola@iu.edu).
+        const cardPeople = cardsToExtracted(parseDirectoryCards(md));
+        let parsedPeople = cardPeople.length > 0 ? cardPeople : extractDirectoryMarkdownPeople(md);
         let aiPeople = await callLovableAi(aiKey, url, md);
-        let merged = mergePeople(parsedPeople, aiPeople);
+        let aiEmailOverridden = 0;
+        let merged: Extracted[];
+        if (cardPeople.length > 0) {
+          const r = mergeWithCardOverride([...cardPeople], aiPeople);
+          merged = r.merged;
+          aiEmailOverridden = r.aiEmailOverridden;
+        } else {
+          merged = mergePeople(parsedPeople, aiPeople);
+        }
+        const cardBlocksCount = cardPeople.length;
+        const cardEmailsPaired = cardPeople.filter((p) => !!p.email).length;
 
         // ---- JS-pagination walker -----------------------------------------
         // If page-1 yielded few people AND we see pagination signals in the
@@ -1768,6 +1869,9 @@ async function processUrls(
           error: null,
           enrichOutcomes,
           pagination: pagination ?? undefined,
+          cardBlocks: cardBlocksCount,
+          cardEmailsPaired,
+          aiEmailOverridden,
         });
 
 
