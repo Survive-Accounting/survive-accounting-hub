@@ -147,7 +147,7 @@ export function AutoScrapeButton({
     };
 
     try {
-      toast.message("🤖 Auto-discovering URLs…", { description: campusName });
+      // Progress is shown in the live terminal — no progress toasts.
       pushScrapeLog(campusId, "code", `import { discover } from "serpapi"`);
       pushScrapeLog(campusId, "cmd", `→ discover.urls({ campus: "${campusName}" })`);
 
@@ -198,10 +198,7 @@ export function AutoScrapeButton({
         return;
       }
 
-      toast.success(
-        `Found ${found.facultyUrls.length} faculty URL${found.facultyUrls.length === 1 ? "" : "s"}` +
-          (found.rmpUrl ? " + RMP school page" : " (no RMP)"),
-      );
+      // (no intermediate success toast — terminal already shows the URLs)
 
       // Step 2: faculty scrape — MUST complete before RMP so the directory
       // markdown is cached in `faculty_scrape_cache`. RMP's reverse-lookup

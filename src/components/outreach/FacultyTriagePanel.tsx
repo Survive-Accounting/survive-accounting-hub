@@ -884,54 +884,12 @@ function EmptyState({
 }) {
   if (isScraping) {
     return (
-      <div className="flex flex-col items-center justify-center gap-5 px-4 py-10 text-center">
+      <div className="px-3 py-4">
         <ScrapeTerminal campusId={campusId} />
-        <div className="relative h-12 w-12">
-          <div
-            className="absolute inset-0 rounded-full opacity-60 blur-xl"
-            style={{
-              background:
-                "conic-gradient(from 0deg, hsl(var(--primary)) 0%, transparent 40%, hsl(var(--primary)) 100%)",
-              animation: "spin 2.4s linear infinite",
-            }}
-          />
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              background:
-                "conic-gradient(from 0deg, hsl(var(--primary)) 0deg, hsl(var(--primary) / 0.05) 140deg, hsl(var(--primary)) 360deg)",
-              WebkitMask:
-                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-              mask:
-                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-              animation: "spin 1.1s linear infinite",
-            }}
-          />
-          <div
-            className="absolute inset-1 rounded-full"
-            style={{
-              background:
-                "conic-gradient(from 0deg, transparent 0deg, transparent 260deg, hsl(var(--primary)) 360deg)",
-              WebkitMask:
-                "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
-              mask:
-                "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
-              animation: "spin 1.8s linear infinite reverse",
-            }}
-          />
-          <div className="absolute inset-0 m-auto h-1.5 w-1.5 rounded-full bg-primary/80" />
-        </div>
-        <div className="space-y-1">
-          <div className="text-sm font-medium tracking-tight text-foreground">
-            Scraping faculty…
-          </div>
-          <div className="text-[11px] text-muted-foreground">
-            Discovering URLs · parsing directory · matching ratings
-          </div>
-        </div>
       </div>
     );
   }
+
 
 
   return (
@@ -962,49 +920,98 @@ function EmptyState({
 function ScrapeTerminal({ campusId }: { campusId: string }) {
   const lines = useScrapeConsole(campusId);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // Tick a 1Hz clock so the status line keeps moving even when no new
+  // log arrives — makes the terminal feel alive between server events.
+  useEffect(() => {
+    const start = Date.now();
+    const t = setInterval(() => setElapsed(Date.now() - start), 250);
+    return () => clearInterval(t);
+  }, [campusId]);
 
   useEffect(() => {
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines.length]);
 
+  const seconds = (elapsed / 1000).toFixed(1);
+
   return (
-    <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-zinc-800 bg-[#0b0d12] shadow-2xl shadow-black/40">
-      {/* faux titlebar */}
+    <div className="w-full overflow-hidden rounded-xl border border-zinc-800 bg-[#0b0d12] shadow-2xl shadow-black/40">
+      {/* titlebar */}
       <div className="flex items-center gap-1.5 border-b border-zinc-800/80 bg-gradient-to-b from-zinc-900 to-[#0b0d12] px-3 py-2">
         <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
         <span className="ml-3 font-mono text-[10.5px] uppercase tracking-[0.18em] text-zinc-400">
-          scrape · live
+          scrape.runtime
         </span>
-        <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-emerald-400">
+        <span className="ml-auto flex items-center gap-2 font-mono text-[10px] text-emerald-400/90">
+          <span className="text-zinc-500">t+{seconds}s</span>
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
           </span>
-          executing
         </span>
       </div>
 
       {/* log body */}
       <div
         ref={scrollerRef}
-        className="h-48 overflow-y-auto px-3 py-2 text-left font-mono text-[11.5px] leading-[1.55] text-zinc-200"
-        style={{ scrollBehavior: "smooth" }}
+        className="h-72 overflow-y-auto px-3 py-2 text-left font-mono text-[11.5px] leading-[1.55] text-zinc-200"
+        style={{
+          scrollBehavior: "smooth",
+          backgroundImage:
+            "radial-gradient(ellipse at top, rgba(56,189,248,0.04), transparent 60%)",
+        }}
       >
         {lines.length === 0 ? (
-          <div className="text-zinc-500">// waiting for runtime…</div>
+          <BootSequence />
         ) : (
-          lines.map((l) => <ScrapeLine key={l.id} line={l} />)
+          lines.map((l, i) => (
+            <ScrapeLine key={l.id} line={l} isLatest={i === lines.length - 1} />
+          ))
         )}
-        <div className="inline-block h-3 w-[7px] -mb-[2px] animate-pulse bg-emerald-400/90" />
+        <div className="mt-0.5 inline-block h-3 w-[7px] animate-pulse bg-emerald-400/90 align-text-bottom" />
       </div>
     </div>
   );
 }
 
-function ScrapeLine({ line }: { line: ScrapeLogLine }) {
+// Looping placeholder shown while the first server log line is in flight.
+// Pure CSS animation — keeps the terminal feeling alive from t=0.
+function BootSequence() {
+  const lines = [
+    { kind: "info" as const, text: "// initializing runtime…" },
+    { kind: "code" as const, text: "load: serpapi, firecrawl, rmp, gemini-3-flash" },
+    { kind: "cmd" as const, text: "$ scrape.boot --strict --ai=on" },
+  ];
+  return (
+    <>
+      {lines.map((l, i) => (
+        <div
+          key={i}
+          className="whitespace-pre-wrap break-all opacity-0"
+          style={{
+            animation: `terminal-fade-in 280ms ease-out ${i * 220}ms forwards`,
+          }}
+        >
+          <span className={
+            l.kind === "code" ? "text-fuchsia-300"
+            : l.kind === "cmd" ? "text-sky-300"
+            : "text-zinc-500"
+          }>
+            {l.text}
+          </span>
+        </div>
+      ))}
+      <style>{`@keyframes terminal-fade-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }`}</style>
+    </>
+  );
+}
+
+function ScrapeLine({ line, isLatest }: { line: ScrapeLogLine; isLatest: boolean }) {
   const ts = new Date(line.ts);
   const pad = (n: number) => n.toString().padStart(2, "0");
   const stamp = `${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`;
@@ -1017,9 +1024,20 @@ function ScrapeLine({ line }: { line: ScrapeLogLine }) {
     : line.kind === "net" ? "text-cyan-300"
     : "text-zinc-400";
   return (
-    <div className="whitespace-pre-wrap break-all">
+    <div
+      className="whitespace-pre-wrap break-all"
+      style={
+        isLatest
+          ? { animation: "terminal-line-in 220ms ease-out" }
+          : undefined
+      }
+    >
       <span className="text-zinc-600">{stamp}</span>{" "}
       <span className={color}>{line.text}</span>
+      {isLatest && (
+        <style>{`@keyframes terminal-line-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }`}</style>
+      )}
     </div>
   );
 }
+
