@@ -326,6 +326,23 @@ const GENERIC_LOCALS_RE = /^(info|contact|admissions|support|webmaster|noreply|n
  * "Jane Doe ... jane.doe@uni.edu" in a single card even though the
  * individual profile page hides the email.
  */
+// Lines that mark a card boundary on a directory page. We never let the
+// "email near this name" search cross one of these — that's how Robert
+// Knisley used to inherit John Kniola's email.
+const CARD_DELIM_RE = /(?:^|\n)\s*(?:#{1,6}\s+|!\[|---+\s*$|\*\*\*+\s*$|<h[1-6][^>]*>)/g;
+
+function blockBoundsFor(pageText: string, hitIndex: number): { start: number; end: number } {
+  let start = 0;
+  let end = pageText.length;
+  CARD_DELIM_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CARD_DELIM_RE.exec(pageText)) !== null) {
+    if (m.index <= hitIndex) start = m.index;
+    else { end = m.index; break; }
+  }
+  return { start, end };
+}
+
 function findEmailNearName(
   pageText: string,
   firstName: string,
@@ -339,24 +356,31 @@ function findEmailNearName(
   const nameRe = new RegExp(`\\b${fn ? `${fn}[\\s,.'\\-]+` : ""}${ln}\\b`, "gi");
   let m: RegExpExecArray | null;
   while ((m = nameRe.exec(haystack)) !== null) {
-    const start = Math.max(0, m.index - 300);
-    const end = Math.min(pageText.length, m.index + m[0].length + 500);
+    // Constrain to the card block this name sits in — never cross a heading,
+    // image marker, or horizontal rule. Generalizes across verticals.
+    const { start, end } = blockBoundsFor(pageText, m.index);
     const window = pageText.slice(start, end);
     const emails = window.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [];
     for (const raw of emails) {
       const e = raw.toLowerCase();
       const local = e.split("@")[0];
       if (GENERIC_LOCALS_RE.test(local)) continue;
-      // Prefer an email whose local part actually contains the last name —
-      // avoids picking a generic departmental email that happened to sit near
-      // the card.
+      // Prefer an email whose local part actually contains the last name.
       if (local.replace(/[^a-z]/g, "").includes(ln)) return e;
     }
-    // Fall back to first non-generic email in the window.
+    // Block-bounded fallback: only return a non-generic email if it shares
+    // ANY letters with the last name (filters out the cross-card grabs).
     for (const raw of emails) {
       const e = raw.toLowerCase();
       const local = e.split("@")[0];
-      if (!GENERIC_LOCALS_RE.test(local)) return e;
+      if (GENERIC_LOCALS_RE.test(local)) continue;
+      const localClean = local.replace(/[^a-z]/g, "");
+      if (!localClean) continue;
+      // Accept only if the local part starts with the first initial of the
+      // last name, OR the last name starts with the first letter of the
+      // local part. Rejects neighbor emails whose local has nothing to do
+      // with this person.
+      if (localClean[0] === ln[0] || ln[0] === localClean[0]) return e;
     }
   }
   return null;
