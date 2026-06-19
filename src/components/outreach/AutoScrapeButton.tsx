@@ -210,6 +210,8 @@ export function AutoScrapeButton({
       if (found.facultyUrls.length > 0) {
         const s2 = pushStep({ key: "faculty", label: "2. Firecrawl + parse faculty", status: "running", startedAt: Date.now() });
         const job = startScrapeJob({ campusId, campusName, kind: "faculty" });
+        pushScrapeLog(campusId, "code", `const pages = await firecrawl.scrape(urls, { formats: ["markdown"] })`);
+        pushScrapeLog(campusId, "cmd", `→ parse.faculty(${found.facultyUrls.length} url${found.facultyUrls.length === 1 ? "" : "s"})  // gemini-3-flash`);
         try {
           const r = await facultyFn({ data: { campusId, urls: found.facultyUrls, allowNoContact: true } });
           const obj = (r ?? {}) as Record<string, unknown>;
@@ -220,14 +222,21 @@ export function AutoScrapeButton({
           const extracted = perPage.reduce((a, p) => a + (typeof p.extracted === "number" ? p.extracted : 0), 0);
           const slugMatched = perPage.reduce((a, p) => a + (typeof p.slugMatched === "number" ? p.slugMatched : 0), 0);
           const enriched = perPage.reduce((a, p) => a + (typeof p.enriched === "number" ? p.enriched : 0), 0);
+          for (const p of perPage.slice(0, 8)) {
+            const url = typeof p.url === "string" ? p.url : "?";
+            const ex = typeof p.extracted === "number" ? p.extracted : 0;
+            pushScrapeLog(campusId, "net", `  · ${ex.toString().padStart(2)} extracted ← ${url}`);
+          }
           const status: StepStatus = ins > 0 ? "ok" : "warn";
           const summary =
             `+${ins} new (${dup} dup, ${dropped} no-contact) · ` +
             `AI extracted ${extracted}, slug-matched ${slugMatched} profile url(s), enriched ${enriched} email(s)`;
           finishStep(s2, { status, summary, data: r });
+          pushScrapeLog(campusId, ins > 0 ? "ok" : "warn", `← inserted=${ins} dup=${dup} dropped=${dropped} · ai_extracted=${extracted} enriched=${enriched}`);
           job.succeed(`+${ins} new (${dup} dup, ${dropped} dropped)`);
         } catch (e) {
           finishStep(s2, { status: "error", error: shortErr(e) });
+          pushScrapeLog(campusId, "error", `✗ faculty parse failed: ${shortErr(e)}`);
           job.fail(shortErr(e));
         }
       } else {
