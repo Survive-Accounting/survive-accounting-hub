@@ -906,6 +906,123 @@ async function scrapeWithPaginationActions(
   return { combinedText, combinedHtml, finalMarkdown, pagesWalked: htmls.length, clickMissed };
 }
 
+/**
+ * Click-miss recovery #1 — SCROLL walker. For directories with infinite
+ * scroll, shadow-DOM "Load more" buttons, or non-standard pagers that our
+ * click-selector union can't reach. Uses Firecrawl `scroll` actions
+ * (vendor-agnostic: most renderers honor wheel/scroll-to-bottom events even
+ * when click handlers are buried inside web components). After N scrolls we
+ * capture the fully-expanded DOM.
+ *
+ * Generalizable to any vertical (accounting firms, IB, hospitals, gov)
+ * because we never assume a specific button label or framework.
+ */
+async function scrapeWithScrollActions(
+  apiKey: string,
+  url: string,
+  scrolls: number,
+): Promise<{ markdown: string; rawHtml: string; scrolled: number; gained: boolean }> {
+  const actions: Array<Record<string, unknown>> = [
+    { type: "wait", milliseconds: 1500 },
+  ];
+  for (let i = 0; i < scrolls; i++) {
+    actions.push(
+      { type: "scroll", direction: "down" },
+      { type: "wait", milliseconds: 1200 },
+    );
+  }
+  actions.push({ type: "scrape" });
+  const res = await fetchWithTimeout(
+    "https://api.firecrawl.dev/v2/scrape",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown", "rawHtml"],
+        onlyMainContent: false,
+        actions,
+      }),
+    },
+    PAGINATION_ACTIONS_TIMEOUT_MS,
+    "Firecrawl scroll scrape",
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(slickHttpError("Firecrawl scroll scrape", res.status, body));
+  }
+  const json = await res.json() as {
+    data?: { markdown?: string; rawHtml?: string; html?: string };
+  };
+  const markdown = json.data?.markdown ?? "";
+  const rawHtml = json.data?.rawHtml ?? json.data?.html ?? "";
+  return { markdown, rawHtml, scrolled: scrolls, gained: markdown.length > 0 || rawHtml.length > 0 };
+}
+
+/**
+ * Click-miss recovery #2 — URL-parameter pagination probe.
+ *
+ * Mines the rendered HTML + discovered link list for anchor URLs that look
+ * like paginated variants of the current directory (`?page=2`, `&p=3`,
+ * `?start=20`, `/page/4/`, etc.). Returns up to `max` deduped same-host
+ * candidate URLs in numeric order. Works across WordPress, Drupal Views,
+ * ASP.NET, custom XHR tables — anywhere the JS pager is broken but the
+ * server still honors a `?page=N` query string.
+ */
+function discoverUrlPaginationCandidates(
+  baseUrl: string,
+  rawHtml: string,
+  linkList: string[],
+  max: number,
+): string[] {
+  let baseHost: string;
+  let basePath: string;
+  try {
+    const u = new URL(baseUrl);
+    baseHost = u.host;
+    basePath = u.pathname.replace(/\/+$/, "");
+  } catch { return []; }
+
+  const seen = new Set<string>([baseUrl.replace(/#.*$/, "")]);
+  const hits: Array<{ url: string; pageNum: number }> = [];
+
+  const PAGE_PARAM_RE = /[?&](?:page|p|pg|start|offset|from)=(\d+)/i;
+  const PAGE_PATH_RE = /\/page\/(\d+)\/?(?:[?#]|$)/i;
+
+  const consider = (href: string) => {
+    let abs: string;
+    try { abs = new URL(href, baseUrl).toString().replace(/#.*$/, ""); }
+    catch { return; }
+    let host: string, path: string;
+    try {
+      const u = new URL(abs);
+      host = u.host;
+      path = u.pathname.replace(/\/+$/, "");
+    } catch { return; }
+    if (host !== baseHost) return;
+    // Same-base-path or a /page/N/ child of it.
+    const samePath = path === basePath || path.startsWith(basePath + "/");
+    const qMatch = abs.match(PAGE_PARAM_RE);
+    const pathMatch = abs.match(PAGE_PATH_RE);
+    if (!qMatch && !pathMatch) return;
+    const pageNum = parseInt((qMatch?.[1] ?? pathMatch?.[1]) || "0", 10);
+    if (!pageNum || pageNum < 2 || pageNum > 50) return;
+    if (!samePath && !pathMatch) return;
+    if (seen.has(abs)) return;
+    seen.add(abs);
+    hits.push({ url: abs, pageNum });
+  };
+
+  const reAbs = /<a[^>]+href=["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = reAbs.exec(rawHtml)) !== null) consider(m[1]);
+  for (const l of linkList) consider(l);
+
+  hits.sort((a, b) => a.pageNum - b.pageNum);
+  return hits.slice(0, max).map((h) => h.url);
+}
+
+
 
 /**
  * Batch-scrape multiple profile pages in a single Firecrawl call. Firecrawl
@@ -1348,8 +1465,91 @@ async function processUrls(
               };
               console.warn(`[pagination] ${url}: ${e instanceof Error ? e.message : String(e)}`);
             }
+
+            // ---- Click-miss recovery -----------------------------------
+            // If the Next/Load-more click selector union never fired (the
+            // pager is behind a shadow-DOM web component, an obfuscated
+            // <div> handler, a custom focus-only button, etc.) try two
+            // generalizable fallbacks before giving up:
+            //   (a) SCROLL — many "Load more" pagers actually trigger on
+            //       intersection-observer scroll, not click.
+            //   (b) URL-PARAM PROBE — many frameworks (WordPress, Drupal,
+            //       ASP.NET) accept ?page=N even when the visible pager is
+            //       AJAX-only. Mine candidate URLs from the rendered DOM
+            //       and scrape them in parallel.
+            if (pagination?.clickMissed && (pagination.gained ?? 0) === 0) {
+              // (a) scroll fallback
+              try {
+                const scrollWalk = await scrapeWithScrollActions(fcKey, url, MAX_PAGINATION_PAGES);
+                if (scrollWalk.gained && scrollWalk.markdown.length > md.length * 1.15) {
+                  const scrollExtract = extractDirectoryMarkdownPeople(scrollWalk.markdown);
+                  const scrollAi = await callLovableAi(aiKey, url, scrollWalk.markdown.slice(0, 80_000));
+                  const reMerged = mergePeople(
+                    mergePeople(parsedPeople, scrollExtract),
+                    mergePeople(aiPeople, scrollAi),
+                  );
+                  if (reMerged.length > merged.length) {
+                    parsedPeople = mergePeople(parsedPeople, scrollExtract);
+                    aiPeople = mergePeople(aiPeople, scrollAi);
+                    pagination = {
+                      paginated: true,
+                      signal: `${pagination.signal ?? "?"}+scroll-fallback`,
+                      pagesWalked: pagination.pagesWalked,
+                      clickMissed: false,
+                      gained: reMerged.length - merged.length,
+                    };
+                    merged = reMerged;
+                    md = scrollWalk.markdown.slice(0, 200_000);
+                    cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+                  }
+                }
+              } catch (e) {
+                console.warn(`[pagination scroll-fallback] ${url}: ${e instanceof Error ? e.message : String(e)}`);
+              }
+
+              // (b) URL-param probe — only if still empty-handed
+              if (pagination?.clickMissed && (pagination.gained ?? 0) === 0) {
+                const candidates = discoverUrlPaginationCandidates(url, initialRawHtml, links, 5);
+                if (candidates.length > 0) {
+                  try {
+                    const probed = await Promise.all(
+                      candidates.map((c) => firecrawlScrapeWithLinks(fcKey, c).catch(() => null)),
+                    );
+                    const extraMd = probed
+                      .filter((p): p is NonNullable<typeof p> => !!p && !!p.markdown)
+                      .map((p) => p.markdown)
+                      .join("\n\n---\n\n");
+                    if (extraMd.length > 0) {
+                      const probeExtract = extractDirectoryMarkdownPeople(extraMd);
+                      const probeAi = await callLovableAi(aiKey, url, extraMd.slice(0, 80_000));
+                      const reMerged = mergePeople(
+                        mergePeople(parsedPeople, probeExtract),
+                        mergePeople(aiPeople, probeAi),
+                      );
+                      if (reMerged.length > merged.length) {
+                        parsedPeople = mergePeople(parsedPeople, probeExtract);
+                        aiPeople = mergePeople(aiPeople, probeAi);
+                        pagination = {
+                          paginated: true,
+                          signal: `${pagination.signal ?? "?"}+url-probe(${candidates.length})`,
+                          pagesWalked: candidates.length + 1,
+                          clickMissed: false,
+                          gained: reMerged.length - merged.length,
+                        };
+                        merged = reMerged;
+                        md = (md + "\n\n---\n\n" + extraMd).slice(0, 200_000);
+                        cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+                      }
+                    }
+                  } catch (e) {
+                    console.warn(`[pagination url-probe] ${url}: ${e instanceof Error ? e.message : String(e)}`);
+                  }
+                }
+              }
+            }
           }
         }
+
 
         const extracted = merged.length;
 
