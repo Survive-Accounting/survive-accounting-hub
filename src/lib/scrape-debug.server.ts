@@ -15,6 +15,14 @@ type PerPage = {
   error: string | null;
   enrichOutcomes?: Array<{ url: string; name: string; result: string; mdLen: number; htmlLen: number }>;
   pagination?: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number };
+  /** Number of "card blocks" the deterministic directory parser found. */
+  cardBlocks?: number;
+  /** Of those cards, how many had an email paired inside the same block. */
+  cardEmailsPaired?: number;
+  /** Times the card email overrode the AI-extractor's email (mis-pair fix). */
+  aiEmailOverridden?: number;
+  /** RMP reverse-lookup hits resolved via the card parser (cross-vertical). */
+  reverseLookupCardHits?: number;
 };
 
 export type ScrapeBundleInput = {
