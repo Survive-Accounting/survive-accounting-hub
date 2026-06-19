@@ -366,10 +366,19 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         }
         if (!hitUrl) continue;
 
-        // Pull nearest email from a ±600-char window around the name hit.
-        const windowText = hitMd.slice(Math.max(0, hitIdx - 300), hitIdx + 600);
+        // Pull nearest email + title from a ±600-char window around the hit.
+        const winStart = Math.max(0, hitIdx - 300);
+        const windowText = hitMd.slice(winStart, hitIdx + 600);
         const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
         const email = emailMatch ? emailMatch[0].toLowerCase() : null;
+        // Re-find the name inside the window so we can scope the title search
+        // to text immediately before/after it (not the email's location).
+        const localNameRe = new RegExp(`\\b${escapeRe(fn)}\\b[\\s\\S]{0,40}?\\b${escapeRe(ln)}\\b`, "i");
+        const localHit = windowText.match(localNameRe);
+        const localStart = localHit?.index ?? 0;
+        const localEnd = localStart + (localHit?.[0].length ?? 0);
+        const title = extractTitleNear(windowText, localStart, localEnd);
+
 
         // Slug-match against cached links on same host (last-name only).
         const links = (cache[hitUrl]?.links ?? []) as string[];
@@ -398,7 +407,7 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           campus_id: data.campusId,
           first_name: fn,
           last_name: ln,
-          title: null,
+          title,
           email,
           source_url: profileUrlFromDir ?? hitUrl,
           research_mode: "faculty_scrape",
@@ -470,6 +479,50 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+// Heuristic title extractor used by the RMP reverse-lookup. Scans a small
+// text window around a name hit on a cached directory page and pulls the
+// nearest faculty title. Generalizable across academia (Professor, Lecturer,
+// Instructor, Chair, Dean…) and adjacent verticals (Director, Partner,
+// Analyst, Resident, MD) — the patterns are ordered most-specific-first so
+// "Assistant Professor of Accounting" beats a bare "Professor".
+const TITLE_PATTERNS: RegExp[] = [
+  // Academic — full rank + optional "of <discipline>"
+  /\b((?:Distinguished\s+|Senior\s+|Visiting\s+|Adjunct\s+|Clinical\s+|Research\s+|Teaching\s+|Emeritus\s+|Emerita\s+)?(?:Assistant|Associate|Full)?\s*(?:Professor|Lecturer|Instructor|Fellow|Scholar)(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?)\b/,
+  // Standalone academic titles
+  /\b(Senior\s+Lecturer|Clinical\s+Professor|Adjunct\s+Professor|Visiting\s+Professor|Emeritus\s+Professor|Emerita\s+Professor|Department\s+Chair|Chairperson|Dean(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?|Provost|Director(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?)\b/,
+  // Industry-adjacent (IB, consulting, hospitals, gov, law)
+  /\b(Managing\s+Director|Executive\s+Director|Vice\s+President|President|Partner|Principal|Senior\s+Manager|Manager|Analyst|Associate|Counsel|Attorney|Resident|Fellow|Physician|MD|RN|Secretary|Commissioner|Chief\s+[A-Z][a-z]+(?:\s+Officer)?)\b/,
+];
+
+const TITLE_NOISE_RE = /\b(skip to|menu|search|home|apply|contact|news|events|profile|directory|copyright)\b/i;
+
+function extractTitleNear(
+  windowText: string,
+  nameStart: number,
+  nameEnd: number,
+): string | null {
+  // Look first AFTER the name (most academic directory cards put the title
+  // on the line right under the name), then before. Keep windows tight to
+  // avoid pulling a neighbouring person's title.
+  const tails = [
+    windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 180)),
+    windowText.slice(Math.max(0, nameStart - 160), nameStart),
+  ];
+  for (const segment of tails) {
+    if (!segment || TITLE_NOISE_RE.test(segment)) continue;
+    for (const re of TITLE_PATTERNS) {
+      const m = segment.match(re);
+      if (!m) continue;
+      const t = m[1].replace(/\s+/g, " ").trim();
+      if (t.length < 4 || t.length > 90) continue;
+      return t;
+    }
+  }
+  return null;
+}
+
+
 
 export const resetCampusLeads = createServerFn({ method: "POST" })
   .inputValidator((data: { campusId: string }) =>
