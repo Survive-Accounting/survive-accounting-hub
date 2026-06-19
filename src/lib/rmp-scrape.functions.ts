@@ -5,6 +5,7 @@
 // existing campus_lead_suggestions + outreach_leads for the same campus.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { parseDirectoryCards, cardMatchKey } from "@/lib/directory-cards";
 
 const RMP_GRAPHQL_URL = "https://www.ratemyprofessors.com/graphql";
 // Public credential baked into RMP's own JS bundle: "test:test" base64.
