@@ -148,6 +148,8 @@ export function AutoScrapeButton({
 
     try {
       toast.message("🤖 Auto-discovering URLs…", { description: campusName });
+      pushScrapeLog(campusId, "code", `import { discover } from "serpapi"`);
+      pushScrapeLog(campusId, "cmd", `→ discover.urls({ campus: "${campusName}" })`);
 
       // Step 1: discover
       const s1 = pushStep({ key: "discover", label: "1. SerpAPI URL discovery", status: "running", startedAt: Date.now() });
@@ -156,6 +158,7 @@ export function AutoScrapeButton({
         found = await discover({ data: { campusId } });
       } catch (e) {
         finishStep(s1, { status: "error", error: shortErr(e) });
+        pushScrapeLog(campusId, "error", `✗ discovery failed: ${shortErr(e)}`);
         run.overallStatus = "error";
         run.finishedAt = Date.now();
         persist(run);
@@ -179,8 +182,15 @@ export function AutoScrapeButton({
           topRmpResults: found.rmpResults,
         },
       });
+      pushScrapeLog(campusId, "info", `  q: ${found.facultyQuery}`);
+      for (const u of found.facultyUrls.slice(0, 6)) {
+        pushScrapeLog(campusId, "net", `  ✓ GET ${u}`);
+      }
+      if (found.rmpUrl) pushScrapeLog(campusId, "net", `  ✓ rmp: ${found.rmpUrl}`);
+      pushScrapeLog(campusId, "ok", `← ${found.facultyUrls.length} faculty url(s) · rmp=${found.rmpUrl ? "yes" : "no"} (${found.facultyMs}ms)`);
 
       if (noUrls) {
+        pushScrapeLog(campusId, "error", `✗ no usable URLs — aborting`);
         run.overallStatus = "error";
         run.finishedAt = Date.now();
         persist(run);
