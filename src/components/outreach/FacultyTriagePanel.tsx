@@ -584,9 +584,11 @@ export function FacultyTriagePanel({
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading candidates…</div>
       ) : rows.length === 0 ? (
         <EmptyState
+          campusId={campusId}
           isScraping={isScraping}
           onStartScrape={onStartScrape}
         />
+
       ) : (
         <Table>
           <TableHeader>
