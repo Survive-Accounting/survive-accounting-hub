@@ -248,6 +248,8 @@ export function AutoScrapeButton({
         const s3 = pushStep({ key: "rmp", label: "3. RMP school scrape + match", status: "running", startedAt: Date.now() });
         const job = startScrapeJob({ campusId, campusName, kind: "rmp" });
         const rmpUrl = found.rmpUrl;
+        pushScrapeLog(campusId, "code", `const profs = await rmp.fetchSchool("${rmpUrl}")`);
+        pushScrapeLog(campusId, "cmd", `→ rmp.match(profs, faculty)  // fuzzy + reverse-lookup`);
         try {
           const r = await rmpFn({ data: { campusId, urls: [rmpUrl] } });
           const obj = (r ?? {}) as Record<string, unknown>;
@@ -263,13 +265,16 @@ export function AutoScrapeButton({
               ? ` · reverse-lookup: +${reverseInserted}/${reverseAttempted} new from ${cachedPages} cached page(s)`
               : ` · no reverse lookup (cachedPages=${cachedPages})`);
           finishStep(s3, { status, summary, data: r });
+          pushScrapeLog(campusId, matched > 0 ? "ok" : "warn", `← matched ${matched}/${found2} · reverse +${reverseInserted}/${reverseAttempted}`);
           job.succeed(summary);
         } catch (e) {
           finishStep(s3, { status: "error", error: shortErr(e) });
+          pushScrapeLog(campusId, "error", `✗ rmp failed: ${shortErr(e)}`);
           job.fail(shortErr(e));
         }
       } else {
         pushStep({ key: "rmp", label: "3. RMP school scrape + match", status: "skipped", startedAt: Date.now(), finishedAt: Date.now(), summary: "No RMP URL discovered" });
+        pushScrapeLog(campusId, "info", `  rmp: skipped (no school page found)`);
       }
 
 
@@ -280,6 +285,8 @@ export function AutoScrapeButton({
       persist(run);
 
       onScraped?.();
+      pushScrapeLog(campusId, anyError ? "error" : anyWarn ? "warn" : "ok",
+        `$ scrape.done — ${anyError ? "errors" : anyWarn ? "warnings" : "ok"} in ${Date.now() - run.startedAt}ms`);
       if (anyError) toast.error("Auto-scrape finished with errors — open View logs.");
       else if (anyWarn) toast.warning("Auto-scrape finished with warnings — open View logs.");
       else toast.success("Auto-scrape complete");
