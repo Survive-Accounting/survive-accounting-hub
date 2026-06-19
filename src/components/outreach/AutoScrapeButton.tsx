@@ -20,6 +20,7 @@ import { autoDiscoverCampusUrls } from "@/lib/auto-scrape.functions";
 import { scrapeCampusFaculty } from "@/lib/faculty-scrape.functions";
 import { scrapeCampusRmp } from "@/lib/rmp-scrape.functions";
 import { startScrapeJob } from "@/lib/scrape-jobs";
+import { clearScrapeLog, pushScrapeLog } from "@/lib/scrape-console";
 
 type StepStatus = "pending" | "running" | "ok" | "warn" | "error" | "skipped";
 type Step = {
