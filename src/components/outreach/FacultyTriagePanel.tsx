@@ -884,54 +884,12 @@ function EmptyState({
 }) {
   if (isScraping) {
     return (
-      <div className="flex flex-col items-center justify-center gap-5 px-4 py-10 text-center">
+      <div className="px-3 py-4">
         <ScrapeTerminal campusId={campusId} />
-        <div className="relative h-12 w-12">
-          <div
-            className="absolute inset-0 rounded-full opacity-60 blur-xl"
-            style={{
-              background:
-                "conic-gradient(from 0deg, hsl(var(--primary)) 0%, transparent 40%, hsl(var(--primary)) 100%)",
-              animation: "spin 2.4s linear infinite",
-            }}
-          />
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              background:
-                "conic-gradient(from 0deg, hsl(var(--primary)) 0deg, hsl(var(--primary) / 0.05) 140deg, hsl(var(--primary)) 360deg)",
-              WebkitMask:
-                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-              mask:
-                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-              animation: "spin 1.1s linear infinite",
-            }}
-          />
-          <div
-            className="absolute inset-1 rounded-full"
-            style={{
-              background:
-                "conic-gradient(from 0deg, transparent 0deg, transparent 260deg, hsl(var(--primary)) 360deg)",
-              WebkitMask:
-                "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
-              mask:
-                "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px))",
-              animation: "spin 1.8s linear infinite reverse",
-            }}
-          />
-          <div className="absolute inset-0 m-auto h-1.5 w-1.5 rounded-full bg-primary/80" />
-        </div>
-        <div className="space-y-1">
-          <div className="text-sm font-medium tracking-tight text-foreground">
-            Scraping faculty…
-          </div>
-          <div className="text-[11px] text-muted-foreground">
-            Discovering URLs · parsing directory · matching ratings
-          </div>
-        </div>
       </div>
     );
   }
+
 
 
   return (
