@@ -295,6 +295,7 @@ export function AutoScrapeButton({
       run.finishedAt = Date.now();
       run.steps.push({ key: "fatal", label: "Fatal", status: "error", startedAt: Date.now(), finishedAt: Date.now(), error: shortErr(e) });
       persist(run);
+      pushScrapeLog(campusId, "error", `✗ fatal: ${shortErr(e)}`);
       toast.error(shortErr(e, "Auto-scrape failed"));
     } finally {
       setBusy(false);
