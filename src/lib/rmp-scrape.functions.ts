@@ -407,7 +407,7 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           campus_id: data.campusId,
           first_name: fn,
           last_name: ln,
-          title: null,
+          title,
           email,
           source_url: profileUrlFromDir ?? hitUrl,
           research_mode: "faculty_scrape",
