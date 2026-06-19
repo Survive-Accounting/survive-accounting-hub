@@ -515,35 +515,56 @@ function escapeRe(s: string): string {
 // Analyst, Resident, MD) — the patterns are ordered most-specific-first so
 // "Assistant Professor of Accounting" beats a bare "Professor".
 const TITLE_PATTERNS: RegExp[] = [
-  // Academic — full rank + optional "of <discipline>"
-  /\b((?:Distinguished\s+|Senior\s+|Visiting\s+|Adjunct\s+|Clinical\s+|Research\s+|Teaching\s+|Emeritus\s+|Emerita\s+)?(?:Assistant|Associate|Full)?\s*(?:Professor|Lecturer|Instructor|Fellow|Scholar)(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?)\b/,
+  // Academic — full rank + optional "of <discipline>" (case-insensitive,
+  // tolerate lowercase markdown text like "professor of accounting").
+  /\b((?:Distinguished\s+|Senior\s+|Visiting\s+|Adjunct\s+|Clinical\s+|Research\s+|Teaching\s+|Emeritus\s+|Emerita\s+)?(?:Assistant|Associate|Full)?\s*(?:Professor|Lecturer|Instructor|Fellow|Scholar)(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?)\b/i,
   // Standalone academic titles
-  /\b(Senior\s+Lecturer|Clinical\s+Professor|Adjunct\s+Professor|Visiting\s+Professor|Emeritus\s+Professor|Emerita\s+Professor|Department\s+Chair|Chairperson|Dean(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?|Provost|Director(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?)\b/,
+  /\b(Senior\s+Lecturer|Clinical\s+Professor|Adjunct\s+Professor|Visiting\s+Professor|Emeritus\s+Professor|Emerita\s+Professor|Department\s+Chair|Chairperson|Dean(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?|Provost|Director(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?)\b/i,
+  // Endowed / named chairs (e.g. "Fettig/Whirlpool Faculty Fellow",
+  // "KPMG Professor of Accounting", "Eli Lilly Chair in …")
+  /\b([A-Z][A-Za-z./&'-]{2,40}(?:\s+[A-Z][A-Za-z./&'-]{2,40}){0,3}\s+(?:Faculty\s+Fellow|Chair(?:\s+in\s+[A-Za-z][A-Za-z &'-]{2,40})?|Professor(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?))\b/,
   // Industry-adjacent (IB, consulting, hospitals, gov, law)
-  /\b(Managing\s+Director|Executive\s+Director|Vice\s+President|President|Partner|Principal|Senior\s+Manager|Manager|Analyst|Associate|Counsel|Attorney|Resident|Fellow|Physician|MD|RN|Secretary|Commissioner|Chief\s+[A-Z][a-z]+(?:\s+Officer)?)\b/,
+  /\b(Managing\s+Director|Executive\s+Director|Vice\s+President|President|Partner|Principal|Senior\s+Manager|Manager|Analyst|Associate|Counsel|Attorney|Resident|Fellow|Physician|MD|RN|Secretary|Commissioner|Chief\s+[A-Z][a-z]+(?:\s+Officer)?)\b/i,
 ];
 
-const TITLE_NOISE_RE = /\b(skip to|menu|search|home|apply|contact|news|events|profile|directory|copyright)\b/i;
+const TITLE_NOISE_RE = /\b(skip to|menu|copyright|navigation|toggle)\b/i;
 
 function extractTitleNear(
   windowText: string,
   nameStart: number,
   nameEnd: number,
 ): string | null {
-  // Look first AFTER the name (most academic directory cards put the title
-  // on the line right under the name), then before. Keep windows tight to
-  // avoid pulling a neighbouring person's title.
+  // 1) Markdown-adjacent-line: many directory cards render as
+  //    `**Name**` on one line and the title on the immediate next line.
+  const tail = windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 300));
+  const nextLineMatch = tail.match(/^[\s,|·•\-–—:]*\n+\s*([^\n]{4,120})/);
+  if (nextLineMatch) {
+    const line = nextLineMatch[1].replace(/[*_`[\]()]/g, "").trim();
+    for (const re of TITLE_PATTERNS) {
+      const m = line.match(re);
+      if (m) {
+        const t = m[1].replace(/\s+/g, " ").trim();
+        if (t.length >= 4 && t.length <= 90) return t;
+      }
+    }
+  }
+
+  // 2) Tight windows AFTER then BEFORE the name. Keep tight to avoid
+  //    snagging a neighbouring person's title from a list view.
   const tails = [
-    windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 180)),
-    windowText.slice(Math.max(0, nameStart - 160), nameStart),
+    windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 220)),
+    windowText.slice(Math.max(0, nameStart - 200), nameStart),
   ];
   for (const segment of tails) {
-    if (!segment || TITLE_NOISE_RE.test(segment)) continue;
+    if (!segment) continue;
+    // Noise filter applied per-line, not whole-segment, so a single
+    // navbar word doesn't disqualify the whole window.
     for (const re of TITLE_PATTERNS) {
       const m = segment.match(re);
       if (!m) continue;
       const t = m[1].replace(/\s+/g, " ").trim();
       if (t.length < 4 || t.length > 90) continue;
+      if (TITLE_NOISE_RE.test(t)) continue;
       return t;
     }
   }
