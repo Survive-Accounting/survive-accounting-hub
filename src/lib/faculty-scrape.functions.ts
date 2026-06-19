@@ -1616,7 +1616,51 @@ async function processUrls(
                   }
                 }
               }
+
+              // (c) Profile-link harvest — final fallback. Mine same-host
+              //     profile URLs from the rendered HTML and scrape a sample
+              //     in parallel. Works when the directory is fully JS-state
+              //     paginated but the underlying anchors are server-rendered.
+              if (pagination?.clickMissed && (pagination.gained ?? 0) === 0) {
+                const profileLinks = discoverProfileLinkCandidates(url, initialRawHtml, links, 12);
+                if (profileLinks.length >= 3) {
+                  try {
+                    const probed = await Promise.all(
+                      profileLinks.map((c) => firecrawlScrapeWithLinks(fcKey, c).catch(() => null)),
+                    );
+                    const extraMd = probed
+                      .filter((p): p is NonNullable<typeof p> => !!p && !!p.markdown)
+                      .map((p) => p.markdown)
+                      .join("\n\n---\n\n");
+                    if (extraMd.length > 0) {
+                      const harvestExtract = extractDirectoryMarkdownPeople(extraMd);
+                      const harvestAi = await callLovableAi(aiKey, url, extraMd.slice(0, 80_000));
+                      const reMerged = mergePeople(
+                        mergePeople(parsedPeople, harvestExtract),
+                        mergePeople(aiPeople, harvestAi),
+                      );
+                      if (reMerged.length > merged.length) {
+                        parsedPeople = mergePeople(parsedPeople, harvestExtract);
+                        aiPeople = mergePeople(aiPeople, harvestAi);
+                        pagination = {
+                          paginated: true,
+                          signal: `${pagination.signal ?? "?"}+profile-harvest(${profileLinks.length})`,
+                          pagesWalked: profileLinks.length,
+                          clickMissed: false,
+                          gained: reMerged.length - merged.length,
+                        };
+                        merged = reMerged;
+                        md = (md + "\n\n---\n\n" + extraMd).slice(0, 200_000);
+                        cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+                      }
+                    }
+                  } catch (e) {
+                    console.warn(`[pagination profile-harvest] ${url}: ${e instanceof Error ? e.message : String(e)}`);
+                  }
+                }
+              }
             }
+
           }
         }
 
