@@ -379,8 +379,26 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           const localStart = localHit?.index ?? 0;
           const localEnd = localStart + (localHit?.[0].length ?? 0);
           const title = extractTitleNear(windowText, localStart, localEnd);
-          const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
-          const email = emailMatch ? emailMatch[0].toLowerCase() : null;
+          // Prefer the email paired INSIDE the same card block as this name.
+          // The old "first email in a 1200-char window" heuristic would grab
+          // a neighbor's email when directory cards were tightly packed —
+          // exact mis-pair bug the card-block parser eliminates.
+          const wantKey = cardMatchKey(fn, ln);
+          const cardHit = parseDirectoryCards(md).find(
+            (c) => cardMatchKey(c.first_name, c.last_name) === wantKey,
+          );
+          let email: string | null = cardHit?.email ?? null;
+          if (!email) {
+            // Last-resort fallback: only accept the windowed email when its
+            // local part actually contains the person's last name (or vice
+            // versa) — rejects neighbor emails on dense directory pages.
+            const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+            const candidate = emailMatch ? emailMatch[0].toLowerCase() : null;
+            if (candidate) {
+              const local = candidate.split("@")[0].replace(/[^a-z]/g, "");
+              if (local.includes(lnSlug) || lnSlug.includes(local)) email = candidate;
+            }
+          }
 
           const links = (payload?.links ?? []) as string[];
           let profileUrlFromDir: string | null = null;
