@@ -462,6 +462,62 @@ function mergePeople(...groups: Extracted[][]): Extracted[] {
 }
 
 /**
+ * Merge AI-extracted people INTO deterministic card-parsed people so the card
+ * email always wins. Tracks how often the AI email was overridden so the
+ * debug bundle can surface the metric to Scraper Trends. AI rows whose
+ * last-name+first-initial don't appear in the card set are appended (covers
+ * table/freeform layouts the card parser can't see).
+ */
+function mergeWithCardOverride(
+  cardPeople: Extracted[],
+  aiPeople: Extracted[],
+): { merged: Extracted[]; aiEmailOverridden: number } {
+  const idx = new Map<string, Extracted>();
+  for (const c of cardPeople) {
+    const key = cardMatchKey(c.first_name, c.last_name);
+    if (!key.startsWith("|") && !idx.has(key)) idx.set(key, c);
+  }
+  let aiEmailOverridden = 0;
+  for (const a of aiPeople) {
+    const key = cardMatchKey(a.first_name, a.last_name);
+    const c = idx.get(key);
+    if (c) {
+      // Backfill missing card fields from the AI row.
+      if (!c.title && a.title) c.title = a.title;
+      if (!c.is_phd && a.is_phd) c.is_phd = true;
+      if (!c.is_cpa && a.is_cpa) c.is_cpa = true;
+      if (!c.profile_url && a.profile_url) c.profile_url = a.profile_url;
+      // If the card already has an email, it wins. If AI disagreed, count it.
+      if (c.email && a.email && c.email !== a.email) aiEmailOverridden++;
+      if (!c.email && a.email) c.email = a.email;
+      continue;
+    }
+    cardPeople.push(a);
+    idx.set(key, a);
+  }
+  return { merged: cardPeople, aiEmailOverridden };
+}
+
+/** Convert a DirectoryCard into the Extracted shape used by the pipeline. */
+function cardsToExtracted(cards: ReturnType<typeof parseDirectoryCards>): Extracted[] {
+  return cards
+    .map((c) => {
+      if (!c.first_name || !c.last_name) return null;
+      const creds = detectCredentials(c.first_name, c.last_name, c.title);
+      return {
+        first_name: c.first_name,
+        last_name: c.last_name,
+        title: c.title,
+        email: c.email,
+        profile_url: c.profile_url ? normalizeUrl(c.profile_url) : null,
+        is_phd: creds.is_phd,
+        is_cpa: creds.is_cpa,
+      } as Extracted;
+    })
+    .filter((p): p is Extracted => !!p);
+}
+
+/**
  * Try to attach a profile_url to people the AI returned with no link, using
  * the full set of links Firecrawl pulled off the directory page. A profile
  * URL counts as a match when (a) it's on the same host as the directory and
