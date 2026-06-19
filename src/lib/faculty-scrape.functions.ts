@@ -1839,6 +1839,9 @@ async function processUrls(
           error: null,
           enrichOutcomes,
           pagination: pagination ?? undefined,
+          cardBlocks: cardBlocksCount,
+          cardEmailsPaired,
+          aiEmailOverridden,
         });
 
 
