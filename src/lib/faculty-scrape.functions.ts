@@ -14,6 +14,7 @@ import {
   EMPTY_DETECTION,
   type ProgramLevelDetection,
 } from "@/lib/program-levels";
+import { parseDirectoryCards, cardMatchKey } from "@/lib/directory-cards";
 
 // ---- Network hardening -----------------------------------------------------
 // Every outbound fetch (Firecrawl + AI gateway) has a hard timeout so a single
