@@ -1465,8 +1465,91 @@ async function processUrls(
               };
               console.warn(`[pagination] ${url}: ${e instanceof Error ? e.message : String(e)}`);
             }
+
+            // ---- Click-miss recovery -----------------------------------
+            // If the Next/Load-more click selector union never fired (the
+            // pager is behind a shadow-DOM web component, an obfuscated
+            // <div> handler, a custom focus-only button, etc.) try two
+            // generalizable fallbacks before giving up:
+            //   (a) SCROLL — many "Load more" pagers actually trigger on
+            //       intersection-observer scroll, not click.
+            //   (b) URL-PARAM PROBE — many frameworks (WordPress, Drupal,
+            //       ASP.NET) accept ?page=N even when the visible pager is
+            //       AJAX-only. Mine candidate URLs from the rendered DOM
+            //       and scrape them in parallel.
+            if (pagination?.clickMissed && (pagination.gained ?? 0) === 0) {
+              // (a) scroll fallback
+              try {
+                const scrollWalk = await scrapeWithScrollActions(fcKey, url, MAX_PAGINATION_PAGES);
+                if (scrollWalk.gained && scrollWalk.markdown.length > md.length * 1.15) {
+                  const scrollExtract = extractDirectoryMarkdownPeople(scrollWalk.markdown);
+                  const scrollAi = await callLovableAi(aiKey, url, scrollWalk.markdown.slice(0, 80_000));
+                  const reMerged = mergePeople(
+                    mergePeople(parsedPeople, scrollExtract),
+                    mergePeople(aiPeople, scrollAi),
+                  );
+                  if (reMerged.length > merged.length) {
+                    parsedPeople = mergePeople(parsedPeople, scrollExtract);
+                    aiPeople = mergePeople(aiPeople, scrollAi);
+                    pagination = {
+                      paginated: true,
+                      signal: `${pagination.signal ?? "?"}+scroll-fallback`,
+                      pagesWalked: pagination.pagesWalked,
+                      clickMissed: false,
+                      gained: reMerged.length - merged.length,
+                    };
+                    merged = reMerged;
+                    md = scrollWalk.markdown.slice(0, 200_000);
+                    cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+                  }
+                }
+              } catch (e) {
+                console.warn(`[pagination scroll-fallback] ${url}: ${e instanceof Error ? e.message : String(e)}`);
+              }
+
+              // (b) URL-param probe — only if still empty-handed
+              if (pagination?.clickMissed && (pagination.gained ?? 0) === 0) {
+                const candidates = discoverUrlPaginationCandidates(url, initialRawHtml, links, 5);
+                if (candidates.length > 0) {
+                  try {
+                    const probed = await Promise.all(
+                      candidates.map((c) => firecrawlScrapeWithLinks(fcKey, c).catch(() => null)),
+                    );
+                    const extraMd = probed
+                      .filter((p): p is NonNullable<typeof p> => !!p && !!p.markdown)
+                      .map((p) => p.markdown)
+                      .join("\n\n---\n\n");
+                    if (extraMd.length > 0) {
+                      const probeExtract = extractDirectoryMarkdownPeople(extraMd);
+                      const probeAi = await callLovableAi(aiKey, url, extraMd.slice(0, 80_000));
+                      const reMerged = mergePeople(
+                        mergePeople(parsedPeople, probeExtract),
+                        mergePeople(aiPeople, probeAi),
+                      );
+                      if (reMerged.length > merged.length) {
+                        parsedPeople = mergePeople(parsedPeople, probeExtract);
+                        aiPeople = mergePeople(aiPeople, probeAi);
+                        pagination = {
+                          paginated: true,
+                          signal: `${pagination.signal ?? "?"}+url-probe(${candidates.length})`,
+                          pagesWalked: candidates.length + 1,
+                          clickMissed: false,
+                          gained: reMerged.length - merged.length,
+                        };
+                        merged = reMerged;
+                        md = (md + "\n\n---\n\n" + extraMd).slice(0, 200_000);
+                        cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+                      }
+                    }
+                  } catch (e) {
+                    console.warn(`[pagination url-probe] ${url}: ${e instanceof Error ? e.message : String(e)}`);
+                  }
+                }
+              }
+            }
           }
         }
+
 
         const extracted = merged.length;
 
