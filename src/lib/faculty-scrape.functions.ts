@@ -1022,6 +1022,76 @@ function discoverUrlPaginationCandidates(
   return hits.slice(0, max).map((h) => h.url);
 }
 
+/**
+ * Click-miss recovery #3 — PROFILE-LINK HARVEST.
+ *
+ * When click + scroll + URL-param probes all fail, the rendered HTML
+ * usually still contains every individual profile link (server-rendered
+ * even when the visible roster is JS-virtualized). Mine same-host URLs
+ * whose path matches typical faculty-profile shapes — `?id=*`,
+ * `/profile`, `/people/`, `/faculty/<name>`, `/staff/<name>` — and return
+ * up to `max` deduped candidates. Generalizable to any vertical whose
+ * directory cards link out to per-person pages (academia, hospitals, law,
+ * IB, consulting, gov leadership rosters).
+ */
+function discoverProfileLinkCandidates(
+  baseUrl: string,
+  rawHtml: string,
+  linkList: string[],
+  max: number,
+): string[] {
+  let baseHost: string;
+  let basePath: string;
+  try {
+    const u = new URL(baseUrl);
+    baseHost = u.host;
+    basePath = u.pathname.replace(/\/+$/, "");
+  } catch { return []; }
+
+  const seen = new Set<string>([baseUrl.replace(/#.*$/, "")]);
+  const hits: string[] = [];
+
+  // path hints (cheap, no per-URL fetch)
+  const PROFILE_HINTS = [
+    /[?&]id=[A-Za-z0-9._-]+/,
+    /\/profile(?:s)?(?:\.|\/|$)/i,
+    /\/people\//i,
+    /\/faculty\/[A-Za-z][A-Za-z0-9._-]+/i,
+    /\/staff\/[A-Za-z][A-Za-z0-9._-]+/i,
+    /\/directory\/[^/]+\/[A-Za-z][A-Za-z0-9._-]+/i,
+    /\/bio(?:s)?\/[A-Za-z][A-Za-z0-9._-]+/i,
+  ];
+  // negative hints — skip nav/section/list pages
+  const SKIP = /\/(?:search|all|index|home|news|events|contact|apply|admissions|programs|courses|research|departments?)\b/i;
+
+  const consider = (href: string) => {
+    let abs: string;
+    try { abs = new URL(href, baseUrl).toString().replace(/#.*$/, ""); }
+    catch { return; }
+    let host: string, path: string;
+    try {
+      const u = new URL(abs);
+      host = u.host;
+      path = u.pathname.replace(/\/+$/, "");
+    } catch { return; }
+    if (host !== baseHost) return;
+    if (path === basePath) return;
+    if (SKIP.test(path)) return;
+    if (!PROFILE_HINTS.some((re) => re.test(abs))) return;
+    if (seen.has(abs)) return;
+    seen.add(abs);
+    hits.push(abs);
+  };
+
+  const reAbs = /<a[^>]+href=["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = reAbs.exec(rawHtml)) !== null) consider(m[1]);
+  for (const l of linkList) consider(l);
+
+  return hits.slice(0, max);
+}
+
+
 
 
 /**
