@@ -874,17 +874,19 @@ export function FacultyTriagePanel({
 // "Start Scrape" CTA that pulses softly. When scraping: a hypnotic rotating
 // conic-gradient ring with a soft halo, twisting until results arrive.
 function EmptyState({
+  campusId,
   isScraping,
   onStartScrape,
 }: {
+  campusId: string;
   isScraping: boolean;
   onStartScrape?: () => void;
 }) {
   if (isScraping) {
     return (
-      <div className="flex flex-col items-center justify-center gap-5 px-4 py-16 text-center">
-        <div className="relative h-16 w-16">
-          {/* outer halo */}
+      <div className="flex flex-col items-center justify-center gap-5 px-4 py-10 text-center">
+        <ScrapeTerminal campusId={campusId} />
+        <div className="relative h-12 w-12">
           <div
             className="absolute inset-0 rounded-full opacity-60 blur-xl"
             style={{
@@ -893,7 +895,6 @@ function EmptyState({
               animation: "spin 2.4s linear infinite",
             }}
           />
-          {/* rotating conic ring */}
           <div
             className="absolute inset-0 rounded-full"
             style={{
@@ -906,9 +907,8 @@ function EmptyState({
               animation: "spin 1.1s linear infinite",
             }}
           />
-          {/* counter-rotating accent arc */}
           <div
-            className="absolute inset-1.5 rounded-full"
+            className="absolute inset-1 rounded-full"
             style={{
               background:
                 "conic-gradient(from 0deg, transparent 0deg, transparent 260deg, hsl(var(--primary)) 360deg)",
@@ -919,7 +919,6 @@ function EmptyState({
               animation: "spin 1.8s linear infinite reverse",
             }}
           />
-          {/* center dot */}
           <div className="absolute inset-0 m-auto h-1.5 w-1.5 rounded-full bg-primary/80" />
         </div>
         <div className="space-y-1">
@@ -933,6 +932,7 @@ function EmptyState({
       </div>
     );
   }
+
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 px-4 py-16 text-center">
