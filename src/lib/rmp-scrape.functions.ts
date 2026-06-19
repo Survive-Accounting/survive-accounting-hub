@@ -348,68 +348,94 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         const fn = (t.firstName ?? "").trim();
         const ln = (t.lastName ?? "").trim();
         if (!fn || !ln) continue;
-        // Allow middle initials / particles between first & last (e.g. "Jane A. Doe", "Jane van Doe").
         const re = new RegExp(`\\b${escapeRe(fn)}\\b[\\s\\S]{0,40}?\\b${escapeRe(ln)}\\b`, "i");
-        let hitUrl: string | null = null;
-        let hitMd = "";
-        let hitIdx = -1;
+        const lnSlug = ln.toLowerCase().replace(/[^a-z]/g, "");
+        const fnSlug = fn.toLowerCase().replace(/[^a-z]/g, "");
+
+        // Scan ALL cached pages and score candidates. The directory listing
+        // typically has the name as a bare anchor with no title nearby;
+        // harvested profile pages have the title text right next to the
+        // name. Scoring promotes profile-shaped pages + pages where a
+        // title was actually extractable, so we don't lock onto the first
+        // (usually nav-heavy) hit.
+        type Cand = {
+          pageUrl: string;
+          title: string | null;
+          email: string | null;
+          profileUrlFromDir: string | null;
+          score: number;
+        };
+        const candidates: Cand[] = [];
         for (const [pageUrl, payload] of cachePages) {
           const md = payload?.markdown ?? "";
           if (!md) continue;
           const m = md.match(re);
-          if (m && m.index != null) {
-            hitUrl = pageUrl;
-            hitMd = md;
-            hitIdx = m.index;
-            break;
-          }
+          if (!m || m.index == null) continue;
+          const idx = m.index;
+          const winStart = Math.max(0, idx - 400);
+          const windowText = md.slice(winStart, idx + 800);
+          const localHit = windowText.match(re);
+          const localStart = localHit?.index ?? 0;
+          const localEnd = localStart + (localHit?.[0].length ?? 0);
+          const title = extractTitleNear(windowText, localStart, localEnd);
+          const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+          const email = emailMatch ? emailMatch[0].toLowerCase() : null;
+
+          const links = (payload?.links ?? []) as string[];
+          let profileUrlFromDir: string | null = null;
+          try {
+            const dirHost = new URL(pageUrl).hostname.replace(/^www\./, "").toLowerCase();
+            for (const link of links) {
+              try {
+                const u = new URL(link);
+                const h = u.hostname.replace(/^www\./, "").toLowerCase();
+                if (h !== dirHost && !h.endsWith(`.${dirHost}`)) continue;
+                const last = (u.pathname.split("/").filter(Boolean).at(-1) ?? "").toLowerCase();
+                if (!last) continue;
+                if (
+                  last === lnSlug ||
+                  last === `${fnSlug}-${lnSlug}` ||
+                  last === `${lnSlug}-${fnSlug}` ||
+                  last === `${fnSlug}.${lnSlug}` ||
+                  last.includes(`${fnSlug}-${lnSlug}`)
+                ) {
+                  profileUrlFromDir = link;
+                  break;
+                }
+              } catch { /* skip */ }
+            }
+          } catch { /* skip */ }
+
+          const urlLc = pageUrl.toLowerCase();
+          const isProfileShaped =
+            /\/(profile|profiles|people|faculty|staff|bio)\b/.test(urlLc) ||
+            /[?&]id=/.test(urlLc) ||
+            urlLc.includes(lnSlug);
+          let score = 0;
+          if (isProfileShaped) score += 8;
+          if (title) score += 10;
+          if (email) score += 2;
+          score += Math.max(0, 4 - Math.floor(md.length / 50_000));
+          candidates.push({ pageUrl, title, email, profileUrlFromDir, score });
         }
-        if (!hitUrl) continue;
-
-        // Pull nearest email + title from a ±600-char window around the hit.
-        const winStart = Math.max(0, hitIdx - 300);
-        const windowText = hitMd.slice(winStart, hitIdx + 600);
-        const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
-        const email = emailMatch ? emailMatch[0].toLowerCase() : null;
-        // Re-find the name inside the window so we can scope the title search
-        // to text immediately before/after it (not the email's location).
-        const localNameRe = new RegExp(`\\b${escapeRe(fn)}\\b[\\s\\S]{0,40}?\\b${escapeRe(ln)}\\b`, "i");
-        const localHit = windowText.match(localNameRe);
-        const localStart = localHit?.index ?? 0;
-        const localEnd = localStart + (localHit?.[0].length ?? 0);
-        const title = extractTitleNear(windowText, localStart, localEnd);
-
-
-        // Slug-match against cached links on same host (last-name only).
-        const links = (cache[hitUrl]?.links ?? []) as string[];
-        const lnSlug = ln.toLowerCase().replace(/[^a-z]/g, "");
-        const fnSlug = fn.toLowerCase().replace(/[^a-z]/g, "");
-        let profileUrlFromDir: string | null = null;
-        try {
-          const dirHost = new URL(hitUrl).hostname.replace(/^www\./, "").toLowerCase();
-          for (const link of links) {
-            try {
-              const u = new URL(link);
-              const h = u.hostname.replace(/^www\./, "").toLowerCase();
-              if (h !== dirHost && !h.endsWith(`.${dirHost}`)) continue;
-              const last = (u.pathname.split("/").filter(Boolean).at(-1) ?? "").toLowerCase();
-              if (!last) continue;
-              if (last === lnSlug || last === `${fnSlug}-${lnSlug}` || last === `${lnSlug}-${fnSlug}` || last === `${fnSlug}.${lnSlug}`) {
-                profileUrlFromDir = link;
-                break;
-              }
-            } catch { /* skip */ }
-          }
-        } catch { /* skip */ }
+        if (candidates.length === 0) continue;
+        candidates.sort((a, b) => b.score - a.score);
+        const best = candidates[0];
+        // Borrow signal from any candidate that has it — the best-scoring
+        // page may still be missing one field that a sibling page has.
+        const titleFromAny = best.title ?? candidates.find((c) => c.title)?.title ?? null;
+        const emailFromAny = best.email ?? candidates.find((c) => c.email)?.email ?? null;
+        const profileUrlFromAny =
+          best.profileUrlFromDir ?? candidates.find((c) => c.profileUrlFromDir)?.profileUrlFromDir ?? null;
 
         const rmpProfileUrl = `https://www.ratemyprofessors.com/professor/${t.legacyId}`;
         reverseRows.push({
           campus_id: data.campusId,
           first_name: fn,
           last_name: ln,
-          title,
-          email,
-          source_url: profileUrlFromDir ?? hitUrl,
+          title: titleFromAny,
+          email: emailFromAny,
+          source_url: profileUrlFromAny ?? best.pageUrl,
           research_mode: "faculty_scrape",
           research_label: "rmp_reverse_lookup_v1",
           status: "pending",
@@ -420,14 +446,16 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           rmp_num_ratings: t.numRatings,
           rmp_difficulty: t.avgDifficulty,
           rmp_would_take_again: t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0 ? t.wouldTakeAgainPercent : null,
-          notes: `RMP reverse-lookup: name matched on ${hitUrl}`,
+          notes: `RMP reverse-lookup: best of ${candidates.length} cached page hit(s) on ${best.pageUrl}`,
           raw_payload: {
             source: "rmp_reverse_lookup",
-            directory_url: hitUrl,
+            directory_url: best.pageUrl,
+            candidate_pages: candidates.length,
             rmp_legacy_id: t.legacyId,
             rmp_department: t.department,
-            found_email: !!email,
-            found_profile_url: !!profileUrlFromDir,
+            found_email: !!emailFromAny,
+            found_title: !!titleFromAny,
+            found_profile_url: !!profileUrlFromAny,
           },
         });
       }
@@ -487,35 +515,56 @@ function escapeRe(s: string): string {
 // Analyst, Resident, MD) — the patterns are ordered most-specific-first so
 // "Assistant Professor of Accounting" beats a bare "Professor".
 const TITLE_PATTERNS: RegExp[] = [
-  // Academic — full rank + optional "of <discipline>"
-  /\b((?:Distinguished\s+|Senior\s+|Visiting\s+|Adjunct\s+|Clinical\s+|Research\s+|Teaching\s+|Emeritus\s+|Emerita\s+)?(?:Assistant|Associate|Full)?\s*(?:Professor|Lecturer|Instructor|Fellow|Scholar)(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?)\b/,
+  // Academic — full rank + optional "of <discipline>" (case-insensitive,
+  // tolerate lowercase markdown text like "professor of accounting").
+  /\b((?:Distinguished\s+|Senior\s+|Visiting\s+|Adjunct\s+|Clinical\s+|Research\s+|Teaching\s+|Emeritus\s+|Emerita\s+)?(?:Assistant|Associate|Full)?\s*(?:Professor|Lecturer|Instructor|Fellow|Scholar)(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?)\b/i,
   // Standalone academic titles
-  /\b(Senior\s+Lecturer|Clinical\s+Professor|Adjunct\s+Professor|Visiting\s+Professor|Emeritus\s+Professor|Emerita\s+Professor|Department\s+Chair|Chairperson|Dean(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?|Provost|Director(?:\s+of\s+[A-Z][A-Za-z &'-]{2,40})?)\b/,
+  /\b(Senior\s+Lecturer|Clinical\s+Professor|Adjunct\s+Professor|Visiting\s+Professor|Emeritus\s+Professor|Emerita\s+Professor|Department\s+Chair|Chairperson|Dean(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?|Provost|Director(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?)\b/i,
+  // Endowed / named chairs (e.g. "Fettig/Whirlpool Faculty Fellow",
+  // "KPMG Professor of Accounting", "Eli Lilly Chair in …")
+  /\b([A-Z][A-Za-z./&'-]{2,40}(?:\s+[A-Z][A-Za-z./&'-]{2,40}){0,3}\s+(?:Faculty\s+Fellow|Chair(?:\s+in\s+[A-Za-z][A-Za-z &'-]{2,40})?|Professor(?:\s+of\s+[A-Za-z][A-Za-z &'-]{2,40})?))\b/,
   // Industry-adjacent (IB, consulting, hospitals, gov, law)
-  /\b(Managing\s+Director|Executive\s+Director|Vice\s+President|President|Partner|Principal|Senior\s+Manager|Manager|Analyst|Associate|Counsel|Attorney|Resident|Fellow|Physician|MD|RN|Secretary|Commissioner|Chief\s+[A-Z][a-z]+(?:\s+Officer)?)\b/,
+  /\b(Managing\s+Director|Executive\s+Director|Vice\s+President|President|Partner|Principal|Senior\s+Manager|Manager|Analyst|Associate|Counsel|Attorney|Resident|Fellow|Physician|MD|RN|Secretary|Commissioner|Chief\s+[A-Z][a-z]+(?:\s+Officer)?)\b/i,
 ];
 
-const TITLE_NOISE_RE = /\b(skip to|menu|search|home|apply|contact|news|events|profile|directory|copyright)\b/i;
+const TITLE_NOISE_RE = /\b(skip to|menu|copyright|navigation|toggle)\b/i;
 
 function extractTitleNear(
   windowText: string,
   nameStart: number,
   nameEnd: number,
 ): string | null {
-  // Look first AFTER the name (most academic directory cards put the title
-  // on the line right under the name), then before. Keep windows tight to
-  // avoid pulling a neighbouring person's title.
+  // 1) Markdown-adjacent-line: many directory cards render as
+  //    `**Name**` on one line and the title on the immediate next line.
+  const tail = windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 300));
+  const nextLineMatch = tail.match(/^[\s,|·•\-–—:]*\n+\s*([^\n]{4,120})/);
+  if (nextLineMatch) {
+    const line = nextLineMatch[1].replace(/[*_`[\]()]/g, "").trim();
+    for (const re of TITLE_PATTERNS) {
+      const m = line.match(re);
+      if (m) {
+        const t = m[1].replace(/\s+/g, " ").trim();
+        if (t.length >= 4 && t.length <= 90) return t;
+      }
+    }
+  }
+
+  // 2) Tight windows AFTER then BEFORE the name. Keep tight to avoid
+  //    snagging a neighbouring person's title from a list view.
   const tails = [
-    windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 180)),
-    windowText.slice(Math.max(0, nameStart - 160), nameStart),
+    windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 220)),
+    windowText.slice(Math.max(0, nameStart - 200), nameStart),
   ];
   for (const segment of tails) {
-    if (!segment || TITLE_NOISE_RE.test(segment)) continue;
+    if (!segment) continue;
+    // Noise filter applied per-line, not whole-segment, so a single
+    // navbar word doesn't disqualify the whole window.
     for (const re of TITLE_PATTERNS) {
       const m = segment.match(re);
       if (!m) continue;
       const t = m[1].replace(/\s+/g, " ").trim();
       if (t.length < 4 || t.length > 90) continue;
+      if (TITLE_NOISE_RE.test(t)) continue;
       return t;
     }
   }
