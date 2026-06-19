@@ -20,6 +20,7 @@ import { autoDiscoverCampusUrls } from "@/lib/auto-scrape.functions";
 import { scrapeCampusFaculty } from "@/lib/faculty-scrape.functions";
 import { scrapeCampusRmp } from "@/lib/rmp-scrape.functions";
 import { startScrapeJob } from "@/lib/scrape-jobs";
+import { clearScrapeLog, pushScrapeLog } from "@/lib/scrape-console";
 
 type StepStatus = "pending" | "running" | "ok" | "warn" | "error" | "skipped";
 type Step = {
@@ -128,6 +129,9 @@ export function AutoScrapeButton({
   const handleRun = async () => {
     if (busy) return;
     setBusy(true);
+    clearScrapeLog(campusId);
+    pushScrapeLog(campusId, "info", `// boot · campus="${campusName}"`);
+    pushScrapeLog(campusId, "cmd", `$ scrape.run --campus ${campusId}`);
     const run: RunLog = {
       campusId,
       campusName,
@@ -144,6 +148,8 @@ export function AutoScrapeButton({
 
     try {
       toast.message("🤖 Auto-discovering URLs…", { description: campusName });
+      pushScrapeLog(campusId, "code", `import { discover } from "serpapi"`);
+      pushScrapeLog(campusId, "cmd", `→ discover.urls({ campus: "${campusName}" })`);
 
       // Step 1: discover
       const s1 = pushStep({ key: "discover", label: "1. SerpAPI URL discovery", status: "running", startedAt: Date.now() });
@@ -152,6 +158,7 @@ export function AutoScrapeButton({
         found = await discover({ data: { campusId } });
       } catch (e) {
         finishStep(s1, { status: "error", error: shortErr(e) });
+        pushScrapeLog(campusId, "error", `✗ discovery failed: ${shortErr(e)}`);
         run.overallStatus = "error";
         run.finishedAt = Date.now();
         persist(run);
@@ -175,8 +182,15 @@ export function AutoScrapeButton({
           topRmpResults: found.rmpResults,
         },
       });
+      pushScrapeLog(campusId, "info", `  q: ${found.facultyQuery}`);
+      for (const u of found.facultyUrls.slice(0, 6)) {
+        pushScrapeLog(campusId, "net", `  ✓ GET ${u}`);
+      }
+      if (found.rmpUrl) pushScrapeLog(campusId, "net", `  ✓ rmp: ${found.rmpUrl}`);
+      pushScrapeLog(campusId, "ok", `← ${found.facultyUrls.length} faculty url(s) · rmp=${found.rmpUrl ? "yes" : "no"} (${found.facultyMs}ms)`);
 
       if (noUrls) {
+        pushScrapeLog(campusId, "error", `✗ no usable URLs — aborting`);
         run.overallStatus = "error";
         run.finishedAt = Date.now();
         persist(run);
@@ -196,6 +210,8 @@ export function AutoScrapeButton({
       if (found.facultyUrls.length > 0) {
         const s2 = pushStep({ key: "faculty", label: "2. Firecrawl + parse faculty", status: "running", startedAt: Date.now() });
         const job = startScrapeJob({ campusId, campusName, kind: "faculty" });
+        pushScrapeLog(campusId, "code", `const pages = await firecrawl.scrape(urls, { formats: ["markdown"] })`);
+        pushScrapeLog(campusId, "cmd", `→ parse.faculty(${found.facultyUrls.length} url${found.facultyUrls.length === 1 ? "" : "s"})  // gemini-3-flash`);
         try {
           const r = await facultyFn({ data: { campusId, urls: found.facultyUrls, allowNoContact: true } });
           const obj = (r ?? {}) as Record<string, unknown>;
@@ -206,14 +222,21 @@ export function AutoScrapeButton({
           const extracted = perPage.reduce((a, p) => a + (typeof p.extracted === "number" ? p.extracted : 0), 0);
           const slugMatched = perPage.reduce((a, p) => a + (typeof p.slugMatched === "number" ? p.slugMatched : 0), 0);
           const enriched = perPage.reduce((a, p) => a + (typeof p.enriched === "number" ? p.enriched : 0), 0);
+          for (const p of perPage.slice(0, 8)) {
+            const url = typeof p.url === "string" ? p.url : "?";
+            const ex = typeof p.extracted === "number" ? p.extracted : 0;
+            pushScrapeLog(campusId, "net", `  · ${ex.toString().padStart(2)} extracted ← ${url}`);
+          }
           const status: StepStatus = ins > 0 ? "ok" : "warn";
           const summary =
             `+${ins} new (${dup} dup, ${dropped} no-contact) · ` +
             `AI extracted ${extracted}, slug-matched ${slugMatched} profile url(s), enriched ${enriched} email(s)`;
           finishStep(s2, { status, summary, data: r });
+          pushScrapeLog(campusId, ins > 0 ? "ok" : "warn", `← inserted=${ins} dup=${dup} dropped=${dropped} · ai_extracted=${extracted} enriched=${enriched}`);
           job.succeed(`+${ins} new (${dup} dup, ${dropped} dropped)`);
         } catch (e) {
           finishStep(s2, { status: "error", error: shortErr(e) });
+          pushScrapeLog(campusId, "error", `✗ faculty parse failed: ${shortErr(e)}`);
           job.fail(shortErr(e));
         }
       } else {
@@ -225,6 +248,8 @@ export function AutoScrapeButton({
         const s3 = pushStep({ key: "rmp", label: "3. RMP school scrape + match", status: "running", startedAt: Date.now() });
         const job = startScrapeJob({ campusId, campusName, kind: "rmp" });
         const rmpUrl = found.rmpUrl;
+        pushScrapeLog(campusId, "code", `const profs = await rmp.fetchSchool("${rmpUrl}")`);
+        pushScrapeLog(campusId, "cmd", `→ rmp.match(profs, faculty)  // fuzzy + reverse-lookup`);
         try {
           const r = await rmpFn({ data: { campusId, urls: [rmpUrl] } });
           const obj = (r ?? {}) as Record<string, unknown>;
@@ -240,13 +265,16 @@ export function AutoScrapeButton({
               ? ` · reverse-lookup: +${reverseInserted}/${reverseAttempted} new from ${cachedPages} cached page(s)`
               : ` · no reverse lookup (cachedPages=${cachedPages})`);
           finishStep(s3, { status, summary, data: r });
+          pushScrapeLog(campusId, matched > 0 ? "ok" : "warn", `← matched ${matched}/${found2} · reverse +${reverseInserted}/${reverseAttempted}`);
           job.succeed(summary);
         } catch (e) {
           finishStep(s3, { status: "error", error: shortErr(e) });
+          pushScrapeLog(campusId, "error", `✗ rmp failed: ${shortErr(e)}`);
           job.fail(shortErr(e));
         }
       } else {
         pushStep({ key: "rmp", label: "3. RMP school scrape + match", status: "skipped", startedAt: Date.now(), finishedAt: Date.now(), summary: "No RMP URL discovered" });
+        pushScrapeLog(campusId, "info", `  rmp: skipped (no school page found)`);
       }
 
 
@@ -257,6 +285,8 @@ export function AutoScrapeButton({
       persist(run);
 
       onScraped?.();
+      pushScrapeLog(campusId, anyError ? "error" : anyWarn ? "warn" : "ok",
+        `$ scrape.done — ${anyError ? "errors" : anyWarn ? "warnings" : "ok"} in ${Date.now() - run.startedAt}ms`);
       if (anyError) toast.error("Auto-scrape finished with errors — open View logs.");
       else if (anyWarn) toast.warning("Auto-scrape finished with warnings — open View logs.");
       else toast.success("Auto-scrape complete");
@@ -265,6 +295,7 @@ export function AutoScrapeButton({
       run.finishedAt = Date.now();
       run.steps.push({ key: "fatal", label: "Fatal", status: "error", startedAt: Date.now(), finishedAt: Date.now(), error: shortErr(e) });
       persist(run);
+      pushScrapeLog(campusId, "error", `✗ fatal: ${shortErr(e)}`);
       toast.error(shortErr(e, "Auto-scrape failed"));
     } finally {
       setBusy(false);

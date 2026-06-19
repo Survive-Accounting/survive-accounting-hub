@@ -20,6 +20,7 @@ import {
   fetchTriageRows, importKeptLeads, setTriageFlag,
   setTriageTagsBulk, unimportLead, type TriageRow,
 } from "@/lib/faculty-triage";
+import { useScrapeConsole, type ScrapeLogLine } from "@/lib/scrape-console";
 
 import {
   INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
@@ -583,9 +584,11 @@ export function FacultyTriagePanel({
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading candidates…</div>
       ) : rows.length === 0 ? (
         <EmptyState
+          campusId={campusId}
           isScraping={isScraping}
           onStartScrape={onStartScrape}
         />
+
       ) : (
         <Table>
           <TableHeader>
@@ -871,17 +874,19 @@ export function FacultyTriagePanel({
 // "Start Scrape" CTA that pulses softly. When scraping: a hypnotic rotating
 // conic-gradient ring with a soft halo, twisting until results arrive.
 function EmptyState({
+  campusId,
   isScraping,
   onStartScrape,
 }: {
+  campusId: string;
   isScraping: boolean;
   onStartScrape?: () => void;
 }) {
   if (isScraping) {
     return (
-      <div className="flex flex-col items-center justify-center gap-5 px-4 py-16 text-center">
-        <div className="relative h-16 w-16">
-          {/* outer halo */}
+      <div className="flex flex-col items-center justify-center gap-5 px-4 py-10 text-center">
+        <ScrapeTerminal campusId={campusId} />
+        <div className="relative h-12 w-12">
           <div
             className="absolute inset-0 rounded-full opacity-60 blur-xl"
             style={{
@@ -890,7 +895,6 @@ function EmptyState({
               animation: "spin 2.4s linear infinite",
             }}
           />
-          {/* rotating conic ring */}
           <div
             className="absolute inset-0 rounded-full"
             style={{
@@ -903,9 +907,8 @@ function EmptyState({
               animation: "spin 1.1s linear infinite",
             }}
           />
-          {/* counter-rotating accent arc */}
           <div
-            className="absolute inset-1.5 rounded-full"
+            className="absolute inset-1 rounded-full"
             style={{
               background:
                 "conic-gradient(from 0deg, transparent 0deg, transparent 260deg, hsl(var(--primary)) 360deg)",
@@ -916,7 +919,6 @@ function EmptyState({
               animation: "spin 1.8s linear infinite reverse",
             }}
           />
-          {/* center dot */}
           <div className="absolute inset-0 m-auto h-1.5 w-1.5 rounded-full bg-primary/80" />
         </div>
         <div className="space-y-1">
@@ -930,6 +932,7 @@ function EmptyState({
       </div>
     );
   }
+
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 px-4 py-16 text-center">
@@ -949,6 +952,74 @@ function EmptyState({
       <div className="text-[11px] text-muted-foreground">
         Auto-discovers URLs, scrapes faculty, matches RMP ratings.
       </div>
+    </div>
+  );
+}
+
+// Live "code being executed" terminal — streams log lines from
+// `scrape-console` while a scrape runs. Styled like a hi-tech dev console
+// with a blinking caret and syntax-colored prefixes.
+function ScrapeTerminal({ campusId }: { campusId: string }) {
+  const lines = useScrapeConsole(campusId);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines.length]);
+
+  return (
+    <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-zinc-800 bg-[#0b0d12] shadow-2xl shadow-black/40">
+      {/* faux titlebar */}
+      <div className="flex items-center gap-1.5 border-b border-zinc-800/80 bg-gradient-to-b from-zinc-900 to-[#0b0d12] px-3 py-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
+        <span className="ml-3 font-mono text-[10.5px] uppercase tracking-[0.18em] text-zinc-400">
+          scrape · live
+        </span>
+        <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-emerald-400">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          </span>
+          executing
+        </span>
+      </div>
+
+      {/* log body */}
+      <div
+        ref={scrollerRef}
+        className="h-48 overflow-y-auto px-3 py-2 text-left font-mono text-[11.5px] leading-[1.55] text-zinc-200"
+        style={{ scrollBehavior: "smooth" }}
+      >
+        {lines.length === 0 ? (
+          <div className="text-zinc-500">// waiting for runtime…</div>
+        ) : (
+          lines.map((l) => <ScrapeLine key={l.id} line={l} />)
+        )}
+        <div className="inline-block h-3 w-[7px] -mb-[2px] animate-pulse bg-emerald-400/90" />
+      </div>
+    </div>
+  );
+}
+
+function ScrapeLine({ line }: { line: ScrapeLogLine }) {
+  const ts = new Date(line.ts);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const stamp = `${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`;
+  const color =
+    line.kind === "ok" ? "text-emerald-400"
+    : line.kind === "warn" ? "text-amber-300"
+    : line.kind === "error" ? "text-red-400"
+    : line.kind === "cmd" ? "text-sky-300"
+    : line.kind === "code" ? "text-fuchsia-300"
+    : line.kind === "net" ? "text-cyan-300"
+    : "text-zinc-400";
+  return (
+    <div className="whitespace-pre-wrap break-all">
+      <span className="text-zinc-600">{stamp}</span>{" "}
+      <span className={color}>{line.text}</span>
     </div>
   );
 }
