@@ -129,6 +129,9 @@ export function AutoScrapeButton({
   const handleRun = async () => {
     if (busy) return;
     setBusy(true);
+    clearScrapeLog(campusId);
+    pushScrapeLog(campusId, "info", `// boot · campus="${campusName}"`);
+    pushScrapeLog(campusId, "cmd", `$ scrape.run --campus ${campusId}`);
     const run: RunLog = {
       campusId,
       campusName,
