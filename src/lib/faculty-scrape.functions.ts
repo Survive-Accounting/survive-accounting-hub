@@ -1531,9 +1531,23 @@ async function processUrls(
           programLevels = mergeDetections(programLevels, pageDetection);
           if (!programLevelSources.includes(url)) programLevelSources.push(url);
         }
-        let parsedPeople = extractDirectoryMarkdownPeople(md);
+        // Deterministic card-block parser runs FIRST. It pairs name+email
+        // strictly within one card block, so we never assign a neighbor's
+        // email (the bug that produced Robert Knisley → jmkniola@iu.edu).
+        const cardPeople = cardsToExtracted(parseDirectoryCards(md));
+        let parsedPeople = cardPeople.length > 0 ? cardPeople : extractDirectoryMarkdownPeople(md);
         let aiPeople = await callLovableAi(aiKey, url, md);
-        let merged = mergePeople(parsedPeople, aiPeople);
+        let aiEmailOverridden = 0;
+        let merged: Extracted[];
+        if (cardPeople.length > 0) {
+          const r = mergeWithCardOverride([...cardPeople], aiPeople);
+          merged = r.merged;
+          aiEmailOverridden = r.aiEmailOverridden;
+        } else {
+          merged = mergePeople(parsedPeople, aiPeople);
+        }
+        const cardBlocksCount = cardPeople.length;
+        const cardEmailsPaired = cardPeople.filter((p) => !!p.email).length;
 
         // ---- JS-pagination walker -----------------------------------------
         // If page-1 yielded few people AND we see pagination signals in the
