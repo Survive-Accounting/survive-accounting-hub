@@ -20,6 +20,7 @@ import {
   fetchTriageRows, importKeptLeads, setTriageFlag,
   setTriageTagsBulk, unimportLead, type TriageRow,
 } from "@/lib/faculty-triage";
+import { useScrapeConsole, type ScrapeLogLine } from "@/lib/scrape-console";
 
 import {
   INTRO_TARGET_TAG, ROLE_KEYWORDS, isIntroLikely, matchRoles,
