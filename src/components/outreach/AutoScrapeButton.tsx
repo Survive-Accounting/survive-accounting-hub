@@ -147,7 +147,7 @@ export function AutoScrapeButton({
     };
 
     try {
-      toast.message("🤖 Auto-discovering URLs…", { description: campusName });
+      // Progress is shown in the live terminal — no progress toasts.
       pushScrapeLog(campusId, "code", `import { discover } from "serpapi"`);
       pushScrapeLog(campusId, "cmd", `→ discover.urls({ campus: "${campusName}" })`);
 
