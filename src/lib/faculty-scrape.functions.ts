@@ -325,6 +325,58 @@ function extractMailtoFromHtml(rawHtml: string): string | null {
   return null;
 }
 
+function safeFromCodePoint(code: number): string {
+  try { return code > 0 && code < 0x110000 ? String.fromCodePoint(code) : ""; } catch { return ""; }
+}
+
+/**
+ * Decode the two most common email-obfuscation encodings seen on professional-
+ * services directories (the `obfuscated_mailto_hex_decoding` pattern):
+ *   - percent/hex encoding   — mailto:%6a%6f%68%6e%40site.edu  → mailto:john@site.edu
+ *   - HTML numeric entities  — j&#111;hn&#64;site&#46;edu       → john@site.edu
+ *                              (both decimal &#64; and hex &#x40; forms)
+ *   - a few named entities   — &commat; &period; &amp;
+ * Best-effort and never throws — a malformed token is left as-is so we don't
+ * corrupt the surrounding text. Returns a decoded COPY for the extractors to
+ * re-scan; the original markdown/HTML is untouched.
+ */
+function decodeObfuscatedEntities(s: string): string {
+  if (!s) return "";
+  let out = s;
+  // Hex numeric entities (&#x6a; / &#X6A) — trailing ';' optional in the wild.
+  out = out.replace(/&#x([0-9a-f]+);?/gi, (m, h: string) => safeFromCodePoint(parseInt(h, 16)) || m);
+  // Decimal numeric entities (&#106;).
+  out = out.replace(/&#(\d+);?/g, (m, d: string) => safeFromCodePoint(parseInt(d, 10)) || m);
+  // Percent-encoding (%6a%40…). Decode each run as one token so a UTF-8
+  // multi-byte sequence decodes correctly and a stray '%' can't throw.
+  out = out.replace(/(?:%[0-9a-f]{2})+/gi, (seq) => {
+    try { return decodeURIComponent(seq); } catch { return seq; }
+  });
+  // Common named entities used to hide '@' and '.'.
+  out = out.replace(/&commat;/gi, "@").replace(/&period;/gi, ".").replace(/&amp;/gi, "&");
+  return out;
+}
+
+/**
+ * Recover an email that was hidden behind hex/percent or HTML-entity encoding.
+ * Decodes both the markdown and raw HTML, then re-runs the standard extractors
+ * over the decoded copies. This is the last email-recovery step, tried only
+ * after the plain / (at)(dot) / literal-mailto passes have all failed.
+ */
+function extractEncodedEmail(markdown: string, rawHtml: string): string | null {
+  const decodedHtml = decodeObfuscatedEntities(rawHtml);
+  const decodedMd = decodeObfuscatedEntities(markdown);
+  // Only worth the extra work if decoding actually changed something.
+  if (decodedHtml === rawHtml && decodedMd === markdown) return null;
+  return (
+    extractMailtoFromHtml(decodedHtml) ??
+    extractBestEmail(decodedMd) ??
+    extractBestEmail(decodedHtml) ??
+    extractObfuscatedEmail(decodedMd) ??
+    extractObfuscatedEmail(decodedHtml)
+  );
+}
+
 const GENERIC_LOCALS_RE = /^(info|contact|admissions|support|webmaster|noreply|no-reply|help|hello|office|admin)$/i;
 
 /**
@@ -734,6 +786,11 @@ async function enrichProfileEmails(
     if (obf) return { email: obf, how: "obfuscated" };
     const mail = extractMailtoFromHtml(html);
     if (mail) return { email: mail, how: "mailto" };
+    // Last resort: hex/percent- or HTML-entity-encoded addresses (the
+    // `obfuscated_mailto_hex_decoding` pattern). Counted as "obfuscated" so the
+    // debug bundle still surfaces how the email was recovered.
+    const encoded = extractEncodedEmail(md, html);
+    if (encoded) return { email: encoded, how: "obfuscated" };
     return { email: null, how: "no_email" };
   };
 
