@@ -78,7 +78,10 @@ function HeroCta() {
         className="hero-anim-btn mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
         style={{ listStyle: "none", padding: 0, margin: 0 }}
       >
-        {[{ icon: "☀️", label: "Available Summer 2026" }].map((b) => (
+        {[
+          { icon: "☀️", label: "Available July 2026" },
+          { icon: "⏳", label: "Intro & Intermediate · Limited slots" },
+        ].map((b) => (
           <li
             key={b.label}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] sm:text-[12.5px]"
