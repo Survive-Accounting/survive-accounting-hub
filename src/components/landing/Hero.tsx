@@ -276,6 +276,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
             >
               {[
                 { icon: "☀️", label: "Available July 2026" },
+                { icon: "⏳", label: "Intro & Intermediate · Limited slots" },
               ].map((b) => (
                 <li
                   key={b.label}
