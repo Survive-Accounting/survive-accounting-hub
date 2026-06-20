@@ -18,6 +18,7 @@ import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as OutreachScraperTrendsRouteImport } from './routes/outreach.scraper-trends'
+import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
@@ -70,6 +71,11 @@ const TSlugRoute = TSlugRouteImport.update({
 const OutreachScraperTrendsRoute = OutreachScraperTrendsRouteImport.update({
   id: '/scraper-trends',
   path: '/scraper-trends',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachLeadfinderBatchRoute = OutreachLeadfinderBatchRouteImport.update({
+  id: '/leadfinder-batch',
+  path: '/leadfinder-batch',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OShortRefRoute = OShortRefRouteImport.update({
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
   '/t/$slug': typeof TSlugRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/leadfinder-batch'
     | '/outreach/scraper-trends'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/leadfinder-batch'
     | '/outreach/scraper-trends'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/leadfinder-batch'
     | '/outreach/scraper-trends'
     | '/t/$slug'
     | '/ceq/$courseSlug/$chapterSlug'
@@ -311,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachScraperTrendsRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/leadfinder-batch': {
+      id: '/outreach/leadfinder-batch'
+      path: '/leadfinder-batch'
+      fullPath: '/outreach/leadfinder-batch'
+      preLoaderRoute: typeof OutreachLeadfinderBatchRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/o/$shortRef': {
       id: '/o/$shortRef'
       path: '/o/$shortRef'
@@ -387,12 +406,14 @@ const CeqRouteChildren: CeqRouteChildren = {
 const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
 interface OutreachRouteChildren {
+  OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachScraperTrendsRoute: typeof OutreachScraperTrendsRoute
   OutreachLeadfinderCampusIdRoute: typeof OutreachLeadfinderCampusIdRoute
   OutreachLeadfinderIndexRoute: typeof OutreachLeadfinderIndexRoute
 }
 
 const OutreachRouteChildren: OutreachRouteChildren = {
+  OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachScraperTrendsRoute: OutreachScraperTrendsRoute,
   OutreachLeadfinderCampusIdRoute: OutreachLeadfinderCampusIdRoute,
   OutreachLeadfinderIndexRoute: OutreachLeadfinderIndexRoute,
@@ -417,13 +438,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

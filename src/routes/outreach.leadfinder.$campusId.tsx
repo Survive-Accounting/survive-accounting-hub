@@ -23,6 +23,7 @@ import { scrapeCampusRmp, resetCampusLeads } from "@/lib/rmp-scrape.functions";
 import { startScrapeJob } from "@/lib/scrape-jobs";
 import type { Campus } from "@/lib/outreach-mock";
 import { AutoScrapeButton } from "@/components/outreach/AutoScrapeButton";
+import { V2Badge } from "@/components/outreach/V2Badge";
 
 
 const LOGO_URL =
@@ -323,6 +324,12 @@ function LeadFinderPage() {
                 onScraped={() => setRefreshKey((k) => k + 1)}
                 exposeApi={setScrapeApi}
               />
+              <Link
+                to="/outreach/leadfinder-batch"
+                className="inline-flex items-center gap-1 text-orange-600 underline underline-offset-2 hover:text-orange-700"
+              >
+                Batch scrape <V2Badge />
+              </Link>
               <button
                 type="button"
                 onClick={() => setShowManualSteps((v) => !v)}

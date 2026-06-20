@@ -97,6 +97,9 @@ type Extracted = {
    *  'news' = name pulled from a news/blog/spotlight page; almost never a
    *  tenure-track contact — flagged so reviewers can deprioritize. */
   email_confidence?: "verified" | "directory" | "inferred" | "news";
+  /** Ancillary links harvested from the person's profile page (best-effort).
+   *  Stored in raw_payload for later enrichment + marketing; not required. */
+  links?: { linkedin?: string; cv?: string; personal?: string };
 };
 
 
@@ -115,7 +118,10 @@ const HARD_EXCLUDE = [
 // 4-digit year in path (e.g. /2024/, /2007-2008) = archived directory PDFs.
 const YEAR_RE = /\/(?:19|20)\d{2}(?:[-_/]|$)/;
 const TEACHING_TITLE_RE = /\b(professor|instructor|lecturer|adjunct|clinical|teaching|faculty|dean|chair|practice|visiting)\b/i;
-const PROFILE_ENRICH_LIMIT = 50;
+// Max profile pages we'll open per run to backfill missing email/title. This is
+// the main coverage↔cost dial: higher = better coverage, more Firecrawl spend.
+// At ~$0.0012/profile a full 120-person sweep is ~$0.14 — watch the cost meter.
+const PROFILE_ENRICH_LIMIT = 120;
 const PROFILE_ENRICH_CONCURRENCY = 4;
 const PROFILE_SCRAPE_TIMEOUT_MS = 20_000;
 const URL_PROCESS_CONCURRENCY = 3;
@@ -123,8 +129,9 @@ const DIRECTORY_WAIT_MS = 3500;
 const BATCH_SCRAPE_TIMEOUT_MS = 90_000;
 // After this many empty/error fetches from the same host inside one enrichment
 // pass, skip the rest. Anti-bot blocks usually fail every URL on that host —
-// no point burning credits + 20s of timeout per profile.
-const PER_HOST_FAIL_LIMIT = 2;
+// no point burning credits + 20s of timeout per profile. (Raised from 2 → 4 so
+// a couple of slow/missing pages don't abandon an otherwise-good host.)
+const PER_HOST_FAIL_LIMIT = 4;
 // If the primary scrape returns fewer than this many emails AND we have a
 // usable root domain, run one Firecrawl `map` fallback to discover the real
 // faculty roster page and re-scrape.
@@ -571,20 +578,101 @@ function attachProfileUrlsFromLinks(
     } catch { /* ignore */ }
   }
 
+  // Pre-list slug entries once for the "contains both names" fallback below.
+  const slugEntries = Array.from(slugIndex.entries());
+
   let matched = 0;
   const out = people.map((p) => {
     if (p.profile_url) return p;
     const ln = (p.last_name ?? "").toLowerCase().replace(/[^a-z]/g, "");
     const fn = (p.first_name ?? "").toLowerCase().replace(/[^a-z]/g, "");
     if (!ln) return p;
-    const candidates = [ln, `${fn}-${ln}`, `${ln}-${fn}`, `${fn}.${ln}`, `${fn}_${ln}`];
+    const fi = fn.slice(0, 1);
+    const candidates = [
+      ln,
+      `${fn}-${ln}`, `${ln}-${fn}`, `${fn}.${ln}`, `${fn}_${ln}`,
+      `${fn}${ln}`, `${ln}${fn}`,
+      `${fi}${ln}`, `${fi}-${ln}`, `${fi}.${ln}`, `${ln}${fi}`, `${ln}-${fi}`,
+    ].filter((s) => s.length >= 3);
     for (const slug of candidates) {
       const hit = slugIndex.get(slug);
       if (hit) { matched++; return { ...p, profile_url: hit }; }
     }
+    // Fallback: a slug that CONTAINS both first AND last name as substrings —
+    // handles /people/john-quincy-smith, /faculty/smith-john-a, /profile/12-jsmith.
+    // Require both names ≥3 chars so short names don't cause false matches.
+    if (fn.length >= 3 && ln.length >= 3) {
+      for (const [slug, href] of slugEntries) {
+        if (slug.includes(fn) && slug.includes(ln)) {
+          matched++;
+          return { ...p, profile_url: href };
+        }
+      }
+    }
     return p;
   });
   return { people: out, matched };
+}
+
+// Pull an academic title from an individual profile page's markdown. The page
+// already gets fetched during email enrichment, so reading the title off it is
+// free. Strategy: scan the first ~60 non-empty lines, skip the person's own
+// name, nav chrome, images, links and emails, and return the first line that
+// looks like a title. Conservative on purpose — better to miss a title than to
+// grab a nav label or a neighbour's title.
+function extractProfileTitle(
+  markdown: string,
+  firstName: string,
+  lastName: string,
+): string | null {
+  if (!markdown) return null;
+  const fn = (firstName ?? "").toLowerCase();
+  const ln = (lastName ?? "").toLowerCase();
+  const lines = markdown
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 60);
+  for (const raw of lines) {
+    if (/^!\[/.test(raw) || /^\[/.test(raw)) continue; // image / pure-link line
+    const line = raw
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/^[-*]\s+/, "")
+      .replace(/\*\*/g, "")
+      .trim();
+    if (!line || line.length > 120) continue; // skip long nav/blurb lines
+    if (/@|https?:\/\//i.test(line)) continue; // email / url line
+    if (/\b(skip to|menu|search|home|directory|toggle|navigation|copyright|breadcrumb)\b/i.test(line)) continue;
+    const low = line.toLowerCase();
+    // The name line itself isn't a title (unless it also literally contains a
+    // title word, which TEACHING_TITLE_RE will still catch below).
+    if (fn && ln && low.includes(fn) && low.includes(ln) && !TEACHING_TITLE_RE.test(line)) continue;
+    if (TEACHING_TITLE_RE.test(line)) {
+      const cleaned = stripCredentials(line).replace(/\s+/g, " ").trim();
+      return cleaned || null;
+    }
+  }
+  return null;
+}
+
+// Best-effort capture of a person's LinkedIn / CV link from their profile page.
+// Stored in raw_payload for later enrichment + marketing. Never throws.
+function extractProfileLinks(
+  markdown: string,
+  rawHtml: string,
+): { linkedin?: string; cv?: string; personal?: string } | undefined {
+  const out: { linkedin?: string; cv?: string; personal?: string } = {};
+  const hay = `${markdown}\n${rawHtml}`;
+  const li = hay.match(/https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/in\/[A-Za-z0-9\-_%]+/i);
+  if (li) out.linkedin = li[0];
+  const cvPdf = hay.match(/https?:\/\/[^\s"')]+(?:cv|vita|vitae|resume)[^\s"')]*\.pdf/i);
+  if (cvPdf) {
+    out.cv = cvPdf[0];
+  } else {
+    const cvMd = hay.match(/\[[^\]]*\b(?:cv|curriculum vitae|vitae|resume)\b[^\]]*\]\((https?:\/\/[^)\s]+)\)/i);
+    if (cvMd) out.cv = cvMd[1];
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 async function enrichProfileEmails(
@@ -600,7 +688,12 @@ async function enrichProfileEmails(
   const passThrough: Extracted[] = [];
   const toEnrich: Extracted[] = [];
   for (const p of people) {
-    if (p.email || !p.profile_url || normalizeUrl(p.profile_url) === sourceKey) {
+    // Enrich anyone still missing an email OR a title, as long as we have a
+    // profile page to visit that isn't the directory page we already scraped.
+    // (Previously only missing-email triggered enrichment, which left ~58% of
+    // people with no title even though it sits on the same profile page.)
+    const needsData = !p.email || !p.title;
+    if (!needsData || !p.profile_url || normalizeUrl(p.profile_url) === sourceKey) {
       passThrough.push(p);
     } else if (toEnrich.length < PROFILE_ENRICH_LIMIT) {
       toEnrich.push(p);
@@ -650,6 +743,8 @@ async function enrichProfileEmails(
       const payload = scraped.get(normalizeUrl(person.profile_url!)) ?? { markdown: "", rawHtml: "" };
       const { email, how } = pickEmail(payload.markdown, payload.rawHtml);
       const profileCreds = payload.markdown ? detectCredentials(payload.markdown.slice(0, 4000)) : { is_phd: false, is_cpa: false };
+      const profileTitle = person.title ?? extractProfileTitle(payload.markdown, person.first_name, person.last_name);
+      const profileLinks = extractProfileLinks(payload.markdown, payload.rawHtml);
       if (email) enriched++;
       const result = email ? how : (payload.markdown || payload.rawHtml ? "no_email" : "empty");
       // Empty payload from batch = treat as host failure for the fallback pass.
@@ -664,8 +759,10 @@ async function enrichProfileEmails(
       enrichedRows[i] = {
         ...person,
         email: email ?? person.email,
+        title: person.title ?? profileTitle,
         is_phd: person.is_phd || profileCreds.is_phd,
         is_cpa: person.is_cpa || profileCreds.is_cpa,
+        links: profileLinks ?? person.links,
       };
     }
   } else {
@@ -695,6 +792,8 @@ async function enrichProfileEmails(
           const { markdown, rawHtml } = await firecrawlScrapeFull(fcKey, person.profile_url!);
           const { email, how } = pickEmail(markdown, rawHtml);
           const profileCreds = detectCredentials(markdown.slice(0, 4000));
+          const profileTitle = person.title ?? extractProfileTitle(markdown, person.first_name, person.last_name);
+          const profileLinks = extractProfileLinks(markdown, rawHtml);
           if (email) enriched++;
           const result = email ? how : (markdown || rawHtml ? "no_email" : "empty");
           bumpHost(person.profile_url!, result === "empty");
@@ -708,8 +807,10 @@ async function enrichProfileEmails(
           enrichedRows[i] = {
             ...person,
             email: email ?? person.email,
+            title: person.title ?? profileTitle,
             is_phd: person.is_phd || profileCreds.is_phd,
             is_cpa: person.is_cpa || profileCreds.is_cpa,
+            links: profileLinks ?? person.links,
           };
         } catch {
           bumpHost(person.profile_url!, true);
@@ -1844,6 +1945,7 @@ async function processUrls(
               profile_url: p.profile_url,
               is_phd: p.is_phd,
               is_cpa: p.is_cpa,
+              links: p.links ?? null,
               name_only: !hasContact,
               email_confidence: p.email_confidence ?? (p.email ? "verified" : null),
               ...(p.email_confidence === "inferred" && pat
@@ -2021,7 +2123,7 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
         .eq("id", data.campusId)
         .maybeSingle();
       const { recordAndAnalyzeBundle } = await import("@/lib/scrape-debug.server");
-      const COST_FACULTY_SCRAPE_USD = 0.04;
+      const { estimateRunCostUsd } = await import("@/lib/scrape-cost");
       await recordAndAnalyzeBundle({
         campusId: data.campusId,
         campusName: (campusRow as { name?: string } | null)?.name ?? null,
@@ -2034,7 +2136,10 @@ export const scrapeCampusFaculty = createServerFn({ method: "POST" })
         skippedDuplicates: result.skippedDuplicates,
         droppedNoContact: result.droppedNoContact,
         mapFallbackUsed,
-        costEstimateUsd: COST_FACULTY_SCRAPE_USD * Math.max(1, result.perPage.length / 3),
+        // Operation-counted estimate (directory + profile scrapes + pagination
+        // + map + AI calls) using the rates in scrape-cost.ts. Far more accurate
+        // than the old flat per-campus guess — drives the cost meter + margins.
+        costEstimateUsd: estimateRunCostUsd(result.perPage, { mapFallbackUsed }),
       });
     } catch (e) {
       console.warn("[scrapeCampusFaculty] debug bundle failed:", e instanceof Error ? e.message : String(e));

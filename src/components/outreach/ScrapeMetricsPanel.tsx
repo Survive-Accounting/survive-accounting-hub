@@ -40,7 +40,7 @@ const EMPTY: Metrics = {
 };
 
 async function loadMetrics(): Promise<Metrics> {
-  const [{ data: jobs }, { count: leadsCount }] = await Promise.all([
+  const [{ data: jobs }, { count: leadsCount }, { data: bundles }] = await Promise.all([
     supabase
       .from("scrape_jobs")
       .select("campus_id,kind,status,started_at,finished_at")
@@ -52,7 +52,15 @@ async function loadMetrics(): Promise<Metrics> {
       .select("id", { count: "exact", head: true })
       .eq("research_mode", "faculty_scrape")
       .is("archived_at", null),
+    // Real, operation-counted per-run costs — the source of truth for spend.
+    supabase
+      .from("scrape_debug_bundles")
+      .select("credits_estimate_usd")
+      .limit(10000),
   ]);
+
+  const realTotalCostUsd = ((bundles ?? []) as Array<{ credits_estimate_usd: number | null }>)
+    .reduce((s, b) => s + (Number(b.credits_estimate_usd) || 0), 0);
 
   const rows = (jobs ?? []) as Array<{
     campus_id: string;
@@ -85,8 +93,11 @@ async function loadMetrics(): Promise<Metrics> {
     }
   }
 
-  const totalCostUsd =
-    facultySuccess * COST_FACULTY_SCRAPE_USD + rmpSuccess * COST_RMP_SCRAPE_USD;
+  // Prefer the real summed per-run costs; fall back to the flat estimate only
+  // when no debug bundles exist yet (e.g. right after a reset).
+  const totalCostUsd = realTotalCostUsd > 0
+    ? realTotalCostUsd
+    : facultySuccess * COST_FACULTY_SCRAPE_USD + rmpSuccess * COST_RMP_SCRAPE_USD;
   const totalDepts = facultyCampuses.size;
   const totalContacts = leadsCount ?? 0;
   const totalJobs = successJobs + errorJobs;
@@ -94,9 +105,7 @@ async function loadMetrics(): Promise<Metrics> {
   return {
     avgDurationMs: durationCount > 0 ? totalDurationMs / durationCount : null,
     avgContactsPerDept: totalDepts > 0 ? totalContacts / totalDepts : null,
-    avgCostPerDeptUsd: totalDepts > 0
-      ? (facultySuccess * COST_FACULTY_SCRAPE_USD) / totalDepts
-      : null,
+    avgCostPerDeptUsd: totalDepts > 0 ? totalCostUsd / totalDepts : null,
     avgCostPerContactUsd: totalContacts > 0 ? totalCostUsd / totalContacts : null,
     successRatePct: totalJobs > 0 ? (successJobs / totalJobs) * 100 : null,
     totalDepts,
@@ -175,6 +184,7 @@ export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
           <div className="my-1 border-t border-sidebar-border/50" />
           <Row k="Total departments scraped" v={fmtInt(metrics.totalDepts)} strong />
           <Row k="Total contacts found" v={fmtInt(metrics.totalContacts)} strong />
+          <Row k="Total spent (est.)" v={fmtUsd(metrics.totalCostUsd, 2)} strong />
           <div className="mt-1.5 flex items-center justify-between gap-1 pt-1 text-[9.5px] text-sidebar-foreground/50">
             <span>
               {metrics.successJobs} ok · {metrics.errorJobs} err · total {fmtUsd(metrics.totalCostUsd, 2)}
@@ -212,7 +222,7 @@ export function ScrapeMetricsPanel({ refreshKey }: { refreshKey?: number }) {
             </div>
           </div>
           <div className="text-[9px] italic text-sidebar-foreground/45">
-            Est. ${COST_FACULTY_SCRAPE_USD.toFixed(3)}/faculty, ${COST_RMP_SCRAPE_USD.toFixed(3)}/RMP scrape.
+            Costs are operation-counted per run (profile/directory scrapes, pagination, AI). Calibrate rates in scrape-cost.ts to your Firecrawl plan.
           </div>
         </div>
       </CollapsibleContent>
