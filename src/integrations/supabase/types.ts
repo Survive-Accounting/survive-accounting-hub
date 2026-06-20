@@ -3761,6 +3761,45 @@ export type Database = {
           },
         ]
       }
+      scrape_batches: {
+        Row: {
+          actual_cost_usd: number
+          campus_count: number
+          campus_ids: Json
+          created_at: string
+          est_cost_usd: number
+          id: string
+          leads_inserted: number
+          notes: string | null
+          status: string
+          vertical: string
+        }
+        Insert: {
+          actual_cost_usd?: number
+          campus_count?: number
+          campus_ids?: Json
+          created_at?: string
+          est_cost_usd?: number
+          id?: string
+          leads_inserted?: number
+          notes?: string | null
+          status?: string
+          vertical?: string
+        }
+        Update: {
+          actual_cost_usd?: number
+          campus_count?: number
+          campus_ids?: Json
+          created_at?: string
+          est_cost_usd?: number
+          id?: string
+          leads_inserted?: number
+          notes?: string | null
+          status?: string
+          vertical?: string
+        }
+        Relationships: []
+      }
       scrape_debug_bundles: {
         Row: {
           campus_id: string
@@ -4000,6 +4039,45 @@ export type Database = {
           what_changed?: Json | null
           window_end?: string
           window_start?: string
+        }
+        Relationships: []
+      }
+      scraper_projects: {
+        Row: {
+          assignee: string | null
+          created_at: string
+          description: string | null
+          id: string
+          links: Json
+          name: string
+          notes: string | null
+          status: string
+          updated_at: string
+          vertical: string
+        }
+        Insert: {
+          assignee?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          links?: Json
+          name: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          vertical?: string
+        }
+        Update: {
+          assignee?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          links?: Json
+          name?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          vertical?: string
         }
         Relationships: []
       }
