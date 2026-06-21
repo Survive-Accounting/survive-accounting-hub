@@ -129,17 +129,24 @@ export function BatchScrapePanel() {
     setProgress((p) => ({ ...p, [campusId]: { status: "running" } }));
     try {
       const found = (await discover({ data: { campusId } })) as DiscoverResult;
+      // Skip cleanly when discovery found no accounting-specific dept page.
+      if (found.noAccountingDept || !found.facultyUrls || found.facultyUrls.length === 0) {
+        const skipped: CampusProgress = {
+          status: "skipped",
+          skipReason: "No accounting dept page found",
+        };
+        setProgress((p) => ({ ...p, [campusId]: skipped }));
+        return skipped;
+      }
       let leads = 0;
       let emails = 0;
       let costUsd = 0;
-      if (found.facultyUrls && found.facultyUrls.length > 0) {
-        const r = (await facultyFn({
-          data: { campusId, urls: found.facultyUrls, allowNoContact: true },
-        })) as FacultyResult;
-        leads += r.inserted ?? 0;
-        emails += (r.perPage ?? []).reduce((s, p) => s + (p.withEmail ?? 0), 0);
-        costUsd += estimateRunCostUsd(r.perPage ?? []);
-      }
+      const r = (await facultyFn({
+        data: { campusId, urls: found.facultyUrls, allowNoContact: true },
+      })) as FacultyResult;
+      leads += r.inserted ?? 0;
+      emails += (r.perPage ?? []).reduce((s, p) => s + (p.withEmail ?? 0), 0);
+      costUsd += estimateRunCostUsd(r.perPage ?? []);
       let rmpMatched: number | undefined;
       let rmpSkipped: CampusProgress["rmpSkipped"];
       let rmpError: string | undefined;
