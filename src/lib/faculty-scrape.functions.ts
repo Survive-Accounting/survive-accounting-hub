@@ -2110,6 +2110,8 @@ async function processUrls(
           cardBlocks: cardBlocksCount,
           cardEmailsPaired,
           aiEmailOverridden,
+          rejectedNonPerson: pageRejectedNonPerson,
+          rejectedNonPersonSamples: rejectedSamples,
         });
 
 
