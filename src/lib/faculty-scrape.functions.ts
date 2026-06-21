@@ -1563,6 +1563,73 @@ async function callLovableAiWithPdf(
   return out;
 }
 
+// ─── Person-row gate ────────────────────────────────────────────────────────
+// Faculty directory pages often contain news headlines, donation CTAs, and
+// section labels that look enough like a "name + email" pair to slip through
+// the AI extractor. These rows can never match an RMP teacher (no real
+// person name) and pollute the triage panel. Reject them here.
+const NON_PERSON_NAME_RE =
+  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release)\b/i;
+const HEADLINE_VERB_RE =
+  /^(show|invest|learn|read|view|click|apply|submit|get|discover|explore|join|meet|find|sign|subscribe|follow|share|donate|give)\b/i;
+const NAME_TOKEN_RE = /^[A-Za-z][A-Za-z'`\-.]{1,}$/;
+const GENERIC_EMAIL_LOCALS = new Set([
+  "news", "info", "contact", "support", "donate", "give", "hello",
+  "admin", "webmaster", "undergrad", "grad", "gradu", "alumni",
+  "dean", "options", "integr", "sbusiness", "office", "marketing",
+  "communications", "events", "media", "press", "help", "noreply",
+  "no-reply", "mail", "inquiry", "inquiries", "general", "main",
+]);
+
+export type PersonRejectReason =
+  | "missing_name"
+  | "non_alpha_name"
+  | "too_many_tokens"
+  | "too_long"
+  | "headline_phrase"
+  | "headline_verb"
+  | "title_is_url"
+  | "title_is_section_label"
+  | "generic_email_local";
+
+export function isLikelyPersonRow(p: {
+  first_name: string | null | undefined;
+  last_name: string | null | undefined;
+  title?: string | null | undefined;
+  email?: string | null | undefined;
+}): { ok: true } | { ok: false; reason: PersonRejectReason } {
+  const fn = (p.first_name ?? "").trim();
+  const ln = (p.last_name ?? "").trim();
+  if (fn.length < 2 || ln.length < 2) return { ok: false, reason: "missing_name" };
+  if (!NAME_TOKEN_RE.test(fn.split(/\s+/)[0]) || !NAME_TOKEN_RE.test(ln.split(/\s+/).at(-1) ?? "")) {
+    return { ok: false, reason: "non_alpha_name" };
+  }
+  const full = `${fn} ${ln}`.trim();
+  if (full.length > 60) return { ok: false, reason: "too_long" };
+  const tokenCount = full.split(/\s+/).filter(Boolean).length;
+  if (tokenCount > 4) return { ok: false, reason: "too_many_tokens" };
+  if (NON_PERSON_NAME_RE.test(full)) return { ok: false, reason: "headline_phrase" };
+  if (HEADLINE_VERB_RE.test(full)) return { ok: false, reason: "headline_verb" };
+
+  const title = (p.title ?? "").trim();
+  if (title) {
+    if (/^https?:\/\//i.test(title) || /\.(php|html?|aspx?)\b/i.test(title)) {
+      return { ok: false, reason: "title_is_url" };
+    }
+    if (/^\[[^\]]+\]/.test(title) && /\b(news|press|dean|office|story|stories|spotlight)\b/i.test(title)) {
+      return { ok: false, reason: "title_is_section_label" };
+    }
+  }
+
+  const email = (p.email ?? "").trim().toLowerCase();
+  if (email.includes("@")) {
+    const local = email.split("@")[0]?.replace(/[.+-].*/, "") ?? "";
+    if (GENERIC_EMAIL_LOCALS.has(local)) return { ok: false, reason: "generic_email_local" };
+  }
+  return { ok: true };
+}
+
+
 /**
  * Insert extracted people into campus_lead_suggestions with the standard
  * dedupe-against-active-rows rules. Shared by URL and PDF scrape paths.
