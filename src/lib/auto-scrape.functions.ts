@@ -140,14 +140,42 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       facultyMs = Date.now() - facultyStart;
     }
 
+    // Non-directory hosts/paths that frequently sneak past an "accounting"
+    // signal: institutional repositories (scholarship.*, digitalcommons.*),
+    // libraries/archives (uflib, findingaids, /spec/, /archives/), CGI
+    // viewers (/cgi/viewcontent), PDFs, journals, news, courses/syllabi.
+    const NON_DIRECTORY_HOST_RE =
+      /^(scholarship|digitalcommons|commons|repository|repositories|library|libraries|lib|uflib|archives|archive|journals|journal|news|newsroom|blog|today|magazine|press|catalog|catalogue|registrar|bulletin|courses)$/i;
+    const NON_DIRECTORY_PATH_RE =
+      /(\/cgi\/|\/viewcontent|\/spec\/|\/archives?\/|\/findingaids?|\/repositor(y|ies)\/|\/journals?\/|\/proceedings?\/|\/papers?\/|\/publications?\/|\/research-?papers?\/|\/abstract\/|\/article\/|\/issues?\/|\/volumes?\/|\.pdf(\?|$)|\.docx?(\?|$))/i;
+    const DIRECTORY_PATH_RE =
+      /\/(directory|faculty|people|staff|profiles|faculty-staff|faculty-directory|faculty-and-staff|our-(people|faculty)|meet-(the-)?(faculty|team))(\/|\.|$)/i;
     const keep = (link: string, title: string) => {
       const h = hostOf(link);
       const domainOk = domains.length === 0 || domains.some((d) => h === d || h.endsWith(`.${d}`));
       if (!domainOk) return false;
       if (BLOG_DATE_RE.test(link)) return false;
+      // Hard-exclude non-directory hosts (library, scholarship repos, news…).
+      const leftmostHostLabel = (h.split(".")[0] ?? "");
+      if (NON_DIRECTORY_HOST_RE.test(leftmostHostLabel)) {
+        notes.push(`faculty: dropped non-directory host ${h}`);
+        return false;
+      }
+      let pathname = link.toLowerCase();
+      try { pathname = new URL(link).pathname.toLowerCase(); } catch { /* keep raw */ }
+      if (NON_DIRECTORY_PATH_RE.test(pathname)) {
+        notes.push(`faculty: dropped non-directory path ${pathname}`);
+        return false;
+      }
       const txt = `${link} ${title}`;
-      // HARD requirement: accounting signal in URL path or title.
+      // HARD requirements:
+      //  (1) accounting signal in URL path or title, AND
+      //  (2) a directory-shape path token — otherwise we accept random
+      //      scholarship/library hits that just happen to mention accounting.
       if (!ACCOUNTING_PATH_RE.test(link) && !ACCOUNTING_SIGNAL_RE.test(txt)) return false;
+      if (!DIRECTORY_PATH_RE.test(pathname) && !ACCOUNTING_PATH_RE.test(pathname)) {
+        return false;
+      }
       const labels = h.split(".");
       const leftmost = labels[0] ?? "";
       if (labels.length >= 3 && /(blog|news|newsroom)/i.test(leftmost)) {
@@ -169,7 +197,6 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       }
       if (!facultyUrls.includes(link)) facultyUrls.push(link);
     }
-    const DIRECTORY_PATH_RE = /\/(directory|faculty|people|staff|profiles|faculty-staff|faculty-directory|faculty-and-staff)(\/|\.|$)/i;
     const score = (u: string): number => {
       const p = (() => { try { return new URL(u).pathname.toLowerCase(); } catch { return u.toLowerCase(); } })();
       let s = 0;
