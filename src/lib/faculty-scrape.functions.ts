@@ -1645,11 +1645,14 @@ async function insertExtractedPeople(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const rowsToInsert: Array<Record<string, unknown>> = [];
   let droppedNoContact = 0;
+  let rejectedNonPerson = 0;
   for (const p of people) {
     const hasContact = !!p.email || !!p.profile_url;
     if (!hasContact && !options.allowNoContact) { droppedNoContact++; continue; }
     // Require at least a name when we have no contact info, otherwise the row is useless.
     if (!hasContact && !(p.first_name || p.last_name)) { droppedNoContact++; continue; }
+    const gate = isLikelyPersonRow({ first_name: p.first_name, last_name: p.last_name, title: p.title, email: p.email });
+    if (!gate.ok) { rejectedNonPerson++; droppedNoContact++; continue; }
     rowsToInsert.push({
       campus_id: campusId,
       first_name: p.first_name,
