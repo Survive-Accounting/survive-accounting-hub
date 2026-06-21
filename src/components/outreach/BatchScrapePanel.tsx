@@ -549,6 +549,7 @@ function StatusDot({ status, leads }: { status: RunStatus; leads?: number }) {
         {typeof leads === "number" ? leads : ""}
       </span>
     );
+  if (status === "skipped") return <Circle className="h-3.5 w-3.5 text-amber-500" />;
   if (status === "error") return <XCircle className="h-3.5 w-3.5 text-red-500" />;
   return <Circle className="h-3.5 w-3.5 text-muted-foreground/40" />;
 }
