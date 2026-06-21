@@ -381,6 +381,14 @@ export function BatchScrapePanel() {
                       <span className="flex-1 truncate">{c.school_name}</span>
                       {c.state ? <span className="text-xs text-muted-foreground">{c.state}</span> : null}
                       {p ? <StatusDot status={p.status} leads={p.leads} /> : null}
+                      {p?.status === "skipped" ? (
+                        <span
+                          className="text-xs text-amber-600"
+                          title={p.skipReason ?? "Skipped"}
+                        >
+                          no accounting dept
+                        </span>
+                      ) : null}
                       {p?.status === "done" ? (
                         <span
                           className="text-xs"
