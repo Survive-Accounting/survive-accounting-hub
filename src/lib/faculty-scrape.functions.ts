@@ -1752,6 +1752,8 @@ async function processUrls(
     cardBlocks?: number;
     cardEmailsPaired?: number;
     aiEmailOverridden?: number;
+    rejectedNonPerson?: number;
+    rejectedNonPersonSamples?: Array<{ name: string; reason: string }>;
   }> = [];
 
 
