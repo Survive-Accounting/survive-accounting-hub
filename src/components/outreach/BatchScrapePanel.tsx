@@ -173,7 +173,7 @@ export function BatchScrapePanel() {
     let costUsd = 0;
     let errors = 0;
 
-    const CONCURRENCY = 2;
+    const CONCURRENCY = 4;
     const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
       while (queue.length > 0) {
         const id = queue.shift();
