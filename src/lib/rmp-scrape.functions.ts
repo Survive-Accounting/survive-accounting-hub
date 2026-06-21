@@ -443,11 +443,18 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
             // Last-resort fallback: only accept the windowed email when its
             // local part actually contains the person's last name (or vice
             // versa) — rejects neighbor emails on dense directory pages.
+            // Also accept it when the local part matches the UID segment of
+            // a profile URL on the same page (Walton uses /uid/mandic/...
+            // paired with mandic@uark.edu — name-free locals).
             const emailMatch = windowText.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
             const candidate = emailMatch ? emailMatch[0].toLowerCase() : null;
             if (candidate) {
-              const local = candidate.split("@")[0].replace(/[^a-z]/g, "");
-              if (local.includes(lnSlug) || lnSlug.includes(local)) email = candidate;
+              const local = candidate.split("@")[0].replace(/[^a-z0-9]/g, "");
+              const uidMatch = windowText.match(/\/uid\/([A-Za-z0-9._-]+)\/[^)\s]*name\/[^)\s]*/i);
+              const uid = uidMatch ? uidMatch[1].toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+              if (local.includes(lnSlug) || lnSlug.includes(local) || (uid && uid === local)) {
+                email = candidate;
+              }
             }
           }
 
