@@ -45,6 +45,16 @@ const TITLE_HINT_RE =
 const HEADING_LINK_RE =
   /^[ \t]{0,3}#{1,6}[ \t]+(?:\*\*|__)?\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)(?:\*\*|__)?[ \t]*$/gim;
 
+// Image-link card (Walton/Uark-style): a markdown link whose link-text is an
+// inline image followed by the person's name, with no heading marker. Example:
+//   [![Mandi Cooper](photo.jpg)\\
+//   \\
+//   Mandi Cooper](https://walton.uark.edu/directory/all-faculty/uid/mandic/name/Mandi+Cooper/)
+// We use the image alt text as the canonical name (it's always just the name)
+// and the outer link as the profile URL.
+const IMAGE_LINK_CARD_RE =
+  /\[!\[([^\]\n]+)\]\([^)]+\)[^\]]*\]\((https?:\/\/[^)\s]+)\)/g;
+
 const MAILTO_RE = /mailto:([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})/i;
 const BARE_EMAIL_RE = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g;
 
@@ -124,26 +134,48 @@ function pickTitleFromBlock(block: string, rawName: string): string | null {
  */
 export function parseDirectoryCards(pageText: string): DirectoryCard[] {
   if (!pageText) return [];
-  const matches = Array.from(pageText.matchAll(HEADING_LINK_RE));
-  if (matches.length === 0) return [];
+  type Anchor = { index: number; rawName: string; profileUrl: string | null };
+  const anchors: Anchor[] = [];
+  for (const m of pageText.matchAll(HEADING_LINK_RE)) {
+    anchors.push({
+      index: m.index ?? 0,
+      rawName: (m[1] ?? "").trim(),
+      profileUrl: (m[2] ?? "").trim() || null,
+    });
+  }
+  for (const m of pageText.matchAll(IMAGE_LINK_CARD_RE)) {
+    anchors.push({
+      index: m.index ?? 0,
+      rawName: (m[1] ?? "").trim(),
+      profileUrl: (m[2] ?? "").trim() || null,
+    });
+  }
+  if (anchors.length === 0) return [];
+  // Sort by position and dedupe overlapping anchors (heading + image at same
+  // spot) — keep the first.
+  anchors.sort((a, b) => a.index - b.index);
+  const deduped: Anchor[] = [];
+  for (const a of anchors) {
+    const last = deduped[deduped.length - 1];
+    if (last && Math.abs(a.index - last.index) < 80) continue;
+    deduped.push(a);
+  }
   const cards: DirectoryCard[] = [];
-  for (let i = 0; i < matches.length; i++) {
-    const m = matches[i];
-    const rawName = (m[1] ?? "").trim();
-    const profileUrl = (m[2] ?? "").trim() || null;
-    const parsed = splitNameLocal(rawName);
+  for (let i = 0; i < deduped.length; i++) {
+    const a = deduped[i];
+    const parsed = splitNameLocal(a.rawName);
     if (!parsed) continue;
-    const blockStart = m.index ?? 0;
-    const blockEnd = matches[i + 1]?.index ?? Math.min(pageText.length, blockStart + 2000);
+    const blockStart = a.index;
+    const blockEnd = deduped[i + 1]?.index ?? Math.min(pageText.length, blockStart + 2000);
     const block = pageText.slice(blockStart, blockEnd);
     const email = pickEmailFromBlock(block);
-    const title = pickTitleFromBlock(block, rawName);
+    const title = pickTitleFromBlock(block, a.rawName);
     cards.push({
       first_name: parsed.first_name,
       last_name: parsed.last_name,
       title,
       email,
-      profile_url: profileUrl,
+      profile_url: a.profileUrl,
       block_start: blockStart,
       block_end: blockEnd,
     });
