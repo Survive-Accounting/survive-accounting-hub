@@ -369,6 +369,26 @@ export function BatchScrapePanel() {
                       <span className="flex-1 truncate">{c.school_name}</span>
                       {c.state ? <span className="text-xs text-muted-foreground">{c.state}</span> : null}
                       {p ? <StatusDot status={p.status} leads={p.leads} /> : null}
+                      {p?.status === "done" ? (
+                        <span
+                          className="text-xs"
+                          title={
+                            p.rmpError
+                              ? `RMP error: ${p.rmpError}`
+                              : p.rmpSkipped === "no_url"
+                                ? "No RMP school URL found"
+                                : `RMP matched ${p.rmpMatched ?? 0}`
+                          }
+                        >
+                          {p.rmpSkipped === "error" ? (
+                            <span className="text-destructive">RMP ⚠</span>
+                          ) : p.rmpSkipped === "no_url" ? (
+                            <span className="text-muted-foreground">no RMP</span>
+                          ) : (
+                            <span className="text-muted-foreground">RMP {p.rmpMatched ?? 0}</span>
+                          )}
+                        </span>
+                      ) : null}
                     </label>
                   );
                 })
