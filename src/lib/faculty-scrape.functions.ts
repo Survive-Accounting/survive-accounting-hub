@@ -2046,9 +2046,20 @@ async function processUrls(
         const withProfileUrl = people.filter((p) => !!p.profile_url).length;
         let pageDropped = 0;
         let pageInserted = 0;
+        let pageRejectedNonPerson = 0;
+        const rejectedSamples: Array<{ name: string; reason: string }> = [];
         for (const p of people) {
           const hasContact = !!p.email || !!p.profile_url;
           if (!hasContact && !options.allowNoContact) { pageDropped++; continue; }
+          const gate = isLikelyPersonRow({ first_name: p.first_name, last_name: p.last_name, title: p.title, email: p.email });
+          if (!gate.ok) {
+            pageRejectedNonPerson++;
+            pageDropped++;
+            if (rejectedSamples.length < 8) {
+              rejectedSamples.push({ name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "(no name)", reason: gate.reason });
+            }
+            continue;
+          }
           pageInserted++;
           rowsToInsert.push({
             campus_id: campusId,
