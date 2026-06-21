@@ -1,255 +1,69 @@
-# Arkansas scrape diagnosis + RMP-in-V2 + mailto-deobfuscation plan
+## What you're actually seeing
 
-## Part 1 — What the Arkansas screenshots show
+**RMP is working.** Look at row "Jing Cui — ★ 3.3 (6)" in your screenshot. The Walton/Arkansas RMP scrape (school 18455) ran, matched real professors, and wrote `rmp_rating` onto their suggestions. The earlier reverse-insert + businessish-dept logic is doing its job.
 
-Two distinct issues, plus one related issue the scraper-trends dashboard just surfaced.
+**The empty RMP cells are a faculty-scrape junk problem, not an RMP problem.** Every row in your screenshot with `—` in RMP is not a person:
 
-### A. Junk rows added by the faculty extractor (precision drop, not recall)
+| Row name | What it actually is |
+|---|---|
+| "Sam M. Walton College of Business" | School name in a page header |
+| "New & Noteworthy / View all news" | Sidebar nav link |
+| "What Makes a Graduate School Application Compelling…" | News article headline |
+| "2026 Graduate Outstanding Program Scholar: Sara Twining…" | Press release headline |
+| "Walton College Accounting Student Awarded Prestigious FASB Assistantship" | Press release headline |
+| "Show your support.\\ \\ Invest in Accounting Students" | Donation CTA block |
 
-The real professors are correct (Chad Reed, Ashleigh Bakke, Ryan Robinson, Caleb Rawson, Thomas Hayes, Robyn Jarnagin, Kim Petrone, Barry Bryan — all good). The bad rows are all of one shape:
+These came from `walton.uark.edu/departments/accounting` (the marketing landing page), which the discover step picked up alongside the actual `directory.php`. Because they have no real first/last name, **they cannot match an RMP teacher record by name**, so RMP stays `—` forever. That's what you're interpreting as "RMP not working."
 
-- Headings / nav captured as people: "Buildings and Locations", "Sam M. Walton College of Business", "New & Noteworthy / View all news", news article titles, "Show your support \\ Invest in Accounting Students".
-- Emails that aren't emails: `gradu@ion.undergraduate`, `undergradu@e-accounting-program.php`, `gre@options.for`, `integr@ed-macc.php`. These are fragments of relative URLs (`graduation.undergraduate.php`, `e-accounting-program.php`, `integrated-macc.php`) that survived the email regex.
+The Arkansas debug bundle confirms this: 39 clean leads came from `directory.php`, but 7 junk rows came from the `/departments/accounting` landing page, and 3 more from `/directory/` (the deans page). The leads that ARE real people got RMP attached.
 
-Root cause: the card-block segmenter accepts non-faculty blocks (news teasers, footer CTAs, page headers) and the email regex doesn't reject URL-slug shapes. Recall on actual professors is fine; precision falls off at the end of the page where news/CTA blocks live. (Out of scope for this PR — tracked in `.lovable/plan.md`.)
+## Fix (single slice)
 
-### B. RMP column is all `—`
+### 1. Reject non-person rows at insert time (faculty scrape)
 
-`scrape_batches`/`rmp_*` columns exist on `campus_lead_suggestions` and `outreach_leads`, and discovery + scraping exist (`src/lib/auto-scrape.functions.ts` lines 167–188, `src/lib/rmp-scrape.functions.ts`). Three independent failure modes can all produce the same em-dash:
+Add a small `isLikelyPersonRow()` gate in `src/lib/faculty-scrape.functions.ts`, applied right before we insert a `campus_lead_suggestion`. A row must pass ALL of:
 
-1. **Discovery never matched.** `auto-scrape.functions.ts` only accepts `/school/<digits>` URLs; RMP also returns `/search/professors/<id>?q=…` URLs that the scraper itself can parse, but discovery rejects them.
-2. **RMP fetched but department filter dropped everyone.** `isAccountingDept` hardcodes `"accounting" | "accountancy"`. Joint-appointment and adjunct faculty often appear with different department strings.
-3. **Department matched but name join missed.** Match is exact-normalized first+last; RMP middle initials and anonymized first names ("A. Bakke") fail silently.
+- `first_name` and `last_name` are both present, each ≥ 2 letters, alphabetic (apostrophes/hyphens allowed).
+- Combined name is ≤ 60 chars, has ≤ 4 tokens.
+- Name does NOT contain news/headline/marketing tokens: `college|school|department|news|view all|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate`.
+- Name is not a verb-led headline (starts with `Show|Invest|Learn|Read|View|Click|Apply|Submit|Get|Discover|Explore`).
+- If `title` exists, it does not start with `[Dean's Office]` / `[News]` / `[Press]` style bracketed section labels, AND it is not a URL-shaped string (no `https?://`, no `.php`, no `.html`).
+- Email local-part is not in `{news, info, contact, support, donate, give, hello, admin, webmaster, undergrad, grad, gradu, alumni, dean, options, integr, sbusiness}` UNLESS we also have a clean first+last (covers `peters@walton.uark.edu` legitimately).
 
-The UI can't tell these apart — `—` means all three.
+Junk that passes the name gate but fails the email gate (like `sbusiness@uark.edu` with name "Sam M. Walton College of Business") is dropped. This is also why your `GUESSED` chip is showing up on garbage — the guesser is being asked to invent an address for a college name. Same `isLikelyPersonRow` gate disables guessing on those rows.
 
-### C. New trend signal: `mailto_obfuscation_js_click_miss`
+Record each rejection in the existing `perPage` debug array as `{ reason, name, source }` so the debug bundle shows exactly what was filtered. Add a counter `rejected_non_person` to the per-page stats.
 
-The scraper-trends dashboard flagged a high-severity pattern: directories that build `mailto:` links via JS hover/click handlers (char-code offsets, string reversal, late DOM insertion) defeat the HTML/markdown extractor. Same shape will hit Law, IB, Consulting, Hospitals, Gov verticals. Pagination walks that need stateful navigation (`.u-directory__item` style components) also miss rows after page 1. We should fold this into the same PR because the fix path (vertical-aware Firecrawl scrape options + post-fetch deobfuscation) overlaps the RMP refactor's plumbing.
+### 2. De-prioritize marketing landing pages in discovery
 
-### What V1 did that V2 lost
+In `auto-scrape.functions.ts`, when SerpAPI returns multiple faculty candidates, demote URLs that look like content pages (path doesn't contain `directory|faculty|people|staff|profiles`, OR contains `news|stories|press|noteworthy|invest|give|donate|events`). Keep them as fallbacks only if no directory-shaped URL is found. This stops the `/departments/accounting` page from being scraped at all on schools that have a real directory.
 
-In V1: SERP-discover the RMP school page → scrape it → attach ratings. No manual paste. V2 has all the parts but the discovery regex is too strict, department matching is hardcoded to accounting, name matching has no fallback, and there's no "tried-and-missed" signal for the UI.
+### 3. No RMP code changes needed
 
-## Part 2 — Claude Code prompt
+Once junk rows stop being inserted, the RMP column populates naturally on the rows that ARE professors. The matcher and reverse-insert path are already correct (Jing Cui proves it). I'll re-run Arkansas after the filter ships and confirm RMP coverage on real profs jumps from "1 of ~50" to expected ~40-60% (typical RMP coverage for an accounting dept).
 
-Paste the block below into Claude Code in the repo root.
+## Cost answer for a 170-campus batch
 
-````text
-You're working in the SurviveAccounting / Lovable outreach repo (TanStack
-Start, Lovable Cloud / Supabase). The faculty scraper (V2) works well on
-University of Arkansas: real professors come through correctly. Two real
-problems remain:
+You will NOT run out of credits. Here's the worst-case breakdown:
 
-  1. Rate My Professors enrichment is unreliable — the RMP column on the
-     leadfinder review table is empty almost everywhere, even when the
-     RMP school page is reachable. We want V1-style behavior: SERP-discover
-     the school's RMP page automatically and attach ratings to every
-     matched professor, with no user paste.
+| Service | Per campus | × 170 | Notes |
+|---|---|---|---|
+| **Firecrawl** (scrape + enrich) | $0.02–$0.06 | **$3.40 – $10.20** | Arkansas test came in at $0.020. Worst case assumes deep pagination + full profile enrichment. |
+| **Lovable AI Gateway** (Gemini extract) | ~$0.0024 | **~$0.40** | ~3 directory URLs × $0.0008. Covered by your monthly AI allowance — likely $0 actual. |
+| **SerpAPI** (faculty + RMP discovery) | 2–3 searches | **340 – 510 searches** | One-time per campus. SerpAPI Developer plan = 5,000/mo for $50. Plenty of headroom. |
+| **RateMyProfessors** | $0 | **$0** | Their public GraphQL, no key. |
+| **TOTAL real $ spend** | | **~$4 – $11** | |
 
-  2. The scraper-trends dashboard just flagged a high-severity pattern
-     called `mailto_obfuscation_js_click_miss`: directories build mailto
-     links via JS (hover/click handlers, char-code offsets, string
-     reversal, late DOM insertion) and our HTML/markdown extractor
-     misses the email entirely. The pattern also breaks paginated walks
-     of components like `.u-directory__item`. Same failure mode is
-     expected on Law, IB, Consulting, Hospital, Gov verticals.
+The `EST_COST_PER_CAMPUS_USD` constant ($0.06) × 170 = **$10.20 quoted ceiling**. The Arkansas actual was 3× cheaper than that, so realistic total is **$4–$7**.
 
-Both fixes need to land in a way that generalizes to other verticals,
-not just accounting.
+The only "credit" service that has a hard monthly cap is SerpAPI. Check your remaining SerpAPI balance — you need ≥510 free searches before kicking off all 170. Everything else (Firecrawl, Lovable AI, RMP) is pay-as-you-go and won't fail mid-batch.
 
-## Files to read FIRST (don't grep blindly — read these end to end)
+I'd also bump batch concurrency from `2` → `4` for the full 170-campus run; with Firecrawl polling dominating wall time, this cuts the run from ~3 hours to ~90 min without changing cost.
 
-- src/lib/auto-scrape.functions.ts            # SERP discovery (faculty + RMP)
-- src/lib/rmp-scrape.functions.ts             # RMP GraphQL + match/insert
-- src/lib/batch-scrape.functions.ts           # orchestrator for "Batch scrape V2"
-- src/lib/faculty-scrape.functions.ts         # faculty directory scraper
-- src/lib/verticals.ts                        # vertical config — EXTEND, don't fork
-- src/lib/directory-cards.ts                  # card-block parser (referenced; do not rewrite)
-- src/lib/scraper-trends.functions.ts         # where the mailto pattern surfaced
-- src/components/outreach/AutoScrapeButton.tsx
-- src/components/outreach/BatchScrapePanel.tsx
-- src/routes/outreach.leadfinder.$campusId.tsx  # RmpScrapePanel around line 478
+## Recommended order
 
-Confirm the actual shape of scrapeCampusRmp's response, the verticals.ts
-schema, and the rmp_* / mailto_* columns on campuses, campus_lead_suggestions,
-and outreach_leads BEFORE writing any code.
+1. Ship slice above (person-row gate + discovery demote + concurrency bump).
+2. Reset Arkansas, re-run Batch V2 on Arkansas only, confirm junk is gone and RMP populates on real profs.
+3. Kick off the 170-campus batch.
 
-## Goals (priority order)
-
-1. RMP enrichment runs automatically after every faculty scrape, for every
-   vertical, with no manual paste.
-2. Department matching becomes a vertical config (`rmpDepartmentMatchers:
-   string[]`), case-insensitive substring, any-of. Accounting seed:
-   ["accounting", "accountancy"]. Other verticals stay empty until we
-   ship them — empty list means "do not filter by dept" only if the
-   vertical explicitly opts in via `rmpAcceptAllDepts: true`; otherwise
-   empty list means "match nothing" so we don't pollute campaigns.
-3. Name matching gets a second pass: exact first+last → last+first-initial
-   → Jaro-Winkler ≥ 0.92 on first name (last must match exactly). Never
-   loosen the last-name match.
-4. SERP discovery accepts both `/school/<id>` and `/search/professors/<id>`
-   (extractSchoolLegacyId already parses both).
-5. UI distinguishes "never tried" (`—`) from "tried, no match"
-   (`· no match`, muted) from "matched" (`★ 4.2 (37)`).
-6. Manual paste panel keeps working but gains a "Find RMP page
-   automatically" button that calls the discovery server fn.
-7. Add a Firecrawl-based JS de-obfuscation pass for `mailto:` links and
-   paginated directory components — gated by vertical config so we don't
-   pay for the extra browser actions on directories that don't need it.
-8. Every RMP attempt and every mailto-deobfuscation attempt writes a
-   structured debug row (reuse `scrape_debug_bundles` — no new tables).
-
-## What NOT to do
-
-- Do not change the card-block extractor in faculty-scrape.functions.ts /
-  directory-cards.ts. The "junk rows" problem on Arkansas (news headlines,
-  URL-slug emails like `gre@options.for`) is tracked separately in
-  .lovable/plan.md and is OUT OF SCOPE.
-- Do not add new tables. rmp_* columns and scrape_debug_bundles exist.
-- Do not loosen RMP department matching to "any teacher at the school" —
-  that pollutes accounting campaigns with finance/marketing/management
-  professors. Per-vertical matchers, not no matchers.
-- Do not add `vertical` as a parameter to every server fn signature when
-  you can read it off the `campuses` row inside the handler.
-- Do not run the Firecrawl JS-interaction pass on every scrape. It's
-  slower and more expensive. Gate it on `verticals[v].directoryQuirks`
-  containing `'mailto_js_obfuscation'` or `'stateful_pagination'`, OR on
-  a per-campus override flag.
-- Do not wire any "use server" / Next.js patterns. Stay in
-  createServerFn-from-@tanstack/react-start.
-
-## Implementation order
-
-### Step 1 — Extend vertical config (src/lib/verticals.ts)
-Add to Vertical type:
-  rmpDepartmentMatchers: string[]
-  rmpAcceptAllDepts?: boolean
-  directoryQuirks?: Array<'mailto_js_obfuscation' | 'stateful_pagination'>
-Seed accounting: `{ rmpDepartmentMatchers: ['accounting', 'accountancy'] }`.
-Export `matchesVerticalDept(dept: string | null, vertical): boolean` and
-`verticalHasQuirk(vertical, quirk): boolean`.
-
-### Step 2 — Generalize scrapeCampusRmp (src/lib/rmp-scrape.functions.ts)
-- Replace isAccountingDept with matchesVerticalDept(dept, vertical).
-- At the top of the handler, look up the campus's vertical from the
-  `campuses` table; default to 'accounting' if null so existing rows
-  keep working.
-- Add the second-pass name matcher from Goal 3. Maintain counters:
-  { exactMatched, initialMatched, fuzzyMatched, unmatched }.
-- Return `debug: { vertical, deptMatchers, perPage, counters }` and write
-  a row to scrape_debug_bundles per call (reuse the existing helper).
-
-### Step 3 — Loosen SERP discovery (src/lib/auto-scrape.functions.ts)
-- Accept `/school/\d+` OR `/search/professors/\d+`.
-- Keep two-pass query strategy.
-- On failure return `rmpUrl: null` plus `rmpDiscoveryReason: string`.
-
-### Step 4 — Always run RMP after faculty scrape
-In BatchScrapePanel.tsx (~line 139) and AutoScrapeButton.tsx, always call
-rmpFn when discovery returned a URL. When discovery returns null, persist
-`rmpDiscoveryReason` to a campus debug field (use the existing
-auto_scrape_debug JSON column if present; do not add a new column).
-
-### Step 5 — UI signals (src/routes/outreach.leadfinder.$campusId.tsx)
-- RMP column renders three states (rating / `· no match` / `—`) using
-  rmp_checked_at + rmp_rating from campus_lead_suggestions.
-- Tooltip on the column header explains the difference.
-- In RmpScrapePanel (~line 478), add a "Find RMP page automatically"
-  button that calls the discovery server fn, populates the textarea
-  with the URL it finds, and toasts the reason on failure.
-
-### Step 6 — Mailto JS de-obfuscation + stateful pagination pass
-This is the new piece prompted by the scraper-trends finding
-`mailto_obfuscation_js_click_miss`.
-
-Implementation:
-- In faculty-scrape.functions.ts (or a small new helper file
-  src/lib/firecrawl-interact.ts), add a `scrapeWithInteractions` wrapper
-  around the existing Firecrawl scrape. Use Firecrawl's `actions` array
-  to:
-    a. `wait` 750ms for client JS to attach.
-    b. For each candidate directory item selector
-       (`a[href^="mailto:"]`, `.u-directory__item a`, `button[data-mailto]`,
-        `[onclick*="mailto"]`), `hover` then `click` to force the mailto
-       URL to materialize.
-    c. After interactions, return `formats: ['html', 'markdown', 'links']`
-       so we get post-interaction DOM.
-- Post-process the returned HTML for known JS obfuscation patterns BEFORE
-  the markdown extractor sees it:
-    - char-code offset arrays (e.g. `String.fromCharCode(...)`)
-    - reversed strings (`'ude.kraU@retsigna'.split('').reverse().join('')`)
-    - CSS-display-none decoy spans inside the visible mailto
-    - data-* attribute encodings (`data-user="x" data-domain="y"`)
-  Add `decodeKnownMailtoObfuscations(html: string): string` with a
-  pure-function unit-test surface (no dynamic eval — pattern-match and
-  substitute statically; eval() is forbidden).
-- For paginated directories: when the rendered page contains a
-  `data-pagination` / `.pagination__next` / `aria-label="Next page"`
-  control AND `verticalHasQuirk(v, 'stateful_pagination')`, use
-  Firecrawl actions to click "next" up to N=10 times, concatenating the
-  HTML between paginations. Cap total bytes at 1MB to keep cost bounded.
-- Gate the entire pass on `verticalHasQuirk(vertical,
-  'mailto_js_obfuscation')` OR `verticalHasQuirk(vertical,
-  'stateful_pagination')` OR a per-campus boolean
-  `campuses.directory_needs_interactions`. Default off for accounting
-  unless a specific campus opts in (so we don't regress speed/cost on
-  the 169 campuses that already scrape fine).
-- Write a scrape_debug_bundles row with:
-    { kind: 'mailto_deobfuscation',
-      patternsMatched: ['charcode'|'reverse'|'data-attr'|'css-decoy'],
-      emailsRecovered: number,
-      pageActionsTaken: number,
-      bytes, costMs }
-
-### Step 7 — Wire the quirk flag for the campus that triggered the trend
-At the end, find the one campus the scraper-trends row references
-(query `scraper_performance_verdicts` or the trend row's source). Set
-its `directory_needs_interactions = true` so the next scrape exercises
-the new path. Do NOT enable the quirk globally for any vertical yet —
-we need observation data first.
-
-## Verification (do all of these before declaring done)
-
-1. Run auto-scrape on University of Arkansas
-   (campus id e631c8de-37a3-4aae-a948-a64bd20ea4c5).
-   - rmpUrl is discovered without manual paste.
-   - Bakke, Rawson, Hayes, Petrone, Bryan, Jarnagin, Reed, Robinson
-     get rmp_rating populated (most of them — accept ≥70%).
-   - Any miss has rmp_checked_at set and renders `· no match`, never
-     a bare `—`.
-2. Run rmp-scrape on a campus where you temporarily switch the
-   vertical to a non-accounting one with `rmpDepartmentMatchers: []`
-   and `rmpAcceptAllDepts: false`. Confirm counters.unmatched > 0
-   and nothing is inserted — proves the generalization is safe.
-3. Pick the campus flagged by the mailto_obfuscation trend, enable
-   `directory_needs_interactions`, scrape it, and confirm
-   `emailsRecovered > 0` in the debug bundle and at least one new
-   suggestion appears with a real email that wasn't there before.
-4. Pick three accounting campuses that previously scraped fine
-   (any green ones in scraper-trends). Re-scrape with the quirk flag
-   OFF and confirm: same number of suggestions, similar latency
-   (±20%), no new mailto debug bundles. Proves the gate works.
-5. Inspect scrape_debug_bundles for: an rmp run, a mailto recovery
-   run, and a baseline run. Each should have a distinct `kind` and
-   useful counters.
-
-## Out of scope for this PR (do not touch)
-
-- Card-block extractor / junk-row filtering (.lovable/plan.md owns it).
-- Campaign builder / email send paths.
-- Any UI outside the leadfinder review table and RmpScrapePanel.
-- New tables, new edge functions, new third-party services.
-
-When you finish, post a short summary listing:
-  - Files changed
-  - Counters from each verification run
-  - One paragraph on what would need to change to enable the mailto
-    quirk for a whole vertical (so we know the rollout path).
-````
-
-## Decisions I'd recommend before sending the prompt
-
-1. **Junk-row cleanup stays a separate PR.** The Arkansas "added leads" problem is a card-segmenter issue, not RMP or mailto. The prompt above explicitly leaves it alone so Claude doesn't tangle the two refactors. Say so if you want them combined; I'd advise against it.
-2. **Quirk gating defaults OFF.** The prompt enables `mailto_js_obfuscation` per-campus rather than per-vertical, because the trend has fired exactly once. Once we have ~5 confirmed campuses for a given vertical we can flip the vertical default. Confirm you're OK with that conservative default.
-3. **Empty `rmpDepartmentMatchers` = match nothing (not match all).** Safer for cross-vertical expansion — it forces you to make a deliberate choice per vertical instead of accidentally pulling every prof at the school into an accounting campaign. The `rmpAcceptAllDepts: true` escape hatch is there if a future vertical genuinely wants "everyone."
+Approve and I'll build it.
