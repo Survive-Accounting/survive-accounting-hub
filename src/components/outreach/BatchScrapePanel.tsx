@@ -139,14 +139,23 @@ export function BatchScrapePanel() {
         emails += (r.perPage ?? []).reduce((s, p) => s + (p.withEmail ?? 0), 0);
         costUsd += estimateRunCostUsd(r.perPage ?? []);
       }
+      let rmpMatched: number | undefined;
+      let rmpSkipped: CampusProgress["rmpSkipped"];
+      let rmpError: string | undefined;
       if (found.rmpUrl) {
         try {
-          await rmpFn({ data: { campusId, urls: [found.rmpUrl] } });
-        } catch {
-          /* RMP is best-effort; never fail the campus on it */
+          const rr = (await rmpFn({ data: { campusId, urls: [found.rmpUrl] } })) as {
+            totalMatched?: number;
+          };
+          rmpMatched = rr?.totalMatched ?? 0;
+        } catch (e) {
+          rmpSkipped = "error";
+          rmpError = e instanceof Error ? e.message : String(e);
         }
+      } else {
+        rmpSkipped = "no_url";
       }
-      const done: CampusProgress = { status: "done", leads, emails, costUsd };
+      const done: CampusProgress = { status: "done", leads, emails, costUsd, rmpMatched, rmpSkipped, rmpError };
       setProgress((p) => ({ ...p, [campusId]: done }));
       return done;
     } catch (e) {
