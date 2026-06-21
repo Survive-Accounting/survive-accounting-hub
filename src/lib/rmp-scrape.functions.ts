@@ -154,6 +154,73 @@ async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeac
   return out;
 }
 
+const SCHOOLS_QUERY = `
+query SchoolSearchQuery($text: String!) {
+  search: newSearch {
+    schools(query: { text: $text }) {
+      edges {
+        node {
+          id
+          legacyId
+          name
+          city
+          state
+        }
+      }
+    }
+  }
+}`;
+
+type SchoolNode = { id: string; legacyId: number; name: string; city: string | null; state: string | null };
+
+/** Look up an RMP school by name via RMP's own GraphQL — no SerpAPI dependency.
+ *  Returns the canonical /school/<legacyId> URL of the best name match, or null. */
+export async function findRmpSchoolUrlByName(campusName: string, stateHint?: string | null): Promise<string | null> {
+  if (!campusName.trim()) return null;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(RMP_GRAPHQL_URL, {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: RMP_AUTH,
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      body: JSON.stringify({ query: SCHOOLS_QUERY, variables: { text: campusName } }),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      data?: { search?: { schools?: { edges?: Array<{ node: SchoolNode }> } } };
+    };
+    const edges = json.data?.search?.schools?.edges ?? [];
+    if (edges.length === 0) return null;
+    const wantLc = campusName.toLowerCase();
+    const stateLc = (stateHint ?? "").toLowerCase().trim();
+    // Prefer an exact-ish name match, optionally biased by state when given.
+    let best = edges[0].node;
+    let bestScore = -1;
+    for (const e of edges) {
+      const n = e.node;
+      const nameLc = (n.name ?? "").toLowerCase();
+      let s = 0;
+      if (nameLc === wantLc) s += 10;
+      else if (nameLc.startsWith(wantLc) || wantLc.startsWith(nameLc)) s += 6;
+      else if (nameLc.includes(wantLc) || wantLc.includes(nameLc)) s += 3;
+      if (stateLc && (n.state ?? "").toLowerCase() === stateLc) s += 2;
+      if (s > bestScore) { bestScore = s; best = n; }
+    }
+    if (bestScore <= 0) return null;
+    return `https://www.ratemyprofessors.com/school/${best.legacyId}`;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 
 function isAccountingDept(dept: string | null): boolean {
   if (!dept) return false;
