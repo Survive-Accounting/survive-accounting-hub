@@ -192,8 +192,11 @@ export function BatchScrapePanel() {
     let emails = 0;
     let costUsd = 0;
     let errors = 0;
+    let skipped = 0;
 
-    const CONCURRENCY = 4;
+    // Lower concurrency for the big 170-campus run: a few slow campuses
+    // shouldn't cascade-timeout the rest.
+    const CONCURRENCY = 3;
     const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
       while (queue.length > 0) {
         const id = queue.shift();
@@ -203,6 +206,7 @@ export function BatchScrapePanel() {
         emails += res.emails ?? 0;
         costUsd += res.costUsd ?? 0;
         if (res.status === "error") errors++;
+        if (res.status === "skipped") skipped++;
       }
     });
     await Promise.all(workers);
@@ -230,7 +234,7 @@ export function BatchScrapePanel() {
     }
 
     toast.success(
-      `Batch done · ${leads} leads · ${emails} emails${errors ? ` · ${errors} error(s)` : ""}`,
+      `Batch done · ${leads} leads · ${emails} emails${skipped ? ` · ${skipped} skipped (no accounting dept)` : ""}${errors ? ` · ${errors} error(s)` : ""}`,
     );
   }
 
