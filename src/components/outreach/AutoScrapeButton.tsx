@@ -254,15 +254,17 @@ export function AutoScrapeButton({
           const found2 = typeof obj.totalFound === "number" ? obj.totalFound : 0;
           const reverseInserted = typeof obj.reverseInserted === "number" ? obj.reverseInserted : 0;
           const reverseAttempted = typeof obj.reverseAttempted === "number" ? obj.reverseAttempted : 0;
+          const rmpOnlyInserted = typeof obj.rmpOnlyInserted === "number" ? obj.rmpOnlyInserted : 0;
           const cachedPages = typeof obj.cachedPages === "number" ? obj.cachedPages : 0;
           const status: StepStatus = matched > 0 ? "ok" : "warn";
           const summary =
             `matched ${matched}/${found2} profs from RMP` +
             (reverseAttempted > 0
               ? ` · reverse-lookup: +${reverseInserted}/${reverseAttempted} new from ${cachedPages} cached page(s)`
-              : ` · no reverse lookup (cachedPages=${cachedPages})`);
+              : ` · no reverse lookup (cachedPages=${cachedPages})`) +
+            (rmpOnlyInserted > 0 ? ` · +${rmpOnlyInserted} RMP-only` : "");
           finishStep(s3, { status, summary, data: r });
-          pushScrapeLog(campusId, matched > 0 ? "ok" : "warn", `← matched ${matched}/${found2} · reverse +${reverseInserted}/${reverseAttempted}`);
+          pushScrapeLog(campusId, matched > 0 ? "ok" : "warn", `← matched ${matched}/${found2} · reverse +${reverseInserted}/${reverseAttempted} · rmp-only +${rmpOnlyInserted}`);
           job.succeed(summary);
         } catch (e) {
           finishStep(s3, { status: "error", error: shortErr(e) });

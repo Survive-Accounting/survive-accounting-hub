@@ -358,23 +358,21 @@ function decodeObfuscatedEntities(s: string): string {
 }
 
 /**
- * Recover an email that was hidden behind hex/percent or HTML-entity encoding.
- * Decodes both the markdown and raw HTML, then re-runs the standard extractors
- * over the decoded copies. This is the last email-recovery step, tried only
- * after the plain / (at)(dot) / literal-mailto passes have all failed.
+ * Recover an email hidden behind a hex/percent- or HTML-entity-encoded
+ * `mailto:` href — the actual `obfuscated_mailto_hex_decoding` pattern.
+ *
+ * Deliberately mailto-ONLY: we decode the raw HTML and pull a mailto: href out
+ * of the decoded copy, but we do NOT run the loose plain/(at)(dot) extractors
+ * over decoded blobs. On large pages those scavenge an unrelated email from the
+ * footer/scripts and mis-attribute it, or fabricate junk from prose
+ * (e.g. "integr@ed-macc.php"). A mailto: anchor is a strong signal that the
+ * decoded string really is this person's address.
  */
-function extractEncodedEmail(markdown: string, rawHtml: string): string | null {
+function extractEncodedEmail(rawHtml: string): string | null {
   const decodedHtml = decodeObfuscatedEntities(rawHtml);
-  const decodedMd = decodeObfuscatedEntities(markdown);
-  // Only worth the extra work if decoding actually changed something.
-  if (decodedHtml === rawHtml && decodedMd === markdown) return null;
-  return (
-    extractMailtoFromHtml(decodedHtml) ??
-    extractBestEmail(decodedMd) ??
-    extractBestEmail(decodedHtml) ??
-    extractObfuscatedEmail(decodedMd) ??
-    extractObfuscatedEmail(decodedHtml)
-  );
+  // Only worth re-scanning if decoding actually changed something.
+  if (decodedHtml === rawHtml) return null;
+  return extractMailtoFromHtml(decodedHtml);
 }
 
 const GENERIC_LOCALS_RE = /^(info|contact|admissions|support|webmaster|noreply|no-reply|help|hello|office|admin)$/i;
@@ -786,10 +784,10 @@ async function enrichProfileEmails(
     if (obf) return { email: obf, how: "obfuscated" };
     const mail = extractMailtoFromHtml(html);
     if (mail) return { email: mail, how: "mailto" };
-    // Last resort: hex/percent- or HTML-entity-encoded addresses (the
+    // Last resort: a hex/percent- or HTML-entity-encoded `mailto:` href (the
     // `obfuscated_mailto_hex_decoding` pattern). Counted as "obfuscated" so the
     // debug bundle still surfaces how the email was recovered.
-    const encoded = extractEncodedEmail(md, html);
+    const encoded = extractEncodedEmail(html);
     if (encoded) return { email: encoded, how: "obfuscated" };
     return { email: null, how: "no_email" };
   };

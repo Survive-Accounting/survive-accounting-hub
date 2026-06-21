@@ -161,6 +161,25 @@ function isAccountingDept(dept: string | null): boolean {
   return d.includes("accounting") || d.includes("accountancy");
 }
 
+// Broader "business school" net. RMP frequently files accounting professors
+// under a generic department label ("Business", "Management", "Finance") — so
+// schools like Walton/Arkansas return ZERO "Accounting" profs even though the
+// people are there. We never INSERT a businessish prof on its own (too noisy),
+// but we do (a) match them against existing accounting leads and (b) accept
+// them when their name also appears in a cached accounting directory page.
+function isBusinessishDept(dept: string | null): boolean {
+  if (!dept) return false;
+  const d = dept.toLowerCase();
+  return (
+    isAccountingDept(dept) ||
+    d.includes("business") ||
+    d.includes("management") ||
+    d.includes("finance") ||
+    /\btax\b/.test(d) ||
+    /\baudit\b/.test(d)
+  );
+}
+
 export const scrapeCampusRmp = createServerFn({ method: "POST" })
   .inputValidator((data: { campusId: string; urls: string[] }) =>
     z
@@ -180,7 +199,11 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       .eq("id", data.campusId);
 
     const perPage: Array<{ url: string; found: number; matched: number; error?: string }> = [];
-    const allAccountingTeachers: RmpTeacherNode[] = [];
+    // Keep EVERY teacher at the school (deduped) — not just the ones RMP labels
+    // "Accounting" — so we can match mislabeled-dept profs against existing
+    // accounting leads. `found` still reports the accounting-labeled count as
+    // the headline number.
+    const allTeachers: RmpTeacherNode[] = [];
     const seenLegacy = new Set<number>();
 
     for (const url of data.urls) {
@@ -196,13 +219,12 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       }
       try {
         const teachers = await fetchAllTeachersAtSchool(encodeSchoolGlobalId(legacy));
-        const accounting = teachers.filter((t) => isAccountingDept(t.department));
         let added = 0;
-        for (const t of accounting) {
+        for (const t of teachers) {
           if (seenLegacy.has(t.legacyId)) continue;
           seenLegacy.add(t.legacyId);
-          allAccountingTeachers.push(t);
-          added += 1;
+          allTeachers.push(t);
+          if (isAccountingDept(t.department)) added += 1;
         }
         perPage.push({ url, found: added, matched: 0 });
       } catch (e) {
@@ -215,7 +237,8 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       }
     }
 
-    if (allAccountingTeachers.length === 0) {
+    const accountingTeachers = allTeachers.filter((t) => isAccountingDept(t.department));
+    if (allTeachers.length === 0) {
       return { perPage, totalFound: 0, totalMatched: 0, totalUpdated: 0 };
     }
 
@@ -285,9 +308,14 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       last: string | null,
       byName: Map<string, string>,
       byLast: Map<string, Array<{ initial: string; id: string }>>,
+      opts: { strict?: boolean } = {},
     ): string | undefined => {
       const direct = byName.get(nameKey(first, last));
       if (direct) return direct;
+      // Strict mode: exact first+last only. Used when matching RMP profs from
+      // OTHER departments, where a last-name-only fallback would let an
+      // unrelated "J. Smith" in Biology hijack the accounting lead.
+      if (opts.strict) return undefined;
       const lastKey = (last ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
       if (!lastKey) return undefined;
       const candidates = byLast.get(lastKey) ?? [];
@@ -304,48 +332,71 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     };
 
     const nowIso = new Date().toISOString();
-    let suggestionsUpdated = 0;
-    let leadsUpdated = 0;
-    const unmatchedTeachers: RmpTeacherNode[] = [];
-
-    for (const t of allAccountingTeachers) {
-      const profileUrl = `https://www.ratemyprofessors.com/professor/${t.legacyId}`;
+    const buildRmpUpdate = (t: RmpTeacherNode): Record<string, unknown> => {
       const update: Record<string, unknown> = {
         rmp_checked_at: nowIso,
-        rmp_profile_url: profileUrl,
+        rmp_profile_url: `https://www.ratemyprofessors.com/professor/${t.legacyId}`,
       };
       if (t.avgRating != null) update.rmp_rating = t.avgRating;
       if (t.numRatings != null) update.rmp_num_ratings = t.numRatings;
       if (t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0)
         update.rmp_would_take_again = t.wouldTakeAgainPercent;
       if (t.avgDifficulty != null) update.rmp_difficulty = t.avgDifficulty;
+      return update;
+    };
 
-      const sId = resolveId(t.firstName, t.lastName, sugByName, sugByLast);
-      const lId = resolveId(t.firstName, t.lastName, leadByName, leadByLast);
-      if (sId) {
-        const { error } = await supabaseAdmin
-          .from("campus_lead_suggestions")
-          .update(update as never)
-          .eq("id", sId);
-        if (!error) suggestionsUpdated += 1;
+    let suggestionsUpdated = 0;
+    let leadsUpdated = 0;
+    // A lead/suggestion is only allowed to receive RMP data once, so an
+    // accounting-dept match always wins over a later loose cross-dept match.
+    const matchedSugIds = new Set<string>();
+    const matchedLeadIds = new Set<string>();
+    const unmatchedTeachers: RmpTeacherNode[] = [];
+
+    // Two passes so accounting-labeled profs claim their lead first:
+    //   pass 1 — accounting dept, loose match (initials / unique last name OK)
+    //   pass 2 — every other dept, STRICT exact-name match only
+    // This is the core "Walton/Arkansas files accounting under Business" fix:
+    // we attach RMP onto an EXISTING accounting lead regardless of how RMP
+    // labels the professor's department.
+    const matchPass = async (teachers: RmpTeacherNode[], strict: boolean) => {
+      for (const t of teachers) {
+        const update = buildRmpUpdate(t);
+        const sId = resolveId(t.firstName, t.lastName, sugByName, sugByLast, { strict });
+        const lId = resolveId(t.firstName, t.lastName, leadByName, leadByLast, { strict });
+        if (sId && !matchedSugIds.has(sId)) {
+          const { error } = await supabaseAdmin
+            .from("campus_lead_suggestions")
+            .update(update as never)
+            .eq("id", sId);
+          if (!error) { suggestionsUpdated += 1; matchedSugIds.add(sId); }
+        }
+        if (lId && !matchedLeadIds.has(lId)) {
+          const { error } = await supabaseAdmin
+            .from("outreach_leads")
+            .update(update as never)
+            .eq("id", lId);
+          if (!error) { leadsUpdated += 1; matchedLeadIds.add(lId); }
+        }
+        // Only a teacher that resolved to NOBODY is a candidate for insertion.
+        if (!sId && !lId) unmatchedTeachers.push(t);
       }
-      if (lId) {
-        const { error } = await supabaseAdmin
-          .from("outreach_leads")
-          .update(update as never)
-          .eq("id", lId);
-        if (!error) leadsUpdated += 1;
-      }
-      if (!sId && !lId) unmatchedTeachers.push(t);
-    }
+    };
+
+    await matchPass(accountingTeachers, false);
+    await matchPass(allTeachers.filter((t) => !isAccountingDept(t.department)), true);
 
     // ----- REVERSE LOOKUP: scan cached directory pages for unmatched profs ----
     const cache = (campusRow as { faculty_scrape_cache?: Record<string, { markdown?: string; links?: string[] }> } | null)?.faculty_scrape_cache ?? {};
     const cachePages = Object.entries(cache);
     let reverseInserted = 0;
     const reverseRows: Array<Record<string, unknown>> = [];
-    if (cachePages.length > 0 && unmatchedTeachers.length > 0) {
-      for (const t of unmatchedTeachers) {
+    // Only scan the cache for plausibly-accounting unmatched profs (accounting
+    // or generic business/management/finance depts) — never the whole school's
+    // teacher list, which would be slow and could false-match common names.
+    const reverseCandidates = unmatchedTeachers.filter((t) => isBusinessishDept(t.department));
+    if (cachePages.length > 0 && reverseCandidates.length > 0) {
+      for (const t of reverseCandidates) {
         const fn = (t.firstName ?? "").trim();
         const ln = (t.lastName ?? "").trim();
         if (!fn || !ln) continue;
@@ -508,17 +559,72 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       }
     }
 
-    const totalMatched = suggestionsUpdated + leadsUpdated + reverseInserted;
+    // ----- RMP-ONLY INSERTS (cache-independent) -------------------------------
+    // Accounting-dept profs RMP knows about that matched no existing lead AND
+    // weren't recovered from a cached directory page (e.g. the faculty scrape
+    // found nobody, or missed them). Without this their rating/difficulty — the
+    // whole point of RMP — is silently discarded. Insert as clearly-flagged
+    // review rows. They carry NO email (RMP doesn't expose one); a reviewer
+    // backfills it, or a later faculty scrape fills it in by name. Kept strict
+    // to accounting-labeled depts so we never seed generic business faculty.
+    const nameKeysAlreadyInserted = new Set<string>(
+      reverseRows.map((r) => nameKey(r.first_name as string, r.last_name as string)),
+    );
+    const rmpOnlyRows: Array<Record<string, unknown>> = [];
+    for (const t of unmatchedTeachers) {
+      if (!isAccountingDept(t.department)) continue;
+      const fn = (t.firstName ?? "").trim();
+      const ln = (t.lastName ?? "").trim();
+      if (!fn || !ln) continue;
+      const key = nameKey(fn, ln);
+      // Skip names already present as active suggestions/leads or just inserted
+      // by the reverse-lookup, so we don't create duplicates.
+      if (sugByName.has(key) || leadByName.has(key) || nameKeysAlreadyInserted.has(key)) continue;
+      nameKeysAlreadyInserted.add(key);
+      rmpOnlyRows.push({
+        campus_id: data.campusId,
+        first_name: fn,
+        last_name: ln,
+        title: null,
+        email: null,
+        source_url: `https://www.ratemyprofessors.com/professor/${t.legacyId}`,
+        research_mode: "faculty_scrape",
+        research_label: "rmp_only",
+        status: "pending",
+        lead_type: "professor",
+        rmp_checked_at: nowIso,
+        rmp_profile_url: `https://www.ratemyprofessors.com/professor/${t.legacyId}`,
+        rmp_rating: t.avgRating,
+        rmp_num_ratings: t.numRatings,
+        rmp_difficulty: t.avgDifficulty,
+        rmp_would_take_again: t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0 ? t.wouldTakeAgainPercent : null,
+        notes: `RMP-only: accounting professor on RateMyProfessors with no matching directory entry (dept: ${t.department ?? "n/a"}). Email needs backfill before outreach.`,
+        raw_payload: {
+          source: "rmp_only",
+          rmp_legacy_id: t.legacyId,
+          rmp_department: t.department,
+          no_directory_match: true,
+        },
+      });
+    }
+    let rmpOnlyInserted = 0;
+    if (rmpOnlyRows.length > 0) {
+      const { error } = await supabaseAdmin.from("campus_lead_suggestions").insert(rmpOnlyRows as never);
+      if (!error) rmpOnlyInserted = rmpOnlyRows.length;
+    }
+
+    const totalMatched = suggestionsUpdated + leadsUpdated + reverseInserted + rmpOnlyInserted;
     // Attribute matches to the first URL for the summary toast.
     if (perPage.length > 0) perPage[0].matched = totalMatched;
 
     return {
       perPage,
-      totalFound: allAccountingTeachers.length,
+      totalFound: accountingTeachers.length,
       totalMatched,
       totalUpdated: suggestionsUpdated + leadsUpdated,
       reverseInserted,
-      reverseAttempted: unmatchedTeachers.length,
+      rmpOnlyInserted,
+      reverseAttempted: reverseCandidates.length,
       cachedPages: cachePages.length,
     };
   });
