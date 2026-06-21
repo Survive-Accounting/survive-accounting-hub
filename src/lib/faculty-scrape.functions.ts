@@ -1652,7 +1652,7 @@ async function insertExtractedPeople(
     // Require at least a name when we have no contact info, otherwise the row is useless.
     if (!hasContact && !(p.first_name || p.last_name)) { droppedNoContact++; continue; }
     const gate = isLikelyPersonRow({ first_name: p.first_name, last_name: p.last_name, title: p.title, email: p.email });
-    if (!gate.ok) { rejectedNonPerson++; droppedNoContact++; continue; }
+    if (!gate.ok) { droppedNoContact++; continue; }
     rowsToInsert.push({
       campus_id: campusId,
       first_name: p.first_name,
