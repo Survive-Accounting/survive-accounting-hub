@@ -104,6 +104,7 @@ function pickTitleFromBlock(block: string, rawName: string): string | null {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
+  const nameLc = rawName.toLowerCase();
   // Walk lines, skipping headings/links/images/list-bullets/etc.
   for (const line of lines) {
     if (line === rawName) continue;
@@ -113,6 +114,16 @@ function pickTitleFromBlock(block: string, rawName: string): string | null {
     if (/^[-*_]{3,}$/.test(line)) continue;
     // Pure link line — skip.
     if (/^\[[^\]]+\]\([^)]+\)$/.test(line)) continue;
+    // Markdown link FRAGMENT line (image-link card's trailing tail like
+    // "Mandi Cooper](https://walton.uark.edu/.../uid/mandic/...)") — these
+    // contain a URL inside a closing link paren and must never be treated
+    // as a title.
+    if (/\]\(https?:\/\//i.test(line)) continue;
+    if (/^https?:\/\//i.test(line)) continue;
+    // Markdown escape continuation lines (e.g. "\\" inside image-link cards).
+    if (/^\\+$/.test(line)) continue;
+    // Lines that are literally the name with a stray bracket/paren tail.
+    if (line.toLowerCase().startsWith(nameLc) && /[\])]/.test(line.slice(rawName.length, rawName.length + 2))) continue;
     // Mailto / phone-like line — skip.
     if (MAILTO_RE.test(line)) continue;
     if (/^\(?\+?\d[\d\s().\-]{6,}$/.test(line)) continue;
