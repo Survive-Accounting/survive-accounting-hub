@@ -1645,7 +1645,7 @@ async function insertExtractedPeople(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const rowsToInsert: Array<Record<string, unknown>> = [];
   let droppedNoContact = 0;
-  let rejectedNonPerson = 0;
+  
   for (const p of people) {
     const hasContact = !!p.email || !!p.profile_url;
     if (!hasContact && !options.allowNoContact) { droppedNoContact++; continue; }
