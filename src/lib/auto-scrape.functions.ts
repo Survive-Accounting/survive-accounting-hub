@@ -178,26 +178,42 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
     }
 
     // --- RMP URL discovery --------------------------------------------------
-    const rmpQuery = `site:ratemyprofessors.com/school "${name}"`;
+    // Strategy: ask RMP's own GraphQL search first (free, no SerpAPI quota,
+    // and ground truth). Fall back to SerpAPI only if that returns nothing.
+    const { findRmpSchoolUrlByName } = await import("@/lib/rmp-scrape.functions");
+    const rmpStart = Date.now();
     let rmpUrl: string | null = null;
     let rmpResults: Array<{ title: string; link: string }> = [];
-    const rmpStart = Date.now();
+    const rmpQuery = `RMP GraphQL: schools(text: "${name}")`;
     let rmpMs = 0;
     try {
-      rmpResults = await serpSearch(serpKey, rmpQuery, 5);
-      const schoolHit = rmpResults.find((r) => /ratemyprofessors\.com\/school\/\d+/i.test(r.link));
-      if (schoolHit) rmpUrl = schoolHit.link;
-      else if (rmpResults[0]) {
-        const loose = await serpSearch(serpKey, `site:ratemyprofessors.com "${name}"`, 5);
-        rmpResults = rmpResults.concat(loose);
-        const hit2 = loose.find((r) => /ratemyprofessors\.com\/school\/\d+/i.test(r.link));
-        if (hit2) rmpUrl = hit2.link;
+      rmpUrl = await findRmpSchoolUrlByName(name);
+      if (!rmpUrl) {
+        notes.push("rmp: GraphQL school search returned no match; trying SerpAPI fallback");
+        const fallbackQuery = `site:ratemyprofessors.com/school "${name}"`;
+        rmpResults = await serpSearch(serpKey, fallbackQuery, 5);
+        const schoolHit = rmpResults.find((r) => /ratemyprofessors\.com\/school\/\d+/i.test(r.link));
+        if (schoolHit) rmpUrl = schoolHit.link;
+        else if (rmpResults[0]) {
+          const loose = await serpSearch(serpKey, `site:ratemyprofessors.com "${name}"`, 5);
+          rmpResults = rmpResults.concat(loose);
+          const hit2 = loose.find((r) => /ratemyprofessors\.com\/school\/\d+/i.test(r.link));
+          if (hit2) rmpUrl = hit2.link;
+        }
       }
-      if (!rmpUrl) notes.push("rmp: no /school/<id> URL found in top results");
+      if (!rmpUrl) notes.push("rmp: no /school/<id> URL found in RMP or SerpAPI");
     } catch (e) {
-      notes.push(`rmp serp: ${e instanceof Error ? e.message : String(e)}`);
+      notes.push(`rmp discover: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       rmpMs = Date.now() - rmpStart;
+    }
+
+    // Persist the discovered RMP URL so subsequent batch runs skip discovery.
+    if (rmpUrl) {
+      await supabaseAdmin
+        .from("campuses")
+        .update({ rmp_school_url: rmpUrl } as never)
+        .eq("id", data.campusId);
     }
 
     return {

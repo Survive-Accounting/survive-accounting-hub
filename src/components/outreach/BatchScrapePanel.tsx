@@ -37,6 +37,9 @@ type CampusProgress = {
   leads?: number;
   emails?: number;
   costUsd?: number;
+  rmpMatched?: number;
+  rmpSkipped?: "no_url" | "error";
+  rmpError?: string;
   error?: string;
 };
 
@@ -136,14 +139,23 @@ export function BatchScrapePanel() {
         emails += (r.perPage ?? []).reduce((s, p) => s + (p.withEmail ?? 0), 0);
         costUsd += estimateRunCostUsd(r.perPage ?? []);
       }
+      let rmpMatched: number | undefined;
+      let rmpSkipped: CampusProgress["rmpSkipped"];
+      let rmpError: string | undefined;
       if (found.rmpUrl) {
         try {
-          await rmpFn({ data: { campusId, urls: [found.rmpUrl] } });
-        } catch {
-          /* RMP is best-effort; never fail the campus on it */
+          const rr = (await rmpFn({ data: { campusId, urls: [found.rmpUrl] } })) as {
+            totalMatched?: number;
+          };
+          rmpMatched = rr?.totalMatched ?? 0;
+        } catch (e) {
+          rmpSkipped = "error";
+          rmpError = e instanceof Error ? e.message : String(e);
         }
+      } else {
+        rmpSkipped = "no_url";
       }
-      const done: CampusProgress = { status: "done", leads, emails, costUsd };
+      const done: CampusProgress = { status: "done", leads, emails, costUsd, rmpMatched, rmpSkipped, rmpError };
       setProgress((p) => ({ ...p, [campusId]: done }));
       return done;
     } catch (e) {
@@ -357,6 +369,26 @@ export function BatchScrapePanel() {
                       <span className="flex-1 truncate">{c.school_name}</span>
                       {c.state ? <span className="text-xs text-muted-foreground">{c.state}</span> : null}
                       {p ? <StatusDot status={p.status} leads={p.leads} /> : null}
+                      {p?.status === "done" ? (
+                        <span
+                          className="text-xs"
+                          title={
+                            p.rmpError
+                              ? `RMP error: ${p.rmpError}`
+                              : p.rmpSkipped === "no_url"
+                                ? "No RMP school URL found"
+                                : `RMP matched ${p.rmpMatched ?? 0}`
+                          }
+                        >
+                          {p.rmpSkipped === "error" ? (
+                            <span className="text-destructive">RMP ⚠</span>
+                          ) : p.rmpSkipped === "no_url" ? (
+                            <span className="text-muted-foreground">no RMP</span>
+                          ) : (
+                            <span className="text-muted-foreground">RMP {p.rmpMatched ?? 0}</span>
+                          )}
+                        </span>
+                      ) : null}
                     </label>
                   );
                 })
