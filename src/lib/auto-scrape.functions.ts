@@ -153,6 +153,19 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       }
       if (!facultyUrls.includes(link)) facultyUrls.push(link);
     }
+    // Rank: real directory paths first, marketing/news landing pages last.
+    // Stops the `/departments/accounting` marketing page from being scraped
+    // ahead of the actual `/directory.php` roster on schools that have both.
+    const DIRECTORY_PATH_RE = /\/(directory|faculty|people|staff|profiles|faculty-staff|faculty-directory|faculty-and-staff)(\/|\.|$)/i;
+    const MARKETING_PATH_RE = /\/(news|stories|story|press|noteworthy|invest|give|donate|events|spotlight|departments)(\/|\.|$)/i;
+    const score = (u: string): number => {
+      const p = (() => { try { return new URL(u).pathname.toLowerCase(); } catch { return u.toLowerCase(); } })();
+      let s = 0;
+      if (DIRECTORY_PATH_RE.test(p)) s += 10;
+      if (MARKETING_PATH_RE.test(p)) s -= 5;
+      return s;
+    };
+    facultyUrls.sort((a, b) => score(b) - score(a));
     const facultyUrlsCapped = facultyUrls.slice(0, 3);
     if (facultyUrlsCapped.length === 0 && facultyResults[0]) {
       // Last-ditch fallback. Still avoid obvious blog posts.
