@@ -31,7 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { V2Badge } from "@/components/outreach/V2Badge";
 import scraperContextMd from "@/content/SCRAPER_CONTEXT.md?raw";
 
-type RunStatus = "pending" | "running" | "done" | "error";
+type RunStatus = "pending" | "running" | "done" | "error" | "skipped";
 type CampusProgress = {
   status: RunStatus;
   leads?: number;
@@ -41,10 +41,11 @@ type CampusProgress = {
   rmpSkipped?: "no_url" | "error";
   rmpError?: string;
   error?: string;
+  skipReason?: string;
 };
 
 // Loose shapes for the server-fn return values (kept permissive on purpose).
-type DiscoverResult = { facultyUrls?: string[]; rmpUrl?: string | null };
+type DiscoverResult = { facultyUrls?: string[]; rmpUrl?: string | null; noAccountingDept?: boolean };
 type FacultyResult = {
   inserted?: number;
   perPage?: Array<{ withEmail?: number; enrichOutcomes?: Array<{ result: string }>; pagination?: { pagesWalked?: number } }>;
