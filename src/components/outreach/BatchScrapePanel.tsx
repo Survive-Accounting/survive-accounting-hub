@@ -31,7 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { V2Badge } from "@/components/outreach/V2Badge";
 import scraperContextMd from "@/content/SCRAPER_CONTEXT.md?raw";
 
-type RunStatus = "pending" | "running" | "done" | "error";
+type RunStatus = "pending" | "running" | "done" | "error" | "skipped";
 type CampusProgress = {
   status: RunStatus;
   leads?: number;
@@ -41,10 +41,11 @@ type CampusProgress = {
   rmpSkipped?: "no_url" | "error";
   rmpError?: string;
   error?: string;
+  skipReason?: string;
 };
 
 // Loose shapes for the server-fn return values (kept permissive on purpose).
-type DiscoverResult = { facultyUrls?: string[]; rmpUrl?: string | null };
+type DiscoverResult = { facultyUrls?: string[]; rmpUrl?: string | null; noAccountingDept?: boolean };
 type FacultyResult = {
   inserted?: number;
   perPage?: Array<{ withEmail?: number; enrichOutcomes?: Array<{ result: string }>; pagination?: { pagesWalked?: number } }>;
@@ -128,17 +129,24 @@ export function BatchScrapePanel() {
     setProgress((p) => ({ ...p, [campusId]: { status: "running" } }));
     try {
       const found = (await discover({ data: { campusId } })) as DiscoverResult;
+      // Skip cleanly when discovery found no accounting-specific dept page.
+      if (found.noAccountingDept || !found.facultyUrls || found.facultyUrls.length === 0) {
+        const skipped: CampusProgress = {
+          status: "skipped",
+          skipReason: "No accounting dept page found",
+        };
+        setProgress((p) => ({ ...p, [campusId]: skipped }));
+        return skipped;
+      }
       let leads = 0;
       let emails = 0;
       let costUsd = 0;
-      if (found.facultyUrls && found.facultyUrls.length > 0) {
-        const r = (await facultyFn({
-          data: { campusId, urls: found.facultyUrls, allowNoContact: true },
-        })) as FacultyResult;
-        leads += r.inserted ?? 0;
-        emails += (r.perPage ?? []).reduce((s, p) => s + (p.withEmail ?? 0), 0);
-        costUsd += estimateRunCostUsd(r.perPage ?? []);
-      }
+      const r = (await facultyFn({
+        data: { campusId, urls: found.facultyUrls, allowNoContact: true },
+      })) as FacultyResult;
+      leads += r.inserted ?? 0;
+      emails += (r.perPage ?? []).reduce((s, p) => s + (p.withEmail ?? 0), 0);
+      costUsd += estimateRunCostUsd(r.perPage ?? []);
       let rmpMatched: number | undefined;
       let rmpSkipped: CampusProgress["rmpSkipped"];
       let rmpError: string | undefined;
@@ -184,8 +192,11 @@ export function BatchScrapePanel() {
     let emails = 0;
     let costUsd = 0;
     let errors = 0;
+    let skipped = 0;
 
-    const CONCURRENCY = 4;
+    // Lower concurrency for the big 170-campus run: a few slow campuses
+    // shouldn't cascade-timeout the rest.
+    const CONCURRENCY = 3;
     const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
       while (queue.length > 0) {
         const id = queue.shift();
@@ -195,6 +206,7 @@ export function BatchScrapePanel() {
         emails += res.emails ?? 0;
         costUsd += res.costUsd ?? 0;
         if (res.status === "error") errors++;
+        if (res.status === "skipped") skipped++;
       }
     });
     await Promise.all(workers);
@@ -222,7 +234,7 @@ export function BatchScrapePanel() {
     }
 
     toast.success(
-      `Batch done · ${leads} leads · ${emails} emails${errors ? ` · ${errors} error(s)` : ""}`,
+      `Batch done · ${leads} leads · ${emails} emails${skipped ? ` · ${skipped} skipped (no accounting dept)` : ""}${errors ? ` · ${errors} error(s)` : ""}`,
     );
   }
 
@@ -369,6 +381,14 @@ export function BatchScrapePanel() {
                       <span className="flex-1 truncate">{c.school_name}</span>
                       {c.state ? <span className="text-xs text-muted-foreground">{c.state}</span> : null}
                       {p ? <StatusDot status={p.status} leads={p.leads} /> : null}
+                      {p?.status === "skipped" ? (
+                        <span
+                          className="text-xs text-amber-600"
+                          title={p.skipReason ?? "Skipped"}
+                        >
+                          no accounting dept
+                        </span>
+                      ) : null}
                       {p?.status === "done" ? (
                         <span
                           className="text-xs"
@@ -529,6 +549,7 @@ function StatusDot({ status, leads }: { status: RunStatus; leads?: number }) {
         {typeof leads === "number" ? leads : ""}
       </span>
     );
+  if (status === "skipped") return <Circle className="h-3.5 w-3.5 text-amber-500" />;
   if (status === "error") return <XCircle className="h-3.5 w-3.5 text-red-500" />;
   return <Circle className="h-3.5 w-3.5 text-muted-foreground/40" />;
 }

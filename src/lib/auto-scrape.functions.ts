@@ -104,48 +104,64 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
 
     const notes: string[] = [];
 
-    // --- Faculty URL discovery ----------------------------------------------
-    const facultyQuery = domains.length
-      ? `site:${domains[0]} accounting faculty`
-      : `"${name}" accounting faculty directory`;
+    // --- Faculty URL discovery (ACCOUNTING-ONLY) ---------------------------
+    // Scope to accounting/accountancy departments. Cross-discipline "all
+    // faculty" pages caused most Batch V2 failures (huge payloads, generic
+    // dept emails, Buildings/Locations bleed-through). If we can't find an
+    // accounting-specific page, SKIP the campus — no generic fallback.
+    const ACCOUNTING_SIGNAL_RE =
+      /(accounting|accountancy|\baccy\b|\bacct\b|taxation|\baudit(ing)?\b)/i;
+    const ACCOUNTING_PATH_RE = /(\/|-|_)(accounting|accountancy|accy|acct|soa)(\/|-|_|\.|$)/i;
+
+    const facultyQueries: string[] = domains.length
+      ? [
+          `site:${domains[0]} "accounting" faculty directory`,
+          `site:${domains[0]} "school of accountancy" faculty`,
+          `site:${domains[0]} "department of accounting" people`,
+        ]
+      : [
+          `"${name}" accounting faculty directory`,
+          `"${name}" "school of accountancy" faculty`,
+        ];
+    const facultyQuery = facultyQueries[0];
+
     let facultyResults: Array<{ title: string; link: string }> = [];
     const facultyStart = Date.now();
     let facultyMs = 0;
     try {
-      facultyResults = await serpSearch(serpKey, facultyQuery, 10);
+      for (const q of facultyQueries) {
+        const batch = await serpSearch(serpKey, q, 10);
+        facultyResults = facultyResults.concat(batch);
+        if (batch.some((r) => ACCOUNTING_PATH_RE.test(r.link))) break;
+      }
     } catch (e) {
       notes.push(`faculty serp: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       facultyMs = Date.now() - facultyStart;
     }
+
     const keep = (link: string, title: string) => {
       const h = hostOf(link);
       const domainOk = domains.length === 0 || domains.some((d) => h === d || h.endsWith(`.${d}`));
       if (!domainOk) return false;
-      // Hard-drop dated blog post URLs — they're news, never rosters.
       if (BLOG_DATE_RE.test(link)) return false;
-      const txt = `${link} ${title}`.toLowerCase();
-      // Drop blog/news subdomains (e.g. accountingblog.kelley.iu.edu,
-      // news.school.edu) unless the title/path explicitly signals a roster.
-      // These pages mostly contain dated posts and dilute extraction signal.
+      const txt = `${link} ${title}`;
+      // HARD requirement: accounting signal in URL path or title.
+      if (!ACCOUNTING_PATH_RE.test(link) && !ACCOUNTING_SIGNAL_RE.test(txt)) return false;
       const labels = h.split(".");
       const leftmost = labels[0] ?? "";
-      const isBlogOrNewsSub =
-        labels.length >= 3 && /(blog|news|newsroom)/i.test(leftmost);
-      const rosterSignal = /faculty|staff|directory|people/.test(txt);
-      if (isBlogOrNewsSub && !rosterSignal) {
+      if (labels.length >= 3 && /(blog|news|newsroom)/i.test(leftmost)) {
         notes.push(`faculty: dropped blog/news subdomain ${h}`);
         return false;
       }
-      const badHints = ["/news", "/event", "/blog", "/podcast", "/profile/", "/people/", "/award", "/spotlight", "/story", "/stories"];
-      if (badHints.some((b) => txt.includes(b)) && !txt.includes("faculty") && !txt.includes("staff") && !txt.includes("directory")) return false;
+      const lower = txt.toLowerCase();
+      const badHints = ["/news", "/event", "/podcast", "/award", "/spotlight", "/story", "/stories"];
+      if (badHints.some((b) => lower.includes(b))) return false;
       return true;
     };
     const rawKept = Array.from(
       new Set(facultyResults.filter((r) => keep(r.link, r.title)).map((r) => r.link)),
     );
-    // Canonicalize: when a kept URL is a profile-detail page, prepend its
-    // parent directory so the actual roster gets scraped too.
     const facultyUrls: string[] = [];
     for (const link of rawKept) {
       for (const parent of deriveDirectoryParents(link)) {
@@ -153,28 +169,19 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       }
       if (!facultyUrls.includes(link)) facultyUrls.push(link);
     }
-    // Rank: real directory paths first, marketing/news landing pages last.
-    // Stops the `/departments/accounting` marketing page from being scraped
-    // ahead of the actual `/directory.php` roster on schools that have both.
     const DIRECTORY_PATH_RE = /\/(directory|faculty|people|staff|profiles|faculty-staff|faculty-directory|faculty-and-staff)(\/|\.|$)/i;
-    const MARKETING_PATH_RE = /\/(news|stories|story|press|noteworthy|invest|give|donate|events|spotlight|departments)(\/|\.|$)/i;
     const score = (u: string): number => {
       const p = (() => { try { return new URL(u).pathname.toLowerCase(); } catch { return u.toLowerCase(); } })();
       let s = 0;
+      if (ACCOUNTING_PATH_RE.test(p)) s += 20;
       if (DIRECTORY_PATH_RE.test(p)) s += 10;
-      if (MARKETING_PATH_RE.test(p)) s -= 5;
       return s;
     };
     facultyUrls.sort((a, b) => score(b) - score(a));
     const facultyUrlsCapped = facultyUrls.slice(0, 3);
-    if (facultyUrlsCapped.length === 0 && facultyResults[0]) {
-      // Last-ditch fallback. Still avoid obvious blog posts.
-      const first = facultyResults.find((r) => !BLOG_DATE_RE.test(r.link)) ?? facultyResults[0];
-      facultyUrlsCapped.push(first.link);
-      notes.push("faculty: heuristic dropped all results; using top organic result");
-    }
-    if (facultyUrlsCapped.length > rawKept.length) {
-      notes.push(`faculty: added ${facultyUrlsCapped.length - rawKept.length} parent directory URL(s)`);
+    const noAccountingDept = facultyUrlsCapped.length === 0;
+    if (noAccountingDept) {
+      notes.push("faculty: no accounting-specific directory URL found — skipping campus");
     }
 
     // --- RMP URL discovery --------------------------------------------------
@@ -221,6 +228,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       campusName: name,
       domains,
       facultyUrls: facultyUrlsCapped,
+      noAccountingDept,
       rmpUrl,
       facultyQuery,
       rmpQuery,
