@@ -228,6 +228,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       campusName: name,
       domains,
       facultyUrls: facultyUrlsCapped,
+      noAccountingDept,
       rmpUrl,
       facultyQuery,
       rmpQuery,
