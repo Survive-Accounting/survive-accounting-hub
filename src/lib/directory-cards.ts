@@ -45,6 +45,16 @@ const TITLE_HINT_RE =
 const HEADING_LINK_RE =
   /^[ \t]{0,3}#{1,6}[ \t]+(?:\*\*|__)?\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)(?:\*\*|__)?[ \t]*$/gim;
 
+// Image-link card (Walton/Uark-style): a markdown link whose link-text is an
+// inline image followed by the person's name, with no heading marker. Example:
+//   [![Mandi Cooper](photo.jpg)\\
+//   \\
+//   Mandi Cooper](https://walton.uark.edu/directory/all-faculty/uid/mandic/name/Mandi+Cooper/)
+// We use the image alt text as the canonical name (it's always just the name)
+// and the outer link as the profile URL.
+const IMAGE_LINK_CARD_RE =
+  /\[!\[([^\]\n]+)\]\([^)]+\)[^\]]*\]\((https?:\/\/[^)\s]+)\)/g;
+
 const MAILTO_RE = /mailto:([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})/i;
 const BARE_EMAIL_RE = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g;
 
