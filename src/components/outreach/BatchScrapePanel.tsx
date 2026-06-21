@@ -37,6 +37,9 @@ type CampusProgress = {
   leads?: number;
   emails?: number;
   costUsd?: number;
+  rmpMatched?: number;
+  rmpSkipped?: "no_url" | "error";
+  rmpError?: string;
   error?: string;
 };
 
