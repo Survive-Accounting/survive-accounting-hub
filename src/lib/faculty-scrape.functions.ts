@@ -1806,6 +1806,7 @@ async function processUrls(
     cardBlocks?: number;
     cardEmailsPaired?: number;
     aiEmailOverridden?: number;
+    diag?: string;
     rejectedNonPerson?: number;
     rejectedNonPersonSamples?: Array<{ name: string; reason: string }>;
   }>;
@@ -1834,6 +1835,7 @@ async function processUrls(
     cardBlocks?: number;
     cardEmailsPaired?: number;
     aiEmailOverridden?: number;
+    diag?: string;
     rejectedNonPerson?: number;
     rejectedNonPersonSamples?: Array<{ name: string; reason: string }>;
   }> = [];
@@ -1892,6 +1894,14 @@ async function processUrls(
           ? cardsToExtracted(parseDirectoryCardsFromHtml(htmlForCards))
           : [];
         const cardPeople = combineCardSources(mdCards, htmlCards);
+        // Diagnostic breadcrumb (surfaces per-URL in the debug bundle) so we can
+        // see WHERE extraction breaks without guessing: raw-fetch size + mailto
+        // count, Firecrawl-html size + mailto count, and per-source card counts.
+        const countMailto = (s: string) => (s.match(/mailto:/gi) ?? []).length;
+        const diag =
+          `rawFetch=${rawPageHtml.length}B/${countMailto(rawPageHtml)}mt · ` +
+          `fcHtml=${initialRawHtml.length}B/${countMailto(initialRawHtml)}mt · ` +
+          `md=${md.length}B · mdCards=${mdCards.length} htmlCards=${htmlCards.length}`;
         let parsedPeople = cardPeople.length > 0 ? cardPeople : extractDirectoryMarkdownPeople(md);
         let aiPeople = await callLovableAi(aiKey, url, md);
         let aiEmailOverridden = 0;
@@ -2213,6 +2223,7 @@ async function processUrls(
           cardBlocks: cardBlocksCount,
           cardEmailsPaired,
           aiEmailOverridden,
+          diag,
           rejectedNonPerson: pageRejectedNonPerson,
           rejectedNonPersonSamples: rejectedSamples,
         });

@@ -223,6 +223,7 @@ export function AutoScrapeButton({
             const url = typeof p.url === "string" ? p.url : "?";
             const ex = typeof p.extracted === "number" ? p.extracted : 0;
             pushScrapeLog(campusId, "net", `  · ${ex.toString().padStart(2)} extracted ← ${url}`);
+            if (typeof p.diag === "string") pushScrapeLog(campusId, "info", `    ${p.diag}`);
           }
           const status: StepStatus = ins > 0 ? "ok" : "warn";
           const summary =

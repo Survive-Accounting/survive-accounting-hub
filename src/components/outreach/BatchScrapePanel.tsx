@@ -267,6 +267,48 @@ export function BatchScrapePanel() {
     toast.success("Downloaded SCRAPER_CONTEXT.md");
   }
 
+  // Export every campus's known directory URLs to CSV. Use this to hand the
+  // full URL list to an engineer (or to Claude) for structural analysis across
+  // all campuses at once. faculty_page_url is populated for campuses that have
+  // been scraped/discovered; website + accounting-dept URLs help find the rest.
+  async function downloadFacultyUrlsCsv() {
+    toast.info("Gathering campus URLs…");
+    try {
+      const { data, error } = await supabase
+        .from("campuses")
+        .select("name,state,website_url,accounting_department_url,faculty_page_url,rmp_page_url")
+        .is("archived_at", null)
+        .order("name");
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        name: string | null; state: string | null;
+        website_url: string | null; accounting_department_url: string | null;
+        faculty_page_url: string | null; rmp_page_url: string | null;
+      }>;
+      const cell = (v: string | null | undefined) => {
+        const s = (v ?? "").replace(/\r?\n/g, " | ").replace(/"/g, '""');
+        return /[",]/.test(s) ? `"${s}"` : s;
+      };
+      const lines = ["campus,state,website_url,accounting_department_url,faculty_page_url,rmp_page_url"];
+      for (const r of rows) {
+        lines.push([r.name, r.state, r.website_url, r.accounting_department_url, r.faculty_page_url, r.rmp_page_url].map(cell).join(","));
+      }
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `faculty-urls-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      const withFaculty = rows.filter((r) => (r.faculty_page_url ?? "").trim()).length;
+      toast.success(`Exported ${rows.length} campuses · ${withFaculty} have discovered faculty URLs.`);
+    } catch (e) {
+      toast.error(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   const doneCount = Object.values(progress).filter((p) => p.status === "done" || p.status === "error").length;
 
   return (
@@ -533,6 +575,21 @@ export function BatchScrapePanel() {
                 </Button>
               </div>
             )}
+
+            <div className="my-3 border-t" />
+            <p className="mb-2 text-xs text-muted-foreground">
+              Export every campus's directory URLs (faculty, website, RMP) to a CSV — useful
+              for analyzing extraction coverage across all campuses at once.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={downloadFacultyUrlsCsv}
+              disabled={running}
+            >
+              <Download className="h-3.5 w-3.5" /> Export Faculty URLs (CSV)
+            </Button>
           </section>
         </div>
       </div>
