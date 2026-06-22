@@ -66,7 +66,7 @@ function slickHttpError(label: string, status: number, body: string): string {
 // intact, so the HTML card parser can recover name+title+email. Best-effort:
 // returns "" on any failure (blocked/timeout/non-HTML) and the caller falls
 // back to Firecrawl's rawHtml.
-async function fetchRawPageHtml(url: string, timeoutMs = 15_000): Promise<string> {
+async function fetchRawPageHtml(url: string, timeoutMs = 5_000): Promise<string> {
   try {
     const res = await fetchWithTimeout(
       url,
