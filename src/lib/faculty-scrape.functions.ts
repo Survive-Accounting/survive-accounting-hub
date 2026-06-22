@@ -14,7 +14,7 @@ import {
   EMPTY_DETECTION,
   type ProgramLevelDetection,
 } from "@/lib/program-levels";
-import { parseDirectoryCards, cardMatchKey } from "@/lib/directory-cards";
+import { parseDirectoryCards, parseDirectoryCardsFromHtml, cardMatchKey } from "@/lib/directory-cards";
 
 // ---- Network hardening -----------------------------------------------------
 // Every outbound fetch (Firecrawl + AI gateway) has a hard timeout so a single
@@ -603,6 +603,31 @@ function cardsToExtracted(cards: ReturnType<typeof parseDirectoryCards>): Extrac
       } as Extracted;
     })
     .filter((p): p is Extracted => !!p);
+}
+
+/**
+ * Merge two deterministic card sources (markdown + rawHTML) into one list,
+ * deduped by last-name+first-initial. `primary` wins on conflicts; missing
+ * fields (notably email) are backfilled from `secondary`. Used so the rawHtml
+ * parser can supply emails/titles the markdown parser lost to CSS-hiding,
+ * without double-listing anyone.
+ */
+function combineCardSources(primary: Extracted[], secondary: Extracted[]): Extracted[] {
+  const byKey = new Map<string, Extracted>();
+  const add = (p: Extracted) => {
+    if (!p.first_name || !p.last_name) return;
+    const key = cardMatchKey(p.first_name, p.last_name);
+    const ex = byKey.get(key);
+    if (!ex) { byKey.set(key, { ...p }); return; }
+    ex.title = ex.title ?? p.title;
+    ex.email = ex.email ?? p.email;
+    ex.profile_url = ex.profile_url ?? p.profile_url;
+    ex.is_phd = ex.is_phd || p.is_phd;
+    ex.is_cpa = ex.is_cpa || p.is_cpa;
+  };
+  for (const p of primary) add(p);
+  for (const p of secondary) add(p);
+  return Array.from(byKey.values());
 }
 
 /**
@@ -1819,7 +1844,16 @@ async function processUrls(
         // Deterministic card-block parser runs FIRST. It pairs name+email
         // strictly within one card block, so we never assign a neighbor's
         // email (the bug that produced Robert Knisley → jmkniola@iu.edu).
-        const cardPeople = cardsToExtracted(parseDirectoryCards(md));
+        // Two deterministic card sources, merged by name:
+        //  - markdown cards (heading/image-link layouts; the Arkansas path), and
+        //  - rawHtml cards (class-tagged name/title + mailto), which recover
+        //    name+title+EMAIL on WordPress/Drupal directories whose emails are
+        //    CSS-hidden and therefore stripped from markdown (e.g. uwosh.edu).
+        const mdCards = cardsToExtracted(parseDirectoryCards(md));
+        const htmlCards = initialRawHtml
+          ? cardsToExtracted(parseDirectoryCardsFromHtml(initialRawHtml))
+          : [];
+        const cardPeople = combineCardSources(mdCards, htmlCards);
         let parsedPeople = cardPeople.length > 0 ? cardPeople : extractDirectoryMarkdownPeople(md);
         let aiPeople = await callLovableAi(aiKey, url, md);
         let aiEmailOverridden = 0;

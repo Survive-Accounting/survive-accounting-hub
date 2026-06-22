@@ -194,6 +194,115 @@ export function parseDirectoryCards(pageText: string): DirectoryCard[] {
   return cards;
 }
 
+// ---------------------------------------------------------------------------
+// HTML directory-card parser (operates on rawHtml, not markdown).
+//
+// Markdown loses two things that break the markdown parser above on common
+// WordPress/Drupal faculty directories (e.g. uwosh.edu, many others):
+//   1. CSS-hidden contact blocks (class="...hidden"): the mailto email is
+//      stripped from the rendered markdown entirely → "no email found".
+//   2. Class-tagged cards that don't render as markdown headings, and whose
+//      <img> alt is "profile photo" instead of the person's name → the
+//      markdown/AI extractors find no people at all.
+// Firecrawl returns the rawHtml regardless, so we parse the structured cards
+// straight from HTML: anchor on each non-generic mailto: link, then read the
+// name/title/profile-url out of the card that immediately precedes it.
+// Generalizes to any directory that pairs a class="...name..." /
+// "...title..." element with a mailto link.
+// ---------------------------------------------------------------------------
+
+const HTML_MAILTO_GLOBAL_RE = /mailto:([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})/gi;
+
+function decodeEntitiesLite(s: string): string {
+  return s
+    .replace(/&amp;/gi, "&")
+    .replace(/&#0*39;|&apos;|&rsquo;|&#8217;/gi, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&[a-z0-9#]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikePersonName(raw: string): boolean {
+  const cleaned = raw.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  if (cleaned.length < 3 || cleaned.length > 60) return false;
+  const parts = cleaned.split(" ").filter(Boolean);
+  if (parts.length < 2 || parts.length > 4) return false;
+  if (!parts.every((p) => /^[A-Za-z][A-Za-z.'’-]*$/.test(p))) return false;
+  if (/\b(profile|photo|image|portrait|headshot|faculty|staff|directory|department|news|email|phone|read more|view|click|learn)\b/i.test(cleaned)) {
+    return false;
+  }
+  return true;
+}
+
+// Text of the LAST element in `html` whose class matches `classRe`. Matches
+// only elements whose content is DIRECT text (no nested tags) — this is what
+// targets the innermost name/title element (e.g. <span class="person-name">)
+// rather than a wrapper like <span class="person-meta"> that contains it.
+function lastClassElementText(html: string, classRe: RegExp): string | null {
+  const re = /class="([^"]*)"[^>]*>\s*([^<>]{1,90}?)\s*</gi;
+  let best: string | null = null;
+  let mm: RegExpExecArray | null;
+  while ((mm = re.exec(html)) !== null) {
+    if (!classRe.test(mm[1])) continue;
+    const text = decodeEntitiesLite(mm[2]);
+    if (text) best = text;
+  }
+  return best;
+}
+
+// Last real (non-asset) http href in `html` — the person's profile page.
+function lastProfileHref(html: string): string | null {
+  const re = /href="(https?:\/\/[^"]+)"/gi;
+  let best: string | null = null;
+  let mm: RegExpExecArray | null;
+  while ((mm = re.exec(html)) !== null) {
+    const u = mm[1];
+    if (/\.(?:jpg|jpeg|png|gif|svg|webp|css|js|ico)(?:[?#]|$)/i.test(u)) continue;
+    best = u;
+  }
+  return best;
+}
+
+/**
+ * Parse faculty cards directly from rendered rawHtml. One card per non-generic
+ * mailto: link, with name/title/profile-url read from the same card. Returns
+ * the same DirectoryCard shape as parseDirectoryCards so callers can merge the
+ * two sources. Offsets are approximate (window-based), which is fine — they're
+ * only used as search hints.
+ */
+export function parseDirectoryCardsFromHtml(html: string): DirectoryCard[] {
+  if (!html || !html.includes("mailto:")) return [];
+  const cards: DirectoryCard[] = [];
+  const seen = new Set<string>();
+  HTML_MAILTO_GLOBAL_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = HTML_MAILTO_GLOBAL_RE.exec(html)) !== null) {
+    const email = m[1].toLowerCase();
+    if (isGenericLocal(email.split("@")[0])) continue;
+    if (seen.has(email)) continue;
+    // The card's name/title sit just BEFORE the (often CSS-hidden) email block.
+    const winStart = Math.max(0, m.index - 1600);
+    const before = html.slice(winStart, m.index);
+    const rawName = lastClassElementText(before, /name/i);
+    if (!rawName || !looksLikePersonName(rawName)) continue;
+    const parsed = splitNameLocal(rawName.replace(/\([^)]*\)/g, " "));
+    if (!parsed) continue;
+    seen.add(email);
+    const title = lastClassElementText(before, /title|position|rank|role/i);
+    cards.push({
+      first_name: parsed.first_name,
+      last_name: parsed.last_name,
+      title: title && title.length <= 90 ? title : null,
+      email,
+      profile_url: lastProfileHref(before),
+      block_start: winStart,
+      block_end: m.index,
+    });
+  }
+  return cards;
+}
+
 function normKey(s: string): string {
   return s.toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
 }
