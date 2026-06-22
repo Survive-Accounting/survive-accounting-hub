@@ -58,6 +58,38 @@ function slickHttpError(label: string, status: number, body: string): string {
   return `${label} ${status}${snippet ? `: ${snippet}` : ""}`;
 }
 
+// Direct (non-Firecrawl) fetch of a directory page's TRUE source HTML.
+// Firecrawl renders pages and prunes CSS-hidden nodes (display:none) from BOTH
+// markdown and rawHtml — which on many WordPress/Drupal faculty directories
+// hides the mailto: emails (they sit in a class="...hidden" block). A plain
+// server-side fetch returns the unprocessed source where those mailto links are
+// intact, so the HTML card parser can recover name+title+email. Best-effort:
+// returns "" on any failure (blocked/timeout/non-HTML) and the caller falls
+// back to Firecrawl's rawHtml.
+async function fetchRawPageHtml(url: string, timeoutMs = 15_000): Promise<string> {
+  try {
+    const res = await fetchWithTimeout(
+      url,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+      },
+      timeoutMs,
+      "Raw page fetch",
+    );
+    if (!res.ok) return "";
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct && !/html|xml|text/i.test(ct)) return "";
+    const html = await res.text();
+    return html.length > 200 ? html : "";
+  } catch {
+    return "";
+  }
+}
+
 const ScrapeInputSchema = z.object({
   campusId: z.string().uuid(),
   urls: z.array(z.string().url()).min(1).max(10),
@@ -1850,8 +1882,14 @@ async function processUrls(
         //    name+title+EMAIL on WordPress/Drupal directories whose emails are
         //    CSS-hidden and therefore stripped from markdown (e.g. uwosh.edu).
         const mdCards = cardsToExtracted(parseDirectoryCards(md));
-        const htmlCards = initialRawHtml
-          ? cardsToExtracted(parseDirectoryCardsFromHtml(initialRawHtml))
+        // Prefer the page's TRUE source HTML (direct fetch) over Firecrawl's
+        // rawHtml — Firecrawl prunes CSS-hidden mailto blocks, which is exactly
+        // where these directories keep the emails (e.g. uwosh.edu). Fall back to
+        // Firecrawl's rawHtml when the direct fetch is blocked/empty.
+        const rawPageHtml = await fetchRawPageHtml(url);
+        const htmlForCards = rawPageHtml || initialRawHtml;
+        const htmlCards = htmlForCards
+          ? cardsToExtracted(parseDirectoryCardsFromHtml(htmlForCards))
           : [];
         const cardPeople = combineCardSources(mdCards, htmlCards);
         let parsedPeople = cardPeople.length > 0 ? cardPeople : extractDirectoryMarkdownPeople(md);
