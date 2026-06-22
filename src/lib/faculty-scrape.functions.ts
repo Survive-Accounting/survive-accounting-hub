@@ -495,6 +495,13 @@ function applyPattern(pattern: EmailPattern, fn: string, ln: string): string | n
   }
 }
 
+// Kill-switch for Recovery pass B (email pattern inference). When false we
+// NEVER synthesize a "guessed" email from the department's dominant pattern —
+// only emails actually scraped from the page are kept. Guessed emails created
+// false-positive "GUESSED" leads that bounced; turn this back on only if you
+// re-introduce a confidence gate the outreach side respects.
+const ENABLE_EMAIL_INFERENCE = false;
+
 function inferDepartmentPattern(
   people: Extracted[],
 ): { domain: string; pattern: EmailPattern; sampleSize: number } | null {
@@ -1569,7 +1576,7 @@ async function callLovableAiWithPdf(
 // the AI extractor. These rows can never match an RMP teacher (no real
 // person name) and pollute the triage panel. Reject them here.
 const NON_PERSON_NAME_RE =
-  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release)\b/i;
+  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release|headshot|photo|portrait|image|directory|faculty|staff|international students|information technology|technology)\b/i;
 const HEADLINE_VERB_RE =
   /^(show|invest|learn|read|view|click|apply|submit|get|discover|explore|join|meet|find|sign|subscribe|follow|share|donate|give)\b/i;
 const NAME_TOKEN_RE = /^[A-Za-z][A-Za-z'`\-.]{1,}$/;
@@ -1579,7 +1586,23 @@ const GENERIC_EMAIL_LOCALS = new Set([
   "dean", "options", "integr", "sbusiness", "office", "marketing",
   "communications", "events", "media", "press", "help", "noreply",
   "no-reply", "mail", "inquiry", "inquiries", "general", "main",
+  // Placeholder / system mailbox locals that slipped through as "leads".
+  // Note: the gate trims the local at the first . + - so "mailer-daemon"
+  // collapses to "mailer" — both are listed so the token actually fires.
+  "r2d2", "test", "example", "sample", "donotreply",
+  "mailer-daemon", "mailer", "postmaster",
 ]);
+
+// Blank a title that is obviously scraped junk — a markdown link/image, a raw
+// URL, or a "+"-joined nav blob — instead of letting it drop the whole person.
+// A real academic title never contains these. Returns null so the row is kept
+// with no title rather than being rejected by the person gate downstream.
+function sanitizeTitle(title: string | null | undefined): string | null {
+  const t = (title ?? "").trim();
+  if (!t) return null;
+  if (/\]\(|!\[|https?:\/\/|www\.|\+/.test(t)) return null;
+  return t;
+}
 
 export type PersonRejectReason =
   | "missing_name"
@@ -1651,6 +1674,8 @@ async function insertExtractedPeople(
     if (!hasContact && !options.allowNoContact) { droppedNoContact++; continue; }
     // Require at least a name when we have no contact info, otherwise the row is useless.
     if (!hasContact && !(p.first_name || p.last_name)) { droppedNoContact++; continue; }
+    // Blank a junk title (markdown/URL/nav) so it can't drop a real person.
+    p.title = sanitizeTitle(p.title);
     const gate = isLikelyPersonRow({ first_name: p.first_name, last_name: p.last_name, title: p.title, email: p.email });
     if (!gate.ok) { droppedNoContact++; continue; }
     rowsToInsert.push({
@@ -2034,7 +2059,7 @@ async function processUrls(
         // can spot-check before any send. Skipped automatically when the
         // sample is too sparse to be confident. Also skipped on news pages —
         // synthesizing a "faculty" email for a student spotlight is wrong.
-        const pat = isNewsPage ? null : inferDepartmentPattern(afterDirectorySweep);
+        const pat = (isNewsPage || !ENABLE_EMAIL_INFERENCE) ? null : inferDepartmentPattern(afterDirectorySweep);
         let inferredFilled = 0;
         const afterInference = afterDirectorySweep.map((p) => {
           if (p.email) return p;
@@ -2055,6 +2080,8 @@ async function processUrls(
         for (const p of people) {
           const hasContact = !!p.email || !!p.profile_url;
           if (!hasContact && !options.allowNoContact) { pageDropped++; continue; }
+          // Blank a junk title (markdown/URL/nav) so it can't drop a real person.
+          p.title = sanitizeTitle(p.title);
           const gate = isLikelyPersonRow({ first_name: p.first_name, last_name: p.last_name, title: p.title, email: p.email });
           if (!gate.ok) {
             pageRejectedNonPerson++;
