@@ -1652,7 +1652,7 @@ async function callAiGatewayWithPdf(
 // the AI extractor. These rows can never match an RMP teacher (no real
 // person name) and pollute the triage panel. Reject them here.
 const NON_PERSON_NAME_RE =
-  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release|headshot|photo|portrait|image|directory|faculty|staff|international students|information technology|technology|university|universities|lettermark|logo|wordmark|map|sitemap|alumni|giving|athletics|libraries|admissions|administration|calendar|calendars|menu|navigation|footer|header)\b/i;
+  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release|headshot|photo|portrait|image|directory|faculty|staff|international students|information technology|technology|university|universities|lettermark|logo|wordmark|map|sitemap|alumni|giving|athletics|libraries|admissions|administration|calendar|calendars|menu|navigation|footer|header|programs?|\bbba\b|\bmba\b|undergraduate|curriculum|overview)\b/i;
 const HEADLINE_VERB_RE =
   /^(show|invest|learn|read|view|click|apply|submit|get|discover|explore|join|meet|find|sign|subscribe|follow|share|donate|give)\b/i;
 const NAME_TOKEN_RE = /^[A-Za-z][A-Za-z'`\-.]{1,}$/;
@@ -1677,7 +1677,9 @@ function sanitizeTitle(title: string | null | undefined): string | null {
   const t = (title ?? "").trim();
   if (!t) return null;
   if (/\]\(|!\[|https?:\/\/|www\.|\+/.test(t)) return null;
-  return t;
+  // Strip trailing markdown-escape backslashes / commas (e.g. "Accounting\\").
+  const cleaned = t.replace(/[\\,\s]+$/, "").trim();
+  return cleaned || null;
 }
 
 export type PersonRejectReason =
@@ -1689,7 +1691,16 @@ export type PersonRejectReason =
   | "headline_verb"
   | "title_is_url"
   | "title_is_section_label"
-  | "generic_email_local";
+  | "generic_email_local"
+  | "wrong_discipline";
+
+// A title that names a NON-accounting business discipline. Used as a
+// deterministic backstop to the AI extractor's discipline filter: a person
+// whose title is e.g. "Professor of Finance" is rejected unless the title ALSO
+// signals accounting (joint appointments like "Accounting & Finance" survive).
+const WRONG_DISCIPLINE_RE =
+  /\b(marketing|finance|economics|econometrics|management(?!\s+accounting)|supply\s*chain|business\s+law|legal\s+studies|information\s+systems|\bMIS\b|real\s+estate|entrepreneurship|operations\s+management|human\s+resources|\bHR\b|statistics|hospitality)\b/i;
+const ACCOUNTING_TITLE_RE = /\b(account|accountanc|taxation|\btax\b|audit|assurance|\bAIS\b)\b/i;
 
 export function isLikelyPersonRow(p: {
   first_name: string | null | undefined;
@@ -1717,6 +1728,11 @@ export function isLikelyPersonRow(p: {
     }
     if (/^\[[^\]]+\]/.test(title) && /\b(news|press|dean|office|story|stories|spotlight)\b/i.test(title)) {
       return { ok: false, reason: "title_is_section_label" };
+    }
+    // Deterministic discipline backstop: reject a non-accounting business
+    // discipline UNLESS the title also signals accounting (joint appointments).
+    if (WRONG_DISCIPLINE_RE.test(title) && !ACCOUNTING_TITLE_RE.test(title)) {
+      return { ok: false, reason: "wrong_discipline" };
     }
   }
 
