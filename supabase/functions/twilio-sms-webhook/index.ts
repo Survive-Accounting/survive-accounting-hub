@@ -1,16 +1,17 @@
 // Inbound SMS webhook (Twilio). Handles:
-// 1) Student texts a campus number → create conversation, send scripted opener,
-//    notify Lee.
-// 2) Student replies → store, extract structured data (Claude, optional),
-//    text Lee a summary from the same campus number (reply-to-relay).
+// 1) Student texts a campus number → create conversation, send a generic
+//    auto-reply with their personal /o/{short_ref} link, notify Lee. The
+//    auto-reply re-sends on a cooldown (AUTO_REPLY_COOLDOWN_HOURS), so a
+//    returning student gets their link again but isn't spammed mid-conversation.
+// 2) Student replies (within the cooldown) → store, extract structured data
+//    (Claude, optional), text Lee a summary from the same campus number
+//    (reply-to-relay). No second student auto-reply.
 // 3) Lee texts a campus number from his personal phone → relay his words to
 //    the active student conversation on that number (use "#ref " prefix to
 //    disambiguate when multiple are active).
 //
-// Tester phones (SMS_TESTER_PHONES, comma-separated E.164) bypass the
-// "already-sent-booking-link" guard so the full auto flow re-runs every time
-// you re-text from the test number. Real returning students get a single
-// low-key acknowledgement at most once per 24h.
+// Tester phones (SMS_TESTER_PHONES, comma-separated E.164) bypass the cooldown
+// so the auto-reply re-runs every time you re-text from the test number.
 //
 // Every inbound is logged to sms_inbound_raw BEFORE any business logic so we
 // can prove whether a missing reply was a Twilio problem or a logic problem.
@@ -37,17 +38,21 @@ const TESTER_PHONES = new Set(
     .filter(Boolean),
 );
 
+// How long after an automated reply before we'll send another one to the same
+// student. Keeps mid-conversation texts from getting spammed, while a student
+// returning days later still gets their link again.
+const AUTO_REPLY_COOLDOWN_HOURS = 12;
+
 // Fallback copy used only if a template row is missing in the DB.
-// Fallback copy used only if a template row is missing in the DB.
-// New flow (Phase 3): the opener IS the booking link — we no longer ask
-// course/exam/topic questions by SMS. /start collects all of that.
-const FALLBACK_OPENER =
-  "Hey, it's Lee. Need tutoring?\n\n" +
-  "Booking Link\n" +
-  "https://surviveaccounting.com/o/{short_ref}\n\n" +
-  "Questions? Reply them here.\n\n" +
-  "Thanks!\n" +
-  "Lee";
+// One generic, recurring auto-reply that works for any inbound text — new
+// student, returning student, or a support question — and always hands them
+// their personal /o/{short_ref} link. No pricing or booking language here; that
+// all lives behind the link. Tokens: {SITE_ORIGIN}, {short_ref}.
+const FALLBACK_AUTO_REPLY =
+  "Hey! It's Lee 👋 Thanks for reaching out. Here's your link to get started, " +
+  "pick up where you left off, or manage everything:\n\n" +
+  "{SITE_ORIGIN}/o/{short_ref}\n\n" +
+  "Reply here anytime with questions — I read every text.";
 const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
 const FALLBACK_LEE_NEW =
   '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-reply sent. Reply to this thread to jump in yourself.';
@@ -186,8 +191,8 @@ Deno.serve(async (req) => {
   // Load editable templates from DB (graceful fallback to baked-in copy).
   const { data: tplRows } = await admin.from("sms_templates").select("key,body");
   const tplMap = new Map<string, string>((tplRows ?? []).map((r: any) => [r.key, r.body]));
-  const TPL_OPENER = tplMap.get("opener_questions") || FALLBACK_OPENER;
-  
+  const TPL_AUTO = tplMap.get("auto_reply_generic") || FALLBACK_AUTO_REPLY;
+
   const TPL_ACK = tplMap.get("ack_reply") || FALLBACK_ACK;
   const TPL_LEE_NEW = tplMap.get("lee_new_summary") || FALLBACK_LEE_NEW;
   const TPL_LEE_FOLLOWUP = tplMap.get("lee_followup_summary") || FALLBACK_LEE_FOLLOWUP;
@@ -299,16 +304,35 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Send the scripted opener exactly once. If a prior attempt failed before
-    // `opener_sent` was set, the next inbound retries instead of silently
-    // suppressing the student auto-reply.
-    if (!convo.opener_sent) {
-      const openerBody = render(TPL_OPENER, { short_ref: String(convo.short_ref) });
-      const sentSid = await twilioSend(to, from, openerBody);
-      await admin.from("sms_messages").insert({
-        conversation_id: convo.id, direction: "out", author: "auto", body: openerBody, twilio_sid: sentSid,
+    // Generic auto-reply on a cooldown (replaces the one-time opener). A brand-
+    // new texter gets it; a student mid-conversation within the cooldown does
+    // NOT get spammed (they fall through to the Lee-summary-only path below); a
+    // student returning after the cooldown gets their link again. Tester phones
+    // bypass the cooldown so the full flow re-runs on every test text. If a send
+    // fails we leave `last_auto_reply_at` unset so the next inbound retries.
+    const lastAutoReplyAt = convo.last_auto_reply_at ? Date.parse(convo.last_auto_reply_at) : 0;
+    const cooldownMs = AUTO_REPLY_COOLDOWN_HOURS * 60 * 60 * 1000;
+    const cooldownPassed = isTester || !lastAutoReplyAt || (Date.now() - lastAutoReplyAt) > cooldownMs;
+
+    if (cooldownPassed) {
+      // Personal link, with a /start fallback if short_ref is somehow missing.
+      const hasRef = convo.short_ref != null && String(convo.short_ref).length > 0;
+      let autoBody = render(TPL_AUTO, {
+        SITE_ORIGIN,
+        short_ref: hasRef ? String(convo.short_ref) : "",
       });
-      if (sentSid) await admin.from("sms_conversations").update({ opener_sent: true }).eq("id", convo.id);
+      if (!hasRef) autoBody = autoBody.replace(`${SITE_ORIGIN}/o/`, `${SITE_ORIGIN}/start`);
+
+      const sentSid = await twilioSend(to, from, autoBody);
+      await admin.from("sms_messages").insert({
+        conversation_id: convo.id, direction: "out", author: "auto", body: autoBody, twilio_sid: sentSid,
+      });
+      // Cooldown is the gate now; keep `opener_sent` updated for backward-compat.
+      if (sentSid) {
+        await admin.from("sms_conversations")
+          .update({ last_auto_reply_at: new Date().toISOString(), opener_sent: true })
+          .eq("id", convo.id);
+      }
 
       if (LEE_PHONE && !isDuplicateBody) {
         const summary = render(TPL_LEE_NEW, {
@@ -320,7 +344,7 @@ Deno.serve(async (req) => {
         });
         await twilioSend(to, LEE_PHONE, sentSid ? summary : `${summary}\n\nAuto-reply failed to send; retrying on the student's next text.`);
       }
-      await finalizeRaw(sentSid ? "first_message_opener_sent" : "opener_send_failed", sentSid ? null : "Twilio did not accept opener send", convo.id);
+      await finalizeRaw(sentSid ? "auto_reply_sent" : "auto_reply_send_failed", sentSid ? null : "Twilio did not accept auto-reply send", convo.id);
       return twiml();
     }
 

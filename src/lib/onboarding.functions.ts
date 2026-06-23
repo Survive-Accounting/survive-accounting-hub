@@ -54,6 +54,8 @@ export type OnboardingSnapshot = {
   syllabusStepCompletedAt: string | null;
   syllabusUploadedAt: string | null;
   onboardingFinishedAt: string | null;
+  bookingConfirmedAt: string | null;
+  bookingStepCompletedAt: string | null;
   leePhone: string | null;
 };
 
@@ -118,6 +120,14 @@ export const getOnboarding = createServerFn({ method: "GET" })
         .eq("id", submissionId);
     }
 
+    // Booking columns (migration 0021) are read separately and defensively: if
+    // the migration hasn't been applied yet, this query just returns no row
+    // (PostgREST 400 → null data, no throw) instead of breaking the whole
+    // snapshot, so the rest of onboarding keeps working.
+    const { data: booking } = await (supabaseAdmin.from("student_intake_submissions" as never) as any)
+      .select("booking_confirmed_at,booking_step_completed_at")
+      .eq("id", submissionId).maybeSingle();
+
     return {
       shortRef: convo.short_ref as number,
       submissionId,
@@ -141,6 +151,8 @@ export const getOnboarding = createServerFn({ method: "GET" })
       syllabusStepCompletedAt: (sub?.syllabus_step_completed_at as string | null) ?? null,
       syllabusUploadedAt: (sub?.syllabus_uploaded_at as string | null) ?? null,
       onboardingFinishedAt: (sub?.onboarding_finished_at as string | null) ?? null,
+      bookingConfirmedAt: (booking?.booking_confirmed_at as string | null) ?? null,
+      bookingStepCompletedAt: (booking?.booking_step_completed_at as string | null) ?? null,
       leePhone: process.env.LEE_PERSONAL_PHONE
         ? process.env.LEE_PERSONAL_PHONE.replace(/[^+\d]/g, "")
         : null,
@@ -491,5 +503,108 @@ export const submitOnboarding = createServerFn({ method: "POST" })
         `Open:\nhttps://surviveaccounting.com/o/${convo.short_ref}`;
       await notifyLee(body);
     }
+    return { ok: true as const };
+  });
+
+// --- Booking step (free 30-minute call) ---
+// Server-side replica of the wizard's courseNameToFamilyKey, so we can resolve a
+// stored course display name back to a course-family key without importing the
+// client component.
+const BOOKING_FAMILY_KEYS = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const;
+type BookingFamilyKey = (typeof BOOKING_FAMILY_KEYS)[number];
+
+function courseFamilyFromSubmission(
+  courseFamily: string | null,
+  courseName: string | null,
+): BookingFamilyKey | null {
+  // Prefer an explicit course_family value when it's already a known key.
+  if (courseFamily && (BOOKING_FAMILY_KEYS as readonly string[]).includes(courseFamily)) {
+    return courseFamily as BookingFamilyKey;
+  }
+  const n = (courseName ?? "").trim().toLowerCase();
+  if (!n) return null;
+  if (n === "intro 1" || n === "intro accounting 1" || n === "introduction to financial accounting") return "intro_1";
+  if (n === "intro 2" || n === "intro accounting 2" || n === "introduction to managerial accounting") return "intro_2";
+  if (n === "ia1" || n === "intermediate accounting 1" || n === "intermediate financial accounting 1") return "intermediate_1";
+  if (n === "ia2" || n === "intermediate accounting 2" || n === "intermediate financial accounting 2") return "intermediate_2";
+  return null;
+}
+
+export type OnboardingBookingInfo = { bookingUrl: string | null; family: BookingFamilyKey | null };
+
+// Resolves the course-specific Square booking URL for this student, mirroring
+// computeIntakeRouting's gating + fallback chain but server-side via the admin
+// client. Returns bookingUrl=null whenever the course isn't bookable for the
+// student (no campus, family disabled, textbook unmatched, or no URL set) — the
+// same situations that route to waitlist_review at /start. The UI shows the
+// "I'll text you a time" fallback in that case rather than a dead button.
+export const getOnboardingBookingUrl = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => shortRefSchema.parse(data))
+  .handler(async ({ data }): Promise<OnboardingBookingInfo> => {
+    const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
+
+    const { data: sub } = await supabaseAdmin
+      .from("student_intake_submissions")
+      .select("campus_id,course_family,course_code_or_name")
+      .eq("id", submissionId)
+      .single();
+
+    const family = courseFamilyFromSubmission(
+      (sub?.course_family as string | null) ?? null,
+      (sub?.course_code_or_name as string | null) ?? null,
+    );
+    if (!family) return { bookingUrl: null, family: null };
+
+    // Global outreach settings (singleton row id = 1). Cast to `any` to allow the
+    // dynamic `${family}_availability` / `square_booking_url_${family}` lookups.
+    const { data: settings } = await (supabaseAdmin.from("outreach_settings" as never) as any)
+      .select("intro_1_availability,intro_2_availability,intermediate_1_availability,intermediate_2_availability,square_booking_url,square_booking_url_intro_1,square_booking_url_intro_2,square_booking_url_intermediate_1,square_booking_url_intermediate_2")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if ((settings?.[`${family}_availability`] ?? null) !== "available") {
+      return { bookingUrl: null, family };
+    }
+
+    const campusId = (sub?.campus_id as string | null) ?? null;
+    if (!campusId) return { bookingUrl: null, family };
+
+    const { data: avail } = await (supabaseAdmin.from("campus_course_availability" as never) as any)
+      .select("tutoring_availability,textbook_match_status,booking_url")
+      .eq("campus_id", campusId)
+      .eq("course_family", family)
+      .maybeSingle();
+
+    if ((avail?.tutoring_availability ?? null) !== "available") return { bookingUrl: null, family };
+    if ((avail?.textbook_match_status ?? null) !== "matched") return { bookingUrl: null, family };
+
+    const bookingUrl: string | null =
+      avail?.booking_url ||
+      settings?.[`square_booking_url_${family}`] ||
+      settings?.square_booking_url ||
+      null;
+
+    return { bookingUrl, family };
+  });
+
+const confirmBookingSchema = z.object({
+  shortRef: z.coerce.number().int().positive(),
+  confirmed: z.boolean(),
+});
+
+export const confirmOnboardingBooking = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => confirmBookingSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, submissionId } = await loadByShortRef(data.shortRef);
+    const now = new Date().toISOString();
+    const update: { booking_step_completed_at: string; booking_confirmed_at?: string } = {
+      booking_step_completed_at: now,
+    };
+    if (data.confirmed) update.booking_confirmed_at = now;
+    // Cast: booking_* columns are added by migration 0021, not yet in types.
+    const { error } = await (supabaseAdmin.from("student_intake_submissions") as any)
+      .update(update)
+      .eq("id", submissionId);
+    if (error) throw new Error(error.message);
     return { ok: true as const };
   });

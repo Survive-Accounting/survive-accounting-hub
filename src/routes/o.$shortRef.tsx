@@ -19,6 +19,8 @@ import {
   searchCampuses,
   getCampusCourseCodes,
   uploadOnboardingSyllabus,
+  getOnboardingBookingUrl,
+  confirmOnboardingBooking,
   type CampusLite,
   type OnboardingSnapshot,
 } from "@/lib/onboarding.functions";
@@ -43,11 +45,13 @@ const FUTURE_OPTIONS = [
   "Free tips and updates",
 ];
 
+// Display order: Intermediate (IA1, IA2) first — the higher-value tutoring
+// markets — then Intro 1, Intro 2. Family keys/saved values are unchanged.
 const COURSE_FAMILIES = [
-  { key: "intro_1", title: "Introduction to Financial Accounting" },
-  { key: "intro_2", title: "Introduction to Managerial Accounting" },
   { key: "intermediate_1", title: "Intermediate Financial Accounting 1" },
   { key: "intermediate_2", title: "Intermediate Financial Accounting 2" },
+  { key: "intro_1", title: "Introduction to Financial Accounting" },
+  { key: "intro_2", title: "Introduction to Managerial Accounting" },
 ] as const;
 type CourseFamilyKey = (typeof COURSE_FAMILIES)[number]["key"];
 const COURSE_TITLE_BY_KEY: Record<CourseFamilyKey, string> = {
@@ -172,7 +176,10 @@ function OnboardingPage() {
   const { shortRef } = Route.useParams();
   const { data, refetch } = useSuspenseQuery(onboardingQuery(shortRef));
 
-  const [step, setStep] = useState<0 | 1 | 2 | 3>(data.onboardingFinishedAt ? 3 : 0);
+  // Steps 0–2 are the wizard, 3 is the booking step (after submit), 4 is success.
+  // A returning student who already finished lands on success, which still
+  // surfaces the booking button when they haven't confirmed a call yet.
+  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(data.onboardingFinishedAt ? 4 : 0);
   const [draft, setDraft] = useState<Draft>(() => draftFromSnapshot(data));
 
   // Refresh draft if snapshot changes (e.g. after refetch)
@@ -231,7 +238,20 @@ function OnboardingPage() {
                 onSubmitted={async () => { await refetch(); setStep(3); }}
               />
             )}
-            {step === 3 && <SuccessScreen firstName={firstName || null} />}
+            {step === 3 && (
+              <BookingStep
+                firstName={firstName || null}
+                shortRef={shortRef}
+                onDone={async () => { await refetch(); setStep(4); }}
+              />
+            )}
+            {step === 4 && (
+              <SuccessScreen
+                firstName={firstName || null}
+                shortRef={shortRef}
+                booked={!!data.bookingConfirmedAt}
+              />
+            )}
           </div>
         </div>
 
@@ -1024,8 +1044,123 @@ function Chip({
   );
 }
 
+// ---------- Step 4 (post-submit): Book the free 30-minute call ----------
+// Shared query key so BookingStep and SuccessScreen reuse one cached lookup of
+// the student's course-specific booking URL.
+const bookingUrlKey = (shortRef: string) => ["onboarding-booking-url", shortRef];
+
+function BookingStep({
+  firstName, shortRef, onDone,
+}: {
+  firstName: string | null;
+  shortRef: string;
+  onDone: () => Promise<void> | void;
+}) {
+  const getUrlFn = useServerFn(getOnboardingBookingUrl);
+  const confirmFn = useServerFn(confirmOnboardingBooking);
+
+  const { data: booking, isLoading } = useQuery({
+    queryKey: bookingUrlKey(shortRef),
+    queryFn: () => getUrlFn({ data: { shortRef: Number(shortRef) } }),
+    staleTime: 5 * 60_000,
+  });
+
+  // confirmed=true records booking_confirmed_at; false just completes the step.
+  // Advance on settle (success OR error) so a transient save failure never traps
+  // the student on this optional step.
+  const advance = useMutation({
+    mutationFn: (confirmed: boolean) =>
+      confirmFn({ data: { shortRef: Number(shortRef), confirmed } }),
+    onError: (e: unknown) => toast.error((e as Error).message),
+    onSettled: async () => { await onDone(); },
+  });
+
+  const bookingUrl = booking?.bookingUrl ?? null;
+
+  return (
+    <div className="space-y-7">
+      <Title
+        subtitle={
+          firstName
+            ? `${firstName}, this is a free, no-pressure call to see if we're a good fit and talk through exactly what you need.`
+            : "A free, no-pressure call to see if we're a good fit and talk through exactly what you need."
+        }
+      >
+        Book your free 30-minute call
+      </Title>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading your booking link…
+        </div>
+      ) : bookingUrl ? (
+        <>
+          <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="block">
+            <Button
+              className="h-14 w-full text-base font-bold text-white"
+              style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+            >
+              Pick a time →
+            </Button>
+          </a>
+          <div className="space-y-3 pt-1">
+            <Button
+              onClick={() => advance.mutate(true)}
+              disabled={advance.isPending}
+              variant="outline"
+              className="h-12 w-full text-base font-semibold"
+              style={{ color: NAVY, borderColor: NAVY }}
+            >
+              {advance.isPending
+                ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>)
+                : "I've booked my call"}
+            </Button>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => advance.mutate(false)}
+                disabled={advance.isPending}
+                className="text-sm text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
+              >
+                I&apos;ll book later
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="rounded-2xl border bg-gray-50 p-6 text-[15px] text-gray-800">
+            No need to pick a slot right now — I&apos;ll personally text you a time that works for both of us.
+          </div>
+          <PrimaryBtn onClick={() => advance.mutate(false)} disabled={advance.isPending}>
+            {advance.isPending
+              ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Finishing…</>)
+              : "Got it — finish"}
+          </PrimaryBtn>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------- Success ----------
-function SuccessScreen({ firstName }: { firstName: string | null }) {
+function SuccessScreen({
+  firstName, shortRef, booked,
+}: {
+  firstName: string | null;
+  shortRef: string;
+  booked: boolean;
+}) {
+  const getUrlFn = useServerFn(getOnboardingBookingUrl);
+  // Only need the link when nudging an unbooked student to book.
+  const { data: booking } = useQuery({
+    queryKey: bookingUrlKey(shortRef),
+    queryFn: () => getUrlFn({ data: { shortRef: Number(shortRef) } }),
+    staleTime: 5 * 60_000,
+    enabled: !booked,
+  });
+  const bookingUrl = booking?.bookingUrl ?? null;
+
   return (
     <div className="py-6 text-center">
       <div className="mx-auto grid h-20 w-20 place-content-center rounded-full bg-emerald-50">
@@ -1035,8 +1170,23 @@ function SuccessScreen({ firstName }: { firstName: string | null }) {
         {firstName ? `Thanks, ${firstName}!` : "Thanks!"}
       </h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
-        I&apos;ll personally review your information and follow up with how I can help.
+        {booked
+          ? "Your free 30-minute call is booked — I'll review your info beforehand so we can hit the ground running."
+          : "I'll personally review your information and follow up with how I can help."}
       </p>
+
+      {!booked && bookingUrl && (
+        <div className="mt-6">
+          <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="inline-block">
+            <Button
+              className="h-12 px-6 text-base font-bold text-white"
+              style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}
+            >
+              Book your free 30-minute call →
+            </Button>
+          </a>
+        </div>
+      )}
 
       <ul className="mx-auto mt-8 max-w-sm space-y-3 text-left text-[15px] text-gray-800">
         <li className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> Free 30-minute intro session</li>
