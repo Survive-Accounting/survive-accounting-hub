@@ -103,8 +103,7 @@ severity ("low"|"med"|"high"), title (<=80 chars), suggestion (<=600 chars, acti
 applies_to_verticals (array of vertical strings from the list above, [] if university-specific).`;
 
   const body = {
-    model: "google/gemini-3-flash-preview",
-    response_format: { type: "json_object" },
+    model: "google/gemini-2.5-flash",
     messages: [
       { role: "system", content: system },
       { role: "user", content: JSON.stringify(userPayload) },
@@ -114,12 +113,11 @@ applies_to_verticals (array of vertical strings from the list above, [] if unive
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 45_000);
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Lovable-API-Key": apiKey,
-        "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
       signal: ctrl.signal,
@@ -131,8 +129,10 @@ applies_to_verticals (array of vertical strings from the list above, [] if unive
     const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = json.choices?.[0]?.message?.content;
     if (!content) return null;
+    // No response_format on Vercel AI Gateway, so strip any markdown fences first.
+    const unfenced = content.replace(/```json/gi, "").replace(/```/g, "").trim();
     let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(content); } catch { return null; }
+    try { parsed = JSON.parse(unfenced); } catch { return null; }
     return {
       pattern_tag: String(parsed.pattern_tag ?? "unknown").slice(0, 80),
       severity: String(parsed.severity ?? "low").slice(0, 12),
@@ -190,9 +190,9 @@ export async function recordAndAnalyzeBundle(input: ScrapeBundleInput): Promise<
       return;
     }
 
-    const apiKey = process.env.LOVABLE_API_KEY;
+    const apiKey = process.env.AI_GATEWAY_API_KEY;
     if (!apiKey) {
-      console.warn("[scrape-debug] LOVABLE_API_KEY missing — skipping AI analysis");
+      console.warn("[scrape-debug] AI_GATEWAY_API_KEY missing — skipping AI analysis");
       return;
     }
     const ai = await callGemini(apiKey, input);
@@ -202,7 +202,7 @@ export async function recordAndAnalyzeBundle(input: ScrapeBundleInput): Promise<
       bundle_id: (bundleRow as { id: string }).id,
       campus_id: input.campusId,
       campus_name: input.campusName,
-      model: "google/gemini-3-flash-preview",
+      model: "google/gemini-2.5-flash",
       pattern_tag: ai.pattern_tag,
       severity: ai.severity,
       title: ai.title,

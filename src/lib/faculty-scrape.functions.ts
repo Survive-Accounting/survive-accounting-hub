@@ -1466,7 +1466,34 @@ async function firecrawlMap(apiKey: string, url: string, search: string): Promis
   return raw.map((l) => (typeof l === "string" ? l : l.url)).filter(Boolean);
 }
 
-async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string): Promise<Extracted[]> {
+// Vercel AI Gateway rejects response_format:json_object, so we ask for JSON in
+// the prompt and parse tolerantly: strip markdown fences, slice to the outer
+// braces, then repair common bad escapes / control chars before giving up.
+function extractJsonObject(text: string): unknown {
+  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error(`AI returned non-JSON: ${text.slice(0, 200)}`);
+  }
+  const slice = cleaned.slice(start, end + 1);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    // Repair the two failure modes models hit: invalid backslash escapes, then
+    // raw control chars inside strings (RegExp built from escaped unicode so no
+    // literal control chars live in this source file).
+    const fixed = slice.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+    try {
+      return JSON.parse(fixed);
+    } catch {
+      const ctrl = new RegExp("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]", "g");
+      return JSON.parse(fixed.replace(ctrl, ""));
+    }
+  }
+}
+
+async function callAiGateway(apiKey: string, sourceUrl: string, pageText: string): Promise<Extracted[]> {
   const truncated = pageText.length > 60000 ? pageText.slice(0, 60000) : pageText;
   const system =
     "You extract faculty/instructor/lecturer/adjunct directory entries from accounting department web pages. " +
@@ -1485,14 +1512,13 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
   const user = `Source URL: ${sourceUrl}\n\nPage content (markdown):\n${truncated}`;
 
   const res = await fetchWithTimeout(
-    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    "https://ai-gateway.vercel.sh/v1/chat/completions",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         temperature: 0,
-        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -1510,10 +1536,7 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
 
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = json.choices?.[0]?.message?.content ?? "{}";
-  let parsed: unknown;
-  try { parsed = JSON.parse(content); } catch {
-    throw new Error(`AI returned non-JSON: ${content.slice(0, 200)}`);
-  }
+  const parsed: unknown = extractJsonObject(content);
   const people = (parsed as { people?: unknown }).people;
   if (!Array.isArray(people)) return [];
 
@@ -1545,9 +1568,9 @@ async function callLovableAi(apiKey: string, sourceUrl: string, pageText: string
 /**
  * Send a PDF directly to the Lovable AI Gateway (Gemini supports PDFs natively
  * via the OpenAI-compatible `file` content block) and ask for the same
- * { people: [...] } JSON shape that callLovableAi produces from markdown.
+ * { people: [...] } JSON shape that callAiGateway produces from markdown.
  */
-async function callLovableAiWithPdf(
+async function callAiGatewayWithPdf(
   apiKey: string,
   filename: string,
   pdfBase64: string,
@@ -1568,14 +1591,13 @@ async function callLovableAiWithPdf(
     "10. Do NOT include credentials (PhD, CPA, MBA, JD, Esq., etc.) inside first_name or last_name — return the clean human name only.";
 
   const res = await fetchWithTimeout(
-    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    "https://ai-gateway.vercel.sh/v1/chat/completions",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         temperature: 0,
-        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
           {
@@ -1597,10 +1619,7 @@ async function callLovableAiWithPdf(
   }
   const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = json.choices?.[0]?.message?.content ?? "{}";
-  let parsed: unknown;
-  try { parsed = JSON.parse(content); } catch {
-    throw new Error(`AI returned non-JSON: ${content.slice(0, 200)}`);
-  }
+  const parsed: unknown = extractJsonObject(content);
   const people = (parsed as { people?: unknown }).people;
   if (!Array.isArray(people)) return [];
   const out: Extracted[] = [];
@@ -1647,7 +1666,7 @@ const GENERIC_EMAIL_LOCALS = new Set([
   // Note: the gate trims the local at the first . + - so "mailer-daemon"
   // collapses to "mailer" — both are listed so the token actually fires.
   "r2d2", "test", "example", "sample", "donotreply",
-  "mailer-daemon", "mailer", "postmaster",
+  "mailer-daemon", "mailer", "postmaster", "special",
 ]);
 
 // Blank a title that is obviously scraped junk — a markdown link/image, a raw
@@ -1903,7 +1922,7 @@ async function processUrls(
           `fcHtml=${initialRawHtml.length}B/${countMailto(initialRawHtml)}mt · ` +
           `md=${md.length}B · mdCards=${mdCards.length} htmlCards=${htmlCards.length}`;
         let parsedPeople = cardPeople.length > 0 ? cardPeople : extractDirectoryMarkdownPeople(md);
-        let aiPeople = await callLovableAi(aiKey, url, md);
+        let aiPeople = await callAiGateway(aiKey, url, md);
         let aiEmailOverridden = 0;
         let merged: Extracted[];
         if (cardPeople.length > 0) {
@@ -1932,7 +1951,7 @@ async function processUrls(
               const walk = await scrapeWithPaginationActions(fcKey, url, MAX_PAGINATION_PAGES);
               if (!walk.clickMissed && walk.combinedText.length > md.length) {
                 const combinedExtract = extractDirectoryMarkdownPeople(walk.combinedText);
-                const combinedAi = await callLovableAi(aiKey, url, walk.combinedText.slice(0, 80_000));
+                const combinedAi = await callAiGateway(aiKey, url, walk.combinedText.slice(0, 80_000));
                 const reMerged = mergePeople(
                   mergePeople(parsedPeople, combinedExtract),
                   mergePeople(aiPeople, combinedAi),
@@ -1991,7 +2010,7 @@ async function processUrls(
                 const scrollWalk = await scrapeWithScrollActions(fcKey, url, MAX_PAGINATION_PAGES);
                 if (scrollWalk.gained && scrollWalk.markdown.length > md.length * 1.15) {
                   const scrollExtract = extractDirectoryMarkdownPeople(scrollWalk.markdown);
-                  const scrollAi = await callLovableAi(aiKey, url, scrollWalk.markdown.slice(0, 80_000));
+                  const scrollAi = await callAiGateway(aiKey, url, scrollWalk.markdown.slice(0, 80_000));
                   const reMerged = mergePeople(
                     mergePeople(parsedPeople, scrollExtract),
                     mergePeople(aiPeople, scrollAi),
@@ -2029,7 +2048,7 @@ async function processUrls(
                       .join("\n\n---\n\n");
                     if (extraMd.length > 0) {
                       const probeExtract = extractDirectoryMarkdownPeople(extraMd);
-                      const probeAi = await callLovableAi(aiKey, url, extraMd.slice(0, 80_000));
+                      const probeAi = await callAiGateway(aiKey, url, extraMd.slice(0, 80_000));
                       const reMerged = mergePeople(
                         mergePeople(parsedPeople, probeExtract),
                         mergePeople(aiPeople, probeAi),
@@ -2072,7 +2091,7 @@ async function processUrls(
                       .join("\n\n---\n\n");
                     if (extraMd.length > 0) {
                       const harvestExtract = extractDirectoryMarkdownPeople(extraMd);
-                      const harvestAi = await callLovableAi(aiKey, url, extraMd.slice(0, 80_000));
+                      const harvestAi = await callAiGateway(aiKey, url, extraMd.slice(0, 80_000));
                       const reMerged = mergePeople(
                         mergePeople(parsedPeople, harvestExtract),
                         mergePeople(aiPeople, harvestAi),
@@ -2279,8 +2298,8 @@ async function processUrls(
 }
 
 function requireKeys() {
-  const aiKey = process.env.LOVABLE_API_KEY;
-  if (!aiKey) throw new Error("LOVABLE_API_KEY is not configured on the server");
+  const aiKey = process.env.AI_GATEWAY_API_KEY;
+  if (!aiKey) throw new Error("AI_GATEWAY_API_KEY is not configured on the server");
   const fcKey = process.env.FIRECRAWL_API_KEY;
   if (!fcKey) throw new Error("FIRECRAWL_API_KEY is not configured on the server");
   return { aiKey, fcKey };
@@ -2525,9 +2544,9 @@ export const autoDiscoverCampusFaculty = createServerFn({ method: "POST" })
 export const scrapeCampusFacultyPdf = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => PdfInputSchema.parse(input))
   .handler(async ({ data }) => {
-    const aiKey = process.env.LOVABLE_API_KEY;
-    if (!aiKey) throw new Error("LOVABLE_API_KEY is not configured on the server");
-    const people = await callLovableAiWithPdf(aiKey, data.filename, data.fileBase64);
+    const aiKey = process.env.AI_GATEWAY_API_KEY;
+    if (!aiKey) throw new Error("AI_GATEWAY_API_KEY is not configured on the server");
+    const people = await callAiGatewayWithPdf(aiKey, data.filename, data.fileBase64);
     const { inserted, skippedDuplicates, droppedNoContact } = await insertExtractedPeople(
       data.campusId,
       people,

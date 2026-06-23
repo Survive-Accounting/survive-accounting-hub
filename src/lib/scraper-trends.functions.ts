@@ -176,8 +176,8 @@ export const generatePerformanceVerdict = createServerFn({ method: "POST" })
     z.object({ days: z.number().int().min(7).max(180).default(30) }).parse(input),
   )
   .handler(async ({ data }) => {
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("LOVABLE_API_KEY is not configured on the server");
+    const apiKey = process.env.AI_GATEWAY_API_KEY;
+    if (!apiKey) throw new Error("AI_GATEWAY_API_KEY is not configured on the server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const windowEnd = new Date();
@@ -284,8 +284,7 @@ Compare the first third of the window to the last third for trend deltas.
 Be specific. Use numbers. Avoid hedging language. Strict JSON only.`;
 
     const body = {
-      model: "google/gemini-3-flash-preview",
-      response_format: { type: "json_object" },
+      model: "google/gemini-2.5-flash",
       messages: [
         { role: "system", content: system },
         { role: "user", content: JSON.stringify(snapshot) },
@@ -296,12 +295,11 @@ Be specific. Use numbers. Avoid hedging language. Strict JSON only.`;
     const timer = setTimeout(() => ctrl.abort(), 60_000);
     let parsed: Record<string, unknown> = {};
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Lovable-API-Key": apiKey,
-          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
         signal: ctrl.signal,
@@ -312,7 +310,9 @@ Be specific. Use numbers. Avoid hedging language. Strict JSON only.`;
       }
       const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
       const content = json.choices?.[0]?.message?.content ?? "{}";
-      try { parsed = JSON.parse(content); } catch { parsed = { summary: content.slice(0, 600) }; }
+      // No response_format on Vercel AI Gateway, so strip any markdown fences first.
+      const unfenced = content.replace(/```json/gi, "").replace(/```/g, "").trim();
+      try { parsed = JSON.parse(unfenced); } catch { parsed = { summary: content.slice(0, 600) }; }
     } finally {
       clearTimeout(timer);
     }
@@ -322,7 +322,7 @@ Be specific. Use numbers. Avoid hedging language. Strict JSON only.`;
       .insert({
         window_start: windowStart.toISOString(),
         window_end: windowEnd.toISOString(),
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         summary: String(parsed.summary ?? "").slice(0, 4000) || null,
         what_changed: (parsed.what_changed ?? null) as never,
         fix_attribution: (parsed.fix_attribution ?? null) as never,
