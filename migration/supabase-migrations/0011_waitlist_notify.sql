@@ -10,7 +10,7 @@ create or replace function public.notify_waitlist_signup()
 returns trigger language plpgsql security definer as $$
 begin
   perform net.http_post(
-    url := 'https://dhlzorresurzlcpuplkv.supabase.co/functions/v1/notify-waitlist',
+    url := 'https://unvxagsledbsdoremqeb.supabase.co/functions/v1/notify-waitlist',
     headers := '{"Content-Type":"application/json","x-cron-secret":"sa-cron-7kQ2vXp9mN4t"}'::jsonb,
     body := jsonb_build_object('record', row_to_json(new))
   );
