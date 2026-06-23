@@ -74,5 +74,26 @@ export function isIntroLikely(title: string | null | undefined): boolean {
   return ROLE_KEYWORDS.some((k) => k.intro && k.re.test(t));
 }
 
+/** Broad faculty matcher used to AUTO-SELECT rows for import. Unlike
+ *  isIntroLikely, this includes every teaching/professorial title — full,
+ *  tenured, chaired, and emeritus professors; lecturers; instructors;
+ *  adjuncts; clinical / visiting / teaching-track faculty; professors of
+ *  practice; and TAs. It intentionally excludes pure-administrative roles
+ *  (dean, director, advisor) and non-teaching staff so those aren't
+ *  auto-checked. Course-level enrichment (who teaches Intro 1/2, Intermediate
+ *  1/2) happens later via isIntroLikely / the role chips, independent of this. */
+const FACULTY_TITLE_RE =
+  /\b(professor|lecturer|instructor|adjunct|faculty|teaching|clinical|visiting|emerit(?:us|a)|practitioner|chair(?:person|ed)?|teaching\s+assistant|graduate\s+assistant)\b/i;
+
+export function isFaculty(title: string | null | undefined): boolean {
+  const t = (title ?? "").trim();
+  if (!t) return false;
+  return FACULTY_TITLE_RE.test(t);
+}
+
 /** Default tag applied by the "Tag all Intro-likely" quick-action button. */
 export const INTRO_TARGET_TAG = "Intro Target";
+
+/** Default keep-tag auto-applied to every faculty row so it is checked for
+ *  import. Tagging IS the keep signal, so this is what auto-selects faculty. */
+export const FACULTY_TAG = "Faculty";
