@@ -118,10 +118,14 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
           `site:${domains[0]} "accounting" faculty directory`,
           `site:${domains[0]} "school of accountancy" faculty`,
           `site:${domains[0]} "department of accounting" people`,
+          // Surfaces individual accounting-professor profile pages on small
+          // colleges that have no dedicated accounting directory.
+          `site:${domains[0]} accounting professor`,
         ]
       : [
           `"${name}" accounting faculty directory`,
           `"${name}" "school of accountancy" faculty`,
+          `"${name}" accounting professor`,
         ];
     const facultyQuery = facultyQueries[0];
 
@@ -150,8 +154,14 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       /(\/cgi\/|\/viewcontent|\/spec\/|\/archives?\/|\/findingaids?|\/repositor(y|ies)\/|\/journals?\/|\/proceedings?\/|\/papers?\/|\/publications?\/|\/research-?papers?\/|\/abstract\/|\/article\/|\/issues?\/|\/volumes?\/|\.pdf(\?|$)|\.docx?(\?|$))/i;
     const DIRECTORY_PATH_RE =
       /\/(directory|faculty|people|staff|profiles|faculty-staff|faculty-directory|faculty-and-staff|our-(people|faculty)|meet-(the-)?(faculty|team))(\/|\.|$)/i;
+    // Social / aggregator hosts are never faculty rosters and break Firecrawl
+    // (403). They slip through when the campus domain list is empty (name-based
+    // query), so this is checked independently of the campus-domain filter.
+    const SOCIAL_HOST_RE =
+      /(facebook|instagram|twitter|youtube|tiktok|linkedin|zoominfo|wikipedia|crunchbase|glassdoor|indeed|reddit)\.|(^|\.)x\.com$/i;
     const keep = (link: string, title: string) => {
       const h = hostOf(link);
+      if (SOCIAL_HOST_RE.test(h)) return false;
       const domainOk = domains.length === 0 || domains.some((d) => h === d || h.endsWith(`.${d}`));
       if (!domainOk) return false;
       if (BLOG_DATE_RE.test(link)) return false;
@@ -187,6 +197,39 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       if (badHints.some((b) => lower.includes(b))) return false;
       return true;
     };
+    // Fallback acceptor — used ONLY when the strict accounting-first pass finds
+    // nothing. Drops the "accounting word must appear" requirement (small
+    // colleges list accounting faculty on a shared business page; big schools
+    // bury accounting under a College-of-Business directory) but still requires
+    // a directory-shape path plus either a business-school signal or an
+    // individual person profile. Per-person ACCOUNTING scoping then happens in
+    // the AI extractor, so a cross-discipline business directory stays clean.
+    const BUSINESS_SIGNAL_RE =
+      /(business|warrington|accountanc|accounting|b-school|college[-\s]?of[-\s]?business|school[-\s]?of[-\s]?business|\bcob\b|\bsba\b)/i;
+    // A directory path ending in a person slug, e.g. /people/jane-doe or
+    // /faculty/gomer-jeffrey — a single-person profile.
+    const PROFILE_SLUG_RE =
+      /\/(?:people|person|faculty|faculty-and-staff|faculty-staff|profiles?|staff|directory)\/[a-z0-9][a-z0-9._-]{2,}\/?$/i;
+    const fallbackKeep = (link: string, title: string) => {
+      const h = hostOf(link);
+      if (SOCIAL_HOST_RE.test(h)) return false;
+      const domainOk = domains.length === 0 || domains.some((d) => h === d || h.endsWith(`.${d}`));
+      if (!domainOk) return false;
+      if (BLOG_DATE_RE.test(link)) return false;
+      if (NON_DIRECTORY_HOST_RE.test(h.split(".")[0] ?? "")) return false;
+      let pathname = link.toLowerCase();
+      try { pathname = new URL(link).pathname.toLowerCase(); } catch { /* keep raw */ }
+      if (NON_DIRECTORY_PATH_RE.test(pathname)) return false;
+      const lower = `${link} ${title}`.toLowerCase();
+      if (["/news", "/event", "/podcast", "/award", "/spotlight", "/story", "/stories"].some((b) => lower.includes(b))) return false;
+      // Individual person profile (low cross-discipline risk — SerpAPI already
+      // ranked it for the accounting query) …
+      if (PROFILE_SLUG_RE.test(pathname)) return true;
+      // … or a department directory carrying a business-school / accounting signal.
+      if (DIRECTORY_PATH_RE.test(pathname) && (BUSINESS_SIGNAL_RE.test(`${h}${pathname}`) || BUSINESS_SIGNAL_RE.test(title))) return true;
+      return false;
+    };
+
     const rawKept = Array.from(
       new Set(facultyResults.filter((r) => keep(r.link, r.title)).map((r) => r.link)),
     );
@@ -205,9 +248,28 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       return s;
     };
     facultyUrls.sort((a, b) => score(b) - score(a));
-    const facultyUrlsCapped = facultyUrls.slice(0, 3);
+    let facultyUrlsCapped = facultyUrls.slice(0, 3);
+
+    // Tier 2 — if the strict accounting pass found nothing, fall back to
+    // business-school directories / individual profiles instead of skipping the
+    // campus. Profiles are scraped as-is (NOT parent-derived — that would climb
+    // to a giant all-faculty page).
+    let usedFallback = false;
+    if (facultyUrlsCapped.length === 0) {
+      const fb = Array.from(
+        new Set(facultyResults.filter((r) => fallbackKeep(r.link, r.title)).map((r) => r.link)),
+      );
+      // Prefer directory pages (more leads/page) over single profiles; cap to
+      // keep Firecrawl spend bounded.
+      fb.sort((a, b) => score(b) - score(a));
+      facultyUrlsCapped = fb.slice(0, 3);
+      usedFallback = facultyUrlsCapped.length > 0;
+    }
+
     const noAccountingDept = facultyUrlsCapped.length === 0;
-    if (noAccountingDept) {
+    if (usedFallback) {
+      notes.push(`faculty: no accounting-specific page — using ${facultyUrlsCapped.length} fallback directory/profile URL(s)`);
+    } else if (noAccountingDept) {
       notes.push("faculty: no accounting-specific directory URL found — skipping campus");
     }
 
@@ -256,6 +318,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       domains,
       facultyUrls: facultyUrlsCapped,
       noAccountingDept,
+      usedFallback,
       rmpUrl,
       facultyQuery,
       rmpQuery,

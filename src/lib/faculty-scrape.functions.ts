@@ -1501,7 +1501,7 @@ async function callAiGateway(apiKey: string, sourceUrl: string, pageText: string
     "1. ONLY emit a person if their full name appears verbatim in the provided text. " +
     "2. NEVER invent or pattern-guess an email. If no email appears in the text for that person, set email to null. " +
     "3. Capture every teaching role: Professor, Associate/Assistant Professor, Instructor, Lecturer, Adjunct, Clinical, Teaching Professor, Professor of Practice, Visiting. " +
-    "4. Exclude clearly non-accounting faculty (finance, economics, marketing, IS, etc.) unless the page explicitly lists them under accounting. " +
+    "4. ACCOUNTING ONLY. If the page is a dedicated accounting / accountancy / school-of-accountancy roster, include every teaching person on it. If the page is a BROAD business or college directory spanning multiple departments (finance, economics, marketing, management, information systems, supply chain, real estate, business law, etc.), include a person ONLY when that person's OWN title or listed department indicates accounting (accounting, accountancy, tax, taxation, audit, assurance, or AIS) — exclude everyone else. When in doubt about a person on a mixed-department page, exclude them. " +
     "5. Exclude purely administrative staff with no teaching title (e.g. Department Coordinator, Office Manager) unless their title contains an instructional keyword. " +
     "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url, is_phd, is_cpa }] }. " +
     "7. profile_url should be an absolute URL when the source links to a personal profile page; otherwise null. " +
@@ -1582,7 +1582,7 @@ async function callAiGatewayWithPdf(
     "1. ONLY emit a person if their full name appears verbatim in the PDF. " +
     "2. NEVER invent or pattern-guess an email. If no email appears for that person, set email to null. " +
     "3. Capture every teaching role: Professor, Associate/Assistant Professor, Instructor, Lecturer, Adjunct, Clinical, Teaching Professor, Professor of Practice, Visiting. " +
-    "4. Exclude clearly non-accounting faculty (finance, economics, marketing, IS, etc.) unless the page explicitly lists them under accounting. " +
+    "4. ACCOUNTING ONLY. If the page is a dedicated accounting / accountancy / school-of-accountancy roster, include every teaching person on it. If the page is a BROAD business or college directory spanning multiple departments (finance, economics, marketing, management, information systems, supply chain, real estate, business law, etc.), include a person ONLY when that person's OWN title or listed department indicates accounting (accounting, accountancy, tax, taxation, audit, assurance, or AIS) — exclude everyone else. When in doubt about a person on a mixed-department page, exclude them. " +
     "5. Exclude purely administrative staff with no teaching title unless their title contains an instructional keyword. " +
     "6. Return strict JSON with shape { people: [{ first_name, last_name, title, email, profile_url, is_phd, is_cpa }] }. " +
     "7. profile_url should be an absolute URL when the PDF clearly links to a personal profile page; otherwise null. " +
