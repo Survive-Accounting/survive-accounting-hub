@@ -23,6 +23,7 @@ import {
   deleteTeachingBlock, fetchChartOfAccounts, fetchConcepts, saveTeachingBlock,
   type BlockType, type ConceptRow, type JeLine, type TeachingBlockRow,
 } from "@/lib/ceq-api";
+import { deriveLedger, type EntryTemplate } from "@/lib/je-engine";
 
 const BLOCK_META: { type: BlockType; icon: string; label: string; hint: string }[] = [
   { type: "journal_entry", icon: "📒", label: "Journal Entries", hint: "Account names and Dr/Cr structure — amounts stay ??? on purpose." },
@@ -246,18 +247,24 @@ function AmountChip({ line }: { line: JeLine }) {
 
 interface DerivedT { account: string; debits: { label: string; from: string }[]; credits: { label: string; from: string }[] }
 
+// Delegates to the shared, multi-entry `deriveLedger` so there is ONE ledger
+// implementation across the app (Resource Bank + the JE Scenario Engine). Each JE
+// block becomes an entry; postings carry {entryId,lineId}, which we map back to the
+// block title for the "from" column. coa is passed empty here — Phase-1 T-accounts
+// need only account names + debit/credit grouping, which deriveLedger provides.
 function deriveTAccounts(jeBlocks: TeachingBlockRow[]): DerivedT[] {
-  const map = new Map<string, DerivedT>();
-  for (const b of jeBlocks) {
-    for (const l of (b.payload?.lines ?? []) as JeLine[]) {
-      if (!l.account) continue;
-      if (!map.has(l.account)) map.set(l.account, { account: l.account, debits: [], credits: [] });
-      const entry = { label: l.label?.trim() || "???", from: b.title ?? "JE" };
-      if (l.side === "debit") map.get(l.account)!.debits.push(entry);
-      else map.get(l.account)!.credits.push(entry);
-    }
-  }
-  return Array.from(map.values());
+  const entries: EntryTemplate[] = jeBlocks.map((b, bi) => ({
+    id: b.id || `je-${bi}`,
+    lines: ((b.payload?.lines ?? []) as JeLine[])
+      .filter((l) => l.account)
+      .map((l, li) => ({ ...l, id: `${b.id || bi}:${li}` })),
+  }));
+  const titleByEntry = new Map(entries.map((e, i) => [e.id, jeBlocks[i]?.title ?? "JE"]));
+  return deriveLedger(entries, []).map((acct) => ({
+    account: acct.account,
+    debits: acct.debits.map((p) => ({ label: p.label?.trim() || "???", from: titleByEntry.get(p.entryId) ?? "JE" })),
+    credits: acct.credits.map((p) => ({ label: p.label?.trim() || "???", from: titleByEntry.get(p.entryId) ?? "JE" })),
+  }));
 }
 
 function TAccountMini({ t }: { t: DerivedT }) {
