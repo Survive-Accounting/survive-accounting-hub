@@ -1698,8 +1698,14 @@ export type PersonRejectReason =
 // deterministic backstop to the AI extractor's discipline filter: a person
 // whose title is e.g. "Professor of Finance" is rejected unless the title ALSO
 // signals accounting (joint appointments like "Accounting & Finance" survive).
+// Anchored on "<rank> of <discipline>" (optionally "of the practice of/in") so
+// it matches the person's ACTUAL field — "Professor of Marketing" — and NOT a
+// trailing school/department name like "in the School of Business and
+// Economics", which would otherwise reject accounting faculty filed under a
+// joint school. The ACCOUNTING_TITLE_RE override keeps joint appointments
+// ("Professor of Accounting and Finance").
 const WRONG_DISCIPLINE_RE =
-  /\b(marketing|finance|economics|econometrics|management(?!\s+accounting)|supply\s*chain|business\s+law|legal\s+studies|information\s+systems|\bMIS\b|real\s+estate|entrepreneurship|operations\s+management|human\s+resources|\bHR\b|statistics|hospitality)\b/i;
+  /\bof\s+(?:(?:the\s+)?practice\s+(?:of|in)\s+)?(marketing|finance|economics|econometrics|management|supply\s*chain|business\s+law|legal\s+studies|information\s+systems|real\s+estate|entrepreneurship|organizational\s+behavior|operations\s+management|human\s+resources|statistics|hospitality)\b/i;
 const ACCOUNTING_TITLE_RE = /\b(account|accountanc|taxation|\btax\b|audit|assurance|\bAIS\b)\b/i;
 
 export function isLikelyPersonRow(p: {
