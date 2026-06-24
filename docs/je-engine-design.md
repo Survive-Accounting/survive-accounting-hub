@@ -1,8 +1,8 @@
 # Journal Entry Scenario Engine — Design
 
-> Status: **Phase 1 prototype** (crude UI, correct model). This doc is the contract that
-> later phases bolt onto. The engine (`src/lib/je-engine.ts`) is pure; everything else
-> projects off it.
+> Status: **Phase 1 model + v2 layout.** The engine (`src/lib/je-engine.ts`) is pure and
+> stable; the UI has been reshaped into a hierarchy (see "v2 layout" below). This doc is the
+> contract that later phases bolt onto. Everything projects off the engine.
 
 ## The core idea
 
@@ -92,6 +92,9 @@ CEQs and sequences can target a specific cell later.
   anon writes).
 - **Chart of accounts:** the migration adds any referenced accounts missing from the 0018
   seed (Merchandise Inventory, Unearned Service Revenue, Gain/Loss on Disposal of Equipment).
+- **Chapter link (migration `0025_je_chapter_links.sql`):** adds `je_scenarios.chapter_id`
+  (+ `chapter_topic_id`) → existing `chapters`; seeds an Ole Miss ACCY 201 course + starter
+  chapters; tags the four seed scenarios to chapters. Idempotent.
 
 ### Seed scenarios (the prototype's testable surface)
 
@@ -105,6 +108,56 @@ CEQs and sequences can target a specific cell later.
    computation-path-as-axis.
 4. **`adjust-depreciation`** — axes `method × period`. Same two accounts; four
    `computationPaths` carry the variation. The richest computation example.
+
+## v2 layout & chapter organization
+
+The UI was reshaped from a two-column form into a **hierarchy/flowchart with the journal
+entry as the anchor** — the entry is visually dominant and everything else hangs off it:
+
+```
+        [ Chart of Accounts ]      collapsible, top — the "vocabulary" (collapsed by default)
+                  │  (thin connector arrow)
+        [   JOURNAL ENTRY   ]      center, largest, navy border — the focus
+              ╱        ╲           (branching connector)
+   [ Ledger (T-accts) ]  [ Statement effects ]
+              ╲        ╱
+        [ Accounting equation ]    running summary at the bottom
+```
+
+- **Connector arrows** between levels are thin and subtle; they **light up navy as you trace
+  a line** — clicking a JE line lights the branch to the ledger and/or statements it lands in,
+  and highlights the matching ledger account + statement row (the existing bidirectional
+  `tracePostingsToStatementLine` drives it). Click a ledger/statement row to trace back.
+- **Every panel is collapsible** (COA collapsed by default); the JE stays the focus.
+- **"Why this account / how the amount is computed" are now contextual** — they appear inside
+  the JE panel only when a line is selected, instead of always-on, to reduce clutter.
+- **Condition toggles stay on the JE panel** and still drive live re-derivation.
+
+### Chapter organization (reuses existing tables — no new chapter system)
+
+Scenarios are browsed by **course → chapter → scenario** (a top selector). This reuses the
+existing `courses` / `chapters` tables (migration `0002`); a scenario links to a chapter via
+`je_scenarios.chapter_id` (migration `0025`). The browser is driven entirely by what scenarios
+link to, so it **generalizes to any campus/course** — nothing in the app hardcodes Ole Miss.
+`je-api.ts`'s `fetchJeBrowserTree()` returns the whole `course → chapter → scenario` tree (plus
+empty sibling chapters, so authoring gaps are visible) and falls back gracefully to an
+"Unassigned" group if `0025` hasn't been applied yet.
+
+### Flag-gated placeholders (stubbed, not built)
+
+Three sections are **clean placeholders** gated by optional `ScenarioDoc` flags (stored in the
+jsonb `doc`, so toggling them is data-only — the engine never branches on them, staying pure):
+
+| Placeholder | Gate | Status |
+| --- | --- | --- |
+| **Sequence sidebar** (lifecycle horizontal view) | `isSequence` / `sequenceGroup` | stub — lists the variant's entries; no multi-period engine yet |
+| **Memorization grid** (bonds/merchandising) | `hasMemorizationGrid` | stub — empty `???` grid |
+| **Practice exam questions** | always shown, reads chapter context | stub — "coming" card |
+| **Reveal numbers** | — | disabled button + tooltip (the Phase 2 numbers seam) |
+
+`0025` sets `isSequence` + `sequenceGroup` + `hasMemorizationGrid` on **`merch-sale`** as the
+showcase (both legitimate for the merchandising cycle); the other three scenarios stay
+un-flagged so those sections stay hidden by default.
 
 ## Engine API (Phase 1)
 

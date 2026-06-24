@@ -1,20 +1,28 @@
-// /je — Journal Entry Scenario Engine (prototype).
+// /je — Journal Entry Scenario Engine (v2 layout).
 //
-// The centerpiece: the student toggles a condition and the entry + every downstream
-// projection (ledger, statements, equation) re-derive LIVE. Flipping gain↔loss or
-// perpetual↔periodic changes the entry and ripples through everything. No incumbent
-// does this — they hardcode each problem.
+// The journal entry is the ANCHOR. Everything is arranged as a hierarchy that flows
+// out of it:  Chart of Accounts → JOURNAL ENTRY → (Ledger | Statements) → Equation.
+// Toggle a condition and the entry + every downstream projection re-derive LIVE. All
+// projections come from the pure engine in src/lib/je-engine.ts ("one truth, many views").
 //
-// Crude UI on purpose. Correctness and the data model matter now; polish comes later.
-// All projections come from the pure engine in src/lib/je-engine.ts ("one truth, many
-// views"). Amounts are ??? everywhere in Phase 1.
+// v2 adds: a chapter browser (reuses the existing chapters/courses tables), collapsible
+// panels with thin connector arrows that light up as you trace a line through the system,
+// contextual "why/how" panels, and flag-gated placeholders (sequence sidebar, practice
+// exam questions, memorization grid, and a disabled "reveal numbers" seam). Amounts stay
+// ??? in Phase 1 — the pedagogy lives in the structure.
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { fetchAccountMeta, fetchPrinciples, fetchScenarios } from "@/lib/je-api";
+import {
+  fetchAccountMeta,
+  fetchJeBrowserTree,
+  fetchPrinciples,
+  type BrowserChapter,
+  type BrowserCourse,
+} from "@/lib/je-api";
 import {
   deriveEquationEffect,
   deriveLedger,
@@ -22,6 +30,7 @@ import {
   resolveComputationPath,
   resolveVariant,
   tracePostingsToStatementLine,
+  type AccountMeta,
   type Dir,
   type EngineLine,
   type EntryTemplate,
@@ -30,7 +39,22 @@ import {
 
 export const Route = createFileRoute("/je")({ component: JePrototype });
 
+// Brand
+const NAVY = "#14213D";
+const RED = "#CE1126";
+
 const lineKey = (entryId: string, lineId: string) => `${entryId}:${lineId}`;
+const courseKey = (c: BrowserCourse) => c.id ?? "__unassigned_course__";
+
+function chapterLabel(ch: BrowserChapter | null): string {
+  if (!ch) return "this chapter";
+  const name = ch.chapter_name ?? "Untitled chapter";
+  return ch.chapter_number != null ? `Ch ${ch.chapter_number} · ${name}` : name;
+}
+
+function firstWithScenarios(chapters: BrowserChapter[]): BrowserChapter | undefined {
+  return chapters.find((c) => c.scenarios.length > 0);
+}
 
 function defaultConditions(doc: ScenarioDoc): Record<string, string> {
   const c: Record<string, string> = {};
@@ -39,25 +63,38 @@ function defaultConditions(doc: ScenarioDoc): Record<string, string> {
 }
 
 function JePrototype() {
-  const scenariosQuery = useQuery({ queryKey: ["je-scenarios"], queryFn: fetchScenarios, retry: 1 });
+  const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, retry: 1 });
   const coaQuery = useQuery({ queryKey: ["je-coa"], queryFn: fetchAccountMeta, retry: 1, staleTime: 300_000 });
   const principlesQuery = useQuery({ queryKey: ["je-principles"], queryFn: fetchPrinciples, retry: 1, staleTime: 300_000 });
 
-  const scenarios = scenariosQuery.data ?? [];
+  const courses = treeQuery.data?.courses ?? [];
   const coa = coaQuery.data ?? [];
   const principles = principlesQuery.data ?? [];
   const principleLabel = useMemo(() => new Map(principles.map((p) => [p.key, p])), [principles]);
+  const coaByName = useMemo(() => new Map(coa.map((a) => [a.canonical_name, a])), [coa]);
 
+  // ---- Browse selection (course → chapter → scenario). Effective values fall back so a
+  // stale id from a previous course never strands the UI. ----
+  const [selectedCourseKey, setSelectedCourseKey] = useState<string | null>(null);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+
+  const activeCourse = courses.find((c) => courseKey(c) === selectedCourseKey) ?? courses[0] ?? null;
+  const chapters = activeCourse?.chapters ?? [];
+  const activeChapter =
+    chapters.find((c) => c.id === selectedChapterId) ?? firstWithScenarios(chapters) ?? chapters[0] ?? null;
+  const scenarios = activeChapter?.scenarios ?? [];
   const activeScenario = scenarios.find((s) => s.slug === selectedSlug) ?? scenarios[0] ?? null;
 
+  // ---- Engine-facing UI state ----
   const [conditions, setConditions] = useState<Record<string, string>>({});
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [activeLineKey, setActiveLineKey] = useState<string | null>(null);
   const [highlightAccount, setHighlightAccount] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ coa: true });
+  const toggleCollapse = (id: string) => setCollapsed((p) => ({ ...p, [id]: !p[id] }));
 
-  // When the active scenario changes, reset the toggles to each axis's first option and
-  // clear all UI state. (Runs on first load too, once scenarios arrive.)
+  // Reset all derived UI state when the active scenario changes (first load included).
   useEffect(() => {
     if (!activeScenario) return;
     setConditions(defaultConditions(activeScenario.doc));
@@ -66,7 +103,8 @@ function JePrototype() {
     setHighlightAccount(null);
   }, [activeScenario?.slug]);
 
-  const variant = activeScenario ? resolveVariant(activeScenario.doc, conditions) : null;
+  const doc = activeScenario?.doc ?? null;
+  const variant = doc ? resolveVariant(doc, conditions) : null;
   const entries: EntryTemplate[] = variant?.entries ?? [];
   const compPath = variant ? resolveComputationPath(variant, conditions) : null;
 
@@ -74,8 +112,7 @@ function JePrototype() {
   const statementEffects = useMemo(() => deriveStatementEffects(entries, coa), [entries, coa]);
   const equation = useMemo(() => deriveEquationEffect(entries, coa), [entries, coa]);
 
-  // Reverse lookup → bidirectional highlight. Clicking a ledger/statement line (or an
-  // entry line) sets `highlightAccount`; trace() finds the exact entry postings behind it.
+  // Bidirectional highlight: which entry lines sit behind the highlighted account.
   const highlightRefs = useMemo(() => {
     if (!highlightAccount) return new Set<string>();
     return new Set(
@@ -83,14 +120,38 @@ function JePrototype() {
     );
   }, [highlightAccount, entries, coa]);
 
+  // The connector arrows light along the path the highlighted account travels.
+  const stmtAccounts = useMemo(
+    () => new Set([...statementEffects.income, ...statementEffects.balanceSheet].map((e) => e.account)),
+    [statementEffects],
+  );
+  const highlightInLedger = !!highlightAccount && ledger.some((a) => a.account === highlightAccount);
+  const highlightInStatements =
+    !!highlightAccount &&
+    (stmtAccounts.has(highlightAccount) ||
+      (highlightAccount === "Cash" && statementEffects.cashFlow.touchesCash));
+
+  // Accounts referenced by the current entry → the "vocabulary" shown in the COA panel.
+  const usedAccounts = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { name: string; meta?: AccountMeta }[] = [];
+    for (const e of entries) {
+      for (const l of e.lines) {
+        if (l.account && !seen.has(l.account)) {
+          seen.add(l.account);
+          out.push({ name: l.account, meta: coaByName.get(l.account) });
+        }
+      }
+    }
+    return out;
+  }, [entries, coaByName]);
+
   // Ordered reveal cells (reading order): for each line, the account cell then its amount cell.
   const cellOrder = useMemo(() => {
     const ids: string[] = [];
-    for (const e of entries) {
-      for (const l of e.lines) {
-        ids.push(`${lineKey(e.id, l.id)}:account`);
-        ids.push(`${lineKey(e.id, l.id)}:amount`);
-      }
+    for (const e of entries) for (const l of e.lines) {
+      ids.push(`${lineKey(e.id, l.id)}:account`);
+      ids.push(`${lineKey(e.id, l.id)}:amount`);
     }
     return ids;
   }, [entries]);
@@ -116,386 +177,551 @@ function JePrototype() {
     return null;
   }, [activeLineKey, entries]);
 
-  if (scenariosQuery.isLoading) {
+  const isSequence = !!(doc?.isSequence || doc?.sequenceGroup);
+  const hasMemGrid = !!doc?.hasMemorizationGrid;
+
+  // ---- Loading / error ----
+  if (treeQuery.isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
-
-  if (scenariosQuery.isError) {
+  if (treeQuery.isError) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-16 text-center text-sm">
         <h1 className="text-lg font-bold">Couldn't load scenarios</h1>
         <p className="mt-1 text-muted-foreground">
-          Run migration <code>0021_je_scenarios.sql</code> against the database, then refresh.
+          Run migration <code>0021_je_scenarios.sql</code> (and <code>0025_je_chapter_links.sql</code>) against the
+          database, then refresh.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Home
-      </Link>
-      <h1 className="mt-1 text-2xl font-bold tracking-tight">Journal Entry Scenario Engine</h1>
-      <p className="text-sm text-muted-foreground">
-        Toggle a condition — the entry, ledger, statements, and the accounting equation all re-derive live.
-        Amounts are <code>???</code> on purpose; the pedagogy lives in the structure.
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+      <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Home</Link>
+      <div className="mt-1 flex items-center gap-2">
+        <span className="h-5 w-1.5 rounded-full" style={{ backgroundColor: RED }} aria-hidden />
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: NAVY }}>Journal Entry Scenario Engine</h1>
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        The journal entry is the anchor. Toggle a condition — the entry, ledger, statements, and the accounting
+        equation all re-derive live. Click a line to trace it through the system.
       </p>
 
-      {/* Scenario picker */}
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {scenarios.map((s) => (
-          <button
-            key={s.slug}
-            onClick={() => setSelectedSlug(s.slug)}
-            className={cn(
-              "rounded-lg border px-3 py-1.5 text-sm font-medium transition",
-              activeScenario?.slug === s.slug
-                ? "border-[#14213D] bg-[#14213D]/5 font-semibold"
-                : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
-            )}
-          >
-            {s.title}
-          </button>
-        ))}
-      </div>
-
-      {!activeScenario ? (
+      {/* ---- Chapter browser (top selector) ---- */}
+      {courses.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No scenarios seeded yet.</p>
       ) : (
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {/* LEFT COLUMN */}
-          <div className="space-y-4">
-            {/* Event + condition toggles */}
-            <Panel title="Event">
-              <p className="text-sm text-foreground/90">{activeScenario.doc.event}</p>
-
-              {/* Principles in play */}
-              {(activeScenario.doc.principleKeys ?? []).length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {(activeScenario.doc.principleKeys ?? []).map((k) => {
-                    const p = principleLabel.get(k);
-                    return (
-                      <span
-                        key={k}
-                        title={p?.short_desc ?? undefined}
-                        className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
-                      >
-                        {p?.label ?? k}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Condition toggles — one control per axis */}
-              <div className="mt-3 space-y-2">
-                {activeScenario.doc.axes.map((axis) => (
-                  <div key={axis.key} className="flex flex-wrap items-center gap-2">
-                    <span className="w-32 shrink-0 text-xs font-semibold text-muted-foreground">{axis.label}</span>
-                    <div className="flex flex-wrap gap-1">
-                      {axis.options.map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => setConditions((c) => ({ ...c, [axis.key]: opt.value }))}
-                          className={cn(
-                            "rounded-md border px-2.5 py-1 text-xs font-medium transition",
-                            conditions[axis.key] === opt.value
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
-                              : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-
-            {/* The entry as a reveal grid */}
-            <Panel
-              title="Journal Entry"
-              right={
-                <div className="flex flex-wrap gap-1">
-                  <MiniBtn onClick={revealNext}>Reveal next</MiniBtn>
-                  <MiniBtn onClick={revealAccountsOnly}>Accounts only</MiniBtn>
-                  <MiniBtn onClick={revealAll}>Reveal all</MiniBtn>
-                  <MiniBtn onClick={resetReveal}>Reset</MiniBtn>
-                </div>
-              }
-            >
-              {!variant ? (
-                <p className="text-sm italic text-muted-foreground">This combination isn't built yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {variant.label && (
-                    <div className="text-xs font-semibold text-muted-foreground">{variant.label}</div>
+        <div className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
+          {courses.length > 1 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {courses.map((c) => {
+                const k = courseKey(c);
+                const active = courseKey(activeCourse ?? courses[0]) === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => {
+                      setSelectedCourseKey(k);
+                      setSelectedChapterId(null);
+                      setSelectedSlug(null);
+                    }}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 text-xs font-semibold transition",
+                      active ? "text-white" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    style={active ? { backgroundColor: NAVY } : undefined}
+                  >
+                    {c.code ?? c.course_name ?? "Course"}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {activeCourse?.course_name ?? activeCourse?.code ?? "Chapters"}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {chapters.map((ch) => {
+              const active = activeChapter?.id === ch.id;
+              return (
+                <button
+                  key={ch.id}
+                  onClick={() => {
+                    setSelectedChapterId(ch.id);
+                    setSelectedSlug(null);
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition",
+                    active ? "font-semibold" : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
                   )}
-                  {entries.map((entry) => (
-                    <div key={entry.id}>
-                      {entry.caption && (
-                        <div className="mb-1 text-[11px] font-medium text-muted-foreground">{entry.caption}</div>
+                  style={active ? { borderColor: NAVY, color: NAVY, backgroundColor: `${NAVY}0d` } : undefined}
+                >
+                  <span>{chapterLabel(ch)}</span>
+                  <span className="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">
+                    {ch.scenarios.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ---- Body: optional sequence sidebar + the hierarchy ---- */}
+      {courses.length > 0 && (
+        <div className="mt-5 flex gap-4">
+          {isSequence && <SequenceSidebar entries={entries} group={doc?.sequenceGroup} />}
+
+          <div className="min-w-0 flex-1">
+            {/* Scenario picker (scoped to the active chapter) */}
+            {scenarios.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                No scenarios in {chapterLabel(activeChapter)} yet — this is where you'd author one.
+              </p>
+            ) : (
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                {scenarios.map((s) => {
+                  const active = activeScenario?.slug === s.slug;
+                  return (
+                    <button
+                      key={s.slug}
+                      onClick={() => setSelectedSlug(s.slug)}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm font-medium transition",
+                        active ? "font-semibold" : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
                       )}
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                            <th className="py-1 text-left font-semibold">Account</th>
-                            <th className="w-24 py-1 text-right font-semibold">Dr</th>
-                            <th className="w-24 py-1 text-right font-semibold">Cr</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {entry.lines.map((l) => {
-                            const k = lineKey(entry.id, l.id);
-                            const highlighted = highlightRefs.has(k);
-                            const isActive = activeLineKey === k;
+                      style={active ? { borderColor: NAVY, backgroundColor: `${NAVY}0d`, color: NAVY } : undefined}
+                    >
+                      {s.title}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {!activeScenario ? null : (
+              <div className="mx-auto max-w-3xl">
+                {/* COA — the vocabulary (collapsed by default) */}
+                <Panel
+                  title="Chart of Accounts"
+                  subtitle="The vocabulary — the accounts this entry draws from."
+                  collapsible
+                  collapsed={collapsed.coa}
+                  onToggle={() => toggleCollapse("coa")}
+                >
+                  {usedAccounts.length === 0 ? (
+                    <p className="text-xs italic text-muted-foreground">No accounts yet.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {usedAccounts.map((a) => {
+                        const on = highlightAccount === a.name;
+                        return (
+                          <button
+                            key={a.name}
+                            onClick={() => toggleHighlight(a.name)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition",
+                              on ? "" : "border-border hover:border-foreground",
+                            )}
+                            style={on ? { borderColor: NAVY, color: NAVY, backgroundColor: `${NAVY}0d` } : undefined}
+                          >
+                            <span className="font-medium">{a.name}</span>
+                            {a.meta && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {a.meta.account_type.replace(/_/g, " ")} · nb {a.meta.normal_balance === "debit" ? "Dr" : "Cr"}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Panel>
+
+                <VConnector active={!!activeLine} />
+
+                {/* JOURNAL ENTRY — the anchor */}
+                <Panel
+                  emphasis
+                  title="Journal Entry"
+                  collapsible
+                  collapsed={collapsed.je}
+                  onToggle={() => toggleCollapse("je")}
+                  right={
+                    <div className="flex flex-wrap items-center gap-1">
+                      <MiniBtn onClick={revealNext}>Reveal next</MiniBtn>
+                      <MiniBtn onClick={revealAccountsOnly}>Accounts only</MiniBtn>
+                      <MiniBtn onClick={revealAll}>Reveal all</MiniBtn>
+                      <MiniBtn onClick={resetReveal}>Reset</MiniBtn>
+                      <button
+                        disabled
+                        title="Concrete amounts — coming"
+                        className="inline-flex cursor-not-allowed items-center gap-1 rounded border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground/50"
+                      >
+                        <Lock className="h-3 w-3" /> Reveal numbers
+                      </button>
+                    </div>
+                  }
+                >
+                  {/* Event + principles + condition toggles */}
+                  <p className="text-sm text-foreground/90">{doc?.event}</p>
+                  {(doc?.principleKeys ?? []).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(doc?.principleKeys ?? []).map((k) => {
+                        const p = principleLabel.get(k);
+                        return (
+                          <span
+                            key={k}
+                            title={p?.short_desc ?? undefined}
+                            className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+                          >
+                            {p?.label ?? k}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="mt-3 space-y-2">
+                    {(doc?.axes ?? []).map((axis) => (
+                      <div key={axis.key} className="flex flex-wrap items-center gap-2">
+                        <span className="w-32 shrink-0 text-xs font-semibold text-muted-foreground">{axis.label}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {axis.options.map((opt) => {
+                            const on = conditions[axis.key] === opt.value;
                             return (
-                              <tr
-                                key={l.id}
+                              <button
+                                key={opt.value}
+                                onClick={() => setConditions((c) => ({ ...c, [axis.key]: opt.value }))}
                                 className={cn(
-                                  "border-t border-border/50",
-                                  highlighted && "bg-amber-100/70 dark:bg-amber-900/30",
-                                  isActive && !highlighted && "bg-muted/40",
+                                  "rounded-md border px-2.5 py-1 text-xs font-medium transition",
+                                  on ? "text-white" : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
                                 )}
+                                style={on ? { backgroundColor: NAVY, borderColor: NAVY } : undefined}
                               >
-                                <td className={cn("py-1", l.side === "credit" && "pl-6")}>
-                                  <RevealCell
-                                    revealed={revealed.has(`${k}:account`)}
-                                    onClick={() => {
-                                      setRevealed((p) => new Set(p).add(`${k}:account`));
-                                      selectLine(entry.id, l);
-                                    }}
-                                  >
-                                    <span className="font-medium">{l.account}</span>
-                                  </RevealCell>
-                                </td>
-                                <td className="py-1 text-right tabular-nums">
-                                  {l.side === "debit" && (
-                                    <RevealCell
-                                      revealed={revealed.has(`${k}:amount`)}
-                                      onClick={() => {
-                                        setRevealed((p) => new Set(p).add(`${k}:amount`));
-                                        selectLine(entry.id, l);
-                                      }}
-                                    >
-                                      {l.label?.trim() || "???"}
-                                    </RevealCell>
-                                  )}
-                                </td>
-                                <td className="py-1 text-right tabular-nums">
-                                  {l.side === "credit" && (
-                                    <RevealCell
-                                      revealed={revealed.has(`${k}:amount`)}
-                                      onClick={() => {
-                                        setRevealed((p) => new Set(p).add(`${k}:amount`));
-                                        selectLine(entry.id, l);
-                                      }}
-                                    >
-                                      {l.label?.trim() || "???"}
-                                    </RevealCell>
-                                  )}
-                                </td>
-                              </tr>
+                                {opt.label}
+                              </button>
                             );
                           })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Panel>
-
-            {/* Why panel */}
-            <Panel title="Why this account / side">
-              {activeLine ? (
-                <div className="space-y-2 text-sm">
-                  <div className="font-semibold">
-                    {activeLine.account}{" "}
-                    <span className="text-xs font-normal text-muted-foreground">
-                      ({activeLine.side === "debit" ? "Debit" : "Credit"})
-                    </span>
-                  </div>
-                  {activeLine.why && <p className="text-foreground/90">{activeLine.why}</p>}
-                  {activeLine.trap && (
-                    <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-[13px] text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200">
-                      <span className="font-semibold">Trap: </span>
-                      {activeLine.trap}
-                    </p>
-                  )}
-                  {(activeLine.principleKeys ?? []).length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {(activeLine.principleKeys ?? []).map((k) => (
-                        <span key={k} className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
-                          {principleLabel.get(k)?.label ?? k}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm italic text-muted-foreground">
-                  Click a line in the entry to see why that account and side were chosen.
-                </p>
-              )}
-            </Panel>
-
-            {/* Computation path (same entry, different how/why of the amount) */}
-            {compPath && (
-              <Panel title="How the amount is computed">
-                <p className="text-sm text-foreground/90">{compPath.narration}</p>
-                {compPath.steps && compPath.steps.length > 0 && (
-                  <ol className="mt-2 space-y-1">
-                    {compPath.steps.map((s, i) => (
-                      <li key={i} className="flex gap-2 text-[13px]">
-                        <span className="tabular-nums text-muted-foreground">{i + 1}.</span>
-                        <span>
-                          <span className="font-medium">{s.label}</span>
-                          {s.formulaText && (
-                            <span className="ml-2 font-mono text-xs text-muted-foreground">{s.formulaText}</span>
-                          )}
-                        </span>
-                      </li>
+                        </div>
+                      </div>
                     ))}
-                  </ol>
-                )}
-              </Panel>
-            )}
-          </div>
+                  </div>
 
-          {/* RIGHT COLUMN — live projections */}
-          <div className="space-y-4">
-            {/* Ledger / T-accounts */}
-            <Panel title="Ledger (T-accounts)" subtitle="Derived from the entry — click an account to trace it.">
-              {ledger.length === 0 ? (
-                <p className="text-sm italic text-muted-foreground">No postings.</p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {ledger.map((acct) => (
-                    <button
-                      key={acct.account}
-                      onClick={() => toggleHighlight(acct.account)}
-                      className={cn(
-                        "rounded-md border p-2 text-left transition",
-                        highlightAccount === acct.account
-                          ? "border-amber-400 bg-amber-100/60 dark:bg-amber-900/30"
-                          : "border-border bg-muted/20 hover:border-foreground",
+                  {/* The entry as a reveal grid */}
+                  <div className="mt-4 border-t border-border/60 pt-3">
+                    {!variant ? (
+                      <p className="text-sm italic text-muted-foreground">This combination isn't built yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {variant.label && (
+                          <div className="text-xs font-semibold text-muted-foreground">{variant.label}</div>
+                        )}
+                        {entries.map((entry) => (
+                          <div key={entry.id}>
+                            {entry.caption && (
+                              <div className="mb-1 text-[11px] font-medium text-muted-foreground">{entry.caption}</div>
+                            )}
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  <th className="py-1 text-left font-semibold">Account</th>
+                                  <th className="w-24 py-1 text-right font-semibold">Dr</th>
+                                  <th className="w-24 py-1 text-right font-semibold">Cr</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {entry.lines.map((l) => {
+                                  const k = lineKey(entry.id, l.id);
+                                  const highlighted = highlightRefs.has(k);
+                                  const isActive = activeLineKey === k;
+                                  return (
+                                    <tr
+                                      key={l.id}
+                                      className={cn(
+                                        "border-t border-border/50",
+                                        highlighted && "bg-amber-100/70 dark:bg-amber-900/30",
+                                        isActive && !highlighted && "bg-muted/40",
+                                      )}
+                                    >
+                                      <td className={cn("py-1", l.side === "credit" && "pl-6")}>
+                                        <RevealCell
+                                          revealed={revealed.has(`${k}:account`)}
+                                          onClick={() => {
+                                            setRevealed((p) => new Set(p).add(`${k}:account`));
+                                            selectLine(entry.id, l);
+                                          }}
+                                        >
+                                          <span className="font-medium">{l.account}</span>
+                                        </RevealCell>
+                                      </td>
+                                      <td className="py-1 text-right tabular-nums">
+                                        {l.side === "debit" && (
+                                          <RevealCell
+                                            revealed={revealed.has(`${k}:amount`)}
+                                            onClick={() => {
+                                              setRevealed((p) => new Set(p).add(`${k}:amount`));
+                                              selectLine(entry.id, l);
+                                            }}
+                                          >
+                                            {l.label?.trim() || "???"}
+                                          </RevealCell>
+                                        )}
+                                      </td>
+                                      <td className="py-1 text-right tabular-nums">
+                                        {l.side === "credit" && (
+                                          <RevealCell
+                                            revealed={revealed.has(`${k}:amount`)}
+                                            onClick={() => {
+                                              setRevealed((p) => new Set(p).add(`${k}:amount`));
+                                              selectLine(entry.id, l);
+                                            }}
+                                          >
+                                            {l.label?.trim() || "???"}
+                                          </RevealCell>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Contextual: why this account/side + how the amount is computed (only when a line is selected) */}
+                  {activeLine && (
+                    <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                      <div className="text-sm font-semibold">
+                        {activeLine.account}{" "}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          ({activeLine.side === "debit" ? "Debit" : "Credit"})
+                        </span>
+                      </div>
+                      {activeLine.why && <p className="text-[13px] text-foreground/90">{activeLine.why}</p>}
+                      {activeLine.trap && (
+                        <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-[13px] text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200">
+                          <span className="font-semibold">Trap: </span>
+                          {activeLine.trap}
+                        </p>
                       )}
-                    >
-                      <div className="border-b-2 border-foreground/70 pb-0.5 text-center text-[11px] font-semibold">
-                        {acct.account}
-                        {acct.normalBalance && (
-                          <span className="ml-1 text-[9px] font-normal text-muted-foreground">
-                            (nb: {acct.normalBalance === "debit" ? "Dr" : "Cr"})
-                          </span>
+                      {(activeLine.principleKeys ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {(activeLine.principleKeys ?? []).map((k) => (
+                            <span key={k} className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                              {principleLabel.get(k)?.label ?? k}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {compPath && (
+                        <div className="mt-1 border-t border-border/60 pt-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            How the amount is computed
+                          </div>
+                          <p className="mt-0.5 text-[13px] text-foreground/90">{compPath.narration}</p>
+                          {compPath.steps && compPath.steps.length > 0 && (
+                            <ol className="mt-1 space-y-0.5">
+                              {compPath.steps.map((s, i) => (
+                                <li key={i} className="flex gap-2 text-[12px]">
+                                  <span className="tabular-nums text-muted-foreground">{i + 1}.</span>
+                                  <span>
+                                    <span className="font-medium">{s.label}</span>
+                                    {s.formulaText && (
+                                      <span className="ml-2 font-mono text-[11px] text-muted-foreground">{s.formulaText}</span>
+                                    )}
+                                  </span>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Panel>
+
+                {/* JE → (Ledger | Statements) */}
+                <BranchConnector left={highlightInLedger} right={highlightInStatements} />
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* Ledger / T-accounts */}
+                  <Panel
+                    title="Ledger (T-accounts)"
+                    subtitle="Click an account to trace it."
+                    collapsible
+                    collapsed={collapsed.ledger}
+                    onToggle={() => toggleCollapse("ledger")}
+                  >
+                    {ledger.length === 0 ? (
+                      <p className="text-sm italic text-muted-foreground">No postings.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {ledger.map((acct) => {
+                          const on = highlightAccount === acct.account;
+                          return (
+                            <button
+                              key={acct.account}
+                              onClick={() => toggleHighlight(acct.account)}
+                              className={cn(
+                                "w-full rounded-md border p-2 text-left transition",
+                                on ? "bg-amber-100/60 dark:bg-amber-900/30" : "border-border bg-muted/20 hover:border-foreground",
+                              )}
+                              style={on ? { borderColor: NAVY } : undefined}
+                            >
+                              <div className="border-b-2 border-foreground/70 pb-0.5 text-center text-[11px] font-semibold">
+                                {acct.account}
+                                {acct.normalBalance && (
+                                  <span className="ml-1 text-[9px] font-normal text-muted-foreground">
+                                    (nb: {acct.normalBalance === "debit" ? "Dr" : "Cr"})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 text-[10px]">
+                                <div className="space-y-0.5 border-r-2 border-foreground/70 p-1">
+                                  {acct.debits.map((p, i) => (
+                                    <div key={i} className="text-right tabular-nums">{p.label?.trim() || "???"}</div>
+                                  ))}
+                                </div>
+                                <div className="space-y-0.5 p-1">
+                                  {acct.credits.map((p, i) => (
+                                    <div key={i} className="text-right tabular-nums">{p.label?.trim() || "???"}</div>
+                                  ))}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Panel>
+
+                  {/* Statement effects */}
+                  <Panel
+                    title="Statement effects"
+                    subtitle="Click a line to trace it back."
+                    collapsible
+                    collapsed={collapsed.statements}
+                    onToggle={() => toggleCollapse("statements")}
+                  >
+                    <div className="space-y-3 text-sm">
+                      <StatementGroup label="Income statement" empty="No income-statement accounts move.">
+                        {statementEffects.income.map((e) => (
+                          <StatementRow
+                            key={e.account}
+                            account={e.account}
+                            dir={e.dir}
+                            tag={e.accountType}
+                            active={highlightAccount === e.account}
+                            onClick={() => toggleHighlight(e.account)}
+                          />
+                        ))}
+                      </StatementGroup>
+                      <StatementGroup label="Balance sheet" empty="No balance-sheet accounts move.">
+                        {statementEffects.balanceSheet.map((e) => (
+                          <StatementRow
+                            key={e.account}
+                            account={e.account}
+                            dir={e.dir}
+                            tag={e.accountType}
+                            active={highlightAccount === e.account}
+                            onClick={() => toggleHighlight(e.account)}
+                          />
+                        ))}
+                      </StatementGroup>
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cash flow</div>
+                        {statementEffects.cashFlow.touchesCash ? (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span>Cash</span>
+                            <DirArrow dir={statementEffects.cashFlow.dir} />
+                            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                              {statementEffects.cashFlow.classification ?? "—"}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-xs italic text-muted-foreground">This entry doesn't touch Cash.</p>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 text-[10px]">
-                        <div className="space-y-0.5 border-r-2 border-foreground/70 p-1">
-                          {acct.debits.map((p, i) => (
-                            <div key={i} className="text-right tabular-nums">{p.label?.trim() || "???"}</div>
-                          ))}
-                        </div>
-                        <div className="space-y-0.5 p-1">
-                          {acct.credits.map((p, i) => (
-                            <div key={i} className="text-right tabular-nums">{p.label?.trim() || "???"}</div>
-                          ))}
+                    </div>
+                  </Panel>
+                </div>
+
+                {/* (Ledger | Statements) → Equation */}
+                <VConnector active={!!highlightAccount} />
+
+                {/* Accounting equation — running summary at the bottom */}
+                <Panel title="Accounting equation">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <EquationCell label="Assets" dir={equation.assets} />
+                    <span className="text-lg font-bold text-muted-foreground">=</span>
+                    <EquationCell label="Liabilities" dir={equation.liabilities} />
+                    <span className="text-lg font-bold text-muted-foreground">+</span>
+                    <EquationCell label="Equity" dir={equation.equity} />
+                    <span
+                      className={cn(
+                        "ml-auto rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        equation.balanced === true && "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
+                        equation.balanced === false && "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200",
+                        equation.balanced === "unknown" && "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {equation.balanced === true
+                        ? "balances"
+                        : equation.balanced === false
+                          ? "out of balance"
+                          : "balance: unknown (no amounts yet)"}
+                    </span>
+                  </div>
+                </Panel>
+
+                {/* ---- Placeholders (flag-gated / always-stubbed) ---- */}
+                <div className="mt-4 space-y-4">
+                  {hasMemGrid && (
+                    <Panel title="Memorization grid" subtitle="Lock in the pattern for this topic.">
+                      <div className="rounded-lg border border-dashed border-border p-3">
+                        <p className="mb-2 text-xs text-muted-foreground">
+                          Placeholder — the memorize-this grid for this topic is coming.
+                        </p>
+                        <div className="overflow-hidden rounded-md border border-border">
+                          <table className="w-full text-center text-xs">
+                            <thead>
+                              <tr className="bg-muted/40 text-[10px] uppercase text-muted-foreground">
+                                <th className="p-1 text-left">Account</th>
+                                <th className="p-1">Dr / Cr</th>
+                                <th className="p-1">When</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[0, 1, 2].map((i) => (
+                                <tr key={i} className="border-t border-border/60 text-muted-foreground/50">
+                                  <td className="p-1 text-left">???</td>
+                                  <td className="p-1">???</td>
+                                  <td className="p-1">???</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </Panel>
-
-            {/* Statement effects */}
-            <Panel title="Statement effects" subtitle="Click a line to trace it back to the entry.">
-              <div className="space-y-3 text-sm">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Income statement
-                  </div>
-                  {statementEffects.income.length === 0 ? (
-                    <p className="text-xs italic text-muted-foreground">No income-statement accounts move.</p>
-                  ) : (
-                    statementEffects.income.map((e) => (
-                      <StatementRow
-                        key={e.account}
-                        account={e.account}
-                        dir={e.dir}
-                        tag={e.accountType}
-                        active={highlightAccount === e.account}
-                        onClick={() => toggleHighlight(e.account)}
-                      />
-                    ))
+                    </Panel>
                   )}
-                </div>
 
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Balance sheet
-                  </div>
-                  {statementEffects.balanceSheet.length === 0 ? (
-                    <p className="text-xs italic text-muted-foreground">No balance-sheet accounts move.</p>
-                  ) : (
-                    statementEffects.balanceSheet.map((e) => (
-                      <StatementRow
-                        key={e.account}
-                        account={e.account}
-                        dir={e.dir}
-                        tag={e.accountType}
-                        active={highlightAccount === e.account}
-                        onClick={() => toggleHighlight(e.account)}
-                      />
-                    ))
-                  )}
-                </div>
-
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cash flow
-                  </div>
-                  {statementEffects.cashFlow.touchesCash ? (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>Cash</span>
-                      <DirArrow dir={statementEffects.cashFlow.dir} />
-                      <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
-                        {statementEffects.cashFlow.classification ?? "—"}
-                      </span>
+                  <Panel title="Practice exam questions" subtitle={`For ${chapterLabel(activeChapter)}`}>
+                    <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                      Practice exam questions for this chapter — coming. They'll be worked right here in the JE tool.
                     </div>
-                  ) : (
-                    <p className="text-xs italic text-muted-foreground">This entry doesn't touch Cash.</p>
-                  )}
+                  </Panel>
                 </div>
               </div>
-            </Panel>
-
-            {/* Accounting equation */}
-            <Panel title="Accounting equation">
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <EquationCell label="Assets" dir={equation.assets} />
-                <span className="text-lg font-bold text-muted-foreground">=</span>
-                <EquationCell label="Liabilities" dir={equation.liabilities} />
-                <span className="text-lg font-bold text-muted-foreground">+</span>
-                <EquationCell label="Equity" dir={equation.equity} />
-                <span
-                  className={cn(
-                    "ml-auto rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    equation.balanced === true && "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
-                    equation.balanced === false && "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200",
-                    equation.balanced === "unknown" && "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {equation.balanced === true ? "balances" : equation.balanced === false ? "out of balance" : "balance: unknown (no amounts yet)"}
-                </span>
-              </div>
-            </Panel>
+            )}
           </div>
         </div>
       )}
@@ -505,22 +731,49 @@ function JePrototype() {
 
 // ============ small presentational helpers ============
 
-function Panel({ title, subtitle, right, children }: {
+function Panel({
+  title,
+  subtitle,
+  right,
+  emphasis,
+  collapsible,
+  collapsed,
+  onToggle,
+  children,
+}: {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
+  emphasis?: boolean;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-2 flex items-start gap-2">
-        <div>
-          <h2 className="text-sm font-semibold">{title}</h2>
+    <section
+      className={cn("rounded-xl bg-card", emphasis ? "border-2 shadow-sm" : "border border-border")}
+      style={emphasis ? { borderColor: NAVY } : undefined}
+    >
+      <header className="flex items-start gap-2 px-3 py-2">
+        {collapsible && (
+          <button
+            onClick={onToggle}
+            className="mt-0.5 text-muted-foreground transition hover:text-foreground"
+            aria-label={collapsed ? "Expand" : "Collapse"}
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        )}
+        <div className="min-w-0">
+          <h2 className={cn("font-semibold", emphasis ? "text-base" : "text-sm")} style={emphasis ? { color: NAVY } : undefined}>
+            {title}
+          </h2>
           {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
         </div>
         {right && <div className="ml-auto">{right}</div>}
-      </div>
-      {children}
+      </header>
+      {!collapsed && <div className="px-3 pb-3">{children}</div>}
     </section>
   );
 }
@@ -536,21 +789,59 @@ function MiniBtn({ onClick, children }: { onClick: () => void; children: React.R
   );
 }
 
-function RevealCell({ revealed, onClick, children }: {
-  revealed: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function RevealCell({ revealed, onClick, children }: { revealed: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className={cn(
-        "rounded px-1 text-left transition hover:bg-muted",
-        revealed ? "" : "italic text-muted-foreground/50",
-      )}
+      className={cn("rounded px-1 text-left transition hover:bg-muted", revealed ? "" : "italic text-muted-foreground/50")}
     >
       {revealed ? children : "???"}
     </button>
+  );
+}
+
+/** Thin vertical connector arrow; lights navy when the trace runs through this level. */
+function VConnector({ active }: { active: boolean }) {
+  return (
+    <div className={cn("flex justify-center py-1", active ? "" : "text-border")} style={active ? { color: NAVY } : undefined}>
+      <svg viewBox="0 0 24 28" className="h-7 w-6" fill="none" stroke="currentColor">
+        <line x1="12" y1="0" x2="12" y2="20" strokeWidth={active ? 2 : 1.25} />
+        <path d="M7 16 L12 23 L17 16" strokeWidth={active ? 2 : 1.25} strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+/** Branching connector: the entry splits into the ledger (left) and statements (right). */
+function BranchConnector({ left, right }: { left: boolean; right: boolean }) {
+  return (
+    <div className="py-1">
+      <svg viewBox="0 0 200 36" className="mx-auto h-9 w-full max-w-lg" fill="none">
+        <line x1="100" y1="0" x2="100" y2="12" stroke="currentColor" strokeWidth={1.25} className="text-border" />
+        <g
+          className={left ? "" : "text-border"}
+          style={left ? { color: NAVY } : undefined}
+          stroke="currentColor"
+          strokeWidth={left ? 2 : 1.25}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M100 12 C100 26, 70 20, 52 30" />
+          <path d="M48 24 L52 31 L59 28" />
+        </g>
+        <g
+          className={right ? "" : "text-border"}
+          style={right ? { color: NAVY } : undefined}
+          stroke="currentColor"
+          strokeWidth={right ? 2 : 1.25}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M100 12 C100 26, 130 20, 148 30" />
+          <path d="M141 28 L148 31 L152 24" />
+        </g>
+      </svg>
+    </div>
   );
 }
 
@@ -567,6 +858,16 @@ function DirArrow({ dir }: { dir: Dir }) {
     >
       {glyph}
     </span>
+  );
+}
+
+function StatementGroup({ label, empty, children }: { label: string; empty: string; children: React.ReactNode }) {
+  const has = Array.isArray(children) ? children.length > 0 : !!children;
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      {has ? children : <p className="text-xs italic text-muted-foreground">{empty}</p>}
+    </div>
   );
 }
 
@@ -598,5 +899,28 @@ function EquationCell({ label, dir }: { label: string; dir: Dir }) {
       <span className="font-medium">{label}</span>
       <DirArrow dir={dir} />
     </span>
+  );
+}
+
+/** Conditional left sidebar for lifecycle/sequence topics — stubbed (no multi-period engine yet). */
+function SequenceSidebar({ entries, group }: { entries: EntryTemplate[]; group?: string }) {
+  return (
+    <aside className="hidden w-52 shrink-0 lg:block">
+      <div className="sticky top-4 rounded-xl border border-dashed border-border p-3">
+        <div className="text-xs font-semibold" style={{ color: NAVY }}>Sequence view</div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Coming for multi-entry topics{group ? ` (${group})` : ""}. The lifecycle's connected entries will appear here in
+          order; click one to load it.
+        </p>
+        <ol className="mt-2 space-y-1">
+          {entries.map((e, i) => (
+            <li key={e.id} className="flex gap-2 text-[11px]">
+              <span className="text-muted-foreground">{i + 1}.</span>
+              <span>{e.caption ?? `Entry ${i + 1}`}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </aside>
   );
 }
