@@ -795,12 +795,17 @@ function PricingStep({
       </Title>
 
 
-      <ul className="space-y-3 rounded-2xl border bg-gray-50 p-6 text-[15px] text-gray-800">
-        <li className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> Free 30-minute introductory session</li>
-        <li className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> Intro Accounting tutoring: <strong>$120/hour</strong></li>
-        <li className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> Intermediate Accounting tutoring: <strong>$150/hour</strong></li>
-        <li className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> Sessions meet virtually</li>
-      </ul>
+      <div className="rounded-2xl border bg-gray-50 p-6 text-center sm:p-8">
+        <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: NAVY }}>
+          Get Virtual Tutoring from Lee Ingram
+        </h2>
+        <p className="mt-3 text-lg font-bold sm:text-xl" style={{ color: NAVY }}>
+          $150/hr <span className="text-gray-400">·</span> 10 hours available each week
+        </p>
+        <p className="mt-2 text-[15px] text-gray-700">
+          Live 1-on-1 Zoom sessions, built entirely around you.
+        </p>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Button
