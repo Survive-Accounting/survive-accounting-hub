@@ -18,6 +18,10 @@ dist-ssr
 .nitro
 *.local
 
+# Build / deploy output
+.vercel/
+supabase/.temp/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

@@ -17,11 +17,15 @@ import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
-import { Route as OutreachScraperTrendsRouteImport } from './routes/outreach.scraper-trends'
+import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
+import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
+import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
+import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
@@ -71,14 +75,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OutreachIndexRoute = OutreachIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const TSlugRoute = TSlugRouteImport.update({
   id: '/t/$slug',
   path: '/t/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OutreachScraperTrendsRoute = OutreachScraperTrendsRouteImport.update({
-  id: '/scraper-trends',
-  path: '/scraper-trends',
+const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
+  id: '/students',
+  path: '/students',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachResearchRoute = OutreachResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachLeadfinderLeaderboardRoute =
@@ -92,9 +106,19 @@ const OutreachLeadfinderBatchRoute = OutreachLeadfinderBatchRouteImport.update({
   path: '/leadfinder-batch',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachCampusesRoute = OutreachCampusesRouteImport.update({
+  id: '/campuses',
+  path: '/campuses',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachCampaignTargetsRoute = OutreachCampaignTargetsRouteImport.update({
   id: '/campaign-targets',
   path: '/campaign-targets',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachCampaignMetricsRoute = OutreachCampaignMetricsRouteImport.update({
+  id: '/campaign-metrics',
+  path: '/campaign-metrics',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OShortRefRoute = OShortRefRouteImport.update({
@@ -151,11 +175,15 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
+  '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
-  '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
+  '/outreach/research': typeof OutreachResearchRoute
+  '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
+  '/outreach/': typeof OutreachIndexRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -168,17 +196,20 @@ export interface FileRoutesByTo {
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
-  '/outreach': typeof OutreachRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
+  '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
-  '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
+  '/outreach/research': typeof OutreachResearchRoute
+  '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
+  '/outreach': typeof OutreachIndexRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -198,11 +229,15 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
+  '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
-  '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
+  '/outreach/research': typeof OutreachResearchRoute
+  '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
+  '/outreach/': typeof OutreachIndexRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -223,11 +258,15 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
+    | '/outreach/campuses'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
-    | '/outreach/scraper-trends'
+    | '/outreach/research'
+    | '/outreach/students'
     | '/t/$slug'
+    | '/outreach/'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -240,17 +279,20 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/je'
     | '/onboard'
-    | '/outreach'
     | '/privacy'
     | '/start'
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
+    | '/outreach/campuses'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
-    | '/outreach/scraper-trends'
+    | '/outreach/research'
+    | '/outreach/students'
     | '/t/$slug'
+    | '/outreach'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -269,11 +311,15 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
+    | '/outreach/campuses'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
-    | '/outreach/scraper-trends'
+    | '/outreach/research'
+    | '/outreach/students'
     | '/t/$slug'
+    | '/outreach/'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -354,6 +400,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/outreach/': {
+      id: '/outreach/'
+      path: '/'
+      fullPath: '/outreach/'
+      preLoaderRoute: typeof OutreachIndexRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/t/$slug': {
       id: '/t/$slug'
       path: '/t/$slug'
@@ -361,11 +414,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/outreach/scraper-trends': {
-      id: '/outreach/scraper-trends'
-      path: '/scraper-trends'
-      fullPath: '/outreach/scraper-trends'
-      preLoaderRoute: typeof OutreachScraperTrendsRouteImport
+    '/outreach/students': {
+      id: '/outreach/students'
+      path: '/students'
+      fullPath: '/outreach/students'
+      preLoaderRoute: typeof OutreachStudentsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/research': {
+      id: '/outreach/research'
+      path: '/research'
+      fullPath: '/outreach/research'
+      preLoaderRoute: typeof OutreachResearchRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/outreach/leadfinder-leaderboard': {
@@ -382,11 +442,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLeadfinderBatchRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/campuses': {
+      id: '/outreach/campuses'
+      path: '/campuses'
+      fullPath: '/outreach/campuses'
+      preLoaderRoute: typeof OutreachCampusesRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/campaign-targets': {
       id: '/outreach/campaign-targets'
       path: '/campaign-targets'
       fullPath: '/outreach/campaign-targets'
       preLoaderRoute: typeof OutreachCampaignTargetsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/campaign-metrics': {
+      id: '/outreach/campaign-metrics'
+      path: '/campaign-metrics'
+      fullPath: '/outreach/campaign-metrics'
+      preLoaderRoute: typeof OutreachCampaignMetricsRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/o/$shortRef': {
@@ -465,19 +539,27 @@ const CeqRouteChildren: CeqRouteChildren = {
 const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
 interface OutreachRouteChildren {
+  OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
+  OutreachCampusesRoute: typeof OutreachCampusesRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
-  OutreachScraperTrendsRoute: typeof OutreachScraperTrendsRoute
+  OutreachResearchRoute: typeof OutreachResearchRoute
+  OutreachStudentsRoute: typeof OutreachStudentsRoute
+  OutreachIndexRoute: typeof OutreachIndexRoute
   OutreachLeadfinderCampusIdRoute: typeof OutreachLeadfinderCampusIdRoute
   OutreachLeadfinderIndexRoute: typeof OutreachLeadfinderIndexRoute
 }
 
 const OutreachRouteChildren: OutreachRouteChildren = {
+  OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
+  OutreachCampusesRoute: OutreachCampusesRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
-  OutreachScraperTrendsRoute: OutreachScraperTrendsRoute,
+  OutreachResearchRoute: OutreachResearchRoute,
+  OutreachStudentsRoute: OutreachStudentsRoute,
+  OutreachIndexRoute: OutreachIndexRoute,
   OutreachLeadfinderCampusIdRoute: OutreachLeadfinderCampusIdRoute,
   OutreachLeadfinderIndexRoute: OutreachLeadfinderIndexRoute,
 }
