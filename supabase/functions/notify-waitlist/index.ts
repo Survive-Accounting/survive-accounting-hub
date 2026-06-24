@@ -6,6 +6,10 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
 const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
 const TWILIO_MSID = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID") ?? "";
+// REST auth: prefer a scoped API key (SK…); the Account SID (AC…) always stays
+// in the URL path. Falls back to AccountSid:AuthToken if no API key is set.
+const TWILIO_AUTH_USER = (Deno.env.get("TWILIO_API_KEY_SID") ?? "") || TWILIO_SID;
+const TWILIO_AUTH_PASS = (Deno.env.get("TWILIO_API_KEY_SECRET") ?? "") || TWILIO_TOKEN;
 const LEE_PHONE = (Deno.env.get("LEE_PERSONAL_PHONE") ?? "").replace(/[^+\d]/g, "");
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
@@ -15,7 +19,7 @@ Deno.serve(async (req) => {
   if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
   }
-  if (!TWILIO_SID || !TWILIO_TOKEN || !LEE_PHONE) {
+  if (!TWILIO_SID || !TWILIO_AUTH_PASS || !LEE_PHONE) {
     return new Response(JSON.stringify({ ok: true, skipped: "twilio or phone not configured" }));
   }
 
@@ -41,7 +45,7 @@ Deno.serve(async (req) => {
   await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`, {
     method: "POST",
     headers: {
-      Authorization: "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`),
+      Authorization: "Basic " + btoa(`${TWILIO_AUTH_USER}:${TWILIO_AUTH_PASS}`),
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({ MessagingServiceSid: TWILIO_MSID, To: LEE_PHONE, Body: lines.join("\n") }),

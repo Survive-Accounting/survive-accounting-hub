@@ -75,7 +75,7 @@ select cron.schedule(
   '* * * * *',
   $$
   select net.http_post(
-    url := 'https://dhlzorresurzlcpuplkv.supabase.co/functions/v1/sms-process-outbox',
+    url := 'https://unvxagsledbsdoremqeb.supabase.co/functions/v1/sms-process-outbox',
     headers := '{"Content-Type":"application/json","x-cron-secret":"sa-cron-7kQ2vXp9mN4t"}'::jsonb,
     body := '{}'::jsonb
   );

@@ -884,6 +884,48 @@ async function enrichProfileEmails(
         links: profileLinks ?? person.links,
       };
     }
+    // Throttle recovery: anti-bot directories often return EMPTY payloads from
+    // the single batch call even though per-URL scrapes succeed. Retry the
+    // empties individually (bounded by the per-host fail limit) so one
+    // rate-limited batch doesn't cost us a whole department's emails (e.g. UGA
+    // Terry: a throttled run yields ~4 emails, a clean one yields ~50).
+    const retryIdx: number[] = [];
+    for (let i = 0; i < toEnrich.length; i++) {
+      if (!enrichedRows[i]?.email && outcomes[i]?.result === "empty" && !isHostBlocked(toEnrich[i].profile_url!)) {
+        retryIdx.push(i);
+      }
+    }
+    if (retryIdx.length > 0) {
+      let rc = 0;
+      const retryWorkers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, retryIdx.length) }, async () => {
+        while (true) {
+          const k = rc++;
+          if (k >= retryIdx.length) return;
+          const i = retryIdx[k];
+          const person = toEnrich[i];
+          if (isHostBlocked(person.profile_url!)) continue;
+          try {
+            const { markdown, rawHtml } = await firecrawlScrapeFull(fcKey, person.profile_url!);
+            const { email, how } = pickEmail(markdown, rawHtml);
+            bumpHost(person.profile_url!, !(markdown || rawHtml));
+            if (email) {
+              enriched++;
+              outcomes[i] = { url: person.profile_url!, name: `${person.first_name} ${person.last_name}`.trim(), result: how, mdLen: markdown.length, htmlLen: rawHtml.length };
+              enrichedRows[i] = {
+                ...person,
+                email,
+                title: person.title ?? extractProfileTitle(markdown, person.first_name, person.last_name),
+                is_phd: person.is_phd || detectCredentials(markdown.slice(0, 4000)).is_phd,
+                is_cpa: person.is_cpa || detectCredentials(markdown.slice(0, 4000)).is_cpa,
+              };
+            }
+          } catch {
+            bumpHost(person.profile_url!, true);
+          }
+        }
+      });
+      await Promise.all(retryWorkers);
+    }
   } else {
     // Fallback: per-URL parallel scrape with bounded concurrency. Uses the
     // FULL scrape (markdown + rawHtml) so the mailto: fallback can fire
@@ -1652,7 +1694,7 @@ async function callAiGatewayWithPdf(
 // the AI extractor. These rows can never match an RMP teacher (no real
 // person name) and pollute the triage panel. Reject them here.
 const NON_PERSON_NAME_RE =
-  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release|headshot|photo|portrait|image|directory|faculty|staff|international students|information technology|technology|university|universities|lettermark|logo|wordmark|map|sitemap|alumni|giving|athletics|libraries|admissions|administration|calendar|calendars|menu|navigation|footer|header|programs?|\bbba\b|\bmba\b|undergraduate|curriculum|overview)\b/i;
+  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release|headshot|photo|photograph|picture|image|portrait|avatar|\bicon\b|directory|faculty|staff|international students|information technology|technology|university|universities|lettermark|logo|wordmark|map|sitemap|alumni|giving|athletics|libraries|admissions|administration|calendar|calendars|menu|navigation|footer|header|programs?|\bbba\b|\bmba\b|undergraduate|curriculum|overview)\b/i;
 const HEADLINE_VERB_RE =
   /^(show|invest|learn|read|view|click|apply|submit|get|discover|explore|join|meet|find|sign|subscribe|follow|share|donate|give)\b/i;
 const NAME_TOKEN_RE = /^[A-Za-z][A-Za-z'`\-.]{1,}$/;
@@ -1692,6 +1734,7 @@ export type PersonRejectReason =
   | "title_is_url"
   | "title_is_section_label"
   | "generic_email_local"
+  | "asset_email"
   | "wrong_discipline";
 
 // A title that names a NON-accounting business discipline. Used as a
@@ -1744,6 +1787,12 @@ export function isLikelyPersonRow(p: {
 
   const email = (p.email ?? "").trim().toLowerCase();
   if (email.includes("@")) {
+    const domain = email.split("@")[1] ?? "";
+    // Image/asset filenames scraped as emails, e.g. "donations.jpg" parsed as
+    // "don@ions.jpg". A real email domain never ends in an asset extension.
+    if (/\.(jpe?g|png|gif|svg|webp|bmp|ico|pdf|css|js|tiff?|mp4|woff2?)$/i.test(domain)) {
+      return { ok: false, reason: "asset_email" };
+    }
     const local = email.split("@")[0]?.replace(/[.+-].*/, "") ?? "";
     if (GENERIC_EMAIL_LOCALS.has(local)) return { ok: false, reason: "generic_email_local" };
   }
@@ -1965,6 +2014,31 @@ async function processUrls(
         // works for any school whose directory paginates without a URL
         // change (IU Kelley, many Drupal/WordPress sites, etc.).
         const isNewsForPagination = looksLikeNewsPage(url);
+
+        // ---- SPA / JS-rendered directory recovery -------------------------
+        // Some directories render the faculty grid entirely via client-side JS,
+        // so Firecrawl's first-pass markdown has the chrome but ZERO parseable
+        // people (e.g. UT-Austin McCombs: found=0 with 30KB of markdown). When
+        // page-1 parsed nobody yet the page is substantial, force a scroll-based
+        // JS render and re-extract before the pagination logic runs.
+        if (merged.length === 0 && md.length > 2000 && !isNewsForPagination) {
+          try {
+            const jsWalk = await scrapeWithScrollActions(fcKey, url, MAX_PAGINATION_PAGES);
+            if (jsWalk.markdown.length > md.length) {
+              const jsExtract = extractDirectoryMarkdownPeople(jsWalk.markdown);
+              const jsAi = await callAiGateway(aiKey, url, jsWalk.markdown.slice(0, 80_000));
+              const reMerged = mergePeople(mergePeople(parsedPeople, jsExtract), mergePeople(aiPeople, jsAi));
+              if (reMerged.length > merged.length) {
+                parsedPeople = mergePeople(parsedPeople, jsExtract);
+                aiPeople = mergePeople(aiPeople, jsAi);
+                merged = reMerged;
+                md = jsWalk.markdown.slice(0, 200_000);
+                cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+              }
+            }
+          } catch { /* best-effort JS render */ }
+        }
+
         let pagination: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number } | null = null;
         if (!isNewsForPagination) {
           const pdetect = detectPagination(md, initialRawHtml, merged.length);

@@ -30,7 +30,7 @@ select cron.schedule(
   '*/15 * * * *',
   $$
   select net.http_post(
-    url := 'https://dhlzorresurzlcpuplkv.supabase.co/functions/v1/outreach-scheduler',
+    url := 'https://unvxagsledbsdoremqeb.supabase.co/functions/v1/outreach-scheduler',
     headers := '{"Content-Type":"application/json","x-cron-secret":"sa-cron-7kQ2vXp9mN4t"}'::jsonb,
     body := '{}'::jsonb
   );
