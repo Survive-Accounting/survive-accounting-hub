@@ -532,12 +532,12 @@ function courseFamilyFromSubmission(
 
 export type OnboardingBookingInfo = { bookingUrl: string | null; family: BookingFamilyKey | null };
 
-// Resolves the course-specific Square booking URL for this student, mirroring
-// computeIntakeRouting's gating + fallback chain but server-side via the admin
-// client. Returns bookingUrl=null whenever the course isn't bookable for the
-// student (no campus, family disabled, textbook unmatched, or no URL set) — the
-// same situations that route to waitlist_review at /start. The UI shows the
-// "I'll text you a time" fallback in that case rather than a dead button.
+// Resolves the Square booking URL for this student by their course family.
+// Each family (intro_1/intro_2/intermediate_1/intermediate_2) has one global
+// link in outreach_settings (id=1); every student in that family gets it,
+// regardless of campus. Returns bookingUrl=null only when we can't determine a
+// family (e.g. "Not sure" / free-text course) or no link is configured — the UI
+// then shows the "I'll text you a time" fallback instead of a dead button.
 export const getOnboardingBookingUrl = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => shortRefSchema.parse(data))
   .handler(async ({ data }): Promise<OnboardingBookingInfo> => {
@@ -545,7 +545,7 @@ export const getOnboardingBookingUrl = createServerFn({ method: "GET" })
 
     const { data: sub } = await supabaseAdmin
       .from("student_intake_submissions")
-      .select("campus_id,course_family,course_code_or_name")
+      .select("course_family,course_code_or_name")
       .eq("id", submissionId)
       .single();
 
@@ -555,35 +555,14 @@ export const getOnboardingBookingUrl = createServerFn({ method: "GET" })
     );
     if (!family) return { bookingUrl: null, family: null };
 
-    // Global outreach settings (singleton row id = 1). Cast to `any` to allow the
-    // dynamic `${family}_availability` / `square_booking_url_${family}` lookups.
+    // Per-family Square links live on outreach_settings (singleton row id=1).
+    // Cast to `any`: these columns aren't in the generated types.
     const { data: settings } = await (supabaseAdmin.from("outreach_settings" as never) as any)
-      .select("intro_1_availability,intro_2_availability,intermediate_1_availability,intermediate_2_availability,square_booking_url,square_booking_url_intro_1,square_booking_url_intro_2,square_booking_url_intermediate_1,square_booking_url_intermediate_2")
+      .select("square_booking_url_intro_1,square_booking_url_intro_2,square_booking_url_intermediate_1,square_booking_url_intermediate_2")
       .eq("id", 1)
       .maybeSingle();
 
-    if ((settings?.[`${family}_availability`] ?? null) !== "available") {
-      return { bookingUrl: null, family };
-    }
-
-    const campusId = (sub?.campus_id as string | null) ?? null;
-    if (!campusId) return { bookingUrl: null, family };
-
-    const { data: avail } = await (supabaseAdmin.from("campus_course_availability" as never) as any)
-      .select("tutoring_availability,textbook_match_status,booking_url")
-      .eq("campus_id", campusId)
-      .eq("course_family", family)
-      .maybeSingle();
-
-    if ((avail?.tutoring_availability ?? null) !== "available") return { bookingUrl: null, family };
-    if ((avail?.textbook_match_status ?? null) !== "matched") return { bookingUrl: null, family };
-
-    const bookingUrl: string | null =
-      avail?.booking_url ||
-      settings?.[`square_booking_url_${family}`] ||
-      settings?.square_booking_url ||
-      null;
-
+    const bookingUrl: string | null = settings?.[`square_booking_url_${family}`] || null;
     return { bookingUrl, family };
   });
 

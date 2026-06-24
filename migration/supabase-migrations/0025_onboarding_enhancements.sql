@@ -21,6 +21,16 @@ alter table public.student_intake_submissions
 alter table public.sms_conversations
   add column if not exists last_auto_reply_at timestamptz;
 
+-- 2b) Per-course-family Square booking links for the booking step. These columns
+--     were defined in the Lovable-era schema but never applied to the live
+--     outreach_settings table (which is a stub), so add them defensively. The
+--     URL *values* are config — set them in outreach_settings (id=1), not here.
+alter table public.outreach_settings
+  add column if not exists square_booking_url_intro_1 text,
+  add column if not exists square_booking_url_intro_2 text,
+  add column if not exists square_booking_url_intermediate_1 text,
+  add column if not exists square_booking_url_intermediate_2 text;
+
 -- 3) Seed the generic auto-reply template so Lee can edit it without a deploy.
 --    Code carries the same copy as a FALLBACK, so this seed is optional; we use
 --    a NOT EXISTS guard (rather than ON CONFLICT) to stay idempotent regardless
