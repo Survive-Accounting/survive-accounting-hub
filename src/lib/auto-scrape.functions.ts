@@ -149,7 +149,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
     // libraries/archives (uflib, findingaids, /spec/, /archives/), CGI
     // viewers (/cgi/viewcontent), PDFs, journals, news, courses/syllabi.
     const NON_DIRECTORY_HOST_RE =
-      /^(scholarship|digitalcommons|commons|repository|repositories|library|libraries|lib|uflib|archives|archive|journals|journal|news|newsroom|blog|today|magazine|press|catalog|catalogue|registrar|bulletin|courses)$/i;
+      /^(scholarship|digitalcommons|commons|repository|repositories|library|libraries|lib|uflib|archives|archive|journals|journal|news|newsroom|blog|today|magazine|press|catalog|catalogue|registrar|bulletin|courses|egrove|scholarworks|scholarsarchive|scholarscompass|epublications|ideaexchange|openscholarship|trace|aquila|stars|knowledge|ir)$/i;
     const NON_DIRECTORY_PATH_RE =
       /(\/cgi\/|\/viewcontent|\/spec\/|\/archives?\/|\/findingaids?|\/repositor(y|ies)\/|\/journals?\/|\/proceedings?\/|\/papers?\/|\/publications?\/|\/research-?papers?\/|\/abstract\/|\/article\/|\/issues?\/|\/volumes?\/|\.pdf(\?|$)|\.docx?(\?|$))/i;
     const DIRECTORY_PATH_RE =

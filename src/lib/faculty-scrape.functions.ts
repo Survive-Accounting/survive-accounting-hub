@@ -884,6 +884,48 @@ async function enrichProfileEmails(
         links: profileLinks ?? person.links,
       };
     }
+    // Throttle recovery: anti-bot directories often return EMPTY payloads from
+    // the single batch call even though per-URL scrapes succeed. Retry the
+    // empties individually (bounded by the per-host fail limit) so one
+    // rate-limited batch doesn't cost us a whole department's emails (e.g. UGA
+    // Terry: a throttled run yields ~4 emails, a clean one yields ~50).
+    const retryIdx: number[] = [];
+    for (let i = 0; i < toEnrich.length; i++) {
+      if (!enrichedRows[i]?.email && outcomes[i]?.result === "empty" && !isHostBlocked(toEnrich[i].profile_url!)) {
+        retryIdx.push(i);
+      }
+    }
+    if (retryIdx.length > 0) {
+      let rc = 0;
+      const retryWorkers = Array.from({ length: Math.min(PROFILE_ENRICH_CONCURRENCY, retryIdx.length) }, async () => {
+        while (true) {
+          const k = rc++;
+          if (k >= retryIdx.length) return;
+          const i = retryIdx[k];
+          const person = toEnrich[i];
+          if (isHostBlocked(person.profile_url!)) continue;
+          try {
+            const { markdown, rawHtml } = await firecrawlScrapeFull(fcKey, person.profile_url!);
+            const { email, how } = pickEmail(markdown, rawHtml);
+            bumpHost(person.profile_url!, !(markdown || rawHtml));
+            if (email) {
+              enriched++;
+              outcomes[i] = { url: person.profile_url!, name: `${person.first_name} ${person.last_name}`.trim(), result: how, mdLen: markdown.length, htmlLen: rawHtml.length };
+              enrichedRows[i] = {
+                ...person,
+                email,
+                title: person.title ?? extractProfileTitle(markdown, person.first_name, person.last_name),
+                is_phd: person.is_phd || detectCredentials(markdown.slice(0, 4000)).is_phd,
+                is_cpa: person.is_cpa || detectCredentials(markdown.slice(0, 4000)).is_cpa,
+              };
+            }
+          } catch {
+            bumpHost(person.profile_url!, true);
+          }
+        }
+      });
+      await Promise.all(retryWorkers);
+    }
   } else {
     // Fallback: per-URL parallel scrape with bounded concurrency. Uses the
     // FULL scrape (markdown + rawHtml) so the mailto: fallback can fire
