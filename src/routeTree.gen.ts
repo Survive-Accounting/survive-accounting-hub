@@ -21,6 +21,7 @@ import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as OutreachScraperTrendsRouteImport } from './routes/outreach.scraper-trends'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
+import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
@@ -91,6 +92,11 @@ const OutreachLeadfinderBatchRoute = OutreachLeadfinderBatchRouteImport.update({
   path: '/leadfinder-batch',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachCampaignTargetsRoute = OutreachCampaignTargetsRouteImport.update({
+  id: '/campaign-targets',
+  path: '/campaign-targets',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OShortRefRoute = OShortRefRouteImport.update({
   id: '/o/$shortRef',
   path: '/o/$shortRef',
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/scraper-trends': typeof OutreachScraperTrendsRoute
@@ -214,6 +223,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/campaign-targets'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/scraper-trends'
@@ -236,6 +246,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/campaign-targets'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/scraper-trends'
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/outreach/campaign-targets'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/scraper-trends'
@@ -370,6 +382,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLeadfinderBatchRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/campaign-targets': {
+      id: '/outreach/campaign-targets'
+      path: '/campaign-targets'
+      fullPath: '/outreach/campaign-targets'
+      preLoaderRoute: typeof OutreachCampaignTargetsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/o/$shortRef': {
       id: '/o/$shortRef'
       path: '/o/$shortRef'
@@ -446,6 +465,7 @@ const CeqRouteChildren: CeqRouteChildren = {
 const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
 interface OutreachRouteChildren {
+  OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
   OutreachScraperTrendsRoute: typeof OutreachScraperTrendsRoute
@@ -454,6 +474,7 @@ interface OutreachRouteChildren {
 }
 
 const OutreachRouteChildren: OutreachRouteChildren = {
+  OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
   OutreachScraperTrendsRoute: OutreachScraperTrendsRoute,
