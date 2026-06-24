@@ -1652,7 +1652,7 @@ async function callAiGatewayWithPdf(
 // the AI extractor. These rows can never match an RMP teacher (no real
 // person name) and pollute the triage panel. Reject them here.
 const NON_PERSON_NAME_RE =
-  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release|headshot|photo|portrait|image|directory|faculty|staff|international students|information technology|technology|university|universities|lettermark|logo|wordmark|map|sitemap|alumni|giving|athletics|libraries|admissions|administration|calendar|calendars|menu|navigation|footer|header|programs?|\bbba\b|\bmba\b|undergraduate|curriculum|overview)\b/i;
+  /\b(college|school|department|news|noteworthy|invest|support|application|scholar|assistantship|award|tips|game plan|click here|learn more|read more|donate|view all|story|stories|spotlight|event|press release|headshot|photo|photograph|picture|image|portrait|avatar|\bicon\b|directory|faculty|staff|international students|information technology|technology|university|universities|lettermark|logo|wordmark|map|sitemap|alumni|giving|athletics|libraries|admissions|administration|calendar|calendars|menu|navigation|footer|header|programs?|\bbba\b|\bmba\b|undergraduate|curriculum|overview)\b/i;
 const HEADLINE_VERB_RE =
   /^(show|invest|learn|read|view|click|apply|submit|get|discover|explore|join|meet|find|sign|subscribe|follow|share|donate|give)\b/i;
 const NAME_TOKEN_RE = /^[A-Za-z][A-Za-z'`\-.]{1,}$/;
