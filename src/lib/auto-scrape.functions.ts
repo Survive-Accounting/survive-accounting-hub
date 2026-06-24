@@ -87,7 +87,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
 
     const { data: campus, error } = await supabaseAdmin
       .from("campuses")
-      .select("id,name,website_url,accounting_department_url,domains")
+      .select("id,name,website_url,accounting_department_url,faculty_page_url,domains")
       .eq("id", data.campusId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -193,7 +193,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
         return false;
       }
       const lower = txt.toLowerCase();
-      const badHints = ["/news", "/event", "/podcast", "/award", "/spotlight", "/story", "/stories"];
+      const badHints = ["/news", "/event", "/podcast", "/award", "/spotlight", "/story", "/stories", "/blog", "/article", "/case-stud", "/casestud"];
       if (badHints.some((b) => lower.includes(b))) return false;
       return true;
     };
@@ -221,7 +221,7 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       try { pathname = new URL(link).pathname.toLowerCase(); } catch { /* keep raw */ }
       if (NON_DIRECTORY_PATH_RE.test(pathname)) return false;
       const lower = `${link} ${title}`.toLowerCase();
-      if (["/news", "/event", "/podcast", "/award", "/spotlight", "/story", "/stories"].some((b) => lower.includes(b))) return false;
+      if (["/news", "/event", "/podcast", "/award", "/spotlight", "/story", "/stories", "/blog", "/article", "/case-stud", "/casestud"].some((b) => lower.includes(b))) return false;
       // Individual person profile (low cross-discipline risk — SerpAPI already
       // ranked it for the accounting query) …
       if (PROFILE_SLUG_RE.test(pathname)) return true;
@@ -264,6 +264,37 @@ export const autoDiscoverCampusUrls = createServerFn({ method: "POST" })
       fb.sort((a, b) => score(b) - score(a));
       facultyUrlsCapped = fb.slice(0, 3);
       usedFallback = facultyUrlsCapped.length > 0;
+    }
+
+    // Tier 3 — last resort: the campus's OWN stored accounting-dept / faculty
+    // URL (from import or a prior run). Critical when SerpAPI returns only junk
+    // (e.g. Ole Miss: every result is an eGrove archive PDF titled "Directory of
+    // Accounting Faculty", so nothing survives the filters). The dept URL is
+    // usually a clean subdomain (accountancy.olemiss.edu) the faculty scrape's
+    // map fallback can expand into the real roster. Filtered through the same
+    // junk guards so a polluted stored URL (eGrove, a /blog/ post) can't sneak in.
+    if (facultyUrlsCapped.length === 0) {
+      const storedRaw: string[] = [];
+      const fpu = campus.faculty_page_url as string | null;
+      const adu = campus.accounting_department_url as string | null;
+      // accounting_department_url is import-sourced (cleaner) so prefer it.
+      if (typeof adu === "string") storedRaw.push(...adu.split(/\s+/));
+      if (typeof fpu === "string") storedRaw.push(...fpu.split(/\s+/));
+      const storedClean = storedRaw.filter((u) => {
+        if (!/^https?:\/\//i.test(u)) return false;
+        const hh = hostOf(u);
+        if (NON_DIRECTORY_HOST_RE.test(hh.split(".")[0] ?? "")) return false;
+        let path = u.toLowerCase();
+        try { path = new URL(u).pathname.toLowerCase(); } catch { /* keep raw */ }
+        if (NON_DIRECTORY_PATH_RE.test(path)) return false;
+        if (/\/(blog|news|article|story|stories|press|event)\b/i.test(path)) return false;
+        return true;
+      });
+      if (storedClean.length > 0) {
+        facultyUrlsCapped = Array.from(new Set(storedClean)).slice(0, 2);
+        usedFallback = true;
+        notes.push(`faculty: SerpAPI returned nothing usable — falling back to stored dept/faculty URL(s): ${facultyUrlsCapped.join(", ")}`);
+      }
     }
 
     const noAccountingDept = facultyUrlsCapped.length === 0;

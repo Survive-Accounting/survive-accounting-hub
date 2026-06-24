@@ -1734,6 +1734,7 @@ export type PersonRejectReason =
   | "title_is_url"
   | "title_is_section_label"
   | "generic_email_local"
+  | "asset_email"
   | "wrong_discipline";
 
 // A title that names a NON-accounting business discipline. Used as a
@@ -1786,6 +1787,12 @@ export function isLikelyPersonRow(p: {
 
   const email = (p.email ?? "").trim().toLowerCase();
   if (email.includes("@")) {
+    const domain = email.split("@")[1] ?? "";
+    // Image/asset filenames scraped as emails, e.g. "donations.jpg" parsed as
+    // "don@ions.jpg". A real email domain never ends in an asset extension.
+    if (/\.(jpe?g|png|gif|svg|webp|bmp|ico|pdf|css|js|tiff?|mp4|woff2?)$/i.test(domain)) {
+      return { ok: false, reason: "asset_email" };
+    }
     const local = email.split("@")[0]?.replace(/[.+-].*/, "") ?? "";
     if (GENERIC_EMAIL_LOCALS.has(local)) return { ok: false, reason: "generic_email_local" };
   }
@@ -2007,6 +2014,31 @@ async function processUrls(
         // works for any school whose directory paginates without a URL
         // change (IU Kelley, many Drupal/WordPress sites, etc.).
         const isNewsForPagination = looksLikeNewsPage(url);
+
+        // ---- SPA / JS-rendered directory recovery -------------------------
+        // Some directories render the faculty grid entirely via client-side JS,
+        // so Firecrawl's first-pass markdown has the chrome but ZERO parseable
+        // people (e.g. UT-Austin McCombs: found=0 with 30KB of markdown). When
+        // page-1 parsed nobody yet the page is substantial, force a scroll-based
+        // JS render and re-extract before the pagination logic runs.
+        if (merged.length === 0 && md.length > 2000 && !isNewsForPagination) {
+          try {
+            const jsWalk = await scrapeWithScrollActions(fcKey, url, MAX_PAGINATION_PAGES);
+            if (jsWalk.markdown.length > md.length) {
+              const jsExtract = extractDirectoryMarkdownPeople(jsWalk.markdown);
+              const jsAi = await callAiGateway(aiKey, url, jsWalk.markdown.slice(0, 80_000));
+              const reMerged = mergePeople(mergePeople(parsedPeople, jsExtract), mergePeople(aiPeople, jsAi));
+              if (reMerged.length > merged.length) {
+                parsedPeople = mergePeople(parsedPeople, jsExtract);
+                aiPeople = mergePeople(aiPeople, jsAi);
+                merged = reMerged;
+                md = jsWalk.markdown.slice(0, 200_000);
+                cache[url] = { markdown: md, links: links.slice(0, 2000), scraped_at: new Date().toISOString() };
+              }
+            }
+          } catch { /* best-effort JS render */ }
+        }
+
         let pagination: { paginated: boolean; signal?: string; pagesWalked: number; clickMissed: boolean; gained: number } | null = null;
         if (!isNewsForPagination) {
           const pdetect = detectPagination(md, initialRawHtml, merged.length);
