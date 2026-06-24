@@ -120,7 +120,7 @@ export const getOnboarding = createServerFn({ method: "GET" })
         .eq("id", submissionId);
     }
 
-    // Booking columns (migration 0021) are read separately and defensively: if
+    // Booking columns (migration 0025) are read separately and defensively: if
     // the migration hasn't been applied yet, this query just returns no row
     // (PostgREST 400 → null data, no throw) instead of breaking the whole
     // snapshot, so the rest of onboarding keeps working.
@@ -601,7 +601,7 @@ export const confirmOnboardingBooking = createServerFn({ method: "POST" })
       booking_step_completed_at: now,
     };
     if (data.confirmed) update.booking_confirmed_at = now;
-    // Cast: booking_* columns are added by migration 0021, not yet in types.
+    // Cast: booking_* columns are added by migration 0025, not yet in types.
     const { error } = await (supabaseAdmin.from("student_intake_submissions") as any)
       .update(update)
       .eq("id", submissionId);

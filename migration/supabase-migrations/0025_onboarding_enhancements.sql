@@ -1,4 +1,4 @@
--- 0021_onboarding_enhancements.sql
+-- 0025_onboarding_enhancements.sql
 -- Onboarding flow enhancements (idempotent — safe to run more than once).
 --
 -- 1) Booking step: track whether a student confirmed (or just saw) the
@@ -7,10 +7,10 @@
 --    cooldown-based generic auto-reply. `opener_sent` is intentionally kept for
 --    backward-compat; `last_auto_reply_at` is the new gate.
 --
--- Numbered 0021 = next after main's highest (0020), per docs/DEPLOY.md.
--- HEADS-UP: the concurrent JE-tool branch also wrote a `0021_je_scenarios.sql`.
--- When these branches merge, renumber one of them so there are no duplicate
--- numbers, and apply them in order.
+-- Numbered 0025 = next free after the scraper session's applied 0021-0024
+-- (per CONTEXT_SCRAPER_SESSION.md, live DB is migrated through 0024). The
+-- concurrent JE-tool branch also wrote a `0021_je_scenarios.sql`; renumber as
+-- needed so there are no duplicate numbers when branches merge.
 
 -- 1) Booking step columns -----------------------------------------------------
 alter table public.student_intake_submissions
