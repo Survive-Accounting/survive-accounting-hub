@@ -8,6 +8,10 @@ const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
 const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const TWILIO_MSID = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID") ?? "";
+// REST auth: prefer a scoped API key (SK…); the Account SID (AC…) always stays
+// in the URL path. Falls back to AccountSid:AuthToken if no API key is set.
+const TWILIO_AUTH_USER = (Deno.env.get("TWILIO_API_KEY_SID") ?? "") || TWILIO_SID;
+const TWILIO_AUTH_PASS = (Deno.env.get("TWILIO_API_KEY_SECRET") ?? "") || TWILIO_TOKEN;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -50,7 +54,7 @@ Deno.serve(async (req) => {
       {
         method: "POST",
         headers: {
-          Authorization: "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`),
+          Authorization: "Basic " + btoa(`${TWILIO_AUTH_USER}:${TWILIO_AUTH_PASS}`),
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: sendParams,

@@ -7,6 +7,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
 const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
+// REST auth: prefer a scoped API key (SK…); the Account SID (AC…) always stays
+// in the URL path. Falls back to AccountSid:AuthToken if no API key is set.
+const TWILIO_AUTH_USER = (Deno.env.get("TWILIO_API_KEY_SID") ?? "") || TWILIO_SID;
+const TWILIO_AUTH_PASS = (Deno.env.get("TWILIO_API_KEY_SECRET") ?? "") || TWILIO_TOKEN;
 const PROJECT_FN = `${SUPABASE_URL}/functions/v1`;
 
 const cors = {
@@ -15,12 +19,12 @@ const cors = {
 };
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-const twilioAuth = "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`);
+const twilioAuth = "Basic " + btoa(`${TWILIO_AUTH_USER}:${TWILIO_AUTH_PASS}`);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    if (!TWILIO_SID || !TWILIO_TOKEN) {
+    if (!TWILIO_SID || !TWILIO_AUTH_PASS) {
       return new Response(JSON.stringify({ error: "Twilio secrets not set" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
     }
     const body = await req.json().catch(() => ({}));
