@@ -32,6 +32,13 @@ export interface ScenarioDoc {
   principleKeys?: string[]; // e.g. ["historical_cost","matching"]
   axes: ConditionAxis[]; // declared condition dimensions (render as toggles)
   variants: Variant[]; // enumerated; each tagged with its condition values
+
+  // ---- v2 UI flags (optional; default off). These gate placeholder sections in /je.
+  // They live in the jsonb doc so no schema change is needed to toggle them per scenario.
+  // The engine never branches on these — they are presentation hints only, so this stays pure.
+  isSequence?: boolean; // lifecycle/multi-entry topic → show the (stubbed) sequence sidebar
+  sequenceGroup?: string; // optional group key tying related sequence scenarios together
+  hasMemorizationGrid?: boolean; // topic with a memorize-this grid (bonds, merchandising) → show placeholder grid
 }
 
 export interface ConditionAxis {
