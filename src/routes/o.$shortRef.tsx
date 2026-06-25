@@ -1,5 +1,10 @@
-// /o/{short_ref} — Simplified 3-step tutoring request.
-// 1) Your info  →  2) Confirm pricing  →  3) Optional extras + submit  →  success.
+// /o/{short_ref} — Plan-first onboarding, 2 steps, waitlist-based.
+// 1) Confirm Plan  →  2) Confirmation (you're set + optional details).
+// Prepay is stubbed behind ENABLE_PREPAY (see src/lib/site-config.ts); while off
+// the Premium 1-on-1 plan is captured like the materials tiers, with reservation
+// framing. The legacy 3-step components below (InfoStep/PricingStep/ExtrasStep/
+// BookingStep/SuccessScreen) are retained for the booking flow but no longer
+// drive the wizard.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -25,6 +30,17 @@ import {
   type OnboardingSnapshot,
 } from "@/lib/onboarding.functions";
 import leeHeadshot from "@/assets/lee-headshot-original.png";
+import PricingPlans, {
+  type PricingPlanKey,
+  TEST_PASS_PRICE,
+  TEST_PASS_WAS,
+  MEMBERSHIP_PRICE,
+  MEMBERSHIP_WAS,
+  PREPAY_PRICE,
+  PREPAY_WAS,
+} from "@/components/landing/PricingPlans";
+import { joinOnboardingWaitlist } from "@/lib/pricing-api";
+import { ENABLE_PREPAY, STRIPE_TUTORING_PAYMENT_LINK } from "@/lib/site-config";
 
 const LEE_PHONE_DISPLAY = "(662) 565-8818";
 const LEE_PHONE_HREF = "+16625658818";
@@ -174,22 +190,18 @@ function draftFromSnapshot(s: OnboardingSnapshot): Draft {
 
 function OnboardingPage() {
   const { shortRef } = Route.useParams();
-  const { data, refetch } = useSuspenseQuery(onboardingQuery(shortRef));
+  const { data } = useSuspenseQuery(onboardingQuery(shortRef));
+  void shortRef;
 
-  // Steps 0–2 are the wizard, 3 is the booking step (after submit), 4 is success.
-  // A returning student who already finished lands on success, which still
-  // surfaces the booking button when they haven't confirmed a call yet.
-  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(data.onboardingFinishedAt ? 4 : 0);
-  const [draft, setDraft] = useState<Draft>(() => draftFromSnapshot(data));
+  // 2-step, plan-first: 0 = Confirm Plan, 1 = Confirmation.
+  const [step, setStep] = useState<0 | 1>(0);
+  const [plan, setPlan] = useState<PricingPlanKey | null>(null);
 
-  // Refresh draft if snapshot changes (e.g. after refetch)
-  useEffect(() => { setDraft(draftFromSnapshot(data)); }, [data]);
-
-  const update = <K extends keyof Draft>(k: K, v: Draft[K]) =>
-    setDraft((p) => ({ ...p, [k]: v }));
-
-  const firstName = draft.firstName.trim().split(/\s+/)[0] || "";
-  const hasName = firstName.length > 0 && step > 0;
+  const choosePlan = (p: PricingPlanKey) => {
+    setPlan(p);
+    setStep(1);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
@@ -209,47 +221,15 @@ function OnboardingPage() {
       </header>
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-14 pt-8 sm:pt-12 lg:grid-cols-[1fr_240px]">
         <div className="min-w-0">
-          {step < 3 && <Stepper current={step as 0 | 1 | 2} />}
+          <TwoStepBar current={step} />
 
           <div className="mt-6 rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-10">
-            {step === 0 && (
-              <InfoStep
-                draft={draft}
-                update={update}
-                onContinue={() => setStep(1)}
-              />
-            )}
-            {step === 1 && (
-              <PricingStep
-                firstName={hasName ? firstName : null}
-                draft={draft}
-                update={update}
-                onContinue={() => setStep(2)}
-                onBack={() => setStep(0)}
-              />
-            )}
-            {step === 2 && (
-              <ExtrasStep
-                firstName={hasName ? firstName : null}
-                shortRef={shortRef}
-                draft={draft}
-                update={update}
-                onBack={() => setStep(1)}
-                onSubmitted={async () => { await refetch(); setStep(3); }}
-              />
-            )}
-            {step === 3 && (
-              <BookingStep
-                firstName={firstName || null}
-                shortRef={shortRef}
-                onDone={async () => { await refetch(); setStep(4); }}
-              />
-            )}
-            {step === 4 && (
-              <SuccessScreen
-                firstName={firstName || null}
-                shortRef={shortRef}
-                booked={!!data.bookingConfirmedAt}
+            {step === 0 && <PlanStep onChoose={choosePlan} />}
+            {step === 1 && plan && (
+              <ConfirmationStep
+                plan={plan}
+                snapshot={data}
+                onChangePlan={() => setStep(0)}
               />
             )}
           </div>
@@ -258,6 +238,317 @@ function OnboardingPage() {
         <LeeAside />
       </div>
       <Toaster position="top-center" richColors />
+    </div>
+  );
+}
+
+// ---------- 2-step indicator ----------
+function TwoStepBar({ current }: { current: 0 | 1 }) {
+  const labels = ["Confirm Plan", "Confirmation"];
+  return (
+    <div className="flex items-center gap-3">
+      {labels.map((label, i) => {
+        const active = i === current;
+        const done = i < current;
+        return (
+          <div key={label} className="flex items-center gap-2">
+            <span
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+              style={
+                active || done
+                  ? { background: NAVY, color: "white" }
+                  : { background: "rgba(20,33,61,0.08)", color: NAVY }
+              }
+            >
+              {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+            </span>
+            <span
+              className="text-xs font-semibold sm:text-sm"
+              style={{ color: active || done ? NAVY : "#9ca3af" }}
+            >
+              {label}
+            </span>
+            {i === 0 && <span className="mx-1 h-px w-6 bg-gray-300 sm:w-10" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------- Step 1: Confirm Plan ----------
+function PlanStep({ onChoose }: { onChoose: (p: PricingPlanKey) => void }) {
+  return (
+    <div className="space-y-7">
+      <Title subtitle="Pick the plan that fits — no payment now. You can change your mind anytime.">
+        Let&apos;s get you ready for your exam.
+      </Title>
+      <PricingPlans onSelectPlan={onChoose} />
+    </div>
+  );
+}
+
+// ---------- Step 2: Confirmation ----------
+const PLAN_LABEL: Record<PricingPlanKey, string> = {
+  test_pass: "Just One Test",
+  membership: "Semester Membership",
+  prepay: "Premium 1-on-1 Tutoring",
+};
+
+function planPrice(plan: PricingPlanKey): { now: number; was: number; savePrepay?: boolean } {
+  if (plan === "test_pass") return { now: TEST_PASS_PRICE, was: TEST_PASS_WAS };
+  if (plan === "membership") return { now: MEMBERSHIP_PRICE, was: MEMBERSHIP_WAS };
+  return { now: PREPAY_PRICE, was: PREPAY_WAS, savePrepay: true };
+}
+
+function planConfirmationLine(plan: PricingPlanKey): string {
+  if (plan === "prepay") {
+    return "I'm reserving seats for July and fall — you're on the list. I'll lock in your spot and the prepay discount.";
+  }
+  return "You're on the waitlist — I'll text you the moment it's live, and you've locked in the discount.";
+}
+
+function courseDisplayFromDraft(d: Draft): string | null {
+  if (d.notSureCourse) return "Not sure";
+  if (d.course) return COURSE_TITLE_BY_KEY[d.course as CourseFamilyKey] ?? d.course;
+  if (d.courseOther.trim()) return d.courseOther.trim();
+  return null;
+}
+
+function majorToText(s: Draft["accountingMajorStatus"]): string | null {
+  if (s === "yes") return "yes";
+  if (s === "no") return "no";
+  if (s === "definitely_not") return "undecided";
+  return null;
+}
+
+const CONFIRM_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function ConfirmationStep({
+  plan, snapshot, onChangePlan,
+}: { plan: PricingPlanKey; snapshot: OnboardingSnapshot; onChangePlan: () => void }) {
+  const [draft, setDraft] = useState<Draft>(() => draftFromSnapshot(snapshot));
+  const update = <K extends keyof Draft>(k: K, v: Draft[K]) =>
+    setDraft((p) => ({ ...p, [k]: v }));
+  const [saved, setSaved] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  const price = planPrice(plan);
+  const firstName = draft.firstName.trim().split(/\s+/)[0] || "";
+
+  // Prepay-live branch (built but stubbed): when the flag is on AND a Stripe
+  // Payment Link is configured, the 1-on-1 plan reserves via Stripe instead of
+  // the waitlist. While ENABLE_PREPAY is false this is never taken.
+  const stripeReady = STRIPE_TUTORING_PAYMENT_LINK.trim().length > 0;
+  const prepayLive = ENABLE_PREPAY && plan === "prepay" && stripeReady;
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const fullName = [draft.firstName.trim(), draft.lastName.trim()].filter(Boolean).join(" ");
+      await joinOnboardingWaitlist({
+        email: draft.email,
+        name: fullName || null,
+        phone: draft.phone.trim() || null,
+        campus: draft.schoolName.trim() || null,
+        course: courseDisplayFromDraft(draft),
+        accountingMajor: majorToText(draft.accountingMajorStatus),
+        plan,
+      });
+    },
+    onSuccess: () => {
+      if (prepayLive) {
+        // Hand off to Stripe; /welcome is the post-payment confirmation.
+        window.location.href = STRIPE_TUTORING_PAYMENT_LINK;
+        return;
+      }
+      setSaved(true);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Something went wrong. Please try again.";
+      setEmailError(msg);
+      toast.error(msg);
+    },
+  });
+
+  const handleConfirm = () => {
+    const email = draft.email.trim().toLowerCase();
+    if (!CONFIRM_EMAIL_RE.test(email)) {
+      setEmailError("Add your email so I can reach you.");
+      return;
+    }
+    setEmailError(null);
+    mutation.mutate();
+  };
+
+  // ---- Done state: "you're all set" ----
+  if (saved) {
+    return (
+      <div className="space-y-6 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
+          style={{ background: "rgba(206,17,38,0.08)" }}>
+          <CheckCircle2 className="h-9 w-9" style={{ color: RED }} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>
+            {firstName ? `You're all set, ${firstName}.` : "You're all set."}
+          </h1>
+          <p className="mx-auto mt-3 max-w-md text-sm text-gray-600 sm:text-base">
+            {planConfirmationLine(plan)}
+          </p>
+          <p className="mx-auto mt-3 max-w-md text-sm text-gray-600 sm:text-base">
+            Expect a text from me soon. Questions in the meantime?{" "}
+            <a href={`sms:${LEE_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>
+              Text me at {LEE_PHONE_DISPLAY}
+            </a>.
+          </p>
+        </div>
+        <PlanSummaryCard plan={plan} price={price} />
+      </div>
+    );
+  }
+
+  // ---- Confirm view: light, plan-specific, optional details below ----
+  return (
+    <div className="space-y-7">
+      <div>
+        <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold"
+          style={{ background: "rgba(20,33,61,0.06)", color: NAVY }}>
+          <Check className="h-3.5 w-3.5" style={{ color: RED }} /> Plan selected
+        </span>
+        <h1 className="mt-3 text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>
+          {plan === "prepay" ? "Let's reserve your seat." : "Let's lock in your spot."}
+        </h1>
+        <p className="mt-2 text-sm text-gray-600 sm:text-base">{planConfirmationLine(plan)}</p>
+      </div>
+
+      <PlanSummaryCard plan={plan} price={price} onChange={onChangePlan} />
+
+      <div className="space-y-4">
+        <p className="text-sm font-medium text-gray-800">
+          Want me to tailor things? Tell me a bit more{" "}
+          <span className="font-normal text-gray-500">(optional)</span>.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="First name">
+            <Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)}
+              autoComplete="given-name" />
+          </Field>
+          <Field label="Last name">
+            <Input value={draft.lastName} onChange={(e) => update("lastName", e.target.value)}
+              autoComplete="family-name" />
+          </Field>
+          <Field label="Email" required error={emailError ?? undefined}>
+            <Input type="email" value={draft.email}
+              onChange={(e) => { update("email", e.target.value); if (emailError) setEmailError(null); }}
+              autoComplete="email" placeholder="you@school.edu" />
+          </Field>
+          <Field label="Phone">
+            <Input type="tel" value={draft.phone} placeholder="(555) 555-5555"
+              onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
+          </Field>
+        </div>
+
+        <SchoolPicker
+          campusId={draft.campusId}
+          schoolName={draft.schoolName}
+          other={draft.schoolOther}
+          onPick={(id, name) => {
+            update("campusId", id);
+            update("schoolName", name);
+            update("schoolOther", false);
+          }}
+          onTypeOther={(name) => {
+            update("campusId", null);
+            update("schoolName", name);
+            update("schoolOther", true);
+          }}
+          onClear={() => {
+            update("campusId", null);
+            update("schoolName", "");
+            update("schoolOther", false);
+          }}
+        />
+
+        <div>
+          <Label className="mb-3 block text-sm font-medium text-gray-800">
+            Are you an accounting major?
+          </Label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {[
+              { value: "yes" as const, label: "Yes" },
+              { value: "no" as const, label: "No" },
+              { value: "definitely_not" as const, label: "Undecided" },
+            ].map((opt) => {
+              const active = draft.accountingMajorStatus === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => update("accountingMajorStatus", active ? null : opt.value)}
+                  className="rounded-2xl border px-4 py-3 text-base font-medium transition-all"
+                  style={
+                    active
+                      ? { background: NAVY, color: "white", borderColor: NAVY }
+                      : { background: "white", color: "#1f2937", borderColor: "#e5e7eb" }
+                  }
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <PrimaryBtn onClick={handleConfirm} disabled={mutation.isPending}>
+          {mutation.isPending ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+            </span>
+          ) : prepayLive ? (
+            `Reserve your seat — $${PREPAY_PRICE.toLocaleString()}`
+          ) : (
+            "Confirm my spot →"
+          )}
+        </PrimaryBtn>
+        <p className="text-center text-xs text-gray-500">
+          {prepayLive
+            ? "You'll be taken to secure checkout. Unused sessions are fully refundable."
+            : "No payment now — this just gets you on the list and locks your discount."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PlanSummaryCard({
+  plan, price, onChange,
+}: {
+  plan: PricingPlanKey;
+  price: { now: number; was: number; savePrepay?: boolean };
+  onChange?: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl border bg-gray-50/80 px-4 py-3.5"
+      style={{ borderColor: "rgba(20,33,61,0.10)" }}>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold" style={{ color: NAVY }}>{PLAN_LABEL[plan]}</p>
+        <p className="mt-0.5 text-sm text-gray-600">
+          <span className="font-semibold" style={{ color: NAVY }}>${price.now.toLocaleString()}</span>{" "}
+          <span className="text-gray-400 line-through">${price.was.toLocaleString()}</span>{" "}
+          <span className="text-xs font-medium" style={{ color: RED }}>
+            {price.savePrepay ? "save $150" : "discount locked"}
+          </span>
+        </p>
+      </div>
+      {onChange && (
+        <Button variant="ghost" size="sm" onClick={onChange} style={{ color: NAVY }}>
+          Change
+        </Button>
+      )}
     </div>
   );
 }

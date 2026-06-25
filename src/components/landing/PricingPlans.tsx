@@ -34,24 +34,45 @@ const RED_BTN_STYLE: React.CSSProperties = {
 
 type MaterialsTier = { key: WaitlistTier; label: string };
 
+/** The three selectable plans. Used by the onboarding wizard's "Confirm Plan" step. */
+export type PricingPlanKey = "test_pass" | "membership" | "prepay";
+
 export default function PricingPlans({
   bookHref = "/onboard",
   className,
+  onSelectPlan,
 }: {
   bookHref?: string;
   className?: string;
+  /** When provided (e.g. the onboarding wizard), every card's CTA becomes
+   *  "Choose this plan" and calls this instead of the waitlist modal / Stripe. */
+  onSelectPlan?: (plan: PricingPlanKey) => void;
 }) {
   // bookHref kept for backward-compat with existing call sites (no longer used
   // for the 1-on-1 CTA, which now goes through Stripe prepay).
   void bookHref;
+  const selecting = !!onSelectPlan;
   const [waitlistTier, setWaitlistTier] = useState<MaterialsTier | null>(null);
   const stripeReady = STRIPE_TUTORING_PAYMENT_LINK.trim().length > 0;
 
+  const chooseBtn = (plan: PricingPlanKey, outline?: boolean) => (
+    <Button
+      className={outline ? "h-12 w-full text-base font-semibold" : RED_BTN}
+      variant={outline ? "outline" : undefined}
+      style={outline ? { color: NAVY, borderColor: NAVY } : RED_BTN_STYLE}
+      onClick={() => onSelectPlan?.(plan)}
+    >
+      Choose this plan →
+    </Button>
+  );
+
   return (
     <div className={className}>
-      <p className="mb-6 text-center text-sm font-medium text-gray-600">
-        Lock in the launch discount — join the waitlist, no payment now.
-      </p>
+      {!selecting && (
+        <p className="mb-6 text-center text-sm font-medium text-gray-600">
+          Lock in the launch discount — join the waitlist, no payment now.
+        </p>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
         {/* Just One Test — WAITLIST */}
@@ -67,13 +88,13 @@ export default function PricingPlans({
             "Video explainers for those chapters",
             "1 week of access",
           ]}
-          cta={
+          cta={selecting ? chooseBtn("test_pass", true) : (
             <Button className="h-12 w-full text-base font-semibold" variant="outline"
               style={{ color: NAVY, borderColor: NAVY }}
               onClick={() => setWaitlistTier({ key: "test_pass", label: "Just One Test" })}>
               {`Join waitlist — lock in $${TEST_PASS_PRICE}`}
             </Button>
-          }
+          )}
         />
 
         {/* Semester Membership — BEST VALUE, WAITLIST */}
@@ -91,12 +112,12 @@ export default function PricingPlans({
             "New content added weekly",
             "Built around the exam style you'll actually see",
           ]}
-          cta={
+          cta={selecting ? chooseBtn("membership") : (
             <Button className={RED_BTN} style={RED_BTN_STYLE}
               onClick={() => setWaitlistTier({ key: "membership", label: "Semester Membership" })}>
               {`Join waitlist — lock in $${MEMBERSHIP_PRICE}`}
             </Button>
-          }
+          )}
         />
 
         {/* Premium 1-on-1 — prepaid semester block, LIVE via Stripe */}
@@ -113,7 +134,7 @@ export default function PricingPlans({
             "Taught by Lee — accounting grad, tutor since 2015",
           ]}
           liveBadge
-          cta={
+          cta={selecting ? chooseBtn("prepay") : (
             stripeReady ? (
               <a href={STRIPE_TUTORING_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" className="block">
                 <Button className={RED_BTN} style={RED_BTN_STYLE}>Reserve your seat →</Button>
@@ -123,7 +144,7 @@ export default function PricingPlans({
                 Reserve your seat →
               </Button>
             )
-          }
+          )}
         />
       </div>
 
