@@ -10,6 +10,7 @@ export type ApprovalStatus = "not_reviewed" | "needs_review" | "approved" | "nee
 export type CampusStatusFilter =
   | "all"
   | "pending"
+  | "needs_review"
   | "approved"
   | "ready_for_outreach"
   | "emails_sent";
@@ -325,6 +326,9 @@ export function applyFilters(campuses: Campus[], f: CampusFilters): Campus[] {
     switch (f.campusStatus) {
       case "pending":
         if (c.approval_status === "approved") return false;
+        break;
+      case "needs_review":
+        if (c.approval_status !== "needs_review") return false;
         break;
       case "approved":
         if (c.approval_status !== "approved") return false;
