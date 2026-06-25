@@ -12,10 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as CeqRouteImport } from './routes/ceq'
+import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
@@ -50,6 +52,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutreachRoute = OutreachRouteImport.update({
   id: '/outreach',
   path: '/outreach',
@@ -68,6 +75,11 @@ const JeRoute = JeRouteImport.update({
 const CeqRoute = CeqRouteImport.update({
   id: '/ceq',
   path: '/ceq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BeyondRoute = BeyondRouteImport.update({
+  id: '/beyond',
+  path: '/beyond',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -166,10 +178,12 @@ const CeqCourseSlugChapterSlugRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
   '/outreach': typeof OutreachRouteWithChildren
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
@@ -193,9 +207,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
@@ -220,10 +236,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
   '/outreach': typeof OutreachRouteWithChildren
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
@@ -249,10 +267,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/beyond'
     | '/ceq'
     | '/je'
     | '/onboard'
     | '/outreach'
+    | '/pricing'
     | '/privacy'
     | '/start'
     | '/terms'
@@ -276,9 +296,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/beyond'
     | '/ceq'
     | '/je'
     | '/onboard'
+    | '/pricing'
     | '/privacy'
     | '/start'
     | '/terms'
@@ -302,10 +324,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/beyond'
     | '/ceq'
     | '/je'
     | '/onboard'
     | '/outreach'
+    | '/pricing'
     | '/privacy'
     | '/start'
     | '/terms'
@@ -330,10 +354,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BeyondRoute: typeof BeyondRoute
   CeqRoute: typeof CeqRouteWithChildren
   JeRoute: typeof JeRoute
   OnboardRoute: typeof OnboardRoute
   OutreachRoute: typeof OutreachRouteWithChildren
+  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
   TermsRoute: typeof TermsRoute
@@ -365,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/outreach': {
       id: '/outreach'
       path: '/outreach'
@@ -391,6 +424,13 @@ declare module '@tanstack/react-router' {
       path: '/ceq'
       fullPath: '/ceq'
       preLoaderRoute: typeof CeqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/beyond': {
+      id: '/beyond'
+      path: '/beyond'
+      fullPath: '/beyond'
+      preLoaderRoute: typeof BeyondRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -570,10 +610,12 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BeyondRoute: BeyondRoute,
   CeqRoute: CeqRouteWithChildren,
   JeRoute: JeRoute,
   OnboardRoute: OnboardRoute,
   OutreachRoute: OutreachRouteWithChildren,
+  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
   TermsRoute: TermsRoute,
