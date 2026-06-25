@@ -10,3 +10,10 @@ export const STRIPE_TUTORING_PAYMENT_LINK = "";
 /** Booking URL for the post-payment intro call (Square/Calendly/etc.). Until
  *  set, the "Book your intro call" button on /welcome is disabled. */
 export const INTRO_CALL_BOOKING_URL = "";
+
+/** Master switch for live 1-on-1 prepay. While FALSE, the Premium 1-on-1 path
+ *  is waitlist-based (no live charge): the onboarding flow treats it like the
+ *  materials tiers and just captures the lead with reservation framing. Flip to
+ *  TRUE (with STRIPE_TUTORING_PAYMENT_LINK set) to send the 1-on-1 plan through
+ *  Stripe + the /welcome confirmation. */
+export const ENABLE_PREPAY = false;
