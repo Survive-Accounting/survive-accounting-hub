@@ -36,3 +36,6 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# internal context doc containing live secrets — never commit
+CONTEXT_SCRAPER_SESSION.md
