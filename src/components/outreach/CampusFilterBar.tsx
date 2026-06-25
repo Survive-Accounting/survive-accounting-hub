@@ -29,6 +29,7 @@ import {
 const CAMPUS_STATUS_OPTIONS: { value: CampusStatusFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "pending", label: "Pending" },
+  { value: "needs_review", label: "Hasselback / Needs Review" },
   { value: "approved", label: "Approved" },
   { value: "ready_for_outreach", label: "Ready for Outreach" },
   { value: "emails_sent", label: "Emails Sent" },
