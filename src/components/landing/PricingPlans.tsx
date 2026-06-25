@@ -1,8 +1,8 @@
 // Three-tier plans block. Reusable across /pricing and the homepage.
-//  - Just This Test ($45) + Semester Membership ($150) = WAITLIST (not built yet).
-//  - Premium 1-on-1 ($150/hr) = LIVE → routes into the onboarding/booking funnel.
-// No fake checkout. Materials CTAs open a small email+course waitlist capture
-// that writes to campus_waitlist (fires the text-to-Lee trigger).
+//  - Just One Test ($45) + Semester Membership ($125) = WAITLIST (marked-down
+//    "lock in the discount" capture into campus_waitlist; fires text-to-Lee).
+//  - Premium 1-on-1 = prepaid semester block ($1,350, was $1,500) -> Stripe
+//    Payment Link (gated until STRIPE_TUTORING_PAYMENT_LINK is set; no fake URL).
 import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,13 +15,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { joinPricingWaitlist, type WaitlistTier } from "@/lib/pricing-api";
+import { STRIPE_TUTORING_PAYMENT_LINK } from "@/lib/site-config";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
 
 export const TEST_PASS_PRICE = 45;
-export const MEMBERSHIP_PRICE = 150;
-export const HOURLY_RATE = 150;
+export const TEST_PASS_WAS = 60;
+export const MEMBERSHIP_PRICE = 125;
+export const MEMBERSHIP_WAS = 150;
+export const PREPAY_PRICE = 1350;
+export const PREPAY_WAS = 1500;
 
 const RED_BTN = "h-12 w-full text-base font-bold text-white";
 const RED_BTN_STYLE: React.CSSProperties = {
@@ -37,17 +41,26 @@ export default function PricingPlans({
   bookHref?: string;
   className?: string;
 }) {
+  // bookHref kept for backward-compat with existing call sites (no longer used
+  // for the 1-on-1 CTA, which now goes through Stripe prepay).
+  void bookHref;
   const [waitlistTier, setWaitlistTier] = useState<MaterialsTier | null>(null);
+  const stripeReady = STRIPE_TUTORING_PAYMENT_LINK.trim().length > 0;
 
   return (
     <div className={className}>
+      <p className="mb-6 text-center text-sm font-medium text-gray-600">
+        Lock in the launch discount — join the waitlist, no payment now.
+      </p>
+
       <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
-        {/* Just This Test */}
+        {/* Just One Test — WAITLIST */}
         <PlanCard
-          title="Just This Test"
+          title="Just One Test"
           price={`$${TEST_PASS_PRICE}`}
+          wasPrice={`$${TEST_PASS_WAS}`}
           cadence="one exam"
-          tagline="Cramming for one exam? Get the 4 chapters it covers — 1 week of access."
+          tagline="Pick the four chapters your exam covers — 1 week of access."
           features={[
             "The 4 chapters your exam covers",
             "Practice exam questions",
@@ -57,18 +70,19 @@ export default function PricingPlans({
           cta={
             <Button className="h-12 w-full text-base font-semibold" variant="outline"
               style={{ color: NAVY, borderColor: NAVY }}
-              onClick={() => setWaitlistTier({ key: "test_pass", label: "Just This Test" })}>
-              Get early access
+              onClick={() => setWaitlistTier({ key: "test_pass", label: "Just One Test" })}>
+              {`Join waitlist — lock in $${TEST_PASS_PRICE}`}
             </Button>
           }
         />
 
-        {/* Semester Membership — BEST VALUE */}
+        {/* Semester Membership — BEST VALUE, WAITLIST */}
         <PlanCard
           highlighted
           badge="Best Value"
           title="Semester Membership"
           price={`$${MEMBERSHIP_PRICE}`}
+          wasPrice={`$${MEMBERSHIP_WAS}`}
           cadence="semester"
           tagline="A full semester for the price of one tutoring hour."
           features={[
@@ -80,47 +94,54 @@ export default function PricingPlans({
           cta={
             <Button className={RED_BTN} style={RED_BTN_STYLE}
               onClick={() => setWaitlistTier({ key: "membership", label: "Semester Membership" })}>
-              Get early access
+              {`Join waitlist — lock in $${MEMBERSHIP_PRICE}`}
             </Button>
           }
         />
 
-        {/* Premium 1-on-1 — LIVE */}
+        {/* Premium 1-on-1 — prepaid semester block, LIVE via Stripe */}
         <PlanCard
           title="Premium 1-on-1 Tutoring"
-          price={`$${HOURLY_RATE}`}
-          cadence="hour"
-          tagline="Sessions built entirely around you."
+          price={`$${PREPAY_PRICE.toLocaleString()}`}
+          wasPrice={`$${PREPAY_WAS.toLocaleString()}`}
+          saveNote="save $150 (10% prepay)"
+          subLine="Reserve your recurring seat for the semester."
           features={[
-            "Live 1-on-1 Zoom sessions",
-            "Only 10 hours a week",
+            "10 one-on-one Zoom sessions",
+            "Only a few seats each semester",
             "Personalized to your course + exam",
             "Taught by Lee — accounting grad, tutor since 2015",
           ]}
           liveBadge
           cta={
-            <a href={bookHref} className="block">
-              <Button className={RED_BTN} style={RED_BTN_STYLE}>Book a session →</Button>
-            </a>
+            stripeReady ? (
+              <a href={STRIPE_TUTORING_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" className="block">
+                <Button className={RED_BTN} style={RED_BTN_STYLE}>Reserve your seat →</Button>
+              </a>
+            ) : (
+              <Button className={RED_BTN} style={RED_BTN_STYLE} disabled title="Coming soon">
+                Reserve your seat →
+              </Button>
+            )
           }
         />
       </div>
 
-      <WaitlistDialog
-        tier={waitlistTier}
-        onClose={() => setWaitlistTier(null)}
-      />
+      <WaitlistDialog tier={waitlistTier} onClose={() => setWaitlistTier(null)} />
     </div>
   );
 }
 
 function PlanCard({
-  title, price, cadence, tagline, features, cta, highlighted, badge, liveBadge,
+  title, price, wasPrice, cadence, saveNote, subLine, tagline, features, cta, highlighted, badge, liveBadge,
 }: {
   title: string;
   price: string;
-  cadence: string;
-  tagline: string;
+  wasPrice?: string;
+  cadence?: string;
+  saveNote?: string;
+  subLine?: string;
+  tagline?: string;
   features: string[];
   cta: React.ReactNode;
   highlighted?: boolean;
@@ -151,11 +172,18 @@ function PlanCard({
           </span>
         )}
       </div>
-      <div className="mt-3 flex items-baseline gap-1">
+      <div className="mt-3 flex items-baseline gap-2">
         <span className="text-4xl font-extrabold tracking-tight" style={{ color: NAVY }}>{price}</span>
-        <span className="text-sm text-gray-500">/ {cadence}</span>
+        {wasPrice && <span className="text-lg font-semibold text-gray-400 line-through">{wasPrice}</span>}
+        {cadence && <span className="text-sm text-gray-500">/ {cadence}</span>}
       </div>
-      <p className="mt-2 text-sm text-gray-600">{tagline}</p>
+      {saveNote && (
+        <span className="mt-1 inline-block w-fit rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+          {saveNote}
+        </span>
+      )}
+      {subLine && <p className="mt-2 text-sm font-medium" style={{ color: NAVY }}>{subLine}</p>}
+      {tagline && <p className="mt-2 text-sm text-gray-600">{tagline}</p>}
       <ul className="mt-5 space-y-2.5 text-[14px] text-gray-800">
         {features.map((f) => (
           <li key={f} className="flex gap-2.5">
@@ -175,17 +203,22 @@ function WaitlistDialog({
   onClose: () => void;
 }) {
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [campus, setCampus] = useState("");
   const [course, setCourse] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
-  const close = () => { onClose(); setTimeout(() => { setEmail(""); setCourse(""); setDone(false); }, 150); };
+  const close = () => {
+    onClose();
+    setTimeout(() => { setEmail(""); setPhone(""); setCampus(""); setCourse(""); setDone(false); }, 150);
+  };
 
   const submit = async () => {
     if (!tier) return;
     setBusy(true);
     try {
-      await joinPricingWaitlist({ email, course, tier: tier.key });
+      await joinPricingWaitlist({ email, phone, campus, course, tier: tier.key });
       setDone(true);
     } catch (e) {
       toast.error((e as Error).message);
@@ -205,17 +238,17 @@ function WaitlistDialog({
             <h3 className="mt-4 text-lg font-bold" style={{ color: NAVY }}>You're on the list!</h3>
             <p className="mt-2 text-sm text-gray-600">
               {course.trim()
-                ? <>You're on the list for <strong>{course.trim()}</strong> — I'll notify you the moment it's live.</>
-                : <>I'll notify you the moment it's live.</>}
+                ? <>You're locked in for <strong>{course.trim()}</strong> — I'll let you know the moment it's live.</>
+                : <>You're locked in — I'll let you know the moment it's live.</>}
             </p>
             <Button className="mt-5 w-full" onClick={close}>Done</Button>
           </div>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Get early access — {tier?.label}</DialogTitle>
+              <DialogTitle>Lock in your price — {tier?.label}</DialogTitle>
               <DialogDescription>
-                Drop your email and I'll text you the moment it's live. No payment now.
+                Join the waitlist to lock in the launch discount. No payment now.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -225,14 +258,32 @@ function WaitlistDialog({
                   onChange={(e) => setEmail(e.target.value)} placeholder="you@school.edu" />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="wl-course" className="text-xs">
-                  Course <span className="text-muted-foreground">(optional)</span>
+                <Label htmlFor="wl-phone" className="text-xs">
+                  Phone <span className="text-muted-foreground">(optional — want a text when it&apos;s live? Add your number)</span>
                 </Label>
-                <Input id="wl-course" value={course}
-                  onChange={(e) => setCourse(e.target.value)} placeholder="e.g. ACCY 201 / Intermediate I" />
+                <Input id="wl-phone" type="tel" value={phone} autoComplete="tel"
+                  onChange={(e) => setPhone(e.target.value)} placeholder="(555) 555-5555" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="wl-campus" className="text-xs">
+                    School <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input id="wl-campus" value={campus}
+                    onChange={(e) => setCampus(e.target.value)} placeholder="e.g. Ole Miss" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="wl-course" className="text-xs">
+                    Course <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input id="wl-course" value={course}
+                    onChange={(e) => setCourse(e.target.value)} placeholder="e.g. ACCY 201" />
+                </div>
               </div>
               <Button className={RED_BTN} style={RED_BTN_STYLE} disabled={busy} onClick={submit}>
-                {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding you…</> : "Get early access"}
+                {busy
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding you…</>
+                  : `Join waitlist — lock in $${tier?.key === "membership" ? MEMBERSHIP_PRICE : TEST_PASS_PRICE}`}
               </Button>
             </div>
           </>

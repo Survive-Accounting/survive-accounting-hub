@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -38,6 +39,11 @@ import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
 
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
+  '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/start'
     | '/terms'
+    | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
     | '/outreach/campaign-metrics'
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/start'
     | '/terms'
+    | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
     | '/outreach/campaign-metrics'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/start'
     | '/terms'
+    | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
     | '/outreach/campaign-metrics'
@@ -375,6 +387,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
   TermsRoute: typeof TermsRoute
+  WelcomeRoute: typeof WelcomeRoute
   OShortRefRoute: typeof OShortRefRoute
   TSlugRoute: typeof TSlugRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
@@ -382,6 +395,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -640,6 +660,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
   TermsRoute: TermsRoute,
+  WelcomeRoute: WelcomeRoute,
   OShortRefRoute: OShortRefRoute,
   TSlugRoute: TSlugRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
