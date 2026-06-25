@@ -16,6 +16,7 @@ import { getSiteSettings, type SiteSettings } from "@/lib/site-settings.function
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
+const LOGO_URL = "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 
 const RED_BTN_CLASS =
   "hero-anim-btn group rounded-2xl px-8 py-4 text-[16px] font-bold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center justify-center gap-2";
@@ -96,12 +97,61 @@ function HeroCta({ settings }: { settings: SiteSettings }) {
   );
 }
 
+// Sticky top navbar (homepage only). Left: wordmark. Right: Pricing + the
+// waitlist-first CTA. "Join the Waitlist" scrolls to the plans + capture
+// section (#plans); if that section is toggled off, it falls back to /pricing.
+function SiteNav() {
+  const goToPlans = () => {
+    if (typeof document === "undefined") return;
+    const el = document.getElementById("plans");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    else window.location.href = "/pricing";
+  };
+  return (
+    <header
+      className="sticky top-0 z-50 w-full border-b"
+      style={{
+        background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)",
+        borderColor: "rgba(255,255,255,0.08)",
+        boxShadow: "0 4px 16px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.04) inset",
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:h-16 sm:px-6">
+        <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
+          <img src={LOGO_URL} alt="Survive Accounting" className="h-5 w-auto select-none sm:h-[22px]" draggable={false} />
+        </a>
+        <nav className="ml-auto flex items-center gap-1.5 sm:gap-3">
+          <a
+            href="/pricing"
+            className="rounded-lg px-3 py-2 text-sm font-semibold text-white/85 transition-colors hover:text-white sm:text-[15px]"
+          >
+            Pricing
+          </a>
+          <button
+            type="button"
+            onClick={goToPlans}
+            className="rounded-xl px-3.5 py-2 text-sm font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 sm:px-5 sm:text-[15px]"
+            style={{
+              background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 22px rgba(206,17,38,0.36)",
+            }}
+          >
+            Join the Waitlist
+          </button>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 function Home() {
   const settings = Route.useLoaderData();
   const s = settings.sections;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#F8FAFC" }}>
+      <SiteNav />
       {s.hero && (
         <Hero
           headline="Survive it. Or learn to love it."
@@ -117,7 +167,7 @@ function Home() {
       {s.howItWorks && <HowItWorks />}
 
       {s.plans && (
-        <section className="px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
+        <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
           <div className="mx-auto max-w-6xl">
             <h2 className="text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
               Pick the way you want to pass
