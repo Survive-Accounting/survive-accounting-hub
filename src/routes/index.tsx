@@ -162,8 +162,11 @@ function Home() {
 
       {s.painHook && <PainHook />}
       {s.whoIAm && <SoulBand />}
-      {s.dualWelcome && <DualWelcome />}
+      {/* GLM design pass: Reviews moved up to follow Lee's story — social proof
+          lands while the personal connection is high, before audiences self-sort
+          in Dual welcome. Easy to revert by moving <Reviews /> back below it. */}
       <Reviews />
+      {s.dualWelcome && <DualWelcome />}
       {s.howItWorks && <HowItWorks />}
 
       {s.plans && (
