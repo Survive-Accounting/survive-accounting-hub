@@ -93,8 +93,14 @@ CEQs and sequences can target a specific cell later.
 - **Chart of accounts:** the migration adds any referenced accounts missing from the 0018
   seed (Merchandise Inventory, Unearned Service Revenue, Gain/Loss on Disposal of Equipment).
 - **Chapter link (migration `0025_je_chapter_links.sql`):** adds `je_scenarios.chapter_id`
-  (+ `chapter_topic_id`) → existing `chapters`; seeds an Ole Miss ACCY 201 course + starter
-  chapters; tags the four seed scenarios to chapters. Idempotent.
+  (+ `chapter_topic_id`) → existing `chapters`; tags the four seed scenarios to chapters.
+  Idempotent. (`0025`'s ACCY 201 chapters were a textbook *guess*.)
+- **Real chapters (migration `0026_real_ole_miss_chapters.sql`):** replaces the `0025`
+  placeholder chapters with Lee's real four-course Ole Miss map — ACCY 201/202/303/304 with
+  exact numbering preserved (Intro 2 starts at Ch 12, IA2 at Ch 13). Self-contained (works
+  even if `0025` was never applied); renames placeholder rows in place and repoints the four
+  seed scenarios (unearned/depreciation → 201 Ch 3, merch-sale → 201 Ch 4, equipment → 201
+  Ch 8). Idempotent.
 
 ### Seed scenarios (the prototype's testable surface)
 
