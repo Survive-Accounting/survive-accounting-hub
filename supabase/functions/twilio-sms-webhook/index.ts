@@ -17,7 +17,7 @@
 // can prove whether a missing reply was a Twilio problem or a logic problem.
 //
 // Secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, LEE_PERSONAL_PHONE,
-//          ANTHROPIC_API_KEY (optional — extraction skipped without it),
+//          AI_GATEWAY_API_KEY (optional — extraction skipped without it),
 //          SMS_TESTER_PHONES (optional, comma-separated),
 //          SITE_ORIGIN (optional, default https://surviveaccounting.com)
 
@@ -33,7 +33,7 @@ const TWILIO_MSID = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID") ?? "";
 const TWILIO_AUTH_USER = (Deno.env.get("TWILIO_API_KEY_SID") ?? "") || TWILIO_SID;
 const TWILIO_AUTH_PASS = (Deno.env.get("TWILIO_API_KEY_SECRET") ?? "") || TWILIO_TOKEN;
 const LEE_PHONE = (Deno.env.get("LEE_PERSONAL_PHONE") ?? "").replace(/[^+\d]/g, "");
-const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const AI_GATEWAY_KEY = Deno.env.get("AI_GATEWAY_API_KEY") ?? "";
 const SITE_ORIGIN = Deno.env.get("SITE_ORIGIN") ?? "https://surviveaccounting.com";
 const TESTER_PHONES = new Set(
   (Deno.env.get("SMS_TESTER_PHONES") ?? "")
@@ -59,9 +59,9 @@ const FALLBACK_AUTO_REPLY =
   "Reply here anytime with questions — I read every text.";
 const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
 const FALLBACK_LEE_NEW =
-  '#{ref} New student text — {campus}{tester_flag}\nFrom {from}: "{body}"\nAuto-reply sent. Reply to this thread to jump in yourself.';
+  '#{ref} New student!\nFrom {from}: "{body}"\n\nSend a reply via this thread. Be sure to include #{ref}';
 const FALLBACK_LEE_FOLLOWUP =
-  '#{ref} {campus}{tester_flag} — "{body}"{facts}\nReply to this thread to text them back.';
+  '#{ref} Message from {campus} — {facts}\n\n"{body}"\n\nSend a reply via this thread. Be sure to include #{ref}';
 
 function render(template: string, tokens: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, k) => tokens[k] ?? "");
@@ -112,19 +112,18 @@ async function twilioSend(from: string, to: string, body: string): Promise<strin
   return null;
 }
 
-/** Claude extraction — fills course/exam_date/struggles/major/sentiment. */
+/** AI Gateway extraction — fills course/exam_date/struggles/major/sentiment. */
 async function extract(conversationText: string, courseCodes: string[]): Promise<Record<string, string | null> | null> {
-  if (!ANTHROPIC_KEY) return null;
+  if (!AI_GATEWAY_KEY) return null;
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${AI_GATEWAY_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "google/gemini-2.0-flash-lite",
         max_tokens: 300,
         messages: [{
           role: "user",
@@ -134,7 +133,7 @@ async function extract(conversationText: string, courseCodes: string[]): Promise
       }),
     });
     const j = await res.json();
-    const text = j?.content?.find((b: any) => b.type === "text")?.text ?? "";
+    const text = j?.choices?.[0]?.message?.content ?? "";
     const clean = text.replace(/```json|```/g, "").trim();
     return JSON.parse(clean);
   } catch {
@@ -394,7 +393,7 @@ Deno.serve(async (req) => {
         campus: campusLabel,
         tester_flag: isTester ? " [TESTER]" : "",
         body,
-        facts: facts ? `\n${facts}` : "",
+        facts: facts || "",
       });
       await twilioSend(to, LEE_PHONE, summary);
     }

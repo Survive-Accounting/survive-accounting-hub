@@ -34,18 +34,29 @@ export type TriageRow = {
    *  row came from a single-page scrape. */
   pagination_pages_walked: number | null;
 
+  /** Phase-1 teaching priors. `teaching_confidence` ranks how sure we are this
+   *  person teaches Intro/Intermediate accounting; the `teaches_*` columns hold
+   *  per-family evidence (non-empty / non-"no" = teaches that family). */
+  teaching_confidence: "high" | "medium" | "low" | null;
+  teaches_intro_1: string | null;
+  teaches_intro_2: string | null;
+  teaches_intermediate_1: string | null;
+  teaches_intermediate_2: string | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
   const { data, error } = await supabase
     .from("campus_lead_suggestions")
-    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags,rmp_rating,rmp_num_ratings,rmp_difficulty,rmp_would_take_again,rmp_profile_url,raw_payload")
+    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags,rmp_rating,rmp_num_ratings,rmp_difficulty,rmp_would_take_again,rmp_profile_url,raw_payload,teaching_confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .is("archived_at", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  const rawRows = (data ?? []) as Array<Omit<TriageRow, "imported_lead_id" | "email_confidence"> & { raw_payload: unknown }>;
+  // Cast through `unknown`: the generated Supabase types lag the live DB (the
+  // teaching_confidence / teaches_* columns were added in migration 0023), so
+  // the typed client otherwise reports the select as an error type.
+  const rawRows = (data ?? []) as unknown as Array<Omit<TriageRow, "imported_lead_id" | "email_confidence"> & { raw_payload: unknown }>;
   const rows: Omit<TriageRow, "imported_lead_id">[] = rawRows.map((r) => {
     const payload = (r.raw_payload ?? null) as { email_confidence?: string | null } | null;
     const conf = payload?.email_confidence;
@@ -78,6 +89,11 @@ export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
       rmp_profile_url: r.rmp_profile_url,
       email_confidence,
       pagination_pages_walked,
+      teaching_confidence: r.teaching_confidence,
+      teaches_intro_1: r.teaches_intro_1,
+      teaches_intro_2: r.teaches_intro_2,
+      teaches_intermediate_1: r.teaches_intermediate_1,
+      teaches_intermediate_2: r.teaches_intermediate_2,
     };
 
   });

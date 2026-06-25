@@ -18,6 +18,10 @@ dist-ssr
 .nitro
 *.local
 
+# Build / deploy output
+.vercel/
+supabase/.temp/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
@@ -32,3 +36,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# internal context doc containing live secrets — never commit
+CONTEXT_SCRAPER_SESSION.md

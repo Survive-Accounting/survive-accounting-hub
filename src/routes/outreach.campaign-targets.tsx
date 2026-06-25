@@ -2,13 +2,16 @@
 // surfacing the Phase-1 teaching-confidence tiers + Hasselback priors so Lee can
 // work the highest-confidence, confirmed-email accounting faculty first (50/day).
 // Reads live data only (campus_lead_suggestions). Export to CSV for the send tool.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Download, Loader2, ArrowUpDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Download, Loader2, ArrowUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { EmailQueueShell } from "@/components/outreach/EmailQueueShell";
 import { fetchCampuses } from "@/lib/outreach-api";
+import { MOCK_CAMPUSES, type Campus } from "@/lib/outreach-mock";
 
 export const Route = createFileRoute("/outreach/campaign-targets")({
   head: () => ({ meta: [{ title: "Campaign Targets — Survive Accounting" }] }),
@@ -57,6 +60,9 @@ function CampaignTargets() {
   const [tenuredOnly, setTenuredOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "rank", dir: "desc" });
+
+  const campusesQ = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
+  const campuses: Campus[] = campusesQ.data ?? (campusesQ.isError ? MOCK_CAMPUSES : []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -138,13 +144,15 @@ function CampaignTargets() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div className="mb-4 flex items-center gap-3">
-        <Link to="/outreach/leadfinder" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /></Link>
-        <h1 className="text-lg font-semibold">Campaign Targets</h1>
+      <div className="mb-1 flex items-center gap-3">
+        <h1 className="text-lg font-semibold">Priority Queue</h1>
         <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={exportCsv} disabled={loading || filtered.length === 0}>
           <Download className="h-3.5 w-3.5" /> Export CSV ({filtered.length})
         </Button>
       </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        The ranked send order — highest-confidence, confirmed-email accounting faculty first. Work it top-down at 50/day.
+      </p>
 
       <div className="mb-4 grid grid-cols-4 gap-2 rounded-lg border bg-card p-3 text-center text-sm">
         <Stat label="High" value={String(counts.high)} />
@@ -196,6 +204,15 @@ function CampaignTargets() {
       <p className="mt-3 text-xs text-muted-foreground">
         Tiers: <strong>high</strong> = a course schedule confirms they teach Intro/Intermediate · <strong>medium</strong> = Hasselback area-code or AI teaching signal · <strong>low</strong> = accounting faculty, no teaching signal yet. Areas: P=Principles, F=Financial, M=Managerial. Showing first 1,000 of {filtered.length}.
       </p>
+
+      {/* Sending lives with the queue: compose, schedule, and work the daily send. */}
+      <div className="mt-10 border-t pt-6">
+        <h2 className="mb-1 text-lg font-semibold">Email Queue</h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Compose, schedule, and send to the targets above. The 50/day cap and confirmed-email rule stay enforced.
+        </p>
+        <EmailQueueShell campuses={campuses} />
+      </div>
     </div>
   );
 }

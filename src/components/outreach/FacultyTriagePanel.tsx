@@ -63,6 +63,9 @@ export function FacultyTriagePanel({
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [customTag, setCustomTag] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  // Review & Import filters (Phase-1 teaching priors).
+  const [confidenceFilter, setConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
+  const [introInterOnly, setIntroInterOnly] = useState(false);
   // Click-and-drag selection. Refs so we don't churn renders during mousemove.
   const dragAnchorRef = useRef<string | null>(null);
   const dragMovedRef = useRef(false);
@@ -152,6 +155,30 @@ export function FacultyTriagePanel({
     });
   }, [rows, sortKey, sortDir]);
 
+  // A `teaches_*` column counts as positive when it holds real evidence — any
+  // non-empty value that isn't an explicit "no"/"none"/"false"/"0".
+  const teachesFamily = (v: string | null) => {
+    if (!v) return false;
+    const s = v.trim().toLowerCase();
+    return s !== "" && s !== "no" && s !== "none" && s !== "false" && s !== "0" && s !== "unknown";
+  };
+  const teachesIntroOrInter = (r: TriageRow) =>
+    teachesFamily(r.teaches_intro_1) || teachesFamily(r.teaches_intro_2) ||
+    teachesFamily(r.teaches_intermediate_1) || teachesFamily(r.teaches_intermediate_2);
+
+  // Rows actually shown = sorted rows passed through the Phase-1 filters.
+  const visibleRows = useMemo(() => {
+    return sortedRows.filter((r) => {
+      if (confidenceFilter !== "all" && r.teaching_confidence !== confidenceFilter) return false;
+      if (introInterOnly && !teachesIntroOrInter(r)) return false;
+      return true;
+    });
+  }, [sortedRows, confidenceFilter, introInterOnly]);
+
+  const filtersActive = confidenceFilter !== "all" || introInterOnly;
+  const applyFirstCampaignPreset = () => { setConfidenceFilter("high"); setIntroInterOnly(true); };
+  const resetFilters = () => { setConfidenceFilter("all"); setIntroInterOnly(false); };
+
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(k); setSortDir("asc"); }
@@ -176,8 +203,8 @@ export function FacultyTriagePanel({
     setSelected((prev) => {
       const next = new Set(prev);
       if (e.shiftKey && lastClickedId) {
-        // Range select on the currently-sorted order
-        const order = sortedRows.map((r) => r.id);
+        // Range select on the currently-visible order
+        const order = visibleRows.map((r) => r.id);
         const a = order.indexOf(lastClickedId);
         const b = order.indexOf(id);
         if (a >= 0 && b >= 0) {
@@ -207,7 +234,7 @@ export function FacultyTriagePanel({
     if (!dragAnchorRef.current) return;
     dragMovedRef.current = true;
     setSelected((prev) => {
-      const order = sortedRows.map((r) => r.id);
+      const order = visibleRows.map((r) => r.id);
       const a = order.indexOf(dragAnchorRef.current!);
       const b = order.indexOf(id);
       if (a < 0 || b < 0) return prev;
@@ -229,8 +256,8 @@ export function FacultyTriagePanel({
 
 
   const selectedRows = useMemo(
-    () => sortedRows.filter((r) => selected.has(r.id)),
-    [sortedRows, selected],
+    () => visibleRows.filter((r) => selected.has(r.id)),
+    [visibleRows, selected],
   );
 
   const tagsCurrentById = useMemo(() => {
@@ -582,6 +609,49 @@ export function FacultyTriagePanel({
       </div>
       )}
 
+      {!loading && rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs">
+          <span className="font-medium text-muted-foreground">Confidence:</span>
+          {(["all", "high", "medium", "low"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setConfidenceFilter(t)}
+              className={`rounded-md border px-2 py-0.5 capitalize ${
+                confidenceFilter === t ? "border-primary bg-primary/5 text-primary" : "hover:bg-accent"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+          <label className="ml-1 flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5">
+            <input
+              type="checkbox"
+              checked={introInterOnly}
+              onChange={(e) => setIntroInterOnly(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Intro / Intermediate only
+          </label>
+          <button
+            type="button"
+            onClick={applyFirstCampaignPreset}
+            title="Restrict to confirmed intro/intermediate professors at high confidence — the first-campaign target set."
+            className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 hover:bg-emerald-100"
+          >
+            ⭐ First campaign: intro/intermediate, high confidence
+          </button>
+          {filtersActive && (
+            <button type="button" onClick={resetFilters} className="text-muted-foreground underline">
+              Reset
+            </button>
+          )}
+          <span className="ml-auto tabular-nums text-muted-foreground">
+            {visibleRows.length} of {rows.length}
+          </span>
+        </div>
+      )}
+
       {loading ? (
         <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading candidates…</div>
       ) : rows.length === 0 ? (
@@ -618,7 +688,14 @@ export function FacultyTriagePanel({
           </TableHeader>
 
           <TableBody>
-            {sortedRows.map((r) => {
+            {visibleRows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
+                  No leads match these filters.
+                </TableCell>
+              </TableRow>
+            )}
+            {visibleRows.map((r) => {
               const isSel = selected.has(r.id);
               const hasTags = (r.title_tags ?? []).length > 0;
               const isImported = !!r.imported_lead_id;
