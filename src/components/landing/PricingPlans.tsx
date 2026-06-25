@@ -172,10 +172,10 @@ function PlanCard({
   return (
     <div
       className={cn(
-        "relative flex flex-col rounded-3xl border bg-white p-6 sm:p-7",
+        "relative flex flex-col rounded-3xl border bg-white p-6 transition-[transform,box-shadow] duration-200 sm:p-7",
         highlighted
           ? "border-transparent shadow-[0_20px_50px_-20px_rgba(206,17,38,0.45)] lg:-my-2 lg:py-9"
-          : "border-gray-200 shadow-[0_10px_40px_-20px_rgba(20,33,61,0.25)]",
+          : "border-gray-200 shadow-[0_10px_40px_-20px_rgba(20,33,61,0.25)] hover:-translate-y-1 hover:shadow-[0_24px_50px_-18px_rgba(20,33,61,0.35)]",
       )}
       style={highlighted ? { boxShadow: `0 0 0 2px ${RED}, 0 20px 50px -20px rgba(206,17,38,0.45)` } : undefined}
     >
@@ -212,7 +212,7 @@ function PlanCard({
           </li>
         ))}
       </ul>
-      <div className="mt-7 pt-1">{cta}</div>
+      <div className="mt-auto pt-7">{cta}</div>
     </div>
   );
 }

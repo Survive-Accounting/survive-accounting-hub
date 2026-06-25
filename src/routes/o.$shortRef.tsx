@@ -280,9 +280,14 @@ function TwoStepBar({ current }: { current: 0 | 1 }) {
 function PlanStep({ onChoose }: { onChoose: (p: PricingPlanKey) => void }) {
   return (
     <div className="space-y-7">
-      <Title subtitle="Pick the plan that fits — no payment now. You can change your mind anytime.">
-        Let&apos;s get you ready for your exam.
-      </Title>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: "rgba(20,33,61,0.55)" }}>
+          Step 1 of 2 · Choose your plan
+        </p>
+        <Title subtitle="Pick the plan that fits — no payment now. You can change your mind anytime.">
+          Let&apos;s get you ready for your exam.
+        </Title>
+      </div>
       <PricingPlans onSelectPlan={onChoose} />
     </div>
   );

@@ -172,7 +172,10 @@ function Home() {
       {s.plans && (
         <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
           <div className="mx-auto max-w-6xl">
-            <h2 className="text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
+            <p className="text-center text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: "rgba(20,33,61,0.55)" }}>
+              Plans
+            </p>
+            <h2 className="mt-2 text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
               Pick the way you want to pass
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-center text-[15px] text-gray-600">
