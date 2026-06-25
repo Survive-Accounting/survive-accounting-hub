@@ -1,7 +1,7 @@
 // /start — Syllabus-first tutoring request page.
 // Student uploads syllabus + basic contact info. Lee reviews manually before sending a booking link.
 import { useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2, Upload, CheckCircle2, FileText, X } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { z } from "zod";
@@ -43,6 +43,7 @@ const requestSchema = z.object({
 });
 
 function StartPage() {
+  const navigate = useNavigate();
   const [bookOpen, setBookOpen] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +52,9 @@ function StartPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SiteNavbar />
+      {/* Top-right "Book Tutoring" routes into the onboarding flow (/onboard
+          creates the conversation and redirects to /o/{short_ref}). */}
+      <SiteNavbar onBookTutoring={() => navigate({ to: "/onboard" })} />
       <Hero
         headline="Get help with your accounting course"
         subtext={`Upload your syllabus, and I'll respond within 1 business day if I'm a good fit to tutor you.`}
