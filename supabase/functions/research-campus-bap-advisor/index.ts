@@ -29,7 +29,7 @@ const cors = {
 const AI_GATEWAY_KEY = Deno.env.get("AI_GATEWAY_API_KEY") ?? "";
 const FIRECRAWL_KEY = Deno.env.get("FIRECRAWL_API_KEY") ?? "";
 const SERPAPI_KEY = Deno.env.get("SERPAPI_API_KEY") ?? "";
-const MODEL = Deno.env.get("RESEARCH_MODEL") ?? "google/gemini-2.0-flash-lite";
+const MODEL = Deno.env.get("RESEARCH_MODEL") ?? "google/gemini-2.5-flash";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
