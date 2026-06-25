@@ -5,6 +5,7 @@ import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
 import SiteFooter from "@/components/landing/SiteFooter";
+import FreeVideoCapture from "@/components/landing/FreeVideoCapture";
 
 const TUTOR_PHONE_E164 = "+16625658818";
 const TUTOR_PHONE_PRETTY = "(662) 565-8818";
@@ -118,6 +119,7 @@ function Home() {
       />
 
       <Reviews />
+      <FreeVideoCapture />
       <ContactForm />
       
       <SiteFooter onScrollToReviews={goToReviews} />
