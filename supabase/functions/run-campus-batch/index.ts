@@ -80,7 +80,14 @@ async function processItem(db: any, item: any, researchMode: string) {
     if (r.ok) {
       profile_done = true;
     }
-  
+
+  } else if (researchMode === "bap_advisor") {
+    // BAP mode: only find/flag the campus's Beta Alpha Psi faculty advisor.
+    const r = await step("bap_advisor", () => invokeFn("research-campus-bap-advisor", { campus_id }));
+    if (r.ok && (r.data?.matched || r.data?.inserted)) {
+      leads_count = (leads_count ?? 0) + 1;
+    }
+
   } else {
     // BROAD mode: full pipeline (profile → leads → prefixes → sections).
     // 1. Campus profile — research-campus expects school_name/state, not campus_id

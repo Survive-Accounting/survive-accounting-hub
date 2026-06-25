@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { CleanProfessorResearchPanel } from "@/components/outreach/CleanProfessorResearchPanel";
 import { ProgramAndCoursesPanel } from "@/components/outreach/ProgramAndCoursesPanel";
+import { BapAdvisorPanel } from "@/components/outreach/BapAdvisorPanel";
 import { MOCK_CAMPUSES, type Campus } from "@/lib/outreach-mock";
 import { fetchCampuses } from "@/lib/outreach-api";
 
@@ -39,6 +40,11 @@ function ResearchPage() {
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">Program &amp; Course-Code Backfill</h2>
         <ProgramAndCoursesPanel />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground">BAP Advisor Enrichment</h2>
+        <BapAdvisorPanel campuses={campuses} />
       </section>
     </div>
   );

@@ -1103,7 +1103,7 @@ export interface LeadSuggestion {
   updated_at: string;
 }
 
-export type ResearchMode = "broad" | "clean_professor_only" | "textbook_only" | "program_and_courses";
+export type ResearchMode = "broad" | "clean_professor_only" | "textbook_only" | "program_and_courses" | "bap_advisor";
 export const RESEARCH_MODES: ResearchMode[] = ["broad", "clean_professor_only", "textbook_only", "program_and_courses"];
 
 export type LeadSuggestionInput = Partial<
@@ -1413,6 +1413,16 @@ export async function startProgramAndCoursesBatch(
   notes?: string,
 ): Promise<CampusResearchJob> {
   return startCampusBatch(campusIds, notes ?? "Program + courses", "program_and_courses");
+}
+
+/** BAP advisor enrichment batch — finds each campus's Beta Alpha Psi faculty
+ *  advisor (research-campus-bap-advisor), matching an existing lead first.
+ *  Pass campusIds already ordered highest-priority-first to process them first. */
+export async function startBapAdvisorBatch(
+  campusIds: string[],
+  notes?: string,
+): Promise<CampusResearchJob> {
+  return startCampusBatch(campusIds, notes ?? "BAP advisor enrichment", "bap_advisor");
 }
 
 /** Returns the set of campus IDs whose Intro 1 OR Intro 2 textbook matches a
