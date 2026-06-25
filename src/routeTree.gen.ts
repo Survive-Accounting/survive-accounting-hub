@@ -25,6 +25,7 @@ import { Route as OutreachStudentsRouteImport } from './routes/outreach.students
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
+import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
@@ -118,6 +119,11 @@ const OutreachLeadfinderBatchRoute = OutreachLeadfinderBatchRouteImport.update({
   path: '/leadfinder-batch',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachLandingRoute = OutreachLandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachCampusesRoute = OutreachCampusesRouteImport.update({
   id: '/campuses',
   path: '/campuses',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -250,6 +258,7 @@ export interface FileRoutesById {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/research'
@@ -309,6 +319,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/research'
@@ -338,6 +349,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/research'
@@ -482,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLeadfinderBatchRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/landing': {
+      id: '/outreach/landing'
+      path: '/landing'
+      fullPath: '/outreach/landing'
+      preLoaderRoute: typeof OutreachLandingRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/campuses': {
       id: '/outreach/campuses'
       path: '/campuses'
@@ -582,6 +601,7 @@ interface OutreachRouteChildren {
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
+  OutreachLandingRoute: typeof OutreachLandingRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
@@ -595,6 +615,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,
+  OutreachLandingRoute: OutreachLandingRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
   OutreachResearchRoute: OutreachResearchRoute,

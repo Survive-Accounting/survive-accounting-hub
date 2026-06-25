@@ -7,7 +7,7 @@ import { useState } from "react";
 import { createFileRoute, useRouterState, Outlet, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { ChevronDown, GraduationCap, Megaphone, Search, Settings } from "lucide-react";
+import { ChevronDown, GraduationCap, LayoutTemplate, Megaphone, Search, Settings } from "lucide-react";
 
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -68,6 +68,13 @@ const SECTIONS: Section[] = [
       { label: "Metrics", to: "/outreach/campaign-metrics" },
       { label: "Students", to: "/outreach/students" },
     ],
+  },
+  {
+    key: "site",
+    label: "Site",
+    icon: LayoutTemplate,
+    owns: (p) => p.startsWith("/outreach/landing"),
+    subtabs: [{ label: "Landing Page", to: "/outreach/landing" }],
   },
 ];
 

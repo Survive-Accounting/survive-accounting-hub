@@ -93,7 +93,7 @@ export default function PricingPlans({
           tagline="Sessions built entirely around you."
           features={[
             "Live 1-on-1 Zoom sessions",
-            "10 hours available each week",
+            "Only 10 hours a week",
             "Personalized to your course + exam",
             "Taught by Lee — accounting grad, tutor since 2015",
           ]}

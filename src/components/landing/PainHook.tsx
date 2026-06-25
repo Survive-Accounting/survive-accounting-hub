@@ -12,7 +12,6 @@ const ITEMS = [
   "my homework",
   "the textbook",
   "the solution manual",
-  "ChatGPT",
 ];
 
 export default function PainHook({ className }: { className?: string }) {

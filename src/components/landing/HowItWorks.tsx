@@ -15,8 +15,8 @@ export default function HowItWorks({ className }: { className?: string }) {
             title="Pick your plan"
             body="Test pass, semester membership, or 1-on-1." />
           <Step icon={<BookOpen className="h-6 w-6" />} n={2}
-            title="Get your course's chapters"
-            body="Matched to exactly what you're studying." />
+            title="Get new materials as I build them"
+            body="Practice questions and videos, added all the time — launching soon." />
           <Step icon={<Target className="h-6 w-6" />} n={3}
             title="Practice the real exam style"
             body={`The questions + explainers that fix "my exam looked nothing like."`} />

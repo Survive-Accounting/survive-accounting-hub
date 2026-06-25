@@ -12,6 +12,7 @@ import HowItWorks from "@/components/landing/HowItWorks";
 import PricingPlans from "@/components/landing/PricingPlans";
 import FreeVideoCapture from "@/components/landing/FreeVideoCapture";
 import BeyondTeaser from "@/components/landing/BeyondTeaser";
+import { getSiteSettings, type SiteSettings } from "@/lib/site-settings.functions";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -34,72 +35,106 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Accounting tutoring from someone who actually does. 1-on-1 with Lee Ingram, plus free explainers and exam-style practice. Survive your course — or learn to love it.",
+          "Accounting tutoring from someone who actually loves it. 1-on-1 with Lee Ingram, plus exam-style practice. Survive your course — or learn to love it.",
       },
       { property: "og:title", content: "Survive Accounting" },
-      { property: "og:description", content: "Accounting tutoring from someone who actually does." },
+      { property: "og:description", content: "Accounting tutoring from someone who actually loves it." },
       { property: "og:type", content: "website" },
     ],
   }),
+  loader: () => getSiteSettings(),
   component: Home,
 });
 
-function HeroCta() {
+/** Host-agnostic: turn a YouTube/Vimeo URL or bare YouTube ID into an embeddable src. */
+function toEmbedSrc(url: string): string | null {
+  const u = (url ?? "").trim();
+  if (!u) return null;
+  let m = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  m = u.match(/vimeo\.com\/(\d+)/);
+  if (m) return `https://player.vimeo.com/video/${m[1]}`;
+  if (/^[A-Za-z0-9_-]{8,15}$/.test(u)) return `https://www.youtube.com/embed/${u}`;
+  if (/^https?:\/\//.test(u)) return u;
+  return null;
+}
+
+function HeroCta({ settings }: { settings: SiteSettings }) {
+  const embed = settings.introVideo.show ? toEmbedSrc(settings.introVideo.url) : null;
+  const showFreeExplainers = settings.sections.freeExplainers;
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
         <a href="/onboard" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
           <span style={{ fontWeight: 800 }}>Book a session</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
-        <a
-          href="#free-videos"
-          className={GHOST_BTN_CLASS}
-          style={{ color: "white", border: "1px solid rgba(255,255,255,0.28)", textDecoration: "none" }}
-        >
-          Get free explainers
-        </a>
+        {showFreeExplainers && (
+          <a href="#free-videos" className={GHOST_BTN_CLASS}
+            style={{ color: "white", border: "1px solid rgba(255,255,255,0.28)", textDecoration: "none" }}>
+            Get free explainers
+          </a>
+        )}
       </div>
       <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.7)", fontFamily: "Inter, sans-serif" }}>
-        1,000+ students helped since 2015 · 1-on-1 spots open now
+        1,000+ students helped since 2015 · Only 10 hours a week
       </p>
+      {embed && (
+        <div className="mt-4 w-full max-w-xl overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
+          <div className="relative aspect-video bg-black/40">
+            <iframe
+              src={embed}
+              title="Watch Lee's intro"
+              className="absolute inset-0 h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function Home() {
+  const settings = Route.useLoaderData();
+  const s = settings.sections;
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#F8FAFC" }}>
-      <Hero
-        headline="Survive it. Or learn to love it."
-        subtext="Accounting tutoring from someone who actually does."
-        ctaSlot={<HeroCta />}
-      />
+      {s.hero && (
+        <Hero
+          headline="Survive it. Or learn to love it."
+          subtext="Accounting tutoring from someone who actually loves it."
+          ctaSlot={<HeroCta settings={settings} />}
+        />
+      )}
 
-      <PainHook />
-      <SoulBand />
-      <DualWelcome />
+      {s.painHook && <PainHook />}
+      {s.whoIAm && <SoulBand />}
+      {s.dualWelcome && <DualWelcome />}
       <Reviews />
-      <HowItWorks />
+      {s.howItWorks && <HowItWorks />}
 
-      {/* The three plans (reused on /pricing too) */}
-      <section className="px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
-            Pick the way you want to pass
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-center text-[15px] text-gray-600">
-            Materials are launching soon — get on the list. 1-on-1 with Lee is available now.
-          </p>
-          <div className="mt-10">
-            <PricingPlans bookHref="/onboard" />
+      {s.plans && (
+        <section className="px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
+          <div className="mx-auto max-w-6xl">
+            <h2 className="text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
+              Pick the way you want to pass
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-center text-[15px] text-gray-600">
+              Materials are launching soon — get on the list. 1-on-1 with Lee is available now.
+            </p>
+            <div className="mt-10">
+              <PricingPlans bookHref="/onboard" />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <FreeVideoCapture />
-      <BeyondTeaser />
-      <ContactForm />
+      {s.freeExplainers && <FreeVideoCapture />}
+      {s.beyondExam && <BeyondTeaser />}
+      {s.questions && <ContactForm />}
 
       <SiteFooter />
       <Toaster position="top-center" richColors />
