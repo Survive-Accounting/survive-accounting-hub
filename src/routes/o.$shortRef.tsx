@@ -367,7 +367,16 @@ function ConfirmationStep({
         return;
       }
       setSaved(true);
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      // Onboarding ends IN the preview dashboard, not a dead-end card — carry the
+      // student's email/course/school so they drop straight in (already identified).
+      const params = new URLSearchParams();
+      const em = draft.email.trim().toLowerCase();
+      if (em) params.set("email", em);
+      if (draft.course) params.set("course", draft.course);
+      const first = draft.firstName.trim().split(/\s+/)[0];
+      if (first) params.set("name", first);
+      if (draft.schoolName.trim()) params.set("school", draft.schoolName.trim());
+      if (typeof window !== "undefined") window.location.href = `/preview?${params.toString()}`;
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "Something went wrong. Please try again.";

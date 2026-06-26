@@ -26,3 +26,8 @@ export const TUTORING_SEATS_LEFT_TEXT = "";
  *  Stripe. The homepage/pricing card gates on STRIPE_TUTORING_PAYMENT_LINK
  *  directly now; this remains for the onboarding prepay branch. */
 export const ENABLE_PREPAY = false;
+
+/** Optional intro/vision video for the preview dashboard (/preview) where Lee
+ *  explains what he's building and invites testers to help shape it. Paste a
+ *  YouTube/Vimeo URL (or bare YouTube ID). Empty = the video slot is hidden. */
+export const PREVIEW_VISION_VIDEO_URL = "";
