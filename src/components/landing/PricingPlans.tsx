@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { joinPricingWaitlist, type WaitlistTier } from "@/lib/pricing-api";
-import { STRIPE_TUTORING_PAYMENT_LINK } from "@/lib/site-config";
+import { joinPricingWaitlist, reservePrepayLead, type WaitlistTier } from "@/lib/pricing-api";
+import { STRIPE_TUTORING_PAYMENT_LINK, TUTORING_SOLD_OUT, TUTORING_SEATS_LEFT_TEXT } from "@/lib/site-config";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -24,8 +24,14 @@ export const TEST_PASS_PRICE = 45;
 export const TEST_PASS_WAS = 60;
 export const MEMBERSHIP_PRICE = 125;
 export const MEMBERSHIP_WAS = 150;
-export const PREPAY_PRICE = 1350;
-export const PREPAY_WAS = 1500;
+// Premium 1-on-1 is now a full-price, capacity-capped semester block — NO
+// discount. 15 hours prepaid at a straight $150/hr.
+export const PREPAY_PRICE = 2250;
+export const PREPAY_HOURS = 15;
+export const PREPAY_RATE = 150;
+// Kept (= PREPAY_PRICE, so nothing renders as a discount) for back-compat with
+// the onboarding wizard's plan-summary import until that flow is reworked.
+export const PREPAY_WAS = 2250;
 
 const RED_BTN = "h-12 w-full text-base font-bold text-white";
 const RED_BTN_STYLE: React.CSSProperties = {
@@ -53,7 +59,9 @@ export default function PricingPlans({
   void bookHref;
   const selecting = !!onSelectPlan;
   const [waitlistTier, setWaitlistTier] = useState<MaterialsTier | null>(null);
+  const [reserveOpen, setReserveOpen] = useState(false);
   const stripeReady = STRIPE_TUTORING_PAYMENT_LINK.trim().length > 0;
+  const soldOut = TUTORING_SOLD_OUT;
 
   const chooseBtn = (plan: PricingPlanKey, outline?: boolean) => (
     <Button
@@ -120,25 +128,32 @@ export default function PricingPlans({
           )}
         />
 
-        {/* Premium 1-on-1 — prepaid semester block, LIVE via Stripe */}
+        {/* Premium 1-on-1 — full-price, capacity-capped semester partnership */}
         <PlanCard
           title="Premium 1-on-1 Tutoring"
           price={`$${PREPAY_PRICE.toLocaleString()}`}
-          wasPrice={`$${PREPAY_WAS.toLocaleString()}`}
-          saveNote="save $150 (10% prepay)"
-          subLine="Reserve your recurring seat for the semester."
+          priceNote={`${PREPAY_HOURS} one-on-one hours · $${PREPAY_RATE}/hr`}
+          subLine="Your tutor for the semester — built entirely around your course, professor, and exam."
           features={[
-            "10 one-on-one Zoom sessions",
-            "Only a few seats each semester",
-            "Personalized to your course + exam",
-            "Taught by Lee — accounting grad, tutor since 2015",
+            `${PREPAY_HOURS} hours of live 1-on-1 Zoom sessions`,
+            "Tailored to your exact course + professor's exam style",
+            "~2–3 hrs/week, more around test time",
+            "Re-up hours anytime; unused hours roll to next semester",
+            "Only 4 students per semester",
+            "Full refund after session 1 if you're not happy",
           ]}
-          liveBadge
+          footnote="Pay → book your intro call → we set your recurring weekly time."
+          availability={soldOut ? "soldout" : "available"}
+          seatsLeftText={soldOut ? "" : TUTORING_SEATS_LEFT_TEXT}
           cta={selecting ? chooseBtn("prepay") : (
-            stripeReady ? (
-              <a href={STRIPE_TUTORING_PAYMENT_LINK} target="_blank" rel="noopener noreferrer" className="block">
-                <Button className={RED_BTN} style={RED_BTN_STYLE}>Reserve your seat →</Button>
-              </a>
+            soldOut ? (
+              <Button className={RED_BTN} style={RED_BTN_STYLE} onClick={() => setReserveOpen(true)}>
+                Join the waitlist
+              </Button>
+            ) : stripeReady ? (
+              <Button className={RED_BTN} style={RED_BTN_STYLE} onClick={() => setReserveOpen(true)}>
+                Reserve your seat →
+              </Button>
             ) : (
               <Button className={RED_BTN} style={RED_BTN_STYLE} disabled title="Coming soon">
                 Reserve your seat →
@@ -149,26 +164,33 @@ export default function PricingPlans({
       </div>
 
       <WaitlistDialog tier={waitlistTier} onClose={() => setWaitlistTier(null)} />
+      <ReserveDialog open={reserveOpen} soldOut={soldOut} onClose={() => setReserveOpen(false)} />
     </div>
   );
 }
 
 function PlanCard({
-  title, price, wasPrice, cadence, saveNote, subLine, tagline, features, cta, highlighted, badge, liveBadge,
+  title, price, wasPrice, cadence, priceNote, saveNote, subLine, tagline, features, cta, footnote,
+  highlighted, badge, liveBadge, availability, seatsLeftText,
 }: {
   title: string;
   price: string;
   wasPrice?: string;
   cadence?: string;
+  priceNote?: string;
   saveNote?: string;
   subLine?: string;
   tagline?: string;
   features: string[];
   cta: React.ReactNode;
+  footnote?: string;
   highlighted?: boolean;
   badge?: string;
   liveBadge?: boolean;
+  availability?: "available" | "soldout";
+  seatsLeftText?: string;
 }) {
+  const soldOut = availability === "soldout";
   return (
     <div
       className={cn(
@@ -185,11 +207,14 @@ function PlanCard({
           {badge}
         </span>
       )}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-lg font-bold" style={{ color: NAVY }}>{title}</h3>
-        {liveBadge && (
-          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-            Available now
+        {(availability || liveBadge) && (
+          <span className={cn(
+            "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            soldOut ? "bg-gray-100 text-gray-500" : "bg-emerald-50 text-emerald-700",
+          )}>
+            {soldOut ? "Sold out" : "Available now"}
           </span>
         )}
       </div>
@@ -198,6 +223,8 @@ function PlanCard({
         {wasPrice && <span className="text-lg font-semibold text-gray-400 line-through">{wasPrice}</span>}
         {cadence && <span className="text-sm text-gray-500">/ {cadence}</span>}
       </div>
+      {priceNote && <p className="mt-1 text-sm font-medium text-gray-600">{priceNote}</p>}
+      {seatsLeftText && <p className="mt-1 text-xs font-semibold" style={{ color: RED }}>{seatsLeftText}</p>}
       {saveNote && (
         <span className="mt-1 inline-block w-fit rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
           {saveNote}
@@ -212,7 +239,10 @@ function PlanCard({
           </li>
         ))}
       </ul>
-      <div className="mt-auto pt-7">{cta}</div>
+      <div className="mt-auto pt-7">
+        {footnote && <p className="mb-3 text-xs text-gray-500">{footnote}</p>}
+        {cta}
+      </div>
     </div>
   );
 }
@@ -306,6 +336,127 @@ function WaitlistDialog({
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding you…</>
                   : `Join waitlist — lock in $${tier?.key === "membership" ? MEMBERSHIP_PRICE : TEST_PASS_PRICE}`}
               </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Premium 1-on-1 capture step — runs BEFORE the Stripe handoff so the lead (and
+// their context) is saved even if they abandon at checkout. On reserve, writes
+// the lead then redirects to Stripe with client_reference_id + prefilled_email
+// so the payment matches back. When sold out, it's a plain waitlist capture.
+function ReserveDialog({
+  open, soldOut, onClose,
+}: { open: boolean; soldOut: boolean; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [campus, setCampus] = useState("");
+  const [course, setCourse] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const close = () => {
+    onClose();
+    setTimeout(() => {
+      setName(""); setEmail(""); setPhone(""); setCampus(""); setCourse(""); setDone(false);
+    }, 150);
+  };
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const { id } = await reservePrepayLead({
+        name, email, phone, campus, course,
+        mode: soldOut ? "waitlist" : "reserve",
+      });
+      if (soldOut) {
+        setDone(true);
+        setBusy(false);
+      } else {
+        // Lead captured first; hand off to Stripe with the match key + email.
+        const url = new URL(STRIPE_TUTORING_PAYMENT_LINK);
+        url.searchParams.set("client_reference_id", id);
+        url.searchParams.set("prefilled_email", email.trim().toLowerCase());
+        window.location.href = url.toString();
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) close(); }}>
+      <DialogContent className="max-w-md">
+        {done ? (
+          <div className="py-2 text-center">
+            <div className="mx-auto grid h-14 w-14 place-content-center rounded-full bg-emerald-50">
+              <Check className="h-7 w-7 text-emerald-600" />
+            </div>
+            <h3 className="mt-4 text-lg font-bold" style={{ color: NAVY }}>You&apos;re on the waitlist!</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              All four seats are full right now — I&apos;ll reach out the moment one opens up.
+            </p>
+            <Button className="mt-5 w-full" onClick={close}>Done</Button>
+          </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{soldOut ? "Join the 1-on-1 waitlist" : "Reserve your seat"}</DialogTitle>
+              <DialogDescription>
+                {soldOut
+                  ? "All four seats are taken — leave your info and I'll reach out when one opens."
+                  : "Quick details, then I'll send you to secure checkout. Full refund after session 1 if you're not happy."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="rs-name" className="text-xs">Name</Label>
+                <Input id="rs-name" value={name} autoComplete="name"
+                  onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="rs-email" className="text-xs">Email</Label>
+                <Input id="rs-email" type="email" value={email} autoComplete="email"
+                  onChange={(e) => setEmail(e.target.value)} placeholder="you@school.edu" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="rs-phone" className="text-xs">
+                  Phone <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input id="rs-phone" type="tel" value={phone} autoComplete="tel"
+                  onChange={(e) => setPhone(e.target.value)} placeholder="(555) 555-5555" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="rs-campus" className="text-xs">
+                    School <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input id="rs-campus" value={campus}
+                    onChange={(e) => setCampus(e.target.value)} placeholder="Not listed? Just type it" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="rs-course" className="text-xs">
+                    Course <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input id="rs-course" value={course}
+                    onChange={(e) => setCourse(e.target.value)} placeholder="e.g. ACCY 303" />
+                </div>
+              </div>
+              <Button className={RED_BTN} style={RED_BTN_STYLE} disabled={busy} onClick={submit}>
+                {busy
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {soldOut ? "Adding you…" : "Taking you to checkout…"}</>
+                  : soldOut ? "Join the waitlist" : `Continue to checkout — $${PREPAY_PRICE.toLocaleString()} →`}
+              </Button>
+              <p className="text-center text-[11px] text-gray-400">
+                {soldOut
+                  ? "No payment — just the waitlist."
+                  : "Secure payment via Stripe. Your seat is held once payment completes."}
+              </p>
             </div>
           </>
         )}
