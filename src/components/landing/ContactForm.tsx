@@ -36,6 +36,17 @@ export default function ContactForm() {
           zIndex: 0,
         }}
       />
+      {/* Soft red gradient-mesh glow for depth on the final CTA band. */}
+      <div
+        aria-hidden="true"
+        className="absolute pointer-events-none"
+        style={{
+          inset: 0,
+          background:
+            "radial-gradient(60% 70% at 50% 0%, rgba(206,17,38,0.22) 0%, rgba(206,17,38,0) 60%)",
+          zIndex: 0,
+        }}
+      />
 
       <div className="relative z-10 mx-auto" style={{ maxWidth: 640 }}>
         <div className="flex flex-col items-center text-center">

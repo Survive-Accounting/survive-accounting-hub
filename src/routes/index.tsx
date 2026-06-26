@@ -207,10 +207,11 @@ function Home() {
       {/* Reviews follow Lee's story — social proof lands while the personal
           connection is high, before audiences self-sort in Dual welcome. */}
       <Reviews />
-      {s.dualWelcome && <Reveal><DualWelcome /></Reveal>}
+      {s.dualWelcome && <DualWelcome />}
 
       {s.plans && (
-        <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
+        <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20"
+          style={{ background: "radial-gradient(70% 60% at 50% 0%, #FFFFFF 0%, #F4F7FC 70%)" }}>
           <Reveal className="mx-auto max-w-6xl">
             <h2 className="text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
               Pick the way you want to prep
