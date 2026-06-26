@@ -41,6 +41,8 @@ import PricingPlans, {
 } from "@/components/landing/PricingPlans";
 import { joinOnboardingWaitlist } from "@/lib/pricing-api";
 import { ENABLE_PREPAY, STRIPE_TUTORING_PAYMENT_LINK } from "@/lib/site-config";
+import { getCampusSpirit, type CampusSpirit } from "@/lib/campus-spirit";
+import { SpiritMoment } from "@/components/onboarding/SpiritMoment";
 
 const LEE_PHONE_DISPLAY = "(662) 565-8818";
 const LEE_PHONE_HREF = "+16625658818";
@@ -336,6 +338,8 @@ function ConfirmationStep({
   const update = <K extends keyof Draft>(k: K, v: Draft[K]) =>
     setDraft((p) => ({ ...p, [k]: v }));
   const [saved, setSaved] = useState(false);
+  const [spirit, setSpirit] = useState<CampusSpirit | null>(null);
+  const [showSpirit, setShowSpirit] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const price = planPrice(plan);
@@ -472,6 +476,9 @@ function ConfirmationStep({
             update("campusId", id);
             update("schoolName", name);
             update("schoolOther", false);
+            // Subtle, verified-ONLY spirit moment (neutral on-brand fallback
+            // when the campus has no verified campus_spirit row).
+            getCampusSpirit(id).then((sp) => { setSpirit(sp); setShowSpirit(true); });
           }}
           onTypeOther={(name) => {
             update("campusId", null);
@@ -484,6 +491,13 @@ function ConfirmationStep({
             update("schoolOther", false);
           }}
         />
+        {showSpirit && (
+          <SpiritMoment
+            spirit={spirit}
+            schoolName={draft.schoolName || null}
+            onDone={() => setShowSpirit(false)}
+          />
+        )}
 
         <div>
           <Label className="mb-3 block text-sm font-medium text-gray-800">
