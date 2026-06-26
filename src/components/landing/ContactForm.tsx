@@ -84,17 +84,6 @@ export default function ContactForm() {
                 Text Lee {TUTOR_PHONE_PRETTY}
               </span>
             </a>
-
-            <p
-              className="mt-2 text-center text-[13px] font-light"
-              style={{
-                color: "rgba(255,255,255,0.75)",
-                fontFamily: "Inter, sans-serif",
-                letterSpacing: "0.02em",
-              }}
-            >
-              1,000+ students tutored
-            </p>
           </div>
         </div>
       </div>

@@ -22,7 +22,7 @@ const RED = "#CE1126";
 
 export const TEST_PASS_PRICE = 45;
 export const TEST_PASS_WAS = 60;
-export const MEMBERSHIP_PRICE = 125;
+export const MEMBERSHIP_PRICE = 99;
 export const MEMBERSHIP_WAS = 150;
 // Premium 1-on-1 is now a full-price, capacity-capped semester block — NO
 // discount. 15 hours prepaid at a straight $150/hr.
@@ -100,7 +100,7 @@ export default function PricingPlans({
             <Button className="h-12 w-full text-base font-semibold" variant="outline"
               style={{ color: NAVY, borderColor: NAVY }}
               onClick={() => setWaitlistTier({ key: "test_pass", label: "Just One Test" })}>
-              {`Join waitlist — lock in $${TEST_PASS_PRICE}`}
+              Notify me
             </Button>
           )}
         />
@@ -123,7 +123,7 @@ export default function PricingPlans({
           cta={selecting ? chooseBtn("membership") : (
             <Button className={RED_BTN} style={RED_BTN_STYLE}
               onClick={() => setWaitlistTier({ key: "membership", label: "Semester Membership" })}>
-              {`Join waitlist — lock in $${MEMBERSHIP_PRICE}`}
+              Notify me
             </Button>
           )}
         />

@@ -53,24 +53,23 @@ export default function SoulBand({ className }: { className?: string }) {
           >
             <FramedPhoto src={DETAIL_PHOTO} alt="Journal of Accountancy masthead" label="masthead detail" />
           </div>
+          <p className="mt-9 text-center text-xs italic text-gray-400">
+            Not me reading the Journal of Accountancy as a kid, tho.
+          </p>
         </div>
 
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: RED }}>
-            Who I am
+          <p className="text-sm font-semibold uppercase tracking-[0.16em]" style={{ color: RED }}>
+            My story
           </p>
           <h2 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>
-            I come from a long line of accountants — I&apos;ve loved this stuff since I was a kid.
+            I&apos;ve loved this stuff for a long time.
           </h2>
           <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-700">
             <p>
-              I&apos;m Lee — Ole Miss accounting alum (&apos;17), bachelor&apos;s and master&apos;s, and I&apos;ve
-              been tutoring accounting every semester since 2015.
-            </p>
-            <p>
-              I built Survive Accounting during the pandemic, and now I do this full-time. This isn&apos;t a
-              side hustle or a call center — it&apos;s the thing I genuinely love doing. Whether you want to
-              survive your course or learn to love it like I do, you&apos;re in the right place.
+              I&apos;m Lee — Ole Miss accounting grad, class of &apos;17, tutoring every semester since
+              2015. I genuinely love this stuff, and I think that&apos;s the difference. I&apos;ll help
+              you get it — and maybe even enjoy it along the way.
             </p>
           </div>
         </div>

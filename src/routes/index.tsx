@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 
@@ -8,7 +9,6 @@ import SiteFooter from "@/components/landing/SiteFooter";
 import PainHook from "@/components/landing/PainHook";
 import SoulBand from "@/components/landing/SoulBand";
 import DualWelcome from "@/components/landing/DualWelcome";
-import HowItWorks from "@/components/landing/HowItWorks";
 import PricingPlans from "@/components/landing/PricingPlans";
 import FreeVideoCapture from "@/components/landing/FreeVideoCapture";
 import BeyondTeaser from "@/components/landing/BeyondTeaser";
@@ -26,8 +26,6 @@ const RED_BTN_STYLE: React.CSSProperties = {
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 14px 36px rgba(206,17,38,0.42)",
   textDecoration: "none",
 };
-const GHOST_BTN_CLASS =
-  "hero-anim-btn rounded-2xl px-8 py-4 text-[16px] font-semibold transition-all duration-200 hover:bg-white/10 inline-flex items-center justify-center gap-2";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -60,28 +58,36 @@ function toEmbedSrc(url: string): string | null {
   return null;
 }
 
-function HeroCta({ settings }: { settings: SiteSettings }) {
-  const embed = settings.introVideo.show ? toEmbedSrc(settings.introVideo.url) : null;
-  const showFreeExplainers = settings.sections.freeExplainers;
+function HeroCta() {
   return (
     <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
         <a href="/onboard" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
-          <span style={{ fontWeight: 800 }}>Book a session</span>
+          <span style={{ fontWeight: 800 }}>Get started</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
-        {showFreeExplainers && (
-          <a href="#free-videos" className={GHOST_BTN_CLASS}
-            style={{ color: "white", border: "1px solid rgba(255,255,255,0.28)", textDecoration: "none" }}>
-            Get free explainers
-          </a>
-        )}
       </div>
       <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.7)", fontFamily: "Inter, sans-serif" }}>
-        1,000+ students helped since 2015 · Only 10 hours a week
+        1,000+ students helped since 2015 · Intro &amp; Intermediate Accounting
       </p>
-      {embed && (
-        <div className="mt-4 w-full max-w-xl overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
+    </div>
+  );
+}
+
+/** Intro video — a framed player (replaces the old "How it works" section).
+ *  Wired to the existing /outreach/landing hero-video field (settings.introVideo).
+ *  Gracefully hidden if no URL is set. */
+function IntroVideoSection({ settings }: { settings: SiteSettings }) {
+  const embed = toEmbedSrc(settings.introVideo.url);
+  if (!embed) return null;
+  return (
+    <section className="px-4 py-14 sm:py-20" style={{ background: "#FFFFFF" }}>
+      <div className="mx-auto max-w-3xl">
+        <p className="text-center text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: RED }}>
+          Watch: why I do this
+        </p>
+        <div className="mt-5 overflow-hidden rounded-3xl border shadow-[0_24px_70px_-30px_rgba(20,33,61,0.55)]"
+          style={{ borderColor: "rgba(20,33,61,0.10)" }}>
           <div className="relative aspect-video bg-black/40">
             <iframe
               src={embed}
@@ -92,34 +98,67 @@ function HeroCta({ settings }: { settings: SiteSettings }) {
             />
           </div>
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }
 
-// Sticky top navbar (homepage only). Left: wordmark. Right: Pricing + the
-// waitlist-first CTA. "Join the Waitlist" scrolls to the plans + capture
-// section (#plans); if that section is toggled off, it falls back to /pricing.
+/** "As featured in" press strip — understated credibility band. */
+function PressBar() {
+  const outlets = ["Oxford Eagle", "Innovate Mississippi", "The Daily Mississippian", "Magee News"];
+  return (
+    <section className="border-b px-4 py-6" style={{ background: "#FFFFFF", borderColor: "rgba(20,33,61,0.07)" }}>
+      <div className="mx-auto max-w-5xl">
+        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+          As featured in
+        </p>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+          {outlets.map((o) => (
+            <span key={o} className="text-sm font-semibold tracking-tight text-gray-500 sm:text-[15px]">
+              {o}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Sticky top navbar (homepage only). Left: wordmark. Right: Pricing link +
+// "Sign Up" (same destination as the hero "Get started" CTA → /onboard).
+// Condenses subtly on scroll.
 function SiteNav() {
-  const goToPlans = () => {
-    if (typeof document === "undefined") return;
-    const el = document.getElementById("plans");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    else window.location.href = "/pricing";
-  };
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   return (
     <header
-      className="sticky top-0 z-50 w-full border-b"
+      className="sticky top-0 z-50 w-full border-b transition-shadow duration-300"
       style={{
         background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)",
         borderColor: "rgba(255,255,255,0.08)",
-        boxShadow: "0 4px 16px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.04) inset",
+        boxShadow: scrolled
+          ? "0 8px 26px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.04) inset"
+          : "0 4px 16px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.04) inset",
         backdropFilter: "blur(8px)",
       }}
     >
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center px-4 sm:h-16 sm:px-6">
+      <div
+        className={`mx-auto flex w-full max-w-6xl items-center px-4 transition-all duration-300 sm:px-6 ${
+          scrolled ? "h-12 sm:h-14" : "h-14 sm:h-16"
+        }`}
+      >
         <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
-          <img src={LOGO_URL} alt="Survive Accounting" className="h-5 w-auto select-none sm:h-[22px]" draggable={false} />
+          <img
+            src={LOGO_URL}
+            alt="Survive Accounting"
+            className={`w-auto select-none transition-all duration-300 ${scrolled ? "h-[18px] sm:h-5" : "h-5 sm:h-[22px]"}`}
+            draggable={false}
+          />
         </a>
         <nav className="ml-auto flex items-center gap-1.5 sm:gap-3">
           <a
@@ -128,17 +167,16 @@ function SiteNav() {
           >
             Pricing
           </a>
-          <button
-            type="button"
-            onClick={goToPlans}
-            className="rounded-xl px-3.5 py-2 text-sm font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 sm:px-5 sm:text-[15px]"
+          <a
+            href="/onboard"
+            className="rounded-xl px-3.5 py-2 text-sm font-bold text-white no-underline transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 sm:px-5 sm:text-[15px]"
             style={{
               background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
               boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 22px rgba(206,17,38,0.36)",
             }}
           >
-            Join the Waitlist
-          </button>
+            Sign Up
+          </a>
         </nav>
       </div>
     </header>
@@ -155,31 +193,29 @@ function Home() {
       {s.hero && (
         <Hero
           headline="Survive it. Or learn to love it."
-          subtext="Accounting tutoring from someone who actually loves it."
-          ctaSlot={<HeroCta settings={settings} />}
+          subtext="Accounting tutoring from someone who genuinely loves it — and teaches it like a normal person."
+          ctaSlot={<HeroCta />}
         />
       )}
 
+      <PressBar />
+      <IntroVideoSection settings={settings} />
+
       {s.painHook && <PainHook />}
       {s.whoIAm && <SoulBand />}
-      {/* GLM design pass: Reviews moved up to follow Lee's story — social proof
-          lands while the personal connection is high, before audiences self-sort
-          in Dual welcome. Easy to revert by moving <Reviews /> back below it. */}
+      {/* Reviews follow Lee's story — social proof lands while the personal
+          connection is high, before audiences self-sort in Dual welcome. */}
       <Reviews />
       {s.dualWelcome && <DualWelcome />}
-      {s.howItWorks && <HowItWorks />}
 
       {s.plans && (
         <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
           <div className="mx-auto max-w-6xl">
-            <p className="text-center text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: "rgba(20,33,61,0.55)" }}>
-              Plans
-            </p>
-            <h2 className="mt-2 text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-              Pick the way you want to pass
+            <h2 className="text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
+              Pick the way you want to prep
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-center text-[15px] text-gray-600">
-              Materials are launching soon — get on the list. 1-on-1 with Lee is available now.
+              Practice exams + videos coming soon. 1-on-1 with me is open now.
             </p>
             <div className="mt-10">
               <PricingPlans bookHref="/onboard" />

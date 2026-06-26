@@ -71,7 +71,7 @@ export default function PainHook({ className }: { className?: string }) {
           className="mt-10 text-xl font-bold transition-opacity duration-700 sm:text-2xl"
           style={{ color: "white", opacity: allShown ? 1 : 0 }}
         >
-          I'm here to fix that.
+          Yeah — I know that feeling. Let&apos;s make sure nothing on test day surprises you.
         </p>
       </div>
     </section>
