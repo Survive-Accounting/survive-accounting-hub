@@ -27,10 +27,22 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
-const MODEL = Deno.env.get("RESEARCH_MODEL") ?? "google/gemini-3-flash-preview";
+// Non-Lovable pipeline (mirrors research-campus-bap-advisor): SerpAPI discovery
+// -> Firecrawl page fetch -> Vercel AI Gateway strict-JSON extraction over the
+// REAL scraped pages. The old Lovable path relied on the model's built-in
+// google_search grounding (which the Vercel gateway doesn't expose), so we feed
+// the model actual scraped directory text instead — grounded, not hallucinated.
+const AI_GATEWAY_KEY = Deno.env.get("AI_GATEWAY_API_KEY") ?? "";
+const FIRECRAWL_KEY = Deno.env.get("FIRECRAWL_API_KEY") ?? "";
+const SERPAPI_KEY = Deno.env.get("SERPAPI_API_KEY") ?? "";
+const MODEL = Deno.env.get("RESEARCH_MODEL") ?? "google/gemini-2.5-flash";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+const MAX_DOC_CHARS = 18000;
+const MAX_TOTAL_CHARS = 60000;
+const FIRECRAWL_TIMEOUT_MS = 25000;
+const AI_TIMEOUT_MS = 60000;
 
 const RESEARCH_MODE = "clean_professor_only";
 const RESEARCH_LABEL = "Clean Professor Run 1";
@@ -311,10 +323,81 @@ function sanitize(raw: any): { rows: any[]; rejected: { reason: string; sample: 
   return { rows, rejected };
 }
 
+async function serpSearch(key: string, q: string, num = 8): Promise<string[]> {
+  try {
+    const u = new URL("https://serpapi.com/search.json");
+    u.searchParams.set("engine", "google");
+    u.searchParams.set("q", q);
+    u.searchParams.set("num", String(num));
+    u.searchParams.set("api_key", key);
+    const res = await fetch(u.toString());
+    if (!res.ok) return [];
+    const j = await res.json();
+    return (Array.isArray(j.organic_results) ? j.organic_results : [])
+      .map((r: any) => r?.link)
+      .filter((l: any): l is string => typeof l === "string");
+  } catch { return []; }
+}
+
+async function firecrawlScrape(key: string, url: string): Promise<string> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FIRECRAWL_TIMEOUT_MS);
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v2/scrape", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true, waitFor: 1500 }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return "";
+    const j = (await res.json()) as { data?: { markdown?: string }; markdown?: string };
+    return (j.data?.markdown ?? j.markdown ?? "").slice(0, MAX_DOC_CHARS);
+  } catch { return ""; }
+  finally { clearTimeout(timer); }
+}
+
+// Extraction prompt — reads the REAL scraped pages (each under a "## SOURCE:"
+// header) and enumerates accounting teaching faculty with per-course-family
+// teaching flags. Reuses the strict HARD_RULES + RESPONSE_SHAPE contract so the
+// downstream sanitize()/insert path is unchanged.
+function buildExtractPrompt(campus: Record<string, any>, doc: string): string {
+  const { name, state, dept, domain } = commonContext(campus);
+  return `You are reading REAL, already-fetched web pages (below, each under a "## SOURCE: <url>" header) to enumerate the ACCOUNTING teaching faculty at "${name}"${state ? `, ${state}` : ""}, USA.
+
+Known context:
+- Department: ${dept || "unknown"}
+- Email domain: ${domain || "unknown"}
+
+Use ONLY what is literally present in the SOURCE TEXT. Do NOT use outside knowledge. A careful blank beats a confident fabrication.
+
+Enumerate EVERY accounting teaching person visible across ALL sources, of ANY rank:
+- Full / Associate / Assistant Professor of Accounting
+- Instructor / Senior Instructor / Lecturer / Senior Lecturer / Teaching Professor
+- Adjunct / Visiting / Clinical / Professor of Practice (accounting)
+- Accounting department chair / school of accountancy director
+- Beta Alpha Psi faculty advisor (only if explicitly accounting/BAP)
+Instructors, lecturers, and adjuncts teach the high-enrollment intro courses — do NOT skip them.
+
+For each person set teaches_intro_1 / teaches_intro_2 / teaches_intermediate_1 / teaches_intermediate_2 to true ONLY when the source shows evidence they teach that course family (a listed course, schedule, or profile statement); otherwise false. List any specific courses you see in "courses_found".
+
+lead_type: "professor" for teaching faculty; "admin_staff" for chair/director/advising; "bap_advisor" for an explicit BAP advisor.
+
+For "source_url", use the "## SOURCE:" URL the person appears on, or their individual profile URL if one is printed in the source text.
+
+${HARD_RULES}
+
+${RESPONSE_SHAPE}
+
+==================== SOURCE TEXT ====================
+${doc}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
-  if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not set" }, 500);
+  if (!AI_GATEWAY_KEY) return json({ error: "AI_GATEWAY_API_KEY not set" }, 500);
+  if (!FIRECRAWL_KEY) return json({ error: "FIRECRAWL_API_KEY not set" }, 500);
+  if (!SERPAPI_KEY) return json({ error: "SERPAPI_API_KEY not set" }, 500);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Supabase env not configured" }, 500);
 
   let body: { campus_id?: string; test_mode?: boolean; force_urls?: string[] };
@@ -336,123 +419,99 @@ Deno.serve(async (req) => {
   if (campusErr) return json({ error: "campus lookup failed", detail: campusErr.message }, 500);
   if (!campus) return json({ error: "campus not found" }, 404);
 
-  // --- Two-pass enumeration (single-pass missed instructor tabs ~50% of runs) ---
-  type PassResult = {
-    label: string;
-    text: string;
-    finishReason: string | null;
-    usage: any;
-    parsed: any;
-    parseError?: string;
-  };
+  // --- 1. Discover real accounting faculty/directory pages via SerpAPI ---
+  const { name: schoolName, dept, domain } = commonContext(campus);
+  const queries = [
+    `"${schoolName}" accounting faculty directory`,
+    `"${schoolName}" department of accountancy faculty`,
+    `"${schoolName}" school of accountancy faculty profiles`,
+    dept ? `"${dept}" "${schoolName}" faculty` : `"${schoolName}" accounting professors`,
+    domain ? `site:${domain} accounting faculty` : `"${schoolName}" accounting instructors lecturers`,
+  ];
+  const seenUrl = new Set<string>();
+  const candidates: string[] = [];
+  for (const u of force_urls) { if (!seenUrl.has(u)) { seenUrl.add(u); candidates.push(u); } }
+  for (const q of queries) {
+    for (const link of await serpSearch(SERPAPI_KEY, q)) {
+      if (hostBlocked(link)) continue;
+      if (!seenUrl.has(link)) { seenUrl.add(link); candidates.push(link); }
+    }
+    if (candidates.length >= 8) break;
+  }
 
-  async function callAi(label: string, prompt: string, temperature: number): Promise<PassResult | Response> {
+  // --- 2. Scrape the top candidates to markdown (real, grounded source text) ---
+  const docs: string[] = [];
+  const scrapedUrls: string[] = [];
+  let totalChars = 0;
+  for (const url of candidates.slice(0, 6)) {
+    if (totalChars >= MAX_TOTAL_CHARS) break;
+    const md = await firecrawlScrape(FIRECRAWL_KEY, url);
+    if (md.length < 150) continue;
+    const block = `## SOURCE: ${url}\n${md}`;
+    docs.push(block);
+    scrapedUrls.push(url);
+    totalChars += block.length;
+  }
+  const doc = docs.join("\n\n").slice(0, MAX_TOTAL_CHARS);
+
+  // --- 3. AI extraction over the REAL scraped pages (Vercel AI Gateway) ---
+  let mergedParsed: any = { suggestions: [] };
+  let aiText = "";
+  let aiError: string | null = null;
+  let finishReason: string | null = null;
+  if (doc.trim().length >= 150) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), AI_TIMEOUT_MS);
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
         method: "POST",
-        headers: {
-          "Lovable-API-Key": LOVABLE_API_KEY,
-          "Content-Type": "application/json",
-          "X-Lovable-AIG-SDK": "research-campus-leads-clean",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [{ role: "user", content: prompt }],
-          tools: [{ type: "google_search" }],
-          temperature,
-        }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${AI_GATEWAY_KEY}` },
+        body: JSON.stringify({ model: MODEL, messages: [{ role: "user", content: buildExtractPrompt(campus, doc) }] }),
+        signal: ctrl.signal,
       });
-      if (res.status === 429)
-        return json({ success: false, error: `AI is rate-limited on ${label}, try again in a moment` }, 429);
-      if (res.status === 402)
-        return json({ success: false, error: "Workspace AI credits exhausted" }, 402);
       if (!res.ok) {
-        const detail = await res.text().catch(() => "");
-        return json({ success: false, error: `AI request failed on ${label}`, debug: { http_status: res.status, http_body: detail.slice(0, 2000) } }, 502);
-      }
-      const j = await res.json();
-      const choice = j?.choices?.[0];
-      const text = choice?.message?.content ?? "";
-      const finishReason = choice?.finish_reason ?? null;
-      const usage = j?.usage ?? null;
-      if (!text.trim()) {
-        return { label, text: "", finishReason, usage, parsed: { suggestions: [] }, parseError: `Empty response (finish_reason=${finishReason})` };
-      }
-      try {
-        const parsed = extractJson(text);
-        return { label, text, finishReason, usage, parsed };
-      } catch (e) {
-        return { label, text, finishReason, usage, parsed: { suggestions: [] }, parseError: String((e as Error)?.message ?? e) };
+        aiError = `AI gateway ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+      } else {
+        const j = await res.json();
+        const choice = j?.choices?.[0];
+        aiText = choice?.message?.content ?? "";
+        finishReason = choice?.finish_reason ?? null;
+        try { mergedParsed = extractJson(aiText); }
+        catch (e) { aiError = `parse: ${String((e as Error)?.message ?? e)}`; }
       }
     } catch (e) {
-      return json({ success: false, error: `AI call failed on ${label}`, detail: String((e as Error)?.message ?? e) }, 500);
+      aiError = `AI call failed: ${String((e as Error)?.message ?? e)}`;
+    } finally {
+      clearTimeout(timer);
     }
+  } else {
+    aiError = "no_source_text_scraped";
   }
 
-  const promptFaculty = buildPromptFaculty(campus, force_urls);
-  const promptInstructors = buildPromptInstructors(campus, force_urls, false);
-
-  // Run both passes in parallel — independent prompts, independent search budgets.
-  const [pass1, pass2] = await Promise.all([
-    callAi("pass1_faculty", promptFaculty, 0.2),
-    callAi("pass2_instructors", promptInstructors, 0),
-  ]);
-  if (pass1 instanceof Response) return pass1;
-  if (pass2 instanceof Response) return pass2;
-
-  // Audit Pass 2: if it returned zero instructor-titled rows, retry once with stronger prompt.
-  const INSTRUCTOR_TITLE_RE = /instructor|lecturer|adjunct|clinical|practice|visiting/i;
-  const pass2HasInstructor = Array.isArray(pass2.parsed?.suggestions) &&
-    pass2.parsed.suggestions.some((s: any) => typeof s?.title === "string" && INSTRUCTOR_TITLE_RE.test(s.title));
-  let pass2Retry: PassResult | null = null;
-  if (!pass2HasInstructor) {
-    const retryRes = await callAi("pass2_retry", buildPromptInstructors(campus, force_urls, true), 0);
-    if (retryRes instanceof Response) return retryRes;
-    pass2Retry = retryRes;
-  }
-
-  // Merge all suggestions, dedupe by email/name before sanitize so we don't double-sanitize.
-  const mergedRaw: any[] = [];
-  const seenMergeKey = new Set<string>();
-  for (const pr of [pass1, pass2, pass2Retry].filter(Boolean) as PassResult[]) {
-    const arr = Array.isArray(pr.parsed?.suggestions) ? pr.parsed.suggestions : [];
-    for (const s of arr) {
-      const k = ((s?.email && String(s.email).toLowerCase()) ||
-        `${(s?.first_name ?? "").toLowerCase()}|${(s?.last_name ?? "").toLowerCase()}`).trim();
-      if (!k || k === "|") continue;
-      if (seenMergeKey.has(k)) continue;
-      seenMergeKey.add(k);
-      mergedRaw.push(s);
-    }
-  }
-  const mergedParsed = { suggestions: mergedRaw };
-
-  const { rows: cleaned, rejected } = sanitize(mergedParsed);
-  const rawCount = mergedRaw.length;
+  const mergedRaw: any[] = Array.isArray(mergedParsed?.suggestions) ? mergedParsed.suggestions : [];
+  const { rows: cleaned, rejected } = sanitize({ suggestions: mergedRaw });
   const debug = {
     model: MODEL,
     research_mode: RESEARCH_MODE,
     research_label: test_mode ? `Clean Professor Test — ${campus.name}` : RESEARCH_LABEL,
-    two_pass: true,
-    pass1: { raw: pass1.parsed?.suggestions?.length ?? 0, finish_reason: pass1.finishReason, usage: pass1.usage, parse_error: pass1.parseError },
-    pass2: { raw: pass2.parsed?.suggestions?.length ?? 0, finish_reason: pass2.finishReason, usage: pass2.usage, parse_error: pass2.parseError, retry_triggered: !!pass2Retry },
-    pass2_retry: pass2Retry
-      ? { raw: pass2Retry.parsed?.suggestions?.length ?? 0, finish_reason: pass2Retry.finishReason, usage: pass2Retry.usage, parse_error: pass2Retry.parseError }
-      : null,
+    pipeline: "serpapi+firecrawl+ai_gateway",
+    queries,
+    candidate_count: candidates.length,
+    scraped_urls: scrapedUrls,
+    scraped_chars: doc.length,
+    finish_reason: finishReason,
+    ai_error: aiError,
     force_urls,
-    raw_suggestion_count: rawCount,
+    raw_suggestion_count: mergedRaw.length,
     parsed_lead_count: cleaned.length,
     rejected_count: rejected.length,
     rejected_samples: rejected.slice(0, 20),
     test_mode,
-    prompt_preview: `=== PASS 1 (faculty) ===\n${promptFaculty.slice(0, 2000)}\n\n=== PASS 2 (instructors) ===\n${promptInstructors.slice(0, 2000)}`,
-    raw_response_preview:
-      `=== PASS 1 ===\n${pass1.text.slice(0, 4000)}\n\n=== PASS 2 ===\n${pass2.text.slice(0, 4000)}` +
-      (pass2Retry ? `\n\n=== PASS 2 RETRY ===\n${pass2Retry.text.slice(0, 4000)}` : ""),
+    raw_response_preview: aiText.slice(0, 4000),
     accepted_preview: cleaned.slice(0, 60),
     parsed_suggestions: test_mode ? mergedRaw : undefined,
   };
-  console.log("[research-campus-leads-clean]", { campus_id, test_mode, pass1: pass1.parsed?.suggestions?.length ?? 0, pass2: pass2.parsed?.suggestions?.length ?? 0, retry: !!pass2Retry, parsed: cleaned.length, rejected: rejected.length });
+  console.log("[research-campus-leads-clean]", { campus_id, test_mode, scraped: scrapedUrls.length, raw: mergedRaw.length, parsed: cleaned.length, rejected: rejected.length, ai_error: aiError });
 
 
   // Tag test runs with a distinct label so they're easy to find / archive.
