@@ -10,6 +10,7 @@ import PainHook from "@/components/landing/PainHook";
 import SoulBand from "@/components/landing/SoulBand";
 import DualWelcome from "@/components/landing/DualWelcome";
 import PricingPlans from "@/components/landing/PricingPlans";
+import { Reveal } from "@/components/landing/Reveal";
 import FreeVideoCapture from "@/components/landing/FreeVideoCapture";
 import BeyondTeaser from "@/components/landing/BeyondTeaser";
 import { getSiteSettings, type SiteSettings } from "@/lib/site-settings.functions";
@@ -202,15 +203,15 @@ function Home() {
       <IntroVideoSection settings={settings} />
 
       {s.painHook && <PainHook />}
-      {s.whoIAm && <SoulBand />}
+      {s.whoIAm && <Reveal><SoulBand /></Reveal>}
       {/* Reviews follow Lee's story — social proof lands while the personal
           connection is high, before audiences self-sort in Dual welcome. */}
       <Reviews />
-      {s.dualWelcome && <DualWelcome />}
+      {s.dualWelcome && <Reveal><DualWelcome /></Reveal>}
 
       {s.plans && (
         <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#F8FAFC" }}>
-          <div className="mx-auto max-w-6xl">
+          <Reveal className="mx-auto max-w-6xl">
             <h2 className="text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
               Pick the way you want to prep
             </h2>
@@ -220,7 +221,7 @@ function Home() {
             <div className="mt-10">
               <PricingPlans bookHref="/onboard" />
             </div>
-          </div>
+          </Reveal>
         </section>
       )}
 
