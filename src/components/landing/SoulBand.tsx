@@ -53,10 +53,10 @@ export default function SoulBand({ className }: { className?: string }) {
           >
             <FramedPhoto src={DETAIL_PHOTO} alt="Journal of Accountancy masthead" label="masthead detail" />
           </div>
-          {/* Caption as a navy bar across the bottom of the main photo, layered
-              ABOVE the detail inset so it's always readable (navy + white). */}
-          <div className="absolute inset-x-0 bottom-0 z-20 rounded-b-3xl px-4 py-2.5" style={{ background: NAVY }}>
-            <p className="text-center text-[11.5px] font-medium leading-snug text-white">
+          {/* Caption as a navy bar across the TOP of the main photo (small text,
+              one line), navy + white for guaranteed readability. */}
+          <div className="absolute inset-x-0 top-0 z-20 rounded-t-3xl px-3 py-1.5" style={{ background: NAVY }}>
+            <p className="whitespace-nowrap text-center text-[10px] font-medium leading-tight text-white">
               Reading my dad&apos;s <span className="italic">Journal of Accountancy</span> circa 1998.
             </p>
           </div>
