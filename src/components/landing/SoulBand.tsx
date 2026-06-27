@@ -39,7 +39,7 @@ export default function SoulBand({ className }: { className?: string }) {
         {/* Main photo + detail-crop inset */}
         <div className="relative mx-auto w-full max-w-[320px]">
           <div
-            className="aspect-[4/5] overflow-hidden rounded-3xl border"
+            className="relative aspect-[4/5] overflow-hidden rounded-3xl border"
             style={{ borderColor: "rgba(20,33,61,0.12)", boxShadow: "0 16px 40px -20px rgba(20,33,61,0.4)" }}
           >
             <FramedPhoto src={MAIN_PHOTO} alt="Lee as a kid with the Journal of Accountancy"
@@ -47,15 +47,19 @@ export default function SoulBand({ className }: { className?: string }) {
           </div>
           {/* "look closer" detail crop, overlapping the bottom-right corner */}
           <div
-            className="absolute -bottom-6 -right-4 h-28 w-28 overflow-hidden rounded-2xl ring-4 ring-white"
+            className="absolute -bottom-6 -right-4 z-10 h-28 w-28 overflow-hidden rounded-2xl ring-4 ring-white"
             style={{ boxShadow: "0 12px 28px -10px rgba(20,33,61,0.5)" }}
             aria-hidden="true"
           >
             <FramedPhoto src={DETAIL_PHOTO} alt="Journal of Accountancy masthead" label="masthead detail" />
           </div>
-          <p className="mt-9 text-center text-xs italic text-gray-400">
-            Not me reading the Journal of Accountancy as a kid, tho.
-          </p>
+          {/* Caption as a navy bar across the bottom of the main photo, layered
+              ABOVE the detail inset so it's always readable (navy + white). */}
+          <div className="absolute inset-x-0 bottom-0 z-20 rounded-b-3xl px-4 py-2.5" style={{ background: NAVY }}>
+            <p className="text-center text-[11.5px] font-medium leading-snug text-white">
+              Reading my dad&apos;s <span className="italic">Journal of Accountancy</span> circa 1998.
+            </p>
+          </div>
         </div>
 
         <div>
@@ -63,13 +67,14 @@ export default function SoulBand({ className }: { className?: string }) {
             My story
           </p>
           <h2 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>
-            I&apos;ve loved this stuff for a long time.
+            I&apos;ve loved Accounting for a long time.
           </h2>
           <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-700">
             <p>
               I&apos;m Lee — Ole Miss accounting grad, class of &apos;17, tutoring every semester since
-              2015. I genuinely love this stuff, and I think that&apos;s the difference. I&apos;ll help
-              you get it — and maybe even enjoy it along the way.
+              2015. This isn&apos;t just a side hustle; helping students is my full-time career.
+              Everything I do is structured around helping you grow more confident on exams. You might
+              even enjoy taking them, like I did.
             </p>
           </div>
         </div>

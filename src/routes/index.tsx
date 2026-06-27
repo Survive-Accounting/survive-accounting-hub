@@ -106,7 +106,7 @@ function IntroVideoSection({ settings }: { settings: SiteSettings }) {
 
 /** "As featured in" press strip — understated credibility band. */
 function PressBar() {
-  const outlets = ["Oxford Eagle", "Innovate Mississippi", "The Daily Mississippian", "Magee News"];
+  const outlets = ["Oxford Eagle", "Innovate Mississippi", "The Daily Mississippian"];
   return (
     <section className="border-b px-4 py-6" style={{ background: "#FFFFFF", borderColor: "rgba(20,33,61,0.07)" }}>
       <div className="mx-auto max-w-5xl">
@@ -199,14 +199,14 @@ function Home() {
         />
       )}
 
+      {/* Social proof first: testimonials right under the hero (with breathing
+          room), then the "As featured in" press bar beneath them. */}
+      <Reviews />
       <PressBar />
       <IntroVideoSection settings={settings} />
 
       {s.painHook && <PainHook />}
       {s.whoIAm && <Reveal><SoulBand /></Reveal>}
-      {/* Reviews follow Lee's story — social proof lands while the personal
-          connection is high, before audiences self-sort in Dual welcome. */}
-      <Reviews />
       {s.dualWelcome && <DualWelcome />}
 
       {s.plans && (

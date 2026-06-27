@@ -8,12 +8,12 @@ const RED = "#CE1126";
 
 const CARDS = [
   {
-    icon: LifeBuoy, iconBg: RED, title: "Just need to survive it?",
-    body: "I'll cut the fluff and focus on what actually moves the needle — quick wins, clear patterns, and exactly what your exam tests. Nothing else.",
+    icon: LifeBuoy, iconBg: RED, title: "Just need to survive your course?",
+    body: "I've got you. I'll cut the BS and focus on what actually moves the needle — exam shortcuts, tips and tricks, and exactly what you need to know to do well.",
   },
   {
     icon: Rocket, iconBg: NAVY, title: "Love accounting like I do?",
-    body: "Here's where it gets fun: the why behind the rules, what actually matters on the job, and how far down the rabbit hole goes. Accounting's a lifelong puzzle — anyone who says it's boring just had the wrong guide.",
+    body: "Here's where it gets fun: the big-picture “why” behind each transaction that unlocks easy A's on any exam. This is where I specialize. Accounting is awesome — anyone who says it's boring just had the wrong teacher.",
   },
 ];
 
