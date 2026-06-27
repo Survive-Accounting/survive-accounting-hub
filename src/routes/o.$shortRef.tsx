@@ -1,11 +1,11 @@
-// /o/{short_ref} — Plan-first onboarding, 2 steps, waitlist-based.
-// 1) Confirm Plan  →  2) Confirmation (you're set + optional details).
-// Prepay is stubbed behind ENABLE_PREPAY (see src/lib/site-config.ts); while off
-// the Premium 1-on-1 plan is captured like the materials tiers, with reservation
-// framing. The legacy 3-step components below (InfoStep/PricingStep/ExtrasStep/
-// BookingStep/SuccessScreen) are retained for the booking flow but no longer
-// drive the wizard.
-import { useEffect, useMemo, useRef, useState } from "react";
+// /o/{short_ref} — Onboarding, 3 steps, waitlist-based, ends IN the shell
+// preview dashboard (/preview):
+//   1) Your info  →  2) Choose plan  →  3) Get started (capture + → dashboard).
+// Calmer, distinct visual treatment from the marketing homepage. No password /
+// account wall. The legacy components further down (PricingStep/ExtrasStep/
+// BookingStep/SuccessScreen/CoursePicker) are retained for the booking flow but
+// no longer drive the wizard.
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
@@ -30,17 +30,8 @@ import {
   type OnboardingSnapshot,
 } from "@/lib/onboarding.functions";
 import leeHeadshot from "@/assets/lee-headshot-original.png";
-import PricingPlans, {
-  type PricingPlanKey,
-  TEST_PASS_PRICE,
-  TEST_PASS_WAS,
-  MEMBERSHIP_PRICE,
-  MEMBERSHIP_WAS,
-  PREPAY_PRICE,
-  PREPAY_WAS,
-} from "@/components/landing/PricingPlans";
+import PricingPlans, { type PricingPlanKey } from "@/components/landing/PricingPlans";
 import { joinOnboardingWaitlist } from "@/lib/pricing-api";
-import { ENABLE_PREPAY, STRIPE_TUTORING_PAYMENT_LINK } from "@/lib/site-config";
 import { getCampusSpirit, type CampusSpirit } from "@/lib/campus-spirit";
 import { SpiritMoment } from "@/components/onboarding/SpiritMoment";
 
@@ -195,18 +186,22 @@ function OnboardingPage() {
   const { data } = useSuspenseQuery(onboardingQuery(shortRef));
   void shortRef;
 
-  // 2-step, plan-first: 0 = Confirm Plan, 1 = Confirmation.
-  const [step, setStep] = useState<0 | 1>(0);
+  // 3 steps: 0 = Your info, 1 = Choose plan, 2 = Get started (→ dashboard).
+  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [draft, setDraft] = useState<Draft>(() => draftFromSnapshot(data));
+  const update = <K extends keyof Draft>(k: K, v: Draft[K]) =>
+    setDraft((p) => ({ ...p, [k]: v }));
   const [plan, setPlan] = useState<PricingPlanKey | null>(null);
 
-  const choosePlan = (p: PricingPlanKey) => {
-    setPlan(p);
-    setStep(1);
+  const go = (n: 0 | 1 | 2) => {
+    setStep(n);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
+    // Calmer, focused "flow" background — deliberately distinct from the
+    // marketing homepage (soft tinted wash, lots of whitespace).
+    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EEF2F9 0%, #FAFAF7 240px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <header
         className="sticky top-0 z-40 w-full border-b"
         style={{
@@ -221,19 +216,19 @@ function OnboardingPage() {
           </a>
         </div>
       </header>
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-14 pt-8 sm:pt-12 lg:grid-cols-[1fr_240px]">
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-16 pt-8 sm:pt-12 lg:grid-cols-[1fr_240px]">
         <div className="min-w-0">
-          <TwoStepBar current={step} />
+          <StepBar current={step} />
 
-          <div className="mt-6 rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-10">
-            {step === 0 && <PlanStep onChoose={choosePlan} />}
-            {step === 1 && plan && (
-              <ConfirmationStep
-                plan={plan}
-                snapshot={data}
-                onChangePlan={() => setStep(0)}
+          <div className="mt-6 rounded-3xl bg-white p-7 shadow-[0_12px_44px_-18px_rgba(20,33,61,0.18)] sm:p-12">
+            {step === 0 && <InfoStep draft={draft} update={update} onContinue={() => go(1)} />}
+            {step === 1 && (
+              <PlanStep
+                onChoose={(p) => { setPlan(p); go(2); }}
+                onBack={() => go(0)}
               />
             )}
+            {step === 2 && plan && <FinishStep draft={draft} plan={plan} onBack={() => go(1)} />}
           </div>
         </div>
 
@@ -244,11 +239,11 @@ function OnboardingPage() {
   );
 }
 
-// ---------- 2-step indicator ----------
-function TwoStepBar({ current }: { current: 0 | 1 }) {
-  const labels = ["Confirm Plan", "Confirmation"];
+// ---------- 3-step indicator ----------
+function StepBar({ current }: { current: 0 | 1 | 2 }) {
+  const labels = ["Your info", "Choose plan", "Get started"];
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       {labels.map((label, i) => {
         const active = i === current;
         const done = i < current;
@@ -256,21 +251,14 @@ function TwoStepBar({ current }: { current: 0 | 1 }) {
           <div key={label} className="flex items-center gap-2">
             <span
               className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
-              style={
-                active || done
-                  ? { background: NAVY, color: "white" }
-                  : { background: "rgba(20,33,61,0.08)", color: NAVY }
-              }
+              style={active || done ? { background: NAVY, color: "white" } : { background: "rgba(20,33,61,0.08)", color: NAVY }}
             >
               {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
             </span>
-            <span
-              className="text-xs font-semibold sm:text-sm"
-              style={{ color: active || done ? NAVY : "#9ca3af" }}
-            >
+            <span className="text-xs font-semibold sm:text-sm" style={{ color: active || done ? NAVY : "#9ca3af" }}>
               {label}
             </span>
-            {i === 0 && <span className="mx-1 h-px w-6 bg-gray-300 sm:w-10" />}
+            {i < labels.length - 1 && <span className="mx-1 h-px w-5 bg-gray-300 sm:w-8" />}
           </div>
         );
       })}
@@ -278,42 +266,11 @@ function TwoStepBar({ current }: { current: 0 | 1 }) {
   );
 }
 
-// ---------- Step 1: Confirm Plan ----------
-function PlanStep({ onChoose }: { onChoose: (p: PricingPlanKey) => void }) {
-  return (
-    <div className="space-y-7">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: "rgba(20,33,61,0.55)" }}>
-          Step 1 of 2 · Choose your plan
-        </p>
-        <Title subtitle="Pick the plan that fits — no payment now. You can change your mind anytime.">
-          Let&apos;s get you ready for your exam.
-        </Title>
-      </div>
-      <PricingPlans onSelectPlan={onChoose} />
-    </div>
-  );
-}
-
-// ---------- Step 2: Confirmation ----------
 const PLAN_LABEL: Record<PricingPlanKey, string> = {
   test_pass: "Just One Test",
   membership: "Semester Membership",
-  prepay: "Premium 1-on-1 Tutoring",
+  prepay: "Premium 1-on-1",
 };
-
-function planPrice(plan: PricingPlanKey): { now: number; was: number; savePrepay?: boolean } {
-  if (plan === "test_pass") return { now: TEST_PASS_PRICE, was: TEST_PASS_WAS };
-  if (plan === "membership") return { now: MEMBERSHIP_PRICE, was: MEMBERSHIP_WAS };
-  return { now: PREPAY_PRICE, was: PREPAY_WAS, savePrepay: true };
-}
-
-function planConfirmationLine(plan: PricingPlanKey): string {
-  if (plan === "prepay") {
-    return "I'm reserving seats for July and fall — you're on the list. I'll lock in your spot and the prepay discount.";
-  }
-  return "You're on the waitlist — I'll text you the moment it's live, and you've locked in the discount.";
-}
 
 function courseDisplayFromDraft(d: Draft): string | null {
   if (d.notSureCourse) return "Not sure";
@@ -329,30 +286,122 @@ function majorToText(s: Draft["accountingMajorStatus"]): string | null {
   return null;
 }
 
-const CONFIRM_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ONB_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function ConfirmationStep({
-  plan, snapshot, onChangePlan,
-}: { plan: PricingPlanKey; snapshot: OnboardingSnapshot; onChangePlan: () => void }) {
-  const [draft, setDraft] = useState<Draft>(() => draftFromSnapshot(snapshot));
-  const update = <K extends keyof Draft>(k: K, v: Draft[K]) =>
-    setDraft((p) => ({ ...p, [k]: v }));
-  const [saved, setSaved] = useState(false);
+// ---------- Step 1: Your info ----------
+function InfoStep({
+  draft, update, onContinue,
+}: { draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onContinue: () => void }) {
   const [spirit, setSpirit] = useState<CampusSpirit | null>(null);
   const [showSpirit, setShowSpirit] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  const price = planPrice(plan);
-  const firstName = draft.firstName.trim().split(/\s+/)[0] || "";
+  const handleContinue = () => {
+    const email = draft.email.trim().toLowerCase();
+    if (!ONB_EMAIL_RE.test(email)) { setEmailError("Add your email so I can reach you."); return; }
+    setEmailError(null);
+    onContinue();
+  };
 
-  // Prepay-live branch (built but stubbed): when the flag is on AND a Stripe
-  // Payment Link is configured, the 1-on-1 plan reserves via Stripe instead of
-  // the waitlist. While ENABLE_PREPAY is false this is never taken.
-  const stripeReady = STRIPE_TUTORING_PAYMENT_LINK.trim().length > 0;
-  const prepayLive = ENABLE_PREPAY && plan === "prepay" && stripeReady;
+  return (
+    <div className="space-y-7">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "rgba(20,33,61,0.5)" }}>
+          Step 1 of 3 · Your info
+        </p>
+        <Title subtitle="A few quick details so I can tailor things — about a minute, no account needed.">
+          Let&apos;s get you ready for your exam.
+        </Title>
+      </div>
 
-  const mutation = useMutation({
-    mutationFn: async () => {
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="First name">
+          <Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)} autoComplete="given-name" />
+        </Field>
+        <Field label="Email" required error={emailError ?? undefined}>
+          <Input type="email" value={draft.email} autoComplete="email" placeholder="you@school.edu"
+            onChange={(e) => { update("email", e.target.value); if (emailError) setEmailError(null); }} />
+        </Field>
+      </div>
+
+      <Field label="Phone">
+        <Input type="tel" value={draft.phone} placeholder="(555) 555-5555 — optional, for a text when content drops"
+          onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
+      </Field>
+
+      <SchoolPicker
+        campusId={draft.campusId}
+        schoolName={draft.schoolName}
+        other={draft.schoolOther}
+        onPick={(id, name) => {
+          update("campusId", id);
+          update("schoolName", name);
+          update("schoolOther", false);
+          // Verified-ONLY spirit moment (neutral on-brand fallback otherwise).
+          getCampusSpirit(id).then((sp) => { setSpirit(sp); setShowSpirit(true); });
+        }}
+        onTypeOther={(name) => { update("campusId", null); update("schoolName", name); update("schoolOther", true); }}
+        onClear={() => { update("campusId", null); update("schoolName", ""); update("schoolOther", false); }}
+      />
+      {showSpirit && <SpiritMoment spirit={spirit} schoolName={draft.schoolName || null} onDone={() => setShowSpirit(false)} />}
+
+      <div>
+        <Label className="mb-3 block text-sm font-medium text-gray-800">Are you an accounting major?</Label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {[
+            { value: "yes" as const, label: "Yes" },
+            { value: "no" as const, label: "No" },
+            { value: "definitely_not" as const, label: "Undecided" },
+          ].map((opt) => {
+            const active = draft.accountingMajorStatus === opt.value;
+            return (
+              <button key={opt.value} type="button"
+                onClick={() => update("accountingMajorStatus", active ? null : opt.value)}
+                className="rounded-2xl border px-4 py-3 text-base font-medium transition-all"
+                style={active ? { background: NAVY, color: "white", borderColor: NAVY } : { background: "white", color: "#1f2937", borderColor: "#e5e7eb" }}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <PrimaryBtn onClick={handleContinue}>Continue →</PrimaryBtn>
+        <p className="text-center text-xs text-gray-500">No password, no account — just your email so I know who to build for.</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Step 2: Choose plan ----------
+function PlanStep({ onChoose, onBack }: { onChoose: (p: PricingPlanKey) => void; onBack: () => void }) {
+  return (
+    <div className="space-y-7">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "rgba(20,33,61,0.5)" }}>
+          Step 2 of 3 · Choose your plan
+        </p>
+        <Title subtitle="Pick what fits — no payment now. Tap “What's included” on any plan for details.">
+          How do you want to prep?
+        </Title>
+      </div>
+      <PricingPlans onSelectPlan={onChoose} />
+      <button type="button" onClick={onBack} className="text-sm font-medium text-gray-500 hover:underline">
+        ← Back
+      </button>
+    </div>
+  );
+}
+
+// ---------- Step 3: Get started (capture → shell dashboard) ----------
+function FinishStep({ draft, plan, onBack }: { draft: Draft; plan: PricingPlanKey; onBack: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const firedRef = useRef(false);
+
+  const run = async () => {
+    setError(null);
+    try {
       const fullName = [draft.firstName.trim(), draft.lastName.trim()].filter(Boolean).join(" ");
       await joinOnboardingWaitlist({
         email: draft.email,
@@ -363,16 +412,7 @@ function ConfirmationStep({
         accountingMajor: majorToText(draft.accountingMajorStatus),
         plan,
       });
-    },
-    onSuccess: () => {
-      if (prepayLive) {
-        // Hand off to Stripe; /welcome is the post-payment confirmation.
-        window.location.href = STRIPE_TUTORING_PAYMENT_LINK;
-        return;
-      }
-      setSaved(true);
-      // Onboarding ends IN the preview dashboard, not a dead-end card — carry the
-      // student's email/course/school so they drop straight in (already identified).
+      // Drop them straight into the shell preview dashboard (already identified).
       const params = new URLSearchParams();
       const em = draft.email.trim().toLowerCase();
       if (em) params.set("email", em);
@@ -381,202 +421,39 @@ function ConfirmationStep({
       if (first) params.set("name", first);
       if (draft.schoolName.trim()) params.set("school", draft.schoolName.trim());
       if (typeof window !== "undefined") window.location.href = `/preview?${params.toString()}`;
-    },
-    onError: (e: unknown) => {
-      const msg = e instanceof Error ? e.message : "Something went wrong. Please try again.";
-      setEmailError(msg);
-      toast.error(msg);
-    },
-  });
-
-  const handleConfirm = () => {
-    const email = draft.email.trim().toLowerCase();
-    if (!CONFIRM_EMAIL_RE.test(email)) {
-      setEmailError("Add your email so I can reach you.");
-      return;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
     }
-    setEmailError(null);
-    mutation.mutate();
   };
 
-  // ---- Done state: "you're all set" ----
-  if (saved) {
+  useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (error) {
     return (
-      <div className="space-y-6 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
-          style={{ background: "rgba(206,17,38,0.08)" }}>
-          <CheckCircle2 className="h-9 w-9" style={{ color: RED }} />
+      <div className="space-y-4 py-8 text-center">
+        <p className="text-sm text-red-600">{error}</p>
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="outline" onClick={onBack}>Back</Button>
+          <PrimaryBtn full={false} onClick={() => { firedRef.current = false; void run(); }}>Try again</PrimaryBtn>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>
-            {firstName ? `You're all set, ${firstName}.` : "You're all set."}
-          </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm text-gray-600 sm:text-base">
-            {planConfirmationLine(plan)}
-          </p>
-          <p className="mx-auto mt-3 max-w-md text-sm text-gray-600 sm:text-base">
-            Expect a text from me soon. Questions in the meantime?{" "}
-            <a href={`sms:${LEE_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>
-              Text me at {LEE_PHONE_DISPLAY}
-            </a>.
-          </p>
-        </div>
-        <PlanSummaryCard plan={plan} price={price} />
       </div>
     );
   }
 
-  // ---- Confirm view: light, plan-specific, optional details below ----
   return (
-    <div className="space-y-7">
+    <div className="space-y-5 py-10 text-center">
+      <Loader2 className="mx-auto h-8 w-8 animate-spin" style={{ color: RED }} />
       <div>
-        <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold"
-          style={{ background: "rgba(20,33,61,0.06)", color: NAVY }}>
-          <Check className="h-3.5 w-3.5" style={{ color: RED }} /> Plan selected
-        </span>
-        <h1 className="mt-3 text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>
-          {plan === "prepay" ? "Let's reserve your seat." : "Let's lock in your spot."}
-        </h1>
-        <p className="mt-2 text-sm text-gray-600 sm:text-base">{planConfirmationLine(plan)}</p>
-      </div>
-
-      <PlanSummaryCard plan={plan} price={price} onChange={onChangePlan} />
-
-      <div className="space-y-4">
-        <p className="text-sm font-medium text-gray-800">
-          Want me to tailor things? Tell me a bit more{" "}
-          <span className="font-normal text-gray-500">(optional)</span>.
-        </p>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="First name">
-            <Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)}
-              autoComplete="given-name" />
-          </Field>
-          <Field label="Last name">
-            <Input value={draft.lastName} onChange={(e) => update("lastName", e.target.value)}
-              autoComplete="family-name" />
-          </Field>
-          <Field label="Email" required error={emailError ?? undefined}>
-            <Input type="email" value={draft.email}
-              onChange={(e) => { update("email", e.target.value); if (emailError) setEmailError(null); }}
-              autoComplete="email" placeholder="you@school.edu" />
-          </Field>
-          <Field label="Phone">
-            <Input type="tel" value={draft.phone} placeholder="(555) 555-5555"
-              onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
-          </Field>
-        </div>
-
-        <SchoolPicker
-          campusId={draft.campusId}
-          schoolName={draft.schoolName}
-          other={draft.schoolOther}
-          onPick={(id, name) => {
-            update("campusId", id);
-            update("schoolName", name);
-            update("schoolOther", false);
-            // Subtle, verified-ONLY spirit moment (neutral on-brand fallback
-            // when the campus has no verified campus_spirit row).
-            getCampusSpirit(id).then((sp) => { setSpirit(sp); setShowSpirit(true); });
-          }}
-          onTypeOther={(name) => {
-            update("campusId", null);
-            update("schoolName", name);
-            update("schoolOther", true);
-          }}
-          onClear={() => {
-            update("campusId", null);
-            update("schoolName", "");
-            update("schoolOther", false);
-          }}
-        />
-        {showSpirit && (
-          <SpiritMoment
-            spirit={spirit}
-            schoolName={draft.schoolName || null}
-            onDone={() => setShowSpirit(false)}
-          />
-        )}
-
-        <div>
-          <Label className="mb-3 block text-sm font-medium text-gray-800">
-            Are you an accounting major?
-          </Label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {[
-              { value: "yes" as const, label: "Yes" },
-              { value: "no" as const, label: "No" },
-              { value: "definitely_not" as const, label: "Undecided" },
-            ].map((opt) => {
-              const active = draft.accountingMajorStatus === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => update("accountingMajorStatus", active ? null : opt.value)}
-                  className="rounded-2xl border px-4 py-3 text-base font-medium transition-all"
-                  style={
-                    active
-                      ? { background: NAVY, color: "white", borderColor: NAVY }
-                      : { background: "white", color: "#1f2937", borderColor: "#e5e7eb" }
-                  }
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <PrimaryBtn onClick={handleConfirm} disabled={mutation.isPending}>
-          {mutation.isPending ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> Saving…
-            </span>
-          ) : prepayLive ? (
-            `Reserve your seat — $${PREPAY_PRICE.toLocaleString()}`
-          ) : (
-            "Confirm my spot →"
-          )}
-        </PrimaryBtn>
-        <p className="text-center text-xs text-gray-500">
-          {prepayLive
-            ? "You'll be taken to secure checkout. Unused sessions are fully refundable."
-            : "No payment now — this just gets you on the list and locks your discount."}
+        <h1 className="text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>You&apos;re in!</h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-gray-600">
+          Setting up your {PLAN_LABEL[plan]} preview dashboard…
         </p>
       </div>
-    </div>
-  );
-}
-
-function PlanSummaryCard({
-  plan, price, onChange,
-}: {
-  plan: PricingPlanKey;
-  price: { now: number; was: number; savePrepay?: boolean };
-  onChange?: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl border bg-gray-50/80 px-4 py-3.5"
-      style={{ borderColor: "rgba(20,33,61,0.10)" }}>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold" style={{ color: NAVY }}>{PLAN_LABEL[plan]}</p>
-        <p className="mt-0.5 text-sm text-gray-600">
-          <span className="font-semibold" style={{ color: NAVY }}>${price.now.toLocaleString()}</span>{" "}
-          <span className="text-gray-400 line-through">${price.was.toLocaleString()}</span>{" "}
-          <span className="text-xs font-medium" style={{ color: RED }}>
-            {price.savePrepay ? "save $150" : "discount locked"}
-          </span>
-        </p>
-      </div>
-      {onChange && (
-        <Button variant="ghost" size="sm" onClick={onChange} style={{ color: NAVY }}>
-          Change
-        </Button>
-      )}
     </div>
   );
 }
@@ -741,7 +618,10 @@ const infoSchema = z.object({
   phone: z.string().trim().min(7, "Phone number is required").max(30),
 });
 
-function InfoStep({
+// Legacy (dead) — the original 3-step InfoStep; no longer rendered. Renamed to
+// avoid colliding with the new InfoStep above. Kept with the other legacy step
+// components until the dead booking flow is fully removed.
+function LegacyInfoStep({
   draft, update, onContinue,
 }: { draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onContinue: () => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({});

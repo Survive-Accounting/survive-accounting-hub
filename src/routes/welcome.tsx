@@ -46,7 +46,7 @@ function WelcomePage() {
             You&apos;re in — your seat is reserved.
           </h1>
           <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
-            Thanks for reserving your 15-hour semester block. Here&apos;s what happens next.
+            Thanks for reserving your 10-hour semester block. Here&apos;s what happens next.
           </p>
           <div className="mx-auto mt-6 flex max-w-md flex-wrap items-center justify-center gap-2 text-xs font-medium text-gray-500">
             <span className="rounded-full bg-gray-100 px-3 py-1">1 · Paid ✓</span>

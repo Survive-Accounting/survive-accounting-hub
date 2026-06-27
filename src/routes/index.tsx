@@ -136,6 +136,12 @@ function SiteNav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  // One source of truth: Pricing smooth-scrolls to the #plans section on /.
+  const goToPlans = (e: React.MouseEvent) => {
+    if (typeof document === "undefined") return;
+    const el = document.getElementById("plans");
+    if (el) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  };
   return (
     <header
       className="sticky top-0 z-50 w-full border-b transition-shadow duration-300"
@@ -163,7 +169,8 @@ function SiteNav() {
         </a>
         <nav className="ml-auto flex items-center gap-1.5 sm:gap-3">
           <a
-            href="/pricing"
+            href="/#plans"
+            onClick={goToPlans}
             className="rounded-lg px-3 py-2 text-sm font-semibold text-white/85 transition-colors hover:text-white sm:text-[15px]"
           >
             Pricing
