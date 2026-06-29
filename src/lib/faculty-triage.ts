@@ -42,12 +42,20 @@ export type TriageRow = {
   teaches_intro_2: string | null;
   teaches_intermediate_1: string | null;
   teaches_intermediate_2: string | null;
+
+  /** RMP course-code signal (migration 0035): the class labels actually shown on
+   *  this professor's RMP page, and the cross-reference against this campus's
+   *  researched Intro/Intermediate codes. A match is the strongest "teaches it"
+   *  signal short of a course schedule. */
+  rmp_course_codes: string[] | null;
+  rmp_course_match_json: Record<string, { code: string; count: number }> | null;
+  rmp_course_match_count: number | null;
 };
 
 export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
   const { data, error } = await supabase
     .from("campus_lead_suggestions")
-    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags,rmp_rating,rmp_num_ratings,rmp_difficulty,rmp_would_take_again,rmp_profile_url,raw_payload,teaching_confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2")
+    .select("id,campus_id,first_name,last_name,title,email,source_url,is_phd,is_cpa,status,notes,created_at,title_tags,rmp_rating,rmp_num_ratings,rmp_difficulty,rmp_would_take_again,rmp_profile_url,raw_payload,teaching_confidence,teaches_intro_1,teaches_intro_2,teaches_intermediate_1,teaches_intermediate_2,rmp_course_codes,rmp_course_match_json,rmp_course_match_count")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .is("archived_at", null)
@@ -94,6 +102,9 @@ export async function fetchTriageRows(campusId: string): Promise<TriageRow[]> {
       teaches_intro_2: r.teaches_intro_2,
       teaches_intermediate_1: r.teaches_intermediate_1,
       teaches_intermediate_2: r.teaches_intermediate_2,
+      rmp_course_codes: r.rmp_course_codes ?? null,
+      rmp_course_match_json: r.rmp_course_match_json ?? null,
+      rmp_course_match_count: r.rmp_course_match_count ?? null,
     };
 
   });
