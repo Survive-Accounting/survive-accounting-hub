@@ -71,6 +71,18 @@ export default function SiteFooter(_props: SiteFooterProps = {}) {
   return (
     <footer style={{ background: FOOTER_BG }}>
       <div className="mx-auto max-w-[1100px] px-4 py-12 sm:px-6">
+        {/* "As featured in" press strip (moved here from the homepage). */}
+        <div className="mb-10 border-b pb-8 text-center" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={faint}>As featured in</p>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+            {["Oxford Eagle", "Innovate Mississippi", "The Daily Mississippian"].map((o) => (
+              <span key={o} className="text-sm font-semibold tracking-tight sm:text-[15px]" style={{ color: "rgba(255,255,255,0.55)" }}>
+                {o}
+              </span>
+            ))}
+          </div>
+        </div>
+
         <div className="grid gap-10 sm:grid-cols-[1.5fr_1fr_1fr]">
           {/* Brand */}
           <div>

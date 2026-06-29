@@ -104,27 +104,6 @@ function IntroVideoSection({ settings }: { settings: SiteSettings }) {
   );
 }
 
-/** "As featured in" press strip — understated credibility band. */
-function PressBar() {
-  const outlets = ["Oxford Eagle", "Innovate Mississippi", "The Daily Mississippian"];
-  return (
-    <section className="border-b px-4 py-6" style={{ background: "#FFFFFF", borderColor: "rgba(20,33,61,0.07)" }}>
-      <div className="mx-auto max-w-5xl">
-        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">
-          As featured in
-        </p>
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
-          {outlets.map((o) => (
-            <span key={o} className="text-sm font-semibold tracking-tight text-gray-500 sm:text-[15px]">
-              {o}
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // Sticky top navbar (homepage only). Left: wordmark. Right: Pricing link +
 // "Sign Up" (same destination as the hero "Get started" CTA → /onboard).
 // Condenses subtly on scroll.
@@ -206,10 +185,9 @@ function Home() {
         />
       )}
 
-      {/* Social proof first: testimonials right under the hero (with breathing
-          room), then the "As featured in" press bar beneath them. */}
+      {/* Social proof first: testimonials right under the hero. ("As featured in"
+          now lives in the footer.) */}
       <Reviews />
-      <PressBar />
       <IntroVideoSection settings={settings} />
 
       {s.painHook && <PainHook />}
