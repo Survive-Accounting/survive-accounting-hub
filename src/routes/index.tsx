@@ -201,7 +201,7 @@ function Home() {
       {s.hero && (
         <Hero
           headline="Survive it. Or learn to love it."
-          subtext="Accounting tutoring from someone who genuinely loves it — and teaches it like a normal person."
+          subtext="Accounting tutoring from someone who loves showing you how to master your exams."
           ctaSlot={<HeroCta />}
         />
       )}
