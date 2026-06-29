@@ -1,19 +1,33 @@
-// Operator-filled public config (NOT secrets — these are just URLs Lee pastes).
-// No Stripe API keys ever live in code; a Stripe Payment Link is a plain URL.
+// Operator-filled public config (NOT secrets — these are just URLs/flags Lee
+// pastes). No Stripe API keys ever live in code; a Stripe Payment Link is a
+// plain URL.
 
-/** Stripe Payment Link for the prepaid 1-on-1 semester block. Create it in the
- *  Stripe dashboard, set its post-payment redirect to the confirmation page
- *  (/welcome), then paste the full https://buy.stripe.com/... URL here. Until
- *  set, the "Reserve your seat" button is disabled. */
+/** Stripe Payment Link for the prepaid Premium 1-on-1 semester block
+ *  ($2,250 / 15 hours). Create it in the Stripe dashboard, set its post-payment
+ *  redirect to /welcome, then paste the full https://buy.stripe.com/... URL
+ *  here. Until set, the "Reserve your seat" button is disabled (coming soon). */
 export const STRIPE_TUTORING_PAYMENT_LINK = "";
 
-/** Booking URL for the post-payment intro call (Square/Calendly/etc.). Until
- *  set, the "Book your intro call" button on /welcome is disabled. */
+/** Intro-call booking URL shown on /welcome after payment (Lee is setting up a
+ *  TidyCal link). Until set, the "Book your intro call" button is disabled. */
 export const INTRO_CALL_BOOKING_URL = "";
 
-/** Master switch for live 1-on-1 prepay. While FALSE, the Premium 1-on-1 path
- *  is waitlist-based (no live charge): the onboarding flow treats it like the
- *  materials tiers and just captures the lead with reservation framing. Flip to
- *  TRUE (with STRIPE_TUTORING_PAYMENT_LINK set) to send the 1-on-1 plan through
- *  Stripe + the /welcome confirmation. */
+/** Manual availability toggle for the Premium 1-on-1 seat (Lee takes only 4
+ *  students/semester). FALSE = "Available now" (Reserve your seat → Stripe).
+ *  Flip to TRUE when full → the card shows "Sold out" and the CTA becomes
+ *  "Join the waitlist" (capture, no payment). No automated seat counting. */
+export const TUTORING_SOLD_OUT = false;
+
+/** Optional manual "X of 4 seats left" microcopy. Leave "" to show nothing
+ *  (default — absence of a counter reads stronger than "0/4"). */
+export const TUTORING_SEATS_LEFT_TEXT = "";
+
+/** Legacy master switch for routing the onboarding wizard's 1-on-1 plan through
+ *  Stripe. The homepage/pricing card gates on STRIPE_TUTORING_PAYMENT_LINK
+ *  directly now; this remains for the onboarding prepay branch. */
 export const ENABLE_PREPAY = false;
+
+/** Optional intro/vision video for the preview dashboard (/preview) where Lee
+ *  explains what he's building and invites testers to help shape it. Paste a
+ *  YouTube/Vimeo URL (or bare YouTube ID). Empty = the video slot is hidden. */
+export const PREVIEW_VISION_VIDEO_URL = "";

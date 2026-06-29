@@ -87,6 +87,43 @@ export function joinOnboardingWaitlist(input: {
   });
 }
 
+/** Premium 1-on-1 prepay — captures the high-intent lead into campus_waitlist
+ *  BEFORE the Stripe handoff, so an abandoner at checkout is still captured and
+ *  Lee can follow up. We generate the row id client-side and return it so the
+ *  caller can pass it to Stripe as `client_reference_id` (and prefill the email)
+ *  — that ties the eventual payment back to this lead. The insert fires the
+ *  existing campus_waitlist_notify trigger (email + Lee's personal-phone SMS),
+ *  so Lee knows a $2,250 buyer is in the flow. `mode` distinguishes a true
+ *  reservation (→ Stripe) from a sold-out waitlist signup. */
+export async function reservePrepayLead(input: {
+  name?: string | null;
+  email: string;
+  phone?: string | null;
+  campus?: string | null;
+  course?: string | null;
+  mode?: "reserve" | "waitlist";
+}): Promise<{ id: string }> {
+  const email = input.email.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new Error("Please enter a valid email.");
+  const id =
+    (typeof crypto !== "undefined" && "randomUUID" in crypto)
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const payload: Record<string, unknown> = {
+    id,
+    email,
+    name: input.name?.trim() || null,
+    phone: input.phone?.trim() || null,
+    campus_text: input.campus?.trim() || null,
+    course_text: input.course?.trim() || null,
+    source: input.mode === "waitlist" ? "prepay_1on1_waitlist" : "prepay_1on1",
+    tier_interest: "prepay",
+  };
+  const { error } = await (supabase.from("campus_waitlist" as never) as any).insert(payload);
+  if (error) throw new Error(error.message);
+  return { id };
+}
+
 /** Free-video lead magnet — same list, instant reveal (no email round-trip). */
 export function captureFreeVideoLead(input: {
   email: string;

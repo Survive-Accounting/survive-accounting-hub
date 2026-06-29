@@ -46,8 +46,15 @@ function WelcomePage() {
             You&apos;re in — your seat is reserved.
           </h1>
           <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
-            Thanks for prepaying your semester block. Let&apos;s get your intro call on the calendar.
+            Thanks for reserving your 10-hour semester block. Here&apos;s what happens next.
           </p>
+          <div className="mx-auto mt-6 flex max-w-md flex-wrap items-center justify-center gap-2 text-xs font-medium text-gray-500">
+            <span className="rounded-full bg-gray-100 px-3 py-1">1 · Paid ✓</span>
+            <span aria-hidden>→</span>
+            <span className="rounded-full px-3 py-1 font-semibold text-white" style={{ background: NAVY }}>2 · Book your intro call</span>
+            <span aria-hidden>→</span>
+            <span className="rounded-full bg-gray-100 px-3 py-1">3 · Set your weekly time</span>
+          </div>
 
           <div className="mt-7">
             {bookingReady ? (
@@ -74,7 +81,8 @@ function WelcomePage() {
               </a>
             </p>
             <p className="mx-auto mt-4 max-w-md text-xs text-gray-500">
-              Unused sessions are fully refundable. Sessions expire at the end of the semester in which they&apos;re purchased.
+              <strong>Full refund if you&apos;re not happy after your first session.</strong> After that,
+              no refunds — and any unused hours roll forward to the next semester.
             </p>
           </div>
         </div>
