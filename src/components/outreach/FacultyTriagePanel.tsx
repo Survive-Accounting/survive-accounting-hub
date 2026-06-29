@@ -66,6 +66,9 @@ export function FacultyTriagePanel({
   // Review & Import filters (Phase-1 teaching priors).
   const [confidenceFilter, setConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [introInterOnly, setIntroInterOnly] = useState(false);
+  // RMP course-code match = a class label on the prof's RMP page matched THIS
+  // campus's Intro/Intermediate code — the strongest "teaches it" signal.
+  const [rmpMatchOnly, setRmpMatchOnly] = useState(false);
   // Click-and-drag selection. Refs so we don't churn renders during mousemove.
   const dragAnchorRef = useRef<string | null>(null);
   const dragMovedRef = useRef(false);
@@ -166,18 +169,21 @@ export function FacultyTriagePanel({
     teachesFamily(r.teaches_intro_1) || teachesFamily(r.teaches_intro_2) ||
     teachesFamily(r.teaches_intermediate_1) || teachesFamily(r.teaches_intermediate_2);
 
+  const hasRmpMatch = (r: TriageRow) => (r.rmp_course_match_count ?? 0) > 0;
+
   // Rows actually shown = sorted rows passed through the Phase-1 filters.
   const visibleRows = useMemo(() => {
     return sortedRows.filter((r) => {
       if (confidenceFilter !== "all" && r.teaching_confidence !== confidenceFilter) return false;
       if (introInterOnly && !teachesIntroOrInter(r)) return false;
+      if (rmpMatchOnly && !hasRmpMatch(r)) return false;
       return true;
     });
-  }, [sortedRows, confidenceFilter, introInterOnly]);
+  }, [sortedRows, confidenceFilter, introInterOnly, rmpMatchOnly]);
 
-  const filtersActive = confidenceFilter !== "all" || introInterOnly;
+  const filtersActive = confidenceFilter !== "all" || introInterOnly || rmpMatchOnly;
   const applyFirstCampaignPreset = () => { setConfidenceFilter("high"); setIntroInterOnly(true); };
-  const resetFilters = () => { setConfidenceFilter("all"); setIntroInterOnly(false); };
+  const resetFilters = () => { setConfidenceFilter("all"); setIntroInterOnly(false); setRmpMatchOnly(false); };
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -633,6 +639,16 @@ export function FacultyTriagePanel({
             />
             Intro / Intermediate only
           </label>
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5"
+            title="Only professors whose RateMyProfessors class labels matched THIS campus's Intro/Intermediate course codes — the strongest 'they teach it' signal.">
+            <input
+              type="checkbox"
+              checked={rmpMatchOnly}
+              onChange={(e) => setRmpMatchOnly(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            RMP course match
+          </label>
           <button
             type="button"
             onClick={applyFirstCampaignPreset}
@@ -866,6 +882,16 @@ export function FacultyTriagePanel({
                       )
                     ) : (
                       <span className="text-muted-foreground">—</span>
+                    )}
+                    {(r.rmp_course_match_count ?? 0) > 0 && r.rmp_course_match_json && (
+                      <div className="mt-1 flex flex-wrap justify-center gap-1"
+                        title="RMP class labels that matched this campus's Intro/Intermediate course codes — strong 'teaches it' signal.">
+                        {Object.entries(r.rmp_course_match_json).map(([fam, m]) => (
+                          <span key={fam} className="rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">
+                            {m.code} ×{m.count}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className="text-center">
