@@ -97,7 +97,7 @@ function encodeSchoolGlobalId(legacyId: number): string {
   return Buffer.from(`School-${legacyId}`).toString("base64");
 }
 
-async function rmpGraphql<T>(variables: Record<string, unknown>): Promise<T> {
+async function rmpGraphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -111,7 +111,7 @@ async function rmpGraphql<T>(variables: Record<string, unknown>): Promise<T> {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
-      body: JSON.stringify({ query: TEACHERS_QUERY, variables }),
+      body: JSON.stringify({ query, variables }),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -140,7 +140,7 @@ async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeac
   let cursor: string | null = null;
   // Safety cap — most accounting departments are small; bail after ~5 pages.
   for (let page = 0; page < 5; page++) {
-    const data: TeachersPage = await rmpGraphql<TeachersPage>({
+    const data: TeachersPage = await rmpGraphql<TeachersPage>(TEACHERS_QUERY, {
       count: PAGE_SIZE,
       cursor,
       query: { schoolID: schoolGlobalId, text: "" },
@@ -771,6 +771,173 @@ function extractTitleNear(
 }
 
 
+
+// ===================== RMP course-code signal =====================
+// Per-rating "Class" labels (e.g. "ACCT201") cross-referenced against a campus's
+// researched Intro/Intermediate course codes — the strongest "they teach it"
+// signal short of a course schedule. NEVER fabricated: only labels actually on
+// the RMP page; empty when a professor's ratings carry none.
+
+const RATINGS_QUERY = `
+query TeacherRatings($id: ID!, $count: Int!) {
+  node(id: $id) {
+    ... on Teacher {
+      ratings(first: $count) {
+        edges { node { class } }
+      }
+    }
+  }
+}`;
+
+const TARGET_FAMILIES = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const;
+type TargetFamily = (typeof TARGET_FAMILIES)[number];
+
+function encodeTeacherGlobalId(legacyId: number): string {
+  return Buffer.from(`Teacher-${legacyId}`).toString("base64");
+}
+
+function legacyIdFromRmpUrl(url: string | null | undefined): number | null {
+  if (!url) return null;
+  const m = url.match(/\/professor\/(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+/** Normalize a course code / class label for matching: uppercase, drop all
+ *  non-alphanumerics. "ACCY 201" / "accy201" → "ACCY201". */
+function normCode(s: string): string {
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Distinct, non-empty class labels from a professor's RMP ratings (raw,
+ *  deduped, capped). Empty on any error or when no rating carries a label. */
+async function fetchTeacherClasses(legacyId: number): Promise<string[]> {
+  try {
+    const data = await rmpGraphql<{ node?: { ratings?: { edges?: Array<{ node?: { class?: string | null } }> } } }>(
+      RATINGS_QUERY,
+      { id: encodeTeacherGlobalId(legacyId), count: 100 },
+    );
+    const edges = data.node?.ratings?.edges ?? [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const e of edges) {
+      const c = (e.node?.class ?? "").trim();
+      if (!c) continue;
+      const k = normCode(c);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(c);
+      if (out.length >= 40) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Cross-reference a professor's RMP class labels against a campus's target
+ *  course codes. A target matches when a normalized RMP label equals or
+ *  contains the normalized target code (which must include a digit + be >= 5
+ *  chars, so a bare "ACCT" can't false-match). */
+function crossRefClasses(
+  rawClasses: string[],
+  targetCodes: Partial<Record<TargetFamily, string>>,
+): { matchJson: Record<string, { code: string; count: number }>; count: number; families: TargetFamily[] } {
+  const normedClasses = rawClasses.map(normCode).filter(Boolean);
+  const matchJson: Record<string, { code: string; count: number }> = {};
+  const families: TargetFamily[] = [];
+  let total = 0;
+  for (const fam of TARGET_FAMILIES) {
+    const raw = targetCodes[fam];
+    if (!raw) continue;
+    const t = normCode(raw);
+    if (t.length < 5 || !/[0-9]/.test(t)) continue; // need prefix+number
+    const count = normedClasses.filter((c) => c === t || c.includes(t)).length;
+    if (count > 0) {
+      matchJson[fam] = { code: raw, count };
+      families.push(fam);
+      total += count;
+    }
+  }
+  return { matchJson, count: total, families };
+}
+
+function targetCodesFromCampus(codesJson: unknown): Partial<Record<TargetFamily, string>> {
+  const out: Partial<Record<TargetFamily, string>> = {};
+  if (codesJson && typeof codesJson === "object") {
+    const obj = codesJson as Record<string, unknown>;
+    for (const fam of TARGET_FAMILIES) {
+      const v = obj[fam];
+      if (typeof v === "string" && v.trim()) out[fam] = v.trim();
+    }
+  }
+  return out;
+}
+
+/** Capture RMP class labels for a campus's RMP-matched leads, cross-reference
+ *  against the campus's researched course codes, and write the signal +
+ *  (on a match) raise teaching flags/confidence. Cheap: RMP GraphQL only, one
+ *  ratings call per matched professor. Idempotent — safe to re-run. */
+export const crossReferenceRmpCourses = createServerFn({ method: "POST" })
+  .inputValidator((data: { campusId: string; limit?: number }) =>
+    z.object({ campusId: z.string().uuid(), limit: z.number().int().min(1).max(300).optional() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: campus } = await supabaseAdmin
+      .from("campuses")
+      .select("id, course_family_codes_json")
+      .eq("id", data.campusId)
+      .maybeSingle();
+    const targetCodes = targetCodesFromCampus(
+      (campus as { course_family_codes_json?: unknown } | null)?.course_family_codes_json,
+    );
+    if (Object.keys(targetCodes).length === 0) {
+      return { skipped: "no_target_course_codes", processed: 0, withCodes: 0, withMatch: 0 };
+    }
+
+    const cap = data.limit ?? 200;
+    const applyToRow = async (
+      table: "campus_lead_suggestions" | "outreach_leads",
+      row: { id: string; rmp_profile_url: string | null },
+    ): Promise<"none" | "codes" | "match"> => {
+      const legacy = legacyIdFromRmpUrl(row.rmp_profile_url);
+      if (legacy == null) return "none";
+      const raw = await fetchTeacherClasses(legacy);
+      if (raw.length === 0) return "none";
+      const { matchJson, count, families } = crossRefClasses(raw, targetCodes);
+      const patch: Record<string, unknown> = {
+        rmp_course_codes: raw,
+        rmp_course_match_json: matchJson,
+        rmp_course_match_count: count,
+      };
+      if (families.length > 0) {
+        // Strong "they teach it" signal — set matched-family flags + raise conf.
+        for (const fam of families) patch[`teaches_${fam}`] = "true";
+        patch.teaching_confidence = "high";
+      }
+      const { error } = await supabaseAdmin.from(table).update(patch as never).eq("id", row.id);
+      if (error) return "none";
+      return families.length > 0 ? "match" : "codes";
+    };
+
+    let processed = 0, withCodes = 0, withMatch = 0;
+    for (const table of ["campus_lead_suggestions", "outreach_leads"] as const) {
+      const { data: rows } = await supabaseAdmin
+        .from(table)
+        .select("id, rmp_profile_url")
+        .eq("campus_id", data.campusId)
+        .not("rmp_profile_url", "is", null)
+        .limit(cap);
+      for (const r of (rows ?? []) as Array<{ id: string; rmp_profile_url: string | null }>) {
+        processed += 1;
+        const res = await applyToRow(table, r);
+        if (res !== "none") withCodes += 1;
+        if (res === "match") withMatch += 1;
+      }
+    }
+    return { processed, withCodes, withMatch, targets: Object.keys(targetCodes) };
+  });
 
 export const resetCampusLeads = createServerFn({ method: "POST" })
   .inputValidator((data: { campusId: string }) =>
