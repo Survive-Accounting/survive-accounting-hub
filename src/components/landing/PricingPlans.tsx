@@ -22,8 +22,8 @@ const NAVY = "#14213D";
 const RED = "#CE1126";
 
 // Clean, official, NO discounts — real prices only (no strikethrough/"was"/"save").
-export const TEST_PASS_PRICE = 45;
-export const MEMBERSHIP_PRICE = 99;
+export const TEST_PASS_PRICE = 60;
+export const MEMBERSHIP_PRICE = 150;
 // Premium 1-on-1: full-price, capacity-capped semester block — 10 hours at $150/hr.
 export const PREPAY_PRICE = 1500;
 export const PREPAY_HOURS = 10;
@@ -84,13 +84,14 @@ export default function PricingPlans({
           tagline="Cram Mode"
           price={`$${TEST_PASS_PRICE}`}
           priceNote="per exam"
-          description="Cram for one test — the 4 chapters it covers."
+          description="Cram for one test. Get exam prep for only the chapters it covers."
           features={[
             "The 4 chapters your exam covers",
             "Practice exam questions",
             "Video explainers for those chapters",
-            "1 week of access",
+            "5-day access",
           ]}
+          note={selecting ? undefined : "In development now — launching early July."}
           cta={selecting ? chooseBtn("test_pass", true) : (
             <Button className="h-12 w-full text-base font-semibold" variant="outline"
               style={{ color: NAVY, borderColor: NAVY }}
@@ -108,13 +109,14 @@ export default function PricingPlans({
           tagline="All Semester"
           price={`$${MEMBERSHIP_PRICE}`}
           priceNote="per semester"
-          description="Everything for your course, all semester."
+          description="Crush every test. Get exam prep for every chapter in your course."
           features={[
             "Every chapter in your course, all semester",
-            "All practice exam questions + video explainers",
+            "All practice exams + video explainers",
             "New content added weekly",
             "Built around the exam style you'll actually see",
           ]}
+          note={selecting ? undefined : "In development now — launching early July."}
           cta={selecting ? chooseBtn("membership") : (
             <Button className={RED_BTN} style={RED_BTN_STYLE}
               onClick={() => setWaitlistTier({ key: "membership", label: "Semester Membership" })}>
@@ -133,24 +135,20 @@ export default function PricingPlans({
           features={[
             `${PREPAY_HOURS} hours of live 1-on-1 Zoom sessions`,
             "Tailored to your exact course + professor's exam style",
-            "~2–3 hrs/week, more around test time",
+            "~3 hours per week, more around test time",
             "Re-up hours anytime; unused hours roll to next semester",
             "Only 4 students per semester",
-            "Full refund after session 1 if you're not happy",
           ]}
-          footnote="Pay → book your intro call → we set your recurring weekly time → you improve."
+          howToStart={[
+            "Pay → book your intro call → we set your recurring weekly time.",
+            "No risk — full refund after your first session if you're not satisfied.",
+          ]}
           availability={soldOut ? "soldout" : "available"}
           seatsLeftText={soldOut ? "" : TUTORING_SEATS_LEFT_TEXT}
           cta={selecting ? chooseBtn("prepay") : (
-            soldOut ? (
-              <Button className={RED_BTN} style={RED_BTN_STYLE} onClick={() => setReserveOpen(true)}>
-                Join the waitlist
-              </Button>
-            ) : (
-              <Button className={RED_BTN} style={RED_BTN_STYLE} onClick={() => setReserveOpen(true)}>
-                {stripeReady ? "Reserve your slot →" : "Reserve for Fall →"}
-              </Button>
-            )
+            <Button className={RED_BTN} style={RED_BTN_STYLE} onClick={() => setReserveOpen(true)}>
+              {soldOut ? "Join the waitlist" : "Reserve your slot"}
+            </Button>
           )}
         />
       </div>
@@ -162,7 +160,7 @@ export default function PricingPlans({
 }
 
 function PlanCard({
-  title, tagline, price, priceNote, description, features, cta, footnote,
+  title, tagline, price, priceNote, description, features, cta, note, howToStart,
   highlighted, badge, availability, seatsLeftText,
 }: {
   title: string;
@@ -172,7 +170,8 @@ function PlanCard({
   description?: string;
   features: string[];
   cta: React.ReactNode;
-  footnote?: string;
+  note?: string;
+  howToStart?: string[];
   highlighted?: boolean;
   badge?: string;
   availability?: "available" | "soldout";
@@ -180,6 +179,7 @@ function PlanCard({
 }) {
   const soldOut = availability === "soldout";
   const [open, setOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
   return (
     <div
       className={cn(
@@ -220,8 +220,8 @@ function PlanCard({
       {description && <p className="mt-2 text-sm leading-relaxed text-gray-600">{description}</p>}
 
       <div className="mt-auto pt-6">
-        {footnote && <p className="mb-3 text-xs text-gray-500">{footnote}</p>}
         {cta}
+        {note && <p className="mt-2 text-center text-xs text-gray-500">{note}</p>}
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -240,6 +240,29 @@ function PlanCard({
               </li>
             ))}
           </ul>
+        )}
+        {howToStart && howToStart.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setHowOpen((o) => !o)}
+              aria-expanded={howOpen}
+              className="mt-2 flex w-full items-center justify-center gap-1 text-xs font-semibold transition-colors hover:opacity-80"
+              style={{ color: NAVY }}
+            >
+              How to start
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", howOpen && "rotate-180")} />
+            </button>
+            {howOpen && (
+              <ul className="mt-3 space-y-2 text-left text-[13px] text-gray-700">
+                {howToStart.map((s) => (
+                  <li key={s} className="flex gap-2">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> {s}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
     </div>
