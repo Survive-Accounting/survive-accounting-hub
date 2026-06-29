@@ -45,18 +45,12 @@ const TESTER_PHONES = new Set(
 // How long after an automated reply before we'll send another one to the same
 // student. Keeps mid-conversation texts from getting spammed, while a student
 // returning days later still gets their link again.
-const AUTO_REPLY_COOLDOWN_HOURS = 12;
-
-// Fallback copy used only if a template row is missing in the DB.
-// One generic, recurring auto-reply that works for any inbound text — new
-// student, returning student, or a support question — and always hands them
-// their personal /o/{short_ref} link. No pricing or booking language here; that
-// all lives behind the link. Tokens: {SITE_ORIGIN}, {short_ref}.
+// Fallback copy used only if a template row is missing in the DB. Sent ONCE, on
+// a student's first inbound text (see opener gating below); after that Lee is
+// just notified and replies personally. No tokens needed.
 const FALLBACK_AUTO_REPLY =
-  "Hey! It's Lee 👋 Thanks for reaching out. Here's your link to get started, " +
-  "pick up where you left off, or manage everything:\n\n" +
-  "{SITE_ORIGIN}/o/{short_ref}\n\n" +
-  "Reply here anytime with questions — I read every text.";
+  "Hey, it's Lee — got your message! I'll reply personally soon. " +
+  "Meanwhile, here are my tutoring options: surviveaccounting.com 👋";
 const FALLBACK_ACK = "Got it — passing this along to Lee. He'll text you back personally when he gets a moment.";
 const FALLBACK_LEE_NEW =
   '#{ref} New student!\nFrom {from}: "{body}"\n\nSend a reply via this thread. Be sure to include #{ref}';
@@ -307,17 +301,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Generic auto-reply on a cooldown (replaces the one-time opener). A brand-
-    // new texter gets it; a student mid-conversation within the cooldown does
-    // NOT get spammed (they fall through to the Lee-summary-only path below); a
-    // student returning after the cooldown gets their link again. Tester phones
-    // bypass the cooldown so the full flow re-runs on every test text. If a send
-    // fails we leave `last_auto_reply_at` unset so the next inbound retries.
-    const lastAutoReplyAt = convo.last_auto_reply_at ? Date.parse(convo.last_auto_reply_at) : 0;
-    const cooldownMs = AUTO_REPLY_COOLDOWN_HOURS * 60 * 60 * 1000;
-    const cooldownPassed = isTester || !lastAutoReplyAt || (Date.now() - lastAutoReplyAt) > cooldownMs;
+    // Auto-reply is sent ONCE — on the student's first inbound text. After that
+    // Lee is just notified (the subsequent-reply path below) and replies himself;
+    // the student is never auto-messaged again. Tester phones bypass this so the
+    // full flow re-runs on every test text.
+    const isFirstContact = isTester || !convo.opener_sent;
 
-    if (cooldownPassed) {
+    if (isFirstContact) {
       // Personal link, with a /start fallback if short_ref is somehow missing.
       const hasRef = convo.short_ref != null && String(convo.short_ref).length > 0;
       let autoBody = render(TPL_AUTO, {
@@ -330,7 +320,7 @@ Deno.serve(async (req) => {
       await admin.from("sms_messages").insert({
         conversation_id: convo.id, direction: "out", author: "auto", body: autoBody, twilio_sid: sentSid,
       });
-      // Cooldown is the gate now; keep `opener_sent` updated for backward-compat.
+      // Mark opener_sent so the auto-reply never fires again for this student.
       if (sentSid) {
         await admin.from("sms_conversations")
           .update({ last_auto_reply_at: new Date().toISOString(), opener_sent: true })

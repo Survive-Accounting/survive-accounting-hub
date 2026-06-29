@@ -188,11 +188,12 @@ Deno.serve(async (req) => {
   // SMS summary to Lee's personal phone.
   const name = String(record.name ?? "").trim() || "No name";
   const school = String(record.campus_text ?? "").trim() || "school?";
+  const course = String(record.course_text ?? "").trim() || "course?";
   const phoneDisp = String(record.phone ?? "").trim() || "no phone";
-  let smsBody = `📋 New waitlist: ${name} · ${school} · ${plan} · ${phoneDisp}`;
-  smsBody += shortRef != null
-    ? `\nReply #${shortRef} to text them back (from your work line).`
-    : `\nNo phone — reply by email.`;
+  let smsBody = `🎓 New waitlist: ${name} · ${school} · ${course} · interested in ${plan} · 📱 ${phoneDisp}`;
+  // Reply relay: Lee texts "#<ref> ..." from his work phone → routes to the
+  // student via the work number (twilio-sms-webhook handles it).
+  smsBody += shortRef != null ? `\nReply with #${shortRef}` : `\nNo phone — reply by email.`;
 
   const [smsRes, emailRes] = await Promise.all([
     sendLeeSms(smsBody),
