@@ -26,7 +26,7 @@ import {
   INTRO_TARGET_TAG, FACULTY_TAG, ROLE_KEYWORDS, isIntroLikely, isFaculty, matchRoles,
 } from "@/lib/role-keywords";
 
-type SortKey = "title" | "name";
+type SortKey = "title" | "name" | "rmp_ratings";
 
 export type TriageStats = { leads: number; kept: number; pending: number; tagged: number };
 
@@ -57,18 +57,15 @@ export function FacultyTriagePanel({
   const [rows, setRows] = useState<TriageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>("title");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // Locked campus-review view: only RMP-matched leads (a class label on the
+  // prof's RMP page matched THIS campus's Intro/Intermediate code), sorted by #
+  // of RMP ratings (most first). Other filters intentionally removed for now.
+  const [sortKey, setSortKey] = useState<SortKey>("rmp_ratings");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [customTag, setCustomTag] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
-  // Review & Import filters (Phase-1 teaching priors).
-  const [confidenceFilter, setConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
-  const [introInterOnly, setIntroInterOnly] = useState(false);
-  // RMP course-code match = a class label on the prof's RMP page matched THIS
-  // campus's Intro/Intermediate code — the strongest "teaches it" signal.
-  const [rmpMatchOnly, setRmpMatchOnly] = useState(false);
   // Click-and-drag selection. Refs so we don't churn renders during mousemove.
   const dragAnchorRef = useRef<string | null>(null);
   const dragMovedRef = useRef(false);
@@ -146,6 +143,10 @@ export function FacultyTriagePanel({
   const sortedRows = useMemo(() => {
     const collator = new Intl.Collator(undefined, { sensitivity: "base" });
     const dir = sortDir === "asc" ? 1 : -1;
+    if (sortKey === "rmp_ratings") {
+      // Numeric: most-rated professors first (desc). Missing counts sort last.
+      return [...rows].sort((a, b) => ((a.rmp_num_ratings ?? -1) - (b.rmp_num_ratings ?? -1)) * dir);
+    }
     const get = (r: TriageRow) =>
       sortKey === "title"
         ? (r.title ?? "").trim()
@@ -158,32 +159,9 @@ export function FacultyTriagePanel({
     });
   }, [rows, sortKey, sortDir]);
 
-  // A `teaches_*` column counts as positive when it holds real evidence — any
-  // non-empty value that isn't an explicit "no"/"none"/"false"/"0".
-  const teachesFamily = (v: string | null) => {
-    if (!v) return false;
-    const s = v.trim().toLowerCase();
-    return s !== "" && s !== "no" && s !== "none" && s !== "false" && s !== "0" && s !== "unknown";
-  };
-  const teachesIntroOrInter = (r: TriageRow) =>
-    teachesFamily(r.teaches_intro_1) || teachesFamily(r.teaches_intro_2) ||
-    teachesFamily(r.teaches_intermediate_1) || teachesFamily(r.teaches_intermediate_2);
-
+  // Locked filter for the campus-review view: only show RMP-matched leads.
   const hasRmpMatch = (r: TriageRow) => (r.rmp_course_match_count ?? 0) > 0;
-
-  // Rows actually shown = sorted rows passed through the Phase-1 filters.
-  const visibleRows = useMemo(() => {
-    return sortedRows.filter((r) => {
-      if (confidenceFilter !== "all" && r.teaching_confidence !== confidenceFilter) return false;
-      if (introInterOnly && !teachesIntroOrInter(r)) return false;
-      if (rmpMatchOnly && !hasRmpMatch(r)) return false;
-      return true;
-    });
-  }, [sortedRows, confidenceFilter, introInterOnly, rmpMatchOnly]);
-
-  const filtersActive = confidenceFilter !== "all" || introInterOnly || rmpMatchOnly;
-  const applyFirstCampaignPreset = () => { setConfidenceFilter("high"); setIntroInterOnly(true); };
-  const resetFilters = () => { setConfidenceFilter("all"); setIntroInterOnly(false); setRmpMatchOnly(false); };
+  const visibleRows = useMemo(() => sortedRows.filter(hasRmpMatch), [sortedRows]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -617,51 +595,9 @@ export function FacultyTriagePanel({
 
       {!loading && rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs">
-          <span className="font-medium text-muted-foreground">Confidence:</span>
-          {(["all", "high", "medium", "low"] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setConfidenceFilter(t)}
-              className={`rounded-md border px-2 py-0.5 capitalize ${
-                confidenceFilter === t ? "border-primary bg-primary/5 text-primary" : "hover:bg-accent"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-          <label className="ml-1 flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5">
-            <input
-              type="checkbox"
-              checked={introInterOnly}
-              onChange={(e) => setIntroInterOnly(e.target.checked)}
-              className="h-3.5 w-3.5"
-            />
-            Intro / Intermediate only
-          </label>
-          <label className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5"
-            title="Only professors whose RateMyProfessors class labels matched THIS campus's Intro/Intermediate course codes — the strongest 'they teach it' signal.">
-            <input
-              type="checkbox"
-              checked={rmpMatchOnly}
-              onChange={(e) => setRmpMatchOnly(e.target.checked)}
-              className="h-3.5 w-3.5"
-            />
-            RMP course match
-          </label>
-          <button
-            type="button"
-            onClick={applyFirstCampaignPreset}
-            title="Restrict to confirmed intro/intermediate professors at high confidence — the first-campaign target set."
-            className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 hover:bg-emerald-100"
-          >
-            ⭐ First campaign: intro/intermediate, high confidence
-          </button>
-          {filtersActive && (
-            <button type="button" onClick={resetFilters} className="text-muted-foreground underline">
-              Reset
-            </button>
-          )}
+          <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+            RMP-matched leads · most-rated first
+          </span>
           <span className="ml-auto tabular-nums text-muted-foreground">
             {visibleRows.length} of {rows.length}
           </span>
@@ -707,7 +643,7 @@ export function FacultyTriagePanel({
             {visibleRows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
-                  No leads match these filters.
+                  No RMP-matched leads for this campus yet.
                 </TableCell>
               </TableRow>
             )}
