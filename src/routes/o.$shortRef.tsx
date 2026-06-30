@@ -30,10 +30,8 @@ import {
   type OnboardingSnapshot,
 } from "@/lib/onboarding.functions";
 import leeHeadshot from "@/assets/lee-headshot-original.png";
-import PricingPlans, { type PricingPlanKey } from "@/components/landing/PricingPlans";
+import { type PricingPlanKey } from "@/components/landing/PricingPlans";
 import { joinOnboardingWaitlist } from "@/lib/pricing-api";
-import { getCampusSpirit, type CampusSpirit } from "@/lib/campus-spirit";
-import { SpiritMoment } from "@/components/onboarding/SpiritMoment";
 
 const LEE_PHONE_DISPLAY = "(662) 565-8818";
 const LEE_PHONE_HREF = "+16625658818";
@@ -186,7 +184,7 @@ function OnboardingPage() {
   const { data } = useSuspenseQuery(onboardingQuery(shortRef));
   void shortRef;
 
-  // 3 steps: 0 = Your info, 1 = Choose plan, 2 = Get started (→ dashboard).
+  // 3 steps: 0 = Your info, 1 = Plan interest (optional), 2 = Join waitlist.
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [draft, setDraft] = useState<Draft>(() => draftFromSnapshot(data));
   const update = <K extends keyof Draft>(k: K, v: Draft[K]) =>
@@ -223,12 +221,9 @@ function OnboardingPage() {
           <div className="mt-6 rounded-3xl bg-white p-7 shadow-[0_12px_44px_-18px_rgba(20,33,61,0.18)] sm:p-12">
             {step === 0 && <InfoStep draft={draft} update={update} onContinue={() => go(1)} />}
             {step === 1 && (
-              <PlanStep
-                onChoose={(p) => { setPlan(p); go(2); }}
-                onBack={() => go(0)}
-              />
+              <PlanInterestStep plan={plan} onSelect={setPlan} onContinue={() => go(2)} onBack={() => go(0)} />
             )}
-            {step === 2 && plan && <FinishStep draft={draft} plan={plan} onBack={() => go(1)} />}
+            {step === 2 && <FinishStep draft={draft} plan={plan} onBack={() => go(1)} />}
           </div>
         </div>
 
@@ -241,7 +236,7 @@ function OnboardingPage() {
 
 // ---------- 3-step indicator ----------
 function StepBar({ current }: { current: 0 | 1 | 2 }) {
-  const labels = ["Your info", "Choose plan", "Get started"];
+  const labels = ["Your info", "Plan interest", "Join waitlist"];
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       {labels.map((label, i) => {
@@ -292,9 +287,9 @@ const ONB_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function InfoStep({
   draft, update, onContinue,
 }: { draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onContinue: () => void }) {
-  const [spirit, setSpirit] = useState<CampusSpirit | null>(null);
-  const [showSpirit, setShowSpirit] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+
+  const schoolPicked = !!(draft.campusId || (draft.schoolOther && draft.schoolName.trim()));
 
   const handleContinue = () => {
     const email = draft.email.trim().toLowerCase();
@@ -309,7 +304,7 @@ function InfoStep({
         <p className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "rgba(20,33,61,0.5)" }}>
           Step 1 of 3 · Your info
         </p>
-        <Title subtitle="A few quick details so I can tailor things — about a minute, no account needed.">
+        <Title subtitle="A few quick details — takes about a minute.">
           Let&apos;s get you ready for your exam.
         </Title>
       </div>
@@ -318,32 +313,40 @@ function InfoStep({
         <Field label="First name">
           <Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)} autoComplete="given-name" />
         </Field>
+        <Field label="Last name">
+          <Input value={draft.lastName} onChange={(e) => update("lastName", e.target.value)} autoComplete="family-name" />
+        </Field>
         <Field label="Email" required error={emailError ?? undefined}>
           <Input type="email" value={draft.email} autoComplete="email" placeholder="you@school.edu"
             onChange={(e) => { update("email", e.target.value); if (emailError) setEmailError(null); }} />
         </Field>
+        <Field label="Phone">
+          <Input type="tel" value={draft.phone} placeholder="optional — for a text when content drops"
+            onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
+        </Field>
       </div>
-
-      <Field label="Phone">
-        <Input type="tel" value={draft.phone} placeholder="(555) 555-5555 — optional, for a text when content drops"
-          onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
-      </Field>
 
       <SchoolPicker
         campusId={draft.campusId}
         schoolName={draft.schoolName}
         other={draft.schoolOther}
-        onPick={(id, name) => {
-          update("campusId", id);
-          update("schoolName", name);
-          update("schoolOther", false);
-          // Verified-ONLY spirit moment (neutral on-brand fallback otherwise).
-          getCampusSpirit(id).then((sp) => { setSpirit(sp); setShowSpirit(true); });
-        }}
+        onPick={(id, name) => { update("campusId", id); update("schoolName", name); update("schoolOther", false); }}
         onTypeOther={(name) => { update("campusId", null); update("schoolName", name); update("schoolOther", true); }}
         onClear={() => { update("campusId", null); update("schoolName", ""); update("schoolOther", false); }}
       />
-      {showSpirit && <SpiritMoment spirit={spirit} schoolName={draft.schoolName || null} onDone={() => setShowSpirit(false)} />}
+
+      {schoolPicked && (
+        <CoursePicker
+          campusId={draft.campusId}
+          course={draft.course}
+          courseOther={draft.courseOther}
+          notSure={draft.notSureCourse}
+          onPickCourse={(v) => { update("course", v); update("courseOther", ""); update("notSureCourse", false); }}
+          onNotSure={() => { update("course", ""); update("courseOther", ""); update("notSureCourse", true); }}
+          onTypeOther={(v) => { update("course", ""); update("notSureCourse", false); update("courseOther", v); }}
+          onResetOther={() => update("courseOther", "")}
+        />
+      )}
 
       <div>
         <Label className="mb-3 block text-sm font-medium text-gray-800">Are you an accounting major?</Label>
@@ -366,36 +369,58 @@ function InfoStep({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <PrimaryBtn onClick={handleContinue}>Continue →</PrimaryBtn>
-        <p className="text-center text-xs text-gray-500">No password, no account — just your email so I know who to build for.</p>
-      </div>
+      <PrimaryBtn onClick={handleContinue}>Continue →</PrimaryBtn>
     </div>
   );
 }
 
-// ---------- Step 2: Choose plan ----------
-function PlanStep({ onChoose, onBack }: { onChoose: (p: PricingPlanKey) => void; onBack: () => void }) {
+// ---------- Step 2: Plan interest (lightweight — demand data, not a commitment) ----------
+function PlanInterestStep({
+  plan, onSelect, onContinue, onBack,
+}: { plan: PricingPlanKey | null; onSelect: (p: PricingPlanKey | null) => void; onContinue: () => void; onBack: () => void }) {
+  const options: { key: PricingPlanKey; label: string; note: string }[] = [
+    { key: "test_pass", label: "Just One Test", note: "Cram for one exam" },
+    { key: "membership", label: "Semester Membership", note: "Everything, all semester" },
+    { key: "prepay", label: "Premium 1-on-1", note: "Your tutor for the semester" },
+  ];
   return (
     <div className="space-y-7">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "rgba(20,33,61,0.5)" }}>
-          Step 2 of 3 · Choose your plan
+          Step 2 of 3 · Plan interest
         </p>
-        <Title subtitle="Pick what fits — no payment now. Tap “What's included” on any plan for details.">
-          How do you want to prep?
+        <Title subtitle="Just so I know what to build first — no payment, no commitment.">
+          Which are you most interested in?
         </Title>
       </div>
-      <PricingPlans onSelectPlan={onChoose} />
-      <button type="button" onClick={onBack} className="text-sm font-medium text-gray-500 hover:underline">
-        ← Back
-      </button>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {options.map((o) => {
+          const active = plan === o.key;
+          return (
+            <button key={o.key} type="button"
+              onClick={() => onSelect(active ? null : o.key)}
+              className="rounded-2xl border p-4 text-left transition-all"
+              style={active ? { background: NAVY, color: "white", borderColor: NAVY } : { background: "white", color: NAVY, borderColor: "#e5e7eb" }}>
+              <span className="block text-sm font-bold">{o.label}</span>
+              <span className="mt-0.5 block text-xs" style={{ color: active ? "rgba(255,255,255,0.75)" : "#6b7280" }}>{o.note}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="space-y-2">
+        <PrimaryBtn onClick={onContinue}>{plan ? "Join the waitlist →" : "Skip — just join the waitlist →"}</PrimaryBtn>
+        <button type="button" onClick={onBack} className="block w-full text-center text-sm font-medium text-gray-500 hover:underline">
+          ← Back
+        </button>
+      </div>
     </div>
   );
 }
 
-// ---------- Step 3: Get started (capture → shell dashboard) ----------
-function FinishStep({ draft, plan, onBack }: { draft: Draft; plan: PricingPlanKey; onBack: () => void }) {
+// ---------- Step 3: Join waitlist (capture → /thankyou) ----------
+function FinishStep({ draft, plan, onBack }: { draft: Draft; plan: PricingPlanKey | null; onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const firedRef = useRef(false);
 
@@ -412,15 +437,12 @@ function FinishStep({ draft, plan, onBack }: { draft: Draft; plan: PricingPlanKe
         accountingMajor: majorToText(draft.accountingMajorStatus),
         plan,
       });
-      // Drop them straight into the shell preview dashboard (already identified).
+      // Simple waitlist confirmation — NOT the preview dashboard, NOT /welcome.
       const params = new URLSearchParams();
-      const em = draft.email.trim().toLowerCase();
-      if (em) params.set("email", em);
-      if (draft.course) params.set("course", draft.course);
       const first = draft.firstName.trim().split(/\s+/)[0];
       if (first) params.set("name", first);
-      if (draft.schoolName.trim()) params.set("school", draft.schoolName.trim());
-      if (typeof window !== "undefined") window.location.href = `/preview?${params.toString()}`;
+      const qs = params.toString();
+      if (typeof window !== "undefined") window.location.href = qs ? `/thankyou?${qs}` : "/thankyou";
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
     }
@@ -450,9 +472,7 @@ function FinishStep({ draft, plan, onBack }: { draft: Draft; plan: PricingPlanKe
       <Loader2 className="mx-auto h-8 w-8 animate-spin" style={{ color: RED }} />
       <div>
         <h1 className="text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>You&apos;re in!</h1>
-        <p className="mx-auto mt-2 max-w-sm text-sm text-gray-600">
-          Setting up your {PLAN_LABEL[plan]} preview dashboard…
-        </p>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-gray-600">Adding you to the waitlist…</p>
       </div>
     </div>
   );
