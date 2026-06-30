@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, X, ExternalLink, Loader2, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, Sparkles } from "lucide-react";
+import { Check, X, ExternalLink, Loader2, ArrowUp, ArrowDown, ArrowUpDown, Tag, ChevronDown, Sparkles, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
@@ -27,6 +27,42 @@ import {
 } from "@/lib/role-keywords";
 
 type SortKey = "title" | "name" | "rmp_ratings";
+
+// RMP "# of ratings" bands — a proxy for how often a professor is taken. Cards in
+// the leadfinder drill into each band. Non-overlapping so the counts sum cleanly.
+type RatingBandKey = "500" | "250" | "100" | "50" | "lt50";
+const RATING_BANDS: { key: RatingBandKey; label: string; min: number }[] = [
+  { key: "500", label: "500+", min: 500 },
+  { key: "250", label: "250–499", min: 250 },
+  { key: "100", label: "100–249", min: 100 },
+  { key: "50", label: "50–99", min: 50 },
+  { key: "lt50", label: "Under 50", min: 0 },
+];
+function ratingBandOf(n: number | null | undefined): RatingBandKey {
+  const x = n ?? 0;
+  if (x >= 500) return "500";
+  if (x >= 250) return "250";
+  if (x >= 100) return "100";
+  if (x >= 50) return "50";
+  return "lt50";
+}
+
+/** One Google-Sheets row (tab-separated → pastes across columns):
+ *  RMP Rating · RMP Amount · Professor name · School · RMP Course Matches · Email found. */
+function leadToTsv(r: TriageRow, school: string): string {
+  const name = `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim();
+  const matches = r.rmp_course_match_json
+    ? Object.values(r.rmp_course_match_json).map((m) => m.code).join(", ")
+    : "";
+  return [
+    r.rmp_rating != null ? r.rmp_rating.toFixed(1) : "",
+    r.rmp_num_ratings != null ? String(r.rmp_num_ratings) : "",
+    name,
+    school,
+    matches,
+    r.email ?? "",
+  ].join("\t");
+}
 
 export type TriageStats = { leads: number; kept: number; pending: number; tagged: number };
 
@@ -66,6 +102,8 @@ export function FacultyTriagePanel({
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [customTag, setCustomTag] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  // Selected RMP "# of ratings" band card (null = all RMP-matched leads).
+  const [ratingBand, setRatingBand] = useState<RatingBandKey | null>(null);
   // Click-and-drag selection. Refs so we don't churn renders during mousemove.
   const dragAnchorRef = useRef<string | null>(null);
   const dragMovedRef = useRef(false);
@@ -144,8 +182,13 @@ export function FacultyTriagePanel({
     const collator = new Intl.Collator(undefined, { sensitivity: "base" });
     const dir = sortDir === "asc" ? 1 : -1;
     if (sortKey === "rmp_ratings") {
-      // Numeric: most-rated professors first (desc). Missing counts sort last.
-      return [...rows].sort((a, b) => ((a.rmp_num_ratings ?? -1) - (b.rmp_num_ratings ?? -1)) * dir);
+      // Most-rated first (proxy for "taken most often"); ties broken by rating.
+      // Missing counts sort last. Both desc when sortDir=desc.
+      return [...rows].sort((a, b) => {
+        const byNum = ((a.rmp_num_ratings ?? -1) - (b.rmp_num_ratings ?? -1)) * dir;
+        if (byNum !== 0) return byNum;
+        return ((a.rmp_rating ?? -1) - (b.rmp_rating ?? -1)) * dir;
+      });
     }
     const get = (r: TriageRow) =>
       sortKey === "title"
@@ -159,9 +202,25 @@ export function FacultyTriagePanel({
     });
   }, [rows, sortKey, sortDir]);
 
-  // Locked filter for the campus-review view: only show RMP-matched leads.
+  // Locked filter for the campus-review view: only RMP-matched leads, then an
+  // optional "# of ratings" band card.
   const hasRmpMatch = (r: TriageRow) => (r.rmp_course_match_count ?? 0) > 0;
-  const visibleRows = useMemo(() => sortedRows.filter(hasRmpMatch), [sortedRows]);
+  const rmpMatched = useMemo(() => sortedRows.filter(hasRmpMatch), [sortedRows]);
+  const bandCounts = useMemo(() => {
+    const c: Record<RatingBandKey, number> = { "500": 0, "250": 0, "100": 0, "50": 0, lt50: 0 };
+    for (const r of rmpMatched) c[ratingBandOf(r.rmp_num_ratings)] += 1;
+    return c;
+  }, [rmpMatched]);
+  const visibleRows = useMemo(
+    () => (ratingBand ? rmpMatched.filter((r) => ratingBandOf(r.rmp_num_ratings) === ratingBand) : rmpMatched),
+    [rmpMatched, ratingBand],
+  );
+
+  const copyLead = (r: TriageRow) => {
+    void navigator.clipboard.writeText(leadToTsv(r, campusName))
+      .then(() => toast.success("Copied — paste into your sheet"))
+      .catch(() => toast.error("Copy failed"));
+  };
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -594,13 +653,40 @@ export function FacultyTriagePanel({
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs">
-          <span className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
-            RMP-matched leads · most-rated first
-          </span>
-          <span className="ml-auto tabular-nums text-muted-foreground">
-            {visibleRows.length} of {rows.length}
-          </span>
+        <div className="border-b border-border bg-muted/20 px-4 py-3">
+          {/* RMP "# of ratings" band cards — click one to drill in (toggle off). */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {RATING_BANDS.map((b) => {
+              const active = ratingBand === b.key;
+              return (
+                <button
+                  key={b.key}
+                  type="button"
+                  onClick={() => setRatingBand(active ? null : b.key)}
+                  className="rounded-xl border p-3 text-center transition-all hover:-translate-y-0.5"
+                  style={active
+                    ? { background: "#14213D", color: "white", borderColor: "#14213D" }
+                    : { background: "white", color: "#14213D", borderColor: "#e5e7eb" }}
+                >
+                  <div className="text-2xl font-extrabold tabular-nums sm:text-3xl">{bandCounts[b.key]}</div>
+                  <div className="mt-0.5 text-xs font-semibold" style={{ color: active ? "rgba(255,255,255,0.8)" : "#6b7280" }}>
+                    RMP {b.label}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium">
+              RMP-matched · most-rated first{ratingBand ? ` · ${RATING_BANDS.find((b) => b.key === ratingBand)?.label} ratings` : ""}
+            </span>
+            {ratingBand && (
+              <button type="button" onClick={() => setRatingBand(null)} className="underline hover:text-foreground">
+                clear
+              </button>
+            )}
+            <span className="ml-auto tabular-nums">{visibleRows.length} of {rmpMatched.length}</span>
+          </div>
         </div>
       )}
 
@@ -726,6 +812,14 @@ export function FacultyTriagePanel({
 
                     <span className="inline-flex items-center gap-1.5">
                       {(r.first_name ?? "") + " " + (r.last_name ?? "")}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); copyLead(r); }}
+                        className="opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                        title="Copy this lead's row for Google Sheets (rating · # · name · school · matches · email)"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </button>
                       {r.source_url && (
                         <a
                           href={r.source_url}
