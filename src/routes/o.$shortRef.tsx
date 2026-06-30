@@ -999,7 +999,7 @@ function PricingStep({
           Get Virtual Tutoring from Lee Ingram
         </h2>
         <p className="mt-3 text-lg font-bold sm:text-xl" style={{ color: NAVY }}>
-          $150/hr <span className="text-gray-400">·</span> 10 hours available each week
+          $125/hr <span className="text-gray-400">·</span> 10 hours available each week
         </p>
         <p className="mt-2 text-[15px] text-gray-700">
           Live 1-on-1 Zoom sessions, built entirely around you.

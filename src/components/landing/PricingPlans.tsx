@@ -2,7 +2,7 @@
 // discounts — real prices only, feature lists behind a "What's included" expander.
 //  - Just One Test ($45) + Semester Membership ($99) = WAITLIST ("Notify me"
 //    capture into campus_waitlist; fires text-to-Lee).
-//  - Premium 1-on-1 ($1,500 = 10 hrs @ $150/hr) -> capture-first ReserveDialog,
+//  - Premium 1-on-1 ($1,250 = 10 hrs @ $125/hr) -> capture-first ReserveDialog,
 //    then Stripe if STRIPE_TUTORING_PAYMENT_LINK is set, else "Reserve for Fall".
 import { useState } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
@@ -24,10 +24,10 @@ const RED = "#CE1126";
 // Clean, official, NO discounts — real prices only (no strikethrough/"was"/"save").
 export const TEST_PASS_PRICE = 60;
 export const MEMBERSHIP_PRICE = 150;
-// Premium 1-on-1: full-price, capacity-capped semester block — 10 hours at $150/hr.
-export const PREPAY_PRICE = 1500;
+// Premium 1-on-1: full-price, capacity-capped semester block — 10 hours at $125/hr.
+export const PREPAY_PRICE = 1250;
 export const PREPAY_HOURS = 10;
-export const PREPAY_RATE = 150;
+export const PREPAY_RATE = 125;
 // Deprecated "was" prices — kept as exports (= current price, so nothing renders
 // as a discount) only for back-compat with importers until they're updated.
 export const TEST_PASS_WAS = TEST_PASS_PRICE;

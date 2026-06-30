@@ -3,7 +3,7 @@
 // plain URL.
 
 /** Stripe Payment Link for the prepaid Premium 1-on-1 semester block
- *  ($2,250 / 15 hours). Create it in the Stripe dashboard, set its post-payment
+ *  ($1,250 / 10 hours). Create it in the Stripe dashboard, set its post-payment
  *  redirect to /welcome, then paste the full https://buy.stripe.com/... URL
  *  here. Until set, the "Reserve your seat" button is disabled (coming soon). */
 export const STRIPE_TUTORING_PAYMENT_LINK = "";

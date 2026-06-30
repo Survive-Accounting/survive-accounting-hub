@@ -93,7 +93,7 @@ export function joinOnboardingWaitlist(input: {
  *  caller can pass it to Stripe as `client_reference_id` (and prefill the email)
  *  — that ties the eventual payment back to this lead. The insert fires the
  *  existing campus_waitlist_notify trigger (email + Lee's personal-phone SMS),
- *  so Lee knows a $2,250 buyer is in the flow. `mode` distinguishes a true
+ *  so Lee knows a $1,250 buyer is in the flow. `mode` distinguishes a true
  *  reservation (→ Stripe) from a sold-out waitlist signup. */
 export async function reservePrepayLead(input: {
   name?: string | null;
