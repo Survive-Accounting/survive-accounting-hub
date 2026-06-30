@@ -344,6 +344,20 @@ export interface CourseFamilyCodes {
   intermediate_2: string;
 }
 
+/** Read a campus's current four course codes from course_family_codes_json. */
+export async function fetchCampusCourseCodes(campusId: string): Promise<CourseFamilyCodes> {
+  const { data, error } = await (supabase.from("campuses" as never) as any)
+    .select("course_family_codes_json").eq("id", campusId).maybeSingle();
+  if (error) throw new Error(error.message);
+  const c = (data?.course_family_codes_json ?? {}) as Record<string, string>;
+  return {
+    intro_1: c.intro_1 ?? "",
+    intro_2: c.intro_2 ?? "",
+    intermediate_1: c.intermediate_1 ?? "",
+    intermediate_2: c.intermediate_2 ?? "",
+  };
+}
+
 /** Save the four per-campus course codes to campuses.course_family_codes_json
  * (anon UPDATE is allowed by RLS). Only non-empty codes are written, so a campus
  * is never left with blank "" placeholders. This is the field onboarding + the
