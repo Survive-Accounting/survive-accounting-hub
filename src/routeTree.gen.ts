@@ -25,6 +25,8 @@ import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
+import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
+import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
 import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
@@ -118,6 +120,17 @@ const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
 const OutreachResearchRoute = OutreachResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachProfintelScheduleRoute =
+  OutreachProfintelScheduleRouteImport.update({
+    id: '/profintel-schedule',
+    path: '/profintel-schedule',
+    getParentRoute: () => OutreachRoute,
+  } as any)
+const OutreachProfintelRoute = OutreachProfintelRouteImport.update({
+  id: '/profintel',
+  path: '/profintel',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachLeadfinderLeaderboardRoute =
@@ -215,6 +228,8 @@ export interface FileRoutesByFullPath {
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
+  '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -246,6 +261,8 @@ export interface FileRoutesByTo {
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
+  '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -279,6 +296,8 @@ export interface FileRoutesById {
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
+  '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -313,6 +332,8 @@ export interface FileRouteTypes {
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
+    | '/outreach/profintel'
+    | '/outreach/profintel-schedule'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -344,6 +365,8 @@ export interface FileRouteTypes {
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
+    | '/outreach/profintel'
+    | '/outreach/profintel-schedule'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -376,6 +399,8 @@ export interface FileRouteTypes {
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
+    | '/outreach/profintel'
+    | '/outreach/profintel-schedule'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -520,6 +545,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachResearchRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/profintel-schedule': {
+      id: '/outreach/profintel-schedule'
+      path: '/profintel-schedule'
+      fullPath: '/outreach/profintel-schedule'
+      preLoaderRoute: typeof OutreachProfintelScheduleRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/profintel': {
+      id: '/outreach/profintel'
+      path: '/profintel'
+      fullPath: '/outreach/profintel'
+      preLoaderRoute: typeof OutreachProfintelRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/leadfinder-leaderboard': {
       id: '/outreach/leadfinder-leaderboard'
       path: '/leadfinder-leaderboard'
@@ -644,6 +683,8 @@ interface OutreachRouteChildren {
   OutreachLandingRoute: typeof OutreachLandingRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
+  OutreachProfintelRoute: typeof OutreachProfintelRoute
+  OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
@@ -658,6 +699,8 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachLandingRoute: OutreachLandingRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
+  OutreachProfintelRoute: OutreachProfintelRoute,
+  OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
   OutreachIndexRoute: OutreachIndexRoute,

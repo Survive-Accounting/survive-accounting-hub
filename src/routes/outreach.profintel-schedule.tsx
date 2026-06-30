@@ -1,0 +1,151 @@
+// /outreach/profintel-schedule — ProfIntel "Schedule emails".
+// The outgoing queue: every ProfIntel draft across campuses, with its status,
+// ready flag, and scheduled send time. Read-mostly — drafts are edited on the
+// "Choose campus leads" tab. NOTHING sends automatically yet; "scheduled" rows
+// are just queued for a future worker once real sending is turned on.
+import { useMemo } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { CalendarClock, Loader2, Mail } from "lucide-react";
+
+import { listSends, updateSend, type ProfIntelSend } from "@/lib/profintel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+export const Route = createFileRoute("/outreach/profintel-schedule")({
+  head: () => ({
+    meta: [
+      { title: "ProfIntel — Schedule emails" },
+      { name: "description", content: "Outgoing professor-outreach drafts and their scheduled send times." },
+    ],
+  }),
+  component: ProfIntelSchedule,
+});
+
+function fmtWhen(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+  draft: "outline",
+  scheduled: "secondary",
+  sent: "default",
+  canceled: "destructive",
+};
+
+function ProfIntelSchedule() {
+  const sendsQuery = useQuery({ queryKey: ["profintel-all-sends"], queryFn: () => listSends() });
+  const sends = sendsQuery.data ?? [];
+
+  const counts = useMemo(() => {
+    const c = { draft: 0, scheduled: 0, sent: 0, canceled: 0 } as Record<string, number>;
+    for (const s of sends) c[s.status] = (c[s.status] ?? 0) + 1;
+    return c;
+  }, [sends]);
+
+  // scheduled first (by time), then drafts, then the rest.
+  const ordered = useMemo(() => {
+    const rank = (s: ProfIntelSend) => (s.status === "scheduled" ? 0 : s.status === "draft" ? 1 : 2);
+    return [...sends].sort((a, b) => {
+      const r = rank(a) - rank(b);
+      if (r !== 0) return r;
+      const at = a.scheduled_at ? new Date(a.scheduled_at).getTime() : Infinity;
+      const bt = b.scheduled_at ? new Date(b.scheduled_at).getTime() : Infinity;
+      return at - bt;
+    });
+  }, [sends]);
+
+  async function cancel(s: ProfIntelSend) {
+    if (!confirm(`Cancel the scheduled send to ${s.to_name || s.to_email || "this lead"}?`)) return;
+    try {
+      await updateSend(s.id, { status: "draft", ready: false, scheduled_at: null });
+      toast.success("Moved back to draft.");
+      sendsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to cancel.");
+    }
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-6">
+      <div className="mb-4 flex items-center gap-2">
+        <CalendarClock className="h-5 w-5" />
+        <h1 className="text-xl font-bold tracking-tight">Outgoing professor emails</h1>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2 text-xs">
+        <Badge variant="secondary">{counts.scheduled ?? 0} scheduled</Badge>
+        <Badge variant="outline">{counts.draft ?? 0} draft</Badge>
+        <Badge variant="default">{counts.sent ?? 0} sent</Badge>
+        {(counts.canceled ?? 0) > 0 && <Badge variant="destructive">{counts.canceled} canceled</Badge>}
+      </div>
+
+      <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        Drafts-only for now — nothing here sends automatically. Scheduled rows are queued for review.
+      </div>
+
+      {sendsQuery.isLoading ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : ordered.length === 0 ? (
+        <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+          No drafts yet.{" "}
+          <Link to="/outreach/profintel" className="text-primary underline underline-offset-2">
+            Choose campus leads
+          </Link>{" "}
+          to create some.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border text-xs">
+          <table className="w-full">
+            <thead className="bg-muted/50 text-[11px] uppercase text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left">Professor</th>
+                <th className="px-3 py-2 text-left">School</th>
+                <th className="px-3 py-2 text-left">Subject</th>
+                <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-left">Send time</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {ordered.map((s) => (
+                <tr key={s.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{s.to_name || "—"}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">{s.to_email || "no email"}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">{s.school || "—"}</td>
+                  <td className="px-3 py-2 max-w-[260px] truncate">{s.subject || "—"}</td>
+                  <td className="px-3 py-2">
+                    <Badge variant={STATUS_VARIANT[s.status] ?? "outline"} className="text-[10px] capitalize">
+                      {s.status}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 tabular-nums">{fmtWhen(s.scheduled_at)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {s.status === "scheduled" && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => cancel(s)}>
+                        Cancel
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

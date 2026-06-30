@@ -7,7 +7,7 @@ import { useState } from "react";
 import { createFileRoute, useRouterState, Outlet, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { ChevronDown, GraduationCap, LayoutTemplate, Megaphone, Search, Settings } from "lucide-react";
+import { ChevronDown, GraduationCap, LayoutTemplate, Megaphone, Search, Settings, MailCheck } from "lucide-react";
 
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -40,6 +40,16 @@ type Section = {
 };
 
 const SECTIONS: Section[] = [
+  {
+    key: "profintel",
+    label: "ProfIntel",
+    icon: MailCheck,
+    owns: (p) => p.startsWith("/outreach/profintel"),
+    subtabs: [
+      { label: "Choose campus leads", to: "/outreach/profintel" },
+      { label: "Schedule emails", to: "/outreach/profintel-schedule" },
+    ],
+  },
   {
     key: "leads",
     label: "Leads",
