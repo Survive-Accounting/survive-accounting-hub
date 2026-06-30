@@ -344,12 +344,23 @@ export interface CourseFamilyCodes {
   intermediate_2: string;
 }
 
+/** Tolerantly read a jsonb code map. Some campus rows are double-encoded — the
+ * jsonb holds a JSON *string* (e.g. '{"intro_1":"ACCT 2101"}') rather than an
+ * object — so a plain key access returns nothing. Parse the string when needed. */
+function asCodeObject(raw: unknown): Record<string, string> {
+  let v = raw;
+  if (typeof v === "string") {
+    try { v = JSON.parse(v); } catch { return {}; }
+  }
+  return v && typeof v === "object" ? (v as Record<string, string>) : {};
+}
+
 /** Read a campus's current four course codes from course_family_codes_json. */
 export async function fetchCampusCourseCodes(campusId: string): Promise<CourseFamilyCodes> {
   const { data, error } = await (supabase.from("campuses" as never) as any)
     .select("course_family_codes_json").eq("id", campusId).maybeSingle();
   if (error) throw new Error(error.message);
-  const c = (data?.course_family_codes_json ?? {}) as Record<string, string>;
+  const c = asCodeObject(data?.course_family_codes_json);
   return {
     intro_1: c.intro_1 ?? "",
     intro_2: c.intro_2 ?? "",
