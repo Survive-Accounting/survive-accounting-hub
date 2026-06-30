@@ -20,6 +20,7 @@ export interface ProfIntelLead {
   rmp_rating: number | null;
   rmp_num_ratings: number | null;
   rmp_course_match_json: Record<string, { code: string; count: number }> | null;
+  mobility_status?: string | null;
 }
 
 export interface ProfIntelSend {
@@ -148,6 +149,192 @@ export async function fetchCampusRmpLeads(campusId: string): Promise<ProfIntelLe
       .sort((a, b) => (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) || (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1));
   }
   return rows;
+}
+
+const LEAD_COLS =
+  "id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count, mobility_status";
+
+const byRmpDesc = (a: any, b: any) =>
+  (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) || (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1);
+
+/** Active faculty for a campus, split into the curated RMP-matched target set and
+ * the full active roster. The UI shows `matched` when it exists (the original
+ * behavior), and falls back to `all` for campuses we've only just scraped or
+ * hand-entered (no RMP cross-reference yet). Moved/retired leads are excluded. */
+export async function fetchProfintelLeads(campusId: string): Promise<{ matched: ProfIntelLead[]; all: ProfIntelLead[] }> {
+  const { data, error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+    .select(LEAD_COLS)
+    .eq("campus_id", campusId)
+    .is("archived_at", null);
+  if (error) throw new Error(error.message);
+  const active = ((data ?? []) as any[]).filter((r) => (r.mobility_status ?? "active") === "active");
+  const all = [...active].sort(byRmpDesc) as ProfIntelLead[];
+  const matched = active.filter((r) => (r.rmp_course_match_count ?? 0) > 0).sort(byRmpDesc) as ProfIntelLead[];
+  return { matched, all };
+}
+
+// --- Faculty mobility (retire / moved) -------------------------------------
+
+async function insertMove(row: Record<string, unknown>): Promise<void> {
+  const { error } = await (supabase.from("faculty_moves" as never) as any).insert(row);
+  if (error) throw new Error(error.message);
+}
+
+function leadDisplayName(l: Pick<ProfIntelLead, "first_name" | "last_name">): string {
+  return `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim();
+}
+
+/** Mark a lead as retired (no longer teaching anywhere) and record the event. */
+export async function retireLead(lead: ProfIntelLead, fromCampusId: string, note?: string): Promise<void> {
+  await insertMove({
+    kind: "retired",
+    person_name: leadDisplayName(lead) || null,
+    from_campus_id: fromCampusId,
+    from_lead_id: lead.id,
+    rmp_from_rating: lead.rmp_rating,
+    rmp_from_num: lead.rmp_num_ratings,
+    note: note ?? null,
+  });
+  const { error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+    .update({ mobility_status: "retired", mobility_note: note ?? null, mobility_updated_at: new Date().toISOString() })
+    .eq("id", lead.id);
+  if (error) throw new Error(error.message);
+}
+
+/** Mark a lead as moved to another campus and record the edge. The destination
+ * lead is created lazily (see acceptIncomingMove) when that campus is next opened. */
+export async function moveLead(lead: ProfIntelLead, fromCampusId: string, toCampusId: string, note?: string): Promise<void> {
+  await insertMove({
+    kind: "moved",
+    person_name: leadDisplayName(lead) || null,
+    from_campus_id: fromCampusId,
+    from_lead_id: lead.id,
+    to_campus_id: toCampusId,
+    rmp_from_rating: lead.rmp_rating,
+    rmp_from_num: lead.rmp_num_ratings,
+    note: note ?? null,
+  });
+  const { error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+    .update({
+      mobility_status: "moved",
+      moved_to_campus_id: toCampusId,
+      mobility_note: note ?? null,
+      mobility_updated_at: new Date().toISOString(),
+    })
+    .eq("id", lead.id);
+  if (error) throw new Error(error.message);
+}
+
+export interface IncomingMove {
+  id: string;
+  person_name: string | null;
+  from_campus_id: string | null;
+  rmp_from_rating: number | null;
+  rmp_from_num: number | null;
+}
+
+/** Professors recorded as having moved TO this campus, not yet added as leads. */
+export async function listIncomingMoves(campusId: string): Promise<IncomingMove[]> {
+  const { data, error } = await (supabase.from("faculty_moves" as never) as any)
+    .select("id, person_name, from_campus_id, rmp_from_rating, rmp_from_num")
+    .eq("to_campus_id", campusId)
+    .eq("kind", "moved")
+    .is("to_lead_id", null);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as IncomingMove[];
+}
+
+/** Create the destination lead for an incoming move and close the edge. */
+export async function acceptIncomingMove(move: IncomingMove, campusId: string): Promise<void> {
+  const parts = (move.person_name ?? "").trim().split(/\s+/);
+  const first = parts[0] || null;
+  const last = parts.slice(1).join(" ") || null;
+  const { data: ins, error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+    .insert({
+      campus_id: campusId,
+      first_name: first,
+      last_name: last,
+      research_mode: "faculty_scrape",
+      status: "needs_review",
+      mobility_status: "active",
+      rmp_rating: move.rmp_from_rating ?? null,
+      rmp_num_ratings: move.rmp_from_num ?? null,
+      notes: "Added from a recorded faculty move.",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  const { error: upErr } = await (supabase.from("faculty_moves" as never) as any)
+    .update({ to_lead_id: ins.id }).eq("id", move.id);
+  if (upErr) throw new Error(upErr.message);
+}
+
+// --- Manual lead entry (paste from a spreadsheet) ---------------------------
+
+export interface ManualLeadInput {
+  name: string;
+  rmpRating: number | null;
+  rmpNum: number | null;
+  courseMatches: string;
+  email: string | null;
+}
+
+/** Parse pasted rows: one professor per line, columns tab- or comma-separated in
+ * the order Name, RMP rating, # ratings, RMP course matches, email. Course matches
+ * may themselves be comma-separated, so we prefer TAB splitting and only fall back
+ * to comma when there are no tabs. */
+export function parseManualLeads(text: string): ManualLeadInput[] {
+  const out: ManualLeadInput[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cols = line.includes("\t") ? line.split("\t") : line.split(",");
+    const name = (cols[0] ?? "").trim();
+    if (!name) continue;
+    const num = (s: string | undefined) => {
+      const n = parseFloat((s ?? "").replace(/[^\d.]/g, ""));
+      return Number.isFinite(n) ? n : null;
+    };
+    out.push({
+      name,
+      rmpRating: num(cols[1]),
+      rmpNum: cols[2] != null && cols[2].trim() ? Math.round(num(cols[2]) ?? 0) || null : null,
+      courseMatches: (cols[3] ?? "").trim(),
+      email: (cols[4] ?? "").trim() || null,
+    });
+  }
+  return out;
+}
+
+/** Insert hand-entered leads for a campus. Course matches become an RMP-match JSON
+ * so they surface in the curated target list just like scraped+matched leads. */
+export async function createManualLeads(campusId: string, rows: ManualLeadInput[]): Promise<number> {
+  if (rows.length === 0) return 0;
+  const toInsert = rows.map((r) => {
+    const parts = r.name.trim().split(/\s+/);
+    const first = parts[0] || null;
+    const last = parts.slice(1).join(" ") || null;
+    const codes = r.courseMatches.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+    const json: Record<string, { code: string; count: number }> = {};
+    codes.forEach((c, i) => { json[`m${i}`] = { code: c, count: 1 }; });
+    return {
+      campus_id: campusId,
+      first_name: first,
+      last_name: last,
+      email: r.email,
+      research_mode: "faculty_scrape",
+      status: "needs_review",
+      mobility_status: "active",
+      rmp_rating: r.rmpRating,
+      rmp_num_ratings: r.rmpNum,
+      rmp_course_match_json: codes.length ? json : null,
+      rmp_course_match_count: codes.length,
+      notes: "Hand-entered in ProfIntel.",
+    };
+  });
+  const { error } = await (supabase.from("campus_lead_suggestions" as never) as any).insert(toInsert);
+  if (error) throw new Error(error.message);
+  return toInsert.length;
 }
 
 /** Create one draft per selected lead, pre-filled from the template. */

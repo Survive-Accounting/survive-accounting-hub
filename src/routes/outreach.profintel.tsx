@@ -13,17 +13,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  Check, ChevronDown, ChevronRight, GraduationCap, Loader2, Mail, MailPlus, Search, Trash2, Wand2,
+  ArrowRightLeft, Check, ChevronDown, ChevronRight, GraduationCap, Loader2, Mail, MailPlus,
+  MapPin, Plus, Search, Sparkles, Trash2, UserMinus, Wand2,
 } from "lucide-react";
 
 import { fetchCampuses } from "@/lib/outreach-api";
+import { type Campus } from "@/lib/outreach-mock";
+import { autoDiscoverCampusFaculty } from "@/lib/faculty-scrape.functions";
+import { researchProgramCourses } from "@/lib/program-courses.functions";
+import { createMobilityCampus } from "@/lib/profintel.functions";
 import {
-  clearDrafts, createDrafts, deleteSend, fetchCampusRmpLeads, getTemplate, listSends,
-  renderTemplate, saveTemplate, updateLeadEmail, updateSend, courseMatchesText,
+  acceptIncomingMove, clearDrafts, createDrafts, createManualLeads, deleteSend, fetchProfintelLeads,
+  getTemplate, listIncomingMoves, listSends, moveLead, parseManualLeads, renderTemplate, retireLead,
+  saveTemplate, updateLeadEmail, updateSend, courseMatchesText,
   DEFAULT_PROFINTEL_TEMPLATE,
-  type ProfIntelLead, type ProfIntelSend, type ProfIntelTemplate,
+  type IncomingMove, type ProfIntelLead, type ProfIntelSend, type ProfIntelTemplate,
 } from "@/lib/profintel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +41,12 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/outreach/profintel")({
   head: () => ({
@@ -86,10 +99,21 @@ function ProfIntelChoose() {
 
   const leadsQuery = useQuery({
     queryKey: ["profintel-leads", campusId],
-    queryFn: () => fetchCampusRmpLeads(campusId!),
+    queryFn: () => fetchProfintelLeads(campusId!),
     enabled: !!campusId,
   });
-  const leads = leadsQuery.data ?? [];
+  const matched = leadsQuery.data?.matched ?? [];
+  const allFaculty = leadsQuery.data?.all ?? [];
+  // Show the curated RMP-matched set when it exists; otherwise fall back to the
+  // full active roster (freshly scraped / hand-entered campuses with no RMP yet).
+  const showingAll = matched.length === 0 && allFaculty.length > 0;
+  const leads = matched.length > 0 ? matched : allFaculty;
+
+  const incomingQuery = useQuery({
+    queryKey: ["profintel-incoming", campusId],
+    queryFn: () => listIncomingMoves(campusId!),
+    enabled: !!campusId,
+  });
 
   const draftsQuery = useQuery({
     queryKey: ["profintel-drafts", campusId],
@@ -233,13 +257,23 @@ function ProfIntelChoose() {
             </div>
           </section>
 
+          {/* Incoming faculty — professors recorded as having moved here */}
+          {(incomingQuery.data?.length ?? 0) > 0 && (
+            <IncomingFaculty
+              moves={incomingQuery.data ?? []}
+              campusId={campusId}
+              campusNameById={(id) => (campusQuery.data ?? []).find((c) => c.id === id)?.school_name ?? "another campus"}
+              onChanged={() => { incomingQuery.refetch(); leadsQuery.refetch(); }}
+            />
+          )}
+
           {/* Leads table */}
           <section>
             <div className="mb-2 flex items-center justify-between">
               <div className="text-sm font-semibold">
                 Step 2 — select leads{" "}
                 <span className="text-muted-foreground">
-                  ({leads.length} RMP-matched · {selected.size} selected)
+                  ({leads.length} {showingAll ? "active faculty" : "RMP-matched"} · {selected.size} selected)
                 </span>
               </div>
               <Button size="sm" onClick={handleCreate} disabled={creating || selected.size === 0}>
@@ -247,77 +281,103 @@ function ProfIntelChoose() {
                 Create {selected.size || ""} draft{selected.size === 1 ? "" : "s"}
               </Button>
             </div>
+            {showingAll && (
+              <p className="mb-2 text-[11px] text-amber-600">
+                No RMP-matched leads yet — showing all active faculty. Run RMP cross-reference in Lead Finder to curate, or just work from here.
+              </p>
+            )}
             {leadsQuery.isLoading ? (
               <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading leads…
               </div>
             ) : leads.length === 0 ? (
-              <div className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
-                No RMP-matched leads for this campus yet. Scrape faculty + RMP in Lead Finder first.
-              </div>
+              <AddLeadsTools
+                campusId={campusId}
+                campusName={campus?.school_name ?? ""}
+                empty
+                onChanged={() => leadsQuery.refetch()}
+              />
             ) : (
-              <div className="overflow-hidden rounded-lg border border-border text-xs">
-                <table className="w-full">
-                  <thead className="bg-muted/50 text-[11px] uppercase text-muted-foreground">
-                    <tr>
-                      <th className="w-8 px-2 py-2"></th>
-                      <th className="px-2 py-2 text-left">Professor</th>
-                      <th className="px-2 py-2 text-right">RMP</th>
-                      <th className="px-2 py-2 text-right"># ratings</th>
-                      <th className="px-2 py-2 text-left">RMP course matches</th>
-                      <th className="px-2 py-2 text-left">Email</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.map((l) => {
-                      const on = selected.has(l.id);
-                      return (
-                        <tr
-                          key={l.id}
-                          className={`cursor-pointer border-t border-border hover:bg-muted/40 ${on ? "bg-primary/5" : ""}`}
-                          onClick={() => toggle(l.id)}
-                        >
-                          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox checked={on} onCheckedChange={() => toggle(l.id)} />
-                          </td>
-                          <td className="px-2 py-1.5 font-medium">
-                            <span className="inline-flex items-center gap-1.5">
-                              {fullName(l) || "—"}
-                              {(() => {
-                                const link = facultyLink(l, campus?.school_name ?? "");
-                                return (
-                                  <a
-                                    href={link.href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    title={link.kind === "faculty" ? "Open the faculty page this lead was found on" : "Search Google for this professor's faculty page / email"}
-                                    className="text-muted-foreground hover:text-primary"
-                                  >
-                                    {link.kind === "faculty"
-                                      ? <GraduationCap className="h-3.5 w-3.5" />
-                                      : <Search className="h-3.5 w-3.5" />}
-                                  </a>
-                                );
-                              })()}
-                            </span>
-                          </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{l.rmp_rating != null ? l.rmp_rating.toFixed(1) : "—"}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{l.rmp_num_ratings ?? "—"}</td>
-                          <td className="px-2 py-1.5">
-                            {courseMatchesText(l.rmp_course_match_json) ? (
-                              <span className="text-emerald-700">{courseMatchesText(l.rmp_course_match_json)}</span>
-                            ) : "—"}
-                          </td>
-                          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            <EmailCell lead={l} onSaved={() => leadsQuery.refetch()} />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="overflow-hidden rounded-lg border border-border text-xs">
+                  <table className="w-full">
+                    <thead className="bg-muted/50 text-[11px] uppercase text-muted-foreground">
+                      <tr>
+                        <th className="w-8 px-2 py-2"></th>
+                        <th className="px-2 py-2 text-left">Professor</th>
+                        <th className="px-2 py-2 text-right">RMP</th>
+                        <th className="px-2 py-2 text-right"># ratings</th>
+                        <th className="px-2 py-2 text-left">RMP course matches</th>
+                        <th className="px-2 py-2 text-left">Email</th>
+                        <th className="w-8 px-2 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leads.map((l) => {
+                        const on = selected.has(l.id);
+                        return (
+                          <tr
+                            key={l.id}
+                            className={`cursor-pointer border-t border-border hover:bg-muted/40 ${on ? "bg-primary/5" : ""}`}
+                            onClick={() => toggle(l.id)}
+                          >
+                            <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox checked={on} onCheckedChange={() => toggle(l.id)} />
+                            </td>
+                            <td className="px-2 py-1.5 font-medium">
+                              <span className="inline-flex items-center gap-1.5">
+                                {fullName(l) || "—"}
+                                {(() => {
+                                  const link = facultyLink(l, campus?.school_name ?? "");
+                                  return (
+                                    <a
+                                      href={link.href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      title={link.kind === "faculty" ? "Open the faculty page this lead was found on" : "Search Google for this professor's faculty page / email"}
+                                      className="text-muted-foreground hover:text-primary"
+                                    >
+                                      {link.kind === "faculty"
+                                        ? <GraduationCap className="h-3.5 w-3.5" />
+                                        : <Search className="h-3.5 w-3.5" />}
+                                    </a>
+                                  );
+                                })()}
+                              </span>
+                            </td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{l.rmp_rating != null ? l.rmp_rating.toFixed(1) : "—"}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{l.rmp_num_ratings ?? "—"}</td>
+                            <td className="px-2 py-1.5">
+                              {courseMatchesText(l.rmp_course_match_json) ? (
+                                <span className="text-emerald-700">{courseMatchesText(l.rmp_course_match_json)}</span>
+                              ) : "—"}
+                            </td>
+                            <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                              <EmailCell lead={l} onSaved={() => leadsQuery.refetch()} />
+                            </td>
+                            <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                              <MobilityControl
+                                lead={l}
+                                campusId={campusId}
+                                campuses={campusQuery.data ?? []}
+                                onChanged={() => leadsQuery.refetch()}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3">
+                  <AddLeadsTools
+                    campusId={campusId}
+                    campusName={campus?.school_name ?? ""}
+                    onChanged={() => leadsQuery.refetch()}
+                  />
+                </div>
+              </>
             )}
           </section>
 
@@ -679,5 +739,390 @@ function TemplateEditor() {
         </div>
       )}
     </section>
+  );
+}
+
+/** Per-row transport control: mark a professor Retired or Moved. */
+function MobilityControl({
+  lead, campusId, campuses, onChanged,
+}: {
+  lead: ProfIntelLead;
+  campusId: string;
+  campuses: Campus[];
+  onChanged: () => void;
+}) {
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function retire() {
+    if (!confirm(`Mark ${fullName(lead) || "this professor"} as retired (no longer teaching anywhere)? They'll drop off this campus's list but stay in the movement history.`)) return;
+    setBusy(true);
+    try {
+      await retireLead(lead, campusId);
+      toast.success("Marked retired.");
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to retire.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" disabled={busy} title="This professor moved or retired">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRightLeft className="h-3.5 w-3.5" />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="text-xs">
+          <DropdownMenuItem onClick={() => setMoveOpen(true)}>
+            <MapPin className="mr-2 h-3.5 w-3.5" /> Moved to another campus…
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={retire} className="text-destructive focus:text-destructive">
+            <UserMinus className="mr-2 h-3.5 w-3.5" /> Retired (not teaching)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <MoveDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        lead={lead}
+        fromCampusId={campusId}
+        campuses={campuses}
+        onMoved={() => { setMoveOpen(false); onChanged(); }}
+      />
+    </>
+  );
+}
+
+/** Move flow: pick an existing destination campus, or write in a new one. A new
+ * campus is created gated (not student-facing) and its course codes are researched
+ * for approval before the move is recorded. */
+function MoveDialog({
+  open, onOpenChange, lead, fromCampusId, campuses, onMoved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  lead: ProfIntelLead;
+  fromCampusId: string;
+  campuses: Campus[];
+  onMoved: () => void;
+}) {
+  const createCampus = useServerFn(createMobilityCampus);
+  const research = useServerFn(researchProgramCourses);
+
+  const [query, setQuery] = useState("");
+  const [phase, setPhase] = useState<"pick" | "new">("pick");
+  const [newName, setNewName] = useState("");
+  const [newState, setNewState] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [newCampusId, setNewCampusId] = useState<string | null>(null);
+  const [codes, setCodes] = useState<Record<string, string> | null>(null);
+
+  // Reset when reopened.
+  useEffect(() => {
+    if (open) {
+      setQuery(""); setPhase("pick"); setNewName(""); setNewState("");
+      setBusy(false); setNewCampusId(null); setCodes(null);
+    }
+  }, [open]);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return campuses
+      .filter((c) => !c.archived && c.id !== fromCampusId)
+      .filter((c) => !q || `${c.school_name} ${c.state ?? ""}`.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [campuses, query, fromCampusId]);
+
+  async function moveTo(toCampusId: string, label: string) {
+    setBusy(true);
+    try {
+      await moveLead(lead, fromCampusId, toCampusId);
+      toast.success(`Moved ${fullName(lead) || "professor"} → ${label}.`);
+      onMoved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to move.");
+      setBusy(false);
+    }
+  }
+
+  async function createAndResearch() {
+    if (newName.trim().length < 2) { toast.error("Enter the school name."); return; }
+    setBusy(true);
+    try {
+      const c = await createCampus({ data: { name: newName.trim(), state: newState.trim() || null } });
+      setNewCampusId(c.id);
+      toast.success(c.existed ? "Campus already existed — reusing it." : "Campus created (gated).");
+      try {
+        const res = (await research({ data: { campusId: c.id } })) as { course_family_codes_json?: Record<string, string> };
+        setCodes(res.course_family_codes_json ?? {});
+      } catch (e) {
+        setCodes({});
+        toast.error(`Course-code research failed: ${e instanceof Error ? e.message : "unknown"} — you can still move now.`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to create campus.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const FAMILY_LABELS: Record<string, string> = {
+    intro_1: "Intro 1", intro_2: "Intro 2", intermediate_1: "Intermediate 1", intermediate_2: "Intermediate 2",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Move {fullName(lead) || "professor"}</DialogTitle>
+          <DialogDescription>
+            Record where they teach now. This drops them off this campus's list and logs the move.
+          </DialogDescription>
+        </DialogHeader>
+
+        {phase === "pick" ? (
+          <div className="space-y-3">
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search campuses we already have…"
+              className="text-sm"
+            />
+            <div className="max-h-56 space-y-1 overflow-auto">
+              {matches.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => moveTo(c.id, c.school_name)}
+                  className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/50"
+                >
+                  <span className="truncate">{c.school_name}</span>
+                  {c.state && <span className="ml-2 text-[10px] text-muted-foreground">{c.state}</span>}
+                </button>
+              ))}
+              {matches.length === 0 && (
+                <p className="px-1 py-2 text-xs text-muted-foreground">No match. Add the campus below.</p>
+              )}
+            </div>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => { setPhase("new"); setNewName(query); }} disabled={busy}>
+              <Plus className="mr-1 h-4 w-4" /> Add a new campus
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {!newCampusId ? (
+              <>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">School name</label>
+                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Clemson University" className="text-sm" autoFocus />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">State (optional)</label>
+                  <Input value={newState} onChange={(e) => setNewState(e.target.value)} placeholder="SC" className="h-8 w-24 text-sm" />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Created hidden from students until vetted. We'll research its course codes next for you to approve.
+                </p>
+                <div className="flex justify-between">
+                  <Button variant="ghost" size="sm" onClick={() => setPhase("pick")} disabled={busy}>Back</Button>
+                  <Button size="sm" onClick={createAndResearch} disabled={busy}>
+                    {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+                    Create &amp; research codes
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="rounded-md border border-border bg-muted/30 p-3">
+                  <div className="mb-1 text-xs font-semibold">Researched course codes</div>
+                  {codes && Object.keys(codes).length > 0 ? (
+                    <ul className="space-y-0.5 text-xs">
+                      {(["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const).map((k) => (
+                        <li key={k} className="flex justify-between">
+                          <span className="text-muted-foreground">{FAMILY_LABELS[k]}</span>
+                          <span className="font-medium">{codes[k] || "—"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No codes found yet — you can approve the move now and research later in Lead Finder.</p>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  <Button size="sm" onClick={() => moveTo(newCampusId, newName.trim())} disabled={busy}>
+                    {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
+                    Approve &amp; move here
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Professors recorded as having moved TO this campus — one click adds them as a
+ * lead here (and closes the move edge). */
+function IncomingFaculty({
+  moves, campusId, campusNameById, onChanged,
+}: {
+  moves: IncomingMove[];
+  campusId: string;
+  campusNameById: (id: string | null) => string;
+  onChanged: () => void;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function accept(m: IncomingMove) {
+    setBusyId(m.id);
+    try {
+      await acceptIncomingMove(m, campusId);
+      toast.success(`Added ${m.person_name || "professor"} as a lead here.`);
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-emerald-300 bg-emerald-50/60 p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+        <ArrowRightLeft className="h-4 w-4" /> Faculty who moved here ({moves.length})
+      </div>
+      <div className="space-y-1.5">
+        {moves.map((m) => (
+          <div key={m.id} className="flex items-center justify-between rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs">
+            <div className="min-w-0">
+              <span className="font-medium">{m.person_name || "—"}</span>
+              <span className="text-muted-foreground">
+                {" "}· from {campusNameById(m.from_campus_id)}
+                {m.rmp_from_rating != null ? ` · was ${m.rmp_from_rating.toFixed(1)}★ (${m.rmp_from_num ?? "?"})` : ""}
+              </span>
+            </div>
+            <Button size="sm" variant="secondary" className="h-7" onClick={() => accept(m)} disabled={busyId === m.id}>
+              {busyId === m.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1 h-3.5 w-3.5" />}
+              Add as lead
+            </Button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Generate leads (faculty scrape) + hand-enter/paste leads for a campus. Shown
+ * inline when a campus has no leads, and as a collapsible helper otherwise. */
+function AddLeadsTools({
+  campusId, campusName, empty, onChanged,
+}: {
+  campusId: string;
+  campusName: string;
+  empty?: boolean;
+  onChanged: () => void;
+}) {
+  const discover = useServerFn(autoDiscoverCampusFaculty);
+  const [open, setOpen] = useState(!!empty);
+  const [generating, setGenerating] = useState(false);
+  const [paste, setPaste] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const parsed = useMemo(() => parseManualLeads(paste), [paste]);
+
+  async function generate() {
+    setGenerating(true);
+    try {
+      const res = (await discover({ data: { campusId } })) as { inserted?: number; discovered?: number };
+      const n = res?.inserted ?? 0;
+      if (n > 0) toast.success(`Scraped ${n} new faculty. Refreshing…`);
+      else toast.message("Scrape finished — no new faculty found. Paste them in below.");
+      onChanged();
+    } catch (e) {
+      toast.error(`Faculty scrape failed: ${e instanceof Error ? e.message : "unknown"}. Paste them in below instead.`);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function addPasted() {
+    if (parsed.length === 0) return;
+    setAdding(true);
+    try {
+      const n = await createManualLeads(campusId, parsed);
+      toast.success(`Added ${n} lead${n === 1 ? "" : "s"}.`);
+      setPaste("");
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add leads.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  const body = (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={generate} disabled={generating}>
+          {generating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+          Generate (scrape faculty)
+        </Button>
+        <span className="text-[11px] text-muted-foreground">
+          Auto-discovers {campusName || "this campus"}'s faculty pages and scrapes them. May take a minute.
+        </span>
+      </div>
+      <div>
+        <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+          …or paste from a spreadsheet — one professor per line:{" "}
+          <code>Name⇥RMP⇥# ratings⇥course matches⇥email</code> (tab- or comma-separated)
+        </p>
+        <Textarea
+          value={paste}
+          onChange={(e) => setPaste(e.target.value)}
+          placeholder={"Holly Hawk\t4.2\t15\tACCT 2010, ACCT 3110\thhawk@clemson.edu"}
+          className="min-h-[90px] font-mono text-[11px]"
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={addPasted} disabled={adding || parsed.length === 0}>
+            {adding ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+            Add {parsed.length || ""} lead{parsed.length === 1 ? "" : "s"}
+          </Button>
+          {parsed.length > 0 && (
+            <span className="text-[11px] text-muted-foreground">
+              Preview: {parsed.slice(0, 3).map((p) => p.name).join(", ")}{parsed.length > 3 ? "…" : ""}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (empty) {
+    return (
+      <div className="rounded-md border border-dashed p-4">
+        <p className="mb-3 text-center text-sm text-muted-foreground">
+          No leads for this campus yet. Generate them, or paste your own.
+        </p>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card/60">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground">
+        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        + Add or generate more leads
+      </button>
+      {open && <div className="border-t border-border px-3 py-3">{body}</div>}
+    </div>
   );
 }
