@@ -77,50 +77,25 @@ export default function PricingPlans({
 
   return (
     <div className={className}>
-      <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
-        {/* Just One Test — WAITLIST */}
-        <PlanCard
-          title="Just One Test"
-          tagline="Cram Mode"
-          price={`$${TEST_PASS_PRICE}`}
-          priceNote="per exam"
-          description="Cram for one test. Get exam prep for only the chapters it covers."
-          features={[
-            "The 4 chapters your exam covers",
-            "Practice exam questions",
-            "Video explainers for those chapters",
-            "5-day access",
-          ]}
-          note={selecting ? undefined : "In development now — launching early July."}
-          cta={selecting ? chooseBtn("test_pass", true) : (
-            <a href="/onboard" className="block">
-              <Button className="h-12 w-full text-base font-semibold" variant="outline"
-                style={{ color: NAVY, borderColor: NAVY }}>
-                Notify me
-              </Button>
-            </a>
-          )}
-        />
-
-        {/* Semester Membership — BEST VALUE, WAITLIST */}
+      <div className="mx-auto grid max-w-3xl gap-5 lg:grid-cols-2 lg:items-stretch">
+        {/* Made-to-order exam prep — the primary action (→ /order wizard) */}
         <PlanCard
           highlighted
-          badge="Best Value"
-          title="Semester Membership"
-          tagline="All Semester"
-          price={`$${MEMBERSHIP_PRICE}`}
-          priceNote="per semester"
-          description="Crush every test. Get exam prep for every chapter in your course."
+          badge="Most popular"
+          title="Made-to-order exam prep"
+          tagline="Built for your exam"
+          price="from $30"
+          priceNote="pay on delivery"
+          description="Custom prep for your exact course, professor, and the chapters your exam covers."
           features={[
-            "Every chapter in your course, all semester",
-            "All practice exams + video explainers",
-            "New content added weekly",
-            "Built around the exam style you'll actually see",
+            "The exact chapters your exam covers",
+            "Matched to your course + professor",
+            "Ready before your exam — rush available if it's close",
+            "Pay on delivery — nothing upfront",
           ]}
-          note={selecting ? undefined : "In development now — launching early July."}
-          cta={selecting ? chooseBtn("membership") : (
-            <a href="/onboard" className="block">
-              <Button className={RED_BTN} style={RED_BTN_STYLE}>Notify me</Button>
+          cta={(
+            <a href="/order" className="block">
+              <Button className={RED_BTN} style={RED_BTN_STYLE}>Order exam prep →</Button>
             </a>
           )}
         />

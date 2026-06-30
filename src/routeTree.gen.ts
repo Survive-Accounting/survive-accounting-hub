@@ -16,6 +16,7 @@ import { Route as StartRouteImport } from './routes/start'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
 import { Route as OutreachRouteImport } from './routes/outreach'
+import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as CeqRouteImport } from './routes/ceq'
@@ -75,6 +76,11 @@ const PreviewRoute = PreviewRouteImport.update({
 const OutreachRoute = OutreachRouteImport.update({
   id: '/outreach',
   path: '/outreach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrderRoute = OrderRouteImport.update({
+  id: '/order',
+  path: '/order',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardRoute = OnboardRouteImport.update({
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
+  '/order': typeof OrderRoute
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
@@ -247,6 +254,7 @@ export interface FileRoutesByTo {
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
+  '/order': typeof OrderRoute
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
+  '/order': typeof OrderRoute
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/je'
     | '/onboard'
+    | '/order'
     | '/outreach'
     | '/preview'
     | '/privacy'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/je'
     | '/onboard'
+    | '/order'
     | '/preview'
     | '/privacy'
     | '/start'
@@ -384,6 +395,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/je'
     | '/onboard'
+    | '/order'
     | '/outreach'
     | '/preview'
     | '/privacy'
@@ -419,6 +431,7 @@ export interface RootRouteChildren {
   CeqRoute: typeof CeqRouteWithChildren
   JeRoute: typeof JeRoute
   OnboardRoute: typeof OnboardRoute
+  OrderRoute: typeof OrderRoute
   OutreachRoute: typeof OutreachRouteWithChildren
   PreviewRoute: typeof PreviewRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -480,6 +493,13 @@ declare module '@tanstack/react-router' {
       path: '/outreach'
       fullPath: '/outreach'
       preLoaderRoute: typeof OutreachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/order': {
+      id: '/order'
+      path: '/order'
+      fullPath: '/order'
+      preLoaderRoute: typeof OrderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboard': {
@@ -718,6 +738,7 @@ const rootRouteChildren: RootRouteChildren = {
   CeqRoute: CeqRouteWithChildren,
   JeRoute: JeRoute,
   OnboardRoute: OnboardRoute,
+  OrderRoute: OrderRoute,
   OutreachRoute: OutreachRouteWithChildren,
   PreviewRoute: PreviewRoute,
   PrivacyRoute: PrivacyRoute,
