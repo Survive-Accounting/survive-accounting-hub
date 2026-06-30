@@ -62,10 +62,11 @@ export function joinPricingWaitlist(input: {
   });
 }
 
-/** Onboarding flow (/o/{short_ref}) — captures the chosen plan into the same
- *  campus_waitlist list. `source` = 'onboarding_<plan>' and `tier_interest` =
- *  the plan key (test_pass | membership | prepay). Name/phone/school/course and
- *  the optional accounting-major self-report ride along when provided. */
+/** Onboarding flow (/o/{short_ref}) — captures the waitlist signup into the same
+ *  campus_waitlist list. `plan` is OPTIONAL interest data: when present, `source`
+ *  = 'onboarding_<plan>' and `tier_interest` = the plan key; when absent, `source`
+ *  = 'onboarding' with no tier. Name/phone/school/course + the optional
+ *  accounting-major self-report ride along when provided. */
 export function joinOnboardingWaitlist(input: {
   email: string;
   name?: string | null;
@@ -73,7 +74,7 @@ export function joinOnboardingWaitlist(input: {
   campus?: string | null;
   course?: string | null;
   accountingMajor?: string | null;
-  plan: OnboardingPlan;
+  plan?: OnboardingPlan | null;
 }): Promise<void> {
   return insertWaitlist({
     email: input.email,
@@ -82,8 +83,8 @@ export function joinOnboardingWaitlist(input: {
     campus: input.campus,
     course: input.course,
     accountingMajor: input.accountingMajor,
-    source: `onboarding_${input.plan}`,
-    tierInterest: input.plan,
+    source: input.plan ? `onboarding_${input.plan}` : "onboarding",
+    tierInterest: input.plan ?? null,
   });
 }
 

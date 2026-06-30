@@ -93,11 +93,12 @@ export default function PricingPlans({
           ]}
           note={selecting ? undefined : "In development now — launching early July."}
           cta={selecting ? chooseBtn("test_pass", true) : (
-            <Button className="h-12 w-full text-base font-semibold" variant="outline"
-              style={{ color: NAVY, borderColor: NAVY }}
-              onClick={() => setWaitlistTier({ key: "test_pass", label: "Just One Test" })}>
-              Notify me
-            </Button>
+            <a href="/onboard" className="block">
+              <Button className="h-12 w-full text-base font-semibold" variant="outline"
+                style={{ color: NAVY, borderColor: NAVY }}>
+                Notify me
+              </Button>
+            </a>
           )}
         />
 
@@ -118,10 +119,9 @@ export default function PricingPlans({
           ]}
           note={selecting ? undefined : "In development now — launching early July."}
           cta={selecting ? chooseBtn("membership") : (
-            <Button className={RED_BTN} style={RED_BTN_STYLE}
-              onClick={() => setWaitlistTier({ key: "membership", label: "Semester Membership" })}>
-              Notify me
-            </Button>
+            <a href="/onboard" className="block">
+              <Button className={RED_BTN} style={RED_BTN_STYLE}>Notify me</Button>
+            </a>
           )}
         />
 
@@ -146,9 +146,11 @@ export default function PricingPlans({
           availability={soldOut ? "soldout" : "available"}
           seatsLeftText={soldOut ? "" : TUTORING_SEATS_LEFT_TEXT}
           cta={selecting ? chooseBtn("prepay") : (
-            <Button className={RED_BTN} style={RED_BTN_STYLE} onClick={() => setReserveOpen(true)}>
-              {soldOut ? "Join the waitlist" : "Reserve your slot"}
-            </Button>
+            <a href="/onboard" className="block">
+              <Button className={RED_BTN} style={RED_BTN_STYLE}>
+                {soldOut ? "Join the waitlist" : "Reserve your slot"}
+              </Button>
+            </a>
           )}
         />
       </div>

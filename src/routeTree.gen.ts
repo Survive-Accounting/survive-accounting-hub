@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -42,6 +43,11 @@ import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$cour
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ThankyouRoute = ThankyouRouteImport.update({
+  id: '/thankyou',
+  path: '/thankyou',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
+  '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
@@ -229,6 +236,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
+  '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
@@ -261,6 +269,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
   '/terms': typeof TermsRoute
+  '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
@@ -294,6 +303,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/start'
     | '/terms'
+    | '/thankyou'
     | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/start'
     | '/terms'
+    | '/thankyou'
     | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/start'
     | '/terms'
+    | '/thankyou'
     | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
@@ -387,6 +399,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
   TermsRoute: typeof TermsRoute
+  ThankyouRoute: typeof ThankyouRoute
   WelcomeRoute: typeof WelcomeRoute
   OShortRefRoute: typeof OShortRefRoute
   TSlugRoute: typeof TSlugRoute
@@ -400,6 +413,13 @@ declare module '@tanstack/react-router' {
       path: '/welcome'
       fullPath: '/welcome'
       preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/thankyou': {
+      id: '/thankyou'
+      path: '/thankyou'
+      fullPath: '/thankyou'
+      preLoaderRoute: typeof ThankyouRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -660,6 +680,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
   TermsRoute: TermsRoute,
+  ThankyouRoute: ThankyouRoute,
   WelcomeRoute: WelcomeRoute,
   OShortRefRoute: OShortRefRoute,
   TSlugRoute: TSlugRoute,
