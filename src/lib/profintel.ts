@@ -198,3 +198,18 @@ export async function deleteSend(id: string): Promise<void> {
   const { error } = await (supabase.from("profintel_sends" as never) as any).delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+/** Delete every ProfIntel draft for a campus — the "Reset / start from scratch" action. */
+export async function clearDrafts(campusId: string): Promise<void> {
+  const { error } = await (supabase.from("profintel_sends" as never) as any)
+    .delete().eq("campus_id", campusId);
+  if (error) throw new Error(error.message);
+}
+
+/** Persist an email a lead was missing (edited inline in the Step 2 leads table),
+ * so it carries into any draft created afterward. */
+export async function updateLeadEmail(leadId: string, email: string | null): Promise<void> {
+  const { error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+    .update({ email }).eq("id", leadId);
+  if (error) throw new Error(error.message);
+}

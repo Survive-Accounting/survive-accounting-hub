@@ -20,8 +20,8 @@ import {
 
 import { fetchCampuses } from "@/lib/outreach-api";
 import {
-  createDrafts, deleteSend, fetchCampusRmpLeads, getTemplate, listSends,
-  renderTemplate, saveTemplate, updateSend, courseMatchesText,
+  clearDrafts, createDrafts, deleteSend, fetchCampusRmpLeads, getTemplate, listSends,
+  renderTemplate, saveTemplate, updateLeadEmail, updateSend, courseMatchesText,
   DEFAULT_PROFINTEL_TEMPLATE,
   type ProfIntelLead, type ProfIntelSend, type ProfIntelTemplate,
 } from "@/lib/profintel";
@@ -61,6 +61,17 @@ function fromLocalInput(v: string): string | null {
 
 function fullName(l: ProfIntelLead): string {
   return `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim();
+}
+
+/** Where the grad-cap icon should go to grab an email fast. Prefer the real faculty
+ * page (source_url), but many leads were found via RMP — for those source_url is just
+ * the RMP profile, which has no email. In that case fall back to a Google search for
+ * the professor + school so Lee can find the directory page quickly. */
+function facultyLink(l: ProfIntelLead, school: string): { href: string; kind: "faculty" | "search" } {
+  const src = l.source_url ?? "";
+  if (src && !/ratemyprofessor/i.test(src)) return { href: src, kind: "faculty" };
+  const q = encodeURIComponent(`${fullName(l)} ${school} accounting faculty email`.trim());
+  return { href: `https://www.google.com/search?q=${q}`, kind: "search" };
 }
 
 function ProfIntelChoose() {
@@ -272,18 +283,23 @@ function ProfIntelChoose() {
                           <td className="px-2 py-1.5 font-medium">
                             <span className="inline-flex items-center gap-1.5">
                               {fullName(l) || "—"}
-                              {l.source_url && (
-                                <a
-                                  href={l.source_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  title="Open the faculty page this lead was found on"
-                                  className="text-muted-foreground hover:text-primary"
-                                >
-                                  <GraduationCap className="h-3.5 w-3.5" />
-                                </a>
-                              )}
+                              {(() => {
+                                const link = facultyLink(l, campus?.school_name ?? "");
+                                return (
+                                  <a
+                                    href={link.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title={link.kind === "faculty" ? "Open the faculty page this lead was found on" : "Search Google for this professor's faculty page / email"}
+                                    className="text-muted-foreground hover:text-primary"
+                                  >
+                                    {link.kind === "faculty"
+                                      ? <GraduationCap className="h-3.5 w-3.5" />
+                                      : <Search className="h-3.5 w-3.5" />}
+                                  </a>
+                                );
+                              })()}
                             </span>
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{l.rmp_rating != null ? l.rmp_rating.toFixed(1) : "—"}</td>
@@ -293,8 +309,8 @@ function ProfIntelChoose() {
                               <span className="text-emerald-700">{courseMatchesText(l.rmp_course_match_json)}</span>
                             ) : "—"}
                           </td>
-                          <td className="px-2 py-1.5">
-                            {l.email ? <span className="text-foreground">{l.email}</span> : <span className="text-muted-foreground">no email</span>}
+                          <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <EmailCell lead={l} onSaved={() => leadsQuery.refetch()} />
                           </td>
                         </tr>
                       );
@@ -321,6 +337,67 @@ function ProfIntelChoose() {
   );
 }
 
+/** Inline email in the Step 2 leads table: shows the email (or a prompt), and on
+ * click turns into an input so Lee can paste a missing one. Saves to the lead on
+ * blur/Enter so it flows into any draft created afterward. */
+function EmailCell({ lead, onSaved }: { lead: ProfIntelLead; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(lead.email ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setVal(lead.email ?? ""); }, [lead.email]);
+
+  async function save() {
+    setEditing(false);
+    const next = val.trim() || null;
+    if (next === (lead.email ?? null)) return;
+    setSaving(true);
+    try {
+      await updateLeadEmail(lead.id, next);
+      toast.success(next ? "Email saved." : "Email cleared.");
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save email.");
+      setVal(lead.email ?? "");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <Input
+        autoFocus
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+          if (e.key === "Escape") { setVal(lead.email ?? ""); setEditing(false); }
+        }}
+        placeholder="name@school.edu"
+        className="h-7 w-[220px] text-xs"
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="text-left hover:underline"
+      title="Click to add or edit"
+    >
+      {saving ? (
+        <span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> saving…</span>
+      ) : lead.email ? (
+        <span className="text-foreground">{lead.email}</span>
+      ) : (
+        <span className="text-muted-foreground italic">+ add email</span>
+      )}
+    </button>
+  );
+}
+
 function DraftsSection({
   campusId, drafts, loading, onChanged,
 }: {
@@ -330,11 +407,35 @@ function DraftsSection({
   onChanged: () => void;
 }) {
   const pending = drafts.filter((d) => d.status === "draft" || d.status === "scheduled");
+  const [resetting, setResetting] = useState(false);
+
+  async function reset() {
+    if (!confirm(`Delete all ${pending.length} draft${pending.length === 1 ? "" : "s"} for this campus and start from scratch?`)) return;
+    setResetting(true);
+    try {
+      await clearDrafts(campusId);
+      toast.success("Cleared. Select leads above to create fresh drafts.");
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to clear drafts.");
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return (
     <section>
-      <div className="mb-2 text-sm font-semibold">
-        Step 3 — review, edit &amp; schedule{" "}
-        <span className="text-muted-foreground">({pending.length} draft{pending.length === 1 ? "" : "s"})</span>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-sm font-semibold">
+          Step 3 — review, edit &amp; schedule{" "}
+          <span className="text-muted-foreground">({pending.length} draft{pending.length === 1 ? "" : "s"})</span>
+        </div>
+        {pending.length > 0 && (
+          <Button size="sm" variant="outline" onClick={reset} disabled={resetting} className="h-7 text-muted-foreground hover:text-destructive">
+            {resetting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+            Reset drafts
+          </Button>
+        )}
       </div>
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
