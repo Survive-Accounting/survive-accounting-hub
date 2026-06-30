@@ -939,6 +939,147 @@ export const crossReferenceRmpCourses = createServerFn({ method: "POST" })
     return { processed, withCodes, withMatch, targets: Object.keys(targetCodes) };
   });
 
+// ===================== RMP dated review capture (Phase 1) =====================
+// ADDITIVE: capture review-level ratings (date + class + reputation) into the new
+// rmp_ratings table so a later phase can roll them up into a teaching-currency
+// signal. Does NOT touch crossReferenceRmpCourses, teaching_confidence, the
+// rmp_course_* aggregates, or the scheduler. Field names confirmed against the
+// live RMP GraphQL schema (note: it's `wouldTakeAgain`, not `wouldTakeAgainRating`).
+
+const RATINGS_FULL_QUERY = `
+query TeacherRatingsFull($id: ID!, $count: Int!) {
+  node(id: $id) {
+    ... on Teacher {
+      ratings(first: $count) {
+        edges { node { id class date comment difficultyRating wouldTakeAgain grade } }
+      }
+    }
+  }
+}`;
+
+type RmpRatingNode = {
+  id?: string | null;
+  class?: string | null;
+  date?: string | null;
+  comment?: string | null;
+  difficultyRating?: number | null;
+  wouldTakeAgain?: number | null;
+  grade?: string | null;
+};
+
+/** Parse RMP's rating date ("2026-04-28 04:28:24 +0000 UTC") to an ISO string,
+ *  or null if unparseable. */
+function parseRmpDate(s: string | null | undefined): string | null {
+  if (!s || typeof s !== "string") return null;
+  const cleaned = s.replace(/\s*UTC\s*$/i, "").trim();
+  const m = cleaned.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})\s*([+-]\d{2})(\d{2})$/);
+  const iso = m ? `${m[1]}T${m[2]}${m[3]}:${m[4]}` : cleaned;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Fetch full review-level rating nodes for a professor (up to 100). Empty on
+ *  any error — never throws into the backfill loop. */
+async function fetchTeacherRatingsFull(legacyId: number): Promise<RmpRatingNode[]> {
+  try {
+    const data = await rmpGraphql<{ node?: { ratings?: { edges?: Array<{ node?: RmpRatingNode }> } } }>(
+      RATINGS_FULL_QUERY,
+      { id: encodeTeacherGlobalId(legacyId), count: 100 },
+    );
+    return (data.node?.ratings?.edges ?? []).map((e) => e.node).filter((n): n is RmpRatingNode => !!n);
+  } catch {
+    return [];
+  }
+}
+
+/** Upsert a professor's rating nodes into rmp_ratings (idempotent on
+ *  lead_id + rmp_rating_id). Returns the number of rows persisted. */
+async function upsertRatingsForLead(
+  admin: { from: (t: string) => any },
+  leadId: string,
+  campusId: string | null,
+  nodes: RmpRatingNode[],
+): Promise<number> {
+  // De-dupe within the prof by rating id so a single upsert batch can't violate
+  // the (lead_id, rmp_rating_id) unique constraint.
+  const byId = new Map<string, RmpRatingNode>();
+  for (const n of nodes) {
+    const rid = (n.id ?? "").trim();
+    if (!rid || byId.has(rid)) continue;
+    byId.set(rid, n);
+  }
+  const rows = Array.from(byId.values()).map((n) => ({
+    lead_id: leadId,
+    campus_id: campusId,
+    rmp_rating_id: n.id ?? null,
+    class_label: n.class ?? null,
+    rated_at: parseRmpDate(n.date),
+    comment: n.comment ?? null,
+    difficulty: typeof n.difficultyRating === "number" ? n.difficultyRating : null,
+    would_take_again: typeof n.wouldTakeAgain === "number" ? n.wouldTakeAgain : null,
+    grade: n.grade ?? null,
+    raw_json: n,
+  }));
+  if (rows.length === 0) return 0;
+  const { error } = await admin.from("rmp_ratings").upsert(rows, { onConflict: "lead_id,rmp_rating_id" });
+  if (error) throw new Error(error.message);
+  return rows.length;
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+const backfillRatingsSchema = z.object({
+  campusId: z.string().uuid().optional(),
+  scope: z.enum(["with_codes", "all_checked"]).optional(),
+  batchSize: z.number().int().min(1).max(50).optional(),
+  afterId: z.string().uuid().optional(),
+});
+
+/** Resumable, batched, idempotent backfill of dated RMP reviews into rmp_ratings.
+ *  Cursor-based (pass back `nextCursor` as `afterId` until `done`). Scope defaults
+ *  to professors that already have RMP class labels (the clearly relevant set);
+ *  scope="all_checked" widens to everyone with RMP aggregates. Politeness-paced. */
+export const backfillRmpRatings = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => backfillRatingsSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const batch = data.batchSize ?? 10;
+    const scope = data.scope ?? "with_codes";
+
+    let qy = supabaseAdmin
+      .from("campus_lead_suggestions")
+      .select("id, campus_id, rmp_profile_url")
+      .not("rmp_profile_url", "is", null)
+      .order("id", { ascending: true })
+      .limit(batch);
+    qy = scope === "with_codes"
+      ? qy.not("rmp_course_codes", "is", null)
+      : qy.not("rmp_num_ratings", "is", null);
+    if (data.campusId) qy = qy.eq("campus_id", data.campusId);
+    if (data.afterId) qy = qy.gt("id", data.afterId);
+
+    const { data: rows, error } = await qy;
+    if (error) throw new Error(error.message);
+
+    let processed = 0, withRatings = 0, ratingsUpserted = 0;
+    let nextCursor: string | null = data.afterId ?? null;
+    for (const r of (rows ?? []) as Array<{ id: string; campus_id: string | null; rmp_profile_url: string | null }>) {
+      processed += 1;
+      nextCursor = r.id;
+      const legacy = legacyIdFromRmpUrl(r.rmp_profile_url);
+      if (legacy == null) continue;
+      const nodes = await fetchTeacherRatingsFull(legacy);
+      if (nodes.length === 0) continue;
+      const n = await upsertRatingsForLead(supabaseAdmin, r.id, r.campus_id, nodes);
+      ratingsUpserted += n;
+      if (n > 0) withRatings += 1;
+      await sleep(250); // politeness between professors
+    }
+
+    const done = (rows?.length ?? 0) < batch;
+    return { scope, processed, withRatings, ratingsUpserted, nextCursor, done };
+  });
+
 export const resetCampusLeads = createServerFn({ method: "POST" })
   .inputValidator((data: { campusId: string }) =>
     z.object({ campusId: z.string().uuid() }).parse(data),
