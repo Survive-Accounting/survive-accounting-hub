@@ -63,7 +63,7 @@ function HeroCta() {
   return (
     <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
-        <a href="/onboard" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
+        <a href="/order" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
           <span style={{ fontWeight: 800 }}>Get started</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
@@ -155,7 +155,7 @@ function SiteNav() {
             Pricing
           </a>
           <a
-            href="/onboard"
+            href="/order"
             className="rounded-xl px-3.5 py-2 text-sm font-bold text-white no-underline transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 sm:px-5 sm:text-[15px]"
             style={{
               background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
@@ -205,7 +205,7 @@ function Home() {
               Practice exams + videos coming soon. 1-on-1 with me is open now.
             </p>
             <div className="mt-10">
-              <PricingPlans bookHref="/onboard" />
+              <PricingPlans bookHref="/order" />
             </div>
           </Reveal>
         </section>
