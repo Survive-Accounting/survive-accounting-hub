@@ -337,6 +337,28 @@ export async function createManualLeads(campusId: string, rows: ManualLeadInput[
   return toInsert.length;
 }
 
+export interface CourseFamilyCodes {
+  intro_1: string;
+  intro_2: string;
+  intermediate_1: string;
+  intermediate_2: string;
+}
+
+/** Save the four per-campus course codes to campuses.course_family_codes_json
+ * (anon UPDATE is allowed by RLS). Only non-empty codes are written, so a campus
+ * is never left with blank "" placeholders. This is the field onboarding + the
+ * email merge read, so a moved-faculty campus is usable the moment Lee fills it. */
+export async function saveCampusCourseCodes(campusId: string, codes: Partial<CourseFamilyCodes>): Promise<void> {
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(codes)) {
+    const t = (v ?? "").trim();
+    if (t) clean[k] = t;
+  }
+  const { error } = await (supabase.from("campuses" as never) as any)
+    .update({ course_family_codes_json: clean }).eq("id", campusId);
+  if (error) throw new Error(error.message);
+}
+
 /** Create one draft per selected lead, pre-filled from the template. */
 export async function createDrafts(input: {
   campusId: string;
