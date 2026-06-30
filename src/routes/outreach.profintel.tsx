@@ -15,13 +15,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  ChevronDown, ChevronRight, Loader2, Mail, MailPlus, Search, Trash2, Wand2,
+  Check, ChevronDown, ChevronRight, GraduationCap, Loader2, Mail, MailPlus, Search, Trash2, Wand2,
 } from "lucide-react";
 
 import { fetchCampuses } from "@/lib/outreach-api";
 import {
   createDrafts, deleteSend, fetchCampusRmpLeads, getTemplate, listSends,
   renderTemplate, saveTemplate, updateSend, courseMatchesText,
+  DEFAULT_PROFINTEL_TEMPLATE,
   type ProfIntelLead, type ProfIntelSend, type ProfIntelTemplate,
 } from "@/lib/profintel";
 import { Button } from "@/components/ui/button";
@@ -268,7 +269,23 @@ function ProfIntelChoose() {
                           <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                             <Checkbox checked={on} onCheckedChange={() => toggle(l.id)} />
                           </td>
-                          <td className="px-2 py-1.5 font-medium">{fullName(l) || "—"}</td>
+                          <td className="px-2 py-1.5 font-medium">
+                            <span className="inline-flex items-center gap-1.5">
+                              {fullName(l) || "—"}
+                              {l.source_url && (
+                                <a
+                                  href={l.source_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Open the faculty page this lead was found on"
+                                  className="text-muted-foreground hover:text-primary"
+                                >
+                                  <GraduationCap className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+                            </span>
+                          </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{l.rmp_rating != null ? l.rmp_rating.toFixed(1) : "—"}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{l.rmp_num_ratings ?? "—"}</td>
                           <td className="px-2 py-1.5">
@@ -339,34 +356,49 @@ function DraftsSection({
 }
 
 function DraftCard({ draft, onChanged }: { draft: ProfIntelSend; onChanged: () => void }) {
-  const [open, setOpen] = useState(false);
+  // Open by default so the email is right there to read and edit — click anywhere
+  // on the header to collapse. Edits auto-save on blur (and on toggle/schedule
+  // change), so it's "just click and edit" with no separate Save step.
+  const [open, setOpen] = useState(true);
+  const [toEmail, setToEmail] = useState(draft.to_email ?? "");
   const [subject, setSubject] = useState(draft.subject ?? "");
   const [body, setBody] = useState(draft.body ?? "");
   const [ready, setReady] = useState(draft.ready);
   const [when, setWhen] = useState(toLocalInput(draft.scheduled_at));
-  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
 
-  const dirty =
-    subject !== (draft.subject ?? "") ||
-    body !== (draft.body ?? "") ||
-    ready !== draft.ready ||
-    when !== toLocalInput(draft.scheduled_at);
-
-  async function save() {
-    setSaving(true);
+  // Persist the current edit state, with optional overrides for fields whose
+  // React state hasn't settled yet (checkbox/date onChange).
+  async function persist(over: { toEmail?: string; subject?: string; body?: string; ready?: boolean; when?: string } = {}) {
+    const toEmailV = over.toEmail ?? toEmail;
+    const subjectV = over.subject ?? subject;
+    const bodyV = over.body ?? body;
+    const readyV = over.ready ?? ready;
+    const whenV = over.when ?? when;
+    const scheduled_at = fromLocalInput(whenV);
+    // Skip the write when nothing actually changed (avoids churn on every blur).
+    const unchanged =
+      toEmailV === (draft.to_email ?? "") &&
+      subjectV === (draft.subject ?? "") &&
+      bodyV === (draft.body ?? "") &&
+      readyV === draft.ready &&
+      whenV === toLocalInput(draft.scheduled_at);
+    if (unchanged) return;
+    setStatus("saving");
     try {
-      const scheduled_at = fromLocalInput(when);
       await updateSend(draft.id, {
-        subject, body, ready,
+        to_email: toEmailV.trim() || null,
+        subject: subjectV,
+        body: bodyV,
+        ready: readyV,
         scheduled_at,
-        status: ready && scheduled_at ? "scheduled" : "draft",
+        status: readyV && scheduled_at ? "scheduled" : "draft",
       });
-      toast.success("Saved.");
+      setStatus("saved");
       onChanged();
     } catch (e) {
+      setStatus("idle");
       toast.error(e instanceof Error ? e.message : "Failed to save.");
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -383,52 +415,74 @@ function DraftCard({ draft, onChanged }: { draft: ProfIntelSend; onChanged: () =
 
   return (
     <div className="rounded-lg border border-border bg-card/60">
-      <div className="flex items-center gap-2 px-3 py-2">
-        <button type="button" onClick={() => setOpen((v) => !v)} className="text-muted-foreground hover:text-foreground">
+      <div
+        className="flex cursor-pointer items-center gap-2 px-3 py-2"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="text-muted-foreground">
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </button>
+        </span>
         <Mail className="h-4 w-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{draft.to_name || "—"}</div>
           <div className="truncate text-[11px] text-muted-foreground">
-            {draft.to_email || "no email"} {draft.course_matches ? `· ${draft.course_matches}` : ""}
+            {toEmail || "no email"} {draft.course_matches ? `· ${draft.course_matches}` : ""}
           </div>
         </div>
+        {status === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        {status === "saved" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
         {draft.status === "scheduled" && (
           <Badge variant="secondary" className="text-[10px]">Scheduled</Badge>
         )}
         {draft.ready && draft.status !== "scheduled" && (
           <Badge variant="outline" className="text-[10px]">Ready</Badge>
         )}
-        <Button size="sm" variant="ghost" onClick={remove} className="h-7 px-2 text-muted-foreground hover:text-destructive">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => { e.stopPropagation(); remove(); }}
+          className="h-7 px-2 text-muted-foreground hover:text-destructive"
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
 
       {open && (
-        <div className="space-y-3 border-t border-border px-3 py-3">
+        <div className="space-y-3 border-t border-border px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">To (email)</label>
+            <Input
+              value={toEmail}
+              onChange={(e) => setToEmail(e.target.value)}
+              onBlur={() => persist()}
+              placeholder="grab from the faculty page (🎓) if missing"
+              className="h-8 text-sm"
+            />
+          </div>
           <div>
             <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Subject</label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} className="text-sm" />
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} onBlur={() => persist()} className="text-sm" />
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Body</label>
-            <Textarea value={body} onChange={(e) => setBody(e.target.value)} className="min-h-[180px] text-sm" />
+            <Textarea value={body} onChange={(e) => setBody(e.target.value)} onBlur={() => persist()} className="min-h-[200px] text-sm" />
           </div>
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={ready} onCheckedChange={(v) => setReady(!!v)} />
+              <Checkbox checked={ready} onCheckedChange={(v) => { setReady(!!v); persist({ ready: !!v }); }} />
               Ready to send
             </label>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Schedule send</label>
-              <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="h-8 w-[220px] text-sm" />
+              <Input
+                type="datetime-local"
+                value={when}
+                onChange={(e) => { setWhen(e.target.value); persist({ when: e.target.value }); }}
+                className="h-8 w-[220px] text-sm"
+              />
             </div>
-            <div className="ml-auto">
-              <Button size="sm" onClick={save} disabled={saving || !dirty}>
-                {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-                Save
-              </Button>
+            <div className="ml-auto text-[11px] text-muted-foreground">
+              {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Edits save automatically"}
             </div>
           </div>
           {ready && !fromLocalInput(when) && (
@@ -463,7 +517,7 @@ function TemplateEditor() {
       await saveTemplate(tpl);
       toast.success("Template saved. New drafts will use it.");
       // sample preview proof to console-free path; just confirm.
-      renderTemplate(tpl, { id: "x", first_name: "Jane", last_name: "Smith", email: null, rmp_rating: 4.5, rmp_num_ratings: 120, rmp_course_match_json: { acct: { code: "ACCT 2101", count: 3 } } }, "Sample U");
+      renderTemplate(tpl, { id: "x", first_name: "Jane", last_name: "Smith", email: null, is_phd: true, source_url: null, rmp_profile_url: null, rmp_rating: 4.5, rmp_num_ratings: 120, rmp_course_match_json: { acct: { code: "ACCT 2101", count: 3 } } }, "Sample U");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save template.");
     } finally {
@@ -491,9 +545,20 @@ function TemplateEditor() {
           ) : (
             <>
               <p className="text-[11px] text-muted-foreground">
-                Tokens: <code>{"{first_name}"}</code> <code>{"{last_name}"}</code> <code>{"{full_name}"}</code>{" "}
-                <code>{"{school}"}</code> <code>{"{course}"}</code> <code>{"{rmp_rating}"}</code>
+                Tokens: <code>{"{recipient_name}"}</code> (Dr. Lastname for PhDs, else first name){" "}
+                <code>{"{course_prefix}"}</code> (e.g. ACCY) <code>{"{first_name}"}</code> <code>{"{last_name}"}</code>{" "}
+                <code>{"{full_name}"}</code> <code>{"{school}"}</code> <code>{"{course}"}</code> <code>{"{rmp_rating}"}</code>
               </p>
+              <div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setSubject(DEFAULT_PROFINTEL_TEMPLATE.subject); setBody(DEFAULT_PROFINTEL_TEMPLATE.body); }}
+                >
+                  Load default template
+                </Button>
+                <span className="ml-2 text-[11px] text-muted-foreground">Fills the editor with Lee's base email — review, then Save.</span>
+              </div>
               <div>
                 <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Subject</label>
                 <Input value={subject} onChange={(e) => setSubject(e.target.value)} className="text-sm" />

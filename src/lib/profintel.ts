@@ -13,6 +13,10 @@ export interface ProfIntelLead {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  is_phd: boolean;
+  /** Faculty/department page the lead was scraped from (for grabbing a missing email). */
+  source_url: string | null;
+  rmp_profile_url: string | null;
   rmp_rating: number | null;
   rmp_num_ratings: number | null;
   rmp_course_match_json: Record<string, { code: string; count: number }> | null;
@@ -40,6 +44,33 @@ export function courseMatchesText(j: ProfIntelLead["rmp_course_match_json"]): st
   return Object.values(j).map((m) => m.code).filter(Boolean).join(", ");
 }
 
+/** Dominant course prefix from a lead's matched RMP codes, e.g. "ACCT 2101" → "ACCT".
+ * Mirrors the send-email function's coursePrefix() so subjects match live sends. */
+export function coursePrefix(j: ProfIntelLead["rmp_course_match_json"]): string {
+  if (!j) return "";
+  const counts = new Map<string, number>();
+  for (const m of Object.values(j)) {
+    const mm = (m.code ?? "").trim().match(/^([A-Za-z&-]+)/);
+    if (mm) {
+      const k = mm[1].toUpperCase();
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  }
+  let best = "", n = 0;
+  for (const [k, v] of counts) if (v > n) { best = k; n = v; }
+  return best;
+}
+
+/** How to address the lead in a greeting, matching the old email template's rule:
+ * PhDs are "Dr. Lastname"; everyone else gets their first name (no reliable gender
+ * data, so first name avoids any chance of misgendering). */
+export function recipientName(lead: Pick<ProfIntelLead, "first_name" | "last_name" | "is_phd">): string {
+  const first = (lead.first_name ?? "").trim();
+  const last = (lead.last_name ?? "").trim();
+  if (lead.is_phd && last) return `Dr. ${last}`;
+  return first || "there";
+}
+
 /** Fill the template tokens for one lead. */
 export function renderTemplate(tpl: ProfIntelTemplate, lead: ProfIntelLead, school: string): { subject: string; body: string } {
   const first = (lead.first_name ?? "").trim();
@@ -48,13 +79,39 @@ export function renderTemplate(tpl: ProfIntelTemplate, lead: ProfIntelLead, scho
     first_name: first || "there",
     last_name: last,
     full_name: `${first} ${last}`.trim(),
+    recipient_name: recipientName(lead),
     school,
     course: courseMatchesText(lead.rmp_course_match_json),
+    course_prefix: coursePrefix(lead.rmp_course_match_json),
     rmp_rating: lead.rmp_rating != null ? lead.rmp_rating.toFixed(1) : "",
   };
   const sub = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => tokens[k] ?? "");
   return { subject: sub(tpl.subject), body: sub(tpl.body) };
 }
+
+/** The base template Lee wants new drafts seeded from — matches his hand-written
+ * outreach email. Subject is just the campus course prefix; the greeting uses the
+ * Dr./Mr./Ms. rule. The "Load default" button in the editor writes this to the DB. */
+export const DEFAULT_PROFINTEL_TEMPLATE: ProfIntelTemplate = {
+  subject: "If any {course_prefix} students need a tutor this July",
+  body: `Hi {recipient_name},
+
+I'm Lee Ingram — an Ole Miss alum who tutors Intro and Intermediate Accounting full-time. I'd love to be a resource for any of your {course_prefix} students who want extra help this July.
+
+They can text me anytime at (662) 565-8818.
+
+Thanks,
+Lee Ingram
+surviveaccounting.com
+
+—
+
+A bit more, if you're curious before sharing ↓
+
+• I've tutored since 2015 and genuinely love it — I treat every student with a lot of care.
+• I supplement your lectures, not replace them; my focus is simply building exam confidence and enjoyment of the material.
+• Happy to share reviews from past students anytime.`,
+};
 
 export async function getTemplate(): Promise<ProfIntelTemplate> {
   const { data, error } = await (supabase.from("profintel_template" as never) as any)
@@ -73,7 +130,7 @@ export async function saveTemplate(t: ProfIntelTemplate): Promise<void> {
 /** RMP-matched leads for a campus, most-rated first (the ProfIntel target set). */
 export async function fetchCampusRmpLeads(campusId: string): Promise<ProfIntelLead[]> {
   const { data, error } = await (supabase.from("campus_lead_suggestions" as never) as any)
-    .select("id, first_name, last_name, email, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count")
+    .select("id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count")
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .is("archived_at", null);
@@ -84,7 +141,7 @@ export async function fetchCampusRmpLeads(campusId: string): Promise<ProfIntelLe
   // Wider net: also include other research modes that have an RMP match.
   if (rows.length === 0) {
     const { data: any2 } = await (supabase.from("campus_lead_suggestions" as never) as any)
-      .select("id, first_name, last_name, email, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count")
+      .select("id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count")
       .eq("campus_id", campusId).is("archived_at", null);
     return ((any2 ?? []) as any[])
       .filter((r) => (r.rmp_course_match_count ?? 0) > 0)
@@ -131,7 +188,7 @@ export async function listSends(opts?: { campusId?: string }): Promise<ProfIntel
   return (data ?? []) as ProfIntelSend[];
 }
 
-export async function updateSend(id: string, patch: Partial<Pick<ProfIntelSend, "subject" | "body" | "ready" | "scheduled_at" | "status">>): Promise<void> {
+export async function updateSend(id: string, patch: Partial<Pick<ProfIntelSend, "to_name" | "to_email" | "subject" | "body" | "ready" | "scheduled_at" | "status">>): Promise<void> {
   const { error } = await (supabase.from("profintel_sends" as never) as any)
     .update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error(error.message);
