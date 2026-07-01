@@ -157,6 +157,20 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     z.object({ campusId: z.string().uuid(), q: z.string().trim().max(80).optional() }).parse(d))
   .handler(async ({ data }): Promise<ProfessorLite[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Emailed-first: profs Lee has emailed (outreach_leads.sent_at) take priority;
+    // until any emails have gone out for this campus we fall back to the full
+    // confirmed faculty directory so the picker is never empty.
+    const { data: emailedRows } = await supabaseAdmin
+      .from("outreach_leads")
+      .select("email")
+      .eq("campus_id", data.campusId)
+      .not("sent_at", "is", null);
+    const emailedSet = new Set(
+      ((emailedRows ?? []) as Array<{ email: string | null }>)
+        .map((r) => (r.email ?? "").toLowerCase().trim())
+        .filter(Boolean),
+    );
+
     const { data: rows } = await supabaseAdmin
       .from("campus_lead_suggestions")
       .select("id,first_name,last_name,email,title")
@@ -168,9 +182,12 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     const seen = new Set<string>();
     const out: ProfessorLite[] = [];
     for (const r of (rows ?? []) as Array<Record<string, string | null>>) {
+      const email = (r.email ?? "").toLowerCase().trim();
+      // When Lee has emailed anyone at this campus, restrict to those profs.
+      if (emailedSet.size > 0 && !emailedSet.has(email)) continue;
       const last = (r.last_name ?? "").trim();
       const first = (r.first_name ?? "").trim();
-      const key = `${last.toLowerCase()}|${first.toLowerCase()}|${(r.email ?? "").toLowerCase()}`;
+      const key = `${last.toLowerCase()}|${first.toLowerCase()}|${email}`;
       if (seen.has(key)) continue;
       seen.add(key);
       const name = [first, last].filter(Boolean).join(" ").trim();
@@ -230,6 +247,10 @@ const submitOrderSchema = z.object({
   examTimeframe: z.enum(["this_week", "next_week", "not_sure"]).nullable().optional(),
   tier: z.enum(["free_teaser", "made_to_order", "one_on_one"]),
   rush: z.boolean().optional(),
+  // Pre-order (quote) fields — the specifics move to the post-order Track flow.
+  chapterCountOnly: z.number().int().min(0).max(50).nullable().optional(),
+  interestedInGroup: z.boolean().optional(),
+  groupSize: z.number().int().min(0).max(500).nullable().optional(),
   chapters: z.array(chapterSchema).max(40).optional(),
 });
 
@@ -251,7 +272,8 @@ export const submitOrder = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const chapters = data.chapters ?? [];
     const isMTO = data.tier === "made_to_order";
-    const chapterCount = chapters.length;
+    // Pre-order is a QUOTE by chapter COUNT; the chapters array is legacy/optional.
+    const chapterCount = data.chapterCountOnly ?? chapters.length;
 
     // Server-side source of truth — same formula the student saw.
     const pricing = computeOrderPricing({
@@ -280,6 +302,10 @@ export const submitOrder = createServerFn({ method: "POST" })
       exam_timeframe: data.examTimeframe ?? null,
       tier: data.tier,
       chapter_count: chapterCount,
+      chapter_count_only: data.chapterCountOnly ?? null,
+      interested_in_group: data.interestedInGroup ?? false,
+      group_size: data.groupSize ?? null,
+      awaiting_syllabus: true,
       subtotal_cents: isMTO ? pricing.subtotalCents : 0,
       rush: isMTO ? pricing.rush : false,
       rush_fee_cents: isMTO ? pricing.rushFeeCents : 0,

@@ -199,10 +199,10 @@ function Home() {
           style={{ background: "radial-gradient(70% 60% at 50% 0%, #FFFFFF 0%, #F4F7FC 70%)" }}>
           <Reveal className="mx-auto max-w-6xl">
             <h2 className="text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-              Pick the way you want to prep
+              Pre-order your Cram Pack
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-center text-[15px] text-gray-600">
-              Practice exams + videos coming soon. 1-on-1 with me is open now.
+              Practice exam + video walk-throughs, made for your exact course. Pay on delivery.
             </p>
             <div className="mt-10">
               <PricingPlans bookHref="/order" />

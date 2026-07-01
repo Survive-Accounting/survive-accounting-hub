@@ -1,12 +1,13 @@
-// /order — made-to-order exam prep wizard. The student specifies their exact
-// campus → course → professor → textbook → chapters → exam date, then picks how
-// they want it (free teaser / made-to-order / 1-on-1). Submit saves SERVER-SIDE
-// (service-role) via submitOrder. Pay-on-delivery; no payment is collected here.
+// /order — Cram Pack PRE-ORDER wizard. A pre-order is a QUOTE by chapter count,
+// not a fully-specified order: the student gives campus → course → professor →
+// how many chapters → exam date → contact. The specifics (textbook, exact
+// chapters, syllabus, requests) are collected post-order in the Track Your Order
+// conversation. Submit saves SERVER-SIDE (service-role). Pay on delivery.
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
-import { Check, Loader2, Search, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,13 +17,13 @@ import { searchCampuses, type CampusLite } from "@/lib/onboarding.functions";
 import {
   getOrderCampusContext,
   searchOrderProfessors,
-  listSupportedTextbooks,
   submitOrder,
+  subtotalCentsForChapters,
   computeOrderPricing,
+  STANDARD_DAYS_PER_CHAPTER,
   type FamilyKey,
   type OrderCampusContext,
   type ProfessorLite,
-  type SupportedTextbook,
   type ExamTimeframe,
   type SubmitOrderResult,
 } from "@/lib/orders.functions";
@@ -32,16 +33,18 @@ const RED = "#CE1126";
 const LOGO_URL = "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 const WORK_PHONE_DISPLAY = "(662) 565-8818";
 const WORK_PHONE_HREF = "+16625658818";
+const HEADER_PILL = "Cram Packs from $30 · Pay on delivery · Free if it didn't help on your test";
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
     meta: [
-      { title: "Order exam prep — Survive Accounting" },
-      { name: "description", content: "Custom exam prep built for your exact course, professor, and chapters." },
+      { title: "Pre-order your Cram Pack — Survive Accounting" },
+      { name: "description", content: "Practice exam + video walk-throughs, made for your exact course. Pay on delivery." },
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: OrderWizard,
+  component: OrderPage,
 });
 
 const FAMILY_LABELS: Record<FamilyKey, string> = {
@@ -51,159 +54,88 @@ const FAMILY_LABELS: Record<FamilyKey, string> = {
   intermediate_2: "Intermediate Accounting II",
 };
 const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
+const STEPS = ["School", "Course", "Professor", "Chapters", "Exam", "Your info"] as const;
 
-// Standard curriculum topics per family — a sensible, EDITABLE default for
-// campuses/books we don't have a chapter list for. Never presented as the
-// student's actual book; the UI says "adjust to match your book."
-const DEFAULT_CHAPTERS: Record<FamilyKey, string[]> = {
-  intro_1: [
-    "Intro to Financial Statements", "Recording Transactions (Journal Entries)",
-    "Adjusting Entries", "Completing the Accounting Cycle", "Merchandising Operations",
-    "Inventory", "Cash & Receivables", "Long-Lived Assets", "Liabilities",
-    "Stockholders' Equity", "Statement of Cash Flows", "Financial Statement Analysis",
-  ],
-  intro_2: [
-    "Intro to Managerial Accounting", "Job Order Costing", "Process Costing",
-    "Activity-Based Costing", "Cost-Volume-Profit Analysis", "Variable Costing",
-    "Master Budgets", "Flexible Budgets & Standard Costs", "Performance Evaluation",
-    "Relevant Costs for Decisions", "Capital Budgeting",
-  ],
-  intermediate_1: [
-    "Conceptual Framework", "Income Statement & Comprehensive Income",
-    "Balance Sheet & Disclosures", "Time Value of Money", "Cash & Receivables",
-    "Inventory: Cost & Valuation", "PP&E: Acquisition & Disposition",
-    "Depreciation & Impairment", "Intangible Assets", "Current Liabilities & Contingencies",
-  ],
-  intermediate_2: [
-    "Bonds & Long-Term Liabilities", "Leases", "Income Taxes",
-    "Pensions & Postretirement Benefits", "Stockholders' Equity",
-    "Dilutive Securities & EPS", "Investments", "Revenue Recognition",
-    "Accounting Changes & Error Analysis", "Statement of Cash Flows",
-  ],
-};
-
-type SelectedChapter = { label: string; struggle: string };
-
-type Draft = {
-  campusId: string | null;
-  campusName: string;
-  campusOther: boolean;
-
-  courseFamily: FamilyKey | null;
-  courseCode: string;
-  courseName: string;
-  courseOther: boolean;
-
-  professorName: string;
-  professorLeadId: string | null;
-
-  textbookName: string;
-  textbookFamilyId: string | null;
-  textbookNotes: string;
-
-  chapters: SelectedChapter[];
-
-  examMode: "date" | "bucket" | null;
-  examDate: string;
-  examTimeframe: ExamTimeframe | null;
-
-  tier: "free_teaser" | "made_to_order" | "one_on_one" | null;
-  rush: boolean;
-
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-};
-
-const EMPTY_DRAFT: Draft = {
-  campusId: null, campusName: "", campusOther: false,
-  courseFamily: null, courseCode: "", courseName: "", courseOther: false,
-  professorName: "", professorLeadId: null,
-  textbookName: "", textbookFamilyId: null, textbookNotes: "",
-  chapters: [],
-  examMode: null, examDate: "", examTimeframe: null,
-  tier: null, rush: false,
-  firstName: "", lastName: "", email: "", phone: "",
-};
-
-const STEPS = ["School", "Course", "Professor", "Textbook", "Chapters", "Exam", "Choose", "Your info"] as const;
 const fmtMoney = (cents: number) => `$${Math.round(cents / 100)}`;
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-const parseChapterNumber = (label: string): number | null => {
-  const m = label.match(/\d+/);
-  return m ? Number(m[0]) : null;
+
+type Draft = {
+  campusId: string | null; campusName: string; campusOther: boolean;
+  courseFamily: FamilyKey | null; courseCode: string; courseName: string; courseOther: boolean;
+  professorName: string; professorLeadId: string | null;
+  chapterCount: number | null;               // 1..5 (5 = "5+")
+  interestedInGroup: boolean; groupSize: string;
+  examChoice: "date" | "this_week" | "next_week" | "not_sure" | null;
+  examDate: string;                           // concrete yyyy-mm-dd
+  firstName: string; lastName: string; email: string; phone: string;
 };
 
-function OrderWizard() {
+const EMPTY: Draft = {
+  campusId: null, campusName: "", campusOther: false,
+  courseFamily: null, courseCode: "", courseName: "", courseOther: false,
+  professorName: "", professorLeadId: null,
+  chapterCount: null, interestedInGroup: false, groupSize: "",
+  examChoice: null, examDate: "",
+  firstName: "", lastName: "", email: "", phone: "",
+};
+
+// Exam timeframe stored on submit: a concrete date beats a bucket; "not sure"
+// keeps the bucket with a null date.
+function examTimeframeFor(d: Draft): ExamTimeframe | null {
+  return d.examChoice === "not_sure" ? "not_sure" : null;
+}
+function examDateFor(d: Draft): string | null {
+  return d.examDate ? d.examDate : null;
+}
+
+function OrderPage() {
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<Draft>(EMPTY);
   const [result, setResult] = useState<SubmitOrderResult | null>(null);
   const update = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((p) => ({ ...p, [k]: v }));
 
-  // Campus context (codes/titles/textbooks) for the selected campus.
   const ctxFn = useServerFn(getOrderCampusContext);
   const [ctx, setCtx] = useState<OrderCampusContext | null>(null);
   useEffect(() => {
-    let cancelled = false;
+    let off = false;
     if (!draft.campusId) { setCtx(null); return; }
-    ctxFn({ data: { campusId: draft.campusId } })
-      .then((c) => { if (!cancelled) setCtx(c); })
-      .catch(() => { if (!cancelled) setCtx(null); });
-    return () => { cancelled = true; };
+    ctxFn({ data: { campusId: draft.campusId } }).then((c) => { if (!off) setCtx(c); }).catch(() => { if (!off) setCtx(null); });
+    return () => { off = true; };
   }, [draft.campusId, ctxFn]);
 
   const pricing = useMemo(
     () => computeOrderPricing({
-      chapterCount: draft.chapters.length,
-      examDate: draft.examMode === "date" && draft.examDate ? draft.examDate : null,
-      timeframe: draft.examMode === "bucket" ? draft.examTimeframe : null,
-      rush: draft.rush,
+      chapterCount: draft.chapterCount ?? 0,
+      examDate: examDateFor(draft),
+      timeframe: examTimeframeFor(draft),
+      rush: false,
     }),
-    [draft.chapters.length, draft.examMode, draft.examDate, draft.examTimeframe, draft.rush],
+    [draft.chapterCount, draft.examDate, draft.examChoice],
   );
 
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
-  if (result) {
-    return <SuccessScreen draft={draft} result={result} />;
-  }
+  if (result) return <Confirmation draft={draft} result={result} pricing={pricing} />;
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Toaster richColors position="top-center" />
       <Header />
-      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-6 sm:pt-10">
-        <Progress step={step} />
-        <div className="mt-6 rounded-3xl bg-white p-5 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-8">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-5">
+        <HeaderPill />
+        <div className="mt-4"><Progress step={step} /></div>
+        <div className="mt-5 rounded-3xl bg-white p-5 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-8">
           {step === 0 && <CampusStep draft={draft} update={update} onNext={next} />}
           {step === 1 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
           {step === 2 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 3 && <TextbookStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
-          {step === 4 && <ChaptersStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 5 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 6 && (
-            <StackStep
-              draft={draft} update={update} pricing={pricing}
-              onPick={(tier) => { update("tier", tier); next(); }}
-              onBack={back}
-            />
-          )}
-          {step === 7 && (
-            <InfoStep
-              draft={draft} update={update} pricing={pricing}
-              onBack={back} onSubmitted={setResult}
-            />
-          )}
+          {step === 3 && <ChaptersStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 4 && <ExamStep draft={draft} update={update} pricing={pricing} onNext={next} onBack={back} />}
+          {step === 5 && <SummaryStep draft={draft} update={update} pricing={pricing} onBack={back} onSubmitted={setResult} />}
         </div>
-        <p className="mt-5 text-center text-xs text-gray-500">
-          Questions? Text me anytime at{" "}
-          <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>
-            {WORK_PHONE_DISPLAY}
-          </a>
-        </p>
+        <StepFooter />
+        <OrderFaq />
       </div>
     </div>
   );
@@ -222,7 +154,22 @@ function Header() {
     </header>
   );
 }
-
+function HeaderPill() {
+  return (
+    <div className="rounded-full border px-4 py-2 text-center text-[12.5px] font-medium"
+      style={{ borderColor: "rgba(20,33,61,0.12)", background: "rgba(20,33,61,0.04)", color: NAVY }}>
+      {HEADER_PILL}
+    </div>
+  );
+}
+function StepFooter() {
+  return (
+    <p className="mt-5 text-center text-xs text-gray-500">
+      Questions? Text me anytime at{" "}
+      <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>{WORK_PHONE_DISPLAY}</a>
+    </p>
+  );
+}
 function Progress({ step }: { step: number }) {
   const pct = Math.round(((step + 1) / STEPS.length) * 100);
   return (
@@ -237,7 +184,6 @@ function Progress({ step }: { step: number }) {
     </div>
   );
 }
-
 function Title({ children, subtitle }: { children: React.ReactNode; subtitle?: string }) {
   return (
     <div className="mb-5">
@@ -246,7 +192,6 @@ function Title({ children, subtitle }: { children: React.ReactNode; subtitle?: s
     </div>
   );
 }
-
 function PrimaryBtn({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
   return (
     <Button onClick={onClick} disabled={disabled} className="h-12 w-full text-base font-bold text-white"
@@ -255,7 +200,6 @@ function PrimaryBtn({ children, onClick, disabled }: { children: React.ReactNode
     </Button>
   );
 }
-
 function BackLink({ onBack }: { onBack: () => void }) {
   return (
     <div className="mt-3 text-center">
@@ -264,7 +208,7 @@ function BackLink({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ---------- Step 1: Campus ----------
+// ---------- Step 1: School ----------
 function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void }) {
   const searchFn = useServerFn(searchCampuses);
   const [query, setQuery] = useState("");
@@ -273,23 +217,19 @@ function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extend
 
   useEffect(() => {
     if (draft.campusOther || draft.campusId) return;
-    let cancelled = false;
+    let off = false;
     const t = setTimeout(async () => {
       setSearching(true);
-      try {
-        const r = await searchFn({ data: { q: query } });
-        if (!cancelled) setResults(r);
-      } catch { /* ignore */ } finally { if (!cancelled) setSearching(false); }
+      try { const r = await searchFn({ data: { q: query } }); if (!off) setResults(r); }
+      catch { /* ignore */ } finally { if (!off) setSearching(false); }
     }, 200);
-    return () => { cancelled = true; clearTimeout(t); };
+    return () => { off = true; clearTimeout(t); };
   }, [query, draft.campusOther, draft.campusId, searchFn]);
 
   const picked = !!draft.campusId || (draft.campusOther && draft.campusName.trim().length > 0);
-
   return (
     <div>
-      <Title subtitle="We'll pull your course details from your school when we have them.">What school are you at?</Title>
-
+      <Title subtitle="So I can match your exact course.">Where do you go?</Title>
       {draft.campusId && !draft.campusOther ? (
         <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-4 py-3">
           <span className="text-sm font-medium">{draft.campusName}</span>
@@ -297,40 +237,27 @@ function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extend
         </div>
       ) : draft.campusOther ? (
         <div className="space-y-2">
-          <Input placeholder="Type your school name" value={draft.campusName} autoFocus
-            onChange={(e) => update("campusName", e.target.value)} />
-          <button type="button" className="text-xs text-gray-600 underline"
-            onClick={() => { update("campusOther", false); update("campusName", ""); }}>
-            Search for my school instead
-          </button>
+          <Input placeholder="Type your school name" value={draft.campusName} autoFocus onChange={(e) => update("campusName", e.target.value)} />
+          <button type="button" className="text-xs text-gray-600 underline" onClick={() => { update("campusOther", false); update("campusName", ""); }}>Search for my school instead</button>
         </div>
       ) : (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input className="pl-9" placeholder="Search schools…" value={query} autoFocus
-              onChange={(e) => setQuery(e.target.value)} />
+            <Input className="pl-9" placeholder="Search schools…" value={query} autoFocus onChange={(e) => setQuery(e.target.value)} />
           </div>
           <div className="mt-2 max-h-56 overflow-auto rounded-xl border bg-white">
             {searching && <div className="p-3 text-xs text-gray-500">Searching…</div>}
             {!searching && results.length === 0 && <div className="p-3 text-xs text-gray-500">No matches yet — keep typing.</div>}
             {results.map((r) => (
               <button key={r.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                onClick={() => { update("campusId", r.id); update("campusName", r.name); update("campusOther", false); }}>
-                {r.name}
-              </button>
+                onClick={() => { update("campusId", r.id); update("campusName", r.name); update("campusOther", false); }}>{r.name}</button>
             ))}
           </div>
-          <button type="button" className="mt-2 text-xs text-gray-600 underline"
-            onClick={() => { update("campusOther", true); update("campusId", null); }}>
-            My school isn&apos;t listed
-          </button>
+          <button type="button" className="mt-2 text-xs text-gray-600 underline" onClick={() => { update("campusOther", true); update("campusId", null); }}>My school isn&apos;t listed</button>
         </>
       )}
-
-      <div className="mt-6">
-        <PrimaryBtn onClick={onNext} disabled={!picked}>Continue</PrimaryBtn>
-      </div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!picked}>Continue</PrimaryBtn></div>
     </div>
   );
 }
@@ -342,511 +269,267 @@ function CourseStep({ draft, update, ctx, onNext, onBack }: {
   const hasCodes = !!ctx && FAMILY_ORDER.some((f) => ctx.codes[f] || ctx.titles[f]);
   const forceOther = draft.campusOther || (!!draft.campusId && ctx !== null && !hasCodes);
   const otherMode = draft.courseOther || forceOther;
+  const courseNameForPitch = draft.courseName.trim() || "your course";
 
   const pickFamily = (f: FamilyKey) => {
-    update("courseFamily", f);
-    update("courseCode", ctx?.codes[f] ?? "");
-    update("courseName", ctx?.titles[f] ?? FAMILY_LABELS[f]);
-    update("courseOther", false);
+    update("courseFamily", f); update("courseCode", ctx?.codes[f] ?? "");
+    update("courseName", ctx?.titles[f] ?? FAMILY_LABELS[f]); update("courseOther", false);
   };
-
-  const canContinue = otherMode
-    ? draft.courseName.trim().length > 0 || draft.courseCode.trim().length > 0
-    : !!draft.courseFamily;
+  const canContinue = otherMode ? (draft.courseName.trim().length > 0 || draft.courseCode.trim().length > 0) : !!draft.courseFamily;
 
   return (
     <div>
       <Title subtitle="Which accounting course is this for?">Your course</Title>
-
+      <p className="mb-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        Pre-order a Cram Pack for <strong>{courseNameForPitch}</strong> — practice exam + video walk-throughs, made for your exact course, professor, and textbook.
+      </p>
       {!otherMode ? (
         <>
           <div className="space-y-2">
             {FAMILY_ORDER.map((f) => {
-              const code = ctx?.codes[f] ?? null;
-              const title = ctx?.titles[f] ?? FAMILY_LABELS[f];
+              const code = ctx?.codes[f] ?? null; const title = ctx?.titles[f] ?? FAMILY_LABELS[f];
               const active = draft.courseFamily === f;
               return (
                 <button key={f} type="button" onClick={() => pickFamily(f)}
-                  className={cn("flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
-                    active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+                  className={cn("flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
                   style={active ? { background: NAVY } : undefined}>
-                  <span>
-                    {code && <span className="font-semibold">{code} · </span>}
-                    <span className={active ? "" : "text-gray-800"}>{title}</span>
-                  </span>
+                  <span>{code && <span className="font-semibold">{code} · </span>}<span className={active ? "" : "text-gray-800"}>{title}</span></span>
                   {active && <Check className="h-4 w-4" />}
                 </button>
               );
             })}
           </div>
-          <button type="button" className="mt-3 text-xs text-gray-600 underline" onClick={() => update("courseOther", true)}>
-            My course isn&apos;t listed
-          </button>
+          <button type="button" className="mt-3 text-xs text-gray-600 underline" onClick={() => update("courseOther", true)}>My course isn&apos;t listed</button>
         </>
       ) : (
         <div className="space-y-3">
-          <div>
-            <Label className="mb-1.5 block text-sm">Course code <span className="text-gray-400">(optional)</span></Label>
-            <Input placeholder="e.g. ACCT 2101" value={draft.courseCode} onChange={(e) => update("courseCode", e.target.value)} />
-          </div>
-          <div>
-            <Label className="mb-1.5 block text-sm">Course name</Label>
-            <Input placeholder="e.g. Principles of Financial Accounting" value={draft.courseName} onChange={(e) => update("courseName", e.target.value)} />
-          </div>
-          {!forceOther && (
-            <button type="button" className="text-xs text-gray-600 underline" onClick={() => update("courseOther", false)}>
-              Pick from the list instead
-            </button>
-          )}
+          <div><Label className="mb-1.5 block text-sm">Course code <span className="text-gray-400">(optional)</span></Label>
+            <Input placeholder="e.g. ACCT 2101" value={draft.courseCode} onChange={(e) => update("courseCode", e.target.value)} /></div>
+          <div><Label className="mb-1.5 block text-sm">Course name</Label>
+            <Input placeholder="e.g. Principles of Financial Accounting" value={draft.courseName} onChange={(e) => update("courseName", e.target.value)} /></div>
+          {!forceOther && <button type="button" className="text-xs text-gray-600 underline" onClick={() => update("courseOther", false)}>Pick from the list instead</button>}
         </div>
       )}
-
-      <div className="mt-6">
-        <PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn>
-        <BackLink onBack={onBack} />
-      </div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
     </div>
   );
 }
 
-// ---------- Step 3: Professor ----------
+// ---------- Step 3: Professor (emailed-first list) ----------
 function ProfessorStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
   const searchFn = useServerFn(searchOrderProfessors);
-  const [results, setResults] = useState<ProfessorLite[]>([]);
-  const [open, setOpen] = useState(false);
+  const [all, setAll] = useState<ProfessorLite[]>([]);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     if (!draft.campusId) return;
-    if (draft.professorLeadId) return; // already picked
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        const r = await searchFn({ data: { campusId: draft.campusId!, q: draft.professorName } });
-        if (!cancelled) setResults(r);
-      } catch { /* ignore */ }
-    }, 200);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [draft.professorName, draft.campusId, draft.professorLeadId, searchFn]);
+    let off = false;
+    searchFn({ data: { campusId: draft.campusId } }).then((r) => { if (!off) setAll(r); }).catch(() => {});
+    return () => { off = true; };
+  }, [draft.campusId, searchFn]);
+
+  const q = draft.professorName.trim().toLowerCase();
+  const filtered = q && !draft.professorLeadId ? all.filter((p) => p.name.toLowerCase().includes(q)) : all;
+  const shown = showAll ? filtered : filtered.slice(0, 20);
 
   return (
     <div>
-      <Title subtitle="Knowing your professor helps me match their exam style. Don't know it? Skip — totally fine.">
-        Who&apos;s your professor?
-      </Title>
+      <Title subtitle="So I match your professor's exam style.">Who&apos;s your professor?</Title>
+      <Input placeholder="Type your professor's name" value={draft.professorName} autoFocus
+        onChange={(e) => { update("professorName", e.target.value); update("professorLeadId", null); setShowAll(false); }} />
 
-      <Input
-        placeholder="Type your professor's name"
-        value={draft.professorName}
-        onChange={(e) => { update("professorName", e.target.value); update("professorLeadId", null); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        autoFocus
-      />
-      {open && draft.campusId && !draft.professorLeadId && results.length > 0 && (
-        <div className="mt-2 max-h-48 overflow-auto rounded-xl border bg-white">
-          {results.map((p) => (
+      {!draft.professorLeadId && shown.length > 0 && (
+        <div className="mt-2 max-h-56 overflow-auto rounded-xl border bg-white">
+          {shown.map((p) => (
             <button key={p.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-              onClick={() => { update("professorName", p.name); update("professorLeadId", p.id); setOpen(false); }}>
+              onClick={() => { update("professorName", p.name); update("professorLeadId", p.id); }}>
               {p.name}{p.title ? <span className="ml-1.5 text-xs text-gray-500">{p.title}</span> : null}
             </button>
           ))}
+          {!showAll && filtered.length > 20 && (
+            <button type="button" className="block w-full px-3 py-2 text-center text-xs font-medium text-gray-600 hover:bg-gray-50" onClick={() => setShowAll(true)}>
+              Show more ({filtered.length - 20})
+            </button>
+          )}
         </div>
       )}
       {draft.professorLeadId && (
-        <p className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700">
-          <Check className="h-3.5 w-3.5" /> Matched to your school&apos;s directory
-        </p>
+        <p className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700"><Check className="h-3.5 w-3.5" /> Matched to your school&apos;s directory</p>
       )}
 
       <div className="mt-6">
         <PrimaryBtn onClick={onNext}>Continue</PrimaryBtn>
         <div className="mt-3 flex items-center justify-between">
           <button type="button" onClick={onBack} className="text-sm text-gray-500 underline hover:text-gray-700">Back</button>
-          <button type="button" onClick={() => { update("professorName", ""); update("professorLeadId", null); onNext(); }}
-            className="text-sm text-gray-500 underline hover:text-gray-700">Skip — I&apos;m not sure</button>
+          <button type="button" onClick={() => { update("professorName", ""); update("professorLeadId", null); onNext(); }} className="text-sm text-gray-500 underline hover:text-gray-700">My professor isn&apos;t listed</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ---------- Step 4: Textbook ----------
-function TextbookStep({ draft, update, ctx, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; ctx: OrderCampusContext | null; onNext: () => void; onBack: () => void;
-}) {
-  const listFn = useServerFn(listSupportedTextbooks);
-  const [supported, setSupported] = useState<SupportedTextbook[]>([]);
-  const [mode, setMode] = useState<"confirm" | "pick" | "other">("pick");
-
-  const known = draft.courseFamily && ctx ? ctx.textbooks[draft.courseFamily] : null;
-  const knownLabel = known?.title
-    ? `${known.title}${known.authors ? ` — ${known.authors}` : ""}${known.publisher ? ` (${known.publisher})` : ""}`
-    : null;
-
-  // Initialize the step's mode once we know whether a textbook is known.
-  useEffect(() => {
-    if (knownLabel && !draft.textbookName) setMode("confirm");
-  }, [knownLabel, draft.textbookName]);
-
-  useEffect(() => {
-    let cancelled = false;
-    listFn().then((r) => { if (!cancelled) setSupported(r); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [listFn]);
-
-  const familyOptions = useMemo(
-    () => supported.filter((s) => !draft.courseFamily || s.courseFamily === draft.courseFamily),
-    [supported, draft.courseFamily],
-  );
-
-  const confirmKnown = () => {
-    if (knownLabel) { update("textbookName", knownLabel); update("textbookFamilyId", null); }
-    onNext();
-  };
-
-  return (
-    <div>
-      <Title subtitle="The right book lets me match your exact chapters and notation.">Your textbook</Title>
-
-      {mode === "confirm" && knownLabel ? (
-        <div className="space-y-4">
-          <div className="rounded-2xl border bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Your course usually uses</p>
-            <p className="mt-1 text-sm font-medium" style={{ color: NAVY }}>{knownLabel}</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <PrimaryBtn onClick={confirmKnown}>That&apos;s my book →</PrimaryBtn>
-            <Button variant="outline" className="h-12 text-base font-semibold" style={{ color: NAVY, borderColor: NAVY }}
-              onClick={() => setMode("pick")}>
-              Mine&apos;s different
-            </Button>
-          </div>
-        </div>
-      ) : mode === "other" ? (
-        <div className="space-y-3">
-          <div>
-            <Label className="mb-1.5 block text-sm">Textbook name</Label>
-            <Input placeholder="Title + author if you have it" value={draft.textbookName}
-              onChange={(e) => { update("textbookName", e.target.value); update("textbookFamilyId", null); }} autoFocus />
-          </div>
-          <div>
-            <Label className="mb-1.5 block text-sm">Anything else about it? <span className="text-gray-400">(optional)</span></Label>
-            <Input placeholder="Edition, or 'professor's own notes'…" value={draft.textbookNotes}
-              onChange={(e) => update("textbookNotes", e.target.value)} />
-          </div>
-          <button type="button" className="text-xs text-gray-600 underline" onClick={() => setMode("pick")}>
-            Pick from the list instead
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {knownLabel && (
-            <button type="button" className="mb-1 text-xs text-gray-600 underline" onClick={() => setMode("confirm")}>
-              ← Back to your course&apos;s usual book
-            </button>
-          )}
-          {familyOptions.map((t) => {
-            const active = draft.textbookFamilyId === t.id;
-            return (
-              <button key={t.id} type="button"
-                onClick={() => { update("textbookFamilyId", t.id); update("textbookName", t.label); }}
-                className={cn("flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition",
-                  active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
-                style={active ? { background: NAVY } : undefined}>
-                <span>{t.label}</span>
-                {active && <Check className="h-4 w-4 shrink-0" />}
-              </button>
-            );
-          })}
-          {familyOptions.length === 0 && <p className="text-sm text-gray-500">No matches — use the option below.</p>}
-          <button type="button" className="mt-1 text-xs text-gray-600 underline"
-            onClick={() => { setMode("other"); update("textbookFamilyId", null); update("textbookName", ""); }}>
-            My book isn&apos;t listed
-          </button>
-        </div>
-      )}
-
-      {mode !== "confirm" && (
-        <div className="mt-6">
-          <PrimaryBtn onClick={onNext}>Continue</PrimaryBtn>
-          <div className="mt-3 flex items-center justify-between">
-            <button type="button" onClick={onBack} className="text-sm text-gray-500 underline hover:text-gray-700">Back</button>
-            <button type="button" onClick={() => { update("textbookName", ""); update("textbookFamilyId", null); onNext(); }}
-              className="text-sm text-gray-500 underline hover:text-gray-700">Skip for now</button>
-          </div>
-        </div>
-      )}
-      {mode === "confirm" && <BackLink onBack={onBack} />}
-    </div>
-  );
-}
-
-// ---------- Step 5: Chapters + struggles ----------
+// ---------- Step 4: How many chapters ----------
+const CHAPTER_OPTIONS = [1, 2, 3, 4, 5] as const;
 function ChaptersStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
-  const candidates = draft.courseFamily ? DEFAULT_CHAPTERS[draft.courseFamily] : DEFAULT_CHAPTERS.intro_1;
-  const [custom, setCustom] = useState("");
-
-  const isSelected = (label: string) => draft.chapters.some((c) => c.label === label);
-  const toggle = (label: string) => {
-    if (isSelected(label)) update("chapters", draft.chapters.filter((c) => c.label !== label));
-    else update("chapters", [...draft.chapters, { label, struggle: "" }]);
-  };
-  const setStruggle = (label: string, struggle: string) =>
-    update("chapters", draft.chapters.map((c) => (c.label === label ? { ...c, struggle } : c)));
-  const editLabel = (oldLabel: string, newLabel: string) =>
-    update("chapters", draft.chapters.map((c) => (c.label === oldLabel ? { ...c, label: newLabel } : c)));
-  const addCustom = () => {
-    const label = custom.trim();
-    if (!label || isSelected(label)) { setCustom(""); return; }
-    update("chapters", [...draft.chapters, { label, struggle: "" }]);
-    setCustom("");
-  };
-
   return (
     <div>
-      <Title subtitle="Pick the chapters your exam covers. These are the standard topics — adjust any label to match your book.">
-        Which chapters?
-      </Title>
-
-      <div className="space-y-1.5">
-        {candidates.map((label) => (
-          <button key={label} type="button" onClick={() => toggle(label)}
-            className={cn("flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition",
-              isSelected(label) ? "border-emerald-300 bg-emerald-50" : "bg-white hover:border-gray-300")}>
-            <span className={cn("grid h-4 w-4 shrink-0 place-content-center rounded border", isSelected(label) ? "border-emerald-500 bg-emerald-500 text-white" : "border-gray-300")}>
-              {isSelected(label) && <Check className="h-3 w-3" />}
-            </span>
-            {label}
-          </button>
-        ))}
+      <Title subtitle="We'll lock in the exact chapters from your syllabus after you pre-order.">How many chapters on the exam?</Title>
+      <div className="grid grid-cols-5 gap-2">
+        {CHAPTER_OPTIONS.map((n) => {
+          const active = draft.chapterCount === n;
+          const label = n === 5 ? "5+" : String(n);
+          return (
+            <button key={n} type="button" onClick={() => update("chapterCount", n)}
+              className={cn("flex flex-col items-center gap-1 rounded-2xl border py-4 transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+              style={active ? { background: NAVY } : undefined}>
+              <span className="text-xl font-bold">{label}</span>
+              <span className={cn("text-[11px]", active ? "text-white/80" : "text-gray-500")}>{fmtMoney(subtotalCentsForChapters(n))}</span>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="mt-3 flex gap-2">
-        <Input placeholder="Add another chapter…" value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} />
-        <Button variant="outline" onClick={addCustom} disabled={!custom.trim()}>Add</Button>
+      <div className="mt-5 rounded-xl border bg-gray-50 p-3">
+        <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800">
+          <input type="checkbox" checked={draft.interestedInGroup} className="mt-0.5 h-4 w-4"
+            onChange={(e) => update("interestedInGroup", e.target.checked)} />
+          <span>Got classmates in the same class? I can prep this for the group — usually faster, possibly cheaper.</span>
+        </label>
+        {draft.interestedInGroup && (
+          <div className="mt-3 flex items-center gap-2">
+            <Label className="text-sm text-gray-700">How many?</Label>
+            <Input type="number" min={2} className="h-9 w-24" value={draft.groupSize} onChange={(e) => update("groupSize", e.target.value)} />
+          </div>
+        )}
       </div>
 
-      {draft.chapters.length > 0 && (
-        <div className="mt-5 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Your {draft.chapters.length} chapter{draft.chapters.length === 1 ? "" : "s"} — adjust labels &amp; tell me what&apos;s tough
-          </p>
-          {draft.chapters.map((c) => (
-            <div key={c.label} className="rounded-xl border bg-gray-50 p-3">
-              <div className="flex items-center gap-2">
-                <Input value={c.label} onChange={(e) => editLabel(c.label, e.target.value)} className="h-8 bg-white text-sm" />
-                <button type="button" onClick={() => toggle(c.label)} className="text-gray-400 hover:text-red-600" title="Remove">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <Input className="mt-2 h-8 bg-white text-sm" placeholder="What's tripping you up here? (optional)"
-                value={c.struggle} onChange={(e) => setStruggle(c.label, e.target.value)} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-6">
-        <PrimaryBtn onClick={onNext} disabled={draft.chapters.length === 0}>Continue</PrimaryBtn>
-        <BackLink onBack={onBack} />
-      </div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!draft.chapterCount}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
     </div>
   );
 }
 
-// ---------- Step 6: Exam date ----------
-function ExamStep({ draft, update, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
+// ---------- Step 5: Exam ----------
+function weekDates(offset: number) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const mondayIdx = (today.getDay() + 6) % 7;
+  const monday = new Date(today); monday.setDate(today.getDate() - mondayIdx + offset * 7);
+  const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    return { iso: d.toISOString().slice(0, 10), dow: names[i], day: d.getDate(), past: d < today };
+  });
+}
+function ExamStep({ draft, update, pricing, onNext, onBack }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; pricing: ReturnType<typeof computeOrderPricing>; onNext: () => void; onBack: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  const buckets: { key: ExamTimeframe; label: string }[] = [
-    { key: "this_week", label: "This week" },
-    { key: "next_week", label: "Next week" },
-    { key: "not_sure", label: "Not sure yet" },
-  ];
-  const canContinue =
-    (draft.examMode === "date" && !!draft.examDate) ||
-    (draft.examMode === "bucket" && !!draft.examTimeframe);
+  const pills = draft.examChoice === "this_week" ? weekDates(0) : draft.examChoice === "next_week" ? weekDates(1) : [];
+  const canContinue = !!draft.examDate || draft.examChoice === "not_sure";
+  const stdDays = STANDARD_DAYS_PER_CHAPTER * (draft.chapterCount ?? 0);
 
   return (
     <div>
-      <Title subtitle="So I can make sure it's in your hands in time.">When&apos;s your exam?</Title>
-
+      <Title subtitle="So your Cram Pack lands in time.">When&apos;s your exam?</Title>
       <div className="space-y-4">
         <div className="rounded-2xl border bg-white p-4">
           <Label className="mb-2 block text-sm font-medium">I know the date</Label>
-          <Input type="date" min={today} value={draft.examMode === "date" ? draft.examDate : ""}
-            onChange={(e) => { update("examMode", "date"); update("examDate", e.target.value); update("examTimeframe", null); }} />
+          <Input type="date" min={today} value={draft.examChoice === "date" ? draft.examDate : ""}
+            onChange={(e) => { update("examChoice", "date"); update("examDate", e.target.value); }} />
         </div>
         <div className="text-center text-xs uppercase tracking-wide text-gray-400">or</div>
         <div className="grid grid-cols-3 gap-2">
-          {buckets.map((b) => {
-            const active = draft.examMode === "bucket" && draft.examTimeframe === b.key;
+          {([["this_week", "This week"], ["next_week", "Next week"], ["not_sure", "Not sure yet"]] as const).map(([k, label]) => {
+            const active = draft.examChoice === k;
             return (
-              <button key={b.key} type="button"
-                onClick={() => { update("examMode", "bucket"); update("examTimeframe", b.key); update("examDate", ""); }}
-                className={cn("rounded-2xl border px-3 py-4 text-sm font-medium transition",
-                  active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
-                style={active ? { background: NAVY } : undefined}>
-                {b.label}
-              </button>
+              <button key={k} type="button"
+                onClick={() => { update("examChoice", k); update("examDate", ""); }}
+                className={cn("rounded-2xl border px-3 py-4 text-sm font-medium transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+                style={active ? { background: NAVY } : undefined}>{label}</button>
             );
           })}
         </div>
-      </div>
-
-      <div className="mt-6">
-        <PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn>
-        <BackLink onBack={onBack} />
-      </div>
-    </div>
-  );
-}
-
-// ---------- Step 7: Summary → the stack ----------
-function StackStep({ draft, update, pricing, onPick, onBack }: {
-  draft: Draft;
-  update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
-  pricing: ReturnType<typeof computeOrderPricing>;
-  onPick: (tier: "free_teaser" | "made_to_order" | "one_on_one") => void;
-  onBack: () => void;
-}) {
-  // If the exam timing no longer leaves rush on the table, clear any stale rush.
-  useEffect(() => {
-    if (!pricing.rushAvailable && draft.rush) update("rush", false);
-  }, [pricing.rushAvailable, draft.rush, update]);
-
-  const courseLabel = [draft.courseCode, draft.courseName].filter(Boolean).join(" · ") || "Your course";
-  const examLabel = draft.examMode === "date" && draft.examDate
-    ? fmtDate(draft.examDate)
-    : draft.examTimeframe === "this_week" ? "This week"
-    : draft.examTimeframe === "next_week" ? "Next week" : "Not sure yet";
-
-  return (
-    <div>
-      <Title subtitle="Here's what I've got. Now pick how you want it.">Your exam prep</Title>
-
-      {/* recap */}
-      <div className="mb-5 space-y-1.5 rounded-2xl border bg-gray-50 p-4 text-sm">
-        <RecapRow label="School" value={draft.campusName || "—"} />
-        <RecapRow label="Course" value={courseLabel} />
-        {draft.professorName && <RecapRow label="Professor" value={draft.professorName} />}
-        {draft.textbookName && <RecapRow label="Textbook" value={draft.textbookName} />}
-        <RecapRow label="Chapters" value={`${draft.chapters.length} selected`} />
-        <RecapRow label="Exam" value={examLabel} />
-      </div>
-
-      <div className="space-y-3">
-        {/* Free teaser */}
-        <TierCard
-          title="Free teaser" price="$0"
-          desc="Get the free version of this prep when it's released. No payment, ever."
-          cta="Get it free" onClick={() => onPick("free_teaser")} outline
-        />
-
-        {/* Made-to-order */}
-        <div className="rounded-2xl border-2 p-5" style={{ borderColor: RED }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: RED }}>Recommended</span>
-              <h3 className="text-lg font-bold" style={{ color: NAVY }}>Made-to-order</h3>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-extrabold" style={{ color: NAVY }}>{fmtMoney(pricing.totalCents)}</div>
-              <div className="text-[11px] text-gray-500">pay on delivery</div>
+        {pills.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs text-gray-500">Which day?</p>
+            <div className="grid grid-cols-7 gap-1.5">
+              {pills.map((p) => {
+                const active = draft.examDate === p.iso;
+                return (
+                  <button key={p.iso} type="button" disabled={p.past}
+                    onClick={() => update("examDate", p.iso)}
+                    className={cn("flex flex-col items-center rounded-lg border py-2 text-[11px] transition",
+                      p.past ? "cursor-not-allowed opacity-30" : active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+                    style={active ? { background: RED } : undefined}>
+                    <span className="font-semibold">{p.dow}</span><span>{p.day}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <p className="mt-2 text-sm text-gray-600">
-            Custom prep for your exact {draft.chapters.length} chapter{draft.chapters.length === 1 ? "" : "s"}, built around your course &amp; professor.
-          </p>
-
-          {/* delivery check */}
-          <div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm">
-            {pricing.makesItStandard === true && (
-              <p className="flex items-center gap-2 text-emerald-700">
-                <Check className="h-4 w-4" /> Ready by {fmtDate(pricing.deliveryTargetDate)} — before your exam.
-              </p>
-            )}
-            {pricing.makesItStandard === null && (
-              <p className="text-gray-600">Standard delivery: about {pricing.standardDays} days ({fmtDate(pricing.deliveryTargetDate)}).</p>
-            )}
-            {pricing.makesItStandard === false && (
-              <div>
-                <p className="flex items-center gap-2 text-amber-700">
-                  ⚠️ Standard ({pricing.standardDays} days) would land after your exam.
-                </p>
-                <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm font-medium" style={{ color: NAVY }}>
-                  <input type="checkbox" checked={draft.rush} onChange={(e) => update("rush", e.target.checked)} className="h-4 w-4" />
-                  Add Rush (+{fmtMoney(4900)}) to guarantee it before your exam
-                </label>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4">
-            <PrimaryBtn onClick={() => onPick("made_to_order")}>
-              Continue with made-to-order — {fmtMoney(pricing.totalCents)}
-            </PrimaryBtn>
-          </div>
-        </div>
-
-        {/* Premium 1-on-1 */}
-        <TierCard
-          title="Premium 1-on-1" price="$1,250"
-          desc="Lee as your semester coach — live 1-on-1 sessions built around your course. Request contact; no payment now."
-          cta="Request 1-on-1" onClick={() => onPick("one_on_one")} outline
-        />
+        )}
       </div>
 
-      <BackLink onBack={onBack} />
+      {(draft.chapterCount ?? 0) > 0 && (
+        <p className="mt-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+          {draft.examDate
+            ? <>Estimated delivery: <strong>by {fmtDate(pricing.deliveryTargetDate)}</strong></>
+            : draft.examChoice === "not_sure"
+              ? <>Estimated delivery: <strong>{stdDays}–{stdDays + 4} days</strong> after you confirm your exam date</>
+              : <>Estimated delivery: about <strong>{stdDays} days</strong></>}
+        </p>
+      )}
+
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
     </div>
   );
 }
 
-function RecapRow({ label, value }: { label: string; value: string }) {
+// ---------- Receipt (monospace, dotted leaders) ----------
+function ReceiptRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-xs uppercase tracking-wide text-gray-500">{label}</span>
-      <span className="text-right font-medium text-gray-800">{value}</span>
+    <div className="flex items-baseline gap-1.5" style={{ fontFamily: MONO, fontSize: "13px", color: strong ? NAVY : "#374151" }}>
+      <span className={strong ? "font-bold" : ""}>{label}</span>
+      <span className="mb-[3px] flex-1 border-b border-dotted border-gray-400" />
+      <span className={strong ? "font-bold" : ""}>{value}</span>
     </div>
   );
 }
-
-function TierCard({ title, price, desc, cta, onClick, outline }: {
-  title: string; price: string; desc: string; cta: string; onClick: () => void; outline?: boolean;
-}) {
+function Receipt({ draft, pricing }: { draft: Draft; pricing: ReturnType<typeof computeOrderPricing> }) {
+  const course = [draft.courseCode, draft.courseName].filter(Boolean).join(" · ") || "—";
+  const exam = draft.examDate ? fmtDate(draft.examDate) : draft.examChoice === "not_sure" ? "Not sure yet" : "—";
+  const delivery = draft.examDate ? `by ${fmtDate(pricing.deliveryTargetDate)}` : "TBD (set exam date)";
+  const subtotal = fmtMoney(pricing.subtotalCents);
   return (
-    <div className="rounded-2xl border bg-white p-5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold" style={{ color: NAVY }}>{title}</h3>
-        <span className="text-xl font-extrabold" style={{ color: NAVY }}>{price}</span>
+    <div className="rounded-2xl border bg-gray-50 p-4">
+      <div className="space-y-1.5">
+        <ReceiptRow label="SCHOOL" value={draft.campusName || "—"} />
+        <ReceiptRow label="COURSE" value={course} />
+        <ReceiptRow label="PROFESSOR" value={draft.professorName.trim() || "—"} />
+        <ReceiptRow label="CHAPTERS" value={`${draft.chapterCount ?? "—"}`} />
+        <ReceiptRow label="EXAM" value={exam} />
       </div>
-      <p className="mt-1.5 text-sm text-gray-600">{desc}</p>
-      <Button onClick={onClick}
-        className={cn("mt-4 h-11 w-full text-base font-semibold", !outline && "text-white")}
-        variant={outline ? "outline" : undefined}
-        style={outline ? { color: NAVY, borderColor: NAVY } : { background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}>
-        {cta}
-      </Button>
+      <div className="my-2 border-t border-dashed border-gray-300" />
+      <div className="space-y-1.5">
+        <ReceiptRow label="PRE-ORDER" value={subtotal} strong />
+        <ReceiptRow label="DELIVERY" value={delivery} />
+        <ReceiptRow label="DUE TODAY" value="$0" />
+        <ReceiptRow label="DUE ON DELIVERY" value={subtotal} strong />
+      </div>
+      <p className="mt-2 text-[11px] text-gray-500" style={{ fontFamily: MONO }}>Exact chapters locked in from your syllabus after pre-order.</p>
     </div>
   );
 }
 
-// ---------- Step 8: Your info → submit ----------
-function InfoStep({ draft, update, pricing, onBack, onSubmitted }: {
-  draft: Draft;
-  update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
-  pricing: ReturnType<typeof computeOrderPricing>;
-  onBack: () => void;
-  onSubmitted: (r: SubmitOrderResult) => void;
+// ---------- Step 6: Summary + your info ----------
+function SummaryStep({ draft, update, pricing, onBack, onSubmitted }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; pricing: ReturnType<typeof computeOrderPricing>; onBack: () => void; onSubmitted: (r: SubmitOrderResult) => void;
 }) {
   const submitFn = useServerFn(submitOrder);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<null | "made_to_order" | "one_on_one">(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -859,83 +542,71 @@ function InfoStep({ draft, update, pricing, onBack, onSubmitted }: {
     return Object.keys(e).length === 0;
   };
 
-  const submit = async () => {
-    if (!validate() || !draft.tier) return;
-    setBusy(true);
+  const submit = async (tier: "made_to_order" | "one_on_one") => {
+    if (!validate()) return;
+    setBusy(tier);
     try {
+      const groupSize = draft.interestedInGroup && draft.groupSize.trim() ? Number(draft.groupSize) : null;
       const r = await submitFn({
         data: {
-          firstName: draft.firstName.trim(),
-          lastName: draft.lastName.trim(),
-          email: draft.email.trim(),
-          phone: draft.phone.trim(),
-          campusId: draft.campusId,
-          campusText: draft.campusId ? null : (draft.campusName.trim() || null),
-          courseFamily: draft.courseFamily,
-          courseCode: draft.courseCode.trim() || null,
-          courseName: draft.courseName.trim() || null,
-          professorName: draft.professorName.trim() || null,
-          professorLeadId: draft.professorLeadId,
-          textbookName: draft.textbookName.trim() || null,
-          textbookFamilyId: draft.textbookFamilyId,
-          textbookNotes: draft.textbookNotes.trim() || null,
-          examDate: draft.examMode === "date" && draft.examDate ? draft.examDate : null,
-          examTimeframe: draft.examMode === "bucket" ? draft.examTimeframe : null,
-          tier: draft.tier,
-          rush: draft.tier === "made_to_order" ? pricing.rush : false,
-          chapters: draft.chapters.map((c) => ({
-            chapterLabel: c.label,
-            chapterNumber: parseChapterNumber(c.label),
-            struggleNote: c.struggle.trim() || null,
-          })),
+          firstName: draft.firstName.trim(), lastName: draft.lastName.trim(), email: draft.email.trim(), phone: draft.phone.trim(),
+          campusId: draft.campusId, campusText: draft.campusId ? null : (draft.campusName.trim() || null),
+          courseFamily: draft.courseFamily, courseCode: draft.courseCode.trim() || null, courseName: draft.courseName.trim() || null,
+          professorName: draft.professorName.trim() || null, professorLeadId: draft.professorLeadId,
+          examDate: examDateFor(draft), examTimeframe: examTimeframeFor(draft),
+          tier,
+          chapterCountOnly: tier === "made_to_order" ? draft.chapterCount : null,
+          interestedInGroup: draft.interestedInGroup,
+          groupSize: Number.isFinite(groupSize as number) ? groupSize : null,
         },
       });
       onSubmitted(r);
     } catch (e) {
       toast.error((e as Error).message);
-      setBusy(false);
+      setBusy(null);
     }
   };
 
-  const tierLabel = draft.tier === "free_teaser" ? "the free teaser"
-    : draft.tier === "one_on_one" ? "Premium 1-on-1" : "your made-to-order prep";
-
   return (
     <div>
-      <Title subtitle={`Last step — where do I send ${tierLabel}?`}>Your info</Title>
+      <Title subtitle="Here's your pre-order. Nothing due today.">Your Cram Pack</Title>
+      <Receipt draft={draft} pricing={pricing} />
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="First name" error={errors.firstName}>
-          <Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)} autoComplete="given-name" />
-        </Field>
-        <Field label="Last name" error={errors.lastName}>
-          <Input value={draft.lastName} onChange={(e) => update("lastName", e.target.value)} autoComplete="family-name" />
-        </Field>
-        <Field label="Email" error={errors.email}>
-          <Input type="email" value={draft.email} onChange={(e) => update("email", e.target.value)} autoComplete="email" />
-        </Field>
-        <Field label="Phone" error={errors.phone}>
-          <Input type="tel" value={draft.phone} placeholder="(555) 555-5555" onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
-        </Field>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <Field label="First name" error={errors.firstName}><Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)} autoComplete="given-name" /></Field>
+        <Field label="Last name" error={errors.lastName}><Input value={draft.lastName} onChange={(e) => update("lastName", e.target.value)} autoComplete="family-name" /></Field>
+        <Field label="Email" error={errors.email}><Input type="email" value={draft.email} onChange={(e) => update("email", e.target.value)} autoComplete="email" /></Field>
+        <Field label="Phone" error={errors.phone}><Input type="tel" value={draft.phone} placeholder="(555) 555-5555" onChange={(e) => update("phone", e.target.value)} autoComplete="tel" /></Field>
       </div>
 
-      {draft.tier === "made_to_order" && (
-        <div className="mt-4 flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 text-sm">
-          <span className="text-gray-600">Total (pay on delivery)</span>
-          <span className="text-lg font-bold" style={{ color: NAVY }}>{fmtMoney(pricing.totalCents)}</span>
-        </div>
-      )}
+      {/* Trust block */}
+      <div className="mt-5 space-y-2 rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
+        <p><strong>From Lee</strong> — Ole Miss accounting alum, 10+ years tutoring, 1,000 students served.</p>
+        <p><strong>Try For 1 Test Guarantee:</strong> Didn&apos;t help on your test? Reply within 72 hours after your exam — full refund, no questions.</p>
+        <p><strong>Pay on delivery</strong> — nothing today.</p>
+      </div>
 
-      <div className="mt-6">
-        <PrimaryBtn onClick={submit} disabled={busy}>
-          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Submit request"}
+      <div className="mt-5">
+        <PrimaryBtn onClick={() => submit("made_to_order")} disabled={busy !== null}>
+          {busy === "made_to_order" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Pre-order my Cram Pack →"}
         </PrimaryBtn>
-        <BackLink onBack={onBack} />
       </div>
+
+      {/* 1-on-1 secondary card (summary only) */}
+      <div className="mt-4 rounded-2xl border bg-white p-4">
+        <p className="text-sm text-gray-700">
+          Want me as your semester coach instead? <strong>Premium 1-on-1 · $1,250</strong>
+        </p>
+        <Button variant="outline" className="mt-3 h-11 w-full text-base font-semibold" style={{ color: NAVY, borderColor: NAVY }}
+          disabled={busy !== null} onClick={() => submit("one_on_one")}>
+          {busy === "one_on_one" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Tell me about your semester →"}
+        </Button>
+      </div>
+
+      <BackLink onBack={onBack} />
     </div>
   );
 }
-
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
     <div>
@@ -946,60 +617,80 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   );
 }
 
-// ---------- Success ----------
-function SuccessScreen({ draft, result }: { draft: Draft; result: SubmitOrderResult }) {
-  const courseLabel = [draft.courseCode, draft.courseName].filter(Boolean).join(" · ") || "your course";
+// ---------- Confirmation ----------
+function Confirmation({ draft, result, pricing }: { draft: Draft; result: SubmitOrderResult; pricing: ReturnType<typeof computeOrderPricing> }) {
+  const isOneOnOne = result.tier === "one_on_one";
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Header />
-      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-10">
-        <div className="rounded-3xl bg-white p-6 text-center shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-10">
-          <div className="mx-auto grid h-16 w-16 place-content-center rounded-full bg-emerald-50">
-            <Check className="h-9 w-9 text-emerald-600" />
-          </div>
-          <h1 className="mt-5 text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
-            {draft.firstName ? `You're set, ${draft.firstName}!` : "You're set!"}
+      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-8">
+        <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-9">
+          <div className="mx-auto grid h-14 w-14 place-content-center rounded-full bg-emerald-50"><Check className="h-8 w-8 text-emerald-600" /></div>
+          <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
+            {isOneOnOne ? "Request received" : "Pre-order received"} — order #{result.shortRef}
           </h1>
-          <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
-            Reference <span className="font-mono font-semibold">{result.shortRef}</span>
-          </p>
 
-          <div className="mx-auto mt-6 max-w-sm space-y-1.5 rounded-2xl border bg-gray-50 p-4 text-left text-sm">
-            <RecapRow label="Course" value={courseLabel} />
-            {draft.professorName && <RecapRow label="Professor" value={draft.professorName} />}
-            <RecapRow label="Chapters" value={`${result.chapterCount}`} />
-            {result.tier === "made_to_order" && (
-              <>
-                <RecapRow label="Total" value={`${fmtMoney(result.totalCents)} — pay on delivery`} />
-                {result.deliveryTargetDate && <RecapRow label="Ready by" value={fmtDate(result.deliveryTargetDate)} />}
-              </>
-            )}
-            <RecapRow label="Option" value={
-              result.tier === "free_teaser" ? "Free teaser"
-              : result.tier === "one_on_one" ? "Premium 1-on-1" : "Made-to-order"
-            } />
-          </div>
+          {!isOneOnOne && <div className="mt-6"><Receipt draft={draft} pricing={pricing} /></div>}
 
-          <div className="mx-auto mt-6 max-w-md text-left text-sm text-gray-700">
-            <p className="font-semibold" style={{ color: NAVY }}>What happens next</p>
-            <ul className="mt-2 space-y-1.5">
-              {result.tier === "free_teaser" && <li>• I&apos;ll email you the free version the moment it&apos;s ready.</li>}
-              {result.tier === "made_to_order" && (
+          <div className="mt-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What happens next</p>
+            <ol className="mt-3 space-y-3 text-sm text-gray-800">
+              {isOneOnOne ? (
+                <li className="flex gap-3"><Num n={1} /> I&apos;ll reach out personally to hear about your semester and set up your sessions.</li>
+              ) : (
                 <>
-                  <li>• I&apos;ll build your prep for these exact chapters.</li>
-                  {result.deliveryTargetDate && <li>• It&apos;ll be ready by {fmtDate(result.deliveryTargetDate)}.</li>}
-                  <li>• You pay on delivery — nothing now.</li>
+                  <li className="flex gap-3"><Num n={1} /> I&apos;ll text you within 24 hours to confirm chapter details + grab your syllabus.</li>
+                  <li className="flex gap-3"><Num n={2} /> I build your Cram Pack and you can watch progress on your order page.</li>
+                  <li className="flex gap-3"><Num n={3} /> Pack delivered before your exam. Pay only if it helped.</li>
                 </>
               )}
-              {result.tier === "one_on_one" && <li>• I&apos;ll reach out personally to set up your sessions.</li>}
-            </ul>
+            </ol>
           </div>
 
-          <p className="mt-6 text-sm text-gray-600">
+          {!isOneOnOne && (
+            <a href={`/order/${result.shortRef}`} className="mt-6 block">
+              <Button className="h-12 w-full text-base font-bold text-white" style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}>
+                Track your order →
+              </Button>
+            </a>
+          )}
+
+          <p className="mt-6 text-center text-sm text-gray-600">
             Questions? Text me at{" "}
             <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>{WORK_PHONE_DISPLAY}</a>
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+function Num({ n }: { n: number }) {
+  return <span className="grid h-6 w-6 shrink-0 place-content-center rounded-full text-xs font-bold text-white" style={{ background: NAVY }}>{n}</span>;
+}
+
+// ---------- FAQ (under the wizard, not inside it) ----------
+const FAQS: { q: string; a: string }[] = [
+  { q: "What's in a Cram Pack?", a: "Practice exam questions + short video walk-throughs of the tough ones — made for your textbook and your professor's exam style." },
+  { q: "When do I pay?", a: "On delivery — not before. If it didn't help on your test, reply within 72 hours of your exam for a full refund." },
+  { q: "How fast?", a: "Usually 2 days per chapter. Rush available if your exam is sooner. Estimated delivery date shows up before you order." },
+];
+function OrderFaq() {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <div className="mx-auto mt-8 max-w-2xl">
+      <h2 className="mb-3 text-center text-sm font-bold uppercase tracking-wide text-gray-500">Questions</h2>
+      <div className="space-y-2">
+        {FAQS.map((f, i) => {
+          const isOpen = open === i;
+          return (
+            <div key={f.q} className="overflow-hidden rounded-2xl border bg-white">
+              <button type="button" onClick={() => setOpen(isOpen ? null : i)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold" style={{ color: NAVY }}>
+                {f.q}<ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
+              </button>
+              {isOpen && <p className="px-4 pb-4 text-sm text-gray-600">{f.a}</p>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
