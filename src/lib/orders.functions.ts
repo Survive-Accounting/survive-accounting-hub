@@ -272,10 +272,14 @@ export const submitOrder = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const chapters = data.chapters ?? [];
     const isMTO = data.tier === "made_to_order";
-    // Pre-order is a QUOTE by chapter COUNT; the chapters array is legacy/optional.
-    const chapterCount = data.chapterCountOnly ?? chapters.length;
+    // A Custom Study Pack REQUEST has no finalized price: pricing is only computed
+    // when a concrete chapterCountOnly is provided (kept for back-compat). The
+    // request flow passes chapterCountOnly = null, so subtotal/total stay $0 and
+    // delivery is null until Lee builds a preview and sets an unlock price.
+    const hasFinalCount = typeof data.chapterCountOnly === "number" && data.chapterCountOnly > 0;
+    const chapterCount = hasFinalCount ? (data.chapterCountOnly as number) : 0;
+    const priced = isMTO && hasFinalCount;
 
-    // Server-side source of truth — same formula the student saw.
     const pricing = computeOrderPricing({
       chapterCount,
       examDate: data.examDate ?? null,
@@ -306,12 +310,12 @@ export const submitOrder = createServerFn({ method: "POST" })
       interested_in_group: data.interestedInGroup ?? false,
       group_size: data.groupSize ?? null,
       awaiting_syllabus: true,
-      subtotal_cents: isMTO ? pricing.subtotalCents : 0,
-      rush: isMTO ? pricing.rush : false,
-      rush_fee_cents: isMTO ? pricing.rushFeeCents : 0,
-      total_cents: isMTO ? pricing.totalCents : 0,
-      delivery_estimate_days: isMTO ? pricing.standardDays : null,
-      delivery_target_date: isMTO ? pricing.deliveryTargetDate : null,
+      subtotal_cents: priced ? pricing.subtotalCents : 0,
+      rush: priced ? pricing.rush : false,
+      rush_fee_cents: priced ? pricing.rushFeeCents : 0,
+      total_cents: priced ? pricing.totalCents : 0,
+      delivery_estimate_days: priced ? pricing.standardDays : null,
+      delivery_target_date: priced ? pricing.deliveryTargetDate : null,
       source: "order_flow",
       status: "new",
     };

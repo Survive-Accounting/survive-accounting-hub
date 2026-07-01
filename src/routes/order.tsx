@@ -1,9 +1,10 @@
-// /order — Cram Pack PRE-ORDER wizard. A pre-order is a QUOTE by chapter count,
-// not a fully-specified order: the student gives campus → course → professor →
-// how many chapters → exam date → contact. The specifics (textbook, exact
-// chapters, syllabus, requests) are collected post-order in the Track Your Order
-// conversation. Submit saves SERVER-SIDE (service-role). Pay on delivery.
-import { useEffect, useMemo, useState } from "react";
+// /order — Custom Study Pack REQUEST flow. The student requests a custom study
+// pack for free; Lee reviews and builds a preview; the student pays only to
+// unlock the full pack. This is supplemental study help (short videos, practice
+// exam-style questions, answer explanations, a simple study plan) — it does not
+// replace class, homework, textbook, or professor materials.
+// Nothing is charged here. Submit saves SERVER-SIDE (service-role) via submitOrder.
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
@@ -18,9 +19,6 @@ import {
   getOrderCampusContext,
   searchOrderProfessors,
   submitOrder,
-  subtotalCentsForChapters,
-  computeOrderPricing,
-  STANDARD_DAYS_PER_CHAPTER,
   type FamilyKey,
   type OrderCampusContext,
   type ProfessorLite,
@@ -33,14 +31,14 @@ const RED = "#CE1126";
 const LOGO_URL = "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 const WORK_PHONE_DISPLAY = "(662) 565-8818";
 const WORK_PHONE_HREF = "+16625658818";
-const HEADER_PILL = "Cram Packs from $30 · Pay on delivery · Free if it didn't help on your test";
+const HEADER_PILL = "Free to request · Preview before payment · Pay only to unlock";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
     meta: [
-      { title: "Pre-order your Cram Pack — Survive Accounting" },
-      { name: "description", content: "Practice exam + video walk-throughs, made for your exact course. Pay on delivery." },
+      { title: "Request a Custom Study Pack — Survive Accounting" },
+      { name: "description", content: "Free to request. Preview before payment. Pay only to unlock. Short videos, practice questions, and a simple study plan made for your course." },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -54,9 +52,19 @@ const FAMILY_LABELS: Record<FamilyKey, string> = {
   intermediate_2: "Intermediate Accounting II",
 };
 const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
-const STEPS = ["School", "Course", "Professor", "Chapters", "Exam", "Your info"] as const;
+const STEPS = ["School", "Course", "Professor", "Request", "Exam", "Your info"] as const;
 
-const fmtMoney = (cents: number) => `$${Math.round(cents / 100)}`;
+type RequestScope = "topic" | "chapter" | "exam" | "not_sure";
+const SCOPES: { value: RequestScope; label: string; helper: string }[] = [
+  { value: "topic", label: "One topic I’m stuck on", helper: "Best for one confusing concept or homework area." },
+  { value: "chapter", label: "One chapter", helper: "Best if your test is focused on a specific chapter." },
+  { value: "exam", label: "Everything on my next exam", helper: "Best for a broader exam review pack." },
+  { value: "not_sure", label: "I’m not sure — I’ll send what I have", helper: "Upload or describe your review sheet, syllabus, or homework." },
+];
+const SCOPE_LABEL: Record<RequestScope, string> = SCOPES.reduce(
+  (m, s) => { m[s.value] = s.label; return m; }, {} as Record<RequestScope, string>,
+);
+
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
@@ -64,7 +72,7 @@ type Draft = {
   campusId: string | null; campusName: string; campusOther: boolean;
   courseFamily: FamilyKey | null; courseCode: string; courseName: string; courseOther: boolean;
   professorName: string; professorLeadId: string | null;
-  chapterCount: number | null;               // 1..5 (5 = "5+")
+  requestScope: RequestScope | null; requestNotes: string;
   interestedInGroup: boolean; groupSize: string;
   examChoice: "date" | "this_week" | "next_week" | "not_sure" | null;
   examDate: string;                           // concrete yyyy-mm-dd
@@ -75,18 +83,24 @@ const EMPTY: Draft = {
   campusId: null, campusName: "", campusOther: false,
   courseFamily: null, courseCode: "", courseName: "", courseOther: false,
   professorName: "", professorLeadId: null,
-  chapterCount: null, interestedInGroup: false, groupSize: "",
+  requestScope: null, requestNotes: "",
+  interestedInGroup: false, groupSize: "",
   examChoice: null, examDate: "",
   firstName: "", lastName: "", email: "", phone: "",
 };
 
-// Exam timeframe stored on submit: a concrete date beats a bucket; "not sure"
-// keeps the bucket with a null date.
 function examTimeframeFor(d: Draft): ExamTimeframe | null {
   return d.examChoice === "not_sure" ? "not_sure" : null;
 }
 function examDateFor(d: Draft): string | null {
   return d.examDate ? d.examDate : null;
+}
+function examLabel(d: Draft): string {
+  if (d.examDate) return fmtDate(d.examDate);
+  if (d.examChoice === "not_sure") return "Not sure yet";
+  if (d.examChoice === "this_week") return "This week";
+  if (d.examChoice === "next_week") return "Next week";
+  return "—";
 }
 
 function OrderPage() {
@@ -104,20 +118,10 @@ function OrderPage() {
     return () => { off = true; };
   }, [draft.campusId, ctxFn]);
 
-  const pricing = useMemo(
-    () => computeOrderPricing({
-      chapterCount: draft.chapterCount ?? 0,
-      examDate: examDateFor(draft),
-      timeframe: examTimeframeFor(draft),
-      rush: false,
-    }),
-    [draft.chapterCount, draft.examDate, draft.examChoice],
-  );
-
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
-  if (result) return <Confirmation draft={draft} result={result} pricing={pricing} />;
+  if (result) return <Confirmation draft={draft} result={result} />;
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
@@ -130,9 +134,9 @@ function OrderPage() {
           {step === 0 && <CampusStep draft={draft} update={update} onNext={next} />}
           {step === 1 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
           {step === 2 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 3 && <ChaptersStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 4 && <ExamStep draft={draft} update={update} pricing={pricing} onNext={next} onBack={back} />}
-          {step === 5 && <SummaryStep draft={draft} update={update} pricing={pricing} onBack={back} onSubmitted={setResult} />}
+          {step === 3 && <RequestStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 4 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 5 && <SummaryStep draft={draft} update={update} onBack={back} onSubmitted={setResult} />}
         </div>
         <StepFooter />
         <OrderFaq />
@@ -208,7 +212,7 @@ function BackLink({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ---------- Step 1: School ----------
+// ---------- Step 1: School (behavior unchanged) ----------
 function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void }) {
   const searchFn = useServerFn(searchCampuses);
   const [query, setQuery] = useState("");
@@ -229,7 +233,7 @@ function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extend
   const picked = !!draft.campusId || (draft.campusOther && draft.campusName.trim().length > 0);
   return (
     <div>
-      <Title subtitle="So I can match your exact course.">Where do you go?</Title>
+      <Title subtitle="So I can match your course, professor, and textbook.">Where do you go?</Title>
       {draft.campusId && !draft.campusOther ? (
         <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-4 py-3">
           <span className="text-sm font-medium">{draft.campusName}</span>
@@ -262,14 +266,13 @@ function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extend
   );
 }
 
-// ---------- Step 2: Course ----------
+// ---------- Step 2: Course (behavior unchanged; copy updated) ----------
 function CourseStep({ draft, update, ctx, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; ctx: OrderCampusContext | null; onNext: () => void; onBack: () => void;
 }) {
   const hasCodes = !!ctx && FAMILY_ORDER.some((f) => ctx.codes[f] || ctx.titles[f]);
   const forceOther = draft.campusOther || (!!draft.campusId && ctx !== null && !hasCodes);
   const otherMode = draft.courseOther || forceOther;
-  const courseNameForPitch = draft.courseName.trim() || "your course";
 
   const pickFamily = (f: FamilyKey) => {
     update("courseFamily", f); update("courseCode", ctx?.codes[f] ?? "");
@@ -279,9 +282,9 @@ function CourseStep({ draft, update, ctx, onNext, onBack }: {
 
   return (
     <div>
-      <Title subtitle="Which accounting course is this for?">Your course</Title>
+      <Title subtitle="I’ll use your course to build a study pack that matches what you’re actually learning.">Which accounting course is this for?</Title>
       <p className="mb-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
-        Pre-order a Cram Pack for <strong>{courseNameForPitch}</strong> — practice exam + video walk-throughs, made for your exact course, professor, and textbook.
+        Tell me your course first. Then I’ll ask what’s on your test or what topic you’re stuck on.
       </p>
       {!otherMode ? (
         <>
@@ -315,7 +318,7 @@ function CourseStep({ draft, update, ctx, onNext, onBack }: {
   );
 }
 
-// ---------- Step 3: Professor (emailed-first list) ----------
+// ---------- Step 3: Professor (behavior unchanged; copy updated) ----------
 function ProfessorStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
@@ -336,7 +339,7 @@ function ProfessorStep({ draft, update, onNext, onBack }: {
 
   return (
     <div>
-      <Title subtitle="So I match your professor's exam style.">Who&apos;s your professor?</Title>
+      <Title subtitle="This helps me match your class as closely as possible.">Who&apos;s your professor?</Title>
       <Input placeholder="Type your professor's name" value={draft.professorName} autoFocus
         onChange={(e) => { update("professorName", e.target.value); update("professorLeadId", null); setShowAll(false); }} />
 
@@ -370,34 +373,43 @@ function ProfessorStep({ draft, update, onNext, onBack }: {
   );
 }
 
-// ---------- Step 4: How many chapters ----------
-const CHAPTER_OPTIONS = [1, 2, 3, 4, 5] as const;
-function ChaptersStep({ draft, update, onNext, onBack }: {
+// ---------- Step 4: What do you need? (replaces the chapter-count step) ----------
+function RequestStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
+  const canContinue = !!draft.requestScope;
   return (
     <div>
-      <Title subtitle="We'll lock in the exact chapters from your syllabus after you pre-order.">How many chapters on the exam?</Title>
-      <div className="grid grid-cols-5 gap-2">
-        {CHAPTER_OPTIONS.map((n) => {
-          const active = draft.chapterCount === n;
-          const label = n === 5 ? "5+" : String(n);
+      <Title subtitle="Tell me what to build. You can be specific, or just send what you have.">What do you want help with?</Title>
+      <div className="space-y-2">
+        {SCOPES.map((s) => {
+          const active = draft.requestScope === s.value;
           return (
-            <button key={n} type="button" onClick={() => update("chapterCount", n)}
-              className={cn("flex flex-col items-center gap-1 rounded-2xl border py-4 transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+            <button key={s.value} type="button" onClick={() => update("requestScope", s.value)}
+              className={cn("flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
               style={active ? { background: NAVY } : undefined}>
-              <span className="text-xl font-bold">{label}</span>
-              <span className={cn("text-[11px]", active ? "text-white/80" : "text-gray-500")}>{fmtMoney(subtotalCentsForChapters(n))}</span>
+              <span>
+                <span className="block font-medium">{s.label}</span>
+                <span className={cn("block text-xs", active ? "text-white/75" : "text-gray-500")}>{s.helper}</span>
+              </span>
+              {active && <Check className="mt-0.5 h-4 w-4 shrink-0" />}
             </button>
           );
         })}
       </div>
 
-      <div className="mt-5 rounded-xl border bg-gray-50 p-3">
+      <div className="mt-5">
+        <Label className="mb-1.5 block text-sm font-medium text-gray-800">What topics, chapters, or questions should I focus on?</Label>
+        <textarea rows={4} value={draft.requestNotes} onChange={(e) => update("requestNotes", e.target.value)}
+          placeholder="Example: adjusting entries, bonds, leases, statement of cash flows, job-order costing, CVP, or “I uploaded my review sheet.”"
+          className="w-full rounded-xl border border-input bg-background p-3 text-sm" />
+      </div>
+
+      <div className="mt-4 rounded-xl border bg-gray-50 p-3">
         <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800">
           <input type="checkbox" checked={draft.interestedInGroup} className="mt-0.5 h-4 w-4"
             onChange={(e) => update("interestedInGroup", e.target.checked)} />
-          <span>Got classmates in the same class? I can prep this for the group — usually faster, possibly cheaper.</span>
+          <span>I have classmates in the same class who may want this too.</span>
         </label>
         {draft.interestedInGroup && (
           <div className="mt-3 flex items-center gap-2">
@@ -407,12 +419,12 @@ function ChaptersStep({ draft, update, onNext, onBack }: {
         )}
       </div>
 
-      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!draft.chapterCount}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
     </div>
   );
 }
 
-// ---------- Step 5: Exam ----------
+// ---------- Step 5: Exam (behavior unchanged; preview language) ----------
 function weekDates(offset: number) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const mondayIdx = (today.getDay() + 6) % 7;
@@ -423,17 +435,16 @@ function weekDates(offset: number) {
     return { iso: d.toISOString().slice(0, 10), dow: names[i], day: d.getDate(), past: d < today };
   });
 }
-function ExamStep({ draft, update, pricing, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; pricing: ReturnType<typeof computeOrderPricing>; onNext: () => void; onBack: () => void;
+function ExamStep({ draft, update, onNext, onBack }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const pills = draft.examChoice === "this_week" ? weekDates(0) : draft.examChoice === "next_week" ? weekDates(1) : [];
   const canContinue = !!draft.examDate || draft.examChoice === "not_sure";
-  const stdDays = STANDARD_DAYS_PER_CHAPTER * (draft.chapterCount ?? 0);
 
   return (
     <div>
-      <Title subtitle="So your Cram Pack lands in time.">When&apos;s your exam?</Title>
+      <Title subtitle="So I know whether there’s enough time to make something useful.">When&apos;s your exam?</Title>
       <div className="space-y-4">
         <div className="rounded-2xl border bg-white p-4">
           <Label className="mb-2 block text-sm font-medium">I know the date</Label>
@@ -473,13 +484,13 @@ function ExamStep({ draft, update, pricing, onNext, onBack }: {
         )}
       </div>
 
-      {(draft.chapterCount ?? 0) > 0 && (
+      {draft.examChoice && (
         <p className="mt-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
           {draft.examDate
-            ? <>Estimated delivery: <strong>by {fmtDate(pricing.deliveryTargetDate)}</strong></>
+            ? <>Estimated preview: <strong>before {fmtDate(draft.examDate)}</strong></>
             : draft.examChoice === "not_sure"
-              ? <>Estimated delivery: <strong>{stdDays}–{stdDays + 4} days</strong> after you confirm your exam date</>
-              : <>Estimated delivery: about <strong>{stdDays} days</strong></>}
+              ? "No problem — I’ll use this to help prioritize your request."
+              : "I’ll confirm timing by text before I build the full pack."}
         </p>
       )}
 
@@ -488,7 +499,7 @@ function ExamStep({ draft, update, pricing, onNext, onBack }: {
   );
 }
 
-// ---------- Receipt (monospace, dotted leaders) ----------
+// ---------- Request summary (monospace, dotted leaders) ----------
 function ReceiptRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex items-baseline gap-1.5" style={{ fontFamily: MONO, fontSize: "13px", color: strong ? NAVY : "#374151" }}>
@@ -498,38 +509,42 @@ function ReceiptRow({ label, value, strong }: { label: string; value: string; st
     </div>
   );
 }
-function Receipt({ draft, pricing }: { draft: Draft; pricing: ReturnType<typeof computeOrderPricing> }) {
+function RequestSummary({ draft }: { draft: Draft }) {
   const course = [draft.courseCode, draft.courseName].filter(Boolean).join(" · ") || "—";
-  const exam = draft.examDate ? fmtDate(draft.examDate) : draft.examChoice === "not_sure" ? "Not sure yet" : "—";
-  const delivery = draft.examDate ? `by ${fmtDate(pricing.deliveryTargetDate)}` : "TBD (set exam date)";
-  const subtotal = fmtMoney(pricing.subtotalCents);
+  const requestType = draft.requestScope ? SCOPE_LABEL[draft.requestScope] : "—";
   return (
     <div className="rounded-2xl border bg-gray-50 p-4">
       <div className="space-y-1.5">
         <ReceiptRow label="SCHOOL" value={draft.campusName || "—"} />
         <ReceiptRow label="COURSE" value={course} />
         <ReceiptRow label="PROFESSOR" value={draft.professorName.trim() || "—"} />
-        <ReceiptRow label="CHAPTERS" value={`${draft.chapterCount ?? "—"}`} />
-        <ReceiptRow label="EXAM" value={exam} />
+        <ReceiptRow label="REQUEST" value={requestType} />
+        <ReceiptRow label="EXAM" value={examLabel(draft)} />
       </div>
-      <div className="my-2 border-t border-dashed border-gray-300" />
-      <div className="space-y-1.5">
-        <ReceiptRow label="PRE-ORDER" value={subtotal} strong />
-        <ReceiptRow label="DELIVERY" value={delivery} />
-        <ReceiptRow label="DUE TODAY" value="$0" />
-        <ReceiptRow label="DUE ON DELIVERY" value={subtotal} strong />
+      {draft.requestNotes.trim() && (
+        <div className="mt-3 border-t border-dashed border-gray-300 pt-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500" style={{ fontFamily: MONO }}>Focus</p>
+          <p className="mt-1 text-sm text-gray-700">{draft.requestNotes.trim()}</p>
+        </div>
+      )}
+      <div className="mt-3 border-t border-dashed border-gray-300 pt-3 space-y-1.5">
+        <ReceiptRow label="DUE TODAY" value="$0" strong />
       </div>
-      <p className="mt-2 text-[11px] text-gray-500" style={{ fontFamily: MONO }}>Exact chapters locked in from your syllabus after pre-order.</p>
+      <ul className="mt-3 space-y-1 text-[12px] text-gray-600">
+        <li>Next step: I make a preview.</li>
+        <li>Payment: only if you unlock the full pack.</li>
+        <li>Estimated price: usually $30–$100 depending on scope.</li>
+      </ul>
     </div>
   );
 }
 
-// ---------- Step 6: Summary + your info ----------
-function SummaryStep({ draft, update, pricing, onBack, onSubmitted }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; pricing: ReturnType<typeof computeOrderPricing>; onBack: () => void; onSubmitted: (r: SubmitOrderResult) => void;
+// ---------- Step 6: Request summary + your info ----------
+function SummaryStep({ draft, update, onBack, onSubmitted }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onBack: () => void; onSubmitted: (r: SubmitOrderResult) => void;
 }) {
   const submitFn = useServerFn(submitOrder);
-  const [busy, setBusy] = useState<null | "made_to_order" | "one_on_one">(null);
+  const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -542,11 +557,17 @@ function SummaryStep({ draft, update, pricing, onBack, onSubmitted }: {
     return Object.keys(e).length === 0;
   };
 
-  const submit = async (tier: "made_to_order" | "one_on_one") => {
+  const submit = async () => {
     if (!validate()) return;
-    setBusy(tier);
+    setBusy(true);
     try {
       const groupSize = draft.interestedInGroup && draft.groupSize.trim() ? Number(draft.groupSize) : null;
+      // Map the request into the existing order fields: no finalized price yet, so
+      // chapterCountOnly = null (submitOrder keeps subtotal/total at $0). The scope
+      // + notes ride along as a single order_chapters row so Lee sees the ask.
+      const chapters = draft.requestScope
+        ? [{ chapterLabel: SCOPE_LABEL[draft.requestScope], chapterNumber: null, struggleNote: draft.requestNotes.trim() || null }]
+        : [];
       const r = await submitFn({
         data: {
           firstName: draft.firstName.trim(), lastName: draft.lastName.trim(), email: draft.email.trim(), phone: draft.phone.trim(),
@@ -554,23 +575,24 @@ function SummaryStep({ draft, update, pricing, onBack, onSubmitted }: {
           courseFamily: draft.courseFamily, courseCode: draft.courseCode.trim() || null, courseName: draft.courseName.trim() || null,
           professorName: draft.professorName.trim() || null, professorLeadId: draft.professorLeadId,
           examDate: examDateFor(draft), examTimeframe: examTimeframeFor(draft),
-          tier,
-          chapterCountOnly: tier === "made_to_order" ? draft.chapterCount : null,
+          tier: "made_to_order",
+          chapterCountOnly: null,
           interestedInGroup: draft.interestedInGroup,
           groupSize: Number.isFinite(groupSize as number) ? groupSize : null,
+          chapters,
         },
       });
       onSubmitted(r);
     } catch (e) {
       toast.error((e as Error).message);
-      setBusy(null);
+      setBusy(false);
     }
   };
 
   return (
     <div>
-      <Title subtitle="Here's your pre-order. Nothing due today.">Your Cram Pack</Title>
-      <Receipt draft={draft} pricing={pricing} />
+      <Title subtitle="Nothing is due today. I’ll text you a preview when it’s ready.">Your Custom Study Pack Request</Title>
+      <RequestSummary draft={draft} />
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <Field label="First name" error={errors.firstName}><Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)} autoComplete="given-name" /></Field>
@@ -579,28 +601,15 @@ function SummaryStep({ draft, update, pricing, onBack, onSubmitted }: {
         <Field label="Phone" error={errors.phone}><Input type="tel" value={draft.phone} placeholder="(555) 555-5555" onChange={(e) => update("phone", e.target.value)} autoComplete="tel" /></Field>
       </div>
 
-      {/* Trust block */}
       <div className="mt-5 space-y-2 rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
-        <p><strong>From Lee</strong> — Ole Miss accounting alum, 10+ years tutoring, 1,000 students served.</p>
-        <p><strong>Try For 1 Test Guarantee:</strong> Didn&apos;t help on your test? Reply within 72 hours after your exam — full refund, no questions.</p>
-        <p><strong>Pay on delivery</strong> — nothing today.</p>
+        <p><strong>From Lee</strong> — Ole Miss accounting alum, 10+ years tutoring.</p>
+        <p><strong>Free to request. Preview before payment. Pay only to unlock.</strong></p>
       </div>
 
       <div className="mt-5">
-        <PrimaryBtn onClick={() => submit("made_to_order")} disabled={busy !== null}>
-          {busy === "made_to_order" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Pre-order my Cram Pack →"}
+        <PrimaryBtn onClick={submit} disabled={busy}>
+          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Send my request to Lee →"}
         </PrimaryBtn>
-      </div>
-
-      {/* 1-on-1 secondary card (summary only) */}
-      <div className="mt-4 rounded-2xl border bg-white p-4">
-        <p className="text-sm text-gray-700">
-          Want me as your semester coach instead? <strong>Premium 1-on-1 · $1,250</strong>
-        </p>
-        <Button variant="outline" className="mt-3 h-11 w-full text-base font-semibold" style={{ color: NAVY, borderColor: NAVY }}
-          disabled={busy !== null} onClick={() => submit("one_on_one")}>
-          {busy === "one_on_one" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Tell me about your semester →"}
-        </Button>
       </div>
 
       <BackLink onBack={onBack} />
@@ -618,46 +627,34 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 // ---------- Confirmation ----------
-function Confirmation({ draft, result, pricing }: { draft: Draft; result: SubmitOrderResult; pricing: ReturnType<typeof computeOrderPricing> }) {
-  const isOneOnOne = result.tier === "one_on_one";
+function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResult }) {
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Header />
       <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-8">
         <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-9">
           <div className="mx-auto grid h-14 w-14 place-content-center rounded-full bg-emerald-50"><Check className="h-8 w-8 text-emerald-600" /></div>
-          <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>
-            {isOneOnOne ? "Request received" : "Pre-order received"} — order #{result.shortRef}
-          </h1>
+          <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>Request received</h1>
+          <p className="mx-auto mt-2 max-w-md text-center text-sm text-gray-600">
+            Your request is in{result.shortRef ? <> (request <span className="font-mono font-semibold">{result.shortRef}</span>)</> : null}. I’ll review what you sent and text you a preview when it’s ready.
+          </p>
 
-          {!isOneOnOne && <div className="mt-6"><Receipt draft={draft} pricing={pricing} /></div>}
+          <div className="mt-6"><RequestSummary draft={draft} /></div>
 
           <div className="mt-6">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What happens next</p>
             <ol className="mt-3 space-y-3 text-sm text-gray-800">
-              {isOneOnOne ? (
-                <li className="flex gap-3"><Num n={1} /> I&apos;ll reach out personally to hear about your semester and set up your sessions.</li>
-              ) : (
-                <>
-                  <li className="flex gap-3"><Num n={1} /> I&apos;ll text you within 24 hours to confirm chapter details + grab your syllabus.</li>
-                  <li className="flex gap-3"><Num n={2} /> I build your Cram Pack and you can watch progress on your order page.</li>
-                  <li className="flex gap-3"><Num n={3} /> Pack delivered before your exam. Pay only if it helped.</li>
-                </>
-              )}
+              <li className="flex gap-3"><Num n={1} /> I review your course, professor, exam timing, and request.</li>
+              <li className="flex gap-3"><Num n={2} /> I make a preview of the Custom Study Pack.</li>
+              <li className="flex gap-3"><Num n={3} /> I text you the preview link.</li>
+              <li className="flex gap-3"><Num n={4} /> You pay only if you want to unlock the full pack.</li>
             </ol>
           </div>
 
-          {!isOneOnOne && (
-            <a href={`/order/${result.shortRef}`} className="mt-6 block">
-              <Button className="h-12 w-full text-base font-bold text-white" style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)` }}>
-                Track your order →
-              </Button>
-            </a>
-          )}
-
           <p className="mt-6 text-center text-sm text-gray-600">
-            Questions? Text me at{" "}
-            <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>{WORK_PHONE_DISPLAY}</a>
+            Need live tutoring instead?{" "}
+            <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>Text Lee</a>
+            {" "}at {WORK_PHONE_DISPLAY}
           </p>
         </div>
       </div>
@@ -670,9 +667,10 @@ function Num({ n }: { n: number }) {
 
 // ---------- FAQ (under the wizard, not inside it) ----------
 const FAQS: { q: string; a: string }[] = [
-  { q: "What's in a Cram Pack?", a: "Practice exam questions + short video walk-throughs of the tough ones — made for your textbook and your professor's exam style." },
-  { q: "When do I pay?", a: "On delivery — not before. If it didn't help on your test, reply within 72 hours of your exam for a full refund." },
-  { q: "How fast?", a: "Usually 2 days per chapter. Rush available if your exam is sooner. Estimated delivery date shows up before you order." },
+  { q: "What’s in a Custom Study Pack?", a: "Short videos, practice exam-style questions, answer explanations, and a simple study plan for the topics you request. Each pack is made or reviewed by Lee to supplement your studying." },
+  { q: "When do I pay?", a: "Nothing is due when you submit a request. I’ll text you a preview first. You only pay if you want to unlock the full pack." },
+  { q: "How fast?", a: "Usually 1–2 days for a small pack. Bigger exam packs or rush requests depend on your exam date and what you need covered. I’ll confirm timing by text." },
+  { q: "Does this replace studying?", a: "No. This is meant to help you study faster and practice better. You should still use your class notes, homework, textbook, and professor’s materials." },
 ];
 function OrderFaq() {
   const [open, setOpen] = useState<number | null>(0);
