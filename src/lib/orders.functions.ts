@@ -247,8 +247,10 @@ const submitOrderSchema = z.object({
   examTimeframe: z.enum(["this_week", "next_week", "not_sure"]).nullable().optional(),
   tier: z.enum(["free_teaser", "made_to_order", "one_on_one"]),
   rush: z.boolean().optional(),
-  // Pre-order (quote) fields — the specifics move to the post-order Track flow.
+  // Request fields — the specifics are refined in the post-request tracker.
   chapterCountOnly: z.number().int().min(0).max(50).nullable().optional(),
+  requestScope: z.enum(["topic", "chapter", "exam", "not_sure"]).nullable().optional(),
+  requestNotes: z.string().trim().max(4000).nullable().optional(),
   interestedInGroup: z.boolean().optional(),
   groupSize: z.number().int().min(0).max(500).nullable().optional(),
   chapters: z.array(chapterSchema).max(40).optional(),
@@ -307,6 +309,8 @@ export const submitOrder = createServerFn({ method: "POST" })
       tier: data.tier,
       chapter_count: chapterCount,
       chapter_count_only: data.chapterCountOnly ?? null,
+      request_scope: data.requestScope ?? null,
+      request_notes: data.requestNotes ?? null,
       interested_in_group: data.interestedInGroup ?? false,
       group_size: data.groupSize ?? null,
       awaiting_syllabus: true,

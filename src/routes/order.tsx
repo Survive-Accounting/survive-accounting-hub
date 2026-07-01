@@ -603,6 +603,8 @@ function SummaryStep({ draft, update, onBack, onSubmitted }: {
           examDate: examDateFor(draft), examTimeframe: examTimeframeFor(draft),
           tier: "made_to_order",
           chapterCountOnly: null,
+          requestScope: draft.requestScope,
+          requestNotes: draft.requestNotes.trim() || null,
           interestedInGroup: draft.interestedInGroup,
           groupSize: Number.isFinite(groupSize as number) ? groupSize : null,
           chapters,

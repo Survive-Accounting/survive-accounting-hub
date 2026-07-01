@@ -239,3 +239,88 @@ export const setAwaitingSyllabus = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const, value: data.value };
   });
+
+// ---- Custom Study Pack stage timeline (admin) ----------------------------
+export type AdminStageEvent = {
+  id: string;
+  stage: string;
+  note: string | null;
+  student_visible_message: string | null;
+  preview_url: string | null;
+  unlock_price_cents: number | null;
+  unlock_url: string | null;
+  created_at: string;
+};
+const STAGE_ENUM = z.enum([
+  "request_received", "reviewing", "preview_in_progress", "preview_ready", "unlocked", "delivered", "post_exam_check_in",
+]);
+
+export const getOrderTimeline = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ short_ref: z.string().trim().min(1).max(20) }).parse(d))
+  .handler(async ({ data }): Promise<AdminStageEvent[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: order } = await (supabaseAdmin.from("orders" as never) as any).select("id").eq("short_ref", data.short_ref).maybeSingle();
+    if (!order) return [];
+    const { data: rows } = await (supabaseAdmin.from("order_stage_events" as never) as any)
+      .select("id,stage,note,student_visible_message,preview_url,unlock_price_cents,unlock_url,created_at")
+      .eq("order_id", order.id).order("created_at", { ascending: true });
+    return (rows ?? []) as AdminStageEvent[];
+  });
+
+// Admin-only (matches the existing /outreach admin fn convention — protected by
+// the AdminGate UI, no extra server guard). Inserts a stage event, mirrors key
+// fields onto the order, and emails the student their update.
+export const advanceOrderStage = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    short_ref: z.string().trim().min(1).max(20),
+    stage: STAGE_ENUM,
+    student_visible_message: z.string().trim().max(2000).nullable().optional(),
+    note: z.string().trim().max(2000).nullable().optional(),
+    preview_url: z.string().trim().max(1000).nullable().optional(),
+    unlock_price_cents: z.number().int().min(0).max(5_000_000).nullable().optional(),
+    unlock_url: z.string().trim().max(1000).nullable().optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; event: AdminStageEvent; email: { ok: boolean; error?: string; id?: string } }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const orders = () => (supabaseAdmin.from("orders" as never) as any);
+    const { data: order } = await orders().select("id,email,short_ref").eq("short_ref", data.short_ref).maybeSingle();
+    if (!order) throw new Error("Order not found");
+
+    const { data: inserted, error } = await (supabaseAdmin.from("order_stage_events" as never) as any)
+      .insert({
+        order_id: order.id, stage: data.stage,
+        note: data.note ?? null, student_visible_message: data.student_visible_message ?? null,
+        preview_url: data.preview_url ?? null, unlock_price_cents: data.unlock_price_cents ?? null, unlock_url: data.unlock_url ?? null,
+      })
+      .select("id,stage,note,student_visible_message,preview_url,unlock_price_cents,unlock_url,created_at").single();
+    if (error) throw new Error(error.message);
+
+    // Mirror onto the order for easy querying.
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (data.stage === "preview_ready") {
+      if (data.preview_url) patch.preview_url = data.preview_url;
+      if (data.unlock_price_cents != null) patch.unlock_price_cents = data.unlock_price_cents;
+    }
+    if (data.stage === "unlocked") {
+      patch.unlocked_at = new Date().toISOString();
+      if (data.unlock_price_cents != null) patch.unlock_price_cents = data.unlock_price_cents;
+    }
+    if (Object.keys(patch).length > 1) await orders().update(patch).eq("id", order.id);
+
+    // Email the student (no token in the link). Only if there's a message to show.
+    let email: { ok: boolean; error?: string; id?: string } = { ok: false, error: "no message — email skipped" };
+    if (order.email && data.student_visible_message) {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const req = getRequest();
+      const host = req?.headers.get("x-forwarded-host") || req?.headers.get("host") || "surviveaccounting.com";
+      const proto = req?.headers.get("x-forwarded-proto") || "https";
+      const link = `${proto}://${host}/order/${order.short_ref}`;
+      let body = `Update on your Custom Study Pack request:\n\n${data.student_visible_message}\n\nTrack it here:\n${link}\n\nQuestions? Text me at (662) 565-8818.`;
+      if (data.stage === "preview_ready") { body = `Your preview is ready.\n\n${body}`; if (data.preview_url) body += `\n\nPreview: ${data.preview_url}`; }
+      if (data.unlock_price_cents != null) body += `\n\nUnlock price: $${Math.round(data.unlock_price_cents / 100)}`;
+      const { sendResendEmail } = await import("@/lib/email.server");
+      email = await sendResendEmail({ to: String(order.email), subject: `Update on Custom Study Pack #${order.short_ref}`, text: body });
+    }
+
+    return { ok: true, event: inserted as AdminStageEvent, email };
+  });

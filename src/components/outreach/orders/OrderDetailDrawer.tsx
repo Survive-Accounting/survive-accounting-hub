@@ -9,9 +9,11 @@ import { toast } from "sonner";
 import { Check, Copy, Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   getOrder, updateOrderStatus, updateOrderAdminNotes, setAwaitingSyllabus,
-  type AdminOrderDetail,
+  getOrderTimeline, advanceOrderStage,
+  type AdminOrderDetail, type AdminStageEvent,
 } from "@/lib/orders-admin.functions";
 
 const NAVY = "#14213D";
@@ -28,8 +30,18 @@ const STATUS_CLASS: Record<string, string> = {
   cancelled: "bg-gray-200 text-gray-600",
 };
 const TIER_LABEL: Record<string, string> = {
-  free_teaser: "Free teaser", made_to_order: "Pre-order (Cram Pack)", one_on_one: "Premium 1-on-1",
+  free_teaser: "Free teaser", made_to_order: "Custom Study Pack request", one_on_one: "Premium 1-on-1",
 };
+const STAGE_DISPLAY: Record<string, string> = {
+  request_received: "Request received", reviewing: "Reviewing your class",
+  preview_in_progress: "Preview in progress", preview_ready: "Preview ready",
+  unlocked: "Unlocked", delivered: "Delivered", post_exam_check_in: "Post-exam check-in",
+};
+const ADMIN_STAGE_OPTS: [string, string][] = [
+  ["reviewing", "Reviewing your class"], ["preview_in_progress", "Preview in progress"],
+  ["preview_ready", "Preview ready"], ["unlocked", "Unlocked"], ["delivered", "Delivered"],
+  ["post_exam_check_in", "Post-exam check-in"],
+];
 const money = (c: number) => `$${Math.round((c ?? 0) / 100)}`;
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const fmtDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -101,7 +113,8 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
         ) : !order ? (
           <div className="p-10 text-center text-sm text-muted-foreground">Order not found.</div>
         ) : (
-          <div className="grid gap-5 p-5 lg:grid-cols-[1fr_240px]">
+          <div className="space-y-6 p-5">
+            <div className="grid gap-5 lg:grid-cols-[1fr_240px]">
             {/* LEFT: receipt + contact + chapters */}
             <div className="space-y-5">
               {/* receipt */}
@@ -205,8 +218,96 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
                 <Copy className="h-3.5 w-3.5" /> Copy order link
               </Button>
             </div>
+            </div>
+
+            <OrderTimeline shortRef={order.short_ref} onChanged={onChanged} />
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Custom Study Pack stage timeline + "Advance stage" (emails the student).
+function OrderTimeline({ shortRef, onChanged }: { shortRef: string; onChanged: () => void }) {
+  const timelineFn = useServerFn(getOrderTimeline);
+  const advanceFn = useServerFn(advanceOrderStage);
+  const q = useQuery({ queryKey: ["order-timeline", shortRef], queryFn: () => timelineFn({ data: { short_ref: shortRef } }) });
+  const events = (q.data ?? []) as AdminStageEvent[];
+
+  const [stage, setStage] = useState("reviewing");
+  const [msg, setMsg] = useState("");
+  const [note, setNote] = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [unlockDollars, setUnlockDollars] = useState("");
+  const [unlockUrl, setUnlockUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!msg.trim()) { toast.error("Add a student-visible message — it's emailed to the student."); return; }
+    setBusy(true);
+    try {
+      const cents = unlockDollars.trim() ? Math.round(Number(unlockDollars) * 100) : null;
+      const r = await advanceFn({
+        data: {
+          short_ref: shortRef, stage, student_visible_message: msg.trim(),
+          note: note.trim() || null, preview_url: previewUrl.trim() || null,
+          unlock_price_cents: Number.isFinite(cents as number) ? cents : null, unlock_url: unlockUrl.trim() || null,
+        },
+      });
+      toast.success(`Update added. Email: ${r.email.ok ? "sent" : (r.email.error ?? "not sent")}.`);
+      setMsg(""); setNote(""); setPreviewUrl(""); setUnlockDollars(""); setUnlockUrl("");
+      await q.refetch(); onChanged();
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const showPreviewFields = stage === "preview_ready" || stage === "unlocked";
+
+  return (
+    <div className="rounded-2xl border p-4">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline</p>
+      {q.isLoading ? (
+        <div className="py-3 text-center text-xs text-muted-foreground"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></div>
+      ) : events.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No stage events yet.</p>
+      ) : (
+        <ol className="space-y-3">
+          {events.map((e) => (
+            <li key={e.id} className="border-l-2 pl-3" style={{ borderColor: NAVY }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold" style={{ color: NAVY }}>{STAGE_DISPLAY[e.stage] ?? e.stage}</span>
+                <span className="text-[11px] text-muted-foreground">{fmtDateTime(e.created_at)}</span>
+              </div>
+              {e.student_visible_message && <p className="mt-0.5 text-sm text-gray-700">{e.student_visible_message}</p>}
+              {e.preview_url && <a href={e.preview_url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">preview link</a>}
+              {e.unlock_price_cents != null && <p className="text-xs text-muted-foreground">Unlock: {money(e.unlock_price_cents)}</p>}
+              {e.note && <p className="mt-0.5 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800"><span className="font-semibold">Admin only:</span> {e.note}</p>}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div className="mt-4 space-y-2 border-t pt-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Advance stage</p>
+        <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={stage} onChange={(e) => setStage(e.target.value)}>
+          {ADMIN_STAGE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Student-visible message (emailed to the student)…"
+          className="w-full rounded-md border border-input bg-background p-2 text-sm" />
+        <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Admin-only note (optional)…"
+          className="w-full rounded-md border border-input bg-background p-2 text-sm" />
+        {showPreviewFields && (
+          <>
+            <Input value={previewUrl} onChange={(e) => setPreviewUrl(e.target.value)} placeholder="Preview URL (Loom/video)…" className="h-9 text-sm" />
+            <div className="flex gap-2">
+              <Input value={unlockDollars} onChange={(e) => setUnlockDollars(e.target.value)} placeholder="Unlock $ (e.g. 75)" type="number" className="h-9 text-sm" />
+              <Input value={unlockUrl} onChange={(e) => setUnlockUrl(e.target.value)} placeholder="Unlock URL (optional)" className="h-9 text-sm" />
+            </div>
+          </>
+        )}
+        <Button size="sm" className="w-full" onClick={submit} disabled={busy}>
+          {busy ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Adding…</> : "Add update"}
+        </Button>
       </div>
     </div>
   );
