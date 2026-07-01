@@ -42,10 +42,13 @@ type Section = {
 const SECTIONS: Section[] = [
   {
     key: "orders",
-    label: "Orders",
+    label: "Requests",
     icon: ClipboardList,
     owns: (p) => p.startsWith("/outreach/orders"),
-    subtabs: [{ label: "All Orders", to: "/outreach/orders" }],
+    subtabs: [
+      { label: "All Requests", to: "/outreach/orders" },
+      { label: "Request settings", to: "/outreach/orders-settings" },
+    ],
   },
   {
     key: "profintel",

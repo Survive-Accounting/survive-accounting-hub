@@ -28,6 +28,7 @@ import { Route as OutreachStudentsRouteImport } from './routes/outreach.students
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
 import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
+import { Route as OutreachOrdersSettingsRouteImport } from './routes/outreach.orders-settings'
 import { Route as OutreachOrdersRouteImport } from './routes/outreach.orders'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
@@ -140,6 +141,11 @@ const OutreachProfintelRoute = OutreachProfintelRouteImport.update({
   path: '/profintel',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachOrdersSettingsRoute = OutreachOrdersSettingsRouteImport.update({
+  id: '/orders-settings',
+  path: '/orders-settings',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachOrdersRoute = OutreachOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/orders-settings': typeof OutreachOrdersSettingsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -277,6 +284,7 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/orders-settings': typeof OutreachOrdersSettingsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -314,6 +322,7 @@ export interface FileRoutesById {
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/orders-settings': typeof OutreachOrdersSettingsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -352,6 +361,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
+    | '/outreach/orders-settings'
     | '/outreach/profintel'
     | '/outreach/profintel-schedule'
     | '/outreach/research'
@@ -387,6 +397,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
+    | '/outreach/orders-settings'
     | '/outreach/profintel'
     | '/outreach/profintel-schedule'
     | '/outreach/research'
@@ -423,6 +434,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
+    | '/outreach/orders-settings'
     | '/outreach/profintel'
     | '/outreach/profintel-schedule'
     | '/outreach/research'
@@ -591,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachProfintelRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/orders-settings': {
+      id: '/outreach/orders-settings'
+      path: '/orders-settings'
+      fullPath: '/outreach/orders-settings'
+      preLoaderRoute: typeof OutreachOrdersSettingsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/orders': {
       id: '/outreach/orders'
       path: '/orders'
@@ -723,6 +742,7 @@ interface OutreachRouteChildren {
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
   OutreachOrdersRoute: typeof OutreachOrdersRoute
+  OutreachOrdersSettingsRoute: typeof OutreachOrdersSettingsRoute
   OutreachProfintelRoute: typeof OutreachProfintelRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
@@ -740,6 +760,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
   OutreachOrdersRoute: OutreachOrdersRoute,
+  OutreachOrdersSettingsRoute: OutreachOrdersSettingsRoute,
   OutreachProfintelRoute: OutreachProfintelRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
   OutreachResearchRoute: OutreachResearchRoute,

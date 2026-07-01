@@ -1,10 +1,14 @@
 // /order — Custom Study Pack REQUEST flow. The student requests a custom study
 // pack for free; Lee reviews and builds a preview; the student pays only to
-// unlock the full pack. This is supplemental study help (short videos, practice
+// unlock the full pack. Supplemental study help (short videos, practice
 // exam-style questions, answer explanations, a simple study plan) — it does not
-// replace class, homework, textbook, or professor materials.
-// Nothing is charged here. Submit saves SERVER-SIDE (service-role) via submitOrder.
-import { useEffect, useState } from "react";
+// replace class, homework, textbook, or professor materials. Nothing is charged
+// here. Submit saves SERVER-SIDE (service-role) via submitOrder.
+//
+// All user-facing copy is editable from /outreach/orders-settings ("Edit Student
+// Flow"). This file reads it via getOrderCopy, starting from DEFAULT_ORDER_COPY
+// so the flow renders instantly and never breaks if the store is unreachable.
+import { createContext, useContext, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
@@ -25,14 +29,17 @@ import {
   type ExamTimeframe,
   type SubmitOrderResult,
 } from "@/lib/orders.functions";
+import { getOrderCopy, DEFAULT_ORDER_COPY, type OrderCopy } from "@/lib/order-copy.functions";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
 const LOGO_URL = "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 const WORK_PHONE_DISPLAY = "(662) 565-8818";
 const WORK_PHONE_HREF = "+16625658818";
-const HEADER_PILL = "Free to request · Preview before payment · Pay only to unlock";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+
+const CopyCtx = createContext<OrderCopy>(DEFAULT_ORDER_COPY);
+const useCopy = () => useContext(CopyCtx);
 
 export const Route = createFileRoute("/order")({
   head: () => ({
@@ -55,15 +62,15 @@ const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "inte
 const STEPS = ["School", "Course", "Professor", "Request", "Exam", "Your info"] as const;
 
 type RequestScope = "topic" | "chapter" | "exam" | "not_sure";
-const SCOPES: { value: RequestScope; label: string; helper: string }[] = [
-  { value: "topic", label: "One topic I’m stuck on", helper: "Best for one confusing concept or homework area." },
-  { value: "chapter", label: "One chapter", helper: "Best if your test is focused on a specific chapter." },
-  { value: "exam", label: "Everything on my next exam", helper: "Best for a broader exam review pack." },
-  { value: "not_sure", label: "I’m not sure — I’ll send what I have", helper: "Upload or describe your review sheet, syllabus, or homework." },
-];
-const SCOPE_LABEL: Record<RequestScope, string> = SCOPES.reduce(
-  (m, s) => { m[s.value] = s.label; return m; }, {} as Record<RequestScope, string>,
-);
+const SCOPE_ORDER: RequestScope[] = ["topic", "chapter", "exam", "not_sure"];
+const SCOPE_KEYS: Record<RequestScope, { label: string; helper: string }> = {
+  topic: { label: "scopeTopicLabel", helper: "scopeTopicHelper" },
+  chapter: { label: "scopeChapterLabel", helper: "scopeChapterHelper" },
+  exam: { label: "scopeExamLabel", helper: "scopeExamHelper" },
+  not_sure: { label: "scopeNotSureLabel", helper: "scopeNotSureHelper" },
+};
+const scopeLabel = (copy: OrderCopy, s: RequestScope) => copy[SCOPE_KEYS[s].label];
+const scopeHelper = (copy: OrderCopy, s: RequestScope) => copy[SCOPE_KEYS[s].helper];
 
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -75,7 +82,7 @@ type Draft = {
   requestScope: RequestScope | null; requestNotes: string;
   interestedInGroup: boolean; groupSize: string;
   examChoice: "date" | "this_week" | "next_week" | "not_sure" | null;
-  examDate: string;                           // concrete yyyy-mm-dd
+  examDate: string;
   firstName: string; lastName: string; email: string; phone: string;
 };
 
@@ -104,6 +111,14 @@ function examLabel(d: Draft): string {
 }
 
 function OrderPage() {
+  const [copy, setCopy] = useState<OrderCopy>(DEFAULT_ORDER_COPY);
+  const copyFn = useServerFn(getOrderCopy);
+  useEffect(() => {
+    let off = false;
+    copyFn().then((c) => { if (!off && c) setCopy(c); }).catch(() => { /* keep defaults */ });
+    return () => { off = true; };
+  }, [copyFn]);
+
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [result, setResult] = useState<SubmitOrderResult | null>(null);
@@ -121,27 +136,31 @@ function OrderPage() {
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
-  if (result) return <Confirmation draft={draft} result={result} />;
-
   return (
-    <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
-      <Toaster richColors position="top-center" />
-      <Header />
-      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-5">
-        <HeaderPill />
-        <div className="mt-4"><Progress step={step} /></div>
-        <div className="mt-5 rounded-3xl bg-white p-5 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-8">
-          {step === 0 && <CampusStep draft={draft} update={update} onNext={next} />}
-          {step === 1 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
-          {step === 2 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 3 && <RequestStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 4 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 5 && <SummaryStep draft={draft} update={update} onBack={back} onSubmitted={setResult} />}
+    <CopyCtx.Provider value={copy}>
+      {result ? (
+        <Confirmation draft={draft} result={result} />
+      ) : (
+        <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
+          <Toaster richColors position="top-center" />
+          <Header />
+          <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-5">
+            <HeaderPill />
+            <div className="mt-4"><Progress step={step} /></div>
+            <div className="mt-5 rounded-3xl bg-white p-5 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-8">
+              {step === 0 && <CampusStep draft={draft} update={update} onNext={next} />}
+              {step === 1 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
+              {step === 2 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
+              {step === 3 && <RequestStep draft={draft} update={update} onNext={next} onBack={back} />}
+              {step === 4 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
+              {step === 5 && <SummaryStep draft={draft} update={update} onBack={back} onSubmitted={setResult} />}
+            </div>
+            <StepFooter />
+            <OrderFaq />
+          </div>
         </div>
-        <StepFooter />
-        <OrderFaq />
-      </div>
-    </div>
+      )}
+    </CopyCtx.Provider>
   );
 }
 
@@ -159,17 +178,19 @@ function Header() {
   );
 }
 function HeaderPill() {
+  const copy = useCopy();
   return (
     <div className="rounded-full border px-4 py-2 text-center text-[12.5px] font-medium"
       style={{ borderColor: "rgba(20,33,61,0.12)", background: "rgba(20,33,61,0.04)", color: NAVY }}>
-      {HEADER_PILL}
+      {copy.headerPill}
     </div>
   );
 }
 function StepFooter() {
+  const copy = useCopy();
   return (
     <p className="mt-5 text-center text-xs text-gray-500">
-      Questions? Text me anytime at{" "}
+      {copy.footerPrefix}{" "}
       <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>{WORK_PHONE_DISPLAY}</a>
     </p>
   );
@@ -214,6 +235,7 @@ function BackLink({ onBack }: { onBack: () => void }) {
 
 // ---------- Step 1: School (behavior unchanged) ----------
 function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void }) {
+  const copy = useCopy();
   const searchFn = useServerFn(searchCampuses);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CampusLite[]>([]);
@@ -233,7 +255,7 @@ function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extend
   const picked = !!draft.campusId || (draft.campusOther && draft.campusName.trim().length > 0);
   return (
     <div>
-      <Title subtitle="So I can match your course, professor, and textbook.">Where do you go?</Title>
+      <Title subtitle={copy.step1Subtitle}>{copy.step1Title}</Title>
       {draft.campusId && !draft.campusOther ? (
         <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-4 py-3">
           <span className="text-sm font-medium">{draft.campusName}</span>
@@ -266,10 +288,11 @@ function CampusStep({ draft, update, onNext }: { draft: Draft; update: <K extend
   );
 }
 
-// ---------- Step 2: Course (behavior unchanged; copy updated) ----------
+// ---------- Step 2: Course (behavior unchanged) ----------
 function CourseStep({ draft, update, ctx, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; ctx: OrderCampusContext | null; onNext: () => void; onBack: () => void;
 }) {
+  const copy = useCopy();
   const hasCodes = !!ctx && FAMILY_ORDER.some((f) => ctx.codes[f] || ctx.titles[f]);
   const forceOther = draft.campusOther || (!!draft.campusId && ctx !== null && !hasCodes);
   const otherMode = draft.courseOther || forceOther;
@@ -282,10 +305,8 @@ function CourseStep({ draft, update, ctx, onNext, onBack }: {
 
   return (
     <div>
-      <Title subtitle="I’ll use your course to build a study pack that matches what you’re actually learning.">Which accounting course is this for?</Title>
-      <p className="mb-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
-        Tell me your course first. Then I’ll ask what’s on your test or what topic you’re stuck on.
-      </p>
+      <Title subtitle={copy.step2Subtitle}>{copy.step2Title}</Title>
+      <p className="mb-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">{copy.step2Box}</p>
       {!otherMode ? (
         <>
           <div className="space-y-2">
@@ -318,10 +339,11 @@ function CourseStep({ draft, update, ctx, onNext, onBack }: {
   );
 }
 
-// ---------- Step 3: Professor (behavior unchanged; copy updated) ----------
+// ---------- Step 3: Professor (behavior unchanged) ----------
 function ProfessorStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
+  const copy = useCopy();
   const searchFn = useServerFn(searchOrderProfessors);
   const [all, setAll] = useState<ProfessorLite[]>([]);
   const [showAll, setShowAll] = useState(false);
@@ -339,7 +361,7 @@ function ProfessorStep({ draft, update, onNext, onBack }: {
 
   return (
     <div>
-      <Title subtitle="This helps me match your class as closely as possible.">Who&apos;s your professor?</Title>
+      <Title subtitle={copy.step3Subtitle}>{copy.step3Title}</Title>
       <Input placeholder="Type your professor's name" value={draft.professorName} autoFocus
         onChange={(e) => { update("professorName", e.target.value); update("professorLeadId", null); setShowAll(false); }} />
 
@@ -373,24 +395,25 @@ function ProfessorStep({ draft, update, onNext, onBack }: {
   );
 }
 
-// ---------- Step 4: What do you need? (replaces the chapter-count step) ----------
+// ---------- Step 4: What do you need? ----------
 function RequestStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
+  const copy = useCopy();
   const canContinue = !!draft.requestScope;
   return (
     <div>
-      <Title subtitle="Tell me what to build. You can be specific, or just send what you have.">What do you want help with?</Title>
+      <Title subtitle={copy.step4Subtitle}>{copy.step4Title}</Title>
       <div className="space-y-2">
-        {SCOPES.map((s) => {
-          const active = draft.requestScope === s.value;
+        {SCOPE_ORDER.map((s) => {
+          const active = draft.requestScope === s;
           return (
-            <button key={s.value} type="button" onClick={() => update("requestScope", s.value)}
+            <button key={s} type="button" onClick={() => update("requestScope", s)}
               className={cn("flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
               style={active ? { background: NAVY } : undefined}>
               <span>
-                <span className="block font-medium">{s.label}</span>
-                <span className={cn("block text-xs", active ? "text-white/75" : "text-gray-500")}>{s.helper}</span>
+                <span className="block font-medium">{scopeLabel(copy, s)}</span>
+                <span className={cn("block text-xs", active ? "text-white/75" : "text-gray-500")}>{scopeHelper(copy, s)}</span>
               </span>
               {active && <Check className="mt-0.5 h-4 w-4 shrink-0" />}
             </button>
@@ -399,9 +422,9 @@ function RequestStep({ draft, update, onNext, onBack }: {
       </div>
 
       <div className="mt-5">
-        <Label className="mb-1.5 block text-sm font-medium text-gray-800">What topics, chapters, or questions should I focus on?</Label>
+        <Label className="mb-1.5 block text-sm font-medium text-gray-800">{copy.notesLabel}</Label>
         <textarea rows={4} value={draft.requestNotes} onChange={(e) => update("requestNotes", e.target.value)}
-          placeholder="Example: adjusting entries, bonds, leases, statement of cash flows, job-order costing, CVP, or “I uploaded my review sheet.”"
+          placeholder={copy.notesPlaceholder}
           className="w-full rounded-xl border border-input bg-background p-3 text-sm" />
       </div>
 
@@ -409,7 +432,7 @@ function RequestStep({ draft, update, onNext, onBack }: {
         <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800">
           <input type="checkbox" checked={draft.interestedInGroup} className="mt-0.5 h-4 w-4"
             onChange={(e) => update("interestedInGroup", e.target.checked)} />
-          <span>I have classmates in the same class who may want this too.</span>
+          <span>{copy.groupCheckbox}</span>
         </label>
         {draft.interestedInGroup && (
           <div className="mt-3 flex items-center gap-2">
@@ -438,13 +461,14 @@ function weekDates(offset: number) {
 function ExamStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
+  const copy = useCopy();
   const today = new Date().toISOString().slice(0, 10);
   const pills = draft.examChoice === "this_week" ? weekDates(0) : draft.examChoice === "next_week" ? weekDates(1) : [];
   const canContinue = !!draft.examDate || draft.examChoice === "not_sure";
 
   return (
     <div>
-      <Title subtitle="So I know whether there’s enough time to make something useful.">When&apos;s your exam?</Title>
+      <Title subtitle={copy.step5Subtitle}>{copy.step5Title}</Title>
       <div className="space-y-4">
         <div className="rounded-2xl border bg-white p-4">
           <Label className="mb-2 block text-sm font-medium">I know the date</Label>
@@ -487,10 +511,10 @@ function ExamStep({ draft, update, onNext, onBack }: {
       {draft.examChoice && (
         <p className="mt-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
           {draft.examDate
-            ? <>Estimated preview: <strong>before {fmtDate(draft.examDate)}</strong></>
+            ? <>{copy.previewDatedPrefix} <strong>{fmtDate(draft.examDate)}</strong></>
             : draft.examChoice === "not_sure"
-              ? "No problem — I’ll use this to help prioritize your request."
-              : "I’ll confirm timing by text before I build the full pack."}
+              ? copy.previewNotSure
+              : copy.previewWeek}
         </p>
       )}
 
@@ -510,8 +534,9 @@ function ReceiptRow({ label, value, strong }: { label: string; value: string; st
   );
 }
 function RequestSummary({ draft }: { draft: Draft }) {
+  const copy = useCopy();
   const course = [draft.courseCode, draft.courseName].filter(Boolean).join(" · ") || "—";
-  const requestType = draft.requestScope ? SCOPE_LABEL[draft.requestScope] : "—";
+  const requestType = draft.requestScope ? scopeLabel(copy, draft.requestScope) : "—";
   return (
     <div className="rounded-2xl border bg-gray-50 p-4">
       <div className="space-y-1.5">
@@ -531,9 +556,9 @@ function RequestSummary({ draft }: { draft: Draft }) {
         <ReceiptRow label="DUE TODAY" value="$0" strong />
       </div>
       <ul className="mt-3 space-y-1 text-[12px] text-gray-600">
-        <li>Next step: I make a preview.</li>
-        <li>Payment: only if you unlock the full pack.</li>
-        <li>Estimated price: usually $30–$100 depending on scope.</li>
+        <li>{copy.summaryNextStep}</li>
+        <li>{copy.summaryPayment}</li>
+        <li>{copy.summaryEstimate}</li>
       </ul>
     </div>
   );
@@ -543,6 +568,7 @@ function RequestSummary({ draft }: { draft: Draft }) {
 function SummaryStep({ draft, update, onBack, onSubmitted }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onBack: () => void; onSubmitted: (r: SubmitOrderResult) => void;
 }) {
+  const copy = useCopy();
   const submitFn = useServerFn(submitOrder);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -562,11 +588,11 @@ function SummaryStep({ draft, update, onBack, onSubmitted }: {
     setBusy(true);
     try {
       const groupSize = draft.interestedInGroup && draft.groupSize.trim() ? Number(draft.groupSize) : null;
-      // Map the request into the existing order fields: no finalized price yet, so
-      // chapterCountOnly = null (submitOrder keeps subtotal/total at $0). The scope
-      // + notes ride along as a single order_chapters row so Lee sees the ask.
+      // Map the request into existing order fields: no finalized price yet, so
+      // chapterCountOnly = null. The scope + notes ride along as one order_chapters
+      // row so Lee sees the ask.
       const chapters = draft.requestScope
-        ? [{ chapterLabel: SCOPE_LABEL[draft.requestScope], chapterNumber: null, struggleNote: draft.requestNotes.trim() || null }]
+        ? [{ chapterLabel: scopeLabel(copy, draft.requestScope), chapterNumber: null, struggleNote: draft.requestNotes.trim() || null }]
         : [];
       const r = await submitFn({
         data: {
@@ -591,7 +617,7 @@ function SummaryStep({ draft, update, onBack, onSubmitted }: {
 
   return (
     <div>
-      <Title subtitle="Nothing is due today. I’ll text you a preview when it’s ready.">Your Custom Study Pack Request</Title>
+      <Title subtitle={copy.step6Subtitle}>{copy.step6Title}</Title>
       <RequestSummary draft={draft} />
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -602,13 +628,13 @@ function SummaryStep({ draft, update, onBack, onSubmitted }: {
       </div>
 
       <div className="mt-5 space-y-2 rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
-        <p><strong>From Lee</strong> — Ole Miss accounting alum, 10+ years tutoring.</p>
-        <p><strong>Free to request. Preview before payment. Pay only to unlock.</strong></p>
+        <p>{copy.trustLine1}</p>
+        <p className="font-semibold">{copy.trustLine2}</p>
       </div>
 
       <div className="mt-5">
         <PrimaryBtn onClick={submit} disabled={busy}>
-          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Send my request to Lee →"}
+          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : copy.cta}
         </PrimaryBtn>
       </div>
 
@@ -628,15 +654,17 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 
 // ---------- Confirmation ----------
 function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResult }) {
+  const copy = useCopy();
+  const steps = [copy.confStep1, copy.confStep2, copy.confStep3, copy.confStep4];
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Header />
       <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-8">
         <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-9">
           <div className="mx-auto grid h-14 w-14 place-content-center rounded-full bg-emerald-50"><Check className="h-8 w-8 text-emerald-600" /></div>
-          <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>Request received</h1>
+          <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>{copy.confHeading}</h1>
           <p className="mx-auto mt-2 max-w-md text-center text-sm text-gray-600">
-            Your request is in{result.shortRef ? <> (request <span className="font-mono font-semibold">{result.shortRef}</span>)</> : null}. I’ll review what you sent and text you a preview when it’s ready.
+            {copy.confBody}{result.shortRef ? <> <span className="whitespace-nowrap">(request <span className="font-mono font-semibold">{result.shortRef}</span>)</span></> : null}
           </p>
 
           <div className="mt-6"><RequestSummary draft={draft} /></div>
@@ -644,15 +672,12 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
           <div className="mt-6">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What happens next</p>
             <ol className="mt-3 space-y-3 text-sm text-gray-800">
-              <li className="flex gap-3"><Num n={1} /> I review your course, professor, exam timing, and request.</li>
-              <li className="flex gap-3"><Num n={2} /> I make a preview of the Custom Study Pack.</li>
-              <li className="flex gap-3"><Num n={3} /> I text you the preview link.</li>
-              <li className="flex gap-3"><Num n={4} /> You pay only if you want to unlock the full pack.</li>
+              {steps.map((s, i) => <li key={i} className="flex gap-3"><Num n={i + 1} /> {s}</li>)}
             </ol>
           </div>
 
           <p className="mt-6 text-center text-sm text-gray-600">
-            Need live tutoring instead?{" "}
+            {copy.confTutoring}{" "}
             <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>Text Lee</a>
             {" "}at {WORK_PHONE_DISPLAY}
           </p>
@@ -666,22 +691,23 @@ function Num({ n }: { n: number }) {
 }
 
 // ---------- FAQ (under the wizard, not inside it) ----------
-const FAQS: { q: string; a: string }[] = [
-  { q: "What’s in a Custom Study Pack?", a: "Short videos, practice exam-style questions, answer explanations, and a simple study plan for the topics you request. Each pack is made or reviewed by Lee to supplement your studying." },
-  { q: "When do I pay?", a: "Nothing is due when you submit a request. I’ll text you a preview first. You only pay if you want to unlock the full pack." },
-  { q: "How fast?", a: "Usually 1–2 days for a small pack. Bigger exam packs or rush requests depend on your exam date and what you need covered. I’ll confirm timing by text." },
-  { q: "Does this replace studying?", a: "No. This is meant to help you study faster and practice better. You should still use your class notes, homework, textbook, and professor’s materials." },
-];
 function OrderFaq() {
+  const copy = useCopy();
+  const faqs = [
+    { q: copy.faq1Q, a: copy.faq1A },
+    { q: copy.faq2Q, a: copy.faq2A },
+    { q: copy.faq3Q, a: copy.faq3A },
+    { q: copy.faq4Q, a: copy.faq4A },
+  ];
   const [open, setOpen] = useState<number | null>(0);
   return (
     <div className="mx-auto mt-8 max-w-2xl">
       <h2 className="mb-3 text-center text-sm font-bold uppercase tracking-wide text-gray-500">Questions</h2>
       <div className="space-y-2">
-        {FAQS.map((f, i) => {
+        {faqs.map((f, i) => {
           const isOpen = open === i;
           return (
-            <div key={f.q} className="overflow-hidden rounded-2xl border bg-white">
+            <div key={i} className="overflow-hidden rounded-2xl border bg-white">
               <button type="button" onClick={() => setOpen(isOpen ? null : i)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold" style={{ color: NAVY }}>
                 {f.q}<ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
               </button>

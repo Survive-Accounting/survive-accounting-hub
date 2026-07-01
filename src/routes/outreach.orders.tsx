@@ -12,7 +12,7 @@ import { OrderFilters, type OrderFiltersValue } from "@/components/outreach/orde
 import { OrderDetailDrawer, StatusPill } from "@/components/outreach/orders/OrderDetailDrawer";
 
 export const Route = createFileRoute("/outreach/orders")({
-  head: () => ({ meta: [{ title: "Orders — Survive Accounting" }] }),
+  head: () => ({ meta: [{ title: "Requests — Survive Accounting" }] }),
   component: OrdersAdmin,
 });
 
@@ -63,10 +63,10 @@ function OrdersAdmin() {
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold">Orders</h1>
+        <h1 className="text-lg font-semibold">Requests</h1>
         {data && (
           <span className="text-sm text-muted-foreground">
-            {data.total} order{data.total === 1 ? "" : "s"}{filters.status !== "all" || filters.tier !== "all" || filters.campusId || debSearch ? " in filter" : ""}
+            {data.total} request{data.total === 1 ? "" : "s"}{filters.status !== "all" || filters.tier !== "all" || filters.campusId || debSearch ? " in filter" : ""}
           </span>
         )}
         {data && data.newThisWeek > 0 && (
@@ -102,7 +102,7 @@ function OrdersAdmin() {
             {q.isLoading ? (
               <tr><td colSpan={10} className="py-12 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">No orders yet — first pre-order will show up here.</td></tr>
+              <tr><td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">No requests yet — first request will show up here.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.id} onClick={() => setOpenRef(r.short_ref)} className="cursor-pointer border-b last:border-0 hover:bg-accent/40">
                 <td className="px-3 py-2 font-mono text-xs font-medium">{r.short_ref}</td>
