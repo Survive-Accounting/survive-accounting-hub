@@ -7,7 +7,7 @@ import { useState } from "react";
 import { createFileRoute, useRouterState, Outlet, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { ChevronDown, GraduationCap, LayoutTemplate, Megaphone, Search, Settings, MailCheck } from "lucide-react";
+import { ChevronDown, ClipboardList, GraduationCap, LayoutTemplate, Megaphone, Search, Settings, MailCheck } from "lucide-react";
 
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -40,6 +40,13 @@ type Section = {
 };
 
 const SECTIONS: Section[] = [
+  {
+    key: "orders",
+    label: "Orders",
+    icon: ClipboardList,
+    owns: (p) => p.startsWith("/outreach/orders"),
+    subtabs: [{ label: "All Orders", to: "/outreach/orders" }],
+  },
   {
     key: "profintel",
     label: "ProfIntel",
