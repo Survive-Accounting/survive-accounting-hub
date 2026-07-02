@@ -52,7 +52,7 @@ function HeroCta() {
       </div>
       <div className="flex flex-col items-center gap-1">
         <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.65)", fontFamily: "Inter, sans-serif" }}>
-          Covering Intro &amp; Intermediate Accounting
+          Videos made weekly - Covering Intro &amp; Intermediate Accounting
         </p>
       </div>
     </div>
@@ -123,8 +123,8 @@ function Home() {
       <SiteNav />
       {s.hero && (
         <Hero
-          headline="Need help with exam prep?"
-          subtext="Get help from a real tutor. Tell me what's coming up on your test. I'll send videos back that help you cram before your exam."
+          headline="Get on-demand help from a real tutor."
+          subtext="Tell me what's stressing you most on your next test. I'll send videos back tailored to what you need."
           ctaSlot={<HeroCta />}
         />
       )}
