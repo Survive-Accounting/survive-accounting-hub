@@ -51,9 +51,6 @@ function HeroCta() {
         </a>
       </div>
       <div className="flex flex-col items-center gap-1">
-        <p className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.82)", fontFamily: "Inter, sans-serif" }}>
-          Free to request · Preview before you buy · First come, first served
-        </p>
         <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.65)", fontFamily: "Inter, sans-serif" }}>
           Trusted by 1,000+ students since 2015 · Intro &amp; Intermediate Accounting
         </p>
@@ -137,13 +134,14 @@ function Home() {
       <SiteNav />
       {s.hero && (
         <Hero
-          headline="Get videos for accounting exam prep"
+          headline="Get tutoring videos for accounting exams"
           subtext="Send me your toughest homework problems, review sheets, or exam topics. I'll send you a help video with notes and exam prep tips."
           ctaSlot={<HeroCta />}
         />
       )}
 
-      {s.painHook && <PainHook />}
+      {/* Social proof: testimonials — right under the hero. */}
+      <Reviews />
 
       {/* How it works. Nav "How it works" anchors here. */}
       <section id="how-it-works" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#FFFFFF" }}>
@@ -181,8 +179,7 @@ function Home() {
         </Reveal>
       </section>
 
-      {/* Social proof: testimonials. */}
-      <Reviews />
+      {s.painHook && <PainHook />}
 
       {s.questions && <ContactForm />}
 

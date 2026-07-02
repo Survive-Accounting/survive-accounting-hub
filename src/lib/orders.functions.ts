@@ -324,7 +324,11 @@ export const submitOrder = createServerFn({ method: "POST" })
       chapter_count_only: data.chapterCountOnly ?? null,
       request_scope: data.requestScope ?? null,
       request_notes: data.requestNotes ?? null,
-      special_instructions: data.specialInstructions ?? null,
+      // Unified with the tracker's editable field: the confirmation-step textarea
+      // writes special_requests, which the /order/$shortRef tracker pre-fills and
+      // lets the student refine. (The redundant special_instructions column was
+      // dropped live — one field, submit-time + tracker-editable.)
+      special_requests: data.specialInstructions ?? null,
       interested_in_group: data.interestedInGroup ?? false,
       group_size: data.groupSize ?? null,
       awaiting_syllabus: true,
