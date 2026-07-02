@@ -1,4 +1,4 @@
-// Student-facing Custom Study Pack tracker server functions. Access is gated by
+// Student-facing Cram Video request tracker server functions. Access is gated by
 // an email magic-link → httpOnly session cookie, so a shared URL alone can't leak
 // student data. New tables reached via `as never`/`as any` casts; service-role
 // client bypasses the deny-by-default RLS.
@@ -110,8 +110,8 @@ export const requestOrderAccess = createServerFn({ method: "POST" })
       const { sendResendEmail } = await import("@/lib/email.server");
       await sendResendEmail({
         to: String(order.email),
-        subject: "Your Custom Study Pack link",
-        text: `Hey — here's your secure link to track your Custom Study Pack request:\n\n${link}\n\nThis link works for 30 days.\n\nQuestions? Text me at ${WORK_PHONE}.`,
+        subject: "Your Cram Video request link",
+        text: `Hey — here's your secure link to track your Cram Video request:\n\n${link}\n\nThis link works for 30 days.\n\nQuestions? Text me at ${WORK_PHONE}.`,
       });
       return generic;
     } catch {
