@@ -225,12 +225,11 @@ function Home() {
         </Reveal>
       </section>
 
+      {s.painHook && <PainHook />}
+
       {/* Social proof: testimonials. ("As featured in" now lives in the footer.) */}
       <Reviews />
       <IntroVideoSection settings={settings} />
-
-      {s.painHook && <PainHook />}
-      {s.whoIAm && <Reveal><SoulBand /></Reveal>}
 
       {s.plans && (
         <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20"
@@ -256,6 +255,8 @@ function Home() {
           </Reveal>
         </section>
       )}
+
+      {s.whoIAm && <Reveal><SoulBand /></Reveal>}
 
       {s.freeExplainers && <FreeVideoCapture />}
       {s.beyondExam && <BeyondTeaser />}
