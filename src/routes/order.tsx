@@ -257,7 +257,7 @@ function ScopeStep({ draft, update, onNext }: {
   );
 }
 
-// ---------- Step 2: Help options (how it's delivered) ----------
+// ---------- Step 6: Choose your preferred option (how it's delivered) ----------
 function HelpOptionsStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
@@ -267,7 +267,7 @@ function HelpOptionsStep({ draft, update, onNext, onBack }: {
   ];
   return (
     <div>
-      <Title>Choose help options</Title>
+      <Title>Choose your preferred option</Title>
       <div className="space-y-3">
         {OPTIONS.map((o) => {
           const active = draft.helpType === o.value;
@@ -290,7 +290,7 @@ function HelpOptionsStep({ draft, update, onNext, onBack }: {
   );
 }
 
-// ---------- Step 3: Exam (calendar-first, no delivery math) ----------
+// ---------- Step 2: Exam (calendar-first, no delivery math) ----------
 function ExamStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
@@ -299,7 +299,7 @@ function ExamStep({ draft, update, onNext, onBack }: {
   const canContinue = !!draft.examDate || draft.examChoice === "not_sure";
   return (
     <div>
-      <Title>When&apos;s your exam?</Title>
+      <Title subtitle="Lets me know how soon you'll need help.">When&apos;s your next exam?</Title>
       <div className="flex justify-center rounded-2xl border bg-white p-2">
         <Calendar
           mode="single"
@@ -516,7 +516,7 @@ function InvoiceSummary({ draft }: { draft: Draft }) {
   );
 }
 
-// ---------- Step 6: Your info + confirmation ----------
+// ---------- Step 7: Your info + confirmation ----------
 function InfoStep({ draft, update, onBack, onSubmitted }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onBack: () => void; onSubmitted: (r: SubmitOrderResult) => void;
 }) {
