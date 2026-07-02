@@ -187,10 +187,10 @@ function Home() {
       <section id="how-it-works" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#FFFFFF" }}>
         <Reveal className="mx-auto max-w-5xl">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: RED }}>
-            How it works
+            How Survive Accounting works
           </p>
           <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-            Get personalized videos made for your exam prep
+            Get personalized exam prep videos
           </h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
@@ -199,7 +199,7 @@ function Home() {
               { n: 3, img: "/step3.png", title: "Get ready to ace it", body: "Once you approve the gameplan, I'll make you a personalized video. First come, first served." },
             ].map((step) => (
               <div key={step.n} className="text-center">
-                <img src={step.img} alt="" aria-hidden="true" className="mx-auto mb-4 h-36 w-36 object-contain" loading="lazy" />
+                <img src={step.img} alt="" aria-hidden="true" className="mx-auto mb-3 w-full max-w-[280px] object-contain" loading="lazy" />
                 <div className="mx-auto grid h-12 w-12 place-content-center rounded-full text-[17px] font-bold text-white" style={{ background: NAVY }}>
                   {step.n}
                 </div>
@@ -239,7 +239,12 @@ function Home() {
           {/* Photos side by side — stadium larger + emphasized, magazine smaller.
               The 5fr/2fr split keeps their heights roughly matched at any width. */}
           <div className="mx-auto mt-9 grid max-w-xl grid-cols-[5fr_2fr] items-start gap-4 sm:gap-6">
-            <LeePhoto src="/lee-stadium.webp" alt="Lee at an SEC football game" aspect="aspect-[11/10]" />
+            <figure>
+              <LeePhoto src="/lee-stadium.webp" alt="Lee at an SEC football game" aspect="aspect-[11/10]" />
+              <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">
+                Arkansas vs. Ole Miss 2023
+              </figcaption>
+            </figure>
             <figure>
               <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
               <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">
