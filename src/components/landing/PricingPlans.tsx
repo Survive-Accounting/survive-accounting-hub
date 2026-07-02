@@ -44,11 +44,11 @@ export default function PricingPlans({
       <div className="mx-auto max-w-md text-center">
         <a href={href} className="inline-block w-full sm:w-auto">
           <Button className="h-12 w-full px-10 text-base font-bold text-white sm:w-auto" style={RED_BTN_STYLE}>
-            Pre-order your Cram Pack →
+            Request a Custom Study Pack →
           </Button>
         </a>
         <p className="mt-3 text-xs text-gray-500">
-          Cram Packs from $30 · Pay on delivery · Free if it didn&apos;t help on your test
+          Free to request · Preview before payment · Pay only to unlock
         </p>
       </div>
     </div>
