@@ -256,6 +256,7 @@ const submitOrderSchema = z.object({
   requestNotes: z.string().trim().max(4000).nullable().optional(),
   interestedInGroup: z.boolean().optional(),
   groupSize: z.number().int().min(0).max(500).nullable().optional(),
+  specialInstructions: z.string().trim().max(2000).nullable().optional(),
   chapters: z.array(chapterSchema).max(40).optional(),
 });
 
@@ -314,6 +315,7 @@ export const submitOrder = createServerFn({ method: "POST" })
       chapter_count_only: data.chapterCountOnly ?? null,
       request_scope: data.requestScope ?? null,
       request_notes: data.requestNotes ?? null,
+      special_instructions: data.specialInstructions ?? null,
       interested_in_group: data.interestedInGroup ?? false,
       group_size: data.groupSize ?? null,
       awaiting_syllabus: true,

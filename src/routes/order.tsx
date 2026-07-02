@@ -15,6 +15,7 @@ import { Check, ChevronDown, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { searchCampuses, type CampusLite } from "@/lib/onboarding.functions";
 import {
@@ -35,10 +36,9 @@ const WORK_PHONE_DISPLAY = "(662) 565-8818";
 const WORK_PHONE_HREF = "+16625658818";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
-const PILL = "Free to request · I quote before I build · Pay only if you approve";
 const FOOTER_PREFIX = "Questions? Text me anytime at";
-const PAGE_TITLE = "Request a Help Video";
-const PAGE_SUBLINE = "Made for what you're stuck on. No card, no obligation.";
+const PAGE_TITLE = "Get videos for accounting exam prep";
+const PAGE_SUBLINE = "Tailored to your specific needs.";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
@@ -60,7 +60,9 @@ const FAMILY_LABELS: Record<FamilyKey, string> = {
 const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
 
 // Scope-first: the student's problem comes first.
-const STEPS = ["What you need", "Exam", "School", "Course", "Professor", "Your info"] as const;
+const STEPS = ["What you need", "Help options", "Exam", "School", "Course", "Professor", "Your info"] as const;
+
+type HelpType = "made_to_order" | "one_on_one";
 
 type RequestScope = "everything_exam" | "one_chapter" | "one_or_two_topics" | "homework_explained";
 const SCOPES: { value: RequestScope; label: string; helper: string }[] = [
@@ -78,31 +80,33 @@ type Draft = {
   requestScope: RequestScope | null;
   requestNotes: string;
   interestedInGroup: boolean; groupSize: string;
-  examChoice: "date" | "this_week" | "next_week" | "not_sure" | null;
+  helpType: HelpType;
+  examChoice: "date" | "not_sure" | null;
   examDate: string;
   campusId: string | null; campusName: string; campusOther: boolean;
   courseFamily: FamilyKey | null; courseCode: string; courseName: string; courseOther: boolean;
   professorName: string; professorLeadId: string | null;
   firstName: string; lastName: string; email: string; phone: string;
+  specialInstructions: string;
 };
 
 const EMPTY: Draft = {
   requestScope: null,
   requestNotes: "",
   interestedInGroup: false, groupSize: "",
+  helpType: "made_to_order",
   examChoice: null, examDate: "",
   campusId: null, campusName: "", campusOther: false,
   courseFamily: null, courseCode: "", courseName: "", courseOther: false,
   professorName: "", professorLeadId: null,
   firstName: "", lastName: "", email: "", phone: "",
+  specialInstructions: "",
 };
 
-// A concrete date wins; otherwise the chosen week/"not sure" rides along as the
+// A concrete exam date wins; otherwise "Not sure yet" rides along as the
 // timeframe so Lee still sees the urgency. (Delivery math is never shown here.)
 function examTimeframeFor(d: Draft): ExamTimeframe | null {
   if (d.examDate) return null;
-  if (d.examChoice === "this_week") return "this_week";
-  if (d.examChoice === "next_week") return "next_week";
   if (d.examChoice === "not_sure") return "not_sure";
   return null;
 }
@@ -112,10 +116,11 @@ function examDateFor(d: Draft): string | null {
 function examLabel(d: Draft): string {
   if (d.examDate) return fmtDate(d.examDate);
   if (d.examChoice === "not_sure") return "Not sure yet";
-  if (d.examChoice === "this_week") return "This week";
-  if (d.examChoice === "next_week") return "Next week";
   return "—";
 }
+const helpTypeLabel = (t: HelpType) => (t === "one_on_one" ? "1-on-1 tutoring" : "Help Video");
+const requestedDateLabel = () =>
+  new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
 function OrderPage() {
   const [step, setStep] = useState(0);
@@ -138,24 +143,30 @@ function OrderPage() {
   if (result) return <Confirmation draft={draft} result={result} />;
 
   return (
-    <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
+    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EAEEF6 0%, #FAFAF7 360px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Toaster richColors position="top-center" />
       <Header />
+      {/* Navy identity band — page header. */}
+      <div className="w-full" style={{ background: NAVY }}>
+        <div className="mx-auto max-w-2xl px-4 pb-11 pt-9 text-center">
+          <h1 className="text-[26px] font-normal leading-tight text-white sm:text-[32px]" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            {PAGE_TITLE}
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>{PAGE_SUBLINE}</p>
+        </div>
+      </div>
       <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-6">
-        <h1 className="text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>{PAGE_TITLE}</h1>
-        <p className="mx-auto mt-1.5 max-w-md text-center text-sm text-gray-600">{PAGE_SUBLINE}</p>
-        <div className="mt-4"><HeaderPill /></div>
-        <div className="mt-4"><Progress step={step} /></div>
-        <div className="mt-5 rounded-3xl bg-white p-5 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-8">
+        <Progress step={step} />
+        <div className="mt-5 rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_50px_-20px_rgba(20,33,61,0.30)] sm:p-8">
           {step === 0 && <ScopeStep draft={draft} update={update} onNext={next} />}
-          {step === 1 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 2 && <CampusStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 3 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
-          {step === 4 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 5 && <InfoStep draft={draft} update={update} onBack={back} onSubmitted={setResult} />}
+          {step === 1 && <HelpOptionsStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 2 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 3 && <CampusStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 4 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
+          {step === 5 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 6 && <InfoStep draft={draft} update={update} onBack={back} onSubmitted={setResult} />}
         </div>
         <StepFooter />
-        <OrderFaq />
       </div>
     </div>
   );
@@ -172,14 +183,6 @@ function Header() {
         </a>
       </div>
     </header>
-  );
-}
-function HeaderPill() {
-  return (
-    <div className="rounded-full border px-4 py-2 text-center text-[12.5px] font-medium"
-      style={{ borderColor: "rgba(20,33,61,0.12)", background: "rgba(20,33,61,0.04)", color: NAVY }}>
-      {PILL}
-    </div>
   );
 }
 function StepFooter() {
@@ -288,67 +291,70 @@ function ScopeStep({ draft, update, onNext }: {
   );
 }
 
-// ---------- Step 2: Exam (no delivery math shown) ----------
-function weekDates(offset: number) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const mondayIdx = (today.getDay() + 6) % 7;
-  const monday = new Date(today); monday.setDate(today.getDate() - mondayIdx + offset * 7);
-  const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday); d.setDate(monday.getDate() + i);
-    return { iso: d.toISOString().slice(0, 10), dow: names[i], day: d.getDate(), past: d < today };
-  });
+// ---------- Step 2: Help options (how it's delivered) ----------
+function HelpOptionsStep({ draft, update, onNext, onBack }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
+}) {
+  const OPTIONS: { value: HelpType; title: string; range: string; note: string }[] = [
+    { value: "made_to_order", title: "Get a custom Help Video", range: "$25 – $150+", note: "Preview before you buy" },
+    { value: "one_on_one", title: "Get 1-on-1 tutoring", range: "$150/hr", note: "Limited slots available" },
+  ];
+  return (
+    <div>
+      <Title>Choose help options</Title>
+      <div className="space-y-3">
+        {OPTIONS.map((o) => {
+          const active = draft.helpType === o.value;
+          return (
+            <button key={o.value} type="button" onClick={() => update("helpType", o.value)}
+              className={cn("flex w-full items-start justify-between gap-3 rounded-2xl border px-5 py-5 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+              style={active ? { background: NAVY } : undefined}>
+              <span>
+                <span className="block text-base font-bold">{o.title}</span>
+                <span className="mt-1 block text-lg font-semibold" style={{ color: active ? "#FFFFFF" : RED }}>{o.range}</span>
+                <span className={cn("mt-0.5 block text-xs", active ? "text-white/75" : "text-gray-500")}>{o.note}</span>
+              </span>
+              {active && <Check className="mt-1 h-5 w-5 shrink-0" />}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!draft.helpType}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
+    </div>
+  );
 }
+
+// ---------- Step 3: Exam (calendar-first, no delivery math) ----------
 function ExamStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const pills = draft.examChoice === "this_week" ? weekDates(0) : draft.examChoice === "next_week" ? weekDates(1) : [];
-  const canContinue = draft.examChoice === "date"
-    ? !!draft.examDate
-    : draft.examChoice === "this_week" || draft.examChoice === "next_week" || draft.examChoice === "not_sure";
-
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  const selected = draft.examDate ? new Date(`${draft.examDate}T00:00:00`) : undefined;
+  const canContinue = !!draft.examDate || draft.examChoice === "not_sure";
   return (
     <div>
       <Title>When&apos;s your exam?</Title>
-      <div className="space-y-4">
-        <div className="rounded-2xl border bg-white p-4">
-          <Label className="mb-2 block text-sm font-medium">I know the date</Label>
-          <Input type="date" min={today} value={draft.examChoice === "date" ? draft.examDate : ""}
-            onChange={(e) => { update("examChoice", "date"); update("examDate", e.target.value); }} />
-        </div>
-        <div className="text-center text-xs uppercase tracking-wide text-gray-400">or</div>
-        <div className="grid grid-cols-3 gap-2">
-          {([["this_week", "This week"], ["next_week", "Next week"], ["not_sure", "Not sure yet"]] as const).map(([k, label]) => {
-            const active = draft.examChoice === k;
-            return (
-              <button key={k} type="button"
-                onClick={() => { update("examChoice", k); update("examDate", ""); }}
-                className={cn("rounded-2xl border px-3 py-4 text-sm font-medium transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
-                style={active ? { background: NAVY } : undefined}>{label}</button>
-            );
-          })}
-        </div>
-        {pills.length > 0 && (
-          <div>
-            <p className="mb-2 text-xs text-gray-500">Which day? (optional)</p>
-            <div className="grid grid-cols-7 gap-1.5">
-              {pills.map((p) => {
-                const active = draft.examDate === p.iso;
-                return (
-                  <button key={p.iso} type="button" disabled={p.past}
-                    onClick={() => update("examDate", p.iso)}
-                    className={cn("flex flex-col items-center rounded-lg border py-2 text-[11px] transition",
-                      p.past ? "cursor-not-allowed opacity-30" : active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
-                    style={active ? { background: RED } : undefined}>
-                    <span className="font-semibold">{p.dow}</span><span>{p.day}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+      <div className="flex justify-center rounded-2xl border bg-white p-2">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={(d) => {
+            if (!d) return;
+            const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            update("examChoice", "date");
+            update("examDate", iso);
+          }}
+          disabled={{ before: startOfToday }}
+          className="mx-auto"
+        />
       </div>
+      <button type="button"
+        onClick={() => { update("examChoice", "not_sure"); update("examDate", ""); }}
+        className={cn("mt-3 w-full rounded-2xl border px-4 py-3 text-sm font-medium transition",
+          draft.examChoice === "not_sure" ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+        style={draft.examChoice === "not_sure" ? { background: NAVY } : undefined}>
+        Not sure yet
+      </button>
       <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
     </div>
   );
@@ -527,19 +533,18 @@ function ReceiptRow({ label, value, strong }: { label: string; value: string; st
     </div>
   );
 }
-function RequestSummary({ draft }: { draft: Draft }) {
+function InvoiceSummary({ draft }: { draft: Draft }) {
   const course = [draft.courseCode.trim(), draft.courseName.trim()].filter(Boolean).join(" · ");
   return (
-    <div className="rounded-2xl border bg-gray-50 p-4">
-      <div className="space-y-1.5">
+    <div className="rounded-2xl border bg-gray-50 px-5 py-5 sm:px-6">
+      <div className="space-y-2.5">
         {draft.campusName.trim() && <ReceiptRow label="SCHOOL" value={draft.campusName.trim()} />}
         {course && <ReceiptRow label="COURSE" value={course} />}
         <ReceiptRow label="PROFESSOR" value={draft.professorName.trim() || "—"} />
+        <ReceiptRow label="HELP TYPE" value={helpTypeLabel(draft.helpType)} />
         {draft.requestScope && <ReceiptRow label="REQUEST" value={scopeLabel(draft.requestScope)} />}
-        <ReceiptRow label="EXAM" value={examLabel(draft)} />
-      </div>
-      <div className="mt-3 border-t border-dashed border-gray-300 pt-3">
-        <ReceiptRow label="DUE TODAY" value="$0" strong />
+        <ReceiptRow label="REQUESTED DATE" value={requestedDateLabel()} />
+        <ReceiptRow label="EXAM DATE" value={examLabel(draft)} />
       </div>
     </div>
   );
@@ -551,6 +556,7 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
 }) {
   const submitFn = useServerFn(submitOrder);
   const [busy, setBusy] = useState(false);
+  const [showSpecial, setShowSpecial] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -584,10 +590,11 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
           courseFamily: draft.courseFamily, courseCode: draft.courseCode.trim() || null, courseName: draft.courseName.trim() || null,
           professorName: draft.professorName.trim() || null, professorLeadId: draft.professorLeadId,
           examDate: examDateFor(draft), examTimeframe: examTimeframeFor(draft),
-          tier: "made_to_order",
+          tier: draft.helpType,
           chapterCountOnly: null,
           requestScope: draft.requestScope,
           requestNotes: note || null,
+          specialInstructions: draft.specialInstructions.trim() || null,
           interestedInGroup: draft.interestedInGroup,
           groupSize: groupSizeNum,
           chapters,
@@ -602,33 +609,37 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
 
   return (
     <div>
-      <Title>Almost done.</Title>
-      <RequestSummary draft={draft} />
+      <Title subtitle="I'll respond in 1 business day.">Confirm your request</Title>
+      <InvoiceSummary draft={draft} />
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      {/* Special instructions — collapsed row that expands to a textarea */}
+      <div className="mt-3">
+        <button type="button" onClick={() => setShowSpecial((v) => !v)}
+          className="flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-sm font-medium text-gray-700 hover:border-gray-300">
+          Special instructions (optional)
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform", showSpecial && "rotate-180")} />
+        </button>
+        {showSpecial && (
+          <textarea value={draft.specialInstructions} onChange={(e) => update("specialInstructions", e.target.value)}
+            maxLength={2000} rows={4}
+            placeholder="Anything else I should know? Files, topics, questions — just type it here."
+            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200" />
+        )}
+      </div>
+
+      <p className="mt-6 text-sm font-bold" style={{ color: NAVY }}>Add your info</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label="First name" error={errors.firstName}><Input value={draft.firstName} onChange={(e) => update("firstName", e.target.value)} autoComplete="given-name" /></Field>
         <Field label="Last name" error={errors.lastName}><Input value={draft.lastName} onChange={(e) => update("lastName", e.target.value)} autoComplete="family-name" /></Field>
         <Field label="Email" error={errors.email}><Input type="email" value={draft.email} onChange={(e) => update("email", e.target.value)} autoComplete="email" /></Field>
         <Field label="Phone" error={errors.phone}><Input type="tel" value={draft.phone} placeholder="(555) 555-5555" onChange={(e) => update("phone", e.target.value)} autoComplete="tel" /></Field>
       </div>
 
-      <div className="mt-5 space-y-2 rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
-        <p>From Lee — Ole Miss accounting grad, tutoring since 2015. 1,000+ students helped.</p>
-        <p><span className="font-semibold">Try For 1 Test Guarantee:</span> Didn&apos;t help on your test? Reply within 72 hours after your exam — full refund, no questions.</p>
-        <p>Free to request. You only pay once you approve my quote and receive your Help Video.</p>
-      </div>
-
-      <div className="mt-3 rounded-2xl border border-dashed p-4 text-sm text-gray-700" style={{ borderColor: "rgba(20,33,61,0.18)" }}>
-        Prefer live 1-on-1? A small number of semester students at $150/hr — text me at{" "}
-        <a href={`sms:${WORK_PHONE_HREF}`} className="font-semibold hover:underline" style={{ color: RED }}>{WORK_PHONE_DISPLAY}</a>.
-      </div>
-
-      <div className="mt-5">
+      <div className="mt-6">
         <PrimaryBtn onClick={submit} disabled={busy}>
-          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Send my request →"}
+          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Request Help Video →"}
         </PrimaryBtn>
       </div>
-
       <BackLink onBack={onBack} />
     </div>
   );
@@ -648,10 +659,12 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
   const steps = [
     "I review what you sent and reply with a quote — usually within 1 business day.",
     "You approve the quote (no card needed until then).",
-    "I make your Help Video and deliver before your exam.",
+    result.tier === "one_on_one"
+      ? "We set up your 1-on-1 session before your exam."
+      : "I make your Help Video and deliver before your exam.",
   ];
   return (
-    <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
+    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EAEEF6 0%, #FAFAF7 360px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Header />
       <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-8">
         <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-9">
@@ -660,7 +673,7 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
             Request received{result.shortRef ? <> — <span className="font-mono">#{result.shortRef}</span></> : null}
           </h1>
 
-          <div className="mt-6"><RequestSummary draft={draft} /></div>
+          <div className="mt-6"><InvoiceSummary draft={draft} /></div>
 
           <div className="mt-6">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What happens next</p>
@@ -691,41 +704,4 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
 }
 function Num({ n }: { n: number }) {
   return <span className="grid h-6 w-6 shrink-0 place-content-center rounded-full text-xs font-bold text-white" style={{ background: NAVY }}>{n}</span>;
-}
-
-// ---------- FAQ (under the wizard, not inside it) ----------
-function OrderFaq() {
-  const faqs = [
-    {
-      q: "What's a Help Video?",
-      a: "A short custom video — usually 2 to 5 minutes per problem or topic — plus notes, made for your exact course, professor, and what you're stuck on.",
-    },
-    {
-      q: "When do I pay?",
-      a: "Only after you approve my quote and receive your video. If it didn't help on your test, reply within 72 hours of your exam for a full refund.",
-    },
-    {
-      q: "What can I send with my request?",
-      a: "Anything that helps — a homework problem, screenshot, review sheet, chapter, or exam topic. You'll be able to add files or notes on your request tracker page after you submit.",
-    },
-  ];
-  const [open, setOpen] = useState<number | null>(0);
-  return (
-    <div className="mx-auto mt-8 max-w-2xl">
-      <h2 className="mb-3 text-center text-sm font-bold uppercase tracking-wide text-gray-500">Questions</h2>
-      <div className="space-y-2">
-        {faqs.map((f, i) => {
-          const isOpen = open === i;
-          return (
-            <div key={i} className="overflow-hidden rounded-2xl border bg-white">
-              <button type="button" onClick={() => setOpen(isOpen ? null : i)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold" style={{ color: NAVY }}>
-                {f.q}<ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
-              </button>
-              {isOpen && <p className="px-4 pb-4 text-sm text-gray-600">{f.a}</p>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
