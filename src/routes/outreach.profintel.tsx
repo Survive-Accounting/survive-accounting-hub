@@ -16,7 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  ArrowRightLeft, Check, ChevronDown, ChevronRight, GraduationCap, Loader2, Mail, MailPlus,
+  ArrowRightLeft, Check, ChevronDown, ChevronRight, ExternalLink, GraduationCap, Loader2, Mail, MailPlus,
   MapPin, Plus, Search, Sparkles, Trash2, UserMinus, Wand2,
 } from "lucide-react";
 
@@ -26,11 +26,11 @@ import { autoDiscoverCampusFaculty } from "@/lib/faculty-scrape.functions";
 import { researchProgramCourses } from "@/lib/program-courses.functions";
 import { createMobilityCampus } from "@/lib/profintel.functions";
 import {
-  acceptIncomingMove, clearDrafts, createDrafts, createManualLeads, deleteSend, fetchProfintelLeads,
-  getTemplate, listIncomingMoves, listSends, moveLead, parseManualLeads, renderTemplate, retireLead,
-  saveTemplate, updateLeadEmail, updateSend, courseMatchesText,
+  acceptIncomingMove, clearDrafts, createDrafts, createManualLeads, deleteSend, fetchCampusCourseCodes,
+  fetchProfintelLeads, getTemplate, listIncomingMoves, listSends, moveLead, parseManualLeads,
+  renderTemplate, retireLead, saveCampusCourseCodes, saveTemplate, updateLeadEmail, updateSend, courseMatchesText,
   DEFAULT_PROFINTEL_TEMPLATE,
-  type IncomingMove, type ProfIntelLead, type ProfIntelSend, type ProfIntelTemplate,
+  type CourseFamilyCodes, type IncomingMove, type ProfIntelLead, type ProfIntelSend, type ProfIntelTemplate,
 } from "@/lib/profintel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +85,18 @@ function facultyLink(l: ProfIntelLead, school: string): { href: string; kind: "f
   if (src && !/ratemyprofessor/i.test(src)) return { href: src, kind: "faculty" };
   const q = encodeURIComponent(`${fullName(l)} ${school} accounting faculty email`.trim());
   return { href: `https://www.google.com/search?q=${q}`, kind: "search" };
+}
+
+// Shared course-code helpers (campus editor + move dialog).
+const COURSE_FAMILIES: { key: keyof CourseFamilyCodes; label: string; phrase: string }[] = [
+  { key: "intro_1", label: "Intro 1", phrase: "Introduction to Financial Accounting" },
+  { key: "intro_2", label: "Intro 2", phrase: "Introduction to Managerial Accounting" },
+  { key: "intermediate_1", label: "IA1", phrase: "Intermediate Accounting I" },
+  { key: "intermediate_2", label: "IA2", phrase: "Intermediate Accounting II" },
+];
+const EMPTY_CODES: CourseFamilyCodes = { intro_1: "", intro_2: "", intermediate_1: "", intermediate_2: "" };
+function courseSearchUrl(school: string, phrase: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(`${school.trim()} "${phrase}" course number catalog`)}`;
 }
 
 function ProfIntelChoose() {
@@ -226,7 +238,10 @@ function ProfIntelChoose() {
           </PopoverContent>
         </Popover>
         {campus && (
-          <h1 className="text-2xl font-bold tracking-tight">{campus.school_name}</h1>
+          <>
+            <h1 className="text-2xl font-bold tracking-tight">{campus.school_name}</h1>
+            <CampusCodesEditor campusId={campus.id} campusName={campus.school_name} />
+          </>
         )}
       </div>
 
@@ -742,6 +757,69 @@ function TemplateEditor() {
   );
 }
 
+/** The four per-campus course codes, editable under the campus name. Prefilled
+ * from the campus, each with a 🔍 Google lookup; Save writes to the campus so any
+ * campus (incl. a gated moved-faculty one) never stays without codes. */
+function CampusCodesEditor({ campusId, campusName }: { campusId: string; campusName: string }) {
+  const codesQuery = useQuery({
+    queryKey: ["profintel-campus-codes", campusId],
+    queryFn: () => fetchCampusCourseCodes(campusId),
+  });
+  const [code, setCode] = useState<CourseFamilyCodes>(EMPTY_CODES);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Reset and reload when the selected campus changes.
+  useEffect(() => { setLoaded(false); setCode(EMPTY_CODES); }, [campusId]);
+  useEffect(() => { if (codesQuery.data && !loaded) { setCode(codesQuery.data); setLoaded(true); } }, [codesQuery.data, loaded]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await saveCampusCourseCodes(campusId, code);
+      toast.success("Course codes saved.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save codes.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto mt-3 w-full max-w-xl rounded-lg border border-border bg-card/60 p-3 text-left">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">Course codes</span>
+        <Button size="sm" variant="ghost" className="h-7" onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 h-3.5 w-3.5" />}
+          Save
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {COURSE_FAMILIES.map((f) => (
+          <div key={f.key} className="flex items-center gap-1.5">
+            <span className="w-12 shrink-0 text-[11px] text-muted-foreground">{f.label}</span>
+            <Input
+              value={code[f.key]}
+              onChange={(e) => setCode((p) => ({ ...p, [f.key]: e.target.value }))}
+              placeholder={f.key.startsWith("intro") ? "ACCT 201" : "ACCT 311"}
+              className="h-7 text-xs"
+            />
+            <a
+              href={courseSearchUrl(campusName, f.phrase)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Google: ${campusName} ${f.phrase} course number`}
+              className="shrink-0 text-muted-foreground hover:text-primary"
+            >
+              <Search className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Per-row transport control: mark a professor Retired or Moved. */
 function MobilityControl({
   lead, campusId, campuses, onChanged,
@@ -813,19 +891,19 @@ function MoveDialog({
   const createCampus = useServerFn(createMobilityCampus);
   const research = useServerFn(researchProgramCourses);
 
+  // The search box doubles as the new-campus name — no separate name field.
   const [query, setQuery] = useState("");
-  const [phase, setPhase] = useState<"pick" | "new">("pick");
-  const [newName, setNewName] = useState("");
-  const [newState, setNewState] = useState("");
   const [busy, setBusy] = useState(false);
+  const [researching, setResearching] = useState(false);
   const [newCampusId, setNewCampusId] = useState<string | null>(null);
-  const [codes, setCodes] = useState<Record<string, string> | null>(null);
+  const [createdName, setCreatedName] = useState("");
+  const [code, setCode] = useState<CourseFamilyCodes>(EMPTY_CODES);
 
   // Reset when reopened.
   useEffect(() => {
     if (open) {
-      setQuery(""); setPhase("pick"); setNewName(""); setNewState("");
-      setBusy(false); setNewCampusId(null); setCodes(null);
+      setQuery(""); setBusy(false); setResearching(false);
+      setNewCampusId(null); setCreatedName(""); setCode(EMPTY_CODES);
     }
   }, [open]);
 
@@ -849,20 +927,18 @@ function MoveDialog({
     }
   }
 
-  async function createAndResearch() {
-    if (newName.trim().length < 2) { toast.error("Enter the school name."); return; }
+  // Create the gated campus (name = the search box), then attempt code research
+  // (best-effort: a failure just leaves the fields blank for manual entry).
+  async function addNewCampus() {
+    const name = query.trim();
+    if (name.length < 2) { toast.error("Type the school name in the search box above."); return; }
     setBusy(true);
     try {
-      const c = await createCampus({ data: { name: newName.trim(), state: newState.trim() || null } });
+      const c = await createCampus({ data: { name, state: null } });
+      setCreatedName(name);
       setNewCampusId(c.id);
       toast.success(c.existed ? "Campus already existed — reusing it." : "Campus created (gated).");
-      try {
-        const res = (await research({ data: { campusId: c.id } })) as { course_family_codes_json?: Record<string, string> };
-        setCodes(res.course_family_codes_json ?? {});
-      } catch (e) {
-        setCodes({});
-        toast.error(`Course-code research failed: ${e instanceof Error ? e.message : "unknown"} — you can still move now.`);
-      }
+      await runResearch(c.id);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to create campus.");
     } finally {
@@ -870,9 +946,42 @@ function MoveDialog({
     }
   }
 
-  const FAMILY_LABELS: Record<string, string> = {
-    intro_1: "Intro 1", intro_2: "Intro 2", intermediate_1: "Intermediate 1", intermediate_2: "Intermediate 2",
-  };
+  async function runResearch(campusId: string) {
+    setResearching(true);
+    try {
+      const res = (await research({ data: { campusId } })) as { course_family_codes_json?: Record<string, string> };
+      const c = res.course_family_codes_json ?? {};
+      setCode((prev) => ({
+        intro_1: c.intro_1 ?? prev.intro_1,
+        intro_2: c.intro_2 ?? prev.intro_2,
+        intermediate_1: c.intermediate_1 ?? prev.intermediate_1,
+        intermediate_2: c.intermediate_2 ?? prev.intermediate_2,
+      }));
+      if (!c.intro_1 && !c.intro_2 && !c.intermediate_1 && !c.intermediate_2) {
+        toast.message("Research found no codes — enter them manually below (🔍 to look each up).");
+      }
+    } catch (e) {
+      toast.error(`Course-code research failed: ${e instanceof Error ? e.message : "unknown"} — enter them manually below.`);
+    } finally {
+      setResearching(false);
+    }
+  }
+
+  async function approveAndMove() {
+    if (!newCampusId) return;
+    setBusy(true);
+    try {
+      await saveCampusCourseCodes(newCampusId, code);
+      await moveLead(lead, fromCampusId, newCampusId);
+      toast.success(`Moved ${fullName(lead) || "professor"} → ${createdName}.`);
+      onMoved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to move.");
+      setBusy(false);
+    }
+  }
+
+  const noCodes = !code.intro_1 && !code.intro_2 && !code.intermediate_1 && !code.intermediate_2;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -884,13 +993,13 @@ function MoveDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {phase === "pick" ? (
+        {!newCampusId ? (
           <div className="space-y-3">
             <Input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search campuses we already have…"
+              placeholder="Search existing campuses, or type a new school name…"
               className="text-sm"
             />
             <div className="max-h-56 space-y-1 overflow-auto">
@@ -906,61 +1015,75 @@ function MoveDialog({
                   {c.state && <span className="ml-2 text-[10px] text-muted-foreground">{c.state}</span>}
                 </button>
               ))}
-              {matches.length === 0 && (
-                <p className="px-1 py-2 text-xs text-muted-foreground">No match. Add the campus below.</p>
-              )}
             </div>
-            <Button variant="outline" size="sm" className="w-full" onClick={() => { setPhase("new"); setNewName(query); }} disabled={busy}>
-              <Plus className="mr-1 h-4 w-4" /> Add a new campus
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={addNewCampus}
+              disabled={busy || query.trim().length < 2}
+            >
+              {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+              Add new campus{query.trim() ? `: "${query.trim()}"` : ""}
             </Button>
+            <p className="text-[11px] text-muted-foreground">
+              A new campus is created hidden from students until vetted; we'll research its course codes for you to approve.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {!newCampusId ? (
-              <>
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">School name</label>
-                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Clemson University" className="text-sm" autoFocus />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">State (optional)</label>
-                  <Input value={newState} onChange={(e) => setNewState(e.target.value)} placeholder="SC" className="h-8 w-24 text-sm" />
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Created hidden from students until vetted. We'll research its course codes next for you to approve.
-                </p>
-                <div className="flex justify-between">
-                  <Button variant="ghost" size="sm" onClick={() => setPhase("pick")} disabled={busy}>Back</Button>
-                  <Button size="sm" onClick={createAndResearch} disabled={busy}>
-                    {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-                    Create &amp; research codes
-                  </Button>
-                </div>
-              </>
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold">Course codes for {createdName}</div>
+              <button
+                type="button"
+                onClick={() => { COURSE_FAMILIES.forEach((f) => window.open(courseSearchUrl(createdName, f.phrase), "_blank", "noopener")); }}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary"
+                title="Open a Google search for all four in new tabs"
+              >
+                <ExternalLink className="h-3 w-3" /> search all 4
+              </button>
+            </div>
+            {researching ? (
+              <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Researching course codes…
+              </div>
             ) : (
-              <>
-                <div className="rounded-md border border-border bg-muted/30 p-3">
-                  <div className="mb-1 text-xs font-semibold">Researched course codes</div>
-                  {codes && Object.keys(codes).length > 0 ? (
-                    <ul className="space-y-0.5 text-xs">
-                      {(["intro_1", "intro_2", "intermediate_1", "intermediate_2"] as const).map((k) => (
-                        <li key={k} className="flex justify-between">
-                          <span className="text-muted-foreground">{FAMILY_LABELS[k]}</span>
-                          <span className="font-medium">{codes[k] || "—"}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No codes found yet — you can approve the move now and research later in Lead Finder.</p>
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <Button size="sm" onClick={() => moveTo(newCampusId, newName.trim())} disabled={busy}>
-                    {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
-                    Approve &amp; move here
-                  </Button>
-                </div>
-              </>
+              <div className="space-y-2">
+                {COURSE_FAMILIES.map((f) => (
+                  <div key={f.key} className="flex items-center gap-2">
+                    <span className="w-12 shrink-0 text-[11px] text-muted-foreground">{f.label}</span>
+                    <Input
+                      value={code[f.key]}
+                      onChange={(e) => setCode((p) => ({ ...p, [f.key]: e.target.value }))}
+                      placeholder={f.key.startsWith("intro") ? "e.g. ACCT 201" : "e.g. ACCT 311"}
+                      className="h-8 text-sm"
+                    />
+                    <a
+                      href={courseSearchUrl(createdName, f.phrase)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Google: ${createdName} ${f.phrase} course number`}
+                      className="shrink-0 text-muted-foreground hover:text-primary"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <Button variant="ghost" size="sm" onClick={() => runResearch(newCampusId)} disabled={busy || researching}>
+                <Sparkles className="mr-1 h-3.5 w-3.5" /> Retry research
+              </Button>
+              <Button size="sm" onClick={approveAndMove} disabled={busy || researching}>
+                {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
+                {noCodes ? "Move without codes" : "Approve & move here"}
+              </Button>
+            </div>
+            {noCodes && (
+              <p className="text-[11px] text-amber-600">
+                No codes yet — add them so this campus isn't left hanging (🔍 looks each up). You can still move now.
+              </p>
             )}
           </div>
         )}

@@ -251,7 +251,11 @@ export const getCampusCourseCodes = createServerFn({ method: "POST" })
       .select("course_family_codes_json")
       .eq("id", data.campusId)
       .maybeSingle();
-    const codes = (row?.course_family_codes_json ?? {}) as Record<string, string | null>;
+    // Tolerate double-encoded jsonb: some campus rows stored course_family_codes_json
+    // as a JSON *string* rather than an object. Parse the string form when needed.
+    let raw: unknown = row?.course_family_codes_json;
+    if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+    const codes = (raw && typeof raw === "object" ? raw : {}) as Record<string, string | null>;
     return {
       intro_1: codes.intro_1 ?? null,
       intro_2: codes.intro_2 ?? null,

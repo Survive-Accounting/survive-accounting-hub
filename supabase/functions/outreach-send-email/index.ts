@@ -54,6 +54,13 @@ function escapeHtml(s: string) {
 const SA_LINK_TOKEN = "@@SA_LINK@@";
 
 /** "ACCY 201" -> "ACCY"; most common prefix across a campus's codes. */
+/** Some campus jsonb columns are double-encoded (a JSON string inside jsonb).
+ * Return the parsed object/array form regardless of which shape was stored. */
+function parseJsonb(v: unknown): unknown {
+  if (typeof v === "string") { try { return JSON.parse(v); } catch { return null; } }
+  return v;
+}
+
 function coursePrefix(codes: string[]): string {
   const counts = new Map<string, number>();
   for (const c of codes) {
@@ -302,16 +309,19 @@ Deno.serve(async (req) => {
         if (lead.landing_token) landingUrl += `?p=${lead.landing_token}`;
         campusApproved = true;
       }
-      if (campus?.course_family_status_json && typeof campus.course_family_status_json === "object") {
-        courseFamilyStatus = campus.course_family_status_json as Record<string, string>;
+      const statusJson = parseJsonb(campus?.course_family_status_json);
+      if (statusJson && typeof statusJson === "object") {
+        courseFamilyStatus = statusJson as Record<string, string>;
       }
-      if (campus?.course_family_codes_json && typeof campus.course_family_codes_json === "object") {
-        courseFamilyCodes = campus.course_family_codes_json as Record<string, string>;
+      const codesJson = parseJsonb(campus?.course_family_codes_json);
+      if (codesJson && typeof codesJson === "object") {
+        courseFamilyCodes = codesJson as Record<string, string>;
       }
       programName = (campus?.accounting_department_name ?? "").trim();
       programShorthand = (campus?.program_shorthand ?? "").trim();
-      if (Array.isArray(campus?.course_codes_json)) {
-        const codes = (campus.course_codes_json as unknown[]).filter((x): x is string => typeof x === "string");
+      const courseCodesJson = parseJsonb(campus?.course_codes_json);
+      if (Array.isArray(courseCodesJson)) {
+        const codes = (courseCodesJson as unknown[]).filter((x): x is string => typeof x === "string");
         coursesText = joinCourses(codes);
         fullCoursesText = joinCoursesFull(codes);
         prefixText = coursePrefix(codes);
