@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
-import { Check, ChevronDown, Loader2, Search } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +19,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
-import { type CampusLite } from "@/lib/onboarding.functions";
 import {
   getOrderCampusContext,
-  searchOrderCampuses,
   searchOrderProfessors,
   submitOrder,
   type FamilyKey,
@@ -67,9 +65,9 @@ type HelpType = "made_to_order" | "one_on_one";
 
 type RequestScope = "everything_exam" | "one_chapter" | "one_or_two_topics" | "homework_explained";
 const SCOPES: { value: RequestScope; label: string }[] = [
-  { value: "one_or_two_topics", label: "A few topics" },
-  { value: "one_chapter", label: "One chapter" },
-  { value: "everything_exam", label: "Every chapter" },
+  { value: "one_or_two_topics", label: "A few confusing topics or problems" },
+  { value: "one_chapter", label: "One or more entire chapters" },
+  { value: "everything_exam", label: "All chapters on my exam" },
 ];
 const scopeLabel = (s: RequestScope | null) => SCOPES.find((x) => x.value === s)?.label ?? "—";
 
@@ -150,10 +148,10 @@ function OrderPage() {
         {/* Header — leaves the top third open, then the form. */}
         <div className="text-center">
           <h1 className="text-[26px] font-bold leading-tight tracking-tight sm:text-[32px]" style={{ color: NAVY }}>
-            Get personalized videos for your exam prep.
+            Get personalized exam prep videos
           </h1>
           <p className="mx-auto mt-2 max-w-md text-[15px] text-gray-600">
-            Request your gameplan here. Takes just two minutes.
+            All videos created by Lee Ingram, tutor since 2015. Request yours below.
           </p>
         </div>
         <div className="mt-7"><Progress step={step} /></div>
@@ -235,7 +233,7 @@ function ScopeStep({ draft, update, onNext }: {
 }) {
   return (
     <div>
-      <Title>What do you need help with for your next exam?</Title>
+      <Title>What can I clear up on your next exam?</Title>
       <div className="space-y-2">
         {SCOPES.map((s) => {
           const active = draft.requestScope === s.value;
@@ -304,7 +302,7 @@ function ExamStep({ draft, update, onNext, onBack }: {
   const canContinue = !!draft.examDate || draft.examChoice === "not_sure";
   return (
     <div>
-      <Title subtitle="Lets me know how soon you'll need help.">When&apos;s your next exam?</Title>
+      <Title subtitle="For best results, submit requests at least 5 days before your exam.">When&apos;s your next exam?</Title>
       <div className="flex justify-center rounded-2xl border bg-white p-2">
         <Calendar
           mode="single"
@@ -331,55 +329,61 @@ function ExamStep({ draft, update, onNext, onBack }: {
   );
 }
 
-// ---------- Step 3: School ----------
+// Student-facing SEC campus list for the /order School step — Ole Miss pinned
+// first, then alphabetical. IDs are the live `campuses` rows (Auburn has no
+// active roster yet, so its professor picker falls back to free text).
+const SEC_CAMPUSES: { id: string; name: string; city: string }[] = [
+  { id: "7b92a320-b196-43f2-a241-77a0805816fe", name: "University of Mississippi / Ole Miss", city: "Oxford, MS" },
+  { id: "e330e87c-5467-4c05-9d3d-6cd2398de036", name: "Auburn University", city: "Auburn, AL" },
+  { id: "698dd98f-dd92-46c1-8f28-e930568cb15d", name: "Louisiana State University", city: "Baton Rouge, LA" },
+  { id: "95246fc8-1ce6-409e-b454-d03c82766719", name: "Mississippi State University", city: "Starkville, MS" },
+  { id: "92e4a5d9-eeb3-4065-ac8a-5a4390fbc584", name: "Texas A&M University", city: "College Station, TX" },
+  { id: "b3af67c6-99a5-4677-83d5-aa7d11a89c17", name: "University of Alabama", city: "Tuscaloosa, AL" },
+  { id: "e631c8de-37a3-4aae-a948-a64bd20ea4c5", name: "University of Arkansas", city: "Fayetteville, AR" },
+  { id: "4c5126b1-3fe0-48fe-a1db-1e41d06e4642", name: "University of Florida", city: "Gainesville, FL" },
+  { id: "3f570e37-5394-4058-baab-508948befedb", name: "University of Georgia", city: "Athens, GA" },
+  { id: "ae339230-577e-4569-a7d1-d1e45d1cfe91", name: "University of Kentucky", city: "Lexington, KY" },
+  { id: "f16686c2-edc6-43f8-9638-6890f52c829a", name: "University of Missouri", city: "Columbia, MO" },
+  { id: "91e62f9c-43b0-41f3-a84d-002824754da6", name: "University of Oklahoma", city: "Norman, OK" },
+  { id: "5f5bd18d-b92f-4d56-aced-23bce4c983d5", name: "University of South Carolina", city: "Columbia, SC" },
+  { id: "9c4775be-7d82-4a3e-840c-349c5e15d8e8", name: "University of Tennessee", city: "Knoxville, TN" },
+  { id: "faad6039-be72-4f5c-8ad5-ca7b95e2889f", name: "University of Texas", city: "Austin, TX" },
+  { id: "972451c3-bc5e-48d7-9f88-868a55378efa", name: "Vanderbilt University", city: "Nashville, TN" },
+];
+
+// ---------- Step 3: School (SEC campuses only) ----------
 function CampusStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
-  const searchFn = useServerFn(searchOrderCampuses);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CampusLite[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  useEffect(() => {
-    if (draft.campusOther || draft.campusId) return;
-    let off = false;
-    const t = setTimeout(async () => {
-      setSearching(true);
-      try { const r = await searchFn({ data: { q: query } }); if (!off) setResults(r); }
-      catch { /* ignore */ } finally { if (!off) setSearching(false); }
-    }, 200);
-    return () => { off = true; clearTimeout(t); };
-  }, [query, draft.campusOther, draft.campusId, searchFn]);
-
   const picked = !!draft.campusId || (draft.campusOther && draft.campusName.trim().length > 0);
   return (
     <div>
-      <Title>Where are you taking accounting?</Title>
-      {draft.campusId && !draft.campusOther ? (
-        <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-4 py-3">
-          <span className="text-sm font-medium">{draft.campusName}</span>
-          <Button variant="ghost" size="sm" onClick={() => { update("campusId", null); update("campusName", ""); setQuery(""); }}>Change</Button>
-        </div>
-      ) : draft.campusOther ? (
+      <Title subtitle="I make exam prep for students at all SEC campuses.">Where are you taking accounting?</Title>
+      {draft.campusOther ? (
         <div className="space-y-2">
           <Input placeholder="Type your school name" value={draft.campusName} autoFocus onChange={(e) => update("campusName", e.target.value)} />
-          <button type="button" className="text-xs text-gray-600 underline" onClick={() => { update("campusOther", false); update("campusName", ""); }}>Search for my school instead</button>
+          <button type="button" className="text-xs text-gray-600 underline" onClick={() => { update("campusOther", false); update("campusName", ""); }}>Choose from the list instead</button>
         </div>
       ) : (
         <>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input className="pl-9" placeholder="Search schools…" value={query} autoFocus onChange={(e) => setQuery(e.target.value)} />
+          <div className="max-h-80 space-y-2 overflow-auto pr-1">
+            {SEC_CAMPUSES.map((c) => {
+              const active = draft.campusId === c.id;
+              return (
+                <button key={c.id} type="button"
+                  onClick={() => { update("campusId", c.id); update("campusName", c.name); update("campusOther", false); }}
+                  className={cn("flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+                  style={active ? { background: NAVY } : undefined}>
+                  <span>
+                    <span className="block text-[15px] font-semibold">{c.name}</span>
+                    <span className={cn("text-xs", active ? "text-white/70" : "text-gray-500")}>{c.city}</span>
+                  </span>
+                  {active && <Check className="h-4 w-4 shrink-0" />}
+                </button>
+              );
+            })}
           </div>
-          <div className="mt-2 max-h-56 overflow-auto rounded-xl border bg-white">
-            {searching && <div className="p-3 text-xs text-gray-500">Searching…</div>}
-            {!searching && results.length === 0 && <div className="p-3 text-xs text-gray-500">No matches yet — keep typing.</div>}
-            {results.map((r) => (
-              <button key={r.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                onClick={() => { update("campusId", r.id); update("campusName", r.name); update("campusOther", false); }}>{r.name}</button>
-            ))}
-          </div>
-          <button type="button" className="mt-2 text-xs text-gray-600 underline" onClick={() => { update("campusOther", true); update("campusId", null); }}>My school isn&apos;t listed</button>
+          <button type="button" className="mt-3 text-xs text-gray-600 underline" onClick={() => { update("campusOther", true); update("campusId", null); update("campusName", ""); }}>My school isn&apos;t listed</button>
         </>
       )}
       <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!picked}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
