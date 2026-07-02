@@ -61,7 +61,7 @@ const FAMILY_LABELS: Record<FamilyKey, string> = {
 const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
 
 // Scope-first: the student's problem comes first.
-const STEPS = ["What you need", "Help options", "Exam", "School", "Course", "Professor", "Your info"] as const;
+const STEPS = ["What you need", "Exam", "School", "Course", "Professor", "Preferred option", "Your info"] as const;
 
 type HelpType = "made_to_order" | "one_on_one";
 
@@ -159,11 +159,11 @@ function OrderPage() {
         <Progress step={step} />
         <div className="mt-5 rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_50px_-20px_rgba(20,33,61,0.30)] sm:p-8">
           {step === 0 && <ScopeStep draft={draft} update={update} onNext={next} />}
-          {step === 1 && <HelpOptionsStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 2 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 3 && <CampusStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 4 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
-          {step === 5 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 1 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 2 && <CampusStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 3 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
+          {step === 4 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
+          {step === 5 && <HelpOptionsStep draft={draft} update={update} onNext={next} onBack={back} />}
           {step === 6 && <InfoStep draft={draft} update={update} onBack={back} onSubmitted={setResult} />}
         </div>
         <StepFooter />
@@ -250,20 +250,6 @@ function ScopeStep({ draft, update, onNext }: {
             </button>
           );
         })}
-      </div>
-      <p className="mt-3 text-xs text-gray-500">Not sure yet? Pick the closest — you can add details later.</p>
-
-      <div className="mt-5">
-        <Label className="mb-1.5 block text-sm font-medium text-gray-800">
-          Anything specific I should know? <span className="font-normal text-gray-400">(optional)</span>
-        </Label>
-        <textarea
-          value={draft.requestNotes}
-          onChange={(e) => update("requestNotes", e.target.value)}
-          rows={3}
-          placeholder="e.g. the chapters, the problem numbers, or what keeps tripping you up"
-          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
-        />
       </div>
 
       <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!draft.requestScope}>Continue</PrimaryBtn></div>

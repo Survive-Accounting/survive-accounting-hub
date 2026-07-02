@@ -42,7 +42,10 @@ export interface ProfIntelSend {
 /** Comma-joined matched RMP course codes for a lead, e.g. "ACCT 2101, ACCT 2102". */
 export function courseMatchesText(j: ProfIntelLead["rmp_course_match_json"]): string {
   if (!j) return "";
-  return Object.values(j).map((m) => m.code).filter(Boolean).join(", ");
+  return Object.values(j)
+    .map((m) => m.code)
+    .filter(Boolean)
+    .join(", ");
 }
 
 /** Dominant course prefix from a lead's matched RMP codes, e.g. "ACCT 2101" → "ACCT".
@@ -57,15 +60,22 @@ export function coursePrefix(j: ProfIntelLead["rmp_course_match_json"]): string 
       counts.set(k, (counts.get(k) ?? 0) + 1);
     }
   }
-  let best = "", n = 0;
-  for (const [k, v] of counts) if (v > n) { best = k; n = v; }
+  let best = "",
+    n = 0;
+  for (const [k, v] of counts)
+    if (v > n) {
+      best = k;
+      n = v;
+    }
   return best;
 }
 
 /** How to address the lead in a greeting, matching the old email template's rule:
  * PhDs are "Dr. Lastname"; everyone else gets their first name (no reliable gender
  * data, so first name avoids any chance of misgendering). */
-export function recipientName(lead: Pick<ProfIntelLead, "first_name" | "last_name" | "is_phd">): string {
+export function recipientName(
+  lead: Pick<ProfIntelLead, "first_name" | "last_name" | "is_phd">,
+): string {
   const first = (lead.first_name ?? "").trim();
   const last = (lead.last_name ?? "").trim();
   if (lead.is_phd && last) return `Dr. ${last}`;
@@ -73,7 +83,11 @@ export function recipientName(lead: Pick<ProfIntelLead, "first_name" | "last_nam
 }
 
 /** Fill the template tokens for one lead. */
-export function renderTemplate(tpl: ProfIntelTemplate, lead: ProfIntelLead, school: string): { subject: string; body: string } {
+export function renderTemplate(
+  tpl: ProfIntelTemplate,
+  lead: ProfIntelLead,
+  school: string,
+): { subject: string; body: string } {
   const first = (lead.first_name ?? "").trim();
   const last = (lead.last_name ?? "").trim();
   const tokens: Record<string, string> = {
@@ -116,7 +130,9 @@ A bit more, if you're curious before sharing ↓
 
 export async function getTemplate(): Promise<ProfIntelTemplate> {
   const { data, error } = await (supabase.from("profintel_template" as never) as any)
-    .select("subject, body").eq("id", 1).maybeSingle();
+    .select("subject, body")
+    .eq("id", 1)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return { subject: data?.subject ?? "", body: data?.body ?? "" };
 }
@@ -131,22 +147,35 @@ export async function saveTemplate(t: ProfIntelTemplate): Promise<void> {
 /** RMP-matched leads for a campus, most-rated first (the ProfIntel target set). */
 export async function fetchCampusRmpLeads(campusId: string): Promise<ProfIntelLead[]> {
   const { data, error } = await (supabase.from("campus_lead_suggestions" as never) as any)
-    .select("id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count")
+    .select(
+      "id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count",
+    )
     .eq("campus_id", campusId)
     .eq("research_mode", "faculty_scrape")
     .is("archived_at", null);
   if (error) throw new Error(error.message);
   const rows = ((data ?? []) as any[])
     .filter((r) => (r.rmp_course_match_count ?? 0) > 0)
-    .sort((a, b) => (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) || (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1));
+    .sort(
+      (a, b) =>
+        (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) ||
+        (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1),
+    );
   // Wider net: also include other research modes that have an RMP match.
   if (rows.length === 0) {
     const { data: any2 } = await (supabase.from("campus_lead_suggestions" as never) as any)
-      .select("id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count")
-      .eq("campus_id", campusId).is("archived_at", null);
+      .select(
+        "id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count",
+      )
+      .eq("campus_id", campusId)
+      .is("archived_at", null);
     return ((any2 ?? []) as any[])
       .filter((r) => (r.rmp_course_match_count ?? 0) > 0)
-      .sort((a, b) => (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) || (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1));
+      .sort(
+        (a, b) =>
+          (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) ||
+          (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1),
+      );
   }
   return rows;
 }
@@ -155,25 +184,28 @@ const LEAD_COLS =
   "id, first_name, last_name, email, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, rmp_course_match_json, rmp_course_match_count, mobility_status";
 
 const byRmpDesc = (a: any, b: any) =>
-  (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) || (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1);
+  (b.rmp_num_ratings ?? -1) - (a.rmp_num_ratings ?? -1) ||
+  (b.rmp_rating ?? -1) - (a.rmp_rating ?? -1);
 
 /** Active faculty for a campus, split into the curated RMP-matched target set and
  * the full active roster. The UI shows `matched` when it exists (the original
  * behavior), and falls back to `all` for campuses we've only just scraped or
  * hand-entered (no RMP cross-reference yet). Moved/retired leads are excluded. */
-export async function fetchProfintelLeads(campusId: string, activeRosterOnly = false): Promise<{ matched: ProfIntelLead[]; all: ProfIntelLead[] }> {
-  let query = (supabase.from("campus_lead_suggestions" as never) as any)
+export async function fetchProfintelLeads(
+  campusId: string,
+): Promise<{ matched: ProfIntelLead[]; all: ProfIntelLead[] }> {
+  const { data, error } = await (supabase.from("campus_lead_suggestions" as never) as any)
     .select(LEAD_COLS)
     .eq("campus_id", campusId)
     .is("archived_at", null);
-  // Opt-in scope filter (default OFF → unchanged behavior). When ON, restrict to
-  // the student-facing active roster (active_roster IS NOT NULL).
-  if (activeRosterOnly) query = query.not("active_roster", "is", null);
-  const { data, error } = await query;
   if (error) throw new Error(error.message);
-  const active = ((data ?? []) as any[]).filter((r) => (r.mobility_status ?? "active") === "active");
+  const active = ((data ?? []) as any[]).filter(
+    (r) => (r.mobility_status ?? "active") === "active",
+  );
   const all = [...active].sort(byRmpDesc) as ProfIntelLead[];
-  const matched = active.filter((r) => (r.rmp_course_match_count ?? 0) > 0).sort(byRmpDesc) as ProfIntelLead[];
+  const matched = active
+    .filter((r) => (r.rmp_course_match_count ?? 0) > 0)
+    .sort(byRmpDesc) as ProfIntelLead[];
   return { matched, all };
 }
 
@@ -189,7 +221,11 @@ function leadDisplayName(l: Pick<ProfIntelLead, "first_name" | "last_name">): st
 }
 
 /** Mark a lead as retired (no longer teaching anywhere) and record the event. */
-export async function retireLead(lead: ProfIntelLead, fromCampusId: string, note?: string): Promise<void> {
+export async function retireLead(
+  lead: ProfIntelLead,
+  fromCampusId: string,
+  note?: string,
+): Promise<void> {
   await insertMove({
     kind: "retired",
     person_name: leadDisplayName(lead) || null,
@@ -200,14 +236,23 @@ export async function retireLead(lead: ProfIntelLead, fromCampusId: string, note
     note: note ?? null,
   });
   const { error } = await (supabase.from("campus_lead_suggestions" as never) as any)
-    .update({ mobility_status: "retired", mobility_note: note ?? null, mobility_updated_at: new Date().toISOString() })
+    .update({
+      mobility_status: "retired",
+      mobility_note: note ?? null,
+      mobility_updated_at: new Date().toISOString(),
+    })
     .eq("id", lead.id);
   if (error) throw new Error(error.message);
 }
 
 /** Mark a lead as moved to another campus and record the edge. The destination
  * lead is created lazily (see acceptIncomingMove) when that campus is next opened. */
-export async function moveLead(lead: ProfIntelLead, fromCampusId: string, toCampusId: string, note?: string): Promise<void> {
+export async function moveLead(
+  lead: ProfIntelLead,
+  fromCampusId: string,
+  toCampusId: string,
+  note?: string,
+): Promise<void> {
   await insertMove({
     kind: "moved",
     person_name: leadDisplayName(lead) || null,
@@ -269,7 +314,8 @@ export async function acceptIncomingMove(move: IncomingMove, campusId: string): 
     .single();
   if (error) throw new Error(error.message);
   const { error: upErr } = await (supabase.from("faculty_moves" as never) as any)
-    .update({ to_lead_id: ins.id }).eq("id", move.id);
+    .update({ to_lead_id: ins.id })
+    .eq("id", move.id);
   if (upErr) throw new Error(upErr.message);
 }
 
@@ -312,15 +358,23 @@ export function parseManualLeads(text: string): ManualLeadInput[] {
 
 /** Insert hand-entered leads for a campus. Course matches become an RMP-match JSON
  * so they surface in the curated target list just like scraped+matched leads. */
-export async function createManualLeads(campusId: string, rows: ManualLeadInput[]): Promise<number> {
+export async function createManualLeads(
+  campusId: string,
+  rows: ManualLeadInput[],
+): Promise<number> {
   if (rows.length === 0) return 0;
   const toInsert = rows.map((r) => {
     const parts = r.name.trim().split(/\s+/);
     const first = parts[0] || null;
     const last = parts.slice(1).join(" ") || null;
-    const codes = r.courseMatches.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+    const codes = r.courseMatches
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     const json: Record<string, { code: string; count: number }> = {};
-    codes.forEach((c, i) => { json[`m${i}`] = { code: c, count: 1 }; });
+    codes.forEach((c, i) => {
+      json[`m${i}`] = { code: c, count: 1 };
+    });
     return {
       campus_id: campusId,
       first_name: first,
@@ -336,7 +390,9 @@ export async function createManualLeads(campusId: string, rows: ManualLeadInput[
       notes: "Hand-entered in ProfIntel.",
     };
   });
-  const { error } = await (supabase.from("campus_lead_suggestions" as never) as any).insert(toInsert);
+  const { error } = await (supabase.from("campus_lead_suggestions" as never) as any).insert(
+    toInsert,
+  );
   if (error) throw new Error(error.message);
   return toInsert.length;
 }
@@ -354,7 +410,11 @@ export interface CourseFamilyCodes {
 function asCodeObject(raw: unknown): Record<string, string> {
   let v = raw;
   if (typeof v === "string") {
-    try { v = JSON.parse(v); } catch { return {}; }
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return {};
+    }
   }
   return v && typeof v === "object" ? (v as Record<string, string>) : {};
 }
@@ -362,7 +422,9 @@ function asCodeObject(raw: unknown): Record<string, string> {
 /** Read a campus's current four course codes from course_family_codes_json. */
 export async function fetchCampusCourseCodes(campusId: string): Promise<CourseFamilyCodes> {
   const { data, error } = await (supabase.from("campuses" as never) as any)
-    .select("course_family_codes_json").eq("id", campusId).maybeSingle();
+    .select("course_family_codes_json")
+    .eq("id", campusId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   const c = asCodeObject(data?.course_family_codes_json);
   return {
@@ -377,15 +439,210 @@ export async function fetchCampusCourseCodes(campusId: string): Promise<CourseFa
  * (anon UPDATE is allowed by RLS). Only non-empty codes are written, so a campus
  * is never left with blank "" placeholders. This is the field onboarding + the
  * email merge read, so a moved-faculty campus is usable the moment Lee fills it. */
-export async function saveCampusCourseCodes(campusId: string, codes: Partial<CourseFamilyCodes>): Promise<void> {
+export async function saveCampusCourseCodes(
+  campusId: string,
+  codes: Partial<CourseFamilyCodes>,
+): Promise<void> {
   const clean: Record<string, string> = {};
   for (const [k, v] of Object.entries(codes)) {
     const t = (v ?? "").trim();
     if (t) clean[k] = t;
   }
   const { error } = await (supabase.from("campuses" as never) as any)
-    .update({ course_family_codes_json: clean }).eq("id", campusId);
+    .update({ course_family_codes_json: clean })
+    .eq("id", campusId);
   if (error) throw new Error(error.message);
+}
+
+/** Campus ids on the active roster (SEC scope). Returns null when the
+ * active_roster column isn't present in this environment — the caller then shows
+ * all campuses (graceful, cross-branch-safe). */
+export async function fetchActiveRosterCampusIds(): Promise<Set<string> | null> {
+  const { data, error } = await (supabase.from("campuses" as never) as any)
+    .select("id")
+    .not("active_roster", "is", null);
+  if (error) return null;
+  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id));
+}
+
+// ===================== ProfIntel V2 =====================
+
+/** One professor row for the V2 targeting table (columns come from 0045 rollup). */
+export interface ProfIntelV2Lead {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  title: string | null;
+  is_phd: boolean;
+  source_url: string | null;
+  rmp_profile_url: string | null;
+  rmp_rating: number | null;
+  rmp_num_ratings: number | null;
+  rmp_difficulty: number | null;
+  rmp_would_take_again: number | null;
+  rmp_course_match_count: number | null;
+  rmp_course_match_json: Record<string, { code: string; count: number }> | null;
+  rmp_latest_target_course_code: string | null;
+  rmp_latest_target_rating_date: string | null;
+  rmp_target_course_counts_json: Record<string, number> | null;
+  rmp_terms_taught_estimate_json: { total?: number; terms?: string[] } | null;
+  rmp_recent_target_match: boolean | null;
+  rmp_taught_this_time_last_year: boolean | null;
+  rmp_target_confidence: string | null;
+  profintel_score: number | null;
+  profintel_reason: string | null;
+  profintel_v2_status: string | null;
+}
+
+const V2_LEAD_COLS =
+  "id, first_name, last_name, email, title, is_phd, source_url, rmp_profile_url, rmp_rating, rmp_num_ratings, " +
+  "rmp_difficulty, rmp_would_take_again, rmp_course_match_count, rmp_course_match_json, rmp_latest_target_course_code, " +
+  "rmp_latest_target_rating_date, rmp_target_course_counts_json, rmp_terms_taught_estimate_json, " +
+  "rmp_recent_target_match, rmp_taught_this_time_last_year, rmp_target_confidence, profintel_score, " +
+  "profintel_reason, profintel_v2_status, mobility_status";
+
+/** Active faculty for a campus with the V2 rollup columns, best score first. */
+export async function fetchProfintelV2Leads(campusId: string): Promise<ProfIntelV2Lead[]> {
+  const { data, error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+    .select(V2_LEAD_COLS)
+    .eq("campus_id", campusId)
+    .is("archived_at", null);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as any[])
+    .filter((r) => (r.mobility_status ?? "active") === "active")
+    .sort((a, b) => (b.profintel_score ?? 0) - (a.profintel_score ?? 0)) as ProfIntelV2Lead[];
+}
+
+const normNameKey = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+export interface PastedLead {
+  name: string;
+  email: string | null;
+  title: string | null;
+  rmpRating: number | null;
+  rmpNum: number | null;
+  courseMatches: string | null;
+  rmpProfileUrl: string | null;
+}
+
+/** Parse pasted V2 leads: one professor per line, TAB- or comma-separated, columns
+ *  in order Name, Email, [Title, RMP rating, # ratings, Course matches, RMP URL].
+ *  Name is required; everything else optional. */
+export function parseV2Leads(text: string): PastedLead[] {
+  const out: PastedLead[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cols = line.includes("\t") ? line.split("\t") : line.split(",");
+    const name = (cols[0] ?? "").trim();
+    if (!name) continue;
+    const num = (s: string | undefined) => {
+      const n = parseFloat((s ?? "").replace(/[^\d.]/g, ""));
+      return Number.isFinite(n) ? n : null;
+    };
+    const emailRaw = (cols[1] ?? "").trim();
+    out.push({
+      name,
+      email: /\S+@\S+\.\S+/.test(emailRaw) ? emailRaw.toLowerCase() : null,
+      title: (cols[2] ?? "").trim() || null,
+      rmpRating: num(cols[3]),
+      rmpNum: cols[4] != null && cols[4].trim() ? Math.round(num(cols[4]) ?? 0) || null : null,
+      courseMatches: (cols[5] ?? "").trim() || null,
+      rmpProfileUrl: (cols[6] ?? "").trim() || null,
+    });
+  }
+  return out;
+}
+
+/** Upsert pasted V2 leads for a campus, de-duping against existing leads by email
+ *  or normalized full name (never duplicates a professor already on the campus).
+ *  New rows are tagged research_label='manual_profintel_v2'. Existing rows are
+ *  only enriched where a field is currently empty (never clobbered). */
+export async function pasteImportLeads(
+  campusId: string,
+  rows: PastedLead[],
+): Promise<{ inserted: number; updated: number }> {
+  if (rows.length === 0) return { inserted: 0, updated: 0 };
+  const { data: existing, error: exErr } = await (
+    supabase.from("campus_lead_suggestions" as never) as any
+  )
+    .select(
+      "id, first_name, last_name, email, title, rmp_profile_url, rmp_rating, rmp_num_ratings, research_label",
+    )
+    .eq("campus_id", campusId)
+    .is("archived_at", null);
+  if (exErr) throw new Error(exErr.message);
+
+  const byEmail = new Map<string, any>();
+  const byName = new Map<string, any>();
+  for (const e of (existing ?? []) as any[]) {
+    if (e.email) byEmail.set(String(e.email).toLowerCase(), e);
+    const nk = normNameKey(`${e.first_name ?? ""} ${e.last_name ?? ""}`);
+    if (nk) byName.set(nk, e);
+  }
+
+  const toInsert: any[] = [];
+  let updated = 0;
+  for (const r of rows) {
+    const parts = r.name.trim().split(/\s+/);
+    const first = parts[0] || null;
+    const last = parts.slice(1).join(" ") || null;
+    const match = (r.email && byEmail.get(r.email)) || byName.get(normNameKey(r.name));
+    if (match) {
+      // Fill only empties — don't overwrite existing curated data.
+      const patch: Record<string, unknown> = {};
+      if (r.email && !match.email) patch.email = r.email;
+      if (r.title && !match.title) patch.title = r.title;
+      if (r.rmpProfileUrl && !match.rmp_profile_url) patch.rmp_profile_url = r.rmpProfileUrl;
+      if (r.rmpRating != null && match.rmp_rating == null) patch.rmp_rating = r.rmpRating;
+      if (r.rmpNum != null && match.rmp_num_ratings == null) patch.rmp_num_ratings = r.rmpNum;
+      if (!match.research_label) patch.research_label = "manual_profintel_v2";
+      if (Object.keys(patch).length > 0) {
+        const { error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+          .update(patch)
+          .eq("id", match.id);
+        if (error) throw new Error(error.message);
+      }
+      updated += 1;
+      continue;
+    }
+    toInsert.push({
+      campus_id: campusId,
+      first_name: first,
+      last_name: last,
+      email: r.email,
+      title: r.title,
+      rmp_profile_url: r.rmpProfileUrl,
+      rmp_rating: r.rmpRating,
+      rmp_num_ratings: r.rmpNum,
+      rmp_course_codes: r.courseMatches
+        ? r.courseMatches
+            .split(/[,;]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : null,
+      research_mode: "manual",
+      research_label: "manual_profintel_v2",
+      status: "needs_review",
+      mobility_status: "active",
+      profintel_v2_status: "candidate",
+      notes: "Pasted in ProfIntel V2.",
+    });
+  }
+  if (toInsert.length > 0) {
+    const { error } = await (supabase.from("campus_lead_suggestions" as never) as any).insert(
+      toInsert,
+    );
+    if (error) throw new Error(error.message);
+  }
+  return { inserted: toInsert.length, updated };
 }
 
 /** Create one draft per selected lead, pre-filled from the template. */
@@ -418,7 +675,9 @@ export async function createDrafts(input: {
 
 export async function listSends(opts?: { campusId?: string }): Promise<ProfIntelSend[]> {
   let q = (supabase.from("profintel_sends" as never) as any)
-    .select("id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at")
+    .select(
+      "id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at",
+    )
     .order("created_at", { ascending: false });
   if (opts?.campusId) q = q.eq("campus_id", opts.campusId);
   const { data, error } = await q;
@@ -426,9 +685,18 @@ export async function listSends(opts?: { campusId?: string }): Promise<ProfIntel
   return (data ?? []) as ProfIntelSend[];
 }
 
-export async function updateSend(id: string, patch: Partial<Pick<ProfIntelSend, "to_name" | "to_email" | "subject" | "body" | "ready" | "scheduled_at" | "status">>): Promise<void> {
+export async function updateSend(
+  id: string,
+  patch: Partial<
+    Pick<
+      ProfIntelSend,
+      "to_name" | "to_email" | "subject" | "body" | "ready" | "scheduled_at" | "status"
+    >
+  >,
+): Promise<void> {
   const { error } = await (supabase.from("profintel_sends" as never) as any)
-    .update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 }
 
@@ -440,7 +708,8 @@ export async function deleteSend(id: string): Promise<void> {
 /** Delete every ProfIntel draft for a campus — the "Reset / start from scratch" action. */
 export async function clearDrafts(campusId: string): Promise<void> {
   const { error } = await (supabase.from("profintel_sends" as never) as any)
-    .delete().eq("campus_id", campusId);
+    .delete()
+    .eq("campus_id", campusId);
   if (error) throw new Error(error.message);
 }
 
@@ -448,6 +717,7 @@ export async function clearDrafts(campusId: string): Promise<void> {
  * so it carries into any draft created afterward. */
 export async function updateLeadEmail(leadId: string, email: string | null): Promise<void> {
   const { error } = await (supabase.from("campus_lead_suggestions" as never) as any)
-    .update({ email }).eq("id", leadId);
+    .update({ email })
+    .eq("id", leadId);
   if (error) throw new Error(error.message);
 }

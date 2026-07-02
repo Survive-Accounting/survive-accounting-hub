@@ -1,23 +1,53 @@
-// /outreach — admin shell. Three primary sections (Leads · Campuses · Campaigns),
-// each revealing its subtabs in the sidebar. The shell is intentionally minimal:
-// no persistent metrics widgets, no banners — just navigation + an Outlet. Every
-// subtab is a real route so URLs are shareable and the chrome stays calm.
+// /outreach — admin shell, now VERSIONED.
+//  - ProfIntel V2 (default): the simplified professor-targeting workflow. The
+//    sidebar shows only the ProfIntel section.
+//  - Outreach V1 archive: the original broad toolset (Leads · Campuses ·
+//    Campaigns · Site) — hidden by default, reachable via the gear → version
+//    switch. Nothing is deleted; V1 routes all still work.
+// The version is a per-browser preference in localStorage (no settings table for
+// per-admin UI prefs yet). The footer is a single gear icon (no text label).
 import { AdminGate } from "@/components/AdminGate";
-import { useState } from "react";
-import { createFileRoute, useRouterState, Outlet, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { createFileRoute, useRouterState, useNavigate, Outlet, Link } from "@tanstack/react-router";
 import { Toaster } from "sonner";
-import { ChevronDown, ClipboardList, GraduationCap, LayoutTemplate, Megaphone, Search, Settings, MailCheck, UserCheck } from "lucide-react";
+import {
+  ChevronDown,
+  ClipboardList,
+  GraduationCap,
+  LayoutTemplate,
+  Megaphone,
+  Search,
+  Settings,
+  MailCheck,
+  Check,
+  UserCheck,
+} from "lucide-react";
 
 import {
-  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton,
-  SidebarMenuSubItem, SidebarProvider, SidebarTrigger, SidebarInset,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarInset,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BatchResearchSettingsModal } from "@/components/outreach/BatchResearchSettingsModal";
-import { fetchCampuses } from "@/lib/outreach-api";
-import { MOCK_CAMPUSES, type Campus } from "@/lib/outreach-mock";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/outreach")({
   head: () => ({
@@ -29,6 +59,9 @@ export const Route = createFileRoute("/outreach")({
   component: OutreachShell,
 });
 
+type UiVersion = "v2" | "v1";
+const VERSION_KEY = "profintel_ui_version";
+
 type Subtab = { label: string; to: string };
 type Section = {
   key: string;
@@ -39,7 +72,30 @@ type Section = {
   subtabs: Subtab[];
 };
 
-const SECTIONS: Section[] = [
+const PROFINTEL_SECTION: Section = {
+  key: "profintel",
+  label: "ProfIntel",
+  icon: MailCheck,
+  owns: (p) => p.startsWith("/outreach/profintel"),
+  subtabs: [
+    { label: "Choose campus leads", to: "/outreach/profintel" },
+    { label: "Schedule emails", to: "/outreach/profintel-schedule" },
+  ],
+};
+
+// Active Roster — SEC-scope governance (which campuses/professors are active for
+// the /order pickers + ProfIntel). Shown in V2 since it's core to the SEC focus.
+const ACTIVE_ROSTER_SECTION: Section = {
+  key: "roster",
+  label: "Active Roster",
+  icon: UserCheck,
+  owns: (p) => p.startsWith("/outreach/active-roster"),
+  subtabs: [{ label: "Campuses & Professors", to: "/outreach/active-roster" }],
+};
+
+// V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
+// (Includes the Requests/orders admin added on main — a V1 surface hidden in V2.)
+const V1_SECTIONS: Section[] = [
   {
     key: "orders",
     label: "Requests",
@@ -47,23 +103,6 @@ const SECTIONS: Section[] = [
     owns: (p) => p.startsWith("/outreach/orders"),
     subtabs: [
       { label: "All Requests", to: "/outreach/orders" },
-    ],
-  },
-  {
-    key: "roster",
-    label: "Active Roster",
-    icon: UserCheck,
-    owns: (p) => p.startsWith("/outreach/active-roster"),
-    subtabs: [{ label: "Campuses & Professors", to: "/outreach/active-roster" }],
-  },
-  {
-    key: "profintel",
-    label: "ProfIntel",
-    icon: MailCheck,
-    owns: (p) => p.startsWith("/outreach/profintel"),
-    subtabs: [
-      { label: "Choose campus leads", to: "/outreach/profintel" },
-      { label: "Schedule emails", to: "/outreach/profintel-schedule" },
     ],
   },
   {
@@ -104,22 +143,46 @@ const SECTIONS: Section[] = [
   },
 ];
 
-/** A subtab is active on an exact match or when the path is nested beneath it
- * (e.g. /outreach/leadfinder/$campusId is nested under /outreach/leadfinder). */
+/** A subtab is active on an exact match or when the path is nested beneath it. */
 function isSubtabActive(pathname: string, to: string): boolean {
   return pathname === to || pathname.startsWith(to + "/");
 }
 
 function OutreachShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [adminOpen, setAdminOpen] = useState(false);
+  const navigate = useNavigate();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Loaded only for the Admin-settings modal; the query is shared/cached with
-  // the section routes, so this adds no extra fetch in practice.
-  const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
-  const campuses: Campus[] = campusQuery.data ?? (campusQuery.isError ? MOCK_CAMPUSES : []);
+  // Version preference (per-browser). Default V2; hydrate from localStorage.
+  const [version, setVersion] = useState<UiVersion>("v2");
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(VERSION_KEY);
+      if (v === "v1" || v === "v2") setVersion(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
-  const activeSection = SECTIONS.find((s) => s.owns(pathname)) ?? SECTIONS[0];
+  const applyVersion = (v: UiVersion) => {
+    setVersion(v);
+    try {
+      window.localStorage.setItem(VERSION_KEY, v);
+    } catch {
+      /* ignore */
+    }
+    setSettingsOpen(false);
+    // Landing on switch to V2 → ProfIntel (V1 keeps the current route).
+    if (v === "v2" && !pathname.startsWith("/outreach/profintel")) {
+      navigate({ to: "/outreach/profintel" });
+    }
+  };
+
+  const sections: Section[] =
+    version === "v2"
+      ? [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION]
+      : [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, ...V1_SECTIONS];
+  const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));
 
   return (
@@ -131,10 +194,14 @@ function OutreachShell() {
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {SECTIONS.map((section) => {
+                  {sections.map((section) => {
                     const owned = section.owns(pathname);
                     return (
-                      <Collapsible key={section.key} defaultOpen={owned} className="group/collapsible">
+                      <Collapsible
+                        key={section.key}
+                        defaultOpen={owned}
+                        className="group/collapsible"
+                      >
                         <SidebarMenuItem>
                           <CollapsibleTrigger asChild>
                             <SidebarMenuButton isActive={owned} tooltip={section.label}>
@@ -147,7 +214,10 @@ function OutreachShell() {
                             <SidebarMenuSub>
                               {section.subtabs.map((t) => (
                                 <SidebarMenuSubItem key={t.to}>
-                                  <SidebarMenuSubButton asChild isActive={isSubtabActive(pathname, t.to)}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={isSubtabActive(pathname, t.to)}
+                                  >
                                     <Link to={t.to} className="flex w-full items-center">
                                       <span>{t.label}</span>
                                     </Link>
@@ -167,9 +237,13 @@ function OutreachShell() {
           <SidebarFooter>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setAdminOpen(true)} tooltip="Admin settings">
+                {/* Gear icon only — no "Admin settings" text. Opens the version switch. */}
+                <SidebarMenuButton
+                  onClick={() => setSettingsOpen(true)}
+                  tooltip="Settings"
+                  aria-label="Settings"
+                >
                   <Settings className="h-4 w-4" />
-                  <span>Admin settings</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -187,6 +261,11 @@ function OutreachShell() {
                   <span className="text-sm text-muted-foreground">{activeSubtab.label}</span>
                 </>
               )}
+              {version === "v1" && (
+                <span className="ml-auto rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                  V1 archive
+                </span>
+              )}
             </header>
             <div className="flex flex-1 flex-col">
               <Outlet />
@@ -194,12 +273,77 @@ function OutreachShell() {
           </div>
         </SidebarInset>
 
-        <BatchResearchSettingsModal
-          open={adminOpen}
-          onOpenChange={setAdminOpen}
-          campuses={campuses}
+        <VersionSwitchModal
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          version={version}
+          onPick={applyVersion}
         />
       </SidebarProvider>
     </AdminGate>
+  );
+}
+
+function VersionSwitchModal({
+  open,
+  onOpenChange,
+  version,
+  onPick,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  version: UiVersion;
+  onPick: (v: UiVersion) => void;
+}) {
+  const options: { key: UiVersion; label: string; note: string }[] = [
+    {
+      key: "v2",
+      label: "ProfIntel V2",
+      note: "The simplified professor-targeting workflow (default).",
+    },
+    {
+      key: "v1",
+      label: "Outreach V1 archive",
+      note: "The original toolset: Lead Finder, Campuses, Campaigns, Site.",
+    },
+  ];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Settings</DialogTitle>
+          <DialogDescription>Choose which admin experience to show.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          {options.map((o) => {
+            const active = version === o.key;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => onPick(o.key)}
+                className={cn(
+                  "flex w-full items-start gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                  active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50",
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 h-4 w-4 shrink-0",
+                    active ? "text-primary" : "text-transparent",
+                  )}
+                >
+                  <Check className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{o.label}</span>
+                  <span className="block text-[11px] text-muted-foreground">{o.note}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

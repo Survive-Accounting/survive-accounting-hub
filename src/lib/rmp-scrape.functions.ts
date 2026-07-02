@@ -6,6 +6,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { parseDirectoryCards, cardMatchKey } from "@/lib/directory-cards";
+import { computeTargetSignal } from "@/lib/profintel-score";
 
 const RMP_GRAPHQL_URL = "https://www.ratemyprofessors.com/graphql";
 // Public credential baked into RMP's own JS bundle: "test:test" base64.
@@ -66,7 +67,11 @@ function nameKey(first: string | null | undefined, last: string | null | undefin
   // empty so it falls through to the last-name fallback during matching.
   const firstToken = (firstRaw.match(/[a-z]+/g) ?? [])[0] ?? "";
   const f = firstToken.length >= 2 ? firstToken : "";
-  const l = (last ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+  const l = (last ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z]/g, "");
   return `${f}|${l}`;
 }
 
@@ -118,7 +123,8 @@ async function rmpGraphql<T>(query: string, variables: Record<string, unknown>):
       throw new Error(`RMP ${res.status}: ${text.slice(0, 200)}`);
     }
     const json = (await res.json()) as { data?: T; errors?: Array<{ message: string }> };
-    if (json.errors?.length) throw new Error(`RMP GraphQL: ${json.errors.map((e) => e.message).join("; ")}`);
+    if (json.errors?.length)
+      throw new Error(`RMP GraphQL: ${json.errors.map((e) => e.message).join("; ")}`);
     if (!json.data) throw new Error("RMP GraphQL: empty data");
     return json.data;
   } finally {
@@ -154,6 +160,96 @@ async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeac
   return out;
 }
 
+type TeacherWithSchool = RmpTeacherNode & { school?: { legacyId: number; name: string } | null };
+
+const TEACHER_NAME_SEARCH_QUERY = `
+query TeacherNameSearch($query: TeacherSearchQuery!) {
+  search: newSearch {
+    teachers(query: $query, first: 12) {
+      edges {
+        node {
+          id legacyId firstName lastName department
+          avgRating numRatings avgDifficulty wouldTakeAgainPercent
+          school { legacyId name }
+        }
+      }
+    }
+  }
+}`;
+
+const normSchool = (s: string | null | undefined) =>
+  (s ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]/g, "");
+
+/** Every RMP school legacyId that plausibly IS this campus. RMP frequently keeps
+ *  several duplicate entries for one school (e.g. Ole Miss has a near-empty 18870
+ *  AND the real 1265) — we accept all whose name exactly matches, plus any stored
+ *  one, so a name search can land the professor under whichever the school indexed
+ *  them under. */
+async function resolveCampusSchoolIds(
+  campusName: string | null,
+  storedUrl: string,
+): Promise<Set<number>> {
+  const ids = new Set<number>();
+  const stored = storedUrl ? extractSchoolLegacyId(storedUrl) : null;
+  if (stored != null) ids.add(stored);
+  const name = (campusName ?? "").trim();
+  if (name) {
+    try {
+      const j = await rmpGraphql<{
+        search?: { schools?: { edges?: Array<{ node: { legacyId: number; name: string } }> } };
+      }>(SCHOOLS_QUERY, { text: name });
+      const target = normSchool(name);
+      for (const e of j.search?.schools?.edges ?? []) {
+        if (normSchool(e.node.name) === target) ids.add(e.node.legacyId);
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
+  return ids;
+}
+
+/** Global RMP teacher search by name, restricted to the campus's RMP school(s).
+ *  Robust to RMP's duplicate school entries, where a single-school roster misses
+ *  faculty indexed under a different duplicate id. Anti-false-positive: never
+ *  returns a same-name professor at a different school. */
+async function findTeacherByName(
+  first: string | null,
+  last: string | null,
+  schoolIds: Set<number>,
+): Promise<TeacherWithSchool | null> {
+  const text = `${first ?? ""} ${last ?? ""}`.trim();
+  if (!text) return null;
+  try {
+    const j = await rmpGraphql<{
+      search?: { teachers?: { edges?: Array<{ node: TeacherWithSchool }> } };
+    }>(TEACHER_NAME_SEARCH_QUERY, { query: { text } });
+    let nodes = (j.search?.teachers?.edges ?? []).map((e) => e.node);
+    if (schoolIds.size > 0)
+      nodes = nodes.filter((n) => n.school && schoolIds.has(n.school.legacyId));
+    if (nodes.length === 0) return null;
+    const normLast = (s: string | null) =>
+      (s ?? "")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z]/g, "");
+    const key = nameKey(first, last);
+    const exact = nodes.find((n) => nameKey(n.firstName, n.lastName) === key);
+    if (exact) return exact;
+    const lastK = normLast(last);
+    const cands = nodes.filter((n) => normLast(n.lastName) === lastK);
+    if (cands.length === 1) return cands[0];
+    const init = firstInitial(first);
+    const byInit = cands.filter((n) => firstInitial(n.firstName) === init);
+    return byInit.length === 1 ? byInit[0] : null;
+  } catch {
+    return null;
+  }
+}
+
 const SCHOOLS_QUERY = `
 query SchoolSearchQuery($text: String!) {
   search: newSearch {
@@ -171,11 +267,20 @@ query SchoolSearchQuery($text: String!) {
   }
 }`;
 
-type SchoolNode = { id: string; legacyId: number; name: string; city: string | null; state: string | null };
+type SchoolNode = {
+  id: string;
+  legacyId: number;
+  name: string;
+  city: string | null;
+  state: string | null;
+};
 
 /** Look up an RMP school by name via RMP's own GraphQL — no SerpAPI dependency.
  *  Returns the canonical /school/<legacyId> URL of the best name match, or null. */
-export async function findRmpSchoolUrlByName(campusName: string, stateHint?: string | null): Promise<string | null> {
+export async function findRmpSchoolUrlByName(
+  campusName: string,
+  stateHint?: string | null,
+): Promise<string | null> {
   if (!campusName.trim()) return null;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
@@ -210,7 +315,10 @@ export async function findRmpSchoolUrlByName(campusName: string, stateHint?: str
       else if (nameLc.startsWith(wantLc) || wantLc.startsWith(nameLc)) s += 6;
       else if (nameLc.includes(wantLc) || wantLc.includes(nameLc)) s += 3;
       if (stateLc && (n.state ?? "").toLowerCase() === stateLc) s += 2;
-      if (s > bestScore) { bestScore = s; best = n; }
+      if (s > bestScore) {
+        bestScore = s;
+        best = n;
+      }
     }
     if (bestScore <= 0) return null;
     return `https://www.ratemyprofessors.com/school/${best.legacyId}`;
@@ -220,7 +328,6 @@ export async function findRmpSchoolUrlByName(campusName: string, stateHint?: str
     clearTimeout(timer);
   }
 }
-
 
 function isAccountingDept(dept: string | null): boolean {
   if (!dept) return false;
@@ -280,7 +387,8 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           url,
           found: 0,
           matched: 0,
-          error: "Could not find a school ID in this URL. Paste an RMP school or search URL (e.g. .../search/professors/1391).",
+          error:
+            "Could not find a school ID in this URL. Paste an RMP school or search URL (e.g. .../search/professors/1391).",
         });
         continue;
       }
@@ -345,9 +453,17 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     // gives a first initial (or nothing). Keeps us from reverse-inserting
     // a duplicate that we already have under a fuller name.
     const sugByLast = new Map<string, Array<{ initial: string; id: string }>>();
-    for (const s of (suggestions ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
+    for (const s of (suggestions ?? []) as Array<{
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+    }>) {
       sugByName.set(nameKey(s.first_name, s.last_name), s.id);
-      const lastKey = (s.last_name ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+      const lastKey = (s.last_name ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z]/g, "");
       if (lastKey) {
         const arr = sugByLast.get(lastKey) ?? [];
         arr.push({ initial: firstInitial(s.first_name), id: s.id });
@@ -356,9 +472,17 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     }
     const leadByName = new Map<string, string>();
     const leadByLast = new Map<string, Array<{ initial: string; id: string }>>();
-    for (const l of (leads ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
+    for (const l of (leads ?? []) as Array<{
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+    }>) {
       leadByName.set(nameKey(l.first_name, l.last_name), l.id);
-      const lastKey = (l.last_name ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+      const lastKey = (l.last_name ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z]/g, "");
       if (lastKey) {
         const arr = leadByLast.get(lastKey) ?? [];
         arr.push({ initial: firstInitial(l.first_name), id: l.id });
@@ -383,7 +507,11 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
       // OTHER departments, where a last-name-only fallback would let an
       // unrelated "J. Smith" in Biology hijack the accounting lead.
       if (opts.strict) return undefined;
-      const lastKey = (last ?? "").trim().toLowerCase().normalize("NFKD").replace(/[^a-z]/g, "");
+      const lastKey = (last ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z]/g, "");
       if (!lastKey) return undefined;
       const candidates = byLast.get(lastKey) ?? [];
       if (candidates.length === 0) return undefined;
@@ -436,14 +564,20 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
             .from("campus_lead_suggestions")
             .update(update as never)
             .eq("id", sId);
-          if (!error) { suggestionsUpdated += 1; matchedSugIds.add(sId); }
+          if (!error) {
+            suggestionsUpdated += 1;
+            matchedSugIds.add(sId);
+          }
         }
         if (lId && !matchedLeadIds.has(lId)) {
           const { error } = await supabaseAdmin
             .from("outreach_leads")
             .update(update as never)
             .eq("id", lId);
-          if (!error) { leadsUpdated += 1; matchedLeadIds.add(lId); }
+          if (!error) {
+            leadsUpdated += 1;
+            matchedLeadIds.add(lId);
+          }
         }
         // Only a teacher that resolved to NOBODY is a candidate for insertion.
         if (!sId && !lId) unmatchedTeachers.push(t);
@@ -451,10 +585,18 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     };
 
     await matchPass(accountingTeachers, false);
-    await matchPass(allTeachers.filter((t) => !isAccountingDept(t.department)), true);
+    await matchPass(
+      allTeachers.filter((t) => !isAccountingDept(t.department)),
+      true,
+    );
 
     // ----- REVERSE LOOKUP: scan cached directory pages for unmatched profs ----
-    const cache = (campusRow as { faculty_scrape_cache?: Record<string, { markdown?: string; links?: string[] }> } | null)?.faculty_scrape_cache ?? {};
+    const cache =
+      (
+        campusRow as {
+          faculty_scrape_cache?: Record<string, { markdown?: string; links?: string[] }>;
+        } | null
+      )?.faculty_scrape_cache ?? {};
     const cachePages = Object.entries(cache);
     let reverseInserted = 0;
     const reverseRows: Array<Record<string, unknown>> = [];
@@ -546,9 +688,13 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
                   profileUrlFromDir = link;
                   break;
                 }
-              } catch { /* skip */ }
+              } catch {
+                /* skip */
+              }
             }
-          } catch { /* skip */ }
+          } catch {
+            /* skip */
+          }
 
           const urlLc = pageUrl.toLowerCase();
           const isProfileShaped =
@@ -570,7 +716,9 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         const titleFromAny = best.title ?? candidates.find((c) => c.title)?.title ?? null;
         const emailFromAny = best.email ?? candidates.find((c) => c.email)?.email ?? null;
         const profileUrlFromAny =
-          best.profileUrlFromDir ?? candidates.find((c) => c.profileUrlFromDir)?.profileUrlFromDir ?? null;
+          best.profileUrlFromDir ??
+          candidates.find((c) => c.profileUrlFromDir)?.profileUrlFromDir ??
+          null;
 
         const rmpProfileUrl = `https://www.ratemyprofessors.com/professor/${t.legacyId}`;
         reverseRows.push({
@@ -589,7 +737,10 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           rmp_rating: t.avgRating,
           rmp_num_ratings: t.numRatings,
           rmp_difficulty: t.avgDifficulty,
-          rmp_would_take_again: t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0 ? t.wouldTakeAgainPercent : null,
+          rmp_would_take_again:
+            t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0
+              ? t.wouldTakeAgainPercent
+              : null,
           notes: `RMP reverse-lookup: best of ${candidates.length} cached page hit(s) on ${best.pageUrl}`,
           raw_payload: {
             source: "rmp_reverse_lookup",
@@ -615,7 +766,11 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
             .eq("campus_id", data.campusId)
             .is("archived_at", null)
             .in("email", candEmails);
-          existingEmails = new Set((ex ?? []).map((r: { email: string | null }) => r.email).filter((e): e is string => !!e));
+          existingEmails = new Set(
+            (ex ?? [])
+              .map((r: { email: string | null }) => r.email)
+              .filter((e): e is string => !!e),
+          );
         }
         const toInsert = reverseRows.filter((r) => {
           const e = r.email as string | null;
@@ -623,11 +778,14 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
           // Belt-and-suspenders: use the same fuzzy resolver as the matching
           // pass so middle initials / RMP-anonymized first names don't slip
           // through and create duplicates of profs we already have.
-          if (resolveId(r.first_name as string, r.last_name as string, sugByName, sugByLast)) return false;
+          if (resolveId(r.first_name as string, r.last_name as string, sugByName, sugByLast))
+            return false;
           return true;
         });
         if (toInsert.length > 0) {
-          const { error } = await supabaseAdmin.from("campus_lead_suggestions").insert(toInsert as never);
+          const { error } = await supabaseAdmin
+            .from("campus_lead_suggestions")
+            .insert(toInsert as never);
           if (!error) reverseInserted = toInsert.length;
         }
       }
@@ -671,7 +829,10 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
         rmp_rating: t.avgRating,
         rmp_num_ratings: t.numRatings,
         rmp_difficulty: t.avgDifficulty,
-        rmp_would_take_again: t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0 ? t.wouldTakeAgainPercent : null,
+        rmp_would_take_again:
+          t.wouldTakeAgainPercent != null && t.wouldTakeAgainPercent >= 0
+            ? t.wouldTakeAgainPercent
+            : null,
         notes: `RMP-only: accounting professor on RateMyProfessors with no matching directory entry (dept: ${t.department ?? "n/a"}). Email needs backfill before outreach.`,
         raw_payload: {
           source: "rmp_only",
@@ -683,7 +844,9 @@ export const scrapeCampusRmp = createServerFn({ method: "POST" })
     }
     let rmpOnlyInserted = 0;
     if (rmpOnlyRows.length > 0) {
-      const { error } = await supabaseAdmin.from("campus_lead_suggestions").insert(rmpOnlyRows as never);
+      const { error } = await supabaseAdmin
+        .from("campus_lead_suggestions")
+        .insert(rmpOnlyRows as never);
       if (!error) rmpOnlyInserted = rmpOnlyRows.length;
     }
 
@@ -728,11 +891,7 @@ const TITLE_PATTERNS: RegExp[] = [
 
 const TITLE_NOISE_RE = /\b(skip to|menu|copyright|navigation|toggle)\b/i;
 
-function extractTitleNear(
-  windowText: string,
-  nameStart: number,
-  nameEnd: number,
-): string | null {
+function extractTitleNear(windowText: string, nameStart: number, nameEnd: number): string | null {
   // 1) Markdown-adjacent-line: many directory cards render as
   //    `**Name**` on one line and the title on the immediate next line.
   const tail = windowText.slice(nameEnd, Math.min(windowText.length, nameEnd + 300));
@@ -769,8 +928,6 @@ function extractTitleNear(
   }
   return null;
 }
-
-
 
 // ===================== RMP course-code signal =====================
 // Per-rating "Class" labels (e.g. "ACCT201") cross-referenced against a campus's
@@ -812,10 +969,9 @@ function normCode(s: string): string {
  *  deduped, capped). Empty on any error or when no rating carries a label. */
 async function fetchTeacherClasses(legacyId: number): Promise<string[]> {
   try {
-    const data = await rmpGraphql<{ node?: { ratings?: { edges?: Array<{ node?: { class?: string | null } }> } } }>(
-      RATINGS_QUERY,
-      { id: encodeTeacherGlobalId(legacyId), count: 100 },
-    );
+    const data = await rmpGraphql<{
+      node?: { ratings?: { edges?: Array<{ node?: { class?: string | null } }> } };
+    }>(RATINGS_QUERY, { id: encodeTeacherGlobalId(legacyId), count: 100 });
     const edges = data.node?.ratings?.edges ?? [];
     const seen = new Set<string>();
     const out: string[] = [];
@@ -841,7 +997,11 @@ async function fetchTeacherClasses(legacyId: number): Promise<string[]> {
 function crossRefClasses(
   rawClasses: string[],
   targetCodes: Partial<Record<TargetFamily, string>>,
-): { matchJson: Record<string, { code: string; count: number }>; count: number; families: TargetFamily[] } {
+): {
+  matchJson: Record<string, { code: string; count: number }>;
+  count: number;
+  families: TargetFamily[];
+} {
   const normedClasses = rawClasses.map(normCode).filter(Boolean);
   const matchJson: Record<string, { code: string; count: number }> = {};
   const families: TargetFamily[] = [];
@@ -879,7 +1039,9 @@ function targetCodesFromCampus(codesJson: unknown): Partial<Record<TargetFamily,
  *  ratings call per matched professor. Idempotent — safe to re-run. */
 export const crossReferenceRmpCourses = createServerFn({ method: "POST" })
   .inputValidator((data: { campusId: string; limit?: number }) =>
-    z.object({ campusId: z.string().uuid(), limit: z.number().int().min(1).max(300).optional() }).parse(data),
+    z
+      .object({ campusId: z.string().uuid(), limit: z.number().int().min(1).max(300).optional() })
+      .parse(data),
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -916,12 +1078,17 @@ export const crossReferenceRmpCourses = createServerFn({ method: "POST" })
         for (const fam of families) patch[`teaches_${fam}`] = "true";
         patch.teaching_confidence = "high";
       }
-      const { error } = await supabaseAdmin.from(table).update(patch as never).eq("id", row.id);
+      const { error } = await supabaseAdmin
+        .from(table)
+        .update(patch as never)
+        .eq("id", row.id);
       if (error) return "none";
       return families.length > 0 ? "match" : "codes";
     };
 
-    let processed = 0, withCodes = 0, withMatch = 0;
+    let processed = 0,
+      withCodes = 0,
+      withMatch = 0;
     for (const table of ["campus_lead_suggestions", "outreach_leads"] as const) {
       const { data: rows } = await supabaseAdmin
         .from(table)
@@ -937,6 +1104,370 @@ export const crossReferenceRmpCourses = createServerFn({ method: "POST" })
       }
     }
     return { processed, withCodes, withMatch, targets: Object.keys(targetCodes) };
+  });
+
+// ===================== RMP dated review capture (Phase 1) =====================
+// ADDITIVE: capture review-level ratings (date + class + reputation) into the new
+// rmp_ratings table so a later phase can roll them up into a teaching-currency
+// signal. Does NOT touch crossReferenceRmpCourses, teaching_confidence, the
+// rmp_course_* aggregates, or the scheduler. Field names confirmed against the
+// live RMP GraphQL schema (note: it's `wouldTakeAgain`, not `wouldTakeAgainRating`).
+
+const RATINGS_FULL_QUERY = `
+query TeacherRatingsFull($id: ID!, $count: Int!) {
+  node(id: $id) {
+    ... on Teacher {
+      ratings(first: $count) {
+        edges { node { id class date comment difficultyRating wouldTakeAgain grade } }
+      }
+    }
+  }
+}`;
+
+type RmpRatingNode = {
+  id?: string | null;
+  class?: string | null;
+  date?: string | null;
+  comment?: string | null;
+  difficultyRating?: number | null;
+  wouldTakeAgain?: number | null;
+  grade?: string | null;
+};
+
+/** Parse RMP's rating date ("2026-04-28 04:28:24 +0000 UTC") to an ISO string,
+ *  or null if unparseable. */
+function parseRmpDate(s: string | null | undefined): string | null {
+  if (!s || typeof s !== "string") return null;
+  const cleaned = s.replace(/\s*UTC\s*$/i, "").trim();
+  const m = cleaned.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})\s*([+-]\d{2})(\d{2})$/);
+  const iso = m ? `${m[1]}T${m[2]}${m[3]}:${m[4]}` : cleaned;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Fetch full review-level rating nodes for a professor (up to 100). Empty on
+ *  any error — never throws into the backfill loop. */
+async function fetchTeacherRatingsFull(legacyId: number): Promise<RmpRatingNode[]> {
+  try {
+    const data = await rmpGraphql<{
+      node?: { ratings?: { edges?: Array<{ node?: RmpRatingNode }> } };
+    }>(RATINGS_FULL_QUERY, { id: encodeTeacherGlobalId(legacyId), count: 100 });
+    return (data.node?.ratings?.edges ?? [])
+      .map((e) => e.node)
+      .filter((n): n is RmpRatingNode => !!n);
+  } catch {
+    return [];
+  }
+}
+
+/** Upsert a professor's rating nodes into rmp_ratings (idempotent on
+ *  lead_id + rmp_rating_id). Returns the number of rows persisted. */
+type RatingsUpsertClient = {
+  from: (t: string) => {
+    upsert: (
+      rows: unknown[],
+      opts: { onConflict: string },
+    ) => PromiseLike<{ error: { message: string } | null }>;
+  };
+};
+
+async function upsertRatingsForLead(
+  admin: RatingsUpsertClient,
+  leadId: string,
+  campusId: string | null,
+  nodes: RmpRatingNode[],
+): Promise<number> {
+  // De-dupe within the prof by rating id so a single upsert batch can't violate
+  // the (lead_id, rmp_rating_id) unique constraint.
+  const byId = new Map<string, RmpRatingNode>();
+  for (const n of nodes) {
+    const rid = (n.id ?? "").trim();
+    if (!rid || byId.has(rid)) continue;
+    byId.set(rid, n);
+  }
+  const rows = Array.from(byId.values()).map((n) => ({
+    lead_id: leadId,
+    campus_id: campusId,
+    rmp_rating_id: n.id ?? null,
+    class_label: n.class ?? null,
+    rated_at: parseRmpDate(n.date),
+    comment: n.comment ?? null,
+    difficulty: typeof n.difficultyRating === "number" ? n.difficultyRating : null,
+    would_take_again: typeof n.wouldTakeAgain === "number" ? n.wouldTakeAgain : null,
+    grade: n.grade ?? null,
+    raw_json: n,
+  }));
+  if (rows.length === 0) return 0;
+  const { error } = await admin
+    .from("rmp_ratings")
+    .upsert(rows, { onConflict: "lead_id,rmp_rating_id" });
+  if (error) throw new Error(error.message);
+  return rows.length;
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+const backfillRatingsSchema = z.object({
+  campusId: z.string().uuid().optional(),
+  scope: z.enum(["with_codes", "all_checked"]).optional(),
+  batchSize: z.number().int().min(1).max(50).optional(),
+  afterId: z.string().uuid().optional(),
+});
+
+/** Resumable, batched, idempotent backfill of dated RMP reviews into rmp_ratings.
+ *  Cursor-based (pass back `nextCursor` as `afterId` until `done`). Scope defaults
+ *  to professors that already have RMP class labels (the clearly relevant set);
+ *  scope="all_checked" widens to everyone with RMP aggregates. Politeness-paced. */
+export const backfillRmpRatings = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => backfillRatingsSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const batch = data.batchSize ?? 10;
+    const scope = data.scope ?? "with_codes";
+
+    let qy = supabaseAdmin
+      .from("campus_lead_suggestions")
+      .select("id, campus_id, rmp_profile_url")
+      .not("rmp_profile_url", "is", null)
+      .order("id", { ascending: true })
+      .limit(batch);
+    qy =
+      scope === "with_codes"
+        ? qy.not("rmp_course_codes", "is", null)
+        : qy.not("rmp_num_ratings", "is", null);
+    if (data.campusId) qy = qy.eq("campus_id", data.campusId);
+    if (data.afterId) qy = qy.gt("id", data.afterId);
+
+    const { data: rows, error } = await qy;
+    if (error) throw new Error(error.message);
+
+    let processed = 0,
+      withRatings = 0,
+      ratingsUpserted = 0;
+    let nextCursor: string | null = data.afterId ?? null;
+    for (const r of (rows ?? []) as Array<{
+      id: string;
+      campus_id: string | null;
+      rmp_profile_url: string | null;
+    }>) {
+      processed += 1;
+      nextCursor = r.id;
+      const legacy = legacyIdFromRmpUrl(r.rmp_profile_url);
+      if (legacy == null) continue;
+      const nodes = await fetchTeacherRatingsFull(legacy);
+      if (nodes.length === 0) continue;
+      const n = await upsertRatingsForLead(supabaseAdmin as never, r.id, r.campus_id, nodes);
+      ratingsUpserted += n;
+      if (n > 0) withRatings += 1;
+      await sleep(250); // politeness between professors
+    }
+
+    const done = (rows?.length ?? 0) < batch;
+    return { scope, processed, withRatings, ratingsUpserted, nextCursor, done };
+  });
+
+// ===================== ProfIntel V2 enrich =====================
+// For a campus, refresh each RMP-linked lead's aggregates, capture dated reviews
+// into rmp_ratings, and roll them up (via computeTargetSignal) into the 0045
+// targeting columns. ADDITIVE: writes the rmp_course_* aggregates + V2 columns.
+// Does NOT set teaching_confidence (V1's live signal) or touch the scheduler.
+
+const TEACHER_AGG_QUERY = `
+query TeacherAgg($id: ID!) {
+  node(id: $id) {
+    ... on Teacher { avgRating numRatings avgDifficulty wouldTakeAgainPercent }
+  }
+}`;
+
+async function fetchTeacherAggregate(legacyId: number): Promise<{
+  avgRating: number | null;
+  numRatings: number | null;
+  avgDifficulty: number | null;
+  wouldTakeAgainPercent: number | null;
+} | null> {
+  try {
+    const d = await rmpGraphql<{
+      node?: {
+        avgRating?: number | null;
+        numRatings?: number | null;
+        avgDifficulty?: number | null;
+        wouldTakeAgainPercent?: number | null;
+      };
+    }>(TEACHER_AGG_QUERY, { id: encodeTeacherGlobalId(legacyId) });
+    if (!d.node) return null;
+    return {
+      avgRating: d.node.avgRating ?? null,
+      numRatings: d.node.numRatings ?? null,
+      avgDifficulty: d.node.avgDifficulty ?? null,
+      wouldTakeAgainPercent: d.node.wouldTakeAgainPercent ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export const enrichProfintelCampus = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({ campusId: z.string().uuid(), limit: z.number().int().min(1).max(300).optional() })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: campus } = await supabaseAdmin
+      .from("campuses")
+      .select("id, name, state, course_family_codes_json, rmp_school_url, rmp_page_url")
+      .eq("id", data.campusId)
+      .maybeSingle();
+    let cj: unknown = (campus as { course_family_codes_json?: unknown } | null)
+      ?.course_family_codes_json;
+    if (typeof cj === "string") {
+      try {
+        cj = JSON.parse(cj);
+      } catch {
+        cj = {};
+      }
+    }
+    const targetCodes = targetCodesFromCampus(cj);
+
+    // Resolve the campus's RMP school so we can match name-only leads (pasted with
+    // no rmp_profile_url) to their RMP profile. Prefer a stored URL; fall back to a
+    // name+state lookup on RMP. Then fetch the whole roster once and name-match.
+    const c = campus as {
+      name?: string | null;
+      state?: string | null;
+      rmp_school_url?: string | null;
+      rmp_page_url?: string | null;
+    } | null;
+    const storedUrl = (c?.rmp_school_url || c?.rmp_page_url || "").trim();
+    // All RMP school ids for this campus (handles RMP's duplicate school entries).
+    const schoolIds = await resolveCampusSchoolIds(c?.name ?? null, storedUrl);
+
+    const { data: leads } = await supabaseAdmin
+      .from("campus_lead_suggestions")
+      .select("id, campus_id, first_name, last_name, email, source_url, rmp_profile_url")
+      .eq("campus_id", data.campusId)
+      .is("archived_at", null)
+      .limit(data.limit ?? 300);
+
+    let processed = 0,
+      enriched = 0,
+      withTargetMatch = 0,
+      resolvedByName = 0,
+      unresolved = 0;
+    for (const l of (leads ?? []) as Array<{
+      id: string;
+      campus_id: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      source_url: string | null;
+      rmp_profile_url: string | null;
+    }>) {
+      processed += 1;
+
+      // Resolve the RMP teacher: explicit profile URL first, else a global RMP
+      // name search restricted to the campus's school(s) — this is what unlocks
+      // name-only pastes and dodges RMP's duplicate-school-id gap.
+      let legacy = legacyIdFromRmpUrl(l.rmp_profile_url);
+      let node: TeacherWithSchool | null = null;
+      let resolvedUrl: string | null = null;
+      if (legacy == null) {
+        node = await findTeacherByName(l.first_name, l.last_name, schoolIds);
+        if (node) {
+          legacy = node.legacyId;
+          resolvedUrl = `https://www.ratemyprofessors.com/professor/${node.legacyId}`;
+          resolvedByName += 1;
+        }
+      }
+      if (legacy == null) {
+        unresolved += 1;
+        continue;
+      }
+
+      // A name-matched node already carries aggregates; only fetch them separately
+      // when the lead came in with an explicit URL (no roster node).
+      const agg = node
+        ? {
+            avgRating: node.avgRating,
+            numRatings: node.numRatings,
+            avgDifficulty: node.avgDifficulty,
+            wouldTakeAgainPercent: node.wouldTakeAgainPercent,
+          }
+        : await fetchTeacherAggregate(legacy);
+      const ratings = await fetchTeacherRatingsFull(legacy);
+      if (ratings.length > 0)
+        await upsertRatingsForLead(supabaseAdmin as never, l.id, l.campus_id, ratings);
+
+      // Deduped class labels + 0035-style match aggregate (NOT teaching_confidence).
+      const seen = new Set<string>();
+      const rawClasses: string[] = [];
+      for (const r of ratings) {
+        const c = (r.class ?? "").trim();
+        if (!c) continue;
+        const k = normCode(c);
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        rawClasses.push(c);
+      }
+      const { matchJson, count } = crossRefClasses(rawClasses, targetCodes);
+
+      const sig = computeTargetSignal({
+        ratings: ratings.map((r) => ({
+          class_label: r.class ?? null,
+          rated_at: parseRmpDate(r.date),
+        })),
+        targetCodes,
+        email: l.email,
+        numRatings: agg?.numRatings ?? null,
+        rmpRating: agg?.avgRating ?? null,
+        difficulty: agg?.avgDifficulty ?? null,
+        hasFacultySource: !!(l.source_url && !/ratemyprofessor/i.test(l.source_url)),
+      });
+
+      const patch: Record<string, unknown> = {
+        rmp_course_codes: rawClasses,
+        rmp_course_match_json: matchJson,
+        rmp_course_match_count: count,
+        rmp_checked_at: new Date().toISOString(),
+        rmp_latest_target_course_code: sig.latestTargetCode,
+        rmp_latest_target_rating_date: sig.latestTargetDate,
+        rmp_target_course_counts_json: sig.counts,
+        rmp_terms_taught_estimate_json: { total: sig.termsTaught, terms: sig.termsList },
+        rmp_recent_target_match: sig.recentMatch,
+        rmp_taught_this_time_last_year: sig.thisTimeLastYear,
+        rmp_target_confidence: sig.confidence,
+        profintel_score: sig.score,
+        profintel_reason: sig.reason,
+      };
+      if (resolvedUrl) patch.rmp_profile_url = resolvedUrl;
+      if (agg?.avgRating != null) patch.rmp_rating = agg.avgRating;
+      if (agg?.numRatings != null) patch.rmp_num_ratings = agg.numRatings;
+      if (agg?.avgDifficulty != null) patch.rmp_difficulty = agg.avgDifficulty;
+      if (agg?.wouldTakeAgainPercent != null && agg.wouldTakeAgainPercent >= 0)
+        patch.rmp_would_take_again = agg.wouldTakeAgainPercent;
+
+      const { error } = await supabaseAdmin
+        .from("campus_lead_suggestions")
+        .update(patch as never)
+        .eq("id", l.id);
+      if (!error) {
+        enriched += 1;
+        if (count > 0) withTargetMatch += 1;
+      }
+      await sleep(200);
+    }
+
+    return {
+      processed,
+      enriched,
+      withTargetMatch,
+      resolvedByName,
+      unresolved,
+      schoolMatched: schoolIds.size > 0,
+      targets: Object.keys(targetCodes),
+    };
   });
 
 export const resetCampusLeads = createServerFn({ method: "POST" })
