@@ -1,6 +1,6 @@
--- 0041_profintel_v2_signal.sql
+-- 0045_profintel_v2_signal.sql
 -- ProfIntel V2: per-lead RMP teaching-evidence rollup + targeting score, computed
--- from the dated reviews in rmp_ratings (0040) cross-referenced against a campus's
+-- from the dated reviews in rmp_ratings (0044) cross-referenced against a campus's
 -- four target course codes (campuses.course_family_codes_json:
 -- intro_1 | intro_2 | intermediate_1 | intermediate_2).
 --
@@ -8,7 +8,7 @@
 -- scheduler, the existing rmp_course_* aggregates, orders, or ProfIntel V1.
 -- These are "RMP evidence / estimated" signals (review dates are not official
 -- teaching assignments) — never asserted as a guaranteed schedule.
--- Idempotent. After 0040 (rmp_ratings). Reuses rmp_ratings as the review cache
+-- Idempotent. After 0044 (rmp_ratings). Reuses rmp_ratings as the review cache
 -- (Step 6B's optional profintel_rmp_reviews is intentionally NOT created).
 
 alter table public.campus_lead_suggestions

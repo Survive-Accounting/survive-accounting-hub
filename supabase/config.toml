@@ -18,6 +18,10 @@ verify_jwt = false
 [functions.notify-waitlist]
 verify_jwt = false
 
+# Called by the orders DB trigger with x-order-secret (verified in-function).
+[functions.notify-order]
+verify_jwt = false
+
 # Called by pg_cron with x-cron-secret.
 [functions.outreach-scheduler]
 verify_jwt = false

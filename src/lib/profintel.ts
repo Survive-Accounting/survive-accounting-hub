@@ -456,7 +456,7 @@ export async function saveCampusCourseCodes(
 
 // ===================== ProfIntel V2 =====================
 
-/** One professor row for the V2 targeting table (columns come from 0041 rollup). */
+/** One professor row for the V2 targeting table (columns come from 0045 rollup). */
 export interface ProfIntelV2Lead {
   id: string;
   first_name: string | null;

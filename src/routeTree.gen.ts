@@ -16,6 +16,7 @@ import { Route as StartRouteImport } from './routes/start'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
 import { Route as OutreachRouteImport } from './routes/outreach'
+import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as CeqRouteImport } from './routes/ceq'
@@ -27,12 +28,15 @@ import { Route as OutreachStudentsRouteImport } from './routes/outreach.students
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
 import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
+import { Route as OutreachOrdersSettingsRouteImport } from './routes/outreach.orders-settings'
+import { Route as OutreachOrdersRouteImport } from './routes/outreach.orders'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
 import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
+import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
@@ -75,6 +79,11 @@ const PreviewRoute = PreviewRouteImport.update({
 const OutreachRoute = OutreachRouteImport.update({
   id: '/outreach',
   path: '/outreach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrderRoute = OrderRouteImport.update({
+  id: '/order',
+  path: '/order',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardRoute = OnboardRouteImport.update({
@@ -133,6 +142,16 @@ const OutreachProfintelRoute = OutreachProfintelRouteImport.update({
   path: '/profintel',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachOrdersSettingsRoute = OutreachOrdersSettingsRouteImport.update({
+  id: '/orders-settings',
+  path: '/orders-settings',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachOrdersRoute = OutreachOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachLeadfinderLeaderboardRoute =
   OutreachLeadfinderLeaderboardRouteImport.update({
     id: '/leadfinder-leaderboard',
@@ -163,6 +182,11 @@ const OutreachCampaignMetricsRoute = OutreachCampaignMetricsRouteImport.update({
   id: '/campaign-metrics',
   path: '/campaign-metrics',
   getParentRoute: () => OutreachRoute,
+} as any)
+const OrderShortRefRoute = OrderShortRefRouteImport.update({
+  id: '/$shortRef',
+  path: '/$shortRef',
+  getParentRoute: () => OrderRoute,
 } as any)
 const OShortRefRoute = OShortRefRouteImport.update({
   id: '/o/$shortRef',
@@ -213,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
+  '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
@@ -222,12 +247,15 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
+  '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/orders-settings': typeof OutreachOrdersSettingsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -247,6 +275,7 @@ export interface FileRoutesByTo {
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
+  '/order': typeof OrderRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
@@ -255,12 +284,15 @@ export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
+  '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/orders-settings': typeof OutreachOrdersSettingsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -281,6 +313,7 @@ export interface FileRoutesById {
   '/ceq': typeof CeqRouteWithChildren
   '/je': typeof JeRoute
   '/onboard': typeof OnboardRoute
+  '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
@@ -290,12 +323,15 @@ export interface FileRoutesById {
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
+  '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/orders-settings': typeof OutreachOrdersSettingsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
@@ -317,6 +353,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/je'
     | '/onboard'
+    | '/order'
     | '/outreach'
     | '/preview'
     | '/privacy'
@@ -326,12 +363,15 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/order/$shortRef'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
+    | '/outreach/orders'
+    | '/outreach/orders-settings'
     | '/outreach/profintel'
     | '/outreach/profintel-schedule'
     | '/outreach/research'
@@ -351,6 +391,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/je'
     | '/onboard'
+    | '/order'
     | '/preview'
     | '/privacy'
     | '/start'
@@ -359,12 +400,15 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/order/$shortRef'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
+    | '/outreach/orders'
+    | '/outreach/orders-settings'
     | '/outreach/profintel'
     | '/outreach/profintel-schedule'
     | '/outreach/research'
@@ -384,6 +428,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/je'
     | '/onboard'
+    | '/order'
     | '/outreach'
     | '/preview'
     | '/privacy'
@@ -393,12 +438,15 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/ceq/create'
     | '/o/$shortRef'
+    | '/order/$shortRef'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
+    | '/outreach/orders'
+    | '/outreach/orders-settings'
     | '/outreach/profintel'
     | '/outreach/profintel-schedule'
     | '/outreach/research'
@@ -419,6 +467,7 @@ export interface RootRouteChildren {
   CeqRoute: typeof CeqRouteWithChildren
   JeRoute: typeof JeRoute
   OnboardRoute: typeof OnboardRoute
+  OrderRoute: typeof OrderRouteWithChildren
   OutreachRoute: typeof OutreachRouteWithChildren
   PreviewRoute: typeof PreviewRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -480,6 +529,13 @@ declare module '@tanstack/react-router' {
       path: '/outreach'
       fullPath: '/outreach'
       preLoaderRoute: typeof OutreachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/order': {
+      id: '/order'
+      path: '/order'
+      fullPath: '/order'
+      preLoaderRoute: typeof OrderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboard': {
@@ -559,6 +615,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachProfintelRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/orders-settings': {
+      id: '/outreach/orders-settings'
+      path: '/orders-settings'
+      fullPath: '/outreach/orders-settings'
+      preLoaderRoute: typeof OutreachOrdersSettingsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/orders': {
+      id: '/outreach/orders'
+      path: '/orders'
+      fullPath: '/outreach/orders'
+      preLoaderRoute: typeof OutreachOrdersRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/leadfinder-leaderboard': {
       id: '/outreach/leadfinder-leaderboard'
       path: '/leadfinder-leaderboard'
@@ -600,6 +670,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/outreach/campaign-metrics'
       preLoaderRoute: typeof OutreachCampaignMetricsRouteImport
       parentRoute: typeof OutreachRoute
+    }
+    '/order/$shortRef': {
+      id: '/order/$shortRef'
+      path: '/$shortRef'
+      fullPath: '/order/$shortRef'
+      preLoaderRoute: typeof OrderShortRefRouteImport
+      parentRoute: typeof OrderRoute
     }
     '/o/$shortRef': {
       id: '/o/$shortRef'
@@ -676,6 +753,16 @@ const CeqRouteChildren: CeqRouteChildren = {
 
 const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
+interface OrderRouteChildren {
+  OrderShortRefRoute: typeof OrderShortRefRoute
+}
+
+const OrderRouteChildren: OrderRouteChildren = {
+  OrderShortRefRoute: OrderShortRefRoute,
+}
+
+const OrderRouteWithChildren = OrderRoute._addFileChildren(OrderRouteChildren)
+
 interface OutreachRouteChildren {
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
@@ -683,6 +770,8 @@ interface OutreachRouteChildren {
   OutreachLandingRoute: typeof OutreachLandingRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
+  OutreachOrdersRoute: typeof OutreachOrdersRoute
+  OutreachOrdersSettingsRoute: typeof OutreachOrdersSettingsRoute
   OutreachProfintelRoute: typeof OutreachProfintelRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
@@ -699,6 +788,8 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachLandingRoute: OutreachLandingRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
+  OutreachOrdersRoute: OutreachOrdersRoute,
+  OutreachOrdersSettingsRoute: OutreachOrdersSettingsRoute,
   OutreachProfintelRoute: OutreachProfintelRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
   OutreachResearchRoute: OutreachResearchRoute,
@@ -718,6 +809,7 @@ const rootRouteChildren: RootRouteChildren = {
   CeqRoute: CeqRouteWithChildren,
   JeRoute: JeRoute,
   OnboardRoute: OnboardRoute,
+  OrderRoute: OrderRouteWithChildren,
   OutreachRoute: OutreachRouteWithChildren,
   PreviewRoute: PreviewRoute,
   PrivacyRoute: PrivacyRoute,

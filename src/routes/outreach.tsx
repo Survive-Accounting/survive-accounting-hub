@@ -12,6 +12,7 @@ import { createFileRoute, useRouterState, useNavigate, Outlet, Link } from "@tan
 import { Toaster } from "sonner";
 import {
   ChevronDown,
+  ClipboardList,
   GraduationCap,
   LayoutTemplate,
   Megaphone,
@@ -82,7 +83,18 @@ const PROFINTEL_SECTION: Section = {
 };
 
 // V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
+// (Includes the Requests/orders admin added on main — a V1 surface hidden in V2.)
 const V1_SECTIONS: Section[] = [
+  {
+    key: "orders",
+    label: "Requests",
+    icon: ClipboardList,
+    owns: (p) => p.startsWith("/outreach/orders"),
+    subtabs: [
+      { label: "All Requests", to: "/outreach/orders" },
+      { label: "Request settings", to: "/outreach/orders-settings" },
+    ],
+  },
   {
     key: "leads",
     label: "Leads",

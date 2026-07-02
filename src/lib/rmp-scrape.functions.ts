@@ -1178,7 +1178,7 @@ export const backfillRmpRatings = createServerFn({ method: "POST" })
 
 // ===================== ProfIntel V2 enrich =====================
 // For a campus, refresh each RMP-linked lead's aggregates, capture dated reviews
-// into rmp_ratings, and roll them up (via computeTargetSignal) into the 0041
+// into rmp_ratings, and roll them up (via computeTargetSignal) into the 0045
 // targeting columns. ADDITIVE: writes the rmp_course_* aggregates + V2 columns.
 // Does NOT set teaching_confidence (V1's live signal) or touch the scheduler.
 

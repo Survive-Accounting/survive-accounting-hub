@@ -1,4 +1,4 @@
--- 0040_rmp_ratings.sql
+-- 0044_rmp_ratings.sql
 -- Phase 1 of RMP teaching-signal scoring: capture DATED, review-level RMP ratings.
 -- The existing scraper only pulled each rating's "class" label (deduped) and threw
 -- the date away, so recency/terms-taught were not derivable. This table stores one
@@ -9,7 +9,7 @@
 -- scheduler, the existing rmp_course_* aggregates, ProfIntel, or orders.
 -- This table is intentionally "dumb": it stores raw labels/dates only. Course-family
 -- matching happens at rollup time (so matching can be re-tuned without re-scraping).
--- Idempotent. Numbered 0040 (0038 = ProfIntel faculty_mobility, 0039 = orders).
+-- Idempotent. Numbered 0044 (0038=mobility, 0039-0043=orders).
 -- Anon CRUD (AdminGate'd UI), matching the outreach table convention.
 
 create table if not exists public.rmp_ratings (
