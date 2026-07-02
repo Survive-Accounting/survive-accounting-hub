@@ -197,7 +197,6 @@ function ProfIntelChoose() {
   const [importing, setImporting] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [chips, setChips] = useState<Set<string>>(new Set());
 
   // Reset per-campus UI state when switching campus.
@@ -205,7 +204,6 @@ function ProfIntelChoose() {
     setSelected(new Set());
     setPaste("");
     setChips(new Set());
-    setShowAll(false);
   }, [campusId]);
 
   const toggle = (id: string) =>
@@ -269,10 +267,12 @@ function ProfIntelChoose() {
     }
   }
 
-  // Default view: only professors with confirmed RMP target-course evidence.
+  // Default view: the full pasted roster. RMP-confirmed profs sort to the top by
+  // score; the rest are alphabetical. Chips narrow (incl. "RMP-confirmed" for the
+  // tight, evidence-only list).
   const filtered = useMemo(() => {
     let rows = leads;
-    if (!showAll) rows = rows.filter((l) => (l.rmp_course_match_count ?? 0) > 0);
+    if (chips.has("confirmed")) rows = rows.filter((l) => (l.rmp_course_match_count ?? 0) > 0);
     for (const fam of TARGET_FAMILY_KEYS) {
       if (chips.has(fam))
         rows = rows.filter((l) => (l.rmp_target_course_counts_json?.[fam] ?? 0) > 0);
@@ -281,8 +281,12 @@ function ProfIntelChoose() {
     if (chips.has("needs_email")) rows = rows.filter((l) => !l.email);
     if (chips.has("send_today"))
       rows = rows.filter((l) => l.rmp_target_confidence === "high" && !!l.email);
-    return [...rows].sort((a, b) => (b.profintel_score ?? 0) - (a.profintel_score ?? 0));
-  }, [leads, showAll, chips]);
+    return [...rows].sort(
+      (a, b) =>
+        (b.profintel_score ?? 0) - (a.profintel_score ?? 0) ||
+        (a.last_name ?? "").localeCompare(b.last_name ?? ""),
+    );
+  }, [leads, chips]);
 
   async function handleCreate() {
     if (!campusId || !campus) return;
@@ -490,10 +494,10 @@ function ProfIntelChoose() {
               <FilterChip active={chips.has("send_today")} onClick={() => toggleChip("send_today")}>
                 Send today
               </FilterChip>
-              <label className="ml-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Checkbox checked={showAll} onCheckedChange={(v) => setShowAll(!!v)} /> show all
-                pasted faculty
-              </label>
+              <span className="mx-1 h-4 w-px bg-border" />
+              <FilterChip active={chips.has("confirmed")} onClick={() => toggleChip("confirmed")}>
+                RMP-confirmed only
+              </FilterChip>
             </div>
 
             {leadsQuery.isLoading ? (
@@ -504,7 +508,7 @@ function ProfIntelChoose() {
               <div className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
                 {leads.length === 0
                   ? "Paste faculty leads, save course codes, then enrich with RMP."
-                  : "No professors with confirmed RMP target-course evidence yet. Enrich with RMP, or toggle “show all pasted faculty”."}
+                  : "No professors match the active filters. Clear a chip to see the full roster."}
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border text-xs">
