@@ -7,8 +7,6 @@ import Reviews from "@/components/landing/Reviews";
 import ContactForm from "@/components/landing/ContactForm";
 import SiteFooter from "@/components/landing/SiteFooter";
 import PainHook from "@/components/landing/PainHook";
-import SoulBand from "@/components/landing/SoulBand";
-import PricingPlans from "@/components/landing/PricingPlans";
 import { Reveal } from "@/components/landing/Reveal";
 import FreeVideoCapture from "@/components/landing/FreeVideoCapture";
 import BeyondTeaser from "@/components/landing/BeyondTeaser";
@@ -63,16 +61,16 @@ function HeroCta() {
     <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
         <a href="/order" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
-          <span style={{ fontWeight: 800 }}>Request Help</span>
+          <span style={{ fontWeight: 800 }}>Request Help Video</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
       </div>
       <div className="flex flex-col items-center gap-1">
         <p className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.82)", fontFamily: "Inter, sans-serif" }}>
-          Free to request · I quote before I build
+          Free to request · Preview before you buy · First come, first served
         </p>
         <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.65)", fontFamily: "Inter, sans-serif" }}>
-          1,000+ students helped since 2015 · Intro &amp; Intermediate Accounting
+          Trusted by 1,000+ students since 2015 · Intro &amp; Intermediate Accounting
         </p>
       </div>
     </div>
@@ -183,25 +181,27 @@ function Home() {
       <SiteNav />
       {s.hero && (
         <Hero
-          headline="Accounting help, made for what you're stuck on."
-          subtext="Send me what you need help with. I'll quote a custom Cram Video before I build it — no risk to ask."
+          headline="Get videos for accounting exam prep"
+          subtext="Send me your toughest homework problems, review sheets, or exam topics. I'll send you a help video with notes and exam prep tips."
           ctaSlot={<HeroCta />}
         />
       )}
 
-      {/* How it works — right under the hero. Nav "How it works" anchors here. */}
+      {s.painHook && <PainHook />}
+
+      {/* How it works. Nav "How it works" anchors here. */}
       <section id="how-it-works" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#FFFFFF" }}>
         <Reveal className="mx-auto max-w-5xl">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: RED }}>
             How it works
           </p>
           <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-            Cram Videos, made for what&apos;s on your test.
+            Get help videos made for what&apos;s on your test.
           </h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
               { n: 1, title: "Send it", body: "Tell me what you're stuck on. Homework problem, review sheet, chapter, exam topic — whatever you've got." },
-              { n: 2, title: "I quote it", body: "I'll reply with what I'll make and what it costs. No obligation, no card on file." },
+              { n: 2, title: "Get a quote", body: "I'll reply in 1 business day with what I'll make and what it costs." },
               { n: 3, title: "You approve, I build", body: "Approve the quote, I make your video with notes. Delivered before your exam." },
             ].map((step) => (
               <div key={step.n} className="text-center">
@@ -219,70 +219,19 @@ function Home() {
               className="inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
               style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}
             >
-              Request Help <span className="transition-transform group-hover:translate-x-0.5">→</span>
+              Request Help Video <span className="transition-transform group-hover:translate-x-0.5">→</span>
             </a>
           </div>
         </Reveal>
       </section>
 
-      {s.painHook && <PainHook />}
-
-      {/* Social proof: testimonials. ("As featured in" now lives in the footer.) */}
+      {/* Social proof: testimonials. */}
       <Reviews />
       <IntroVideoSection settings={settings} />
-
-      {s.plans && (
-        <section id="plans" className="scroll-mt-20 px-4 py-16 sm:py-20"
-          style={{ background: "radial-gradient(70% 60% at 50% 0%, #FFFFFF 0%, #F4F7FC 70%)" }}>
-          <Reveal className="mx-auto max-w-2xl">
-            <h2 className="text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-              What does it cost?
-            </h2>
-            <div className="mx-auto mt-5 max-w-xl space-y-4 text-[15px] leading-relaxed text-gray-700">
-              <p>
-                Free to request. After you send what you need, I&apos;ll reply with a quote — what I&apos;ll make and what it costs — before I build anything.
-              </p>
-              <p>
-                You only pay once you approve the quote and receive your Cram Video. If it doesn&apos;t help on your test, reply within 72 hours after your exam for a full refund.
-              </p>
-              <p>
-                Prefer live 1-on-1? I take a small number of semester students at $150/hr. Text me if you&apos;re interested.
-              </p>
-            </div>
-            <div className="mt-9">
-              <PricingPlans bookHref="/order" />
-            </div>
-          </Reveal>
-        </section>
-      )}
-
-      {s.whoIAm && <Reveal><SoulBand /></Reveal>}
 
       {s.freeExplainers && <FreeVideoCapture />}
       {s.beyondExam && <BeyondTeaser />}
       {s.questions && <ContactForm />}
-
-      {/* Final CTA — last stop before the footer. */}
-      <section className="px-4 py-16 sm:py-20" style={{ background: "#F4F7FC" }}>
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-            Need accounting help?
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed text-gray-600">
-            Send me what you&apos;re stuck on. I&apos;ll tell you what I can make, what it costs, and how fast I can get it done.
-          </p>
-          <div className="mt-8 flex flex-col items-center gap-2">
-            <a
-              href="/order"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-9 py-4 text-[16px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
-              style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 12px 32px rgba(206,17,38,0.38)" }}
-            >
-              Request Help <span>→</span>
-            </a>
-            <p className="text-[12.5px] text-gray-500">Free to request · I quote before I build</p>
-          </div>
-        </Reveal>
-      </section>
 
       <SiteFooter />
       <Toaster position="top-center" richColors />
