@@ -160,34 +160,85 @@ async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeac
   return out;
 }
 
-/** Targeted per-professor lookup: RMP's own fuzzy teacher search scoped to a
- *  school. More reliable than local matching against a capped roster — it catches
- *  name variants (Christy↔Christine, dropped middle names) via RMP's ranking. */
-async function searchTeacherAtSchool(
-  schoolGlobalId: string,
+type TeacherWithSchool = RmpTeacherNode & { school?: { legacyId: number; name: string } | null };
+
+const TEACHER_NAME_SEARCH_QUERY = `
+query TeacherNameSearch($query: TeacherSearchQuery!) {
+  search: newSearch {
+    teachers(query: $query, first: 12) {
+      edges {
+        node {
+          id legacyId firstName lastName department
+          avgRating numRatings avgDifficulty wouldTakeAgainPercent
+          school { legacyId name }
+        }
+      }
+    }
+  }
+}`;
+
+const normSchool = (s: string | null | undefined) =>
+  (s ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]/g, "");
+
+/** Every RMP school legacyId that plausibly IS this campus. RMP frequently keeps
+ *  several duplicate entries for one school (e.g. Ole Miss has a near-empty 18870
+ *  AND the real 1265) — we accept all whose name exactly matches, plus any stored
+ *  one, so a name search can land the professor under whichever the school indexed
+ *  them under. */
+async function resolveCampusSchoolIds(
+  campusName: string | null,
+  storedUrl: string,
+): Promise<Set<number>> {
+  const ids = new Set<number>();
+  const stored = storedUrl ? extractSchoolLegacyId(storedUrl) : null;
+  if (stored != null) ids.add(stored);
+  const name = (campusName ?? "").trim();
+  if (name) {
+    try {
+      const j = await rmpGraphql<{
+        search?: { schools?: { edges?: Array<{ node: { legacyId: number; name: string } }> } };
+      }>(SCHOOLS_QUERY, { text: name });
+      const target = normSchool(name);
+      for (const e of j.search?.schools?.edges ?? []) {
+        if (normSchool(e.node.name) === target) ids.add(e.node.legacyId);
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
+  return ids;
+}
+
+/** Global RMP teacher search by name, restricted to the campus's RMP school(s).
+ *  Robust to RMP's duplicate school entries, where a single-school roster misses
+ *  faculty indexed under a different duplicate id. Anti-false-positive: never
+ *  returns a same-name professor at a different school. */
+async function findTeacherByName(
   first: string | null,
   last: string | null,
-): Promise<RmpTeacherNode | null> {
+  schoolIds: Set<number>,
+): Promise<TeacherWithSchool | null> {
   const text = `${first ?? ""} ${last ?? ""}`.trim();
   if (!text) return null;
   try {
-    const data = await rmpGraphql<TeachersPage>(TEACHERS_QUERY, {
-      count: 20,
-      cursor: null,
-      query: { schoolID: schoolGlobalId, text },
-    });
-    const nodes = (data.search?.teachers?.edges ?? []).map((e) => e.node);
+    const j = await rmpGraphql<{
+      search?: { teachers?: { edges?: Array<{ node: TeacherWithSchool }> } };
+    }>(TEACHER_NAME_SEARCH_QUERY, { query: { text } });
+    let nodes = (j.search?.teachers?.edges ?? []).map((e) => e.node);
+    if (schoolIds.size > 0)
+      nodes = nodes.filter((n) => n.school && schoolIds.has(n.school.legacyId));
     if (nodes.length === 0) return null;
     const normLast = (s: string | null) =>
       (s ?? "")
         .toLowerCase()
         .normalize("NFKD")
         .replace(/[^a-z]/g, "");
-    // Exact first+last key wins.
     const key = nameKey(first, last);
     const exact = nodes.find((n) => nameKey(n.firstName, n.lastName) === key);
     if (exact) return exact;
-    // Else a unique same-last-name result; else first-initial disambiguation.
     const lastK = normLast(last);
     const cands = nodes.filter((n) => normLast(n.lastName) === lastK);
     if (cands.length === 1) return cands[0];
@@ -1289,43 +1340,9 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
       rmp_school_url?: string | null;
       rmp_page_url?: string | null;
     } | null;
-    let schoolUrl = (c?.rmp_school_url || c?.rmp_page_url || "").trim();
-    if (!schoolUrl && c?.name)
-      schoolUrl = (await findRmpSchoolUrlByName(c.name, c.state ?? null)) ?? "";
-    const schoolLegacy = schoolUrl ? extractSchoolLegacyId(schoolUrl) : null;
-
-    const schoolGid = schoolLegacy != null ? encodeSchoolGlobalId(schoolLegacy) : null;
-    const byKey = new Map<string, RmpTeacherNode>();
-    const byLast = new Map<string, RmpTeacherNode[]>();
-    if (schoolGid) {
-      try {
-        const teachers = await fetchAllTeachersAtSchool(schoolGid);
-        for (const t of teachers) {
-          const key = nameKey(t.firstName, t.lastName);
-          if (key !== "|" && !byKey.has(key)) byKey.set(key, t);
-          const lastK = (t.lastName ?? "")
-            .toLowerCase()
-            .normalize("NFKD")
-            .replace(/[^a-z]/g, "");
-          if (lastK) byLast.set(lastK, [...(byLast.get(lastK) ?? []), t]);
-        }
-      } catch {
-        /* roster fetch is best-effort */
-      }
-    }
-    const matchTeacher = (first: string | null, last: string | null): RmpTeacherNode | null => {
-      const exact = byKey.get(nameKey(first, last));
-      if (exact) return exact;
-      const lastK = (last ?? "")
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/[^a-z]/g, "");
-      const cands = byLast.get(lastK) ?? [];
-      if (cands.length === 1) return cands[0];
-      const init = firstInitial(first);
-      const byInit = cands.filter((t) => firstInitial(t.firstName) === init);
-      return byInit.length === 1 ? byInit[0] : null;
-    };
+    const storedUrl = (c?.rmp_school_url || c?.rmp_page_url || "").trim();
+    // All RMP school ids for this campus (handles RMP's duplicate school entries).
+    const schoolIds = await resolveCampusSchoolIds(c?.name ?? null, storedUrl);
 
     const { data: leads } = await supabaseAdmin
       .from("campus_lead_suggestions")
@@ -1350,16 +1367,14 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
     }>) {
       processed += 1;
 
-      // Resolve the RMP teacher: explicit profile URL first, else a name match
-      // against the campus's RMP roster (this is what unlocks name-only pastes).
+      // Resolve the RMP teacher: explicit profile URL first, else a global RMP
+      // name search restricted to the campus's school(s) — this is what unlocks
+      // name-only pastes and dodges RMP's duplicate-school-id gap.
       let legacy = legacyIdFromRmpUrl(l.rmp_profile_url);
-      let node: RmpTeacherNode | null = null;
+      let node: TeacherWithSchool | null = null;
       let resolvedUrl: string | null = null;
       if (legacy == null) {
-        // Roster match first (free), then RMP's fuzzy per-prof search for stragglers.
-        node = matchTeacher(l.first_name, l.last_name);
-        if (!node && schoolGid)
-          node = await searchTeacherAtSchool(schoolGid, l.first_name, l.last_name);
+        node = await findTeacherByName(l.first_name, l.last_name, schoolIds);
         if (node) {
           legacy = node.legacyId;
           resolvedUrl = `https://www.ratemyprofessors.com/professor/${node.legacyId}`;
@@ -1450,7 +1465,7 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
       withTargetMatch,
       resolvedByName,
       unresolved,
-      schoolMatched: schoolLegacy != null,
+      schoolMatched: schoolIds.size > 0,
       targets: Object.keys(targetCodes),
     };
   });
