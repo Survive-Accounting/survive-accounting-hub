@@ -194,11 +194,12 @@ function Home() {
           </h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
-              { n: 1, title: "Tell me what you're stuck on", body: "Homework problem, review sheet, chapter, exam topic — whatever you've got." },
-              { n: 2, title: "Make a gameplan", body: "I'll reply in 1 business day with what I'll make, what it costs, and how you'll benefit." },
-              { n: 3, title: "Get ready to ace it", body: "Once you approve the gameplan, I'll make you a personalized video. First come, first served." },
+              { n: 1, img: "/step1.png", title: "Tell me what you're stuck on", body: "Homework problem, review sheet, chapter, exam topic — whatever you've got." },
+              { n: 2, img: "/step2.png", title: "Make a gameplan", body: "I'll reply in 1 business day with what I'll make, what it costs, and how you'll benefit." },
+              { n: 3, img: "/step3.png", title: "Get ready to ace it", body: "Once you approve the gameplan, I'll make you a personalized video. First come, first served." },
             ].map((step) => (
               <div key={step.n} className="text-center">
+                <img src={step.img} alt="" aria-hidden="true" className="mx-auto mb-4 h-36 w-36 object-contain" loading="lazy" />
                 <div className="mx-auto grid h-12 w-12 place-content-center rounded-full text-[17px] font-bold text-white" style={{ background: NAVY }}>
                   {step.n}
                 </div>
