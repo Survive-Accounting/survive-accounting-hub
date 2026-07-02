@@ -38,8 +38,8 @@ const WORK_PHONE_HREF = "+16625658818";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const FOOTER_PREFIX = "Questions? Text me anytime at";
-const PAGE_TITLE = "Get videos for accounting exam prep";
-const PAGE_SUBLINE = "Tailored to your specific needs.";
+const PAGE_TITLE = "Get helpful exam prep videos from a real tutor";
+const PAGE_SUBLINE = "Sent in 2-5 business days. First come, first served.";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
@@ -66,11 +66,10 @@ const STEPS = ["What you need", "Help options", "Exam", "School", "Course", "Pro
 type HelpType = "made_to_order" | "one_on_one";
 
 type RequestScope = "everything_exam" | "one_chapter" | "one_or_two_topics" | "homework_explained";
-const SCOPES: { value: RequestScope; label: string; helper: string }[] = [
-  { value: "everything_exam", label: "Everything on my next exam", helper: "Broad review across the chapters your exam covers." },
-  { value: "one_chapter", label: "One entire chapter", helper: "Deep on one chapter — practice + walk-throughs." },
-  { value: "one_or_two_topics", label: "One or two topics", helper: "Targeted help on the specific parts tripping you up." },
-  { value: "homework_explained", label: "Homework explained", helper: "A problem or set of problems, walked through step by step." },
+const SCOPES: { value: RequestScope; label: string }[] = [
+  { value: "one_or_two_topics", label: "A few topics" },
+  { value: "one_chapter", label: "One chapter" },
+  { value: "everything_exam", label: "Every chapter" },
 ];
 const scopeLabel = (s: RequestScope | null) => SCOPES.find((x) => x.value === s)?.label ?? "—";
 
@@ -238,19 +237,16 @@ function ScopeStep({ draft, update, onNext }: {
 }) {
   return (
     <div>
-      <Title>What do you need help with?</Title>
+      <Title>What do you need help with for your next exam?</Title>
       <div className="space-y-2">
         {SCOPES.map((s) => {
           const active = draft.requestScope === s.value;
           return (
             <button key={s.value} type="button" onClick={() => update("requestScope", s.value)}
-              className={cn("flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-4 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+              className={cn("flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-4 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
               style={active ? { background: NAVY } : undefined}>
-              <span>
-                <span className="block text-[15px] font-semibold">{s.label}</span>
-                <span className={cn("mt-0.5 block text-xs", active ? "text-white/75" : "text-gray-500")}>{s.helper}</span>
-              </span>
-              {active && <Check className="mt-0.5 h-4 w-4 shrink-0" />}
+              <span className="text-[15px] font-semibold">{s.label}</span>
+              {active && <Check className="h-4 w-4 shrink-0" />}
             </button>
           );
         })}
@@ -268,23 +264,6 @@ function ScopeStep({ draft, update, onNext }: {
           placeholder="e.g. the chapters, the problem numbers, or what keeps tripping you up"
           className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
         />
-      </div>
-
-      <div className="mt-4 rounded-2xl border bg-white p-4">
-        <label className="flex cursor-pointer items-start gap-3">
-          <input type="checkbox" checked={draft.interestedInGroup}
-            onChange={(e) => update("interestedInGroup", e.target.checked)} className="mt-1 h-4 w-4" />
-          <span className="text-sm text-gray-700">
-            <span className="font-medium text-gray-900">Studying with classmates?</span> I can make it for your group — check this for a group rate.
-          </span>
-        </label>
-        {draft.interestedInGroup && (
-          <div className="mt-3 pl-7">
-            <Label className="mb-1.5 block text-xs text-gray-600">About how many? (optional)</Label>
-            <Input type="number" min={2} max={100} value={draft.groupSize}
-              onChange={(e) => update("groupSize", e.target.value)} placeholder="e.g. 4" className="max-w-[120px]" />
-          </div>
-        )}
       </div>
 
       <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!draft.requestScope}>Continue</PrimaryBtn></div>
