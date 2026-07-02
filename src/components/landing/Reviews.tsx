@@ -43,7 +43,7 @@ export default function Reviews() {
             color: NAVY,
           }}
         >
-          What students say after working with Lee
+          Hear what people have to say about Survive Accounting
         </h2>
         <iframe
           ref={iframeRef}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
+import { Menu, X } from "lucide-react";
 
 import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
@@ -52,39 +53,44 @@ function HeroCta() {
       </div>
       <div className="flex flex-col items-center gap-1">
         <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.65)", fontFamily: "Inter, sans-serif" }}>
-          Videos made weekly - Covering Intro &amp; Intermediate Accounting
+          Videos made weekly · Covering Intro and Intermediate · More info below
         </p>
       </div>
     </div>
   );
 }
 
-// Sticky top navbar (homepage only). Left: wordmark. Right: "How it works" link only.
-// Condenses subtly on scroll.
+// Sticky top navbar (homepage only). Bold red band. Left: logo. Right: How it
+// works · Reviews · Contact — each smooth-scrolls to its section. Hamburger menu
+// on mobile.
+const NAV_LINKS = [
+  { label: "How it works", id: "how-it-works" },
+  { label: "Reviews", id: "reviews-section" },
+  { label: "Contact", id: "contact-form" },
+];
 function SiteNav() {
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  // One source of truth: "How it works" smooth-scrolls to the #how-it-works section on /.
-  const goToHowItWorks = (e: React.MouseEvent) => {
+  const scrollTo = (id: string) => (e: React.MouseEvent) => {
     if (typeof document === "undefined") return;
-    const el = document.getElementById("how-it-works");
+    const el = document.getElementById(id);
     if (el) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    setMenuOpen(false);
   };
   return (
     <header
-      className="sticky top-0 z-50 w-full border-b transition-shadow duration-300"
+      className="sticky top-0 z-50 w-full transition-shadow duration-300"
       style={{
-        background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)",
-        borderColor: "rgba(255,255,255,0.08)",
+        background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
         boxShadow: scrolled
-          ? "0 8px 26px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.04) inset"
-          : "0 4px 16px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.04) inset",
-        backdropFilter: "blur(8px)",
+          ? "0 10px 28px rgba(168,16,31,0.45)"
+          : "0 4px 16px rgba(168,16,31,0.30)",
       }}
     >
       <div
@@ -100,16 +106,38 @@ function SiteNav() {
             draggable={false}
           />
         </a>
-        <nav className="ml-auto flex items-center gap-1.5 sm:gap-3">
-          <a
-            href="/#how-it-works"
-            onClick={goToHowItWorks}
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-white/85 transition-colors hover:text-white sm:text-[15px]"
-          >
-            How it works
-          </a>
+
+        {/* Desktop links */}
+        <nav className="ml-auto hidden items-center gap-1 sm:flex">
+          {NAV_LINKS.map((l) => (
+            <a key={l.id} href={`/#${l.id}`} onClick={scrollTo(l.id)}
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition-colors hover:text-white sm:text-[15px]">
+              {l.label}
+            </a>
+          ))}
         </nav>
+
+        {/* Mobile hamburger */}
+        <button type="button" aria-label="Menu" aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="ml-auto inline-flex items-center justify-center rounded-lg p-1.5 text-white transition-colors hover:bg-white/10 sm:hidden">
+          {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </button>
       </div>
+
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div className="sm:hidden" style={{ background: "#A8101F", borderTop: "1px solid rgba(255,255,255,0.15)" }}>
+          <nav className="mx-auto flex max-w-6xl flex-col px-4 py-1.5">
+            {NAV_LINKS.map((l) => (
+              <a key={l.id} href={`/#${l.id}`} onClick={scrollTo(l.id)}
+                className="rounded-lg px-2 py-3 text-base font-semibold text-white/90 hover:text-white">
+                {l.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
@@ -124,7 +152,7 @@ function Home() {
       {s.hero && (
         <Hero
           headline="Get on-demand help from a real tutor."
-          subtext="Tell me what's stressing you most on your next test. I'll send videos back tailored to what you need."
+          subtext="Tell me what's stressing you most about your next accounting exam, and I'll send personalized videos back tailored to your course."
           ctaSlot={<HeroCta />}
         />
       )}
@@ -141,13 +169,13 @@ function Home() {
             How it works
           </p>
           <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-            Get help videos made for what&apos;s on your test.
+            Get personalized videos made for your next exam
           </h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
-              { n: 1, title: "Send it", body: "Tell me what you're stuck on. Homework problem, review sheet, chapter, exam topic — whatever you've got." },
-              { n: 2, title: "Get a gameplan", body: "I'll reply in 1 business day with what I'll make, what it costs, and how you'll benefit." },
-              { n: 3, title: "You approve, I build", body: "Approve the gameplan, and I'll deliver it before your exam. You only pay after it's sent." },
+              { n: 1, title: "Tell me what you're stuck on", body: "Homework problem, review sheet, chapter, exam topic — whatever you've got." },
+              { n: 2, title: "Make a gameplan", body: "I'll reply in 1 business day with what I'll make, what it costs, and how you'll benefit." },
+              { n: 3, title: "Get ready to ace it", body: "Once you approve the gameplan, I'll make you a personalized video. First come, first served." },
             ].map((step) => (
               <div key={step.n} className="text-center">
                 <div className="mx-auto grid h-12 w-12 place-content-center rounded-full text-[17px] font-bold text-white" style={{ background: NAVY }}>

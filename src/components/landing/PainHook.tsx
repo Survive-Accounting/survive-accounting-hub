@@ -7,11 +7,11 @@ const NAVY = "#14213D";
 const RED = "#CE1126";
 
 const ITEMS = [
-  "my lectures",
-  "my quizzes",
-  "my homework",
-  "the textbook",
-  "the solution manual",
+  "lectures",
+  "quizzes",
+  "homework",
+  "textbook",
+  "solutions",
 ];
 
 export default function PainHook({ className }: { className?: string }) {
@@ -46,7 +46,7 @@ export default function PainHook({ className }: { className?: string }) {
           The #1 thing I hear
         </p>
         <h2 className="mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">
-          "My exam looked <span style={{ color: RED }}>nothing</span> like…"
+          "My exam was <span style={{ color: RED }}>nothing</span> like the…"
         </h2>
 
         <ul className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-2.5">
@@ -71,7 +71,7 @@ export default function PainHook({ className }: { className?: string }) {
           className="mt-10 text-xl font-bold transition-opacity duration-700 sm:text-2xl"
           style={{ color: "white", opacity: allShown ? 1 : 0 }}
         >
-          I totally get it. My videos make sure nothing on test day surprises you.
+          I totally get it. My videos show you what to actually expect on exams.
         </p>
       </div>
     </section>
