@@ -73,16 +73,6 @@ export default function PainHook({ className }: { className?: string }) {
         >
           I totally get it. My videos make sure nothing on test day surprises you.
         </p>
-
-        <div className="mt-8 transition-opacity duration-700" style={{ opacity: allShown ? 1 : 0 }}>
-          <a
-            href="/order"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
-            style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}
-          >
-            Request Help Video →
-          </a>
-        </div>
       </div>
     </section>
   );

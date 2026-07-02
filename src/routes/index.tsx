@@ -46,21 +46,20 @@ function HeroCta() {
     <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
         <a href="/order" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
-          <span style={{ fontWeight: 800 }}>Request Help Video</span>
+          <span style={{ fontWeight: 800 }}>Get Started</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
       </div>
       <div className="flex flex-col items-center gap-1">
         <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.65)", fontFamily: "Inter, sans-serif" }}>
-          Trusted by 1,000+ students since 2015 · Intro &amp; Intermediate Accounting
+          Covering Intro &amp; Intermediate Accounting
         </p>
       </div>
     </div>
   );
 }
 
-// Sticky top navbar (homepage only). Left: wordmark. Right: "How it works" link +
-// "Request Help" (same destination as the hero CTA → /order).
+// Sticky top navbar (homepage only). Left: wordmark. Right: "How it works" link only.
 // Condenses subtly on scroll.
 function SiteNav() {
   const [scrolled, setScrolled] = useState(false);
@@ -109,16 +108,6 @@ function SiteNav() {
           >
             How it works
           </a>
-          <a
-            href="/order"
-            className="rounded-xl px-3.5 py-2 text-sm font-bold text-white no-underline transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 sm:px-5 sm:text-[15px]"
-            style={{
-              background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 8px 22px rgba(206,17,38,0.36)",
-            }}
-          >
-            Request Help
-          </a>
         </nav>
       </div>
     </header>
@@ -134,14 +123,16 @@ function Home() {
       <SiteNav />
       {s.hero && (
         <Hero
-          headline="Get tutoring videos for accounting exams"
-          subtext="Send me your toughest homework problems, review sheets, or exam topics. I'll send you a help video with notes and exam prep tips."
+          headline="Need help with exam prep?"
+          subtext="Get help from a real tutor. Tell me what's coming up on your test. I'll send videos back that help you cram before your exam."
           ctaSlot={<HeroCta />}
         />
       )}
 
       {/* Social proof: testimonials — right under the hero. */}
       <Reviews />
+
+      {s.painHook && <PainHook />}
 
       {/* How it works. Nav "How it works" anchors here. */}
       <section id="how-it-works" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#FFFFFF" }}>
@@ -155,8 +146,8 @@ function Home() {
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
               { n: 1, title: "Send it", body: "Tell me what you're stuck on. Homework problem, review sheet, chapter, exam topic — whatever you've got." },
-              { n: 2, title: "Get a quote", body: "I'll reply in 1 business day with what I'll make and what it costs." },
-              { n: 3, title: "You approve, I build", body: "Approve the quote, I make your video with notes. Delivered before your exam." },
+              { n: 2, title: "Get a gameplan", body: "I'll reply in 1 business day with what I'll make, what it costs, and how you'll benefit." },
+              { n: 3, title: "You approve, I build", body: "Approve the gameplan, and I'll deliver it before your exam. You only pay after it's sent." },
             ].map((step) => (
               <div key={step.n} className="text-center">
                 <div className="mx-auto grid h-12 w-12 place-content-center rounded-full text-[17px] font-bold text-white" style={{ background: NAVY }}>
@@ -173,13 +164,11 @@ function Home() {
               className="inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
               style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}
             >
-              Request Help Video <span className="transition-transform group-hover:translate-x-0.5">→</span>
+              Get Started <span className="transition-transform group-hover:translate-x-0.5">→</span>
             </a>
           </div>
         </Reveal>
       </section>
-
-      {s.painHook && <PainHook />}
 
       {s.questions && <ContactForm />}
 
