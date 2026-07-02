@@ -235,18 +235,17 @@ function Home() {
             </div>
           </div>
 
-          {/* Stadium photo — larger + emphasized (the recent one). */}
-          <div className="mx-auto mt-9 max-w-lg">
+          {/* Photos side by side — stadium larger + emphasized, magazine smaller.
+              The 5fr/2fr split keeps their heights roughly matched at any width. */}
+          <div className="mx-auto mt-9 grid max-w-xl grid-cols-[5fr_2fr] items-start gap-4 sm:gap-6">
             <LeePhoto src="/lee-stadium.jpg" alt="Lee at an SEC football game" aspect="aspect-[11/10]" />
+            <figure>
+              <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
+              <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">
+                Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.
+              </figcaption>
+            </figure>
           </div>
-
-          {/* Childhood magazine photo — smaller, with caption. */}
-          <figure className="mx-auto mt-6 max-w-[220px]">
-            <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
-            <figcaption className="mt-2.5 text-center text-xs italic text-slate-500">
-              Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.
-            </figcaption>
-          </figure>
 
           <div className="mt-10 text-center">
             <a
