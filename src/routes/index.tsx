@@ -142,20 +142,23 @@ function SiteNav() {
   );
 }
 
-/** Framed photo with a graceful placeholder if the file isn't in public/ yet. */
+/** Slick white-matted photo frame, with a graceful placeholder if the file
+ *  isn't in public/ yet. */
 function LeePhoto({ src, alt, aspect }: { src: string; alt: string; aspect: string }) {
   const [failed, setFailed] = useState(false);
   return (
-    <div className={`relative ${aspect} overflow-hidden rounded-2xl bg-slate-200 ring-1 ring-black/5`}
-      style={{ boxShadow: "0 20px 50px -22px rgba(20,33,61,0.4)" }}>
-      {failed ? (
-        <div className="grid h-full w-full place-content-center p-4 text-center text-xs text-slate-500">
-          <ImageIcon className="mx-auto h-6 w-6 text-slate-400" />
-          <span className="mt-1.5">{alt}</span>
-        </div>
-      ) : (
-        <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />
-      )}
+    <div className="rounded-[22px] bg-white p-2.5 ring-1 ring-black/5"
+      style={{ boxShadow: "0 26px 60px -26px rgba(20,33,61,0.5)" }}>
+      <div className={`relative ${aspect} overflow-hidden rounded-2xl bg-slate-200`}>
+        {failed ? (
+          <div className="grid h-full w-full place-content-center p-4 text-center text-xs text-slate-500">
+            <ImageIcon className="mx-auto h-6 w-6 text-slate-400" />
+            <span className="mt-1.5">{alt}</span>
+          </div>
+        ) : (
+          <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+        )}
+      </div>
     </div>
   );
 }
@@ -209,41 +212,41 @@ function Home() {
 
       {/* About Lee — powder-blue band to set it apart from How it works. */}
       <section className="px-4 py-16 sm:py-20" style={{ background: "#DCEBF6" }}>
-        <Reveal className="mx-auto max-w-5xl">
-          <div className="grid items-center gap-10 md:grid-cols-2">
-            {/* Photos */}
-            <div className="space-y-5">
-              <LeePhoto src="/lee-stadium.jpg" alt="Lee at an SEC football game" aspect="aspect-[4/3]" />
-              <figure>
-                <LeePhoto src="/lee-kid-joa.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[4/5]" />
-                <figcaption className="mt-2 text-center text-xs italic text-slate-500">
-                  Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.
-                </figcaption>
-              </figure>
-            </div>
-
-            {/* Story — left aligned */}
-            <div className="text-left">
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-                Hey, I&apos;m Lee Ingram
-              </h2>
-              <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-gray-700">
-                <p>
-                  I&apos;m an Ole Miss accounting grad who&apos;s tutored full-time since 2015. I help
-                  students feel more confident before exams with clear explanations, personalized help
-                  videos, and focused practice.
-                </p>
-                <p>
-                  I love accounting — but I know not every student does. My job is to make it feel less
-                  stressful, more understandable, and maybe even a little enjoyable.
-                </p>
-                <p>
-                  Starting in 2026, I expanded Survive Accounting to serve all SEC campuses. I take good
-                  care of every student who comes my way, and I look forward to helping you study smarter.
-                </p>
-              </div>
+        <Reveal className="mx-auto max-w-2xl">
+          {/* Story first, left-aligned. */}
+          <div className="text-left">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
+              Hey, I&apos;m Lee Ingram
+            </h2>
+            <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-gray-700">
+              <p>
+                I&apos;m an Ole Miss accounting grad who&apos;s tutored full-time since 2015. I help
+                students feel more confident before exams with clear explanations, personalized help
+                videos, and focused practice.
+              </p>
+              <p>
+                I love accounting — but I know not every student does. My job is to make it feel less
+                stressful, more understandable, and maybe even a little enjoyable.
+              </p>
+              <p>
+                Starting in 2026, I expanded Survive Accounting to serve all SEC campuses. I take good
+                care of every student who comes my way, and I look forward to helping you study smarter.
+              </p>
             </div>
           </div>
+
+          {/* Stadium photo — larger + emphasized (the recent one). */}
+          <div className="mx-auto mt-9 max-w-lg">
+            <LeePhoto src="/lee-stadium.jpg" alt="Lee at an SEC football game" aspect="aspect-[11/10]" />
+          </div>
+
+          {/* Childhood magazine photo — smaller, with caption. */}
+          <figure className="mx-auto mt-6 max-w-[220px]">
+            <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
+            <figcaption className="mt-2.5 text-center text-xs italic text-slate-500">
+              Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.
+            </figcaption>
+          </figure>
 
           <div className="mt-10 text-center">
             <a
