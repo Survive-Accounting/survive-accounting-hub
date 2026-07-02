@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import Reviews from "@/components/landing/Reviews";
+import ContactForm from "@/components/landing/ContactForm";
 import { type CampusLite } from "@/lib/onboarding.functions";
 import {
   getOrderCampusContext,
@@ -141,12 +143,21 @@ function OrderPage() {
   if (result) return <Confirmation draft={draft} result={result} />;
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EAEEF6 0%, #FAFAF7 360px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
+    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #E7ECF5 0%, #FAFAF7 560px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Toaster richColors position="top-center" />
       <Header />
-      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-8">
-        <Progress step={step} />
-        <div className="mt-5 rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_50px_-20px_rgba(20,33,61,0.30)] sm:p-8">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-16 sm:pt-24">
+        {/* Header — leaves the top third open, then the form. */}
+        <div className="text-center">
+          <h1 className="text-[26px] font-bold leading-tight tracking-tight sm:text-[32px]" style={{ color: NAVY }}>
+            Get personalized videos for your exam prep.
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-[15px] text-gray-600">
+            Request your gameplan here. Takes just two minutes.
+          </p>
+        </div>
+        <div className="mt-7"><Progress step={step} /></div>
+        <div className="mt-5 rounded-[28px] bg-white p-6 shadow-[0_30px_80px_-28px_rgba(20,33,61,0.45)] ring-1 ring-black/[0.04] sm:p-9">
           {step === 0 && <ScopeStep draft={draft} update={update} onNext={next} />}
           {step === 1 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
           {step === 2 && <CampusStep draft={draft} update={update} onNext={next} onBack={back} />}
@@ -157,6 +168,10 @@ function OrderPage() {
         </div>
         <StepFooter />
       </div>
+
+      {/* Social proof + contact, below the form. */}
+      <Reviews />
+      <ContactForm />
     </div>
   );
 }

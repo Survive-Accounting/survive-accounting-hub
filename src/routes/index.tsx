@@ -169,7 +169,7 @@ function Home() {
             How it works
           </p>
           <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-            Get personalized videos made for your next exam
+            Get personalized videos made for your exam prep
           </h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
