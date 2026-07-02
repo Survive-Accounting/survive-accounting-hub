@@ -1,4 +1,4 @@
--- 0045_active_roster.sql
+-- 0047_active_roster.sql
 -- Additive scope filter for student-facing campus & professor pickers.
 -- Non-SEC data is preserved and untouched. A campus with active_roster=null
 -- simply does not appear in the /order student picker; ProfIntel's data is
