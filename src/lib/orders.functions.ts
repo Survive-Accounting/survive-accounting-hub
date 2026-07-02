@@ -157,9 +157,10 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     z.object({ campusId: z.string().uuid(), q: z.string().trim().max(80).optional() }).parse(d))
   .handler(async ({ data }): Promise<ProfessorLite[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Emailed-first: profs Lee has emailed (outreach_leads.sent_at) take priority;
-    // until any emails have gone out for this campus we fall back to the full
-    // confirmed faculty directory so the picker is never empty.
+    // Contacted-only: show ONLY professors Lee has actually reached out to
+    // (outreach_leads.sent_at IS NOT NULL) at this campus. No fallback to the full
+    // faculty directory — if nobody's been emailed here yet, the picker is empty
+    // and the student uses the "My professor isn't listed" free-text path.
     const { data: emailedRows } = await supabaseAdmin
       .from("outreach_leads")
       .select("email")
@@ -183,8 +184,8 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     const out: ProfessorLite[] = [];
     for (const r of (rows ?? []) as Array<Record<string, string | null>>) {
       const email = (r.email ?? "").toLowerCase().trim();
-      // When Lee has emailed anyone at this campus, restrict to those profs.
-      if (emailedSet.size > 0 && !emailedSet.has(email)) continue;
+      // Contacted-only: skip anyone Lee hasn't emailed (no fallback).
+      if (!emailedSet.has(email)) continue;
       const last = (r.last_name ?? "").trim();
       const first = (r.first_name ?? "").trim();
       const key = `${last.toLowerCase()}|${first.toLowerCase()}|${email}`;
@@ -249,7 +250,7 @@ const submitOrderSchema = z.object({
   rush: z.boolean().optional(),
   // Request fields — the specifics are refined in the post-request tracker.
   chapterCountOnly: z.number().int().min(0).max(50).nullable().optional(),
-  requestScope: z.enum(["topic", "chapter", "exam", "not_sure"]).nullable().optional(),
+  requestScope: z.enum(["everything_exam", "one_chapter", "one_or_two_topics", "homework_explained"]).nullable().optional(),
   requestNotes: z.string().trim().max(4000).nullable().optional(),
   interestedInGroup: z.boolean().optional(),
   groupSize: z.number().int().min(0).max(500).nullable().optional(),
