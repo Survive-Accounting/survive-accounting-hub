@@ -47,7 +47,6 @@ const SECTIONS: Section[] = [
     owns: (p) => p.startsWith("/outreach/orders"),
     subtabs: [
       { label: "All Requests", to: "/outreach/orders" },
-      { label: "Request settings", to: "/outreach/orders-settings" },
     ],
   },
   {

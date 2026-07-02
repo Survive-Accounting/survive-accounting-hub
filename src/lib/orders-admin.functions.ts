@@ -240,7 +240,7 @@ export const setAwaitingSyllabus = createServerFn({ method: "POST" })
     return { ok: true as const, value: data.value };
   });
 
-// ---- Cram Video stage timeline (admin) ----------------------------
+// ---- Help Video stage timeline (admin) ----------------------------
 export type AdminStageEvent = {
   id: string;
   stage: string;
@@ -315,11 +315,11 @@ export const advanceOrderStage = createServerFn({ method: "POST" })
       const host = req?.headers.get("x-forwarded-host") || req?.headers.get("host") || "surviveaccounting.com";
       const proto = req?.headers.get("x-forwarded-proto") || "https";
       const link = `${proto}://${host}/order/${order.short_ref}`;
-      let body = `Update on your Cram Video request:\n\n${data.student_visible_message}\n\nTrack it here:\n${link}\n\nQuestions? Text me at (662) 565-8818.`;
+      let body = `Update on your Help Video request:\n\n${data.student_visible_message}\n\nTrack it here:\n${link}\n\nQuestions? Text me at (662) 565-8818.`;
       if (data.stage === "preview_ready") { body = `Your preview is ready.\n\n${body}`; if (data.preview_url) body += `\n\nPreview: ${data.preview_url}`; }
       if (data.unlock_price_cents != null) body += `\n\nUnlock price: $${Math.round(data.unlock_price_cents / 100)}`;
       const { sendResendEmail } = await import("@/lib/email.server");
-      email = await sendResendEmail({ to: String(order.email), subject: `Update on Cram Video #${order.short_ref}`, text: body });
+      email = await sendResendEmail({ to: String(order.email), subject: `Update on Help Video #${order.short_ref}`, text: body });
     }
 
     return { ok: true, event: inserted as AdminStageEvent, email };

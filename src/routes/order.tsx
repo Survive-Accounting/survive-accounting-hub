@@ -1,13 +1,11 @@
-// /order — Request a Cram Video. A student sends what they're stuck on (free, no
+// /order — Request a Help Video. A student sends what they're stuck on (free, no
 // card); Lee reviews and replies with a quote; the student pays only after they
 // approve the quote and receive the video. Scope-first: the student's problem
 // comes first, context second, identity last. Submit saves SERVER-SIDE
 // (service-role) via submitOrder. Nothing is charged here.
 //
-// NOTE: copy here is intentionally hardcoded (Cram Video positioning). The old
-// editable copy store (order-copy.functions.ts / "Edit Student Flow") is keyed to
-// the previous step structure and no longer drives this page — see
-// docs/OVERNIGHT_QUESTIONS.md #4.
+// NOTE: copy here is intentionally hardcoded (Help Video positioning). The old
+// editable copy store + "Edit Student Flow" editor were retired.
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -39,14 +37,14 @@ const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const PILL = "Free to request · I quote before I build · Pay only if you approve";
 const FOOTER_PREFIX = "Questions? Text me anytime at";
-const PAGE_TITLE = "Request a Cram Video";
+const PAGE_TITLE = "Request a Help Video";
 const PAGE_SUBLINE = "Made for what you're stuck on. No card, no obligation.";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
     meta: [
-      { title: "Request a Cram Video — Survive Accounting" },
-      { name: "description", content: "Free to request. I quote before I build. You only pay once you approve the quote and receive your Cram Video — a short custom video made for your exact course." },
+      { title: "Request a Help Video — Survive Accounting" },
+      { name: "description", content: "Free to request. I quote before I build. You only pay once you approve the quote and receive your Help Video — a short custom video made for your exact course." },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -78,6 +76,8 @@ const fmtDate = (iso: string) =>
 
 type Draft = {
   requestScope: RequestScope | null;
+  requestNotes: string;
+  interestedInGroup: boolean; groupSize: string;
   examChoice: "date" | "this_week" | "next_week" | "not_sure" | null;
   examDate: string;
   campusId: string | null; campusName: string; campusOther: boolean;
@@ -88,6 +88,8 @@ type Draft = {
 
 const EMPTY: Draft = {
   requestScope: null,
+  requestNotes: "",
+  interestedInGroup: false, groupSize: "",
   examChoice: null, examDate: "",
   campusId: null, campusName: "", campusOther: false,
   courseFamily: null, courseCode: "", courseName: "", courseOther: false,
@@ -250,6 +252,37 @@ function ScopeStep({ draft, update, onNext }: {
         })}
       </div>
       <p className="mt-3 text-xs text-gray-500">Not sure yet? Pick the closest — you can add details later.</p>
+
+      <div className="mt-5">
+        <Label className="mb-1.5 block text-sm font-medium text-gray-800">
+          Anything specific I should know? <span className="font-normal text-gray-400">(optional)</span>
+        </Label>
+        <textarea
+          value={draft.requestNotes}
+          onChange={(e) => update("requestNotes", e.target.value)}
+          rows={3}
+          placeholder="e.g. the chapters, the problem numbers, or what keeps tripping you up"
+          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
+        />
+      </div>
+
+      <div className="mt-4 rounded-2xl border bg-white p-4">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" checked={draft.interestedInGroup}
+            onChange={(e) => update("interestedInGroup", e.target.checked)} className="mt-1 h-4 w-4" />
+          <span className="text-sm text-gray-700">
+            <span className="font-medium text-gray-900">Studying with classmates?</span> I can make it for your group — check this for a group rate.
+          </span>
+        </label>
+        {draft.interestedInGroup && (
+          <div className="mt-3 pl-7">
+            <Label className="mb-1.5 block text-xs text-gray-600">About how many? (optional)</Label>
+            <Input type="number" min={2} max={100} value={draft.groupSize}
+              onChange={(e) => update("groupSize", e.target.value)} placeholder="e.g. 4" className="max-w-[120px]" />
+          </div>
+        )}
+      </div>
+
       <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!draft.requestScope}>Continue</PrimaryBtn></div>
     </div>
   );
@@ -535,11 +568,15 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
     setBusy(true);
     try {
       // Map the request onto existing order fields. No finalized price yet, so
-      // chapterCountOnly = null. The scope rides along as one order_chapters row so
-      // Lee sees the ask in the admin drawer; free-text notes come later on the tracker.
+      // chapterCountOnly = null. The scope + the student's own note ride along as
+      // one order_chapters row so Lee sees the ask in the admin drawer.
+      const note = draft.requestNotes.trim();
       const chapters = draft.requestScope
-        ? [{ chapterLabel: scopeLabel(draft.requestScope), chapterNumber: null, struggleNote: null }]
+        ? [{ chapterLabel: scopeLabel(draft.requestScope), chapterNumber: null, struggleNote: note || null }]
         : [];
+      const groupSizeNum = draft.interestedInGroup && draft.groupSize.trim()
+        ? Math.max(0, Math.min(500, parseInt(draft.groupSize, 10) || 0))
+        : null;
       const r = await submitFn({
         data: {
           firstName: draft.firstName.trim(), lastName: draft.lastName.trim(), email: draft.email.trim(), phone: draft.phone.trim(),
@@ -550,7 +587,9 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
           tier: "made_to_order",
           chapterCountOnly: null,
           requestScope: draft.requestScope,
-          requestNotes: null,
+          requestNotes: note || null,
+          interestedInGroup: draft.interestedInGroup,
+          groupSize: groupSizeNum,
           chapters,
         },
       });
@@ -576,7 +615,7 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
       <div className="mt-5 space-y-2 rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
         <p>From Lee — Ole Miss accounting grad, tutoring since 2015. 1,000+ students helped.</p>
         <p><span className="font-semibold">Try For 1 Test Guarantee:</span> Didn&apos;t help on your test? Reply within 72 hours after your exam — full refund, no questions.</p>
-        <p>Free to request. You only pay once you approve my quote and receive your Cram Video.</p>
+        <p>Free to request. You only pay once you approve my quote and receive your Help Video.</p>
       </div>
 
       <div className="mt-3 rounded-2xl border border-dashed p-4 text-sm text-gray-700" style={{ borderColor: "rgba(20,33,61,0.18)" }}>
@@ -609,7 +648,7 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
   const steps = [
     "I review what you sent and reply with a quote — usually within 1 business day.",
     "You approve the quote (no card needed until then).",
-    "I make your Cram Video and deliver before your exam.",
+    "I make your Help Video and deliver before your exam.",
   ];
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, -apple-system, sans-serif" }}>
@@ -658,7 +697,7 @@ function Num({ n }: { n: number }) {
 function OrderFaq() {
   const faqs = [
     {
-      q: "What's a Cram Video?",
+      q: "What's a Help Video?",
       a: "A short custom video — usually 2 to 5 minutes per problem or topic — plus notes, made for your exact course, professor, and what you're stuck on.",
     },
     {

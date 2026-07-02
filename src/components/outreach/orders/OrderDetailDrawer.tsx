@@ -30,7 +30,7 @@ const STATUS_CLASS: Record<string, string> = {
   cancelled: "bg-gray-200 text-gray-600",
 };
 const TIER_LABEL: Record<string, string> = {
-  free_teaser: "Free teaser", made_to_order: "Custom Study Pack request", one_on_one: "Premium 1-on-1",
+  free_teaser: "Free teaser", made_to_order: "Help Video request", one_on_one: "Premium 1-on-1",
 };
 const STAGE_DISPLAY: Record<string, string> = {
   request_received: "Request received", reviewing: "Reviewing your class",
@@ -228,7 +228,7 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
   );
 }
 
-// Custom Study Pack stage timeline + "Advance stage" (emails the student).
+// Help Video stage timeline + "Advance stage" (emails the student).
 function OrderTimeline({ shortRef, onChanged }: { shortRef: string; onChanged: () => void }) {
   const timelineFn = useServerFn(getOrderTimeline);
   const advanceFn = useServerFn(advanceOrderStage);

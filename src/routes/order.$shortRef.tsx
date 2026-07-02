@@ -1,4 +1,4 @@
-// /order/$shortRef — student Cram Video request tracker. Gated by an email
+// /order/$shortRef — student Help Video request tracker. Gated by an email
 // magic-link → httpOnly session cookie (a shared URL alone can't view the data).
 // A lightweight "pizza tracker": receipt + stage stepper + upload/notes.
 import { useEffect, useRef, useState } from "react";
@@ -54,7 +54,7 @@ const examLabel = (o: StudentOrder) =>
 export const Route = createFileRoute("/order/$shortRef")({
   head: () => ({
     meta: [
-      { title: "Track your Cram Video — Survive Accounting" },
+      { title: "Track your Help Video — Survive Accounting" },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -145,7 +145,7 @@ function AuthCard({ shortRef, expired }: { shortRef: string; expired: boolean })
         </div>
       ) : (
         <>
-          <h1 className="text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>Track your Cram Video</h1>
+          <h1 className="text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>Track your Help Video</h1>
           {expired && (
             <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">This link expired or is invalid. Request a new secure link.</p>
           )}
@@ -198,7 +198,7 @@ function Tracker({ shortRef, data, onReload }: {
   return (
     <div className="space-y-6">
       <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-8">
-        <h1 className="text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>Cram Video #{o.short_ref}</h1>
+        <h1 className="text-xl font-bold sm:text-2xl" style={{ color: NAVY }}>Help Video #{o.short_ref}</h1>
         <p className="mt-1.5 text-sm text-gray-600">Track your request, upload anything I need, and see when your preview is ready.</p>
 
         {/* Receipt */}
@@ -219,7 +219,7 @@ function Tracker({ shortRef, data, onReload }: {
           )}
           <div className="mt-3 border-t border-dashed border-gray-300 pt-3 space-y-1.5">
             <Row label="DUE TODAY" value="$0" strong />
-            <Row label="PAYMENT" value="Pay only if you unlock the full Cram Video" />
+            <Row label="PAYMENT" value="Pay only if you unlock the full Help Video" />
             <Row label="ESTIMATED PRICE" value="Usually $30–$100 depending on scope" />
             {o.unlock_price_cents != null && <Row label="UNLOCK PRICE" value={money(o.unlock_price_cents)} strong />}
             {o.preview_url && <Row label="PREVIEW" value={<a href={o.preview_url} target="_blank" rel="noreferrer" className="underline" style={{ color: RED }}>Watch →</a>} />}
@@ -253,10 +253,10 @@ function Tracker({ shortRef, data, onReload }: {
                     <div className="mt-2">
                       {latestFor(["unlocked", "preview_ready"])?.unlock_url ? (
                         <a href={latestFor(["unlocked", "preview_ready"])!.unlock_url!} className="inline-block rounded-lg px-4 py-2 text-sm font-bold text-white" style={{ background: RED }}>
-                          Unlock full Cram Video — {money(o.unlock_price_cents)}
+                          Unlock full Help Video — {money(o.unlock_price_cents)}
                         </a>
                       ) : (
-                        <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">Want to unlock the full Cram Video? Text Lee at {WORK_PHONE}.</p>
+                        <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">Want to unlock the full Help Video? Text Lee at {WORK_PHONE}.</p>
                       )}
                     </div>
                   )}
@@ -283,7 +283,7 @@ function Tracker({ shortRef, data, onReload }: {
       </div>
 
       <p className="px-2 text-center text-xs text-gray-500">
-        Cram Videos are designed to supplement your studying, not replace your class notes, homework, textbook, or professor’s materials.
+        Help Videos are designed to supplement your studying, not replace your class notes, homework, textbook, or professor’s materials.
       </p>
     </div>
   );
@@ -331,7 +331,7 @@ function HelpSection({ shortRef, order, onReload }: { shortRef: string; order: S
 
   return (
     <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-8">
-      <h2 className="text-lg font-bold" style={{ color: NAVY }}>Help me build the right Cram Video</h2>
+      <h2 className="text-lg font-bold" style={{ color: NAVY }}>Help me build the right Help Video</h2>
 
       <div className="mt-4">
         <p className="text-sm text-gray-700">

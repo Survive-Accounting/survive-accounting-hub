@@ -8,9 +8,7 @@ import ContactForm from "@/components/landing/ContactForm";
 import SiteFooter from "@/components/landing/SiteFooter";
 import PainHook from "@/components/landing/PainHook";
 import { Reveal } from "@/components/landing/Reveal";
-import FreeVideoCapture from "@/components/landing/FreeVideoCapture";
-import BeyondTeaser from "@/components/landing/BeyondTeaser";
-import { getSiteSettings, type SiteSettings } from "@/lib/site-settings.functions";
+import { getSiteSettings } from "@/lib/site-settings.functions";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -28,33 +26,20 @@ const RED_BTN_STYLE: React.CSSProperties = {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Survive Accounting — Survive it. Or learn to love it." },
+      { title: "Survive Accounting — Videos for accounting exam prep" },
       {
         name: "description",
         content:
-          "Accounting tutoring from someone who actually loves it. 1-on-1 with Lee Ingram, plus exam-style practice. Survive your course — or learn to love it.",
+          "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips — made for your exact course. Free to request.",
       },
-      { property: "og:title", content: "Survive Accounting" },
-      { property: "og:description", content: "Accounting tutoring from someone who actually loves it." },
+      { property: "og:title", content: "Survive Accounting — Videos for accounting exam prep" },
+      { property: "og:description", content: "Custom help videos for your accounting exam — made for what you're stuck on." },
       { property: "og:type", content: "website" },
     ],
   }),
   loader: () => getSiteSettings(),
   component: Home,
 });
-
-/** Host-agnostic: turn a YouTube/Vimeo URL or bare YouTube ID into an embeddable src. */
-function toEmbedSrc(url: string): string | null {
-  const u = (url ?? "").trim();
-  if (!u) return null;
-  let m = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/);
-  if (m) return `https://www.youtube.com/embed/${m[1]}`;
-  m = u.match(/vimeo\.com\/(\d+)/);
-  if (m) return `https://player.vimeo.com/video/${m[1]}`;
-  if (/^[A-Za-z0-9_-]{8,15}$/.test(u)) return `https://www.youtube.com/embed/${u}`;
-  if (/^https?:\/\//.test(u)) return u;
-  return null;
-}
 
 function HeroCta() {
   return (
@@ -74,35 +59,6 @@ function HeroCta() {
         </p>
       </div>
     </div>
-  );
-}
-
-/** Intro video — a framed player (replaces the old "How it works" section).
- *  Wired to the existing /outreach/landing hero-video field (settings.introVideo).
- *  Gracefully hidden if no URL is set. */
-function IntroVideoSection({ settings }: { settings: SiteSettings }) {
-  const embed = toEmbedSrc(settings.introVideo.url);
-  if (!embed) return null;
-  return (
-    <section className="px-4 py-14 sm:py-20" style={{ background: "#FFFFFF" }}>
-      <div className="mx-auto max-w-3xl">
-        <p className="text-center text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: RED }}>
-          Watch: why I do this
-        </p>
-        <div className="mt-5 overflow-hidden rounded-3xl border shadow-[0_24px_70px_-30px_rgba(20,33,61,0.55)]"
-          style={{ borderColor: "rgba(20,33,61,0.10)" }}>
-          <div className="relative aspect-video bg-black/40">
-            <iframe
-              src={embed}
-              title="Watch Lee's intro"
-              className="absolute inset-0 h-full w-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -227,10 +183,7 @@ function Home() {
 
       {/* Social proof: testimonials. */}
       <Reviews />
-      <IntroVideoSection settings={settings} />
 
-      {s.freeExplainers && <FreeVideoCapture />}
-      {s.beyondExam && <BeyondTeaser />}
       {s.questions && <ContactForm />}
 
       <SiteFooter />

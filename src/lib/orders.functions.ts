@@ -184,8 +184,10 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     const out: ProfessorLite[] = [];
     for (const r of (rows ?? []) as Array<Record<string, string | null>>) {
       const email = (r.email ?? "").toLowerCase().trim();
-      // Contacted-only: skip anyone Lee hasn't emailed (no fallback).
-      if (!emailedSet.has(email)) continue;
+      // Emailed-first: when Lee has emailed anyone at this campus, restrict to
+      // those profs; otherwise fall back to the full confirmed faculty directory
+      // so the picker is never empty.
+      if (emailedSet.size > 0 && !emailedSet.has(email)) continue;
       const last = (r.last_name ?? "").trim();
       const first = (r.first_name ?? "").trim();
       const key = `${last.toLowerCase()}|${first.toLowerCase()}|${email}`;
@@ -275,7 +277,7 @@ export const submitOrder = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const chapters = data.chapters ?? [];
     const isMTO = data.tier === "made_to_order";
-    // A Custom Study Pack REQUEST has no finalized price: pricing is only computed
+    // A Help Video REQUEST has no finalized price: pricing is only computed
     // when a concrete chapterCountOnly is provided (kept for back-compat). The
     // request flow passes chapterCountOnly = null, so subtotal/total stay $0 and
     // delivery is null until Lee builds a preview and sets an unlock price.
