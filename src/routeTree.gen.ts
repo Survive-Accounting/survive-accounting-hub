@@ -35,6 +35,7 @@ import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
+import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.active-roster'
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
@@ -177,6 +178,11 @@ const OutreachCampaignMetricsRoute = OutreachCampaignMetricsRouteImport.update({
   path: '/campaign-metrics',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachActiveRosterRoute = OutreachActiveRosterRouteImport.update({
+  id: '/active-roster',
+  path: '/active-roster',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OrderShortRefRoute = OrderShortRefRouteImport.update({
   id: '/$shortRef',
   path: '/$shortRef',
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
+  '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
@@ -278,6 +285,7 @@ export interface FileRoutesByTo {
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
+  '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
@@ -316,6 +324,7 @@ export interface FileRoutesById {
   '/ceq/create': typeof CeqCreateRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
+  '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
@@ -355,6 +364,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/o/$shortRef'
     | '/order/$shortRef'
+    | '/outreach/active-roster'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
@@ -391,6 +401,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/o/$shortRef'
     | '/order/$shortRef'
+    | '/outreach/active-roster'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
@@ -428,6 +439,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/o/$shortRef'
     | '/order/$shortRef'
+    | '/outreach/active-roster'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
@@ -652,6 +664,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachCampaignMetricsRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/active-roster': {
+      id: '/outreach/active-roster'
+      path: '/active-roster'
+      fullPath: '/outreach/active-roster'
+      preLoaderRoute: typeof OutreachActiveRosterRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/order/$shortRef': {
       id: '/order/$shortRef'
       path: '/$shortRef'
@@ -745,6 +764,7 @@ const OrderRouteChildren: OrderRouteChildren = {
 const OrderRouteWithChildren = OrderRoute._addFileChildren(OrderRouteChildren)
 
 interface OutreachRouteChildren {
+  OutreachActiveRosterRoute: typeof OutreachActiveRosterRoute
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
@@ -762,6 +782,7 @@ interface OutreachRouteChildren {
 }
 
 const OutreachRouteChildren: OutreachRouteChildren = {
+  OutreachActiveRosterRoute: OutreachActiveRosterRoute,
   OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,

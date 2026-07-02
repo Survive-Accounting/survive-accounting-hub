@@ -17,9 +17,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { searchCampuses, type CampusLite } from "@/lib/onboarding.functions";
+import { type CampusLite } from "@/lib/onboarding.functions";
 import {
   getOrderCampusContext,
+  searchOrderCampuses,
   searchOrderProfessors,
   submitOrder,
   type FamilyKey,
@@ -364,7 +365,7 @@ function ExamStep({ draft, update, onNext, onBack }: {
 function CampusStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
-  const searchFn = useServerFn(searchCampuses);
+  const searchFn = useServerFn(searchOrderCampuses);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CampusLite[]>([]);
   const [searching, setSearching] = useState(false);

@@ -157,25 +157,15 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     z.object({ campusId: z.string().uuid(), q: z.string().trim().max(80).optional() }).parse(d))
   .handler(async ({ data }): Promise<ProfessorLite[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Contacted-only: show ONLY professors Lee has actually reached out to
-    // (outreach_leads.sent_at IS NOT NULL) at this campus. No fallback to the full
-    // faculty directory — if nobody's been emailed here yet, the picker is empty
-    // and the student uses the "My professor isn't listed" free-text path.
-    const { data: emailedRows } = await supabaseAdmin
-      .from("outreach_leads")
-      .select("email")
-      .eq("campus_id", data.campusId)
-      .not("sent_at", "is", null);
-    const emailedSet = new Set(
-      ((emailedRows ?? []) as Array<{ email: string | null }>)
-        .map((r) => (r.email ?? "").toLowerCase().trim())
-        .filter(Boolean),
-    );
-
-    const { data: rows } = await supabaseAdmin
-      .from("campus_lead_suggestions")
+    // Active-roster only: show ONLY professors on this campus's active roster
+    // (campus_lead_suggestions.active_roster IS NOT NULL). A campus reaches this
+    // step from the picker only if it's on the active roster; free-text schools
+    // have no campusId, so the picker is empty and the student uses the
+    // "My professor isn't listed" path. (active_roster is a post-typegen column.)
+    const { data: rows } = await (supabaseAdmin.from("campus_lead_suggestions") as any)
       .select("id,first_name,last_name,email,title")
       .eq("campus_id", data.campusId)
+      .not("active_roster", "is", null)
       .is("archived_at", null)
       .order("last_name", { ascending: true })
       .limit(500);
@@ -184,10 +174,6 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     const out: ProfessorLite[] = [];
     for (const r of (rows ?? []) as Array<Record<string, string | null>>) {
       const email = (r.email ?? "").toLowerCase().trim();
-      // Emailed-first: when Lee has emailed anyone at this campus, restrict to
-      // those profs; otherwise fall back to the full confirmed faculty directory
-      // so the picker is never empty.
-      if (emailedSet.size > 0 && !emailedSet.has(email)) continue;
       const last = (r.last_name ?? "").trim();
       const first = (r.first_name ?? "").trim();
       const key = `${last.toLowerCase()}|${first.toLowerCase()}|${email}`;
@@ -200,6 +186,29 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     const q = (data.q ?? "").trim().toLowerCase();
     const filtered = q ? out.filter((p) => p.name.toLowerCase().includes(q)) : out;
     return filtered.slice(0, 50);
+  });
+
+// ------------------------------------------------------------------
+// Campus search for the STUDENT /order picker — active-roster campuses only.
+// (Separate from onboarding.searchCampuses, which the waitlist flow uses and
+// filters by ready_for_outreach; do not merge the two.) active_roster is a
+// post-typegen column, hence the cast.
+// ------------------------------------------------------------------
+export type OrderCampusLite = { id: string; name: string };
+
+export const searchOrderCampuses = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ q: z.string().trim().max(80) }).parse(d))
+  .handler(async ({ data }): Promise<OrderCampusLite[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let query = (supabaseAdmin.from("campuses") as any)
+      .select("id,name")
+      .eq("active_roster", "sec")
+      .order("name")
+      .limit(20);
+    if (data.q) query = query.ilike("name", `%${data.q}%`);
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message);
+    return ((rows ?? []) as Array<Record<string, unknown>>).map((r) => ({ id: r.id as string, name: (r.name as string) ?? "" }));
   });
 
 // ------------------------------------------------------------------

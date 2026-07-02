@@ -109,9 +109,11 @@ function ProfIntelChoose() {
     [campusQuery.data, campusId],
   );
 
+  // Opt-in scope filter — default OFF preserves the existing send flow exactly.
+  const [activeRosterOnly, setActiveRosterOnly] = useState(false);
   const leadsQuery = useQuery({
-    queryKey: ["profintel-leads", campusId],
-    queryFn: () => fetchProfintelLeads(campusId!),
+    queryKey: ["profintel-leads", campusId, activeRosterOnly],
+    queryFn: () => fetchProfintelLeads(campusId!, activeRosterOnly),
     enabled: !!campusId,
   });
   const matched = leadsQuery.data?.matched ?? [];
@@ -284,17 +286,23 @@ function ProfIntelChoose() {
 
           {/* Leads table */}
           <section>
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex items-center justify-between gap-3">
               <div className="text-sm font-semibold">
                 Step 2 — select leads{" "}
                 <span className="text-muted-foreground">
                   ({leads.length} {showingAll ? "active faculty" : "RMP-matched"} · {selected.size} selected)
                 </span>
               </div>
-              <Button size="sm" onClick={handleCreate} disabled={creating || selected.size === 0}>
-                {creating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <MailPlus className="mr-1 h-4 w-4" />}
-                Create {selected.size || ""} draft{selected.size === 1 ? "" : "s"}
-              </Button>
+              <div className="flex items-center gap-3">
+                <label className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+                  <Checkbox checked={activeRosterOnly} onCheckedChange={(v) => setActiveRosterOnly(!!v)} />
+                  Only Active Roster
+                </label>
+                <Button size="sm" onClick={handleCreate} disabled={creating || selected.size === 0}>
+                  {creating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <MailPlus className="mr-1 h-4 w-4" />}
+                  Create {selected.size || ""} draft{selected.size === 1 ? "" : "s"}
+                </Button>
+              </div>
             </div>
             {showingAll && (
               <p className="mb-2 text-[11px] text-amber-600">

@@ -161,11 +161,15 @@ const byRmpDesc = (a: any, b: any) =>
  * the full active roster. The UI shows `matched` when it exists (the original
  * behavior), and falls back to `all` for campuses we've only just scraped or
  * hand-entered (no RMP cross-reference yet). Moved/retired leads are excluded. */
-export async function fetchProfintelLeads(campusId: string): Promise<{ matched: ProfIntelLead[]; all: ProfIntelLead[] }> {
-  const { data, error } = await (supabase.from("campus_lead_suggestions" as never) as any)
+export async function fetchProfintelLeads(campusId: string, activeRosterOnly = false): Promise<{ matched: ProfIntelLead[]; all: ProfIntelLead[] }> {
+  let query = (supabase.from("campus_lead_suggestions" as never) as any)
     .select(LEAD_COLS)
     .eq("campus_id", campusId)
     .is("archived_at", null);
+  // Opt-in scope filter (default OFF → unchanged behavior). When ON, restrict to
+  // the student-facing active roster (active_roster IS NOT NULL).
+  if (activeRosterOnly) query = query.not("active_roster", "is", null);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   const active = ((data ?? []) as any[]).filter((r) => (r.mobility_status ?? "active") === "active");
   const all = [...active].sort(byRmpDesc) as ProfIntelLead[];
