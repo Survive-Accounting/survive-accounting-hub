@@ -67,14 +67,16 @@ export default function SoulBand({ className }: { className?: string }) {
             My story
           </p>
           <h2 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl" style={{ color: NAVY }}>
-            I&apos;ve loved Accounting for a long time.
+            I help accounting feel less overwhelming.
           </h2>
           <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-gray-700">
             <p>
-              I&apos;m Lee — Ole Miss accounting grad, class of &apos;17, tutoring every semester since
-              2015. This isn&apos;t just a side hustle; helping students is my full-time career.
-              Everything I do is structured around helping you grow more confident on exams. You might
-              even enjoy taking them, like I did.
+              I&apos;m Lee — Ole Miss accounting grad, class of &apos;17, tutoring since 2015.
+            </p>
+            <p>
+              I know most students aren&apos;t trying to become accounting nerds overnight. Some just
+              need a clear explanation before the test. Others actually want to understand the
+              &apos;why&apos; behind the numbers. I try to make it simpler and less stressful either way.
             </p>
           </div>
         </div>

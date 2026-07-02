@@ -43,7 +43,7 @@ export default function Reviews() {
             color: NAVY,
           }}
         >
-          From students who studied with Lee
+          What students say after working with Lee
         </h2>
         <iframe
           ref={iframeRef}

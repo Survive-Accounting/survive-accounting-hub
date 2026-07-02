@@ -44,11 +44,11 @@ export default function PricingPlans({
       <div className="mx-auto max-w-md text-center">
         <a href={href} className="inline-block w-full sm:w-auto">
           <Button className="h-12 w-full px-10 text-base font-bold text-white sm:w-auto" style={RED_BTN_STYLE}>
-            Request a Custom Study Pack →
+            Request Help →
           </Button>
         </a>
         <p className="mt-3 text-xs text-gray-500">
-          Free to request · Preview before payment · Pay only to unlock
+          Free to request · I quote before I build
         </p>
       </div>
     </div>
