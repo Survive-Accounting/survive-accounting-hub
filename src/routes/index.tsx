@@ -217,21 +217,24 @@ function Home() {
           {/* Story first, left-aligned. */}
           <div className="text-left">
             <h2 className="text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-              Hey, I&apos;m Lee Ingram
+              Hey, I&apos;m Lee Ingram.
             </h2>
             <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-gray-700">
               <p>
-                I&apos;m an Ole Miss accounting grad who&apos;s tutored full-time since 2015. I help
-                students feel more confident before exams with clear explanations, personalized help
-                videos, and focused practice.
+                I&apos;m an Ole Miss accounting grad who&apos;s tutored full-time since 2015. During COVID,
+                I started sending quick, personalized help videos to students who were stuck studying from
+                home all over the country.
+              </p>
+              <p>
+                That idea became Survive Accounting. Since then, I&apos;ve helped 1,000+ students feel more
+                prepared for accounting exams.
               </p>
               <p>
                 I love accounting — but I know not every student does. My job is to make it feel less
-                stressful, more understandable, and maybe even a little enjoyable.
+                stressful, more straightforward, and maybe even a little fun to learn.
               </p>
               <p>
-                Starting in 2026, I expanded Survive Accounting to serve all SEC campuses. I take good
-                care of every student who comes my way, and I appreciate you for stopping by.
+                I take good care of every student who comes my way, and I&apos;m glad you stopped by.
               </p>
             </div>
           </div>
