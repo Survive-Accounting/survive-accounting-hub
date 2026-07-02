@@ -230,7 +230,7 @@ function Home() {
               </p>
               <p>
                 Starting in 2026, I expanded Survive Accounting to serve all SEC campuses. I take good
-                care of every student who comes my way, and I look forward to helping you study smarter.
+                care of every student who comes my way, and I appreciate you for stopping by.
               </p>
             </div>
           </div>
@@ -238,7 +238,7 @@ function Home() {
           {/* Photos side by side — stadium larger + emphasized, magazine smaller.
               The 5fr/2fr split keeps their heights roughly matched at any width. */}
           <div className="mx-auto mt-9 grid max-w-xl grid-cols-[5fr_2fr] items-start gap-4 sm:gap-6">
-            <LeePhoto src="/lee-stadium.jpg" alt="Lee at an SEC football game" aspect="aspect-[11/10]" />
+            <LeePhoto src="/lee-stadium.webp" alt="Lee at an SEC football game" aspect="aspect-[11/10]" />
             <figure>
               <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
               <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">
