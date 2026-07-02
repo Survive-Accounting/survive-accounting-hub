@@ -248,9 +248,18 @@ function ProfIntelChoose() {
         processed: number;
         enriched: number;
         withTargetMatch: number;
+        resolvedByName: number;
+        unresolved: number;
+        schoolMatched: boolean;
       };
+      if (!res.schoolMatched) {
+        toast.message(
+          "Couldn't find this campus's RMP school — set its RMP page in Campuses (V1), or paste RMP profile URLs.",
+        );
+      }
       toast.success(
-        `Enriched ${res.enriched} of ${res.processed}; ${res.withTargetMatch} with target-course evidence.`,
+        `Enriched ${res.enriched}/${res.processed} · ${res.withTargetMatch} with target evidence` +
+          (res.unresolved ? ` · ${res.unresolved} not matched on RMP` : ""),
       );
       await leadsQuery.refetch();
     } catch (e) {

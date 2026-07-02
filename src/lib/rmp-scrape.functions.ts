@@ -1227,7 +1227,7 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
 
     const { data: campus } = await supabaseAdmin
       .from("campuses")
-      .select("id, course_family_codes_json")
+      .select("id, name, state, course_family_codes_json, rmp_school_url, rmp_page_url")
       .eq("id", data.campusId)
       .maybeSingle();
     let cj: unknown = (campus as { course_family_codes_json?: unknown } | null)
@@ -1241,29 +1241,103 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
     }
     const targetCodes = targetCodesFromCampus(cj);
 
+    // Resolve the campus's RMP school so we can match name-only leads (pasted with
+    // no rmp_profile_url) to their RMP profile. Prefer a stored URL; fall back to a
+    // name+state lookup on RMP. Then fetch the whole roster once and name-match.
+    const c = campus as {
+      name?: string | null;
+      state?: string | null;
+      rmp_school_url?: string | null;
+      rmp_page_url?: string | null;
+    } | null;
+    let schoolUrl = (c?.rmp_school_url || c?.rmp_page_url || "").trim();
+    if (!schoolUrl && c?.name)
+      schoolUrl = (await findRmpSchoolUrlByName(c.name, c.state ?? null)) ?? "";
+    const schoolLegacy = schoolUrl ? extractSchoolLegacyId(schoolUrl) : null;
+
+    const byKey = new Map<string, RmpTeacherNode>();
+    const byLast = new Map<string, RmpTeacherNode[]>();
+    if (schoolLegacy != null) {
+      try {
+        const teachers = await fetchAllTeachersAtSchool(encodeSchoolGlobalId(schoolLegacy));
+        for (const t of teachers) {
+          const key = nameKey(t.firstName, t.lastName);
+          if (key !== "|" && !byKey.has(key)) byKey.set(key, t);
+          const lastK = (t.lastName ?? "")
+            .toLowerCase()
+            .normalize("NFKD")
+            .replace(/[^a-z]/g, "");
+          if (lastK) byLast.set(lastK, [...(byLast.get(lastK) ?? []), t]);
+        }
+      } catch {
+        /* roster fetch is best-effort */
+      }
+    }
+    const matchTeacher = (first: string | null, last: string | null): RmpTeacherNode | null => {
+      const exact = byKey.get(nameKey(first, last));
+      if (exact) return exact;
+      const lastK = (last ?? "")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z]/g, "");
+      const cands = byLast.get(lastK) ?? [];
+      if (cands.length === 1) return cands[0];
+      const init = firstInitial(first);
+      const byInit = cands.filter((t) => firstInitial(t.firstName) === init);
+      return byInit.length === 1 ? byInit[0] : null;
+    };
+
     const { data: leads } = await supabaseAdmin
       .from("campus_lead_suggestions")
-      .select("id, campus_id, email, source_url, rmp_profile_url")
+      .select("id, campus_id, first_name, last_name, email, source_url, rmp_profile_url")
       .eq("campus_id", data.campusId)
       .is("archived_at", null)
-      .not("rmp_profile_url", "is", null)
       .limit(data.limit ?? 300);
 
     let processed = 0,
       enriched = 0,
-      withTargetMatch = 0;
+      withTargetMatch = 0,
+      resolvedByName = 0,
+      unresolved = 0;
     for (const l of (leads ?? []) as Array<{
       id: string;
       campus_id: string | null;
+      first_name: string | null;
+      last_name: string | null;
       email: string | null;
       source_url: string | null;
       rmp_profile_url: string | null;
     }>) {
       processed += 1;
-      const legacy = legacyIdFromRmpUrl(l.rmp_profile_url);
-      if (legacy == null) continue;
 
-      const agg = await fetchTeacherAggregate(legacy);
+      // Resolve the RMP teacher: explicit profile URL first, else a name match
+      // against the campus's RMP roster (this is what unlocks name-only pastes).
+      let legacy = legacyIdFromRmpUrl(l.rmp_profile_url);
+      let node: RmpTeacherNode | null = null;
+      let resolvedUrl: string | null = null;
+      if (legacy == null) {
+        node = matchTeacher(l.first_name, l.last_name);
+        if (node) {
+          legacy = node.legacyId;
+          resolvedUrl = `https://www.ratemyprofessors.com/professor/${node.legacyId}`;
+          resolvedByName += 1;
+        }
+      }
+      if (legacy == null) {
+        unresolved += 1;
+        continue;
+      }
+
+      // A name-matched node already carries aggregates; only fetch them separately
+      // when the lead came in with an explicit URL (no roster node).
+      const agg = node
+        ? {
+            avgRating: node.avgRating,
+            numRatings: node.numRatings,
+            avgDifficulty: node.avgDifficulty,
+            wouldTakeAgainPercent: node.wouldTakeAgainPercent,
+          }
+        : await fetchTeacherAggregate(legacy);
       const ratings = await fetchTeacherRatingsFull(legacy);
       if (ratings.length > 0)
         await upsertRatingsForLead(supabaseAdmin as never, l.id, l.campus_id, ratings);
@@ -1309,6 +1383,7 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
         profintel_score: sig.score,
         profintel_reason: sig.reason,
       };
+      if (resolvedUrl) patch.rmp_profile_url = resolvedUrl;
       if (agg?.avgRating != null) patch.rmp_rating = agg.avgRating;
       if (agg?.numRatings != null) patch.rmp_num_ratings = agg.numRatings;
       if (agg?.avgDifficulty != null) patch.rmp_difficulty = agg.avgDifficulty;
@@ -1323,10 +1398,18 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
         enriched += 1;
         if (count > 0) withTargetMatch += 1;
       }
-      await sleep(250);
+      await sleep(200);
     }
 
-    return { processed, enriched, withTargetMatch, targets: Object.keys(targetCodes) };
+    return {
+      processed,
+      enriched,
+      withTargetMatch,
+      resolvedByName,
+      unresolved,
+      schoolMatched: schoolLegacy != null,
+      targets: Object.keys(targetCodes),
+    };
   });
 
 export const resetCampusLeads = createServerFn({ method: "POST" })
