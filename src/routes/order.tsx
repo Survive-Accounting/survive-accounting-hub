@@ -471,9 +471,6 @@ function ProfessorStep({ draft, update, onNext, onBack }: {
           <button type="button" onClick={onBack} className="text-sm text-gray-500 underline hover:text-gray-700">Back</button>
           <button type="button" onClick={() => { update("professorName", ""); update("professorLeadId", null); onNext(); }} className="text-sm text-gray-500 underline hover:text-gray-700">My professor isn&apos;t listed</button>
         </div>
-        <div className="mt-2 text-center">
-          <button type="button" onClick={() => { update("professorName", ""); update("professorLeadId", null); onNext(); }} className="text-xs text-gray-400 underline hover:text-gray-600">Skip — I&apos;m not sure</button>
-        </div>
       </div>
     </div>
   );
@@ -565,7 +562,7 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
 
   return (
     <div>
-      <Title subtitle="I'll respond in 1 business day.">Confirm your request</Title>
+      <Title subtitle="I'll respond in 1 business day with a gameplan.">Confirm your request</Title>
       <InvoiceSummary draft={draft} />
 
       {/* Special instructions — collapsed row that expands to a textarea */}
@@ -593,7 +590,7 @@ function InfoStep({ draft, update, onBack, onSubmitted }: {
 
       <div className="mt-6">
         <PrimaryBtn onClick={submit} disabled={busy}>
-          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Request Help Video →"}
+          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Submit request for help"}
         </PrimaryBtn>
       </div>
       <BackLink onBack={onBack} />
