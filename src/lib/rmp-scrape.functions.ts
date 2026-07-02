@@ -160,6 +160,45 @@ async function fetchAllTeachersAtSchool(schoolGlobalId: string): Promise<RmpTeac
   return out;
 }
 
+/** Targeted per-professor lookup: RMP's own fuzzy teacher search scoped to a
+ *  school. More reliable than local matching against a capped roster — it catches
+ *  name variants (Christy↔Christine, dropped middle names) via RMP's ranking. */
+async function searchTeacherAtSchool(
+  schoolGlobalId: string,
+  first: string | null,
+  last: string | null,
+): Promise<RmpTeacherNode | null> {
+  const text = `${first ?? ""} ${last ?? ""}`.trim();
+  if (!text) return null;
+  try {
+    const data = await rmpGraphql<TeachersPage>(TEACHERS_QUERY, {
+      count: 20,
+      cursor: null,
+      query: { schoolID: schoolGlobalId, text },
+    });
+    const nodes = (data.search?.teachers?.edges ?? []).map((e) => e.node);
+    if (nodes.length === 0) return null;
+    const normLast = (s: string | null) =>
+      (s ?? "")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z]/g, "");
+    // Exact first+last key wins.
+    const key = nameKey(first, last);
+    const exact = nodes.find((n) => nameKey(n.firstName, n.lastName) === key);
+    if (exact) return exact;
+    // Else a unique same-last-name result; else first-initial disambiguation.
+    const lastK = normLast(last);
+    const cands = nodes.filter((n) => normLast(n.lastName) === lastK);
+    if (cands.length === 1) return cands[0];
+    const init = firstInitial(first);
+    const byInit = cands.filter((n) => firstInitial(n.firstName) === init);
+    return byInit.length === 1 ? byInit[0] : null;
+  } catch {
+    return null;
+  }
+}
+
 const SCHOOLS_QUERY = `
 query SchoolSearchQuery($text: String!) {
   search: newSearch {
@@ -1255,11 +1294,12 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
       schoolUrl = (await findRmpSchoolUrlByName(c.name, c.state ?? null)) ?? "";
     const schoolLegacy = schoolUrl ? extractSchoolLegacyId(schoolUrl) : null;
 
+    const schoolGid = schoolLegacy != null ? encodeSchoolGlobalId(schoolLegacy) : null;
     const byKey = new Map<string, RmpTeacherNode>();
     const byLast = new Map<string, RmpTeacherNode[]>();
-    if (schoolLegacy != null) {
+    if (schoolGid) {
       try {
-        const teachers = await fetchAllTeachersAtSchool(encodeSchoolGlobalId(schoolLegacy));
+        const teachers = await fetchAllTeachersAtSchool(schoolGid);
         for (const t of teachers) {
           const key = nameKey(t.firstName, t.lastName);
           if (key !== "|" && !byKey.has(key)) byKey.set(key, t);
@@ -1316,7 +1356,10 @@ export const enrichProfintelCampus = createServerFn({ method: "POST" })
       let node: RmpTeacherNode | null = null;
       let resolvedUrl: string | null = null;
       if (legacy == null) {
+        // Roster match first (free), then RMP's fuzzy per-prof search for stragglers.
         node = matchTeacher(l.first_name, l.last_name);
+        if (!node && schoolGid)
+          node = await searchTeacherAtSchool(schoolGid, l.first_name, l.last_name);
         if (node) {
           legacy = node.legacyId;
           resolvedUrl = `https://www.ratemyprofessors.com/professor/${node.legacyId}`;
