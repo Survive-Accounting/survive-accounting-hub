@@ -38,8 +38,6 @@ const WORK_PHONE_HREF = "+16625658818";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const FOOTER_PREFIX = "Questions? Text me anytime at";
-const PAGE_TITLE = "Get helpful exam prep videos from a real tutor";
-const PAGE_SUBLINE = "Sent in 2-5 business days. First come, first served.";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
@@ -146,16 +144,7 @@ function OrderPage() {
     <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EAEEF6 0%, #FAFAF7 360px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Toaster richColors position="top-center" />
       <Header />
-      {/* Navy identity band — page header. */}
-      <div className="w-full" style={{ background: NAVY }}>
-        <div className="mx-auto max-w-2xl px-4 pb-11 pt-9 text-center">
-          <h1 className="text-[26px] font-normal leading-tight text-white sm:text-[32px]" style={{ fontFamily: "'DM Serif Display', serif" }}>
-            {PAGE_TITLE}
-          </h1>
-          <p className="mx-auto mt-2 max-w-md text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>{PAGE_SUBLINE}</p>
-        </div>
-      </div>
-      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-6">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-8">
         <Progress step={step} />
         <div className="mt-5 rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_50px_-20px_rgba(20,33,61,0.30)] sm:p-8">
           {step === 0 && <ScopeStep draft={draft} update={update} onNext={next} />}
@@ -177,9 +166,9 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 w-full border-b"
       style={{ background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)", borderColor: "rgba(255,255,255,0.08)" }}>
-      <div className="mx-auto flex h-14 w-full max-w-2xl items-center px-4">
+      <div className="mx-auto flex h-14 w-full max-w-2xl items-center justify-center px-4">
         <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
-          <img src={LOGO_URL} alt="Survive Accounting" className="h-5 w-auto select-none" draggable={false} />
+          <img src={LOGO_URL} alt="Survive Accounting" className="h-6 w-auto select-none" draggable={false} />
         </a>
       </div>
     </header>
@@ -196,14 +185,8 @@ function StepFooter() {
 function Progress({ step }: { step: number }) {
   const pct = Math.round(((step + 1) / STEPS.length) * 100);
   return (
-    <div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold" style={{ color: NAVY }}>Step {step + 1} of {STEPS.length}</span>
-        <span className="text-gray-500">{STEPS[step]}</span>
-      </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-        <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${pct}%`, background: RED }} />
-      </div>
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+      <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${pct}%`, background: RED }} />
     </div>
   );
 }
@@ -261,9 +244,9 @@ function ScopeStep({ draft, update, onNext }: {
 function HelpOptionsStep({ draft, update, onNext, onBack }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
 }) {
-  const OPTIONS: { value: HelpType; title: string; range: string; note: string }[] = [
-    { value: "made_to_order", title: "Get a custom Help Video", range: "$25 – $150+", note: "Preview before you buy" },
-    { value: "one_on_one", title: "Get 1-on-1 tutoring", range: "$150/hr", note: "Limited slots available" },
+  const OPTIONS: { value: HelpType; title: string; lines: string[] }[] = [
+    { value: "made_to_order", title: "Get exam prep videos", lines: ["$25 – $150+", "Sent in 2-5 business days.", "First come, first served"] },
+    { value: "one_on_one", title: "Get 1-on-1 tutoring", lines: ["$150/hr", "Meets on Zoom", "Limited slots available"] },
   ];
   return (
     <div>
@@ -277,8 +260,15 @@ function HelpOptionsStep({ draft, update, onNext, onBack }: {
               style={active ? { background: NAVY } : undefined}>
               <span>
                 <span className="block text-base font-bold">{o.title}</span>
-                <span className="mt-1 block text-lg font-semibold" style={{ color: active ? "#FFFFFF" : RED }}>{o.range}</span>
-                <span className={cn("mt-0.5 block text-xs", active ? "text-white/75" : "text-gray-500")}>{o.note}</span>
+                <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
+                  {o.lines.map((line, i) => (
+                    <li key={line}
+                      className={cn("text-sm", active ? "text-white/85" : "text-gray-600", i === 0 && "font-semibold")}
+                      style={i === 0 && !active ? { color: RED } : undefined}>
+                      {line}
+                    </li>
+                  ))}
+                </ul>
               </span>
               {active && <Check className="mt-1 h-5 w-5 shrink-0" />}
             </button>
