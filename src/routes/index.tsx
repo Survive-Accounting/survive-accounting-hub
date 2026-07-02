@@ -198,6 +198,39 @@ function Home() {
         </Reveal>
       </section>
 
+      {/* About Lee */}
+      <section className="px-4 py-16 sm:py-20" style={{ background: "#F4F7FC" }}>
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
+            Hey, I&apos;m Lee Ingram
+          </h2>
+          <div className="mx-auto mt-4 max-w-xl space-y-4 text-[15px] leading-relaxed text-gray-700">
+            <p>
+              I&apos;m an Ole Miss accounting grad who&apos;s tutored full-time since 2015. I help
+              students feel more confident before exams with clear explanations, personalized help
+              videos, and focused practice.
+            </p>
+            <p>
+              I love accounting — but I know not every student does. My job is to make it feel less
+              stressful, more understandable, and maybe even a little enjoyable.
+            </p>
+            <p>
+              Starting in 2026, I expanded Survive Accounting to serve all SEC campuses. I take good
+              care of every student who comes my way, and I look forward to helping you study smarter.
+            </p>
+          </div>
+          <div className="mt-8">
+            <a
+              href="/order"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
+              style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}
+            >
+              Get Started <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </a>
+          </div>
+        </Reveal>
+      </section>
+
       {s.questions && <ContactForm />}
 
       <SiteFooter />
