@@ -43,6 +43,7 @@ import {
   clearDrafts,
   createDrafts,
   deleteSend,
+  fetchActiveRosterCampusIds,
   fetchCampusCourseCodes,
   fetchProfintelV2Leads,
   getTemplate,
@@ -165,6 +166,21 @@ function ProfIntelChoose() {
   const campusQuery = useQuery({ queryKey: ["campuses"], queryFn: fetchCampuses, retry: 1 });
   const [campusId, setCampusId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [showAllCampuses, setShowAllCampuses] = useState(false);
+
+  // Active roster (SEC scope): default the campus picker to these; a toggle shows
+  // every campus. Null = the column isn't present here, so we show all.
+  const rosterQuery = useQuery({
+    queryKey: ["profintel-active-roster"],
+    queryFn: fetchActiveRosterCampusIds,
+  });
+  const rosterIds = rosterQuery.data ?? null;
+  const rosterActive = !!rosterIds && rosterIds.size > 0 && !showAllCampuses;
+
+  const pickerCampuses = useMemo(() => {
+    const all = (campusQuery.data ?? []).filter((c) => !c.archived);
+    return rosterActive ? all.filter((c) => rosterIds!.has(c.id)) : all;
+  }, [campusQuery.data, rosterActive, rosterIds]);
 
   const campus = useMemo(
     () => (campusQuery.data ?? []).find((c) => c.id === campusId) ?? null,
@@ -341,28 +357,37 @@ function ProfIntelChoose() {
               <CommandList>
                 <CommandEmpty>No campuses found.</CommandEmpty>
                 <CommandGroup>
-                  {(campusQuery.data ?? [])
-                    .filter((c) => !c.archived)
-                    .map((c) => (
-                      <CommandItem
-                        key={c.id}
-                        value={`${c.school_name} ${c.state ?? ""}`}
-                        onSelect={() => {
-                          setCampusId(c.id);
-                          setSearchOpen(false);
-                        }}
-                        className="text-xs"
-                      >
-                        <span className="truncate">{c.school_name}</span>
-                        {c.state && (
-                          <span className="ml-auto text-[10px] text-muted-foreground">
-                            {c.state}
-                          </span>
-                        )}
-                      </CommandItem>
-                    ))}
+                  {pickerCampuses.map((c) => (
+                    <CommandItem
+                      key={c.id}
+                      value={`${c.school_name} ${c.state ?? ""}`}
+                      onSelect={() => {
+                        setCampusId(c.id);
+                        setSearchOpen(false);
+                      }}
+                      className="text-xs"
+                    >
+                      <span className="truncate">{c.school_name}</span>
+                      {c.state && (
+                        <span className="ml-auto text-[10px] text-muted-foreground">{c.state}</span>
+                      )}
+                    </CommandItem>
+                  ))}
                 </CommandGroup>
               </CommandList>
+              {rosterIds && rosterIds.size > 0 && (
+                <div className="border-t border-border p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCampuses((v) => !v)}
+                    className="w-full rounded px-2 py-1 text-left text-[11px] text-muted-foreground hover:bg-muted/50"
+                  >
+                    {rosterActive
+                      ? `Showing SEC active roster (${rosterIds.size}) · show all campuses`
+                      : "Showing all campuses · back to SEC active roster"}
+                  </button>
+                </div>
+              )}
             </Command>
           </PopoverContent>
         </Popover>

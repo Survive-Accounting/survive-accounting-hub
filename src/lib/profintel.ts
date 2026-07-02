@@ -454,6 +454,17 @@ export async function saveCampusCourseCodes(
   if (error) throw new Error(error.message);
 }
 
+/** Campus ids on the active roster (SEC scope). Returns null when the
+ * active_roster column isn't present in this environment — the caller then shows
+ * all campuses (graceful, cross-branch-safe). */
+export async function fetchActiveRosterCampusIds(): Promise<Set<string> | null> {
+  const { data, error } = await (supabase.from("campuses" as never) as any)
+    .select("id")
+    .not("active_roster", "is", null);
+  if (error) return null;
+  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id));
+}
+
 // ===================== ProfIntel V2 =====================
 
 /** One professor row for the V2 targeting table (columns come from 0045 rollup). */
