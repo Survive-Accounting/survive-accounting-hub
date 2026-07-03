@@ -181,6 +181,48 @@ function studentConfirmationBody(rec: Record<string, unknown>): string {
     `I'll review it and text you a gameplan within 1 business day. No payment until you approve. Questions? Just reply here.`;
 }
 
+// Confirmation EMAIL to the student on submit (Resend, from Lee's address).
+async function sendStudentEmail(rec: Record<string, unknown>, school: string): Promise<{ ok: boolean; error?: string }> {
+  if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY missing" };
+  const to = String(rec.email ?? "").trim();
+  if (!to) return { ok: false, error: "no student email" };
+  const first = String(rec.first_name ?? "").trim() || "there";
+  const course = String(rec.course_code ?? "").trim() || String(rec.course_name ?? "").trim() || "your course";
+  const ref = refCode(rec);
+  const campusPart = school && school !== "school?" ? ` at ${escapeHtml(school)}` : "";
+  const step = (n: string, body: string) =>
+    `<tr><td style="vertical-align:top;padding:0 10px 12px 0"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:#14213D;color:#ffffff;border-radius:11px;font-size:12px;font-weight:700">${n}</span></td><td style="vertical-align:top;padding:0 0 12px;font-size:15px;color:#374151;line-height:1.55">${body}</td></tr>`;
+  const html = `<div style="font-family:Inter,Arial,sans-serif;max-width:520px;color:#14213D">
+    <p style="font-size:16px;margin:0 0 16px">Hey ${escapeHtml(first)}, it's Lee — thanks for reaching out!</p>
+    <p style="font-size:15px;color:#374151;line-height:1.55;margin:0 0 18px">I've got your request for <b style="color:#14213D">${escapeHtml(course)}</b>${campusPart} and I'm on it. Here's what happens next:</p>
+    <table style="border-collapse:collapse;margin:0 0 8px">
+      ${step("1", "I'll review what you sent and <b>text you within 1 business day</b> with a gameplan.")}
+      ${step("2", "Once you approve it, I'll make your exam prep video and get it to you before your exam.")}
+    </table>
+    <p style="font-size:15px;color:#374151;margin:0 0 18px">No payment yet — you only pay once you've approved the plan.</p>
+    <p style="font-size:14px;color:#6b7280;margin:0">Your reference: <b style="color:#14213D;font-family:ui-monospace,Menlo,monospace">${escapeHtml(ref)}</b></p>
+    <p style="font-size:14px;color:#374151;line-height:1.55;margin:16px 0 0;border-top:1px solid #e5e7eb;padding-top:14px">Questions in the meantime? Just reply to this email or text me at <b>(662) 565-8818</b>.</p>
+    <p style="font-size:15px;color:#14213D;margin:14px 0 0">— Lee</p>
+  </div>`;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: FROM,
+        to: [to],
+        reply_to: REPLY_TO,
+        subject: `Got your request, ${first} — here's what's next`,
+        html,
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `Resend ${res.status}: ${await res.text()}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 async function sendLeeEmail(
   rec: Record<string, unknown>, school: string, chapters: Chapter[], shortRef: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -321,10 +363,11 @@ Deno.serve(async (req) => {
   if (shortRef != null) leeLines.push("", `Reply with #${shortRef}`);
   const leeSms = leeLines.join("\n");
 
-  const [smsRes, emailRes, studentRes] = await Promise.all([
+  const [smsRes, emailRes, studentRes, studentEmailRes] = await Promise.all([
     sendLeeSms(leeSms),
     sendLeeEmail(record, school, chapters, shortRef),
     phone ? sendSmsTo(phone, studentConfirmationBody(record)) : Promise.resolve({ ok: false, error: "no phone" }),
+    sendStudentEmail(record, school),
   ]);
 
   // The confirmation text is the student's "opener" — mark the thread so their
@@ -344,5 +387,6 @@ Deno.serve(async (req) => {
     sms: smsRes,
     email: emailRes,
     student_sms: studentRes,
+    student_email: studentEmailRes,
   }), { headers: { "Content-Type": "application/json" } });
 });
