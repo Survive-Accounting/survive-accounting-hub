@@ -5,7 +5,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const STATUSES = ["new", "in_progress", "delivered", "paid", "cancelled"] as const;
+const STATUSES = ["new", "gameplan_sent", "approved", "in_progress", "delivered", "paid", "cancelled"] as const;
+// The subset shown in the admin Triage view.
+export const TRIAGE_STATUSES = ["new", "gameplan_sent", "approved", "in_progress"] as const;
 const TIERS = ["free_teaser", "made_to_order", "one_on_one"] as const;
 
 const ORDER_COLS =
@@ -13,7 +15,8 @@ const ORDER_COLS =
   "course_family,course_code,course_name,professor_name,professor_lead_id,textbook_name," +
   "tier,chapter_count,chapter_count_only,awaiting_syllabus,interested_in_group,group_size," +
   "exam_date,exam_timeframe,subtotal_cents,rush,rush_fee_cents,total_cents," +
-  "delivery_target_date,delivery_estimate_days,status,admin_notes,special_requests,attachments_json,requested_options";
+  "delivery_target_date,delivery_estimate_days,status,admin_notes,special_requests,attachments_json,requested_options," +
+  "quote_cents,quoted_at,estimated_build_minutes,promised_delivery_date,tool_exists,triage_notes,approved_at";
 
 export type AdminOrderRow = {
   id: string;
@@ -51,6 +54,13 @@ export type AdminOrderRow = {
   special_requests: string | null;
   attachments_json: OrderAttachment[] | null;
   requested_options: string[] | null;
+  quote_cents: number | null;
+  quoted_at: string | null;
+  estimated_build_minutes: number | null;
+  promised_delivery_date: string | null;
+  tool_exists: boolean | null;
+  triage_notes: string | null;
+  approved_at: string | null;
   chapter_rows: number;
 };
 
@@ -122,6 +132,13 @@ function mapRow(r: Record<string, unknown>, campusName: string | null, chapterRo
     special_requests: (r.special_requests as string) ?? null,
     attachments_json: Array.isArray(r.attachments_json) ? (r.attachments_json as OrderAttachment[]) : [],
     requested_options: Array.isArray(r.requested_options) ? (r.requested_options as string[]) : [],
+    quote_cents: (r.quote_cents as number) ?? null,
+    quoted_at: (r.quoted_at as string) ?? null,
+    estimated_build_minutes: (r.estimated_build_minutes as number) ?? null,
+    promised_delivery_date: (r.promised_delivery_date as string) ?? null,
+    tool_exists: typeof r.tool_exists === "boolean" ? r.tool_exists : null,
+    triage_notes: (r.triage_notes as string) ?? null,
+    approved_at: (r.approved_at as string) ?? null,
     chapter_rows: chapterRows,
   };
 }
@@ -223,10 +240,48 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ short_ref: z.string().trim().min(1).max(20), status: z.enum(STATUSES) }).parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const now = new Date().toISOString();
+    const patch: Record<string, unknown> = { status: data.status, updated_at: now };
+    // Stamp approved_at on the FIRST time an order is approved.
+    if (data.status === "approved") {
+      const { data: cur } = await (supabaseAdmin.from("orders" as never) as any)
+        .select("approved_at").eq("short_ref", data.short_ref).maybeSingle();
+      if (cur && !cur.approved_at) patch.approved_at = now;
+    }
     const { error } = await (supabaseAdmin.from("orders" as never) as any)
-      .update({ status: data.status, updated_at: new Date().toISOString() }).eq("short_ref", data.short_ref);
+      .update(patch).eq("short_ref", data.short_ref);
     if (error) throw new Error(error.message);
     return { ok: true as const, status: data.status };
+  });
+
+// Triage fields (quote, build estimate, promised delivery, tool coverage, notes).
+// Sending a field patches it (null clears it, undefined leaves it). Entering a
+// real quote stamps quoted_at once.
+export const updateOrderTriage = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    short_ref: z.string().trim().min(1).max(20),
+    quote_cents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+    estimated_build_minutes: z.number().int().min(0).max(100_000).nullable().optional(),
+    promised_delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    tool_exists: z.boolean().nullable().optional(),
+    triage_notes: z.string().max(4000).nullable().optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const now = new Date().toISOString();
+    const patch: Record<string, unknown> = { updated_at: now };
+    for (const k of ["quote_cents", "estimated_build_minutes", "promised_delivery_date", "tool_exists", "triage_notes"] as const) {
+      if (data[k] !== undefined) patch[k] = data[k];
+    }
+    if (data.quote_cents != null) {
+      const { data: cur } = await (supabaseAdmin.from("orders" as never) as any)
+        .select("quoted_at").eq("short_ref", data.short_ref).maybeSingle();
+      if (cur && !cur.quoted_at) patch.quoted_at = now;
+    }
+    const { error } = await (supabaseAdmin.from("orders" as never) as any)
+      .update(patch).eq("short_ref", data.short_ref);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
 
 export const updateOrderAdminNotes = createServerFn({ method: "POST" })

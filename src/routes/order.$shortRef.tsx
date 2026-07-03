@@ -27,7 +27,7 @@ const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const SCOPE_LABELS: Record<string, string> = {
   topic: "One topic I’m stuck on",
   chapter: "One chapter",
-  exam: "Everything on my next exam",
+  exam: "Every chapter on my next exam",
   not_sure: "Not sure — sending what I have",
 };
 

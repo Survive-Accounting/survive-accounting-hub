@@ -87,7 +87,7 @@ type RequestScope = "everything_exam" | "one_chapter" | "one_or_two_topics" | "h
 const SCOPES: { value: RequestScope; label: string }[] = [
   { value: "one_or_two_topics", label: "A few confusing topics or problems" },
   { value: "one_chapter", label: "One or more entire chapters" },
-  { value: "everything_exam", label: "All chapters on my exam" },
+  { value: "everything_exam", label: "Every chapter on my next exam" },
 ];
 const scopeLabel = (s: RequestScope | null) => SCOPES.find((x) => x.value === s)?.label ?? "—";
 
