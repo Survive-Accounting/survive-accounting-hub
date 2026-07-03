@@ -13,7 +13,7 @@ const ORDER_COLS =
   "course_family,course_code,course_name,professor_name,professor_lead_id,textbook_name," +
   "tier,chapter_count,chapter_count_only,awaiting_syllabus,interested_in_group,group_size," +
   "exam_date,exam_timeframe,subtotal_cents,rush,rush_fee_cents,total_cents," +
-  "delivery_target_date,delivery_estimate_days,status,admin_notes";
+  "delivery_target_date,delivery_estimate_days,status,admin_notes,special_requests,attachments_json";
 
 export type AdminOrderRow = {
   id: string;
@@ -48,8 +48,13 @@ export type AdminOrderRow = {
   delivery_estimate_days: number | null;
   status: string;
   admin_notes: string | null;
+  special_requests: string | null;
+  attachments_json: OrderAttachment[] | null;
   chapter_rows: number;
 };
+
+/** A student-uploaded supporting file, stored in the private student-syllabi bucket. */
+export type OrderAttachment = { name: string; path: string; size: number };
 
 export type OrderChapterRow = {
   chapter_label: string;
@@ -113,6 +118,8 @@ function mapRow(r: Record<string, unknown>, campusName: string | null, chapterRo
     delivery_estimate_days: (r.delivery_estimate_days as number) ?? null,
     status: String(r.status ?? "new"),
     admin_notes: (r.admin_notes as string) ?? null,
+    special_requests: (r.special_requests as string) ?? null,
+    attachments_json: Array.isArray(r.attachments_json) ? (r.attachments_json as OrderAttachment[]) : [],
     chapter_rows: chapterRows,
   };
 }

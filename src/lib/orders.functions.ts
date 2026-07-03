@@ -147,25 +147,29 @@ export const getOrderCampusContext = createServerFn({ method: "POST" })
   });
 
 // ------------------------------------------------------------------
-// Professor autocomplete — campus faculty, deduped, A→Z. Always optional:
-// the wizard allows free text regardless of matches.
+// Professor autocomplete — campus faculty, deduped, sorted by last name A→Z.
+// Always optional: the wizard allows free text regardless of matches.
+// `name` is natural order ("First Last", stored on the order); `first`/`last`
+// let the picker render "Last, First".
 // ------------------------------------------------------------------
-export type ProfessorLite = { id: string; name: string; title: string | null };
+export type ProfessorLite = { id: string; name: string; first: string; last: string };
 
 export const searchOrderProfessors = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ campusId: z.string().uuid(), q: z.string().trim().max(80).optional() }).parse(d))
   .handler(async ({ data }): Promise<ProfessorLite[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Active-roster only: show ONLY professors on this campus's active roster
-    // (campus_lead_suggestions.active_roster IS NOT NULL). A campus reaches this
-    // step from the picker only if it's on the active roster; free-text schools
-    // have no campusId, so the picker is empty and the student uses the
-    // "My professor isn't listed" path. (active_roster is a post-typegen column.)
+    // Active-roster AND RateMyProfessors-matched only: show professors we've
+    // verified against RMP (rmp_profile_url IS NOT NULL) so the picker stays
+    // high-confidence. If a student's professor isn't matched, they use the
+    // "My professor isn't listed" free-text path. A campus reaches this step
+    // from the picker only if it's on the active roster; free-text schools have
+    // no campusId, so the picker is empty. (post-typegen columns → cast.)
     const { data: rows } = await (supabaseAdmin.from("campus_lead_suggestions") as any)
-      .select("id,first_name,last_name,email,title")
+      .select("id,first_name,last_name,email")
       .eq("campus_id", data.campusId)
       .not("active_roster", "is", null)
+      .not("rmp_profile_url", "is", null)
       .is("archived_at", null)
       .order("last_name", { ascending: true })
       .limit(500);
@@ -181,11 +185,11 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
       seen.add(key);
       const name = [first, last].filter(Boolean).join(" ").trim();
       if (!name) continue;
-      out.push({ id: r.id as string, name, title: r.title ?? null });
+      out.push({ id: r.id as string, name, first, last });
     }
     const q = (data.q ?? "").trim().toLowerCase();
     const filtered = q ? out.filter((p) => p.name.toLowerCase().includes(q)) : out;
-    return filtered.slice(0, 50);
+    return filtered.slice(0, 60);
   });
 
 // ------------------------------------------------------------------
@@ -257,7 +261,7 @@ const submitOrderSchema = z.object({
   textbookNotes: z.string().trim().max(500).nullable().optional(),
   examDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   examTimeframe: z.enum(["this_week", "next_week", "not_sure"]).nullable().optional(),
-  tier: z.enum(["free_teaser", "made_to_order", "one_on_one"]),
+  tier: z.enum(["free_teaser", "made_to_order", "one_on_one", "something_else"]),
   rush: z.boolean().optional(),
   // Request fields — the specifics are refined in the post-request tracker.
   chapterCountOnly: z.number().int().min(0).max(50).nullable().optional(),
@@ -266,12 +270,19 @@ const submitOrderSchema = z.object({
   interestedInGroup: z.boolean().optional(),
   groupSize: z.number().int().min(0).max(500).nullable().optional(),
   specialInstructions: z.string().trim().max(2000).nullable().optional(),
+  // Student-uploaded supporting files (already stored in the student-syllabi
+  // bucket by the client); we persist only their metadata on the order.
+  attachments: z.array(z.object({
+    name: z.string().trim().min(1).max(300),
+    path: z.string().trim().min(1).max(500),
+    size: z.number().int().min(0).max(50_000_000),
+  })).max(20).optional(),
   chapters: z.array(chapterSchema).max(40).optional(),
 });
 
 export type SubmitOrderResult = {
   shortRef: string;
-  tier: "free_teaser" | "made_to_order" | "one_on_one";
+  tier: "free_teaser" | "made_to_order" | "one_on_one" | "something_else";
   chapterCount: number;
   subtotalCents: number;
   rush: boolean;
@@ -329,6 +340,7 @@ export const submitOrder = createServerFn({ method: "POST" })
       // lets the student refine. (The redundant special_instructions column was
       // dropped live — one field, submit-time + tracker-editable.)
       special_requests: data.specialInstructions ?? null,
+      attachments_json: data.attachments ?? [],
       interested_in_group: data.interestedInGroup ?? false,
       group_size: data.groupSize ?? null,
       awaiting_syllabus: true,

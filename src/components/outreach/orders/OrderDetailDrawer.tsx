@@ -6,10 +6,11 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Copy, Loader2, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, Paperclip, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
 import {
   getOrder, updateOrderStatus, updateOrderAdminNotes, setAwaitingSyllabus,
   getOrderTimeline, advanceOrderStage,
@@ -31,6 +32,7 @@ const STATUS_CLASS: Record<string, string> = {
 };
 const TIER_LABEL: Record<string, string> = {
   free_teaser: "Free teaser", made_to_order: "Help Video request", one_on_one: "Premium 1-on-1",
+  something_else: "Something else",
 };
 const STAGE_DISPLAY: Record<string, string> = {
   request_received: "Request received", reviewing: "Reviewing your class",
@@ -48,6 +50,16 @@ const fmtDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(
 
 function copy(text: string, what: string) {
   navigator.clipboard.writeText(text).then(() => toast.success(`${what} copied`)).catch(() => toast.error("Copy failed"));
+}
+
+const humanSize = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+// Student uploads live in the private student-syllabi bucket; only authenticated
+// admins can read, so sign a short-lived URL on click and open it in a new tab.
+async function openAttachment(path: string) {
+  const { data, error } = await supabase.storage.from("student-syllabi").createSignedUrl(path, 60 * 30);
+  if (error || !data?.signedUrl) { toast.error("Couldn’t open file"); return; }
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
 }
 
 export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
@@ -181,6 +193,31 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
                   <p className="text-sm text-muted-foreground">No chapters.</p>
                 )}
               </div>
+
+              {/* student note + uploaded files ("Provide more detail" from /order) */}
+              {(order.special_requests || (order.attachments_json?.length ?? 0) > 0) && (
+                <div className="rounded-2xl border p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Student note &amp; files</p>
+                  {order.special_requests && (
+                    <p className="whitespace-pre-wrap text-sm text-foreground">“{order.special_requests}”</p>
+                  )}
+                  {(order.attachments_json?.length ?? 0) > 0 && (
+                    <ul className={`space-y-1.5 ${order.special_requests ? "mt-3" : ""}`}>
+                      {order.attachments_json!.map((a) => (
+                        <li key={a.path}>
+                          <button type="button" onClick={() => openAttachment(a.path)}
+                            className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm hover:bg-accent">
+                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="flex-1 truncate">{a.name}</span>
+                            <span className="shrink-0 text-[11px] text-muted-foreground">{humanSize(a.size)}</span>
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* RIGHT: admin controls */}
