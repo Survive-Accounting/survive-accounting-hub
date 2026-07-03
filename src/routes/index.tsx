@@ -211,59 +211,68 @@ function Home() {
         </Reveal>
       </section>
 
-      {/* About Lee — powder-blue band to set it apart from How it works. */}
-      <section className="px-4 py-16 sm:py-20" style={{ background: "#DCEBF6" }}>
-        <Reveal className="mx-auto max-w-2xl">
-          {/* Story first, left-aligned. */}
-          <div className="text-left">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-              Hey, I&apos;m Lee Ingram.
-            </h2>
-            <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-gray-700">
-              <p>
-                I&apos;m an Ole Miss accounting grad who&apos;s tutored full-time since 2015. During COVID,
-                I started sending quick, personalized help videos to students who were stuck studying from
-                home all over the country.
+      {/* About Lee — editorial profile. Two-column on desktop, stacked on mobile. */}
+      <section id="about" className="px-4 py-16 sm:py-24" style={{ background: "linear-gradient(180deg, #EDF3FB 0%, #FBFCFE 100%)" }}>
+        <Reveal className="mx-auto max-w-[1160px]">
+          <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr] lg:items-start lg:gap-14">
+            {/* Article column — also the mobile flow (images interleave via lg:hidden). */}
+            <div className="text-left">
+              <div className="flex items-center gap-3">
+                <span className="h-px w-10 shrink-0" style={{ background: RED }} />
+                <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: RED }}>Meet Lee Ingram</span>
+              </div>
+              <h2 className="mt-4 text-[32px] font-normal leading-[1.08] sm:text-[42px]" style={{ color: NAVY, fontFamily: "'DM Serif Display', serif" }}>
+                Hey, I&apos;m Lee Ingram.
+              </h2>
+              <p className="mt-3 max-w-xl text-[17px] leading-relaxed text-gray-600 sm:text-lg">
+                I make accounting feel less stressful with custom help videos, focused exam prep, and clear explanations.
               </p>
-              <p>
-                That idea became Survive Accounting. Since then, I&apos;ve helped 1,000+ students feel more
-                prepared for accounting exams.
-              </p>
-              <p>
-                I love accounting — but I know not every student does. My job is to make it feel less
-                stressful, more straightforward, and maybe even a little fun to learn.
-              </p>
-              <p>
-                I take good care of every student who comes my way, and I&apos;m glad you stopped by.
-              </p>
+
+              {/* Main image — mobile placement (after the deck). */}
+              <figure className="mt-7 lg:hidden">
+                <LeePhoto src="/lee-stadium.webp" alt="Lee at Arkansas vs. Ole Miss, 2023" aspect="aspect-[5/4]" />
+                <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">Arkansas vs. Ole Miss, 2023</figcaption>
+              </figure>
+
+              <div className="mt-6 max-w-xl space-y-5 text-[16px] leading-[1.75] text-gray-700">
+                <p>I&apos;m an Ole Miss accounting grad who&apos;s tutored full-time since 2015. During COVID, I started sending quick, personalized help videos to students who were stuck studying from home all over the country.</p>
+                <p>That idea became Survive Accounting. Since then, I&apos;ve helped 1,000+ students feel more prepared for accounting exams.</p>
+                <p>I love accounting — but I know not every student does. My job is to make it feel less stressful, more straightforward, and maybe even a little fun to learn.</p>
+                <p>I take good care of every student who comes my way, and I&apos;m glad you stopped by.</p>
+              </div>
+
+              {/* Childhood inset — mobile placement (after the body). */}
+              <figure className="mx-auto mt-7 max-w-[190px] lg:hidden">
+                <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
+                <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.</figcaption>
+              </figure>
+
+              <blockquote className="mt-9 border-l-2 pl-5" style={{ borderColor: RED }}>
+                <p className="text-[22px] leading-snug sm:text-2xl" style={{ color: NAVY, fontFamily: "'DM Serif Display', serif" }}>
+                  &ldquo;I take good care of every student who comes my way.&rdquo;
+                </p>
+              </blockquote>
+
+              <div className="mt-8">
+                <a href="/order"
+                  className="group inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
+                  style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}>
+                  Request Help <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                </a>
+              </div>
             </div>
-          </div>
 
-          {/* Photos side by side — stadium larger + emphasized, magazine smaller.
-              The 5fr/2fr split keeps their heights roughly matched at any width. */}
-          <div className="mx-auto mt-9 grid max-w-xl grid-cols-[5fr_2fr] items-start gap-4 sm:gap-6">
-            <figure>
-              <LeePhoto src="/lee-stadium.webp" alt="Lee at an SEC football game" aspect="aspect-[11/10]" />
-              <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">
-                Arkansas vs. Ole Miss 2023
-              </figcaption>
-            </figure>
-            <figure>
-              <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
-              <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">
-                Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.
-              </figcaption>
-            </figure>
-          </div>
-
-          <div className="mt-10 text-center">
-            <a
-              href="/order"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
-              style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}
-            >
-              Get Started <span className="transition-transform group-hover:translate-x-0.5">→</span>
-            </a>
+            {/* Image composition — desktop only (stadium main + childhood inset overlapping). */}
+            <div className="relative hidden lg:block">
+              <figure>
+                <LeePhoto src="/lee-stadium.webp" alt="Lee at Arkansas vs. Ole Miss, 2023" aspect="aspect-[5/4]" />
+                <figcaption className="mt-2 pr-1 text-right text-[11px] italic leading-snug text-slate-500">Arkansas vs. Ole Miss, 2023</figcaption>
+              </figure>
+              <figure className="absolute -bottom-6 -left-10 w-[34%]">
+                <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
+                <figcaption className="mt-1.5 text-center text-[10px] italic leading-snug text-slate-500">Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.</figcaption>
+              </figure>
+            </div>
           </div>
         </Reveal>
       </section>
