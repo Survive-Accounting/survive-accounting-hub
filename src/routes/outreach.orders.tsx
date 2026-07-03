@@ -37,6 +37,13 @@ function OrdersAdmin() {
   const [openRef, setOpenRef] = useState<string | null>(null);
   const [debSearch, setDebSearch] = useState("");
 
+  // Deep link from the new-order SMS/email: /outreach/orders?ref=<short_ref>
+  // opens that order's drawer straight away (review from your phone).
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) setOpenRef(ref);
+  }, []);
+
   useEffect(() => {
     const t = setTimeout(() => setDebSearch(filters.search.trim()), 250);
     return () => clearTimeout(t);

@@ -24,6 +24,7 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const FROM = "Lee Ingram <lee@mail.surviveaccounting.com>";
 const REPLY_TO = "lee@surviveaccounting.com";
 const LEE_EMAIL = Deno.env.get("LEE_ALERT_EMAIL") ?? "lee@surviveaccounting.com";
+const SITE_ORIGIN = Deno.env.get("SITE_ORIGIN") ?? "https://surviveaccounting.com";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -31,10 +32,63 @@ const TIER_LABELS: Record<string, string> = {
   free_teaser: "Free teaser",
   made_to_order: "Made-to-order",
   one_on_one: "Premium 1-on-1",
+  something_else: "Something else",
 };
 
 function tierLabel(rec: Record<string, unknown>): string {
   return TIER_LABELS[String(rec.tier ?? "").trim()] ?? String(rec.tier ?? "—");
+}
+
+// Student-facing labels for the multi-select requested_options.
+const OPTION_LABEL: Record<string, string> = {
+  made_to_order: "Exam prep video",
+  one_on_one: "1-on-1 tutoring",
+  something_else: "Something else",
+  free_teaser: "Free teaser",
+};
+const OPTION_PRIORITY = ["made_to_order", "one_on_one", "something_else", "free_teaser"];
+function chosenOptionsLabel(rec: Record<string, unknown>): string {
+  const raw = Array.isArray(rec.requested_options) ? (rec.requested_options as unknown[]).map(String) : [];
+  const opts = OPTION_PRIORITY.filter((o) => raw.includes(o));
+  if (opts.length) return opts.map((o) => OPTION_LABEL[o] ?? o).join(", ");
+  return tierLabel(rec);
+}
+
+// Friendly reference code — MUST match the client's (order.tsx): {CAMPUS}-{initials}-{4-char id tail}.
+const CAMPUS_ABBR: Record<string, string> = {
+  "7b92a320-b196-43f2-a241-77a0805816fe": "UM",
+  "e330e87c-5467-4c05-9d3d-6cd2398de036": "AUB",
+  "698dd98f-dd92-46c1-8f28-e930568cb15d": "LSU",
+  "95246fc8-1ce6-409e-b454-d03c82766719": "MSST",
+  "92e4a5d9-eeb3-4065-ac8a-5a4390fbc584": "TAMU",
+  "b3af67c6-99a5-4677-83d5-aa7d11a89c17": "ALA",
+  "e631c8de-37a3-4aae-a948-a64bd20ea4c5": "ARK",
+  "4c5126b1-3fe0-48fe-a1db-1e41d06e4642": "UF",
+  "3f570e37-5394-4058-baab-508948befedb": "UGA",
+  "ae339230-577e-4569-a7d1-d1e45d1cfe91": "UK",
+  "f16686c2-edc6-43f8-9638-6890f52c829a": "MIZ",
+  "91e62f9c-43b0-41f3-a84d-002824754da6": "OU",
+  "5f5bd18d-b92f-4d56-aced-23bce4c983d5": "SC",
+  "9c4775be-7d82-4a3e-840c-349c5e15d8e8": "TENN",
+  "faad6039-be72-4f5c-8ad5-ca7b95e2889f": "UT",
+  "972451c3-bc5e-48d7-9f88-868a55378efa": "VAN",
+};
+function campusAbbrFor(rec: Record<string, unknown>): string {
+  const id = rec.campus_id ? String(rec.campus_id) : "";
+  if (id && CAMPUS_ABBR[id]) return CAMPUS_ABBR[id];
+  const name = String(rec.campus_text ?? "").trim();
+  const words = name.replace(/[^A-Za-z\s]/g, " ").split(/\s+/).filter(Boolean)
+    .filter((w) => !/^(of|the|at|university|univ|college|state|and)$/i.test(w));
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  return "SA";
+}
+function refCode(rec: Record<string, unknown>): string {
+  const first = String(rec.first_name ?? "").trim();
+  const last = String(rec.last_name ?? "").trim();
+  const initials = ((first[0] ?? "") + (last[0] ?? "")).toUpperCase() || "XX";
+  const tail = String(rec.short_ref ?? "").replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase() || "0000";
+  return `${campusAbbrFor(rec)}-${initials}-${tail}`;
 }
 
 function money(cents: unknown): string {
@@ -98,8 +152,8 @@ async function loadChapters(orderId: string): Promise<Chapter[]> {
   }
 }
 
-async function sendLeeSms(body: string): Promise<{ ok: boolean; error?: string }> {
-  if (!TWILIO_SID || !TWILIO_AUTH_PASS || !LEE_PHONE) return { ok: false, error: "twilio or LEE_PERSONAL_PHONE not configured" };
+async function sendSmsTo(to: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  if (!TWILIO_SID || !TWILIO_AUTH_PASS || !to) return { ok: false, error: "twilio or recipient not configured" };
   if (!TWILIO_MSID) return { ok: false, error: "TWILIO_MESSAGING_SERVICE_SID not configured" };
   try {
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`, {
@@ -108,13 +162,23 @@ async function sendLeeSms(body: string): Promise<{ ok: boolean; error?: string }
         Authorization: "Basic " + btoa(`${TWILIO_AUTH_USER}:${TWILIO_AUTH_PASS}`),
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({ MessagingServiceSid: TWILIO_MSID, To: LEE_PHONE, Body: body }),
+      body: new URLSearchParams({ MessagingServiceSid: TWILIO_MSID, To: to, Body: body }),
     });
     if (!res.ok) return { ok: false, error: `Twilio ${res.status}: ${await res.text()}` };
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
+}
+const sendLeeSms = (body: string) => LEE_PHONE ? sendSmsTo(LEE_PHONE, body) : Promise.resolve({ ok: false, error: "LEE_PERSONAL_PHONE not configured" });
+
+// Confirmation text to the student the moment they submit. Sent from the work
+// line (Messaging Service) so their reply threads back to Lee, not his cell.
+function studentConfirmationBody(rec: Record<string, unknown>): string {
+  const first = String(rec.first_name ?? "").trim() || "there";
+  const course = String(rec.course_code ?? "").trim() || String(rec.course_name ?? "").trim() || "your course";
+  return `Hey ${first}, it's Lee with Survive Accounting — got your exam prep request for ${course}! ` +
+    `I'll review it and text you a gameplan within 1 business day. No payment until you approve. Questions? Just reply here.`;
 }
 
 async function sendLeeEmail(
@@ -203,6 +267,7 @@ Deno.serve(async (req) => {
   // Find-or-create an sms_conversation on the main line so this order is
   // reply-able from the work number. Best-effort — never blocks the alerts.
   let shortRef: string | null = null;
+  let convoId: string | null = null;
   if (phone) {
     try {
       const { data: main } = await admin
@@ -213,6 +278,7 @@ Deno.serve(async (req) => {
           .from("sms_conversations").select("id, short_ref")
           .eq("student_phone", phone).eq("campus_number", mainLine).maybeSingle();
         if (existing) {
+          convoId = String(existing.id);
           shortRef = String(existing.short_ref);
           const patch: Record<string, string> = {};
           if (record.course_code || record.course_name) patch.course = String(record.course_code || record.course_name);
@@ -228,6 +294,7 @@ Deno.serve(async (req) => {
               course: record.course_code || record.course_name || null,
             })
             .select("id, short_ref").single();
+          convoId = created?.id != null ? String(created.id) : null;
           shortRef = created?.short_ref != null ? String(created.short_ref) : null;
         }
       }
@@ -235,25 +302,47 @@ Deno.serve(async (req) => {
   }
 
   const name = `${String(record.first_name ?? "").trim()} ${String(record.last_name ?? "").trim()}`.trim() || "No name";
-  const tier = tierLabel(record);
-  const isMTO = String(record.tier ?? "") === "made_to_order";
-  const courseDisp = String(record.course_code ?? record.course_name ?? "course?").trim() || "course?";
-  const phoneDisp = String(record.phone ?? "").trim() || "no phone";
+  const courseLine = [String(record.course_code ?? "").trim(), String(record.course_name ?? "").trim()].filter(Boolean).join(" ");
+  const adminLink = `${SITE_ORIGIN}/outreach/orders?ref=${encodeURIComponent(String(record.short_ref ?? ""))}`;
 
-  let smsBody = `🧾 New ORDER: ${name} · ${school} · ${courseDisp} · ${tier}`;
-  if (isMTO) smsBody += ` · ${money(record.total_cents)}${record.rush ? " (rush)" : ""} · ${record.chapter_count ?? chapters.length} ch · exam ${examLabel(record)}`;
-  smsBody += ` · 📱 ${phoneDisp}`;
-  smsBody += shortRef != null ? `\nReply with #${shortRef}` : `\nReply by email.`;
+  // New-request alert to Lee. Friendly ref up top (matches what the student saw);
+  // the numeric #ref at the bottom is the reply code for the work-line thread.
+  const leeLines = [
+    `New Request! (${refCode(record)})`,
+    "",
+    name,
+    school,
+    ...(courseLine ? [courseLine] : []),
+    "",
+    chosenOptionsLabel(record),
+    "",
+    adminLink,
+  ];
+  if (shortRef != null) leeLines.push("", `Reply with #${shortRef}`);
+  const leeSms = leeLines.join("\n");
 
-  const [smsRes, emailRes] = await Promise.all([
-    sendLeeSms(smsBody),
+  const [smsRes, emailRes, studentRes] = await Promise.all([
+    sendLeeSms(leeSms),
     sendLeeEmail(record, school, chapters, shortRef),
+    phone ? sendSmsTo(phone, studentConfirmationBody(record)) : Promise.resolve({ ok: false, error: "no phone" }),
   ]);
+
+  // The confirmation text is the student's "opener" — mark the thread so their
+  // reply goes straight to Lee instead of the form auto-responder.
+  if (phone && studentRes.ok && convoId) {
+    try {
+      await admin.from("sms_conversations")
+        .update({ opener_sent: true, last_auto_reply_at: new Date().toISOString(), last_message_at: new Date().toISOString() })
+        .eq("id", convoId);
+    } catch (_e) { /* non-fatal */ }
+  }
 
   return new Response(JSON.stringify({
     ok: true,
+    ref: refCode(record),
     short_ref: shortRef,
     sms: smsRes,
     email: emailRes,
+    student_sms: studentRes,
   }), { headers: { "Content-Type": "application/json" } });
 });
