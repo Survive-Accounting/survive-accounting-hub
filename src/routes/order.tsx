@@ -4,13 +4,14 @@
 // student's problem comes first, context second, identity last. Submit saves
 // SERVER-SIDE (service-role) via submitOrder. Nothing is charged here.
 //
-// NOTE: copy here is intentionally hardcoded (Help Video positioning). The old
-// editable copy store + "Edit Student Flow" editor were retired.
+// Two surfaces: an INTRO screen (identity + Start Request + reviews) and the
+// WIZARD (sticky nav + progress + one compact step at a time, tuned so mobile
+// needs almost no scrolling). Copy is intentionally hardcoded.
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
-import { Check, Loader2, Paperclip, UploadCloud, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Loader2, Paperclip, Pencil, UploadCloud, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,9 @@ const FOOTER_PREFIX = "Questions? Text me anytime at";
 // we keep only their metadata on the order (admin signs the path to view).
 const UPLOAD_BUCKET = "student-syllabi";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+// Lead with image/* so phones offer Camera + Photo Library first-class (no
+// `capture`, so the student keeps the choice), then common docs.
+const UPLOAD_ACCEPT = "image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx";
 type Attachment = { name: string; path: string; size: number };
 
 export const Route = createFileRoute("/order")({
@@ -70,6 +74,14 @@ const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "inte
 const STEPS = ["What you need", "Exam", "School", "Course", "Professor", "Preferred option", "Your info"] as const;
 
 type HelpType = "made_to_order" | "one_on_one" | "something_else";
+const OPTION_LABEL: Record<HelpType, string> = {
+  made_to_order: "Exam prep video",
+  one_on_one: "1-on-1 tutoring",
+  something_else: "Something else",
+};
+const OPTION_PRIORITY: HelpType[] = ["made_to_order", "one_on_one", "something_else"];
+const primaryTier = (ts: HelpType[]): HelpType => OPTION_PRIORITY.find((t) => ts.includes(t)) ?? "made_to_order";
+const chosenOptionsLabel = (ts: HelpType[]): string => OPTION_PRIORITY.filter((t) => ts.includes(t)).map((t) => OPTION_LABEL[t]).join(", ") || "—";
 
 type RequestScope = "everything_exam" | "one_chapter" | "one_or_two_topics" | "homework_explained";
 const SCOPES: { value: RequestScope; label: string }[] = [
@@ -83,7 +95,8 @@ type Draft = {
   requestScope: RequestScope | null;
   requestNotes: string;
   interestedInGroup: boolean; groupSize: string;
-  helpType: HelpType;
+  helpTypes: HelpType[];
+  somethingElseNote: string;
   examChoice: "date" | "not_sure" | null;
   examDate: string;
   campusId: string | null; campusName: string; campusOther: boolean;
@@ -98,7 +111,8 @@ const EMPTY: Draft = {
   requestScope: null,
   requestNotes: "",
   interestedInGroup: false, groupSize: "",
-  helpType: "made_to_order",
+  helpTypes: ["made_to_order"],
+  somethingElseNote: "",
   examChoice: null, examDate: "",
   campusId: null, campusName: "", campusOther: false,
   courseFamily: null, courseCode: "", courseName: "", courseOther: false,
@@ -108,8 +122,7 @@ const EMPTY: Draft = {
   attachments: [],
 };
 
-// A concrete exam date wins; otherwise "Not sure" rides along as the timeframe so
-// Lee still sees the urgency. (Delivery math is never shown here.)
+// A concrete exam date wins; otherwise "Not sure" rides along as the timeframe.
 function examTimeframeFor(d: Draft): ExamTimeframe | null {
   if (d.examDate) return null;
   if (d.examChoice === "not_sure") return "not_sure";
@@ -118,7 +131,6 @@ function examTimeframeFor(d: Draft): ExamTimeframe | null {
 function examDateFor(d: Draft): string | null {
   return d.examDate ? d.examDate : null;
 }
-// Whole days from today until the exam (0 = today).
 function daysUntil(iso: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const ex = new Date(`${iso}T00:00:00`);
@@ -130,7 +142,6 @@ function examDaysPhrase(iso: string): string {
   if (d === 1) return "Your exam is in 1 day";
   return `Your exam is in ${d} days`;
 }
-// Compact value for the confirmation summary.
 function examSummary(d: Draft): string {
   if (d.examDate) {
     const n = daysUntil(d.examDate);
@@ -139,11 +150,6 @@ function examSummary(d: Draft): string {
   }
   return "Not sure yet";
 }
-function chosenOptionLabel(t: HelpType): string {
-  if (t === "one_on_one") return "1-on-1 tutoring";
-  if (t === "something_else") return "Something else";
-  return "Exam prep video";
-}
 const humanSize = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const profDisplay = (p: ProfessorLite) => {
   const last = p.last.trim(), first = p.first.trim();
@@ -151,17 +157,47 @@ const profDisplay = (p: ProfessorLite) => {
   return p.name;
 };
 
+// Friendly reference code: {CAMPUS}-{initials}-{4-char id tail}. Stateless —
+// derivable anywhere from stored fields, always unique (id tail is unique).
+function campusAbbr(name: string): string {
+  const hit = SEC_CAMPUSES.find((c) => c.name === name);
+  if (hit) return hit.abbr;
+  const words = name.replace(/[^A-Za-z\s]/g, " ").split(/\s+/).filter(Boolean)
+    .filter((w) => !/^(of|the|at|university|univ|college|state|and)$/i.test(w));
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  return "SA";
+}
+function refCode(campusName: string, first: string, last: string, shortRef: string): string {
+  const abbr = campusName.trim() ? campusAbbr(campusName.trim()) : "SA";
+  const initials = ((first.trim()[0] ?? "") + (last.trim()[0] ?? "")).toUpperCase() || "XX";
+  const tail = (shortRef || "").replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase() || "0000";
+  return `${abbr}-${initials}-${tail}`;
+}
+
+// Per-step completion gate — drives the forward arrow.
+function stepComplete(step: number, d: Draft): boolean {
+  switch (step) {
+    case 0: return !!d.requestScope;
+    case 1: return !!d.examDate || d.examChoice === "not_sure";
+    case 2: return !!d.campusId || (d.campusOther && d.campusName.trim().length > 0);
+    case 3: return d.courseFamily != null || d.courseCode.trim().length > 0 || d.courseName.trim().length > 0;
+    case 4: return true; // professor optional
+    case 5: return d.helpTypes.length > 0;
+    default: return false;
+  }
+}
+
 function OrderPage() {
+  const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [result, setResult] = useState<SubmitOrderResult | null>(null);
   const update = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((p) => ({ ...p, [k]: v }));
 
-  // Stable per-visit id for grouping this student's uploads. SSR-safe.
   const [sessionId] = useState(() =>
     typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
-  // Functional updates so concurrent uploads don't clobber each other.
   const addAttachment = (a: Attachment) => setDraft((p) => ({ ...p, attachments: [...p.attachments, a] }));
   const removeAttachment = (path: string) => setDraft((p) => ({ ...p, attachments: p.attachments.filter((x) => x.path !== path) }));
 
@@ -174,43 +210,68 @@ function OrderPage() {
     return () => { off = true; };
   }, [draft.campusId, ctxFn]);
 
+  // Keep each step "locked in" at the top — no leftover scroll between steps.
+  useEffect(() => { if (started) window.scrollTo({ top: 0 }); }, [step, started]);
+
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
-  const back = () => setStep((s) => Math.max(s - 1, 0));
+  const goBack = () => { if (step === 0) setStarted(false); else setStep((s) => Math.max(s - 1, 0)); };
 
   if (result) return <Confirmation draft={draft} result={result} />;
+  if (!started) return <Intro onStart={() => { setStep(0); setStarted(true); }} />;
+
+  const canForward = step < STEPS.length - 1 && stepComplete(step, draft);
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #E7ECF5 0%, #FAFAF7 560px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
+    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #E7ECF5 0%, #FAFAF7 420px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Toaster richColors position="top-center" />
       <Header />
-      <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-14 sm:pt-20">
-        {/* Header — page identity, then the form. */}
-        <div className="text-center">
-          <h1 className="text-[30px] leading-[1.12] sm:text-[40px]" style={{ color: NAVY, fontFamily: SERIF, fontWeight: 400 }}>
-            Get a personalized exam prep video
-          </h1>
-          <div className="mx-auto mt-5 flex flex-col items-center">
-            <span className="relative block overflow-hidden rounded-full"
-              style={{ width: 84, height: 84, border: "3px solid #FFFFFF", boxShadow: "0 12px 30px rgba(20,33,61,0.20)" }}>
-              <img src={leeHeadshot} alt="Lee Ingram" className="h-full w-full object-cover" draggable={false} />
-            </span>
-            <p className="mt-3 text-[13px] text-gray-600">All videos created by virtual tutor Lee Ingram.</p>
-          </div>
-        </div>
-        <div className="mt-7"><Progress step={step} /></div>
-        <div className="mt-5 rounded-[28px] bg-white p-6 shadow-[0_30px_80px_-28px_rgba(20,33,61,0.45)] ring-1 ring-black/[0.04] sm:p-9">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-14 pt-5">
+        <StepNav step={step} canForward={canForward} onBack={goBack} onForward={next} />
+        <div className="mt-4 rounded-[28px] bg-white p-6 shadow-[0_30px_80px_-28px_rgba(20,33,61,0.45)] ring-1 ring-black/[0.04] sm:p-9">
           {step === 0 && <ScopeStep draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} onNext={next} />}
-          {step === 1 && <ExamStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 2 && <CampusStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 3 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} onBack={back} />}
-          {step === 4 && <ProfessorStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 5 && <HelpOptionsStep draft={draft} update={update} onNext={next} onBack={back} />}
-          {step === 6 && <InfoStep draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} onBack={back} onSubmitted={setResult} />}
+          {step === 1 && <ExamStep draft={draft} update={update} onNext={next} />}
+          {step === 2 && <CampusStep draft={draft} update={update} onNext={next} />}
+          {step === 3 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} />}
+          {step === 4 && <ProfessorStep draft={draft} update={update} onNext={next} />}
+          {step === 5 && <HelpOptionsStep draft={draft} update={update} onNext={next} />}
+          {step === 6 && <InfoStep draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} onSubmitted={setResult} />}
         </div>
         <StepFooter />
       </div>
+    </div>
+  );
+}
 
-      {/* Social proof + contact, below the form. */}
+// ---------- Intro screen (identity + Start Request + reviews) ----------
+function Intro({ onStart }: { onStart: () => void }) {
+  const scrollToReviews = () => document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth" });
+  return (
+    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #E7ECF5 0%, #FAFAF7 520px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
+      <Header />
+      <div className="mx-auto w-full max-w-2xl px-4 pb-10 pt-14 text-center sm:pt-20">
+        <span className="mx-auto block overflow-hidden rounded-full"
+          style={{ width: 96, height: 96, border: "3px solid #FFFFFF", boxShadow: "0 14px 34px rgba(20,33,61,0.22)" }}>
+          <img src={leeHeadshot} alt="Lee Ingram" className="h-full w-full object-cover" draggable={false} />
+        </span>
+        <h1 className="mt-6 text-[32px] leading-[1.1] sm:text-[44px]" style={{ color: NAVY, fontFamily: SERIF, fontWeight: 400 }}>
+          Get a personalized exam prep video
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
+          Request your video below. Created by virtual tutor Lee Ingram.
+        </p>
+        <div className="mt-8">
+          <button type="button" onClick={onStart}
+            className="inline-flex h-14 items-center justify-center rounded-2xl px-10 text-lg font-bold text-white transition hover:brightness-110 hover:-translate-y-0.5"
+            style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 14px 34px rgba(206,17,38,0.30)" }}>
+            Start Request
+          </button>
+          <div className="mt-4">
+            <button type="button" onClick={scrollToReviews} className="text-sm font-medium text-gray-500 underline underline-offset-2 hover:text-gray-700">
+              Read reviews
+            </button>
+          </div>
+        </div>
+      </div>
       <Reviews />
       <ContactForm />
     </div>
@@ -238,11 +299,21 @@ function StepFooter() {
     </p>
   );
 }
-function Progress({ step }: { step: number }) {
+// Progress bar flanked by discreet back / forward arrows for quick step nav.
+function StepNav({ step, canForward, onBack, onForward }: { step: number; canForward: boolean; onBack: () => void; onForward: () => void }) {
   const pct = Math.round(((step + 1) / STEPS.length) * 100);
+  const arrow = "grid h-8 w-8 shrink-0 place-content-center rounded-full border text-gray-500 transition hover:text-gray-800 hover:border-gray-300 disabled:opacity-30 disabled:hover:text-gray-500";
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-      <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${pct}%`, background: RED }} />
+    <div className="flex items-center gap-2.5">
+      <button type="button" aria-label="Previous step" onClick={onBack} className={arrow}>
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200">
+        <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${pct}%`, background: RED }} />
+      </div>
+      <button type="button" aria-label="Next step" onClick={onForward} disabled={!canForward} className={arrow}>
+        <ChevronRight className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -262,15 +333,8 @@ function PrimaryBtn({ children, onClick, disabled }: { children: React.ReactNode
     </Button>
   );
 }
-function BackLink({ onBack }: { onBack: () => void }) {
-  return (
-    <div className="mt-3 text-center">
-      <button type="button" onClick={onBack} className="text-sm text-gray-500 underline hover:text-gray-700">Back</button>
-    </div>
-  );
-}
 
-// ---------- Shared: "Provide more detail" + file uploads (start + confirm) ----------
+// ---------- Shared: "Provide more detail" + file uploads ----------
 function DetailBox({ draft, update, sessionId, addAttachment, removeAttachment }: {
   draft: Draft;
   update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
@@ -311,11 +375,20 @@ function DetailBox({ draft, update, sessionId, addAttachment, removeAttachment }
         value={draft.specialInstructions}
         onChange={(e) => update("specialInstructions", e.target.value)}
         maxLength={2000} rows={3}
-        placeholder="What are you stuck on? Topics, problems, questions — anything that helps me help you."
-        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
+        placeholder="What are you stuck on? Topics, textbook problems, chapters, questions — anything that helps me help you."
+        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-[16px] focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
       />
 
-      {/* Drag & drop / click-to-browse — silent, animated affordance. */}
+      <input ref={inputRef} type="file" multiple className="hidden" accept={UPLOAD_ACCEPT}
+        onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); e.target.value = ""; }} />
+
+      {/* Mobile: a simple button (no drag-drop on phones). */}
+      <button type="button" onClick={() => inputRef.current?.click()}
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-red-300 hover:bg-red-50/40 sm:hidden">
+        <UploadCloud className="h-5 w-5 text-gray-400" /> Add files or photos
+      </button>
+
+      {/* Desktop: drag & drop / click, with an animated affordance. */}
       <div
         role="button" tabIndex={0}
         onClick={() => inputRef.current?.click()}
@@ -324,20 +397,15 @@ function DetailBox({ draft, update, sessionId, addAttachment, removeAttachment }
         onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
         onDrop={(e) => { e.preventDefault(); setDragActive(false); if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); }}
         className={cn(
-          "group mt-2 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-200",
+          "group mt-2 hidden cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-200 sm:flex",
           dragActive
             ? "scale-[1.01] border-red-400 bg-red-50 shadow-sm"
             : "border-gray-300 bg-gray-50 hover:-translate-y-0.5 hover:border-red-300 hover:bg-red-50/40 hover:shadow-sm",
         )}
       >
         <UploadCloud className={cn("h-6 w-6 transition-transform duration-200", dragActive ? "-translate-y-0.5 text-red-500" : "text-gray-400 group-hover:-translate-y-0.5 group-hover:text-red-400")} />
-        <p className="text-sm font-medium text-gray-700">
-          <span style={{ color: RED }}>Upload files</span> or drag &amp; drop
-        </p>
+        <p className="text-sm font-medium text-gray-700"><span style={{ color: RED }}>Upload files</span> or drag &amp; drop</p>
         <p className="text-xs text-gray-400">Syllabus, homework, screenshots — PDF or images, up to 10MB each</p>
-        <input ref={inputRef} type="file" multiple className="hidden"
-          accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.heic,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx"
-          onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); e.target.value = ""; }} />
       </div>
 
       {(draft.attachments.length > 0 || uploading > 0) && (
@@ -354,9 +422,7 @@ function DetailBox({ draft, update, sessionId, addAttachment, removeAttachment }
             </li>
           ))}
           {uploading > 0 && (
-            <li className="flex items-center gap-2 px-1 text-xs text-gray-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
-            </li>
+            <li className="flex items-center gap-2 px-1 text-xs text-gray-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…</li>
           )}
         </ul>
       )}
@@ -364,11 +430,47 @@ function DetailBox({ draft, update, sessionId, addAttachment, removeAttachment }
   );
 }
 
-// ---------- Step 1: Scope (what do you need help with?) ----------
+// Confirm-step: collapse the detail box into two compact chips that expand.
+function ConfirmDetail(props: {
+  draft: Draft;
+  update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
+  sessionId: string;
+  addAttachment: (a: Attachment) => void;
+  removeAttachment: (path: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const hasDetail = props.draft.specialInstructions.trim().length > 0;
+  const nFiles = props.draft.attachments.length;
+
+  if (open) {
+    return (
+      <div className="rounded-2xl border border-gray-200 p-4">
+        <DetailBox {...props} />
+        <button type="button" onClick={() => setOpen(false)} className="mt-3 text-xs font-medium text-gray-500 underline hover:text-gray-700">Done</button>
+      </div>
+    );
+  }
+  const chip = "flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition hover:border-gray-300";
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <button type="button" onClick={() => setOpen(true)}
+        className={cn(chip, hasDetail ? "border-transparent text-white" : "bg-white text-gray-700")}
+        style={hasDetail ? { background: NAVY } : undefined}>
+        <Pencil className="h-4 w-4 shrink-0" /> {hasDetail ? "Detail added" : "Add detail"}
+      </button>
+      <button type="button" onClick={() => setOpen(true)}
+        className={cn(chip, nFiles > 0 ? "border-transparent text-white" : "bg-white text-gray-700")}
+        style={nFiles > 0 ? { background: NAVY } : undefined}>
+        <Paperclip className="h-4 w-4 shrink-0" /> {nFiles > 0 ? `${nFiles} file${nFiles > 1 ? "s" : ""}` : "Attach files"}
+      </button>
+    </div>
+  );
+}
+
+// ---------- Step 1: Scope ----------
 function ScopeStep({ draft, update, sessionId, addAttachment, removeAttachment, onNext }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
-  sessionId: string; addAttachment: (a: Attachment) => void; removeAttachment: (path: string) => void;
-  onNext: () => void;
+  sessionId: string; addAttachment: (a: Attachment) => void; removeAttachment: (path: string) => void; onNext: () => void;
 }) {
   return (
     <div>
@@ -398,14 +500,13 @@ function ScopeStep({ draft, update, sessionId, addAttachment, removeAttachment, 
   );
 }
 
-// ---------- Step 2: Exam (calendar-first, no delivery math) ----------
-function ExamStep({ draft, update, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
+// ---------- Step 2: Exam ----------
+function ExamStep({ draft, update, onNext }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void;
 }) {
   const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
   const selected = draft.examDate ? new Date(`${draft.examDate}T00:00:00`) : undefined;
   const canContinue = !!draft.examDate || draft.examChoice === "not_sure";
-  const notSure = draft.examChoice === "not_sure";
   return (
     <div>
       <Title>When&apos;s your next exam?</Title>
@@ -424,51 +525,51 @@ function ExamStep({ draft, update, onNext, onBack }: {
         />
       </div>
       <div className="mt-3 flex flex-col items-center gap-1.5 text-center">
-        {draft.examDate && (
+        {draft.examDate ? (
           <p className="text-sm font-semibold" style={{ color: NAVY }}>{examDaysPhrase(draft.examDate)}</p>
+        ) : (
+          <button type="button"
+            onClick={() => { update("examChoice", "not_sure"); update("examDate", ""); }}
+            className={cn("text-xs underline transition hover:text-gray-700", draft.examChoice === "not_sure" ? "font-semibold" : "text-gray-500")}
+            style={draft.examChoice === "not_sure" ? { color: NAVY } : undefined}>
+            Not sure right now
+          </button>
         )}
-        <button type="button"
-          onClick={() => { update("examChoice", "not_sure"); update("examDate", ""); }}
-          className={cn("text-xs underline transition hover:text-gray-700", notSure ? "font-semibold" : "text-gray-500")}
-          style={notSure ? { color: NAVY } : undefined}>
-          Not sure right now
-        </button>
       </div>
-      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn></div>
     </div>
   );
 }
 
 // Student-facing SEC campus list for the /order School step — Ole Miss pinned
-// first, then alphabetical. IDs are the live `campuses` rows (Auburn has no
-// active roster yet, so its professor picker falls back to free text).
-const SEC_CAMPUSES: { id: string; name: string; city: string }[] = [
-  { id: "7b92a320-b196-43f2-a241-77a0805816fe", name: "University of Mississippi / Ole Miss", city: "Oxford, MS" },
-  { id: "e330e87c-5467-4c05-9d3d-6cd2398de036", name: "Auburn University", city: "Auburn, AL" },
-  { id: "698dd98f-dd92-46c1-8f28-e930568cb15d", name: "Louisiana State University", city: "Baton Rouge, LA" },
-  { id: "95246fc8-1ce6-409e-b454-d03c82766719", name: "Mississippi State University", city: "Starkville, MS" },
-  { id: "92e4a5d9-eeb3-4065-ac8a-5a4390fbc584", name: "Texas A&M University", city: "College Station, TX" },
-  { id: "b3af67c6-99a5-4677-83d5-aa7d11a89c17", name: "University of Alabama", city: "Tuscaloosa, AL" },
-  { id: "e631c8de-37a3-4aae-a948-a64bd20ea4c5", name: "University of Arkansas", city: "Fayetteville, AR" },
-  { id: "4c5126b1-3fe0-48fe-a1db-1e41d06e4642", name: "University of Florida", city: "Gainesville, FL" },
-  { id: "3f570e37-5394-4058-baab-508948befedb", name: "University of Georgia", city: "Athens, GA" },
-  { id: "ae339230-577e-4569-a7d1-d1e45d1cfe91", name: "University of Kentucky", city: "Lexington, KY" },
-  { id: "f16686c2-edc6-43f8-9638-6890f52c829a", name: "University of Missouri", city: "Columbia, MO" },
-  { id: "91e62f9c-43b0-41f3-a84d-002824754da6", name: "University of Oklahoma", city: "Norman, OK" },
-  { id: "5f5bd18d-b92f-4d56-aced-23bce4c983d5", name: "University of South Carolina", city: "Columbia, SC" },
-  { id: "9c4775be-7d82-4a3e-840c-349c5e15d8e8", name: "University of Tennessee", city: "Knoxville, TN" },
-  { id: "faad6039-be72-4f5c-8ad5-ca7b95e2889f", name: "University of Texas", city: "Austin, TX" },
-  { id: "972451c3-bc5e-48d7-9f88-868a55378efa", name: "Vanderbilt University", city: "Nashville, TN" },
+// first, then alphabetical. `abbr` feeds the friendly reference code.
+const SEC_CAMPUSES: { id: string; name: string; city: string; abbr: string }[] = [
+  { id: "7b92a320-b196-43f2-a241-77a0805816fe", name: "University of Mississippi / Ole Miss", city: "Oxford, MS", abbr: "UM" },
+  { id: "e330e87c-5467-4c05-9d3d-6cd2398de036", name: "Auburn University", city: "Auburn, AL", abbr: "AUB" },
+  { id: "698dd98f-dd92-46c1-8f28-e930568cb15d", name: "Louisiana State University", city: "Baton Rouge, LA", abbr: "LSU" },
+  { id: "95246fc8-1ce6-409e-b454-d03c82766719", name: "Mississippi State University", city: "Starkville, MS", abbr: "MSST" },
+  { id: "92e4a5d9-eeb3-4065-ac8a-5a4390fbc584", name: "Texas A&M University", city: "College Station, TX", abbr: "TAMU" },
+  { id: "b3af67c6-99a5-4677-83d5-aa7d11a89c17", name: "University of Alabama", city: "Tuscaloosa, AL", abbr: "ALA" },
+  { id: "e631c8de-37a3-4aae-a948-a64bd20ea4c5", name: "University of Arkansas", city: "Fayetteville, AR", abbr: "ARK" },
+  { id: "4c5126b1-3fe0-48fe-a1db-1e41d06e4642", name: "University of Florida", city: "Gainesville, FL", abbr: "UF" },
+  { id: "3f570e37-5394-4058-baab-508948befedb", name: "University of Georgia", city: "Athens, GA", abbr: "UGA" },
+  { id: "ae339230-577e-4569-a7d1-d1e45d1cfe91", name: "University of Kentucky", city: "Lexington, KY", abbr: "UK" },
+  { id: "f16686c2-edc6-43f8-9638-6890f52c829a", name: "University of Missouri", city: "Columbia, MO", abbr: "MIZ" },
+  { id: "91e62f9c-43b0-41f3-a84d-002824754da6", name: "University of Oklahoma", city: "Norman, OK", abbr: "OU" },
+  { id: "5f5bd18d-b92f-4d56-aced-23bce4c983d5", name: "University of South Carolina", city: "Columbia, SC", abbr: "SC" },
+  { id: "9c4775be-7d82-4a3e-840c-349c5e15d8e8", name: "University of Tennessee", city: "Knoxville, TN", abbr: "TENN" },
+  { id: "faad6039-be72-4f5c-8ad5-ca7b95e2889f", name: "University of Texas", city: "Austin, TX", abbr: "UT" },
+  { id: "972451c3-bc5e-48d7-9f88-868a55378efa", name: "Vanderbilt University", city: "Nashville, TN", abbr: "VAN" },
 ];
 
-// ---------- Step 3: School (SEC campuses only) ----------
-function CampusStep({ draft, update, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
+// ---------- Step 3: School ----------
+function CampusStep({ draft, update, onNext }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void;
 }) {
   const picked = !!draft.campusId || (draft.campusOther && draft.campusName.trim().length > 0);
   return (
     <div>
-      <Title subtitle="I make exam prep for students at all SEC campuses.">Where are you taking accounting?</Title>
+      <Title subtitle="I make exam prep videos for students at all SEC campuses.">Where are you taking accounting?</Title>
       {draft.campusOther ? (
         <div className="space-y-2">
           <Input placeholder="Type your school name" value={draft.campusName} autoFocus onChange={(e) => update("campusName", e.target.value)} />
@@ -496,14 +597,14 @@ function CampusStep({ draft, update, onNext, onBack }: {
           <button type="button" className="mt-3 text-xs text-gray-600 underline" onClick={() => { update("campusOther", true); update("campusId", null); update("campusName", ""); }}>My school isn&apos;t listed</button>
         </>
       )}
-      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!picked}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!picked}>Continue</PrimaryBtn></div>
     </div>
   );
 }
 
 // ---------- Step 4: Course ----------
-function CourseStep({ draft, update, ctx, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; ctx: OrderCampusContext | null; onNext: () => void; onBack: () => void;
+function CourseStep({ draft, update, ctx, onNext }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; ctx: OrderCampusContext | null; onNext: () => void;
 }) {
   const hasCodes = !!ctx && FAMILY_ORDER.some((f) => ctx.codes[f] || ctx.titles[f]);
   const forceOther = draft.campusOther || (!!draft.campusId && ctx !== null && !hasCodes);
@@ -545,14 +646,14 @@ function CourseStep({ draft, update, ctx, onNext, onBack }: {
           {!forceOther && <button type="button" className="text-xs text-gray-600 underline" onClick={() => update("courseOther", false)}>Pick from the list instead</button>}
         </div>
       )}
-      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn></div>
     </div>
   );
 }
 
 // ---------- Step 5: Professor (RMP-matched roster; last, first A→Z) ----------
-function ProfessorStep({ draft, update, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
+function ProfessorStep({ draft, update, onNext }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void;
 }) {
   const searchFn = useServerFn(searchOrderProfessors);
   const [all, setAll] = useState<ProfessorLite[]>([]);
@@ -593,8 +694,7 @@ function ProfessorStep({ draft, update, onNext, onBack }: {
 
       <div className="mt-6">
         <PrimaryBtn onClick={onNext}>Continue</PrimaryBtn>
-        <div className="mt-3 flex items-center justify-between">
-          <button type="button" onClick={onBack} className="text-sm text-gray-500 underline hover:text-gray-700">Back</button>
+        <div className="mt-3 text-right">
           <button type="button" onClick={() => { update("professorName", ""); update("professorLeadId", null); onNext(); }} className="text-sm text-gray-500 underline hover:text-gray-700">My professor isn&apos;t listed</button>
         </div>
       </div>
@@ -602,55 +702,68 @@ function ProfessorStep({ draft, update, onNext, onBack }: {
   );
 }
 
-// ---------- Step 6: Choose your preferred option ----------
-function HelpOptionsStep({ draft, update, onNext, onBack }: {
-  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void; onBack: () => void;
+// ---------- Step 6: Choose your preferred option(s) — multi-select ----------
+function HelpOptionsStep({ draft, update, onNext }: {
+  draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void;
 }) {
   const code = draft.courseCode.trim();
   const suffix = code ? ` for ${code}` : "";
   const OPTIONS: { value: HelpType; title: string; lines: string[]; muted?: boolean }[] = [
-    { value: "made_to_order", title: `Get exam prep videos${suffix}`, lines: ["Price determined after review", "Sent in 2-5 business days", "First come, first served"] },
+    { value: "made_to_order", title: `Get exam prep video${suffix}`, lines: ["$40 - $200+", "Priced after I review your request", "Sent in 2-5 business days"] },
     { value: "one_on_one", title: `Get 1-on-1 tutoring${suffix}`, lines: ["$150/hr", "Meets on Zoom", "Limited slots available"] },
     { value: "something_else", title: "Request something else", lines: ["Need help a different way?", "Share what you're looking for"], muted: true },
   ];
+  const toggle = (v: HelpType) =>
+    update("helpTypes", draft.helpTypes.includes(v) ? draft.helpTypes.filter((x) => x !== v) : [...draft.helpTypes, v]);
+
   return (
     <div>
-      <Title>Choose your preferred option</Title>
+      <Title subtitle="Pick one or more — students often want a mix.">Choose your preferred option</Title>
       <div className="space-y-3">
         {OPTIONS.map((o) => {
-          const active = draft.helpType === o.value;
+          const active = draft.helpTypes.includes(o.value);
           return (
-            <button key={o.value} type="button" onClick={() => update("helpType", o.value)}
-              className={cn("flex w-full items-start justify-between gap-3 rounded-2xl border text-left transition",
-                o.muted ? "px-4 py-3.5" : "px-5 py-5",
-                active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
-              style={active ? { background: NAVY } : undefined}>
-              <span>
-                <span className={cn("block font-bold", o.muted ? "text-sm" : "text-base")}>{o.title}</span>
-                <ul className={cn("mt-1.5 space-y-0.5", o.muted ? "" : "list-disc pl-5")}>
-                  {o.lines.map((line) => {
-                    const isPrice = line.startsWith("$");
-                    return (
-                      <li key={line}
-                        className={cn(o.muted ? "text-xs" : "text-sm", active ? "text-white/85" : "text-gray-600", isPrice && "font-semibold")}
-                        style={isPrice && !active ? { color: RED } : undefined}>
-                        {line}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </span>
-              {active && <Check className={cn("mt-1 shrink-0", o.muted ? "h-4 w-4" : "h-5 w-5")} />}
-            </button>
+            <div key={o.value}>
+              <button type="button" onClick={() => toggle(o.value)}
+                className={cn("flex w-full items-start justify-between gap-3 rounded-2xl border text-left transition",
+                  o.muted ? "px-4 py-3.5" : "px-5 py-5",
+                  active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+                style={active ? { background: NAVY } : undefined}>
+                <span>
+                  <span className={cn("block font-bold", o.muted ? "text-sm" : "text-base")}>{o.title}</span>
+                  <ul className={cn("mt-1.5 space-y-0.5", o.muted ? "" : "list-disc pl-5")}>
+                    {o.lines.map((line) => {
+                      const isPrice = line.startsWith("$");
+                      return (
+                        <li key={line}
+                          className={cn(o.muted ? "text-xs" : "text-sm", active ? "text-white/85" : "text-gray-600", isPrice && "font-semibold")}
+                          style={isPrice && !active ? { color: RED } : undefined}>
+                          {line}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </span>
+                <span className={cn("mt-1 grid h-5 w-5 shrink-0 place-content-center rounded-md border", active ? "border-white bg-white/15" : "border-gray-300")}>
+                  {active && <Check className="h-3.5 w-3.5" />}
+                </span>
+              </button>
+              {o.value === "something_else" && active && (
+                <textarea value={draft.somethingElseNote} onChange={(e) => update("somethingElseNote", e.target.value)}
+                  maxLength={1000} rows={3} autoFocus
+                  placeholder="What do you have in mind? Tell me what you're looking for and I'll see how I can help."
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-[16px] focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200" />
+              )}
+            </div>
           );
         })}
       </div>
-      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!draft.helpType}>Continue</PrimaryBtn><BackLink onBack={onBack} /></div>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={draft.helpTypes.length === 0}>Continue</PrimaryBtn></div>
     </div>
   );
 }
 
-// ---------- Consolidated request summary (confirm step + confirmation page) ----------
+// ---------- Consolidated request summary ----------
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
@@ -659,29 +772,29 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function RequestSummary({ draft }: { draft: Draft }) {
+function RequestSummary({ draft, hideChosenOption }: { draft: Draft; hideChosenOption?: boolean }) {
   const code = draft.courseCode.trim() || draft.courseName.trim();
   const prof = draft.professorName.trim();
   const courseLine = [code, prof].filter(Boolean).join(" · ");
   return (
     <div className="rounded-2xl border bg-gray-50 px-5 py-5 sm:px-6">
-      {draft.campusName.trim() && (
-        <p className="text-[15px] font-bold" style={{ color: NAVY }}>{draft.campusName.trim()}</p>
-      )}
+      {draft.campusName.trim() && <p className="text-[15px] font-bold" style={{ color: NAVY }}>{draft.campusName.trim()}</p>}
       {courseLine && <p className="mt-0.5 text-sm text-gray-600">{courseLine}</p>}
       <div className="mt-3 space-y-1.5 border-t border-gray-200 pt-3">
         <SummaryRow label="Days to next exam" value={examSummary(draft)} />
-        <SummaryRow label="Chosen option" value={chosenOptionLabel(draft.helpType)} />
+        {!hideChosenOption && (
+          <SummaryRow label={draft.helpTypes.length > 1 ? "Chosen options" : "Chosen option"} value={chosenOptionsLabel(draft.helpTypes)} />
+        )}
       </div>
     </div>
   );
 }
 
 // ---------- Step 7: Your info + submit ----------
-function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, onBack, onSubmitted }: {
+function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, onSubmitted }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void;
   sessionId: string; addAttachment: (a: Attachment) => void; removeAttachment: (path: string) => void;
-  onBack: () => void; onSubmitted: (r: SubmitOrderResult) => void;
+  onSubmitted: (r: SubmitOrderResult) => void;
 }) {
   const submitFn = useServerFn(submitOrder);
   const [busy, setBusy] = useState(false);
@@ -701,9 +814,15 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
     if (!validate()) return;
     setBusy(true);
     try {
-      // The scope rides along as one order_chapters row so Lee sees the ask; the
-      // free-text detail lives in special_requests and the files in attachments.
-      const detail = draft.specialInstructions.trim();
+      // The scope rides along as one order_chapters row; the free-text detail +
+      // any "something else" ask live in special_requests; files in attachments.
+      const parts = [
+        draft.specialInstructions.trim(),
+        draft.helpTypes.includes("something_else") && draft.somethingElseNote.trim()
+          ? `Something else: ${draft.somethingElseNote.trim()}`
+          : "",
+      ].filter(Boolean);
+      const detail = parts.join("\n\n");
       const chapters = draft.requestScope
         ? [{ chapterLabel: scopeLabel(draft.requestScope), chapterNumber: null, struggleNote: null }]
         : [];
@@ -714,7 +833,8 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
           courseFamily: draft.courseFamily, courseCode: draft.courseCode.trim() || null, courseName: draft.courseName.trim() || null,
           professorName: draft.professorName.trim() || null, professorLeadId: draft.professorLeadId,
           examDate: examDateFor(draft), examTimeframe: examTimeframeFor(draft),
-          tier: draft.helpType,
+          tier: primaryTier(draft.helpTypes),
+          requestedOptions: draft.helpTypes,
           chapterCountOnly: null,
           requestScope: draft.requestScope,
           requestNotes: null,
@@ -734,11 +854,11 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
 
   return (
     <div>
-      <Title subtitle="I'll respond in 1 business day with a gameplan.">Confirm your request</Title>
+      <Title>Confirm your request</Title>
       <RequestSummary draft={draft} />
 
-      <div className="mt-5">
-        <DetailBox draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} />
+      <div className="mt-4">
+        <ConfirmDetail draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} />
       </div>
 
       <p className="mt-6 text-sm font-bold" style={{ color: NAVY }}>Add your info</p>
@@ -749,12 +869,13 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
         <Field label="Phone" error={errors.phone}><Input type="tel" value={draft.phone} placeholder="(555) 555-5555" onChange={(e) => update("phone", e.target.value)} autoComplete="tel" /></Field>
       </div>
 
+      <p className="mt-7 text-center text-sm text-gray-600">I&apos;ll text you in 1 business day with a gameplan.</p>
+
       <div className="mt-6">
         <PrimaryBtn onClick={submit} disabled={busy}>
           {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Submit exam prep request"}
         </PrimaryBtn>
       </div>
-      <BackLink onBack={onBack} />
     </div>
   );
 }
@@ -770,6 +891,8 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 
 // ---------- Confirmation ----------
 function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResult }) {
+  const ref = refCode(draft.campusName, draft.firstName, draft.lastName, result.shortRef);
+  const hideChosen = draft.helpTypes.includes("something_else");
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EAEEF6 0%, #FAFAF7 360px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Header />
@@ -777,11 +900,9 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
         <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-9">
           <div className="mx-auto grid h-14 w-14 place-content-center rounded-full bg-emerald-50"><Check className="h-8 w-8 text-emerald-600" /></div>
           <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>Request received!</h1>
-          {result.shortRef && (
-            <p className="mt-1 text-center text-sm text-gray-500">Reference <span className="font-mono">#{result.shortRef}</span></p>
-          )}
+          <p className="mt-1 text-center text-sm text-gray-500">Reference <span className="font-mono">#{ref}</span></p>
 
-          <div className="mt-6"><RequestSummary draft={draft} /></div>
+          <div className="mt-6"><RequestSummary draft={draft} hideChosenOption={hideChosen} /></div>
 
           <div className="mt-6">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What happens next</p>

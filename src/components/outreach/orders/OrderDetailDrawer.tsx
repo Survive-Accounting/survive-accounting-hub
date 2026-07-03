@@ -151,7 +151,12 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
                   <Row label="TOTAL" value={money(order.total_cents)} strong />
                   <Row label="DELIVERY TARGET" value={order.delivery_target_date ? `by ${fmtDate(order.delivery_target_date)}` : (order.awaiting_syllabus ? "TBD (syllabus pending)" : "—")} />
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground" style={{ fontFamily: MONO }}>Tier: {TIER_LABEL[order.tier] ?? order.tier}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground" style={{ fontFamily: MONO }}>
+                  Tier: {TIER_LABEL[order.tier] ?? order.tier}
+                  {(order.requested_options?.length ?? 0) > 1 && (
+                    <> · Requested: {order.requested_options!.map((o) => TIER_LABEL[o] ?? o).join(", ")}</>
+                  )}
+                </p>
               </div>
 
               {/* contact */}

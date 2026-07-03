@@ -13,7 +13,7 @@ const ORDER_COLS =
   "course_family,course_code,course_name,professor_name,professor_lead_id,textbook_name," +
   "tier,chapter_count,chapter_count_only,awaiting_syllabus,interested_in_group,group_size," +
   "exam_date,exam_timeframe,subtotal_cents,rush,rush_fee_cents,total_cents," +
-  "delivery_target_date,delivery_estimate_days,status,admin_notes,special_requests,attachments_json";
+  "delivery_target_date,delivery_estimate_days,status,admin_notes,special_requests,attachments_json,requested_options";
 
 export type AdminOrderRow = {
   id: string;
@@ -50,6 +50,7 @@ export type AdminOrderRow = {
   admin_notes: string | null;
   special_requests: string | null;
   attachments_json: OrderAttachment[] | null;
+  requested_options: string[] | null;
   chapter_rows: number;
 };
 
@@ -120,6 +121,7 @@ function mapRow(r: Record<string, unknown>, campusName: string | null, chapterRo
     admin_notes: (r.admin_notes as string) ?? null,
     special_requests: (r.special_requests as string) ?? null,
     attachments_json: Array.isArray(r.attachments_json) ? (r.attachments_json as OrderAttachment[]) : [],
+    requested_options: Array.isArray(r.requested_options) ? (r.requested_options as string[]) : [],
     chapter_rows: chapterRows,
   };
 }

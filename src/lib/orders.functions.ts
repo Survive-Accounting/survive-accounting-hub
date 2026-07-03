@@ -262,6 +262,8 @@ const submitOrderSchema = z.object({
   examDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   examTimeframe: z.enum(["this_week", "next_week", "not_sure"]).nullable().optional(),
   tier: z.enum(["free_teaser", "made_to_order", "one_on_one", "something_else"]),
+  // Full multi-select set (tier above is the PRIMARY pick, for pricing/notify).
+  requestedOptions: z.array(z.enum(["free_teaser", "made_to_order", "one_on_one", "something_else"])).max(4).optional(),
   rush: z.boolean().optional(),
   // Request fields — the specifics are refined in the post-request tracker.
   chapterCountOnly: z.number().int().min(0).max(50).nullable().optional(),
@@ -341,6 +343,7 @@ export const submitOrder = createServerFn({ method: "POST" })
       // dropped live — one field, submit-time + tracker-editable.)
       special_requests: data.specialInstructions ?? null,
       attachments_json: data.attachments ?? [],
+      requested_options: data.requestedOptions ?? [],
       interested_in_group: data.interestedInGroup ?? false,
       group_size: data.groupSize ?? null,
       awaiting_syllabus: true,
