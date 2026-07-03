@@ -248,7 +248,10 @@ function Intro({ onStart }: { onStart: () => void }) {
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #E7ECF5 0%, #FAFAF7 520px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Header />
-      <div className="mx-auto w-full max-w-2xl px-4 pb-10 pt-14 text-center sm:pt-20">
+      {/* Mobile: fill the viewport below the sticky header so the reviews slider
+          sits just below the fold (intentional scroll / "Read reviews" to reach).
+          Fully reset at md: — desktop layout is unchanged. */}
+      <div className="mx-auto flex min-h-[calc(100svh-5rem)] w-full max-w-2xl flex-col justify-center px-4 pb-10 pt-14 text-center sm:pt-20 md:block md:min-h-0">
         <span className="mx-auto block overflow-hidden rounded-full"
           style={{ width: 96, height: 96, border: "3px solid #FFFFFF", boxShadow: "0 14px 34px rgba(20,33,61,0.22)" }}>
           <img src={leeHeadshot} alt="Lee Ingram" className="h-full w-full object-cover" draggable={false} />
