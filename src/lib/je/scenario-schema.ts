@@ -58,13 +58,26 @@ const computationPathSchema = z.object({
     .optional(),
 });
 
-const variantSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().optional(),
-  conditions: z.record(z.string()),
-  entries: z.array(entrySchema).min(1),
-  computationPaths: z.array(computationPathSchema).optional(),
-});
+const variantSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().optional(),
+    conditions: z.record(z.string()),
+    // A variant is EITHER an entry scenario (entries non-empty; every per-entry rule applies)
+    // OR a computation scenario (no entries + computationPaths non-empty).
+    entries: z.array(entrySchema).optional(),
+    computationPaths: z.array(computationPathSchema).optional(),
+  })
+  .superRefine((v, ctx) => {
+    const hasEntries = (v.entries?.length ?? 0) > 0;
+    const hasPaths = (v.computationPaths?.length ?? 0) > 0;
+    if (!hasEntries && !hasPaths) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `variant "${v.id}" must have either entries or computationPaths`,
+      });
+    }
+  });
 
 const axisSchema = z.object({
   key: z.string().min(1),

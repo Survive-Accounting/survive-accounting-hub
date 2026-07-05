@@ -1,0 +1,65 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "doc": {
+    "slug": "convert-preferred",
+    "title": "Convert preferred stock to common",
+    "event": "Holders of 1,000 shares of convertible preferred ($100 par, originally issued at 105) convert into 8,000 shares of $5-par common. The preferred's BOOK VALUE — par plus its own paid-in capital — rolls into the common accounts. Equity to equity, no gain, no loss.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "convert",
+        "label": "Book value of the preferred moves across",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "convert",
+            "caption": "1,000 preferred ($100 par, issued at 105) → 8,000 common ($5 par)",
+            "lines": [
+              { "id": "ps", "account": "Preferred Stock", "side": "debit", "label": "1,000 × $100 par off", "amount": 100000,
+                "why": "The preferred's par capital leaves its account.",
+                "trap": "Conversion removes the ORIGINAL issuance amounts — today's market prices for either stock are spectators." },
+              { "id": "picp", "account": "Paid-in Capital in Excess of Par — Preferred", "side": "debit", "label": "its original excess", "amount": 5000,
+                "why": "The preferred's book value includes the PIC created when it was issued (1,000 × $5 excess) — it converts too.",
+                "trap": "Leaving the preferred's PIC behind strands orphaned capital under a share class that no longer exists." },
+              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "8,000 × $5 par", "amount": 40000,
+                "why": "The new shares' par capital.",
+                "trap": "Par of the COMMON now — don't reuse the preferred's $100 par anywhere on the credit side." },
+              { "id": "picc", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the plug", "amount": 65000,
+                "why": "Book value converted 105,000 − common par 40,000 = 65,000.",
+                "trap": "No income-statement account can appear — equity-for-equity swaps never create gains or losses." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          { "id": "bv", "narration": "Book value of the preferred = par 100,000 + its PIC 5,000 = 105,000. That value re-dresses as common: par 40,000, PIC plug 65,000.",
+            "steps": [
+              { "label": "Preferred book value", "formulaText": "100,000 + 5,000 = 105,000" },
+              { "label": "PIC—Common plug", "formulaText": "105,000 − 40,000 = 65,000" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Convert preferred: debit its par AND its original PIC (the full book value); credit common par × new shares; plug to PIC—Common.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Rare twist: if the COMMON par exceeds the preferred's book value, the shortfall debits RETAINED EARNINGS — never a loss account.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-pref-bv",
+        "prompt": "Preferred (1,000 shares, $100 par, issued at 105) converts to 8,000 shares of $5-par common. PIC in Excess of Par — Common is credited for…",
+        "answerExpr": "65000",
+        "distractors": [
+          { "expr": "60000", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "60,000 converts only the preferred's PAR (100,000). Its book value includes the original 5,000 issuance excess — 105,000 converts, so the plug is 65,000." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Preferred Stock" }, { "account": "Paid-in Capital in Excess of Par — Preferred" },
+        { "account": "Common Stock" }, { "account": "Paid-in Capital in Excess of Par — Common" },
+        { "account": "Retained Earnings", "decoy": true }, { "account": "Gain on Conversion", "decoy": true }, { "account": "Cash", "decoy": true }
+      ],
+      "scaffold": "Total the preferred's book value first (par + its PIC). Debit both pieces off, credit common par, plug PIC—Common. Three of the seven bank accounts never belong here."
+    }
+  }
+}

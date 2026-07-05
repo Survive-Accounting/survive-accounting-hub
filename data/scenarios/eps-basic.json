@@ -1,0 +1,66 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "doc": {
+    "slug": "eps-basic",
+    "title": "Basic EPS",
+    "event": "Net income $550,000. Preferred: 10,000 shares of 6%, $100-par CUMULATIVE stock — a $60,000 annual claim whether declared or not. Weighted-average common shares: 200,000. Basic EPS answers one question: how much of the year's earnings belongs to each COMMON share?",
+    "courseFamilies": ["ia2"],
+    "axes": [
+      { "key": "preferred", "label": "The preferred is", "options": [
+        { "value": "cumulative", "label": "Cumulative (deduct regardless)" },
+        { "value": "noncum_undeclared", "label": "Noncumulative, none declared" }
+      ]}
+    ],
+    "variants": [
+      {
+        "id": "cumulative",
+        "label": "Cumulative — deduct the full preference, declared or not",
+        "conditions": { "preferred": "cumulative" },
+        "entries": [],
+        "computationPaths": [
+          {
+            "id": "basic-cum",
+            "narration": "Basic EPS = income AVAILABLE TO COMMON ÷ weighted-average common shares. Cumulative preferred's current-year preference comes off the top whether or not the board declared it — the claim accumulates either way. (Arrears from PRIOR years never re-deduct; each year deducts only its own preference.)",
+            "steps": [
+              { "label": "Preferred claim", "formulaText": "10,000 × $100 × 6% = 60,000 (declared or not — cumulative)" },
+              { "label": "Income available to common", "formulaText": "550,000 − 60,000 = 490,000" },
+              { "label": "Basic EPS", "formulaText": "490,000 ÷ 200,000 = $2.45" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "noncum",
+        "label": "Noncumulative and undeclared — no deduction at all",
+        "conditions": { "preferred": "noncum_undeclared" },
+        "entries": [],
+        "computationPaths": [
+          {
+            "id": "basic-noncum",
+            "narration": "Noncumulative preferred only claims what's DECLARED. Nothing declared → nothing deducted → all $550,000 belongs to common.",
+            "steps": [
+              { "label": "Preferred deduction", "formulaText": "declared amount = 0" },
+              { "label": "Basic EPS", "formulaText": "550,000 ÷ 200,000 = $2.75" }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Basic EPS = (Net income − preferred dividends) ÷ weighted-average common shares. Cumulative: deduct the current-year preference always. Noncumulative: deduct only if declared.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Deduct ONE year of cumulative preference — not the arrears pile. Prior years' preferences reduced THEIR years' EPS already.", "traceRefs": [] },
+      { "kind": "tip", "body": "The denominator is the WASO you built in the previous scenario — the two computations chain: WASO feeds basic, basic feeds diluted.", "traceRefs": [] }
+    ],
+    "questions": [
+      {
+        "id": "q-basic",
+        "prompt": "NI 550,000; cumulative 6% preferred, $1,000,000 total par, NOT declared this year; WASO 200,000. Basic EPS =",
+        "answerExpr": "2.45",
+        "distractors": [
+          { "expr": "2.75", "misconceptionId": "accrual_fraction_missed", "feedback": "2.75 skips the preferred deduction because nothing was declared — but CUMULATIVE preference deducts regardless of declaration. (550,000 − 60,000) ÷ 200,000 = 2.45." }
+        ]
+      }
+    ]
+  }
+}

@@ -125,8 +125,11 @@ export interface Variant {
   id: string; // stable within scenario, e.g. "gain" (CEQs/sequences reference this)
   label?: string;
   conditions: Record<string, string>; // { outcome: "gain" } — matches axis keys/values
-  entries: EntryTemplate[]; // usually 1; perpetual sale has 2
-  computationPaths?: ComputationPath[]; // how amounts are derived (mostly narration in Phase 1)
+  // A variant is EITHER an entry scenario (entries non-empty) OR a "computation scenario"
+  // (entries absent/empty AND computationPaths non-empty) — e.g. EPS, income taxes, cash
+  // flows, which center on a computation with no journal entry. The schema enforces this.
+  entries?: EntryTemplate[]; // usually 1; perpetual sale has 2; omitted for computation scenarios
+  computationPaths?: ComputationPath[]; // how amounts are derived; the primary content when there are no entries
 }
 
 export interface EntryTemplate {

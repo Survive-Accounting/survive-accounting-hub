@@ -215,6 +215,18 @@ function JePrototype() {
     !!explore ||
     entries.some((e) => e.lines.some((l) => typeof l.amount === "number" && !Number.isNaN(l.amount)));
 
+  // A "computation scenario" (EPS, income taxes, cash flows) resolves to a variant with no
+  // entries — the computationPath is the primary content, not a journal entry.
+  const isComputation = !!variant && entries.length === 0;
+  const resolveStep = (ref: string) => {
+    if (!explore) return null;
+    try {
+      return explore.resolve(ref);
+    } catch {
+      return null;
+    }
+  };
+
   // Schedule-driven entries: a single periodic-interest payment whose lines bind schedule:N
   // slots. For those, clicking a schedule row ≠ the authored period re-renders the entry via
   // entryAt(); everything else keeps its authored reveal-grid entry.
@@ -490,6 +502,8 @@ function JePrototype() {
 
             {!activeScenario ? null : (
               <div className="mx-auto max-w-3xl">
+                {!isComputation && (
+                  <>
                 {/* COA — the vocabulary (collapsed by default) */}
                 <Panel
                   title="Chart of Accounts"
@@ -528,15 +542,18 @@ function JePrototype() {
                 </Panel>
 
                 <VConnector active={!!activeLine} />
+                  </>
+                )}
 
                 {/* JOURNAL ENTRY — the anchor */}
                 <Panel
                   emphasis
-                  title="Journal Entry"
+                  title={isComputation ? "Computation" : "Journal Entry"}
                   collapsible
                   collapsed={collapsed.je}
                   onToggle={() => toggleCollapse("je")}
                   right={
+                    isComputation ? undefined : (
                     <div className="flex flex-wrap items-center gap-1">
                       <MiniBtn onClick={revealNext}>Reveal next</MiniBtn>
                       <MiniBtn onClick={revealAccountsOnly}>Accounts only</MiniBtn>
@@ -554,6 +571,7 @@ function JePrototype() {
                         </button>
                       )}
                     </div>
+                    )
                   }
                 >
                   {/* Event + params + principles + condition toggles */}
@@ -605,6 +623,47 @@ function JePrototype() {
                   <div className="mt-4 border-t border-border/60 pt-3">
                     {!variant ? (
                       <p className="text-sm italic text-muted-foreground">This combination isn't built yet.</p>
+                    ) : isComputation ? (
+                      !compPath ? (
+                        <p className="text-sm italic text-muted-foreground">No computation is built for this combination yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {variant.label && (
+                            <div className="text-xs font-semibold text-muted-foreground">{variant.label}</div>
+                          )}
+                          <p className="text-sm text-foreground/90">{compPath.narration}</p>
+                          {(compPath.steps ?? []).length > 0 && (
+                            <ol className="mt-1">
+                              {compPath.steps!.map((s, i) => {
+                                const stepRes = s.resultSlotKey ? resolveStep(s.resultSlotKey) : null;
+                                return (
+                                  <li
+                                    key={i}
+                                    className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-border/40 py-1.5 text-[13px]"
+                                  >
+                                    <span className="tabular-nums text-muted-foreground">{i + 1}.</span>
+                                    <span className="font-medium">{s.label}</span>
+                                    {s.formulaText && (
+                                      <span className="font-mono text-[11px] text-muted-foreground">{s.formulaText}</span>
+                                    )}
+                                    {stepRes && (
+                                      <span className="ml-auto">
+                                        <Amount
+                                          res={stepRes}
+                                          slotRef={s.resultSlotKey}
+                                          glowRefs={activeTraceRefs}
+                                          onOpen={openPopover}
+                                          className="font-semibold"
+                                        />
+                                      </span>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ol>
+                          )}
+                        </div>
+                      )
                     ) : periodEntry ? (
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -776,7 +835,9 @@ function JePrototype() {
                   )}
                 </Panel>
 
-                {/* JE → (Ledger | Statements) */}
+                {/* JE → (Ledger | Statements) — entry-derived consequences; hidden for computation scenarios */}
+                {!isComputation && (
+                  <>
                 <BranchConnector left={highlightInLedger} right={highlightInStatements} />
 
                 {explore && (
@@ -976,6 +1037,8 @@ function JePrototype() {
                     </span>
                   </div>
                 </Panel>
+                  </>
+                )}
 
                 {/* ---- Memorize (real when the doc carries it) + placeholders ---- */}
                 <div className="mt-4 space-y-4">

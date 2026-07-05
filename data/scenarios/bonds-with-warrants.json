@@ -1,0 +1,94 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "doc": {
+    "slug": "bonds-with-warrants",
+    "title": "Bonds issued with detachable warrants",
+    "event": "$500,000 of bonds sell for $510,000 — but each bond carries detachable stock warrants that trade on their own. Because the warrants are separable, part of the proceeds belongs to EQUITY, and the split method is the same pair you met in lump-sum stock sales: proportional or incremental.",
+    "courseFamilies": ["ia2"],
+    "axes": [
+      { "key": "method", "label": "Fair values known", "options": [
+        { "value": "proportional", "label": "Both known — proportional" },
+        { "value": "incremental", "label": "Only bonds known — incremental" }
+      ]}
+    ],
+    "variants": [
+      {
+        "id": "proportional",
+        "label": "Bonds FV 490,000 · warrants FV 20,000",
+        "conditions": { "method": "proportional" },
+        "entries": [
+          {
+            "id": "issue",
+            "caption": "Proportional: split 510,000 by relative FVs (490 : 20)",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "total proceeds", "amount": 510000,
+                "why": "One price for the package.",
+                "trap": "Detachable is the trigger word — NONdetachable warrants get no equity split at all (everything stays with the bond)." },
+              { "id": "disc", "account": "Discount on Bonds Payable", "side": "debit", "label": "face − bond allocation", "amount": 10000,
+                "why": "Bonds' share = 510,000 × 490/510 = 490,000 — below face, so a 10,000 discount is born.",
+                "trap": "Carving proceeds out for the warrants routinely CREATES a discount that wasn't in the headline price. Expect it." },
+              { "id": "bp", "account": "Bonds Payable", "side": "credit", "label": "face", "amount": 500000,
+                "why": "Face, as always.", "trap": "The warrant split never touches the face." },
+              { "id": "picw", "account": "Paid-in Capital — Stock Warrants", "side": "credit", "label": "warrants' allocation", "amount": 20000,
+                "why": "Warrants' share = 510,000 × 20/510 = 20,000 — equity from day one, because holders can sell the warrants separately.",
+                "trap": "An EQUITY account, not a liability — the warrants obligate the company to issue stock, not to pay cash." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          { "id": "prop", "narration": "Relative-FV split of 510,000: bonds 490/510 → 490,000; warrants 20/510 → 20,000. Then the bond side runs normal face-vs-allocation mechanics (discount 10,000).",
+            "steps": [
+              { "label": "Bonds allocation", "formulaText": "510,000 × 490/510 = 490,000" },
+              { "label": "Warrants allocation", "formulaText": "510,000 × 20/510 = 20,000" },
+              { "label": "Discount", "formulaText": "500,000 − 490,000 = 10,000" }
+            ] }
+        ]
+      },
+      {
+        "id": "incremental",
+        "label": "Only bonds' FV known (495,000) — warrants get the residual",
+        "conditions": { "method": "incremental" },
+        "entries": [
+          {
+            "id": "issue",
+            "caption": "Incremental: bonds anchor at 495,000; warrants take 15,000 residual",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "total proceeds", "amount": 510000,
+                "why": "Same package price.", "trap": "Facts force the method — incremental only when one FV is missing." },
+              { "id": "disc", "account": "Discount on Bonds Payable", "side": "debit", "label": "face − 495,000", "amount": 5000,
+                "why": "Bonds at their known FV 495,000 → 5,000 discount.",
+                "trap": "Different method, different discount (5,000 vs 10,000). Exams pivot on exactly this." },
+              { "id": "bp", "account": "Bonds Payable", "side": "credit", "label": "face", "amount": 500000,
+                "why": "Face.", "trap": "Constant across methods." },
+              { "id": "picw", "account": "Paid-in Capital — Stock Warrants", "side": "credit", "label": "the residual", "amount": 15000,
+                "why": "510,000 − 495,000 = 15,000 to the unknown piece.",
+                "trap": "The KNOWN security anchors; the unknown one is the plug — same rule as lump-sum stock sales." }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Detachable warrants: allocate proceeds — proportional (both FVs) or incremental (known at FV, residual to the other). Warrant slice → Paid-in Capital — Stock Warrants (equity). Nondetachable → no allocation; all to the bonds.", "traceRefs": [] },
+      { "kind": "tip", "body": "Later, when warrants are EXERCISED: cash at the strike + PIC—Stock Warrants transfer in, common par + PIC out. If they EXPIRE: PIC—Stock Warrants reclasses to PIC—Expired Warrants — the equity never leaves.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-warrant-alloc",
+        "prompt": "Bonds (face 500,000) with detachable warrants sell for 510,000. FVs: bonds 490,000, warrants 20,000. The warrants are credited to equity for…",
+        "answerExpr": "20000",
+        "distractors": [
+          { "expr": "10000", "misconceptionId": "premium_discount_direction_flip", "feedback": "10,000 is the headline 'premium' over face (510 − 500) — a coincidence, not the allocation. Proportional math gives the warrants 510,000 × 20/510 = 20,000, and the bond side then shows a DISCOUNT." },
+          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "Zero is the NONdetachable answer. Detachable warrants trade separately, so they get a measured slice of the proceeds in equity." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" }, { "account": "Bonds Payable" }, { "account": "Discount on Bonds Payable" },
+        { "account": "Paid-in Capital — Stock Warrants" },
+        { "account": "Premium on Bonds Payable", "decoy": true }, { "account": "Warrant Expense", "decoy": true }
+      ],
+      "scaffold": "First split the check (proportional or incremental), THEN account for each piece: bonds at face with the discount their slice implies, warrants straight to their own equity account."
+    }
+  }
+}

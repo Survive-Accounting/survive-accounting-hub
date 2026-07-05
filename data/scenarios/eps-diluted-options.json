@@ -1,0 +1,68 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "doc": {
+    "slug": "eps-diluted-options",
+    "title": "Diluted EPS — options (treasury-stock method)",
+    "event": "Income to common 490,000; WASO 200,000 (basic $2.45). Outstanding: 10,000 options with a $20 strike while the stock AVERAGED $25. The treasury-stock method pretends exercise — but also pretends the company spends the proceeds buying shares back at the average market price. Only the shortfall dilutes.",
+    "courseFamilies": ["ia2"],
+    "axes": [
+      { "key": "moneyness", "label": "Strike vs average market", "options": [
+        { "value": "in_the_money", "label": "In the money ($20 < $25)" },
+        { "value": "out_of_money", "label": "Out of the money ($30 > $25)" }
+      ]}
+    ],
+    "variants": [
+      {
+        "id": "itm",
+        "label": "In the money — 2,000 incremental shares",
+        "conditions": { "moneyness": "in_the_money" },
+        "entries": [],
+        "computationPaths": [
+          {
+            "id": "tsm",
+            "narration": "Treasury-stock method: pretend all 10,000 options exercise → proceeds 10,000 × $20 = 200,000. Pretend the company uses that cash to buy back shares at the $25 AVERAGE market → 8,000 reacquired. Net new shares = 10,000 − 8,000 = 2,000. No numerator adjustment — options avoid no interest.",
+            "steps": [
+              { "label": "Pretend proceeds", "formulaText": "10,000 × $20 = 200,000" },
+              { "label": "Pretend buyback", "formulaText": "200,000 ÷ $25 avg = 8,000 shares" },
+              { "label": "Incremental shares", "formulaText": "10,000 − 8,000 = 2,000" },
+              { "label": "Diluted EPS", "formulaText": "490,000 ÷ 202,000 = $2.43" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "otm",
+        "label": "Out of the money — antidilutive, EXCLUDE",
+        "conditions": { "moneyness": "out_of_money" },
+        "entries": [],
+        "computationPaths": [
+          {
+            "id": "anti",
+            "narration": "Strike $30 against a $25 average: the pretend proceeds (300,000) would buy back 12,000 shares — MORE than the 10,000 issued. Negative incremental shares would RAISE EPS, which diluted EPS never allows. The options are antidilutive: excluded entirely; diluted = basic = $2.45.",
+            "steps": [
+              { "label": "Pretend buyback", "formulaText": "300,000 ÷ $25 = 12,000 > 10,000 issued" },
+              { "label": "Verdict", "formulaText": "antidilutive → exclude; diluted EPS = basic = $2.45" }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Treasury-stock method: incremental shares = options − (options × strike ÷ AVERAGE market price). Numerator untouched. In the money (strike < avg market) → dilutes; otherwise exclude.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Shortcut: incremental shares = options × (avg market − strike) ÷ avg market. Here: 10,000 × 5/25 = 2,000. Same answer, one line.", "traceRefs": [] },
+      { "kind": "watchout", "body": "AVERAGE market price for the period — not year-end price. And options join denominators only; convertibles are the ones that touch the numerator.", "traceRefs": [] }
+    ],
+    "questions": [
+      {
+        "id": "q-tsm",
+        "prompt": "10,000 options, $20 strike, $25 average market. Income to common 490,000; WASO 200,000. Diluted EPS =",
+        "answerExpr": "2.43",
+        "distractors": [
+          { "expr": "2.33", "misconceptionId": "cash_vs_expense", "feedback": "2.33 adds all 10,000 option shares (490,000 ÷ 210,000) and ignores the pretend buyback. The 200,000 of exercise proceeds repurchases 8,000 shares at the $25 average — only the net 2,000 dilute: 490,000 ÷ 202,000 = 2.43." },
+          { "expr": "2.45", "misconceptionId": "premium_discount_direction_flip", "feedback": "2.45 (= basic) is right ONLY when the options are out of the money. At a $20 strike vs $25 average they're in the money and must dilute — 2,000 incremental shares → 2.43." }
+        ]
+      }
+    ]
+  }
+}
