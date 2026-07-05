@@ -1,0 +1,128 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 14, "name": "Stockholder's Equity" },
+  "doc": {
+    "slug": "equity-treasury-cost",
+    "title": "Treasury stock — cost method",
+    "event": "The company buys back 1,000 of its own shares at $20, then later reissues them at different prices. Under the cost method, treasury stock parks at what you paid — and reissuance differences flow through equity accounts, NEVER through income.",
+    "courseFamilies": ["ia2"],
+    "axes": [
+      {
+        "key": "leg",
+        "label": "Transaction",
+        "options": [
+          { "value": "purchase", "label": "Buy back" },
+          { "value": "reissue_above", "label": "Reissue above cost" },
+          { "value": "reissue_below", "label": "Reissue below cost" }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "purchase",
+        "label": "Buy back 1,000 shares at $20",
+        "conditions": { "leg": "purchase" },
+        "entries": [
+          {
+            "id": "buy",
+            "caption": "Repurchase 1,000 shares at $20 — cost method",
+            "lines": [
+              { "id": "ts", "account": "Treasury Stock", "side": "debit", "label": "1,000 × $20 cost", "amount": 20000,
+                "why": "Cost method means exactly that: the treasury account holds what you PAID, ignoring par and original issue price entirely.",
+                "trap": "Treasury Stock is a CONTRA-EQUITY debit — not an asset. A company cannot own a piece of itself as an asset." },
+              { "id": "cash", "account": "Cash", "side": "credit", "label": "the buyback price", "amount": 20000,
+                "why": "Cash out at market.",
+                "trap": "No touch to Common Stock or PIC on the way in — under the cost method they wait untouched unless the shares are retired." }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "above",
+        "label": "Reissue 400 shares at $26 — above the $20 cost",
+        "conditions": { "leg": "reissue_above" },
+        "entries": [
+          {
+            "id": "reissue",
+            "caption": "Reissue 400 treasury shares at $26",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "400 × $26", "amount": 10400,
+                "why": "Proceeds at the reissue price.",
+                "trap": "Reissue price vs COST is the comparison — original issue price and par are spectators." },
+              { "id": "ts", "account": "Treasury Stock", "side": "credit", "label": "400 × $20 cost out", "amount": 8000,
+                "why": "Shares leave treasury at the same cost they entered — the account only ever moves at cost.",
+                "trap": "Crediting treasury at the reissue price strands a phantom balance in the account forever." },
+              { "id": "picts", "account": "Paid-in Capital from Treasury Stock", "side": "credit", "label": "the excess", "amount": 2400,
+                "why": "Selling above cost creates additional paid-in capital — from your own shareholders, but capital nonetheless.",
+                "trap": "NEVER 'Gain on Sale of Treasury Stock.' A company does not earn income trading its own shares — this credit is equity, full stop." }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "below",
+        "label": "Reissue 500 shares at $14 — below cost, the cascade fires",
+        "conditions": { "leg": "reissue_below" },
+        "entries": [
+          {
+            "id": "reissue",
+            "caption": "Reissue 500 treasury shares at $14 (deficiency $3,000; PIC-TS balance only $2,400)",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "500 × $14", "amount": 7000,
+                "why": "Proceeds below cost — a $3,000 shortfall against the $10,000 cost relieved.",
+                "trap": "The shortfall is not a loss on the income statement. It's absorbed inside equity, in a strict order." },
+              { "id": "picts", "account": "Paid-in Capital from Treasury Stock", "side": "debit", "label": "drain PIC-TS first", "amount": 2400,
+                "why": "First stop of the cascade: the PIC-TS built up from earlier above-cost reissues absorbs the deficiency — but only down to zero.",
+                "trap": "PIC-TS can never go negative. Debit only what the account actually holds ($2,400 here)." },
+              { "id": "re", "account": "Retained Earnings", "side": "debit", "label": "the overflow", "amount": 600,
+                "why": "Whatever PIC-TS can't absorb ($3,000 − $2,400) falls through to Retained Earnings — the cascade's last stop.",
+                "trap": "This RE debit is the most-tested treasury detail in the chapter. Skipping the cascade order (or sending the whole $3,000 to RE while PIC-TS sits full) both lose points." },
+              { "id": "ts", "account": "Treasury Stock", "side": "credit", "label": "500 × $20 cost out", "amount": 10000,
+                "why": "Cost out, as always.",
+                "trap": "Cost method's one constant: the treasury account moves at $20/share no matter what the market does." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "cascade",
+            "narration": "The below-cost cascade: deficiency = cost relieved − proceeds = 10,000 − 7,000 = 3,000. Absorb from PIC-TS first (2,400 available), then Retained Earnings takes the rest (600). Income statement: untouched.",
+            "steps": [
+              { "label": "Deficiency", "formulaText": "500 × ($20 − $14) = 3,000" },
+              { "label": "PIC-TS absorbs", "formulaText": "min(3,000, balance 2,400) = 2,400" },
+              { "label": "RE absorbs", "formulaText": "3,000 − 2,400 = 600" }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Cost method in one line: Treasury Stock moves at COST both directions. Above-cost reissue → credit PIC-TS. Below-cost → debit PIC-TS to zero, overflow to Retained Earnings.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "No gains, no losses, no income statement — ever. A company trading its own shares is rearranging equity, not earning.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Presentation: Treasury Stock is the LAST line of stockholders' equity, subtracted. Buybacks shrink both equity and shares outstanding (shares issued stays put).", "traceRefs": [] }
+    ],
+    "questions": [
+      {
+        "id": "q-below-re",
+        "prompt": "Treasury shares costing $10,000 are reissued for $7,000. PIC from Treasury Stock has a $2,400 balance. Retained Earnings is debited for…",
+        "answerExpr": "600",
+        "distractors": [
+          { "expr": "3000", "misconceptionId": "accrual_fraction_missed", "feedback": "The full deficiency skips the cascade's first stop — PIC-TS must absorb its $2,400 before RE takes anything. RE gets only the overflow: $600." },
+          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "Zero would need PIC-TS to cover the whole $3,000 — it only holds $2,400. The $600 remainder must land in Retained Earnings (never in a loss account)." }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" },
+        { "account": "Treasury Stock" },
+        { "account": "Paid-in Capital from Treasury Stock" },
+        { "account": "Retained Earnings" },
+        { "account": "Gain on Sale of Treasury Stock", "decoy": true },
+        { "account": "Loss on Sale of Treasury Stock", "decoy": true },
+        { "account": "Common Stock", "decoy": true }
+      ],
+      "scaffold": "Anchor every leg on COST (what was paid going in). Reissue: cash at the new price, treasury out at cost, and the difference is equity plumbing — PIC-TS up when above, PIC-TS-then-RE down when below. The two gain/loss accounts in the bank are pure bait."
+    }
+  }
+}

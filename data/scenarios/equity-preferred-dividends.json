@@ -1,0 +1,197 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 14,
+    "name": "Stockholder's Equity"
+  },
+  "doc": {
+    "slug": "equity-preferred-dividends",
+    "title": "Allocate dividends — preferred vs common",
+    "event": "The board declares $20,000 of dividends. Preferred stock: 1,000 shares, $100 par, 6% — a $6,000-per-year claim — and NOTHING was paid for the last two years. How much reaches common depends entirely on one word in the preferred contract: cumulative.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [
+      {
+        "key": "feature",
+        "label": "The preferred is",
+        "options": [
+          {
+            "value": "cumulative",
+            "label": "Cumulative"
+          },
+          {
+            "value": "noncumulative",
+            "label": "Noncumulative"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "cumulative",
+        "label": "Cumulative — two years of arrears must be paid first",
+        "conditions": {
+          "feature": "cumulative"
+        },
+        "entries": [
+          {
+            "id": "declare",
+            "caption": "Declare $20,000: arrears $12,000 + current $6,000 to preferred, remainder to common",
+            "lines": [
+              {
+                "id": "re",
+                "account": "Retained Earnings",
+                "side": "debit",
+                "label": "total declared",
+                "amount": 20000,
+                "why": "One declaration, one RE debit — the allocation battle happens on the credit side.",
+                "trap": "Arrears themselves were never booked as a liability while unpaid; they only become one NOW, inside this declaration."
+              },
+              {
+                "id": "dpp",
+                "account": "Dividends Payable — Preferred",
+                "side": "credit",
+                "label": "12,000 arrears + 6,000 current",
+                "amount": 18000,
+                "why": "Cumulative preferred eats in strict order: all skipped years (2 × 6,000), then the current 6,000 — before common sees a cent.",
+                "trap": "Count the arrears years carefully; 'two years in arrears' means two FULL missed preferences on top of this year's."
+              },
+              {
+                "id": "dpc",
+                "account": "Dividends Payable — Common",
+                "side": "credit",
+                "label": "whatever survives",
+                "amount": 2000,
+                "why": "Common is the residual claimant: 20,000 − 18,000 = 2,000.",
+                "trap": "If the declaration were 18,000 or less, common's line simply wouldn't exist — preferred can absorb an entire declaration."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "cum-alloc",
+            "narration": "Cumulative waterfall: arrears (2 × 1,000 × $100 × 6% = 12,000) → current preference (6,000) → common gets the remainder (2,000).",
+            "steps": [
+              {
+                "label": "Annual preference",
+                "formulaText": "1,000 × $100 × 6% = 6,000"
+              },
+              {
+                "label": "Preferred total",
+                "formulaText": "12,000 arrears + 6,000 current = 18,000"
+              },
+              {
+                "label": "Common",
+                "formulaText": "20,000 − 18,000 = 2,000"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "noncumulative",
+        "label": "Noncumulative — the skipped years are simply gone",
+        "conditions": {
+          "feature": "noncumulative"
+        },
+        "entries": [
+          {
+            "id": "declare",
+            "caption": "Declare $20,000: only the CURRENT $6,000 preference exists",
+            "lines": [
+              {
+                "id": "re",
+                "account": "Retained Earnings",
+                "side": "debit",
+                "label": "total declared",
+                "amount": 20000,
+                "why": "Same declaration, same debit.",
+                "trap": "The word 'noncumulative' erases history — it does not erase the current-year preference."
+              },
+              {
+                "id": "dpp",
+                "account": "Dividends Payable — Preferred",
+                "side": "credit",
+                "label": "current year only",
+                "amount": 6000,
+                "why": "Noncumulative preferred's skipped dividends vanish forever — only this year's 6,000 preference stands.",
+                "trap": "Paying the 12,000 'arrears' here hands preferred money it has no legal claim to — the flip side of the cumulative error."
+              },
+              {
+                "id": "dpc",
+                "account": "Dividends Payable — Common",
+                "side": "credit",
+                "label": "the rest",
+                "amount": 14000,
+                "why": "Common takes 20,000 − 6,000 = 14,000.",
+                "trap": "Same facts, one contract word different, and common's take goes 2,000 → 14,000. That swing IS the exam question."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Annual preference = shares × par × rate. Cumulative: (arrears years × preference) + current preference first, common gets the residual. Noncumulative: current preference only.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Dividends in arrears are NOT a liability and never appear in the accounts — they're a footnote disclosure until a declaration finally includes them.",
+        "traceRefs": []
+      },
+      {
+        "kind": "tip",
+        "body": "If the preferred is also PARTICIPATING, it re-enters the pool after common gets a matching rate — rare on exams, but read the contract line before allocating.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-common-share",
+        "prompt": "$20,000 is declared. Preferred: 1,000 shares, $100 par, 6%, CUMULATIVE, two years in arrears. Common receives…",
+        "answerExpr": "2000",
+        "distractors": [
+          {
+            "expr": "14000",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "14,000 ignores the two years of arrears — that's the NONCUMULATIVE answer. Cumulative preferred collects 12,000 of skipped dividends plus the current 6,000 before common's turn: 20,000 − 18,000 = 2,000."
+          },
+          {
+            "expr": "8000",
+            "misconceptionId": "prior_period_expense",
+            "feedback": "That treats arrears as ONE missed year. Two years in arrears = 2 × 6,000 = 12,000, plus the current 6,000 → preferred takes 18,000, leaving common 2,000."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Retained Earnings"
+        },
+        {
+          "account": "Dividends Payable — Preferred"
+        },
+        {
+          "account": "Dividends Payable — Common"
+        },
+        {
+          "account": "Dividend Expense",
+          "decoy": true
+        },
+        {
+          "account": "Interest Payable",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Allocation before entry: compute the annual preference (shares × par × rate), decide what history counts (cumulative or not), pay preferred its full claim, and let common have the remainder. Then the entry is one debit, two credits."
+    }
+  }
+}

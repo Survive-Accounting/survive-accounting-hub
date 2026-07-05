@@ -1,0 +1,111 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 14, "name": "Stockholder's Equity" },
+  "doc": {
+    "slug": "equity-cash-dividend",
+    "title": "Cash dividends — declaration to payment",
+    "event": "The board declares a $1-per-share cash dividend on 50,000 outstanding shares. Three dates follow — declaration, record, payment — but only TWO of them get journal entries. And if the dividend exceeds retained earnings, part of it stops being a dividend at all and becomes a return of the shareholders' own capital.",
+    "courseFamilies": ["ia2"],
+    "axes": [
+      {
+        "key": "kind",
+        "label": "Dividend type",
+        "options": [
+          { "value": "regular", "label": "Regular (from earnings)" },
+          { "value": "liquidating", "label": "Partly liquidating" }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "regular",
+        "label": "$50,000 declared out of ample retained earnings",
+        "conditions": { "kind": "regular" },
+        "entries": [
+          {
+            "id": "declare",
+            "caption": "Declaration date — the liability is born",
+            "lines": [
+              { "id": "re", "account": "Retained Earnings", "side": "debit", "label": "50,000 × $1", "amount": 50000,
+                "why": "Declaration is the legal commitment — retained earnings shrinks the moment the board votes, not when cash moves.",
+                "trap": "Dividends are NEVER an expense. They're a distribution of earnings, so they hit Retained Earnings directly (or a Dividends account closed into it)." },
+              { "id": "dp", "account": "Dividends Payable", "side": "credit", "label": "a real current liability", "amount": 50000,
+                "why": "Once declared, it's enforceable debt — a current liability until paid.",
+                "trap": "UNdeclared dividends (even preferred arrears) are never a liability. Declaration is the switch." }
+            ]
+          },
+          {
+            "id": "pay",
+            "caption": "Payment date — settle the liability (record date in between: NO ENTRY)",
+            "lines": [
+              { "id": "dp2", "account": "Dividends Payable", "side": "debit", "label": "clear it", "amount": 50000,
+                "why": "The liability created at declaration is settled.",
+                "trap": "The RECORD date between these two entries gets NO journal entry — it only determines WHO gets the checks. Writing an entry there is a classic exam giveaway." },
+              { "id": "cash", "account": "Cash", "side": "credit", "label": "checks out", "amount": 50000,
+                "why": "Cash finally moves — the last of the three dates.",
+                "trap": "Retained Earnings already took its hit at declaration; touching it again here double-counts." }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "liquidating",
+        "label": "$50,000 declared but only $30,000 of retained earnings exists",
+        "conditions": { "kind": "liquidating" },
+        "entries": [
+          {
+            "id": "declare",
+            "caption": "Declaration — the excess over earnings is a return OF capital",
+            "lines": [
+              { "id": "re", "account": "Retained Earnings", "side": "debit", "label": "the earnings portion", "amount": 30000,
+                "why": "Only $30,000 of accumulated earnings exists to distribute — that's all the true 'dividend' there is.",
+                "trap": "Retained Earnings cannot go negative from a dividend — the account caps the earnings portion." },
+              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "debit", "label": "the liquidating portion", "amount": 20000,
+                "why": "The other $20,000 hands shareholders back their OWN contributed capital — a liquidating dividend, debited to paid-in capital.",
+                "trap": "Return OF capital, not return ON capital — shareholders must be told, because for them it's not income either." },
+              { "id": "dp", "account": "Dividends Payable", "side": "credit", "label": "the full declaration", "amount": 50000,
+                "why": "The liability is the whole $50,000 regardless of which equity accounts funded it.",
+                "trap": "The split happens on the DEBIT side only — the payable and the eventual cash don't care." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "split",
+            "narration": "Liquidating split: dividend declared 50,000 − retained earnings available 30,000 = 20,000 of contributed capital going back out the door.",
+            "steps": [
+              { "label": "Earnings portion", "formulaText": "min(50,000, RE 30,000) = 30,000" },
+              { "label": "Liquidating portion", "formulaText": "50,000 − 30,000 = 20,000" }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "mnemonic", "body": "Three dates, two entries: DECLARE (RE down, payable up) → RECORD (no entry — just the shareholder list) → PAY (payable down, cash down).", "traceRefs": [] },
+      { "kind": "watchout", "body": "Dividends are declared on OUTSTANDING shares only — treasury shares never collect. Outstanding = issued − treasury; using 'issued' overstates the dividend.", "traceRefs": [] },
+      { "kind": "formula", "body": "Liquidating portion = dividend declared − retained earnings available. That slice debits paid-in capital, not RE.", "traceRefs": [] }
+    ],
+    "questions": [
+      {
+        "id": "q-record-date",
+        "prompt": "A cash dividend has been declared. What journal entry is made on the DATE OF RECORD?",
+        "answerExpr": "0",
+        "distractors": [
+          { "expr": "50000", "misconceptionId": "cash_vs_expense", "feedback": "No entry at all on the record date — it only fixes WHO receives payment. The liability was born at declaration; cash moves at payment. The record date is bookkeeping-silent." }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Retained Earnings" },
+        { "account": "Dividends Payable" },
+        { "account": "Cash" },
+        { "account": "Paid-in Capital in Excess of Par — Common" },
+        { "account": "Dividend Expense", "decoy": true },
+        { "account": "Common Stock", "decoy": true }
+      ],
+      "scaffold": "Walk the three dates in order and remember the middle one is silent. Declaration debits equity (RE first, PIC only for any liquidating excess) and births the payable; payment just swaps the payable for cash."
+    }
+  }
+}

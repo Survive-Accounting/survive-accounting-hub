@@ -75,7 +75,7 @@ export function DerivationPopover({
   onClose,
 }: {
   state: PopoverState;
-  resolve: (expr: string) => SlotResolution;
+  resolve?: (expr: string) => SlotResolution; // absent for literal-only docs (no ref chain)
   onClose: () => void;
 }) {
   // Chain stack — clicking a ref input pushes its own derivation.
@@ -89,6 +89,7 @@ export function DerivationPopover({
 
   const current = stack[stack.length - 1];
   const walk = (ref: string) => {
+    if (!resolve) return;
     try {
       setStack((s) => [...s, resolve(ref).derivation]);
     } catch {

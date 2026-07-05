@@ -40,7 +40,7 @@ import {
   type ScenarioDoc,
 } from "@/lib/je-engine";
 import { entryAt, type Derivation, type DerivedEntry } from "@/lib/je/amortization";
-import { buildExplore } from "@/lib/je/explore";
+import { buildExplore, resolveLiteralAmount } from "@/lib/je/explore";
 import {
   Amount,
   DerivationPopover,
@@ -209,6 +209,11 @@ function JePrototype() {
       else next.add(ref);
       return next;
     });
+
+  // Any revealable numbers? true when a schedule exists OR any line carries a literal amount.
+  const hasNumbers =
+    !!explore ||
+    entries.some((e) => e.lines.some((l) => typeof l.amount === "number" && !Number.isNaN(l.amount)));
 
   // Schedule-driven entries: a single periodic-interest payment whose lines bind schedule:N
   // slots. For those, clicking a schedule row ≠ the authored period re-renders the entry via
@@ -537,7 +542,7 @@ function JePrototype() {
                       <MiniBtn onClick={revealAccountsOnly}>Accounts only</MiniBtn>
                       <MiniBtn onClick={revealAll}>Reveal all</MiniBtn>
                       <MiniBtn onClick={resetReveal}>Reset</MiniBtn>
-                      {explore ? (
+                      {hasNumbers ? (
                         <MiniBtn onClick={revealNumbers}>Reveal numbers</MiniBtn>
                       ) : (
                         <button
@@ -663,7 +668,7 @@ function JePrototype() {
                                   const k = lineKey(entry.id, l.id);
                                   const highlighted = highlightRefs.has(k);
                                   const isActive = activeLineKey === k;
-                                  const amt = explore?.resolveLine(l) ?? null;
+                                  const amt = (explore ? explore.resolveLine(l) : null) ?? resolveLiteralAmount(l);
                                   const shown = revealed.has(`${k}:amount`);
                                   const revealAmt = () => {
                                     setRevealed((p) => new Set(p).add(`${k}:amount`));
@@ -996,9 +1001,9 @@ function JePrototype() {
         </div>
       )}
 
-      {/* Click-through derivation popover (walks the ref chain) */}
-      {popover && explore && (
-        <DerivationPopover state={popover} resolve={explore.resolve} onClose={() => setPopover(null)} />
+      {/* Click-through derivation popover (walks the ref chain when a schedule exists) */}
+      {popover && (
+        <DerivationPopover state={popover} resolve={explore?.resolve} onClose={() => setPopover(null)} />
       )}
     </div>
   );

@@ -84,21 +84,30 @@ export function buildExplore(
       try {
         return { ...resolveSlot(line.amountSlotKey, schedule), slotRef: line.amountSlotKey };
       } catch {
-        return null; // an expr the schedule can't satisfy → the line stays ???
+        /* an expr the schedule can't satisfy → fall through to a literal amount if any */
       }
     }
-    if (typeof line.amount === "number" && !Number.isNaN(line.amount)) {
-      return {
-        value: line.amount,
-        derivation: {
-          value: line.amount,
-          formulaText: `${fmtUSD(line.amount)} (given in the scenario)`,
-          inputs: [],
-        },
-      };
-    }
-    return null;
+    return resolveLiteralAmount(line);
   };
 
   return { schedule, effectiveParams, pricing, method, resolve, resolveLine };
+}
+
+/**
+ * A line's literal `amount` as a resolved value + minimal "given in the scenario" derivation.
+ * Works with NO params block, so literal-only docs (e.g. Ch. 14 equity) render full dollars.
+ * Returns null when the line has no numeric amount (→ the line stays "???", true v1 behavior).
+ */
+export function resolveLiteralAmount(line: EngineLine): (SlotResolution & { slotRef?: string }) | null {
+  if (typeof line.amount === "number" && !Number.isNaN(line.amount)) {
+    return {
+      value: line.amount,
+      derivation: {
+        value: line.amount,
+        formulaText: `${fmtUSD(line.amount)} (given in the scenario)`,
+        inputs: [],
+      },
+    };
+  }
+  return null;
 }

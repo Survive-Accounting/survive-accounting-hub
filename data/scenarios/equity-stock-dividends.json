@@ -1,0 +1,113 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 14, "name": "Stockholder's Equity" },
+  "doc": {
+    "slug": "equity-stock-dividends",
+    "title": "Stock dividends — small vs large",
+    "event": "Instead of cash, the board declares a dividend paid in the company's own shares. 100,000 shares ($1 par) are outstanding, trading at $15. The size of the dividend flips the measurement rule: a SMALL stock dividend capitalizes fair value; a LARGE one capitalizes only par.",
+    "courseFamilies": ["ia2"],
+    "axes": [
+      {
+        "key": "size",
+        "label": "Dividend size",
+        "options": [
+          { "value": "small_fv", "label": "Small (10%) — fair value" },
+          { "value": "large_par", "label": "Large (50%) — par" }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "small",
+        "label": "10% stock dividend — 10,000 new shares at the $15 market price",
+        "conditions": { "size": "small_fv" },
+        "entries": [
+          {
+            "id": "declare",
+            "caption": "Declaration — capitalize FAIR VALUE (small: under ~20-25%)",
+            "lines": [
+              { "id": "re", "account": "Retained Earnings", "side": "debit", "label": "10,000 × $15 FV", "amount": 150000,
+                "why": "A small dividend barely moves the stock price, so accounting pretends shareholders received $15 shares — retained earnings capitalizes the full market value.",
+                "trap": "Small → FAIR value, large → PAR. Flip the rule and every number on the page is wrong." },
+              { "id": "csdd", "account": "Common Stock Dividend Distributable", "side": "credit", "label": "10,000 × $1 par", "amount": 10000,
+                "why": "Par value of the shares owed — an EQUITY account (shares to be issued), not a liability.",
+                "trap": "'Distributable' is not 'Payable.' No cash will ever leave; this sits in paid-in capital until the shares issue." },
+              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the FV excess", "amount": 140000,
+                "why": "The difference between fair value capitalized and par distributable lands in PIC — permanent capital now.",
+                "trap": "Total equity does NOT change — this is a transfer from earned capital (RE) to contributed capital. No shareholder got richer." }
+            ]
+          },
+          {
+            "id": "issue",
+            "caption": "Distribution date — issue the shares",
+            "lines": [
+              { "id": "csdd2", "account": "Common Stock Dividend Distributable", "side": "debit", "label": "clear it", "amount": 10000,
+                "why": "The distributable account empties as the shares actually issue.",
+                "trap": "Only the par piece moves here — the PIC from declaration is already home." },
+              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "10,000 shares now issued", "amount": 10000,
+                "why": "Shares outstanding: 110,000. Each shareholder owns the same fraction of the same company as before.",
+                "trap": "That's the punchline worth saying out loud: a stock dividend gives shareholders nothing but more pieces of paper representing the same pie." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "small-math",
+            "narration": "Small dividend arithmetic: new shares = 10% × 100,000 = 10,000; capitalize at FV (10,000 × $15 = 150,000); split par (10,000) vs excess (140,000).",
+            "steps": [
+              { "label": "New shares", "formulaText": "100,000 × 10% = 10,000" },
+              { "label": "RE capitalized", "formulaText": "10,000 × $15 = 150,000" },
+              { "label": "Excess to PIC", "formulaText": "150,000 − 10,000 = 140,000" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "large",
+        "label": "50% stock dividend — 50,000 new shares at $1 PAR only",
+        "conditions": { "size": "large_par" },
+        "entries": [
+          {
+            "id": "declare",
+            "caption": "Declaration — capitalize PAR (large: over ~20-25%)",
+            "lines": [
+              { "id": "re", "account": "Retained Earnings", "side": "debit", "label": "50,000 × $1 par", "amount": 50000,
+                "why": "A 50% dividend WILL crater the per-share price (it's economically split-like), so pretending shareholders got $15 value would be fiction — only par capitalizes.",
+                "trap": "Capitalizing 50,000 shares at FV (750,000) is the flip-the-rule disaster: fifteen times the correct RE hit." },
+              { "id": "csdd", "account": "Common Stock Dividend Distributable", "side": "credit", "label": "50,000 × $1 par", "amount": 50000,
+                "why": "Par in, par out — a large dividend touches no PIC at all.",
+                "trap": "Two lines, equal amounts. If a third line appeared in your entry, you used the small-dividend rule." }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Small (< ~20-25% of outstanding) → capitalize FAIR VALUE (RE debit = shares × market). Large → capitalize PAR (RE debit = shares × par). Both leave TOTAL equity unchanged.", "traceRefs": [] },
+      { "kind": "watchout", "body": "A stock SPLIT is not a dividend and gets NO JOURNAL ENTRY AT ALL — memo only. 2-for-1: shares double, par halves, every account balance untouched. Writing an entry for a split is a free point handed back.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Dividend vs split tell: does par change? Split changes PAR per share (halves it); a stock dividend keeps par and changes RETAINED EARNINGS. One word in the problem decides everything.", "traceRefs": [] }
+    ],
+    "questions": [
+      {
+        "id": "q-large-re",
+        "prompt": "100,000 shares ($1 par, $15 market) are outstanding; a 50% stock dividend is declared. Retained Earnings is debited for…",
+        "answerExpr": "50000",
+        "distractors": [
+          { "expr": "750000", "misconceptionId": "premium_discount_direction_flip", "feedback": "That capitalizes 50,000 shares at the $15 FAIR value — the SMALL-dividend rule. A 50% dividend is large: par only, 50,000 × $1 = $50,000." },
+          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "Zero is the SPLIT answer (memo only). A 50% stock DIVIDEND is still a dividend — it capitalizes retained earnings at par." }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Retained Earnings" },
+        { "account": "Common Stock Dividend Distributable" },
+        { "account": "Paid-in Capital in Excess of Par — Common" },
+        { "account": "Common Stock" },
+        { "account": "Dividends Payable", "decoy": true },
+        { "account": "Cash", "decoy": true }
+      ],
+      "scaffold": "First call the size: under ~20-25% is small (fair value), over is large (par). Small = three-line declaration (RE at FV, distributable at par, PIC the gap). Large = two lines at par. And if the problem says SPLIT — put the pencil down; there's no entry."
+    }
+  }
+}
