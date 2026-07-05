@@ -1,0 +1,112 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "doc": {
+    "slug": "bonds-year-end-accrual",
+    "title": "Year-end bond interest accrual",
+    "event": "The bonds pay each October 1 and April 1, but the books close December 31 — three months into a six-month coupon period. The adjusting entry accrues exactly the elapsed fraction of expense, payable, and amortization.",
+    "courseFamilies": ["ia2"],
+    "principleKeys": ["matching"],
+    "axes": [
+      {
+        "key": "pricing",
+        "label": "Issued at",
+        "options": [
+          { "value": "discount", "label": "A discount" },
+          { "value": "premium", "label": "A premium" }
+        ]
+      }
+    ],
+    "params": {
+      "kind": "bond",
+      "defaults": { "face": 500000, "statedRateAnnual": 0.08, "marketRateAnnual": 0.1, "termYears": 5, "paymentsPerYear": 2, "issueDate": "2026-04-01", "fiscalYearEnd": "12-31" },
+      "defaultSeed": 1
+    },
+    "variants": [
+      {
+        "id": "discount",
+        "label": "Discount bonds — accrue 3/6 of period 2",
+        "conditions": { "pricing": "discount" },
+        "entries": [
+          {
+            "id": "accrue",
+            "caption": "Dec 31 adjusting entry (issued Apr 1, coupons Oct 1 / Apr 1, at a discount)",
+            "lines": [
+              { "id": "ie", "account": "Interest Expense", "side": "debit", "label": "3/6 of the period's expense", "amountSlotKey": "schedule:2:cashPayment * 3 / 6 + schedule:2:amortization * 3 / 6",
+                "why": "Matching: three of the six months in the Oct 1 → Apr 1 period belong to THIS fiscal year, so this year takes three months of the period's expense — the cash slice plus the amortization slice.",
+                "trap": "Accruing the full six months (or none) is the classic year-end error — the fraction is the whole point." },
+              { "id": "disc", "account": "Discount on Bonds Payable", "side": "credit", "label": "3/6 of the period's amortization", "amountSlotKey": "schedule:2:amortization * 3 / 6",
+                "why": "Amortization doesn't wait for the coupon date — the carrying value walks toward face continuously, so the accrual takes its three-month share.",
+                "trap": "Skipping amortization in the accrual understates expense and leaves the carrying value stale at year-end." },
+              { "id": "ip", "account": "Interest Payable", "side": "credit", "label": "3/6 of the cash coupon", "amountSlotKey": "schedule:2:cashPayment * 3 / 6",
+                "why": "Three months of the contractual coupon is owed but unpaid at Dec 31 — a liability, not cash.",
+                "trap": "No Cash line in an accrual. Cash moves on the coupon date, not at year-end." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "fraction",
+            "narration": "Take period 2's full-period numbers from the schedule and multiply each by 3/6 (Oct 1 → Dec 31). Expense is built as payable-portion + amortization-portion, so the entry balances by construction.",
+            "steps": [
+              { "label": "Payable accrued", "formulaText": "period-2 cash × 3/6", "resultSlotKey": "schedule:2:cashPayment * 3 / 6" },
+              { "label": "Amortization accrued", "formulaText": "period-2 amortization × 3/6", "resultSlotKey": "schedule:2:amortization * 3 / 6" },
+              { "label": "Expense accrued", "formulaText": "payable portion + amortization portion", "resultSlotKey": "schedule:2:cashPayment * 3 / 6 + schedule:2:amortization * 3 / 6" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "premium",
+        "label": "Premium bonds — same fraction, amortization flips sides",
+        "conditions": { "pricing": "premium" },
+        "entries": [
+          {
+            "id": "accrue",
+            "caption": "Dec 31 adjusting entry (premium bonds)",
+            "lines": [
+              { "id": "ie", "account": "Interest Expense", "side": "debit", "label": "payable − premium slice", "amountSlotKey": "schedule:2:cashPayment * 3 / 6 - schedule:2:amortization * 3 / 6",
+                "why": "At a premium the amortization REDUCES expense, so the accrued expense is the payable slice minus the premium slice.",
+                "trap": "Adding the premium slice instead of subtracting flips you into the discount pattern." },
+              { "id": "prem", "account": "Premium on Bonds Payable", "side": "debit", "label": "3/6 of the amortization", "amountSlotKey": "schedule:2:amortization * 3 / 6",
+                "why": "Three months of premium burns off — debited, walking the carrying value down toward face.",
+                "trap": "Premium amortizes with a DEBIT; crediting it grows the liability." },
+              { "id": "ip", "account": "Interest Payable", "side": "credit", "label": "3/6 of the cash coupon", "amountSlotKey": "schedule:2:cashPayment * 3 / 6",
+                "why": "Same contractual accrual as always: three months of coupon owed.",
+                "trap": "The payable is a function of the CONTRACT (face × stated) — the premium never changes it." }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Accrual = each of the period's numbers × elapsed months / period months. Payable from the cash column, amortization from the amortization column, expense = their sum (discount) or difference (premium).", "traceRefs": ["schedule:2:cashPayment", "schedule:2:amortization"] },
+      { "kind": "watchout", "body": "Then don't double it: the NEXT coupon entry must recognize only the REMAINING months of expense and clear the payable — or reverse the accrual first. Exams test the follow-through, not just the accrual.", "traceRefs": ["schedule:2:cashPayment"] }
+    ],
+    "questions": [
+      {
+        "id": "q-accrued-expense",
+        "prompt": "Discount bonds pay Oct 1 / Apr 1; the year ends Dec 31. What is interest expense in the Dec 31 adjusting entry?",
+        "answerExpr": "schedule:2:cashPayment * 3 / 6 + schedule:2:amortization * 3 / 6",
+        "distractors": [
+          { "expr": "schedule:2:cashPayment + schedule:2:amortization", "misconceptionId": "accrual_fraction_missed" },
+          { "expr": "schedule:2:cashPayment * 3 / 6", "misconceptionId": "cash_vs_expense", "feedback": "That's only the payable slice. At a discount, three months of amortization also belongs in this year's expense." }
+        ]
+      }
+    ],
+    "traces": [
+      { "id": "accrual-slices", "label": "Period-2 schedule row ↔ the 3/6 slices in the entry", "refs": ["schedule:2:cashPayment", "schedule:2:amortization", "schedule:2:interestExpense"] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Interest Expense" },
+        { "account": "Interest Payable" },
+        { "account": "Discount on Bonds Payable" },
+        { "account": "Premium on Bonds Payable" },
+        { "account": "Cash", "decoy": true },
+        { "account": "Bonds Payable", "decoy": true }
+      ],
+      "scaffold": "Ask two questions: how many months of the current coupon period fall before year-end (that's your fraction), and which direction does the amortization push expense (discount adds, premium subtracts). No cash moves at year-end."
+    }
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "doc": {
+    "slug": "bonds-issue-between-dates",
+    "title": "Issue bonds between interest dates",
+    "event": "Bonds dated January 1 are not actually sold until March 1 — two months into the first interest period. The buyer pays the issue price PLUS two months of accrued interest, and gets the full six-month coupon back on July 1.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "params": {
+      "kind": "bond",
+      "defaults": { "face": 500000, "statedRateAnnual": 0.08, "marketRateAnnual": 0.08, "termYears": 5, "paymentsPerYear": 2, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaultSeed": 1
+    },
+    "variants": [
+      {
+        "id": "at-par-accrued",
+        "label": "Sold at par on March 1, dated January 1",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "issue",
+            "caption": "March 1 — issue dated bonds plus accrued interest",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "face + 2 months accrued", "amountSlotKey": "param:face + param:face * param:statedRateAnnual * 2 / 12",
+                "why": "The buyer prepays the interest that accrued before they owned the bond. On July 1 they receive the FULL six-month coupon, so the two months they didn't hold gets collected from them now.",
+                "trap": "Don't shorten the July 1 coupon instead — the coupon is contractual and always pays the full period. The fix happens at issuance, in cash." },
+              { "id": "bp", "account": "Bonds Payable", "side": "credit", "label": "face", "amountSlotKey": "param:face",
+                "why": "Face, as always — the accrued interest never touches the bond's carrying amount.",
+                "trap": "Accrued interest is not part of the bond's proceeds for premium/discount purposes." },
+              { "id": "ip", "account": "Interest Payable", "side": "credit", "label": "face × stated × 2/12", "amountSlotKey": "param:face * param:statedRateAnnual * 2 / 12",
+                "why": "The prepaid two months parks in Interest Payable. When the full coupon is paid July 1, this payable absorbs its share and only four months hit expense.",
+                "trap": "Crediting Interest Expense here also works mechanically (some texts do), but the payable method keeps the logic visible — either way, only 4 months of expense belongs to the issuer this period." }
+            ]
+          },
+          {
+            "id": "first-coupon",
+            "caption": "July 1 — first coupon after a between-dates issuance",
+            "lines": [
+              { "id": "ie", "account": "Interest Expense", "side": "debit", "label": "4 months only", "amountSlotKey": "param:face * param:statedRateAnnual * 4 / 12",
+                "why": "The issuer only had the money for four months (March–June), so only four months of cost is expense.",
+                "trap": "Expensing the full six-month coupon double-counts the two months the buyer prepaid." },
+              { "id": "ip2", "account": "Interest Payable", "side": "debit", "label": "clear the 2 months", "amountSlotKey": "param:face * param:statedRateAnnual * 2 / 12",
+                "why": "The prepaid accrual set up at issuance is cleared when the full coupon goes out.",
+                "trap": "Forget this debit and your expense mysteriously balloons to six months." },
+              { "id": "cash2", "account": "Cash", "side": "credit", "label": "full 6-month coupon", "amountSlotKey": "param:face * param:statedRateAnnual * 6 / 12",
+                "why": "The contract pays whoever holds the bond the full coupon, regardless of when they bought.",
+                "trap": "Cash out is always the full contractual coupon — never prorate the payment itself." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "accrued-logic",
+            "narration": "Two months of interest accrued between the dated date (Jan 1) and the sale (Mar 1). The buyer fronts it in cash; the issuer parks it in Interest Payable; the July 1 coupon then splits 4 months to expense and 2 months to clearing the payable.",
+            "steps": [
+              { "label": "Accrued interest collected", "formulaText": "face × stated × 2/12", "resultSlotKey": "param:face * param:statedRateAnnual * 2 / 12" },
+              { "label": "First-period expense", "formulaText": "face × stated × 4/12", "resultSlotKey": "param:face * param:statedRateAnnual * 4 / 12" },
+              { "label": "Full coupon paid Jul 1", "formulaText": "face × stated × 6/12", "resultSlotKey": "param:face * param:statedRateAnnual * 6 / 12" }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "tip", "body": "Why the buyer prepays: coupons can't be prorated per holder — the July 1 check is one full payment to whoever holds the bond. Collecting the missed months in cash at purchase squares everyone up.", "traceRefs": ["param:face * param:statedRateAnnual * 2 / 12"] },
+      { "kind": "watchout", "body": "Accrued interest collected at issuance is NEVER part of the bond's issue price — it doesn't create or change a premium or discount.", "traceRefs": ["param:face"] }
+    ],
+    "questions": [
+      {
+        "id": "q-first-expense",
+        "prompt": "Bonds dated Jan 1 are sold at par on Mar 1 (semiannual coupons Jul 1 / Jan 1). How much interest EXPENSE does the issuer record for the period ending Jul 1?",
+        "answerExpr": "param:face * param:statedRateAnnual * 4 / 12",
+        "distractors": [
+          { "expr": "param:face * param:statedRateAnnual * 6 / 12", "misconceptionId": "accrual_fraction_missed", "feedback": "That's the full coupon paid in cash. Two of those six months were prepaid by the buyer at issuance — only the four months the issuer actually had the money is expense." },
+          { "expr": "param:face * param:statedRateAnnual * 2 / 12", "misconceptionId": "accrual_fraction_missed", "feedback": "Two months is the ACCRUED interest collected at issuance — the piece that is NOT expense." }
+        ]
+      }
+    ],
+    "traces": [
+      { "id": "accrued-flow", "label": "Accrued at sale ↔ payable ↔ first coupon split", "refs": ["param:face * param:statedRateAnnual * 2 / 12", "param:face * param:statedRateAnnual * 4 / 12", "param:face * param:statedRateAnnual * 6 / 12"] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" },
+        { "account": "Bonds Payable" },
+        { "account": "Interest Payable" },
+        { "account": "Interest Expense" },
+        { "account": "Discount on Bonds Payable", "decoy": true },
+        { "account": "Accrued Interest Receivable", "decoy": true }
+      ],
+      "scaffold": "Timeline first: dated Jan 1, sold Mar 1, coupon Jul 1. Count the months in each slice — 2 accrued (buyer prepays), 4 owned (issuer's expense), 6 paid (full coupon). Every number is face × stated × slice/12."
+    }
+  }
+}

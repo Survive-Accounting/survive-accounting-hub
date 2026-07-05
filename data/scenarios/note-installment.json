@@ -1,0 +1,102 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "doc": {
+    "slug": "note-installment",
+    "title": "Installment note — equal payments, shifting split",
+    "event": "A company borrows $100,000 on a 3-year, 8% installment note: three equal year-end payments of $38,803 that each bundle interest AND principal. The payment never changes — but its interest/principal split shifts every year as the balance falls.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "installments",
+        "label": "Equal payments — interest shrinks, principal grows",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "issue",
+            "caption": "Issue the installment note",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "loan proceeds", "amount": 100000,
+                "why": "The payment ($38,803) is set so the PV of three of them at 8% equals exactly 100,000 — the note is issued at its principal.",
+                "trap": "The 'total payments' (3 × 38,803 = 116,409) is NOT the liability — 16,409 of it is future interest that hasn't accrued yet." },
+              { "id": "np", "account": "Notes Payable", "side": "credit", "label": "principal", "amount": 100000,
+                "why": "The liability is the principal borrowed, full stop.",
+                "trap": "Never record the note at the sum of the payments." }
+            ]
+          },
+          {
+            "id": "pmt1",
+            "caption": "Year 1 payment — 100,000 balance × 8%",
+            "lines": [
+              { "id": "ie1", "account": "Interest Expense", "side": "debit", "label": "balance × 8%", "amount": 8000,
+                "why": "Interest is always the CURRENT balance × rate: 100,000 × 8% = 8,000 in year 1.",
+                "trap": "The interest is not payment ÷ something — compute it from the balance, then let principal be the remainder." },
+              { "id": "np1", "account": "Notes Payable", "side": "debit", "label": "payment − interest", "amount": 30803,
+                "why": "Whatever the fixed payment doesn't spend on interest reduces principal: 38,803 − 8,000 = 30,803. New balance: 69,197.",
+                "trap": "Principal reduction is the PLUG each year, never a fixed number." },
+              { "id": "c1", "account": "Cash", "side": "credit", "label": "fixed payment", "amount": 38803,
+                "why": "Same cash every year — that's the installment design.",
+                "trap": "Fixed cash, moving split. If your interest number repeats next year, you forgot the balance fell." }
+            ]
+          },
+          {
+            "id": "pmt2",
+            "caption": "Year 2 payment — 69,197 balance × 8%",
+            "lines": [
+              { "id": "ie2", "account": "Interest Expense", "side": "debit", "label": "smaller balance, smaller interest", "amount": 5536,
+                "why": "69,197 × 8% = 5,536. The balance fell, so interest fell.",
+                "trap": "Using year-1's 8,000 again is the installment version of the 'prior period's numbers' error." },
+              { "id": "np2", "account": "Notes Payable", "side": "debit", "label": "payment − interest", "amount": 33267,
+                "why": "38,803 − 5,536 = 33,267 of principal. New balance: 35,930 — year 3's payment will clear it (with a small final-year rounding plug).",
+                "trap": "Watch the drift: interest down, principal up, every single year." },
+              { "id": "c2", "account": "Cash", "side": "credit", "label": "same fixed payment", "amount": 38803,
+                "why": "Unchanged by contract.",
+                "trap": "Only the split moves." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "installment-loop",
+            "narration": "The loop that builds any installment schedule: interest = balance × rate; principal = payment − interest; new balance = balance − principal. Repeat until the balance hits zero (final year plugs rounding). Exact same loop runs your mortgage and your car note.",
+            "steps": [
+              { "label": "Year-1 interest", "formulaText": "100,000 × 8% = 8,000" },
+              { "label": "Year-1 principal", "formulaText": "38,803 − 8,000 = 30,803" },
+              { "label": "Year-2 interest", "formulaText": "69,197 × 8% = 5,536" }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Installment loop: interest = current balance × rate → principal = payment − interest → new balance = old − principal. Three steps, repeated. The payment itself comes from PV: principal ÷ annuity factor.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Fixed cash, moving split: early payments are interest-heavy, late payments are principal-heavy. (Why early mortgage years feel like renting from the bank.)", "traceRefs": [] },
+      { "kind": "watchout", "body": "Balance-sheet classification trap: the principal due within the NEXT 12 months is a CURRENT liability; only the rest stays long-term. Kieso loves this split.", "traceRefs": [] }
+    ],
+    "questions": [
+      {
+        "id": "q-y2-interest",
+        "prompt": "A $100,000, 8%, 3-year installment note has equal payments of $38,803. What is YEAR 2 interest expense?",
+        "answerExpr": "5536",
+        "distractors": [
+          { "expr": "8000", "misconceptionId": "prior_period_expense", "feedback": "8,000 is YEAR 1's interest (100,000 × 8%). Year 1's payment knocked the balance down to 69,197, so year 2's interest is 69,197 × 8% = 5,536." },
+          { "expr": "38803 * 0.08", "misconceptionId": "market_rate_on_face", "feedback": "The rate applies to the outstanding BALANCE, not to the payment amount." }
+        ]
+      }
+    ],
+    "traces": [
+      { "id": "balance-drives-split", "label": "Balance ↔ interest ↔ principal plug", "refs": ["param:face"] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" },
+        { "account": "Notes Payable" },
+        { "account": "Interest Expense" },
+        { "account": "Discount on Notes Payable", "decoy": true },
+        { "account": "Interest Payable", "decoy": true }
+      ],
+      "scaffold": "Run the loop before touching the entry: balance × rate = interest; payment − interest = principal. The entry then writes itself — expense debit, note debit, cash credit."
+    }
+  }
+}

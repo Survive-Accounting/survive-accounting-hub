@@ -1,0 +1,140 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "doc": {
+    "slug": "bonds-issue",
+    "title": "Issue bonds",
+    "event": "A company issues term bonds on an interest date. The market rate at issuance — not the coupon printed on the bond — decides what cash comes in: equal to face (par), more than face (premium), or less than face (discount).",
+    "courseFamilies": ["ia2"],
+    "axes": [
+      {
+        "key": "pricing",
+        "label": "Issued at",
+        "options": [
+          { "value": "at_par", "label": "Par" },
+          { "value": "premium", "label": "A premium" },
+          { "value": "discount", "label": "A discount" }
+        ]
+      }
+    ],
+    "params": {
+      "kind": "bond",
+      "defaults": { "face": 500000, "statedRateAnnual": 0.08, "marketRateAnnual": 0.1, "termYears": 5, "paymentsPerYear": 2, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaultSeed": 1
+    },
+    "variants": [
+      {
+        "id": "discount",
+        "label": "Market rate ABOVE the coupon — investors pay less than face",
+        "conditions": { "pricing": "discount" },
+        "entries": [
+          {
+            "id": "issue",
+            "caption": "Issue bonds at a discount",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "PV at the market rate", "amountSlotKey": "issuePrice",
+                "why": "Cash received IS the issue price: the present value of every future coupon and the face, discounted at the MARKET rate. Investors will not pay face for a coupon that underpays the market.",
+                "trap": "Cash is never just 'face' when the rates differ — the market rate reprices the whole bond on day one." },
+              { "id": "disc", "account": "Discount on Bonds Payable", "side": "debit", "label": "face − issue price", "amountSlotKey": "param:face - issuePrice",
+                "why": "The shortfall between face and cash received sits in a contra-liability. It is extra interest cost you will recognize over the term as it amortizes away.",
+                "trap": "Discount starts with D and increases with a DEBIT — it is contra to Bonds Payable, not an expense on day one." },
+              { "id": "bp", "account": "Bonds Payable", "side": "credit", "label": "face", "amountSlotKey": "param:face",
+                "why": "Bonds Payable is always recorded at FACE — the amount contractually due at maturity — no matter what cash came in.",
+                "trap": "Never credit Bonds Payable for the issue price. Face goes here; the difference lives in the discount or premium account." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "discount-pv",
+            "narration": "Issue price = PV of the coupon annuity + PV of the face, both at the market periodic rate. Stated < market, so the PV lands below face — the gap is the discount.",
+            "steps": [
+              { "label": "Issue price (cash received)", "formulaText": "PV of coupons + PV of face @ market rate", "resultSlotKey": "issuePrice" },
+              { "label": "Discount", "formulaText": "face − issue price", "resultSlotKey": "param:face - issuePrice" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "premium",
+        "label": "Market rate BELOW the coupon — investors pay more than face",
+        "conditions": { "pricing": "premium" },
+        "entries": [
+          {
+            "id": "issue",
+            "caption": "Issue bonds at a premium",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "PV at the market rate", "amountSlotKey": "issuePrice",
+                "why": "The coupon beats the market, so investors bid the price above face. Cash received is still just the PV at the market rate.",
+                "trap": "A premium is not a gain — it is a reduction of future interest cost, recognized over the term." },
+              { "id": "bp", "account": "Bonds Payable", "side": "credit", "label": "face", "amountSlotKey": "param:face",
+                "why": "Face at maturity is the contract; Bonds Payable carries face.",
+                "trap": "Never record Bonds Payable at the issue price." },
+              { "id": "prem", "account": "Premium on Bonds Payable", "side": "credit", "label": "issue price − face", "amountSlotKey": "issuePrice - param:face",
+                "why": "The excess over face is an adjunct liability — it will amortize DOWN and shave every period's interest expense below the cash coupon.",
+                "trap": "Premium is credited at issuance (it grows the carrying value above face) — flipping it is the classic direction error." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "premium-pv",
+            "narration": "Same PV machine, opposite result: stated > market pushes the PV above face. The excess is the premium.",
+            "steps": [
+              { "label": "Issue price (cash received)", "formulaText": "PV of coupons + PV of face @ market rate", "resultSlotKey": "issuePrice" },
+              { "label": "Premium", "formulaText": "issue price − face", "resultSlotKey": "issuePrice - param:face" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "par",
+        "label": "Rates equal — cash equals face",
+        "conditions": { "pricing": "at_par" },
+        "entries": [
+          {
+            "id": "issue",
+            "caption": "Issue bonds at par",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "= face", "amountSlotKey": "issuePrice",
+                "why": "Stated = market, so the PV of the bond IS face. Cash in equals face.",
+                "trap": "No discount or premium account belongs anywhere in a par issuance." },
+              { "id": "bp", "account": "Bonds Payable", "side": "credit", "label": "face", "amountSlotKey": "param:face",
+                "why": "Face, as always.", "trap": "Two-line entry. Adding a third line here means you've invented a discount or premium that doesn't exist." }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Issue price = PV of coupon annuity + PV of face, BOTH discounted at the MARKET rate. The stated rate only sets the coupon amount inside that PV.", "traceRefs": ["issuePrice"] },
+      { "kind": "mnemonic", "body": "Rate story in one line: stated < market → discount (investors pay less); stated > market → premium; equal → par. The market rate always wins the pricing argument.", "traceRefs": ["issuePrice", "param:marketRateAnnual"] },
+      { "kind": "watchout", "body": "Balance-sheet presentation from day one: Bonds Payable at face, LESS discount (or PLUS premium) = carrying value. Exams love asking for the net number.", "traceRefs": ["param:face", "issuePrice"] }
+    ],
+    "questions": [
+      {
+        "id": "q-cash-received",
+        "prompt": "Bonds are issued when the market rate is above the stated rate. How much cash does the issuer receive?",
+        "answerExpr": "issuePrice",
+        "distractors": [
+          { "expr": "param:face", "misconceptionId": "premium_discount_direction_flip", "feedback": "Face is what's repaid at maturity, not what comes in today. With market above stated, the bonds price BELOW face — cash received is the discounted PV." },
+          { "expr": "param:face * param:statedRateAnnual / 2", "misconceptionId": "cash_vs_expense", "feedback": "That's one semiannual coupon, not the issue proceeds." }
+        ]
+      }
+    ],
+    "traces": [
+      { "id": "pricing-triangle", "label": "Market rate ↔ issue price ↔ discount/premium", "refs": ["param:marketRateAnnual", "param:statedRateAnnual", "issuePrice", "param:face"] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" },
+        { "account": "Bonds Payable" },
+        { "account": "Discount on Bonds Payable" },
+        { "account": "Premium on Bonds Payable" },
+        { "account": "Interest Expense", "decoy": true },
+        { "account": "Gain on Bond Issuance", "decoy": true }
+      ],
+      "scaffold": "Start from cash: it always equals the issue price (PV at the market rate). Bonds Payable always takes face. Whatever gap remains is your discount (debit) or premium (credit)."
+    }
+  }
+}
