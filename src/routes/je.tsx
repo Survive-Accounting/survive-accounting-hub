@@ -39,6 +39,27 @@ import {
   type EntryTemplate,
   type ScenarioDoc,
 } from "@/lib/je-engine";
+import { entryAt, type Derivation, type DerivedEntry } from "@/lib/je/amortization";
+import { buildExplore } from "@/lib/je/explore";
+import {
+  Amount,
+  DerivationPopover,
+  LifeTAccounts,
+  MemorizeSection,
+  ParamChips,
+  PresentationBlock,
+  ScheduleTable,
+  type PopoverState,
+} from "@/components/je/explore";
+
+// Accounts that make an entry a "periodic interest payment" (schedule-driven → row-click drives it).
+const PAYMENT_ACCTS = new Set([
+  "Interest Expense",
+  "Cash",
+  "Discount on Bonds Payable",
+  "Premium on Bonds Payable",
+]);
+const AUTHORED_PERIOD = 1; // authored entries bind schedule:1 → period 1 keeps the teaching notes
 
 export const Route = createFileRoute("/je")({ component: JePrototype });
 
@@ -144,6 +165,16 @@ function JePrototype() {
     }
   };
 
+  // ---- Explore-mode state (numbers layer) ----
+  const [seed, setSeed] = useState(1);
+  const [regenerated, setRegenerated] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState(AUTHORED_PERIOD);
+  const [projTab, setProjTab] = useState<"projections" | "schedule">("projections");
+  const [tacctView, setTacctView] = useState<"entry" | "life">("life");
+  const [popover, setPopover] = useState<PopoverState | null>(null);
+  const [activeTraceRefs, setActiveTraceRefs] = useState<Set<string>>(new Set());
+  const [memorizeCollapsed, setMemorizeCollapsed] = useState(false);
+
   // Reset all derived UI state when the active scenario changes (first load included).
   useEffect(() => {
     if (!activeScenario) return;
@@ -151,12 +182,52 @@ function JePrototype() {
     setRevealed(new Set());
     setActiveLineKey(null);
     setHighlightAccount(null);
+    setSeed(activeScenario.doc.params?.defaultSeed ?? 1);
+    setRegenerated(false);
+    setSelectedPeriod(AUTHORED_PERIOD);
+    setProjTab("projections");
+    setTacctView("life");
+    setPopover(null);
+    setActiveTraceRefs(new Set());
   }, [activeScenario?.slug]);
 
   const doc = activeScenario?.doc ?? null;
   const variant = doc ? resolveVariant(doc, conditions) : null;
   const entries: EntryTemplate[] = variant?.entries ?? [];
   const compPath = variant ? resolveComputationPath(variant, conditions) : null;
+
+  // Explore context: effective params → schedule → slot resolver. null for v1/paramless docs.
+  const explore = useMemo(
+    () => (doc ? buildExplore(doc, conditions, seed, regenerated) : null),
+    [doc, conditions, seed, regenerated],
+  );
+  const openPopover = (derivation: Derivation, x: number, y: number) => setPopover({ derivation, x, y });
+  const toggleTraceRef = (ref: string) =>
+    setActiveTraceRefs((prev) => {
+      const next = new Set(prev);
+      if (next.has(ref)) next.delete(ref);
+      else next.add(ref);
+      return next;
+    });
+
+  // Schedule-driven entries: a single periodic-interest payment whose lines bind schedule:N
+  // slots. For those, clicking a schedule row ≠ the authored period re-renders the entry via
+  // entryAt(); everything else keeps its authored reveal-grid entry.
+  const scheduleBound =
+    !!explore &&
+    entries.length === 1 &&
+    entries[0].lines.some((l) => /^schedule:\d+:/.test(l.amountSlotKey ?? "")) &&
+    entries[0].lines.every((l) => PAYMENT_ACCTS.has(l.account));
+  const periodEntry: DerivedEntry | null = useMemo(() => {
+    if (!scheduleBound || !explore || selectedPeriod === AUTHORED_PERIOD || selectedPeriod < 1) return null;
+    const row = explore.schedule.rows[selectedPeriod - 1];
+    if (!row) return null;
+    try {
+      return entryAt(explore.schedule, row.date, "payment");
+    } catch {
+      return null;
+    }
+  }, [scheduleBound, explore, selectedPeriod]);
 
   const ledger = useMemo(() => deriveLedger(entries, coa), [entries, coa]);
   const statementEffects = useMemo(() => deriveStatementEffects(entries, coa), [entries, coa]);
@@ -213,6 +284,12 @@ function JePrototype() {
   const revealAll = () => setRevealed(new Set(cellOrder));
   const resetReveal = () => setRevealed(new Set());
   const revealAccountsOnly = () => setRevealed(new Set(cellOrder.filter((id) => id.endsWith(":account"))));
+  const revealNumbers = () =>
+    setRevealed((prev) => new Set([...prev, ...cellOrder.filter((id) => id.endsWith(":amount"))]));
+  const newNumbers = () => {
+    setSeed((s) => s + 1);
+    setRegenerated(true);
+  };
 
   const selectLine = (entryId: string, line: EngineLine) => {
     setActiveLineKey(lineKey(entryId, line.id));
@@ -460,18 +537,23 @@ function JePrototype() {
                       <MiniBtn onClick={revealAccountsOnly}>Accounts only</MiniBtn>
                       <MiniBtn onClick={revealAll}>Reveal all</MiniBtn>
                       <MiniBtn onClick={resetReveal}>Reset</MiniBtn>
-                      <button
-                        disabled
-                        title="Concrete amounts — coming"
-                        className="inline-flex cursor-not-allowed items-center gap-1 rounded border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground/50"
-                      >
-                        <Lock className="h-3 w-3" /> Reveal numbers
-                      </button>
+                      {explore ? (
+                        <MiniBtn onClick={revealNumbers}>Reveal numbers</MiniBtn>
+                      ) : (
+                        <button
+                          disabled
+                          title="Concrete amounts — coming for this topic"
+                          className="inline-flex cursor-not-allowed items-center gap-1 rounded border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground/50"
+                        >
+                          <Lock className="h-3 w-3" /> Reveal numbers
+                        </button>
+                      )}
                     </div>
                   }
                 >
-                  {/* Event + principles + condition toggles */}
+                  {/* Event + params + principles + condition toggles */}
                   <p className="text-sm text-foreground/90">{doc?.event}</p>
+                  {explore && <ParamChips params={explore.effectiveParams} seed={seed} onNewNumbers={newNumbers} />}
                   {(doc?.principleKeys ?? []).length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(doc?.principleKeys ?? []).map((k) => {
@@ -514,10 +596,50 @@ function JePrototype() {
                     ))}
                   </div>
 
-                  {/* The entry as a reveal grid */}
+                  {/* The entry — reveal grid (authored) OR a schedule-driven period entry */}
                   <div className="mt-4 border-t border-border/60 pt-3">
                     {!variant ? (
                       <p className="text-sm italic text-muted-foreground">This combination isn't built yet.</p>
+                    ) : periodEntry ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                          <span className="rounded-full px-2 py-0.5 font-semibold text-white" style={{ backgroundColor: NAVY }}>
+                            Period {selectedPeriod}
+                          </span>
+                          <span className="text-muted-foreground">{periodEntry.date} — computed from the schedule.</span>
+                          <button className="underline hover:text-foreground" onClick={() => setSelectedPeriod(AUTHORED_PERIOD)}>
+                            ← teaching entry (P{AUTHORED_PERIOD})
+                          </button>
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <th className="py-1 text-left font-semibold">Account</th>
+                              <th className="w-24 py-1 text-right font-semibold">Dr</th>
+                              <th className="w-24 py-1 text-right font-semibold">Cr</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {periodEntry.lines.map((ln, i) => (
+                              <tr key={i} className="border-t border-border/50">
+                                <td className={cn("py-1", ln.side === "credit" && "pl-6")}>
+                                  <span className="font-medium">{ln.account}</span>
+                                </td>
+                                <td className="py-1 text-right tabular-nums">
+                                  {ln.side === "debit" && (
+                                    <Amount res={{ value: ln.amount, derivation: ln.derivation }} glowRefs={activeTraceRefs} onOpen={openPopover} className="ml-auto" />
+                                  )}
+                                </td>
+                                <td className="py-1 text-right tabular-nums">
+                                  {ln.side === "credit" && (
+                                    <Amount res={{ value: ln.amount, derivation: ln.derivation }} glowRefs={activeTraceRefs} onOpen={openPopover} className="ml-auto" />
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     ) : (
                       <div className="space-y-3">
                         {variant.label && (
@@ -541,6 +663,29 @@ function JePrototype() {
                                   const k = lineKey(entry.id, l.id);
                                   const highlighted = highlightRefs.has(k);
                                   const isActive = activeLineKey === k;
+                                  const amt = explore?.resolveLine(l) ?? null;
+                                  const shown = revealed.has(`${k}:amount`);
+                                  const revealAmt = () => {
+                                    setRevealed((p) => new Set(p).add(`${k}:amount`));
+                                    selectLine(entry.id, l);
+                                  };
+                                  const amountCell = (side: "debit" | "credit") =>
+                                    l.side !== side ? null : shown && amt ? (
+                                      <Amount
+                                        res={amt}
+                                        slotRef={amt.slotRef}
+                                        glowRefs={activeTraceRefs}
+                                        onOpen={(d, x, y) => {
+                                          selectLine(entry.id, l);
+                                          openPopover(d, x, y);
+                                        }}
+                                        className="ml-auto"
+                                      />
+                                    ) : (
+                                      <RevealCell revealed={shown} onClick={revealAmt}>
+                                        {l.label?.trim() || "???"}
+                                      </RevealCell>
+                                    );
                                   return (
                                     <tr
                                       key={l.id}
@@ -561,32 +706,8 @@ function JePrototype() {
                                           <span className="font-medium">{l.account}</span>
                                         </RevealCell>
                                       </td>
-                                      <td className="py-1 text-right tabular-nums">
-                                        {l.side === "debit" && (
-                                          <RevealCell
-                                            revealed={revealed.has(`${k}:amount`)}
-                                            onClick={() => {
-                                              setRevealed((p) => new Set(p).add(`${k}:amount`));
-                                              selectLine(entry.id, l);
-                                            }}
-                                          >
-                                            {l.label?.trim() || "???"}
-                                          </RevealCell>
-                                        )}
-                                      </td>
-                                      <td className="py-1 text-right tabular-nums">
-                                        {l.side === "credit" && (
-                                          <RevealCell
-                                            revealed={revealed.has(`${k}:amount`)}
-                                            onClick={() => {
-                                              setRevealed((p) => new Set(p).add(`${k}:amount`));
-                                              selectLine(entry.id, l);
-                                            }}
-                                          >
-                                            {l.label?.trim() || "???"}
-                                          </RevealCell>
-                                        )}
-                                      </td>
+                                      <td className="py-1 text-right tabular-nums">{amountCell("debit")}</td>
+                                      <td className="py-1 text-right tabular-nums">{amountCell("credit")}</td>
                                     </tr>
                                   );
                                 })}
@@ -653,6 +774,40 @@ function JePrototype() {
                 {/* JE → (Ledger | Statements) */}
                 <BranchConnector left={highlightInLedger} right={highlightInStatements} />
 
+                {explore && (
+                  <div className="mb-3 flex justify-center gap-1">
+                    {(["projections", "schedule"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setProjTab(tab)}
+                        className={cn(
+                          "rounded-md px-3 py-1 text-xs font-semibold capitalize transition",
+                          projTab === tab ? "text-white" : "border border-border text-muted-foreground hover:text-foreground",
+                        )}
+                        style={projTab === tab ? { backgroundColor: NAVY } : undefined}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {explore && projTab === "schedule" && (
+                  <Panel
+                    title="Amortization schedule"
+                    subtitle="Click a row to drive the entry & statements; click any number to trace it."
+                  >
+                    <ScheduleTable
+                      schedule={explore.schedule}
+                      selectedPeriod={selectedPeriod}
+                      onSelectPeriod={setSelectedPeriod}
+                      onOpen={openPopover}
+                      glowRefs={activeTraceRefs}
+                    />
+                  </Panel>
+                )}
+
+                {(!explore || projTab === "projections") && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {/* Ledger / T-accounts */}
                   <Panel
@@ -662,7 +817,30 @@ function JePrototype() {
                     collapsed={collapsed.ledger}
                     onToggle={() => toggleCollapse("ledger")}
                   >
-                    {ledger.length === 0 ? (
+                    {explore && (
+                      <div className="mb-2 flex gap-1">
+                        {(["entry", "life"] as const).map((v) => (
+                          <button
+                            key={v}
+                            onClick={() => setTacctView(v)}
+                            className={cn(
+                              "rounded border px-2 py-0.5 text-[11px] font-medium transition",
+                              tacctView === v ? "border-foreground text-foreground" : "border-border text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            {v === "entry" ? "This entry" : "Over the life"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {explore && tacctView === "life" ? (
+                      <LifeTAccounts
+                        schedule={explore.schedule}
+                        pricing={explore.pricing}
+                        selectedPeriod={selectedPeriod}
+                        onSelectPeriod={setSelectedPeriod}
+                      />
+                    ) : ledger.length === 0 ? (
                       <p className="text-sm italic text-muted-foreground">No postings.</p>
                     ) : (
                       <div className="space-y-2">
@@ -714,6 +892,15 @@ function JePrototype() {
                     onToggle={() => toggleCollapse("statements")}
                   >
                     <div className="space-y-3 text-sm">
+                      {explore && (
+                        <PresentationBlock
+                          schedule={explore.schedule}
+                          selectedPeriod={selectedPeriod}
+                          pricing={explore.pricing}
+                          onOpen={openPopover}
+                          glowRefs={activeTraceRefs}
+                        />
+                      )}
                       <StatementGroup label="Income statement" empty="No income-statement accounts move.">
                         {statementEffects.income.map((e) => (
                           <StatementRow
@@ -755,6 +942,7 @@ function JePrototype() {
                     </div>
                   </Panel>
                 </div>
+                )}
 
                 {/* (Ledger | Statements) → Equation */}
                 <VConnector active={!!highlightAccount} />
@@ -784,36 +972,16 @@ function JePrototype() {
                   </div>
                 </Panel>
 
-                {/* ---- Placeholders (flag-gated / always-stubbed) ---- */}
+                {/* ---- Memorize (real when the doc carries it) + placeholders ---- */}
                 <div className="mt-4 space-y-4">
-                  {hasMemGrid && (
-                    <Panel title="Memorization grid" subtitle="Lock in the pattern for this topic.">
-                      <div className="rounded-lg border border-dashed border-border p-3">
-                        <p className="mb-2 text-xs text-muted-foreground">
-                          Placeholder — the memorize-this grid for this topic is coming.
-                        </p>
-                        <div className="overflow-hidden rounded-md border border-border">
-                          <table className="w-full text-center text-xs">
-                            <thead>
-                              <tr className="bg-muted/40 text-[10px] uppercase text-muted-foreground">
-                                <th className="p-1 text-left">Account</th>
-                                <th className="p-1">Dr / Cr</th>
-                                <th className="p-1">When</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {[0, 1, 2].map((i) => (
-                                <tr key={i} className="border-t border-border/60 text-muted-foreground/50">
-                                  <td className="p-1 text-left">???</td>
-                                  <td className="p-1">???</td>
-                                  <td className="p-1">???</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </Panel>
+                  {(doc?.memorize ?? []).length > 0 && (
+                    <MemorizeSection
+                      items={doc!.memorize!}
+                      collapsed={memorizeCollapsed}
+                      onToggleCollapsed={() => setMemorizeCollapsed((c) => !c)}
+                      activeTraceRefs={activeTraceRefs}
+                      onToggleTraceRef={toggleTraceRef}
+                    />
                   )}
 
                   <Panel title="Practice exam questions" subtitle={`For ${chapterLabel(activeChapter)}`}>
@@ -826,6 +994,11 @@ function JePrototype() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Click-through derivation popover (walks the ref chain) */}
+      {popover && explore && (
+        <DerivationPopover state={popover} resolve={explore.resolve} onClose={() => setPopover(null)} />
       )}
     </div>
   );

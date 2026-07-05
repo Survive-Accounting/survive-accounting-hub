@@ -1,0 +1,104 @@
+// Explore-mode glue — PURE. Turns a ScenarioDoc's params spec + the selected conditions
+// (+ a session seed) into the concrete AmortSchedule and a slot resolver bound to it. The
+// /je route consumes this; keeping it here keeps the route free of math.
+import {
+  buildAmortSchedule,
+  classifyPricing,
+  fmtUSD,
+  generateParams,
+  type AmortMethod,
+  type AmortSchedule,
+  type BondParams,
+  type BondPricing,
+} from "@/lib/je/amortization";
+import { resolveSlot, type SlotResolution } from "@/lib/je/slot-resolver";
+import type { EngineLine, ScenarioDoc } from "@/lib/je-engine";
+
+const PRICING_VALUES: Record<string, BondPricing> = {
+  at_par: "par",
+  premium: "premium",
+  discount: "discount",
+};
+const METHOD_VALUES: Record<string, AmortMethod> = {
+  straight_line: "straight",
+  effective_interest: "effective",
+};
+
+export interface ExploreCtx {
+  schedule: AmortSchedule;
+  effectiveParams: BondParams;
+  pricing: BondPricing;
+  method: AmortMethod;
+  /** Resolve any slot expression against this schedule (fail-loud → caller catches). */
+  resolve(expr: string): SlotResolution;
+  /** A line's concrete amount from its amountSlotKey / literal amount, or null (→ ???). */
+  resolveLine(line: EngineLine): (SlotResolution & { slotRef?: string }) | null;
+}
+
+function pricingFromConditions(conditions: Record<string, string>): BondPricing | null {
+  for (const v of Object.values(conditions)) if (PRICING_VALUES[v]) return PRICING_VALUES[v];
+  return null;
+}
+function methodFromConditions(conditions: Record<string, string>): AmortMethod {
+  for (const v of Object.values(conditions)) if (METHOD_VALUES[v]) return METHOD_VALUES[v];
+  return "effective";
+}
+function hasPricingAxis(doc: ScenarioDoc): boolean {
+  return doc.axes.some((a) => a.options.some((o) => PRICING_VALUES[o.value]));
+}
+
+/**
+ * Effective params per STEP 1: use params.defaults, EXCEPT regenerate via
+ * generateParams(seed,{pricing}) when the doc has a pricing axis and the selected pricing
+ * differs from what the defaults produce — OR when the user has pressed "New numbers"
+ * (regenerated=true), which shuffles numbers for whatever pricing is current.
+ */
+export function buildExplore(
+  doc: ScenarioDoc,
+  conditions: Record<string, string>,
+  seed: number,
+  regenerated: boolean,
+): ExploreCtx | null {
+  const spec = doc.params;
+  if (!spec || spec.kind !== "bond") return null;
+
+  const defaults = spec.defaults;
+  const defaultsPricing = classifyPricing(defaults);
+  const pricing = pricingFromConditions(conditions) ?? defaultsPricing;
+  const method = methodFromConditions(conditions);
+
+  const shouldRegen = regenerated || (hasPricingAxis(doc) && pricing !== defaultsPricing);
+  const effectiveParams: BondParams = shouldRegen
+    ? generateParams(seed, {
+        pricing,
+        paymentsPerYear: defaults.paymentsPerYear,
+        issueDate: defaults.issueDate,
+        fiscalYearEnd: defaults.fiscalYearEnd,
+      })
+    : defaults;
+
+  const schedule = buildAmortSchedule(effectiveParams, method);
+  const resolve = (expr: string) => resolveSlot(expr, schedule);
+  const resolveLine = (line: EngineLine) => {
+    if (line.amountSlotKey) {
+      try {
+        return { ...resolveSlot(line.amountSlotKey, schedule), slotRef: line.amountSlotKey };
+      } catch {
+        return null; // an expr the schedule can't satisfy → the line stays ???
+      }
+    }
+    if (typeof line.amount === "number" && !Number.isNaN(line.amount)) {
+      return {
+        value: line.amount,
+        derivation: {
+          value: line.amount,
+          formulaText: `${fmtUSD(line.amount)} (given in the scenario)`,
+          inputs: [],
+        },
+      };
+    }
+    return null;
+  };
+
+  return { schedule, effectiveParams, pricing, method, resolve, resolveLine };
+}
