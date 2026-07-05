@@ -16,6 +16,9 @@
 // stays unified across the app. `import type` is erased at build time, so this does NOT
 // pull the Supabase client (which ceq-api imports) into this pure module.
 import type { JeLine } from "@/lib/ceq-api";
+// v2 numbers layer — type-only imports from the (equally pure) math core.
+import type { BondParams } from "@/lib/je/amortization";
+import type { MisconceptionId } from "@/lib/je/misconceptions";
 
 // ============================================================================
 // Data model — the canonical ScenarioDoc lives in `je_scenarios.doc` (jsonb).
@@ -39,6 +42,77 @@ export interface ScenarioDoc {
   isSequence?: boolean; // lifecycle/multi-entry topic → show the (stubbed) sequence sidebar
   sequenceGroup?: string; // optional group key tying related sequence scenarios together
   hasMemorizationGrid?: boolean; // topic with a memorize-this grid (bonds, merchandising) → show placeholder grid
+
+  // ---- v2 numbers layer (all optional; a doc without them is a valid Phase-1 doc).
+  // Slot keys everywhere use the amortization ref scheme:
+  //   "param:<name>" | "issuePrice" | "schedule:<period>:<field>"
+  // (see src/lib/je/amortization.ts header). amount-resolver.ts turns a doc + selected
+  // conditions into concrete amounts by building the schedule and reading these refs.
+  params?: ScenarioParamsSpec; // parameter spec + randomizer seed for concrete numbers
+  memorize?: MemorizeItem[]; // memorize-this content (renders in the memorization grid)
+  questions?: ScenarioQuestion[]; // practice questions with misconception-tagged distractors
+  traces?: TraceGroup[]; // named ref groups the UI highlights together (click-through tracing)
+  build?: BuildSpec; // "build the entry yourself" mode: account bank (with decoys) + scaffold
+}
+
+// ---- v2 numbers-layer shapes -------------------------------------------------
+
+export interface ScenarioParamsSpec {
+  /** Parameter family. Only "bond" exists today; future families extend this union. */
+  kind: "bond";
+  /** The worked-example defaults (the canonical numbers the doc is authored against). */
+  defaults: BondParams;
+  /**
+   * RESERVED for the randomizer: bounds for generated params (face/term/etc.). The
+   * generator currently uses its built-in clean-number rules (see generateParams);
+   * ranges tighten them later without a schema change.
+   */
+  ranges?: {
+    faceMin?: number;
+    faceMax?: number;
+    termYearsMin?: number;
+    termYearsMax?: number;
+  };
+  /** Seed used when the UI wants "fresh numbers" deterministically. */
+  defaultSeed?: number;
+}
+
+export interface MemorizeItem {
+  kind: "formula" | "mnemonic" | "tip" | "watchout";
+  body: string;
+  /** Slot refs this item explains — the UI lights these when the item is focused. */
+  traceRefs?: string[];
+}
+
+export interface QuestionDistractor {
+  /** Expression in slot-ref terms, e.g. "schedule:1:cashPayment" or "param:face * param:marketRateAnnual / 2". */
+  expr: string;
+  misconceptionId: MisconceptionId;
+  /** Optional override of the misconception's reusable feedback template. */
+  feedback?: string;
+}
+
+export interface ScenarioQuestion {
+  id: string;
+  /** Prompt template; may reference params, e.g. "…for the first {periodMonths}-month period?" */
+  prompt: string;
+  /** The correct answer as a slot-ref expression. */
+  answerExpr: string;
+  distractors: QuestionDistractor[];
+}
+
+export interface TraceGroup {
+  id: string;
+  label: string;
+  /** Slot refs highlighted together (entry cell ↔ schedule cell ↔ formula input). */
+  refs: string[];
+}
+
+export interface BuildSpec {
+  /** The bank the student assembles the entry from; decoys are plausible wrong accounts. */
+  accountBank: { account: string; decoy?: boolean }[];
+  /** Optional scaffold note shown while building. */
+  scaffold?: string;
 }
 
 export interface ConditionAxis {

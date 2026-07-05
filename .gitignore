@@ -40,5 +40,7 @@ supabase/.temp/
 # internal context doc containing live secrets — never commit
 CONTEXT_SCRAPER_SESSION.md
 
-# SEC roster source CSV (contact data — not committed)
-data/
+# SEC roster source CSV (contact data — not committed)…
+data/*
+# …but JE scenario source docs ARE versioned (the importer reads them from the repo)
+!data/scenarios/

@@ -1,0 +1,278 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 13,
+    "name": "Long-Term Liabilities"
+  },
+  "doc": {
+    "slug": "bonds-pay-periodic-interest",
+    "title": "Pay periodic bond interest",
+    "event": "A company issued term bonds and the semiannual coupon date has arrived. It pays the cash coupon and records interest expense — amortizing any discount or premium along the way.",
+    "courseFamilies": ["ia2"],
+    "principleKeys": ["matching"],
+    "axes": [
+      {
+        "key": "pricing",
+        "label": "Issued at",
+        "options": [
+          { "value": "at_par", "label": "Par" },
+          { "value": "premium", "label": "A premium" },
+          { "value": "discount", "label": "A discount" }
+        ]
+      },
+      {
+        "key": "method",
+        "label": "Amortization method",
+        "options": [
+          { "value": "effective_interest", "label": "Effective interest" },
+          { "value": "straight_line", "label": "Straight line" }
+        ]
+      }
+    ],
+    "params": {
+      "kind": "bond",
+      "defaults": {
+        "face": 500000,
+        "statedRateAnnual": 0.08,
+        "marketRateAnnual": 0.1,
+        "termYears": 5,
+        "paymentsPerYear": 2,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
+      "defaultSeed": 1
+    },
+    "variants": [
+      {
+        "id": "discount",
+        "label": "Issued at a discount — expense runs ABOVE the cash coupon",
+        "conditions": { "pricing": "discount" },
+        "entries": [
+          {
+            "id": "pay-interest",
+            "caption": "Semiannual interest payment (bonds issued at a discount)",
+            "lines": [
+              {
+                "id": "ie",
+                "account": "Interest Expense",
+                "side": "debit",
+                "label": "CV × market × 6/12",
+                "amountSlotKey": "schedule:1:interestExpense",
+                "why": "Expense follows the real borrowing cost: the carrying value times the MARKET rate for half a year. The market rate priced these bonds; it prices the expense too.",
+                "trap": "Face × stated rate is the CASH coupon, not the expense. At a discount the true cost runs higher than the coupon."
+              },
+              {
+                "id": "disc",
+                "account": "Discount on Bonds Payable",
+                "side": "credit",
+                "label": "expense − cash",
+                "amountSlotKey": "schedule:1:amortization",
+                "why": "The gap between expense and cash shrinks the discount, walking the carrying value UP toward face.",
+                "trap": "Crediting the discount REDUCES this contra-liability. Debiting it here would walk the carrying value the wrong way."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "face × stated × 6/12",
+                "amountSlotKey": "schedule:1:cashPayment",
+                "why": "Cash paid is fixed by the bond contract: face × stated rate × time. It never changes, whatever the market did.",
+                "trap": "Don't recompute cash with the market rate — the coupon is contractual."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "discount-effective",
+            "appliesWhen": { "method": "effective_interest" },
+            "narration": "Effective interest: expense = prior carrying value × market rate × 6/12. Cash stays face × stated × 6/12; the difference amortizes the discount, so the carrying value climbs toward face and next period's expense climbs with it.",
+            "steps": [
+              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
+              { "label": "Interest expense", "formulaText": "carrying value × market × 6/12", "resultSlotKey": "schedule:1:interestExpense" },
+              { "label": "Discount amortized", "formulaText": "expense − cash", "resultSlotKey": "schedule:1:amortization" },
+              { "label": "New carrying value", "formulaText": "carrying value + amortization", "resultSlotKey": "schedule:1:carryingValueAfter" }
+            ]
+          },
+          {
+            "id": "discount-straight",
+            "appliesWhen": { "method": "straight_line" },
+            "narration": "Straight line: amortize the SAME slice of the total discount every period (total discount ÷ number of periods, with the final period plugging any rounding). Expense = cash + that slice, so expense is constant instead of climbing.",
+            "steps": [
+              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
+              { "label": "Discount amortized", "formulaText": "total discount ÷ periods", "resultSlotKey": "schedule:1:amortization" },
+              { "label": "Interest expense", "formulaText": "cash + amortization", "resultSlotKey": "schedule:1:interestExpense" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "premium",
+        "label": "Issued at a premium — expense runs BELOW the cash coupon",
+        "conditions": { "pricing": "premium" },
+        "entries": [
+          {
+            "id": "pay-interest",
+            "caption": "Semiannual interest payment (bonds issued at a premium)",
+            "lines": [
+              {
+                "id": "ie",
+                "account": "Interest Expense",
+                "side": "debit",
+                "label": "CV × market × 6/12",
+                "amountSlotKey": "schedule:1:interestExpense",
+                "why": "Same rule as always: carrying value × market rate × time. At a premium the market rate is LOWER than the coupon, so expense runs below cash.",
+                "trap": "If your expense exceeds the cash coupon on premium bonds, you've flipped the direction — that's the discount pattern."
+              },
+              {
+                "id": "prem",
+                "account": "Premium on Bonds Payable",
+                "side": "debit",
+                "label": "cash − expense",
+                "amountSlotKey": "schedule:1:amortization",
+                "why": "The excess of cash over expense burns off the premium, walking the carrying value DOWN toward face.",
+                "trap": "The premium is DEBITED here (it's an adjunct account being reduced) — crediting it would grow the liability instead."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "face × stated × 6/12",
+                "amountSlotKey": "schedule:1:cashPayment",
+                "why": "Contractual coupon: face × stated rate × time.",
+                "trap": "Cash never uses the market rate."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "premium-effective",
+            "appliesWhen": { "method": "effective_interest" },
+            "narration": "Effective interest: expense = prior carrying value × market rate × 6/12 — which is LESS than the cash coupon. The difference amortizes the premium, so the carrying value steps down toward face.",
+            "steps": [
+              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
+              { "label": "Interest expense", "formulaText": "carrying value × market × 6/12", "resultSlotKey": "schedule:1:interestExpense" },
+              { "label": "Premium amortized", "formulaText": "cash − expense", "resultSlotKey": "schedule:1:amortization" },
+              { "label": "New carrying value", "formulaText": "carrying value − amortization", "resultSlotKey": "schedule:1:carryingValueAfter" }
+            ]
+          },
+          {
+            "id": "premium-straight",
+            "appliesWhen": { "method": "straight_line" },
+            "narration": "Straight line: total premium ÷ periods, the same slice every time (final period plugs rounding). Expense = cash − that slice, constant across periods.",
+            "steps": [
+              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
+              { "label": "Premium amortized", "formulaText": "total premium ÷ periods", "resultSlotKey": "schedule:1:amortization" },
+              { "label": "Interest expense", "formulaText": "cash − amortization", "resultSlotKey": "schedule:1:interestExpense" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "par",
+        "label": "Issued at par — expense equals the cash coupon",
+        "conditions": { "pricing": "at_par" },
+        "entries": [
+          {
+            "id": "pay-interest",
+            "caption": "Semiannual interest payment (bonds issued at par)",
+            "lines": [
+              {
+                "id": "ie",
+                "account": "Interest Expense",
+                "side": "debit",
+                "label": "face × stated × 6/12",
+                "amountSlotKey": "schedule:1:interestExpense",
+                "why": "At par the stated and market rates are equal, so the coupon IS the true cost — expense equals cash and there is nothing to amortize.",
+                "trap": "No discount or premium line belongs in this entry; adding one is the classic par-bond giveaway."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "face × stated × 6/12",
+                "amountSlotKey": "schedule:1:cashPayment",
+                "why": "Contractual coupon: face × stated rate × time.",
+                "trap": "Cash never uses the market rate."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "par-any-method",
+            "narration": "At par there is no discount or premium, so BOTH methods produce the same entry: expense = cash = face × stated × 6/12, every period.",
+            "steps": [
+              { "label": "Cash coupon = interest expense", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:interestExpense" }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Interest EXPENSE = carrying value × market rate × time. The market rate priced the bond; it prices every period's expense.",
+        "traceRefs": ["schedule:1:interestExpense", "issuePrice"]
+      },
+      {
+        "kind": "watchout",
+        "body": "CASH is contractual: face × stated rate × time — the same number every period, no matter what the market rate is. The expense moves; the coupon never does.",
+        "traceRefs": ["schedule:1:cashPayment"]
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Discount climbs, premium slides: a discount amortizes the carrying value UP to face (expense > cash); a premium amortizes it DOWN to face (expense < cash).",
+        "traceRefs": ["schedule:1:amortization", "schedule:1:carryingValueAfter"]
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-first-period-expense",
+        "prompt": "The bonds are issued at a discount. Using the effective-interest method, what is interest expense for the FIRST semiannual period?",
+        "answerExpr": "schedule:1:interestExpense",
+        "distractors": [
+          {
+            "expr": "schedule:1:cashPayment",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "That's the cash coupon (face × stated × 6/12). Expense uses the carrying value and the MARKET rate — at a discount it runs above the coupon by exactly the amortization."
+          },
+          {
+            "expr": "param:face * param:marketRateAnnual / 2",
+            "misconceptionId": "market_rate_on_face"
+          },
+          {
+            "expr": "issuePrice * param:statedRateAnnual / 2",
+            "misconceptionId": "stated_rate_on_cv"
+          }
+        ]
+      }
+    ],
+    "traces": [
+      {
+        "id": "cv-schedule-formula",
+        "label": "Carrying value ↔ amortization schedule ↔ expense formula",
+        "refs": [
+          "issuePrice",
+          "schedule:1:interestExpense",
+          "schedule:1:amortization",
+          "schedule:1:carryingValueAfter"
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Interest Expense" },
+        { "account": "Cash" },
+        { "account": "Discount on Bonds Payable" },
+        { "account": "Premium on Bonds Payable" },
+        { "account": "Interest Payable", "decoy": true },
+        { "account": "Bonds Payable", "decoy": true }
+      ],
+      "scaffold": "Anchor on the two numbers you can always compute: cash (face × stated × time) and expense (carrying value × market × time). The plug between them is the amortization — its direction tells you discount vs premium."
+    }
+  }
+}

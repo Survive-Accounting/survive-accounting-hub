@@ -12,10 +12,13 @@
 // ??? in Phase 1 — the pedagogy lives in the structure.
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Loader2, Lock } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight, Loader2, Lock, PencilLine } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { isAdminUnlocked } from "@/components/AdminGate";
+import { saveScenarioDoc } from "@/lib/je.functions";
+import { scenarioDocV2Schema } from "@/lib/je/scenario-schema";
 import {
   fetchAccountMeta,
   fetchJeBrowserTree,
@@ -93,6 +96,53 @@ function JePrototype() {
   const [highlightAccount, setHighlightAccount] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ coa: true });
   const toggleCollapse = (id: string) => setCollapsed((p) => ({ ...p, [id]: !p[id] }));
+
+  // ---- Admin raw editor (visible only behind the same AdminGate flag /outreach uses).
+  // Raw doc JSON + Zod validation IS the whole feature — no pretty authoring UI.
+  const queryClient = useQueryClient();
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => setAdmin(isAdminUnlocked()), []); // localStorage only exists client-side
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorText, setEditorText] = useState("");
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [editorSaving, setEditorSaving] = useState(false);
+
+  const openEditor = () => {
+    if (!activeScenario) return;
+    setEditorText(JSON.stringify(activeScenario.doc, null, 2));
+    setEditorError(null);
+    setEditorOpen(true);
+  };
+
+  const saveEditor = async () => {
+    // Fast local validation first (same schema the server re-runs).
+    let json: unknown;
+    try {
+      json = JSON.parse(editorText);
+    } catch (e) {
+      setEditorError(`Not valid JSON: ${e instanceof Error ? e.message : e}`);
+      return;
+    }
+    const parsed = scenarioDocV2Schema.safeParse(json);
+    if (!parsed.success) {
+      setEditorError(
+        parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("\n"),
+      );
+      return;
+    }
+    setEditorSaving(true);
+    setEditorError(null);
+    try {
+      const res = await saveScenarioDoc({ data: { docJson: editorText } });
+      await queryClient.invalidateQueries({ queryKey: ["je-tree"] });
+      setSelectedSlug(res.slug);
+      setEditorOpen(false);
+    } catch (e) {
+      setEditorError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditorSaving(false);
+    }
+  };
 
   // Reset all derived UI state when the active scenario changes (first load included).
   useEffect(() => {
@@ -301,7 +351,59 @@ function JePrototype() {
                     </button>
                   );
                 })}
+                {admin && activeScenario && (
+                  <button
+                    onClick={openEditor}
+                    title="Edit this scenario's raw JSON (admin)"
+                    className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-foreground hover:text-foreground"
+                  >
+                    <PencilLine className="h-3.5 w-3.5" /> Edit scenario
+                  </button>
+                )}
               </div>
+            )}
+
+            {/* Admin raw editor — textarea → Zod validate → upsert → re-render */}
+            {admin && editorOpen && activeScenario && (
+              <section className="mb-4 rounded-xl border-2 bg-card p-3" style={{ borderColor: RED }}>
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold" style={{ color: RED }}>
+                    Edit scenario (raw JSON) — {activeScenario.slug}
+                  </h2>
+                  <span className="text-[11px] text-muted-foreground">
+                    Validated against the v2 schema on save; upserts by slug.
+                  </span>
+                </div>
+                <textarea
+                  value={editorText}
+                  onChange={(e) => setEditorText(e.target.value)}
+                  spellCheck={false}
+                  rows={22}
+                  className="w-full rounded-md border border-border bg-background p-2 font-mono text-xs leading-relaxed"
+                />
+                {editorError && (
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-rose-200 bg-rose-50 p-2 text-[11px] text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200">
+                    {editorError}
+                  </pre>
+                )}
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={saveEditor}
+                    disabled={editorSaving}
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                    style={{ backgroundColor: NAVY }}
+                  >
+                    {editorSaving ? "Saving…" : "Validate & save"}
+                  </button>
+                  <button
+                    onClick={() => setEditorOpen(false)}
+                    disabled={editorSaving}
+                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-foreground hover:text-foreground"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </section>
             )}
 
             {!activeScenario ? null : (

@@ -12,6 +12,17 @@ const WHO_KEY = "sa-admin-who";
 
 export type AdminWho = "lee" | "king";
 
+/** True when this browser has already passed the AdminGate passcode (same flag the
+ *  /outreach shell sets). Lets other surfaces (e.g. /je's edit affordance) reuse the
+ *  gate without wrapping their whole route in it. */
+export function isAdminUnlocked(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "yes";
+  } catch {
+    return false;
+  }
+}
+
 export function getAdminWho(): AdminWho | null {
   try {
     const v = localStorage.getItem(WHO_KEY);
