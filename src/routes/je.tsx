@@ -59,6 +59,7 @@ import {
   ScheduleTable,
   type PopoverState,
 } from "@/components/je/explore";
+import { BuildMode } from "@/components/je/build-mode";
 
 // Accounts that make an entry a "periodic interest payment" (schedule-driven → row-click drives it).
 const PAYMENT_ACCTS = new Set([
@@ -69,7 +70,13 @@ const PAYMENT_ACCTS = new Set([
 ]);
 const AUTHORED_PERIOD = 1; // authored entries bind schedule:1 → period 1 keeps the teaching notes
 
-export const Route = createFileRoute("/je")({ component: JePrototype });
+export const Route = createFileRoute("/je")({
+  // ?mode=build makes Build-mode links shareable; anything else is Explore.
+  validateSearch: (s: Record<string, unknown>): { mode?: "build" } => ({
+    mode: s.mode === "build" ? "build" : undefined,
+  }),
+  component: JePrototype,
+});
 
 // Brand
 const NAVY = "#14213D";
@@ -210,6 +217,14 @@ function JePrototype() {
   }, [activeScenario?.slug]);
 
   const doc = activeScenario?.doc ?? null;
+
+  // Explore | Build mode (Build only when the doc has a build.accountBank). URL-driven.
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const mode: "explore" | "build" = search.mode === "build" && doc?.build ? "build" : "explore";
+  const setMode = (m: "explore" | "build") =>
+    navigate({ search: (prev) => ({ ...prev, mode: m === "build" ? "build" : undefined }) });
+
   const variant = doc ? resolveVariant(doc, conditions) : null;
   const entries: EntryTemplate[] = variant?.entries ?? [];
   const compPath = variant ? resolveComputationPath(variant, conditions) : null;
@@ -548,6 +563,39 @@ function JePrototype() {
 
             {!activeScenario ? null : (
               <div className="mx-auto max-w-3xl">
+                {/* Explore | Build mode toggle (Build only when the doc has an account bank) */}
+                {doc?.build && (
+                  <div className="mb-3 flex justify-center gap-1">
+                    {(["explore", "build"] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setMode(m)}
+                        className={cn(
+                          "rounded-md px-3 py-1 text-xs font-semibold capitalize transition",
+                          mode === m ? "text-white" : "border border-border text-muted-foreground hover:text-foreground",
+                        )}
+                        style={mode === m ? { backgroundColor: NAVY } : undefined}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {mode === "build" && doc?.build ? (
+                  variant ? (
+                    <BuildMode
+                      doc={doc}
+                      variant={variant}
+                      explore={explore}
+                      conditions={conditions}
+                      onSetConditions={(c) => setConditions(c)}
+                    />
+                  ) : (
+                    <p className="text-sm italic text-muted-foreground">This combination isn't built yet.</p>
+                  )
+                ) : (
+                  <>
                 {!isComputation && (
                   <>
                 {/* COA — the vocabulary (collapsed by default) */}
@@ -1068,8 +1116,10 @@ function JePrototype() {
                 </Panel>
                 )}
                 </div>
+                  </>
+                )}
 
-                {/* ---- Memorize (real when the doc carries it) + placeholders ---- */}
+                {/* ---- Memorize (cloze in Build mode) + placeholders ---- */}
                 <div className="mt-4 space-y-4">
                   {(doc?.memorize ?? []).length > 0 && (
                     <MemorizeSection
@@ -1078,14 +1128,17 @@ function JePrototype() {
                       onToggleCollapsed={() => setMemorizeCollapsed((c) => !c)}
                       activeTraceRefs={activeTraceRefs}
                       onToggleTraceRef={toggleTraceRef}
+                      cloze={mode === "build"}
                     />
                   )}
 
-                  <Panel title="Practice exam questions" subtitle={`For ${chapterLabel(activeChapter)}`}>
-                    <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                      Practice exam questions for this chapter — coming. They'll be worked right here in the JE tool.
-                    </div>
-                  </Panel>
+                  {mode === "explore" && (
+                    <Panel title="Practice exam questions" subtitle={`For ${chapterLabel(activeChapter)}`}>
+                      <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                        Practice exam questions for this chapter — coming. They'll be worked right here in the JE tool.
+                      </div>
+                    </Panel>
+                  )}
                 </div>
               </div>
             )}

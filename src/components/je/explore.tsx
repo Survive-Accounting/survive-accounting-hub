@@ -417,18 +417,55 @@ const KIND_STYLE: Record<MemorizeItem["kind"], { label: string; tint: string }> 
   watchout: { label: "Watch out", tint: "border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20" },
 };
 
+/** Tap-to-reveal blank for cloze-mode formulas. */
+function ClozeBlank({ answer }: { answer: string }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <button
+      onClick={() => setShown(true)}
+      className={cn(
+        "rounded px-1 font-semibold transition",
+        shown ? "text-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+      )}
+      title={shown ? undefined : "Tap to reveal"}
+    >
+      {shown ? answer : "▢▢▢"}
+    </button>
+  );
+}
+
+/** Formula body → prose with the answer (between the first "=" and the next . or ;) blanked. */
+function FormulaCloze({ body }: { body: string }) {
+  const eq = body.indexOf("=");
+  if (eq < 0) return <>{body}</>;
+  const before = body.slice(0, eq + 1);
+  const after = body.slice(eq + 1);
+  const m = after.match(/^(\s*)([^.;]*)(.*)$/s);
+  if (!m || !m[2].trim()) return <>{body}</>;
+  return (
+    <>
+      {before}
+      {m[1]}
+      <ClozeBlank answer={m[2].trim()} />
+      {m[3]}
+    </>
+  );
+}
+
 export function MemorizeSection({
   items,
   collapsed,
   onToggleCollapsed,
   activeTraceRefs,
   onToggleTraceRef,
+  cloze = false,
 }: {
   items: MemorizeItem[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
   activeTraceRefs: Set<string>;
   onToggleTraceRef: (ref: string) => void;
+  cloze?: boolean;
 }) {
   return (
     <section className="rounded-xl border border-border bg-card">
@@ -446,7 +483,9 @@ export function MemorizeSection({
                 <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {m.kind === "watchout" ? <span style={{ color: RED }}>{style.label}</span> : style.label}
                 </div>
-                <p className="text-foreground/90">{m.body}</p>
+                <p className="text-foreground/90">
+                  {cloze && m.kind === "formula" ? <FormulaCloze body={m.body} /> : m.body}
+                </p>
                 {(m.traceRefs ?? []).length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {(m.traceRefs ?? []).map((ref) => {
