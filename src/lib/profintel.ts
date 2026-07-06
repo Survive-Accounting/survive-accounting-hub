@@ -126,7 +126,7 @@ They can text me anytime at (662) 565-8818.
 
 Thanks,
 Lee Ingram
-surviveaccounting.com
+https://surviveaccounting.com
 
 —
 
