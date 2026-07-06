@@ -760,12 +760,46 @@ export interface ProfIntelSettings {
   sent_today: number;
   sent_today_date: string | null;
   last_run_at: string | null;
+  warmup_start_date: string | null;
+}
+
+// Automatic cold-domain warmup. Cap ramps weekly, anchored to the first send
+// date, and never exceeds the ceiling (daily_send_cap). Keep in sync with the
+// copy in supabase/functions/profintel-send-worker/index.ts.
+const WARMUP_STEPS = [15, 22, 30, 38]; // weeks 1..4; week 5+ = ceiling
+function warmupCap(days: number, ceiling: number): number {
+  const wk = Math.floor(Math.max(0, days) / 7);
+  const base = wk < WARMUP_STEPS.length ? WARMUP_STEPS[wk] : ceiling;
+  return Math.min(base, ceiling);
+}
+/** Today's effective daily cap given the warmup ramp. Returns the starting cap
+ *  until the first email sends (warmup_start_date is null). */
+export function effectiveDailyCap(s: ProfIntelSettings | null): number {
+  const ceiling = s?.daily_send_cap ?? 40;
+  if (!s?.warmup_start_date) return Math.min(WARMUP_STEPS[0], ceiling);
+  const start = Date.parse(`${s.warmup_start_date}T00:00:00Z`);
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const days = Number.isNaN(start) ? 0 : Math.max(0, Math.floor((today - start) / 86_400_000));
+  return warmupCap(days, ceiling);
+}
+/** Human label for where the ramp is today (e.g. "warming up · week 2 of 4"). */
+export function warmupStatus(s: ProfIntelSettings | null): string {
+  const ceiling = s?.daily_send_cap ?? 40;
+  const cap = effectiveDailyCap(s);
+  if (cap >= ceiling) return "at full volume";
+  if (!s?.warmup_start_date) return `warmup starts at first send`;
+  const start = Date.parse(`${s.warmup_start_date}T00:00:00Z`);
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const days = Number.isNaN(start) ? 0 : Math.max(0, Math.floor((today - start) / 86_400_000));
+  return `warming up · week ${Math.floor(days / 7) + 1} of ${WARMUP_STEPS.length + 1}`;
 }
 
 /** Global send settings (kill-switch + cap). Null if 0048 isn't applied yet. */
 export async function getProfintelSettings(): Promise<ProfIntelSettings | null> {
   const { data, error } = await (supabase.from("profintel_settings" as never) as any)
-    .select("sending_enabled, daily_send_cap, sent_today, sent_today_date, last_run_at")
+    .select(
+      "sending_enabled, daily_send_cap, sent_today, sent_today_date, last_run_at, warmup_start_date",
+    )
     .eq("id", 1)
     .maybeSingle();
   if (error) return null;
@@ -773,7 +807,7 @@ export async function getProfintelSettings(): Promise<ProfIntelSettings | null> 
 }
 
 export async function updateProfintelSettings(
-  patch: Partial<Pick<ProfIntelSettings, "sending_enabled" | "daily_send_cap">>,
+  patch: Partial<Pick<ProfIntelSettings, "sending_enabled">>,
 ): Promise<void> {
   const { error } = await (supabase.from("profintel_settings" as never) as any)
     .update({ ...patch, updated_at: new Date().toISOString() })

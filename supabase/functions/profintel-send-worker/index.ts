@@ -18,6 +18,23 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+// Automatic cold-domain warmup. Cap ramps weekly, anchored to the first send
+// date, and never exceeds the configured ceiling (daily_send_cap, default 40).
+// Keep in sync with warmupCap() in src/lib/profintel.ts.
+const WARMUP_STEPS = [15, 22, 30, 38]; // weeks 1..4; week 5+ = ceiling
+function daysSince(startYmd: string | null, todayYmd: string): number {
+  if (!startYmd) return 0;
+  const a = Date.parse(`${startYmd}T00:00:00Z`);
+  const b = Date.parse(`${todayYmd}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.max(0, Math.floor((b - a) / 86_400_000));
+}
+function warmupCap(days: number, ceiling: number): number {
+  const wk = Math.floor(days / 7);
+  const base = wk < WARMUP_STEPS.length ? WARMUP_STEPS[wk] : ceiling;
+  return Math.min(base, ceiling);
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
 }
@@ -44,7 +61,9 @@ Deno.serve(async (req) => {
 
   const today = new Date().toISOString().slice(0, 10);
   let sentToday = settings.sent_today_date === today ? settings.sent_today ?? 0 : 0;
-  const cap = settings.daily_send_cap ?? 40;
+  // Effective cap = automatic warmup ramp, clamped to the configured ceiling.
+  const ceiling = settings.daily_send_cap ?? 40;
+  const cap = warmupCap(daysSince(settings.warmup_start_date ?? null, today), ceiling);
   const remaining = Math.max(0, cap - sentToday);
   if (remaining === 0) {
     await admin.from("profintel_settings").update({ last_run_at: new Date().toISOString() }).eq("id", 1);
@@ -108,6 +127,9 @@ Deno.serve(async (req) => {
     }
   }
 
-  await admin.from("profintel_settings").update({ last_run_at: new Date().toISOString(), sent_today: sentToday, sent_today_date: today }).eq("id", 1);
+  const settingsPatch: Record<string, unknown> = { last_run_at: new Date().toISOString(), sent_today: sentToday, sent_today_date: today };
+  // Anchor the warmup ramp to the first day a real email actually goes out.
+  if (sent > 0 && !settings.warmup_start_date) settingsPatch.warmup_start_date = today;
+  await admin.from("profintel_settings").update(settingsPatch).eq("id", 1);
   return new Response(JSON.stringify({ ok: true, sent, failed, sentToday, cap }), { headers: { "Content-Type": "application/json" } });
 });

@@ -13,10 +13,12 @@ import { toast } from "sonner";
 import { BarChart3, Loader2, Mail, Power } from "lucide-react";
 
 import {
+  effectiveDailyCap,
   getProfintelSettings,
   listSends,
   markReplied,
   updateProfintelSettings,
+  warmupStatus,
   type ProfIntelSend,
 } from "@/lib/profintel";
 import { Badge } from "@/components/ui/badge";
@@ -167,8 +169,9 @@ function ProfIntelMetrics() {
             Sending: {settings.sending_enabled ? "ON" : "OFF"}
           </Button>
           <span className="text-muted-foreground">
-            Daily cap <span className="font-medium text-foreground">{settings.daily_send_cap}</span>{" "}
-            · sent today{" "}
+            Today's cap{" "}
+            <span className="font-medium text-foreground">{effectiveDailyCap(settings)}</span>
+            <span className="text-muted-foreground/80"> ({warmupStatus(settings)})</span> · sent today{" "}
             <span className="font-medium text-foreground">{settings.sent_today ?? 0}</span>
             {settings.last_run_at && ` · worker last ran ${fmtWhen(settings.last_run_at)}`}
           </span>
