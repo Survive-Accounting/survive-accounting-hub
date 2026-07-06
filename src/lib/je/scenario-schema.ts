@@ -173,6 +173,8 @@ export const scenarioDocV2Schema = z
     ui: z
       .object({ panels: z.array(z.enum([...PANEL_KEYS] as [PanelKey, ...PanelKey[]])).optional() })
       .optional(),
+    group: z.string().optional(),
+    videoUrl: z.string().optional(),
   })
   .superRefine((doc, ctx) => {
     // axis keys unique; every variant/computationPath condition key must name a declared axis

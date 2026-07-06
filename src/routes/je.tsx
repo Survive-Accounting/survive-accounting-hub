@@ -10,7 +10,7 @@
 // contextual "why/how" panels, and flag-gated placeholders (sequence sidebar, practice
 // exam questions, memorization grid, and a disabled "reveal numbers" seam). Amounts stay
 // ??? in Phase 1 — the pedagogy lives in the structure.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Loader2, Lock, PencilLine, SlidersHorizontal } from "lucide-react";
@@ -60,6 +60,7 @@ import {
   type PopoverState,
 } from "@/components/je/explore";
 import { BuildMode } from "@/components/je/build-mode";
+import { Hub, MemorizeDeck, PracticeMix } from "@/components/je/hub";
 
 // Accounts that make an entry a "periodic interest payment" (schedule-driven → row-click drives it).
 const PAYMENT_ACCTS = new Set([
@@ -204,7 +205,8 @@ function JePrototype() {
   // Reset all derived UI state when the active scenario changes (first load included).
   useEffect(() => {
     if (!activeScenario) return;
-    setConditions(defaultConditions(activeScenario.doc));
+    setConditions(pendingConditions.current ?? defaultConditions(activeScenario.doc));
+    pendingConditions.current = null;
     setRevealed(new Set());
     setActiveLineKey(null);
     setHighlightAccount(null);
@@ -353,6 +355,30 @@ function JePrototype() {
   const isSequence = !!(doc?.isSequence || doc?.sequenceGroup);
   const hasMemGrid = !!doc?.hasMemorizationGrid;
 
+  // ---- Chapter-hub view: hub (study path) | scenario | deck | practice ----
+  const [view, setView] = useState<"hub" | "scenario" | "deck" | "practice">("hub");
+  useEffect(() => setView("hub"), [activeChapter?.id]);
+  const hubScenarios = useMemo(
+    () => scenarios.map((s) => ({ slug: s.slug, title: s.title, doc: s.doc })),
+    [scenarios],
+  );
+  const pendingConditions = useRef<Record<string, string> | null>(null);
+  const openScenario = (slug: string, m: "explore" | "build") => {
+    setSelectedSlug(slug);
+    setMode(m);
+    setView("scenario");
+  };
+  const showInTool = (slug: string, variantId?: string) => {
+    const target = scenarios.find((s) => s.slug === slug);
+    if (target && variantId) {
+      const v = target.doc.variants.find((x) => x.id === variantId);
+      if (v) pendingConditions.current = { ...defaultConditions(target.doc), ...v.conditions };
+    }
+    setSelectedSlug(slug);
+    setMode("explore");
+    setView("scenario");
+  };
+
   // ---- Loading / error ----
   if (treeQuery.isLoading) {
     return (
@@ -451,12 +477,43 @@ function JePrototype() {
           {isSequence && <SequenceSidebar entries={entries} group={doc?.sequenceGroup} />}
 
           <div className="min-w-0 flex-1">
-            {/* Scenario picker (scoped to the active chapter) */}
+            {/* Hub (study path) / deck / practice / scenario views */}
             {scenarios.length === 0 ? (
               <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
                 No scenarios in {chapterLabel(activeChapter)} yet — this is where you'd author one.
               </p>
+            ) : view === "hub" ? (
+              <Hub
+                courseLabel={activeCourse?.course_name ?? activeCourse?.code ?? "Course"}
+                chapterLabel={chapterLabel(activeChapter)}
+                scenarios={hubScenarios}
+                onOpen={openScenario}
+                onDeck={() => setView("deck")}
+                onPractice={() => setView("practice")}
+              />
+            ) : view === "deck" ? (
+              <MemorizeDeck
+                chapterLabel={chapterLabel(activeChapter)}
+                scenarios={hubScenarios}
+                onBack={() => setView("hub")}
+                onOpenScenario={(slug) => openScenario(slug, "explore")}
+              />
+            ) : view === "practice" ? (
+              <PracticeMix
+                chapterLabel={chapterLabel(activeChapter)}
+                chapterKey={activeChapter?.id ?? "?"}
+                scenarios={hubScenarios}
+                onBack={() => setView("hub")}
+                onShowInTool={showInTool}
+              />
             ) : (
+              <>
+              <button
+                onClick={() => setView("hub")}
+                className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                ← {chapterLabel(activeChapter)} hub
+              </button>
               <div className="mb-4 flex flex-wrap gap-1.5">
                 {scenarios.map((s) => {
                   const active = activeScenario?.slug === s.slug;
@@ -516,7 +573,6 @@ function JePrototype() {
                   </div>
                 )}
               </div>
-            )}
 
             {/* Admin raw editor — textarea → Zod validate → upsert → re-render */}
             {admin && editorOpen && activeScenario && (
@@ -1141,6 +1197,8 @@ function JePrototype() {
                   )}
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
         </div>

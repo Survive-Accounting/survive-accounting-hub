@@ -57,6 +57,10 @@ export interface ScenarioDoc {
   // Per-doc panel-visibility override. When present, `panels` IS the set of visible panels
   // (keys from PANEL_KEYS), overriding the global defaults. Additive — omit for global behavior.
   ui?: { panels?: string[] };
+
+  // Chapter-hub metadata (both optional, additive).
+  group?: string; // study-path grouping within a chapter; defaults to "Scenarios" when absent
+  videoUrl?: string; // when present, the hub shows a "Watch" verb button; nothing rendered when absent
 }
 
 // ---- v2 numbers-layer shapes -------------------------------------------------
