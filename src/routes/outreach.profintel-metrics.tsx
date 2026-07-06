@@ -9,10 +9,18 @@
 import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Loader2, Mail } from "lucide-react";
+import { toast } from "sonner";
+import { BarChart3, Loader2, Mail, Power } from "lucide-react";
 
-import { listSends, type ProfIntelSend } from "@/lib/profintel";
+import {
+  getProfintelSettings,
+  listSends,
+  markReplied,
+  updateProfintelSettings,
+  type ProfIntelSend,
+} from "@/lib/profintel";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/outreach/profintel-metrics")({
   head: () => ({
@@ -66,6 +74,41 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 function ProfIntelMetrics() {
   const sendsQuery = useQuery({ queryKey: ["profintel-all-sends"], queryFn: () => listSends() });
   const sends = useMemo(() => sendsQuery.data ?? [], [sendsQuery.data]);
+  const settingsQuery = useQuery({
+    queryKey: ["profintel-settings"],
+    queryFn: getProfintelSettings,
+  });
+  const settings = settingsQuery.data ?? null;
+
+  async function toggleSending() {
+    if (!settings) return;
+    const next = !settings.sending_enabled;
+    if (
+      next &&
+      !confirm(
+        "Turn ON real email sending? Scheduled ProfIntel emails will start going out to professors at their scheduled times.",
+      )
+    )
+      return;
+    try {
+      await updateProfintelSettings({ sending_enabled: next });
+      toast.success(
+        next ? "Sending ENABLED — the worker will fire due emails." : "Sending paused.",
+      );
+      settingsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update.");
+    }
+  }
+
+  async function toggleReplied(s: ProfIntelSend) {
+    try {
+      await markReplied(s.id, !has(s, "replied_at"));
+      sendsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update.");
+    }
+  }
 
   const m = useMemo(() => {
     const counts = { draft: 0, scheduled: 0, sent: 0, canceled: 0 } as Record<string, number>;
@@ -104,6 +147,36 @@ function ProfIntelMetrics() {
         <BarChart3 className="h-5 w-5" />
         <h1 className="text-xl font-bold tracking-tight">ProfIntel metrics</h1>
       </div>
+
+      {/* Sending control (kill-switch). Present only once 0048 is applied. */}
+      {settings && (
+        <div
+          className={`mb-3 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-xs ${
+            settings.sending_enabled
+              ? "border-emerald-300 bg-emerald-50"
+              : "border-border bg-card/60"
+          }`}
+        >
+          <Button
+            size="sm"
+            variant={settings.sending_enabled ? "default" : "outline"}
+            className="h-7"
+            onClick={toggleSending}
+          >
+            <Power className="mr-1 h-3.5 w-3.5" />
+            Sending: {settings.sending_enabled ? "ON" : "OFF"}
+          </Button>
+          <span className="text-muted-foreground">
+            Daily cap <span className="font-medium text-foreground">{settings.daily_send_cap}</span>{" "}
+            · sent today{" "}
+            <span className="font-medium text-foreground">{settings.sent_today ?? 0}</span>
+            {settings.last_run_at && ` · worker last ran ${fmtWhen(settings.last_run_at)}`}
+          </span>
+          {!settings.sending_enabled && (
+            <span className="text-amber-600">Off — scheduled emails are queued but not sent.</span>
+          )}
+        </div>
+      )}
 
       <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Emails sent" value={String(m.sent)} />
@@ -184,8 +257,20 @@ function ProfIntelMetrics() {
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
                     {fmtWhen(has(s, "opened_at"))}
                   </td>
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {fmtWhen(has(s, "replied_at"))}
+                  <td className="px-3 py-2 tabular-nums">
+                    <button
+                      type="button"
+                      onClick={() => toggleReplied(s)}
+                      className={`hover:underline ${has(s, "replied_at") ? "text-emerald-700" : "text-muted-foreground"}`}
+                      title={has(s, "replied_at") ? "Click to unmark reply" : "Mark as replied"}
+                      disabled={s.status !== "sent"}
+                    >
+                      {has(s, "replied_at")
+                        ? fmtWhen(has(s, "replied_at"))
+                        : s.status === "sent"
+                          ? "mark"
+                          : "—"}
+                    </button>
                   </td>
                 </tr>
               ))}

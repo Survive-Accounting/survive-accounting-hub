@@ -754,6 +754,41 @@ export async function listSends(opts?: { campusId?: string }): Promise<ProfIntel
   return (data ?? []) as ProfIntelSend[];
 }
 
+export interface ProfIntelSettings {
+  sending_enabled: boolean;
+  daily_send_cap: number;
+  sent_today: number;
+  sent_today_date: string | null;
+  last_run_at: string | null;
+}
+
+/** Global send settings (kill-switch + cap). Null if 0048 isn't applied yet. */
+export async function getProfintelSettings(): Promise<ProfIntelSettings | null> {
+  const { data, error } = await (supabase.from("profintel_settings" as never) as any)
+    .select("sending_enabled, daily_send_cap, sent_today, sent_today_date, last_run_at")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) return null;
+  return (data ?? null) as ProfIntelSettings | null;
+}
+
+export async function updateProfintelSettings(
+  patch: Partial<Pick<ProfIntelSettings, "sending_enabled" | "daily_send_cap">>,
+): Promise<void> {
+  const { error } = await (supabase.from("profintel_settings" as never) as any)
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) throw new Error(error.message);
+}
+
+/** Manual reply marker (fallback until inbound-reply capture is configured). */
+export async function markReplied(id: string, replied: boolean): Promise<void> {
+  const { error } = await (supabase.from("profintel_sends" as never) as any)
+    .update({ replied_at: replied ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function updateSend(
   id: string,
   patch: Partial<
