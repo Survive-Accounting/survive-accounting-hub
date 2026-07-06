@@ -1,0 +1,44 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 22, "name": "Statement of Cash Flows" },
+  "doc": {
+    "slug": "scf-operating-direct",
+    "title": "Operating activities — direct method",
+    "event": "Lund Co.: sales $500,000 (accounts receivable rose $15,000); cost of goods sold $300,000 (inventory fell $8,000, accounts payable rose $12,000); operating expenses excluding depreciation $25,000 (prepaid expenses rose $2,000). Compute each operating cash flow directly.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "direct",
+        "label": "Convert each income-statement line to its cash twin",
+        "conditions": {},
+        "entries": [],
+        "computationPaths": [
+          { "id": "convert",
+            "narration": "The direct method converts line by line: each accrual number ± the change in its related balance-sheet account = the cash version. Same 185,000 destination as the indirect method — different road.",
+            "steps": [
+              { "label": "Cash from customers", "formulaText": "sales 500,000 − AR increase 15,000 = 485,000" },
+              { "label": "Purchases", "formulaText": "COGS 300,000 − inventory decrease 8,000 = 292,000" },
+              { "label": "Cash paid to suppliers", "formulaText": "purchases 292,000 − AP increase 12,000 = 280,000" },
+              { "label": "Cash paid for operating expenses", "formulaText": "25,000 + prepaid increase 2,000 = 27,000" },
+              { "label": "Depreciation", "formulaText": "IGNORED — no cash line exists for it" },
+              { "label": "Net cash from operating", "formulaText": "485,000 − 280,000 − 27,000 = 178,000" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Direct conversions: customers = sales − ΔAR↑ · suppliers = COGS + ΔInv↑ − ΔAP↑ (two steps: to purchases, then to cash) · expenses = accrual amount + ΔPrepaid↑ − ΔAccrued liab↑. Depreciation gets no line at all.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Suppliers is the two-hop conversion everyone fumbles: COGS → purchases (inventory change) → cash paid (payables change). One hop at a time.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-direct",
+        "prompt": "Sales 500,000; accounts receivable increased 15,000. Cash received from customers =",
+        "answerExpr": "485000",
+        "distractors": [
+          { "expr": "515000", "misconceptionId": "premium_discount_direction_flip", "feedback": "A RISING receivable means some sales weren't collected yet — cash runs BELOW sales: 500,000 − 15,000 = 485,000." },
+          { "expr": "500000", "misconceptionId": "cash_vs_expense", "feedback": "500,000 is accrual-basis sales. The direct method wants the cash twin, and the 15,000 AR increase is still out there uncollected." }
+        ] }
+    ]
+  }
+}

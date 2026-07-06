@@ -1,0 +1,83 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 19,
+    "name": "Pensions"
+  },
+  "doc": {
+    "slug": "pension-corridor-amortization",
+    "title": "Corridor Amortization of Net Gain/Loss",
+    "event": "At January 1, Brant Co. reports: projected benefit obligation $2,100,000, market-related value of plan assets $1,900,000, and accumulated OCI net loss $260,000. Average remaining service life of active employees is 10 years. Compute the minimum amortization of the net loss included in pension expense under the corridor approach.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "computationPaths": [
+          {
+            "narration": "The corridor is 10% of the LARGER of beginning PBO or market-related asset value. Only the loss sticking out past the corridor gets amortized — spread over average remaining service life.",
+            "steps": [
+              {
+                "label": "Corridor",
+                "formulaText": "10% × max(2,100,000, 1,900,000)",
+                "value": 210000
+              },
+              {
+                "label": "Excess loss outside corridor",
+                "formulaText": "260,000 − 210,000",
+                "value": 50000
+              },
+              {
+                "label": "Minimum amortization",
+                "formulaText": "50,000 ÷ 10 years",
+                "value": 5000
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Corridor = 10% × larger of beginning PBO or market-related value of plan assets"
+      },
+      {
+        "kind": "tip",
+        "body": "Use BEGINNING-of-year balances for both the corridor and the accumulated gain/loss test."
+      },
+      {
+        "kind": "watchout",
+        "body": "Inside the corridor, NOTHING is amortized — a net loss can sit in AOCI indefinitely if it never breaches 10%."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "PBO $2,100,000 · MRV of assets $1,900,000 · AOCI net loss $260,000 · service life 10 years. Minimum amortization = ?",
+        "answerExpr": "5000",
+        "distractors": [
+          {
+            "expr": "26000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "You amortized the whole 260,000. Only the excess OVER the corridor (260,000 − 210,000 = 50,000) is amortized."
+          },
+          {
+            "expr": "21000",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "You amortized the corridor itself (210,000 ÷ 10). The corridor is the shield, not the amount amortized."
+          },
+          {
+            "expr": "50000",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "You found the right excess but skipped the last step — divide by the 10-year average remaining service life."
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

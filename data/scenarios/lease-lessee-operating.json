@@ -1,0 +1,129 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-lessee-operating",
+    "title": "Lessee Operating Lease",
+    "event": "Kerr Co. leases office space for 3 years at $30,000 per year, payable at each year-end. Kerr's 6% incremental borrowing rate applies, and the present value of the payments is $80,190. The lease is classified as operating. Prepare Kerr's entry at commencement and the combined entry for the first year-end payment.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Commencement — same setup as a finance lease",
+            "lines": [
+              {
+                "account": "Right-of-Use Asset",
+                "side": "debit",
+                "amount": 80190,
+                "why": "Operating leases STILL go on the balance sheet — ROU and liability at PV.",
+                "trap": "The old 'operating = off balance sheet' rule is dead. Classification changes the income statement, not the balance sheet."
+              },
+              {
+                "account": "Lease Liability",
+                "side": "credit",
+                "amount": 80190,
+                "why": "PV of three $30,000 payments at 6%."
+              }
+            ]
+          },
+          {
+            "label": "Year-end payment — one straight-line expense (interest of $4,811 is embedded)",
+            "lines": [
+              {
+                "account": "Lease Expense",
+                "side": "debit",
+                "amount": 30000,
+                "why": "Operating lessee reports ONE straight-line lease expense — no separate interest line."
+              },
+              {
+                "account": "Lease Liability",
+                "side": "debit",
+                "amount": 25189,
+                "why": "Liability drops by payment minus embedded interest: 30,000 − (6% × 80,190) = 30,000 − 4,811.",
+                "trap": "Reducing the liability by the full 30,000 ignores the interest accretion."
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 30000,
+                "why": "The annual payment."
+              },
+              {
+                "account": "Right-of-Use Asset",
+                "side": "credit",
+                "amount": 25189,
+                "why": "ROU amortization is the PLUG: lease expense 30,000 − interest 4,811 = 25,189."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "tip",
+        "body": "Operating lessee: same balance sheet as finance (ROU + liability), but the income statement shows ONE straight-line lease expense."
+      },
+      {
+        "kind": "watchout",
+        "body": "ROU amortization in an operating lease is a plug — lease expense minus interest accretion. It changes every year even though total expense is flat."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "In year 1, how much INTEREST EXPENSE does Kerr report separately on its income statement?",
+        "answerExpr": "0",
+        "distractors": [
+          {
+            "expr": "4811",
+            "misconceptionId": "stated_rate_on_cv",
+            "feedback": "The 4,811 of interest is embedded inside the single lease expense line — operating lessees never show it separately."
+          },
+          {
+            "expr": "30000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "30,000 is total lease expense (which happens to equal cash here) — but the question asked for a separate INTEREST line, and there isn't one."
+          }
+        ]
+      },
+      {
+        "prompt": "By how much does Kerr's lease liability decrease in year 1?",
+        "answerExpr": "25189",
+        "distractors": [
+          {
+            "expr": "30000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "Part of the payment covers the 6% interest accretion (4,811). Only the remainder reduces the liability."
+          },
+          {
+            "expr": "4811",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "You flipped it — 4,811 is the interest piece; the liability falls by the OTHER piece, 25,189."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Right-of-Use Asset",
+        "Lease Liability",
+        "Lease Expense",
+        "Cash",
+        "Interest Expense",
+        "Amortization Expense"
+      ],
+      "scaffold": "Commencement mirrors a finance lease. The year-end entry has FOUR lines and no Interest Expense account — the ROU credit is the plug."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

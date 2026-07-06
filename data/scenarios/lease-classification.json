@@ -1,0 +1,78 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-classification",
+    "title": "Lease Classification — The Five Tests",
+    "event": "Tatum Co. signs an equipment lease: no ownership transfer, no purchase option, a 6-year term on equipment with a 10-year economic life, PV of lease payments of $442,000 on equipment with a $480,000 fair value, and the asset is not specialized. Classify the lease, supporting your answer with the two quantitative tests.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "computationPaths": [
+          {
+            "narration": "Finance classification requires meeting ANY ONE of five criteria. Ownership, purchase option, and specialized asset all fail here — so it comes down to the two ratio tests.",
+            "steps": [
+              {
+                "label": "Economic-life test (≥75%)",
+                "formulaText": "6 ÷ 10 = 60% → fails",
+                "value": 60
+              },
+              {
+                "label": "Fair-value test (≥90%)",
+                "formulaText": "442,000 ÷ 480,000 = 92.1% → met",
+                "value": 92
+              },
+              {
+                "label": "Classification",
+                "formulaText": "One criterion met → FINANCE lease",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "mnemonic",
+        "body": "OWNES — finance if ANY one hits: Ownership transfers · Written purchase option (reasonably certain) · Ninety percent of fair value (PV test) · Economic life 75% (term test) · Specialized asset."
+      },
+      {
+        "kind": "tip",
+        "body": "Meet ONE criterion → finance lease. Meet NONE → operating. There is no scoring — it's a single tripwire."
+      },
+      {
+        "kind": "watchout",
+        "body": "Don't swap the thresholds: 75% goes with LIFE, 90% goes with VALUE."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Equipment fair value $480,000. What is the minimum PV of lease payments that triggers finance classification under the fair-value test?",
+        "answerExpr": "432000",
+        "distractors": [
+          {
+            "expr": "360000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "You used 75% — that threshold belongs to the economic-LIFE test. The fair-value test uses 90%: 0.90 × 480,000 = 432,000."
+          },
+          {
+            "expr": "442000",
+            "misconceptionId": "stated_rate_on_cv",
+            "feedback": "That's the actual PV in this problem. The question asked for the 90% THRESHOLD: 432,000."
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "isSequence": false
+  }
+}

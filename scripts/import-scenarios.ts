@@ -16,7 +16,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
-import { scenarioFileSchema } from "../src/lib/je/scenario-schema";
+import { normalizeScenarioDoc, scenarioFileSchema } from "../src/lib/je/scenario-schema";
 
 const SCENARIOS_DIR = resolve(import.meta.dir, "../data/scenarios");
 
@@ -100,6 +100,10 @@ async function importOne(
     throw new Error(`invalid JSON: ${e instanceof Error ? e.message : e}`);
   }
 
+  // Tolerate the looser authoring shape (missing ids, string account banks) before validating.
+  if (json && typeof json === "object" && (json as any).doc) {
+    (json as any).doc = normalizeScenarioDoc((json as any).doc);
+  }
   const parsed = scenarioFileSchema.safeParse(json);
   if (!parsed.success) {
     const issues = parsed.error.issues

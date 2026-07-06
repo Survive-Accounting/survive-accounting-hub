@@ -1,0 +1,59 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 21, "name": "Accounting Changes" },
+  "doc": {
+    "slug": "error-counterbalancing",
+    "title": "Counterbalancing error — inventory misstatement",
+    "event": "Hoyt Co. discovers, during year 2, that last year's ENDING inventory was overstated by $25,000 (periodic system; year 2 not yet closed). Analyze the effect on each year and prepare the correcting entry.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "counter",
+        "label": "Two-year seesaw — then it self-corrects",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "correct",
+            "caption": "Correcting entry, discovered in year 2 (books open)",
+            "lines": [
+              { "id": "re", "account": "Retained Earnings", "side": "debit", "label": "year 1's overstated income", "amount": 25000,
+                "why": "Year 1's overstated ending inventory understated COGS → overstated income → that error now sits in beginning RE. Prior-period adjustment pulls it out.",
+                "trap": "Errors are neither principle nor estimate — always a restatement via RE, never through current income." },
+              { "id": "cogs", "account": "Cost of Goods Sold", "side": "credit", "label": "year 2's inflated COGS", "amount": 25000,
+                "why": "The same overstated figure rolled in as year 2's BEGINNING inventory, inflating this year's COGS by 25,000 — the credit fixes the current year before it closes.",
+                "trap": "Both sides need fixing when caught mid-seesaw: RE for last year, COGS for this year. Fixing only one leaves half the error alive." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          { "id": "seesaw", "narration": "The counterbalancing pattern: ending inventory overstated → year-1 income OVER by 25,000 → same figure becomes year-2 beginning inventory → year-2 income UNDER by 25,000 → retained earnings is correct again after two full years. Discovered AFTER year 2 closes: no entry needed (RE already right) — restate the comparatives only.",
+            "steps": [
+              { "label": "Year 1 income", "formulaText": "overstated 25,000 (COGS too low)" },
+              { "label": "Year 2 income", "formulaText": "understated 25,000 (beginning inventory too high)" },
+              { "label": "RE after year 2", "formulaText": "correct — the error counterbalanced" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Inventory-error compass: ending inventory OVER → income OVER (that year) and UNDER (next year). Counterbalancing errors self-correct in RE after two years; the correcting entry depends entirely on WHEN you catch it.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Same seesaw family: accrued expenses/revenues omitted at year-end, prepaids expensed early. All counterbalance in two years. The exam's question is always 'when was it found?'", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-counter",
+        "prompt": "Year-1 ending inventory was overstated by 25,000; the error is discovered AFTER year 2 has closed. The correcting journal entry is…",
+        "answerExpr": "0",
+        "distractors": [
+          { "expr": "25000", "misconceptionId": "prior_period_expense", "feedback": "After two full years a counterbalancing error has already washed out of RE — no entry exists to make. Restate the prior-year statements presented; the books themselves are fine." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Retained Earnings" }, { "account": "Cost of Goods Sold" },
+        { "account": "Inventory", "decoy": true }, { "account": "Sales Revenue", "decoy": true }
+      ],
+      "scaffold": "Trace the seesaw first (which years, which direction), then ask when it was caught: mid-seesaw → fix RE and the current-year account; after it closed → no entry, restate only."
+    }
+  }
+}

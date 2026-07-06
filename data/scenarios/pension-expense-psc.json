@@ -1,0 +1,101 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 19,
+    "name": "Pensions"
+  },
+  "doc": {
+    "slug": "pension-expense-psc",
+    "title": "Pension Expense with PSC Amortization",
+    "event": "Marlow Inc.'s defined benefit plan reports for the year: service cost $60,000, interest on the PBO $39,000, expected return on plan assets $24,000, and amortization of prior service cost $12,000. Marlow contributed $70,000 to the plan. Prepare the year-end entry to record pension expense, the OCI reclassification, and funding.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Expense $87,000 (60,000 + 39,000 − 24,000 + 12,000)",
+            "lines": [
+              {
+                "account": "Pension Expense",
+                "side": "debit",
+                "amount": 87000,
+                "why": "All four components: 60,000 + 39,000 − 24,000 + 12,000 = 87,000.",
+                "trap": "PSC amortization ADDS to expense — it's deferred cost finally flowing through income."
+              },
+              {
+                "account": "OCI—Prior Service Cost",
+                "side": "credit",
+                "amount": 12000,
+                "why": "Amortization pulls PSC OUT of accumulated OCI and into expense — so OCI—PSC is credited (reduced).",
+                "trap": "Students want to debit this. The debit happened at the amendment; amortization reverses it piece by piece."
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 70000,
+                "why": "The contribution to the trustee."
+              },
+              {
+                "account": "Pension Asset/Liability",
+                "side": "credit",
+                "amount": 5000,
+                "why": "Plug: 87,000 − 12,000 − 70,000 = 5,000 growth in the net liability."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "tip",
+        "body": "Amortizing PSC = credit OCI—Prior Service Cost, debit (inside) Pension Expense. The AOCI balance drains as expense picks it up."
+      },
+      {
+        "kind": "mnemonic",
+        "body": "S-I-R-P-G order for expense: Service, Interest, Return (minus), PSC amort, Gain/loss amort."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "SC $60,000 · IC $39,000 · expected return $24,000 · PSC amortization $12,000. Pension expense = ?",
+        "answerExpr": "87000",
+        "distractors": [
+          {
+            "expr": "75000",
+            "misconceptionId": "prior_period_expense",
+            "feedback": "You dropped the PSC amortization. Prior service cost granted earlier flows into THIS period's expense: 75,000 + 12,000 = 87,000."
+          },
+          {
+            "expr": "135000",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "You added the expected return instead of subtracting it. Plan earnings reduce expense."
+          },
+          {
+            "expr": "70000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "That's the cash contribution. Expense is built from the actuarial components, not the check written."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Pension Expense",
+        "OCI—Prior Service Cost",
+        "Cash",
+        "Pension Asset/Liability",
+        "OCI—Gain/Loss",
+        "Amortization Expense"
+      ],
+      "scaffold": "Four credits max: OCI—PSC for the amortization, Cash for the contribution, Pension Asset/Liability for the plug."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

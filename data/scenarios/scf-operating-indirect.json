@@ -1,0 +1,46 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 22, "name": "Statement of Cash Flows" },
+  "doc": {
+    "slug": "scf-operating-indirect",
+    "title": "Operating activities — indirect method",
+    "event": "Kell Co.: net income $150,000; depreciation expense $40,000; gain on sale of equipment $10,000. During the year, accounts receivable rose $15,000, inventory fell $8,000, and accounts payable rose $12,000. Compute net cash provided by operating activities (indirect method).",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "indirect",
+        "label": "Start at net income, undo the accruals",
+        "conditions": {},
+        "entries": [],
+        "computationPaths": [
+          { "id": "recon",
+            "narration": "The indirect method is un-accrual-ing: start with net income, add back expenses that used no cash, remove gains that belong to investing, then adjust for every working-capital swing. Asset UP = cash DOWN (subtract); liability UP = cash UP (add).",
+            "steps": [
+              { "label": "Net income", "formulaText": "150,000" },
+              { "label": "+ Depreciation (noncash)", "formulaText": "+ 40,000" },
+              { "label": "− Gain on equipment sale (belongs to investing)", "formulaText": "− 10,000" },
+              { "label": "− AR increase (sales not yet collected)", "formulaText": "− 15,000" },
+              { "label": "+ Inventory decrease (sold without buying)", "formulaText": "+ 8,000" },
+              { "label": "+ AP increase (expenses not yet paid)", "formulaText": "+ 12,000" },
+              { "label": "Net cash from operating", "formulaText": "= 185,000" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Indirect: NI + noncash expenses (depreciation, amortization) − gains + losses (they move to investing) − ΔCurrent assets + ΔCurrent liabilities. Asset up → subtract; liability up → add.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Why add depreciation? It never left the building — it reduced income without touching cash. You're not adding cash; you're undoing a non-cash subtraction.", "traceRefs": [] },
+      { "kind": "watchout", "body": "The GAIN isn't removed because it's fake — it's removed because the WHOLE sale proceeds report in investing; leaving the gain in operating would double-count it.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-indirect",
+        "prompt": "NI 150,000; depreciation 40,000; gain on sale 10,000; AR +15,000; inventory −8,000; AP +12,000. Net cash from operating =",
+        "answerExpr": "185000",
+        "distractors": [
+          { "expr": "205000", "misconceptionId": "premium_discount_direction_flip", "feedback": "205,000 flips two signs: the gain SUBTRACTS (its cash lives in investing) and the AR increase SUBTRACTS (those sales weren't collected). 150 + 40 − 10 − 15 + 8 + 12 = 185,000." },
+          { "expr": "145000", "misconceptionId": "cash_vs_expense", "feedback": "145,000 subtracts depreciation — but depreciation never used cash; it ADDS back. That add-back is the entire soul of the indirect method." }
+        ] }
+    ]
+  }
+}

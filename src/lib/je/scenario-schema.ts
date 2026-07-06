@@ -226,6 +226,45 @@ export const scenarioFileSchema = z.object({
 
 export type ScenarioFile = z.infer<typeof scenarioFileSchema>;
 
+/**
+ * Normalize a raw doc to the canonical shape BEFORE validation, tolerating a looser
+ * authoring style some batches use: (1) fill missing stable `id`s on variants/entries/
+ * lines/computationPaths/questions from their array index, and (2) coerce
+ * build.accountBank entries authored as bare strings into `{ account }` objects.
+ * Idempotent — existing ids/objects are preserved, so it is safe for every doc.
+ */
+export function normalizeScenarioDoc(doc: any): any {
+  if (!doc || typeof doc !== "object") return doc;
+  const d = { ...doc };
+
+  if (Array.isArray(d.variants)) {
+    d.variants = d.variants.map((v: any, vi: number) => {
+      const nv = { ...v, id: v?.id ?? `v${vi + 1}` };
+      if (Array.isArray(v?.entries)) {
+        nv.entries = v.entries.map((e: any, ei: number) => ({
+          ...e,
+          id: e?.id ?? `e${ei + 1}`,
+          lines: Array.isArray(e?.lines) ? e.lines.map((l: any, li: number) => ({ ...l, id: l?.id ?? `l${li + 1}` })) : e?.lines,
+        }));
+      }
+      if (Array.isArray(v?.computationPaths)) {
+        nv.computationPaths = v.computationPaths.map((p: any, pi: number) => ({ ...p, id: p?.id ?? `p${pi + 1}` }));
+      }
+      return nv;
+    });
+  }
+  if (Array.isArray(d.questions)) {
+    d.questions = d.questions.map((q: any, qi: number) => ({ ...q, id: q?.id ?? `q${qi + 1}` }));
+  }
+  if (d.build && Array.isArray(d.build.accountBank)) {
+    d.build = {
+      ...d.build,
+      accountBank: d.build.accountBank.map((a: any) => (typeof a === "string" ? { account: a } : a)),
+    };
+  }
+  return d;
+}
+
 // ---- compile-time drift guard: everything the schema accepts must BE a ScenarioDoc.
 // (If je-engine.ts's type and this schema diverge, this line stops the build.)
 type _SchemaOutput = z.infer<typeof scenarioDocV2Schema>;

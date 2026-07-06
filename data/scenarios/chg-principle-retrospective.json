@@ -1,0 +1,54 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 21, "name": "Accounting Changes" },
+  "doc": {
+    "slug": "chg-principle-retrospective",
+    "title": "Change in accounting principle — retrospective",
+    "event": "Fyn Co. switches from average-cost to FIFO. Under FIFO, cumulative pre-tax income through the beginning of this year would have been $40,000 higher (tax rate 20%). Prepare the entry to adopt the change.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "retro",
+        "label": "Restate the past; RE catches the cumulative effect",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "adopt",
+            "caption": "Beginning-of-year adoption entry",
+            "lines": [
+              { "id": "inv", "account": "Inventory", "side": "debit", "label": "restated to FIFO", "amount": 40000,
+                "why": "Beginning inventory restates to what FIFO would have made it — the balance-sheet side of every prior year's difference, accumulated.",
+                "trap": "A change in PRINCIPLE is retrospective: prior statements presented are restated as if FIFO had always been used." },
+              { "id": "re", "account": "Retained Earnings", "side": "credit", "label": "cumulative effect, net of tax", "amount": 32000,
+                "why": "All that extra prior income lives in beginning RE now — 40,000 × (1 − 20%).",
+                "trap": "Never through current income. The 'cumulative effect on the income statement' treatment died decades ago; exams still bait with it." },
+              { "id": "dtl", "account": "Deferred Tax Liability", "side": "credit", "label": "the tax on it", "amount": 8000,
+                "why": "Higher book inventory than tax basis → a temporary difference: 40,000 × 20%.",
+                "trap": "The cumulative effect is always net-of-tax; forgetting the deferred piece leaves the entry unbalanced or RE overstated." }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Change in PRINCIPLE → retrospective: restate priors, adjust beginning RE for the cumulative effect net of tax, adjust the affected asset/liability, disclose.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Exception: a change TO LIFO (or any change where prior effects are impracticable to compute) is applied prospectively — no restatement, disclosure only.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-retro",
+        "prompt": "Adopting FIFO raises cumulative prior pre-tax income by 40,000 (tax 20%). Beginning Retained Earnings is adjusted by…",
+        "answerExpr": "32000",
+        "distractors": [
+          { "expr": "40000", "misconceptionId": "cash_vs_expense", "feedback": "40,000 is pre-tax. The cumulative-effect adjustment to RE is always NET of tax: 40,000 × 80% = 32,000, with the 8,000 to a deferred tax liability." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Inventory" }, { "account": "Retained Earnings" }, { "account": "Deferred Tax Liability" },
+        { "account": "Cumulative Effect of Accounting Change", "decoy": true }, { "account": "Cost of Goods Sold", "decoy": true }
+      ],
+      "scaffold": "Three lines: the asset restates, RE takes the after-tax cumulative effect, deferred tax takes the rest. The income-statement 'cumulative effect' account is a museum piece — pure bait."
+    }
+  }
+}

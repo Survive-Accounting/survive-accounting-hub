@@ -1,0 +1,82 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-short-term",
+    "title": "Short-Term Lease Election",
+    "event": "Pryor Co. signs a 9-month lease on storage space at $2,000 per month and elects the short-term lease exception. Prepare Pryor's monthly entry.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Nothing capitalized — straight expense",
+            "lines": [
+              {
+                "account": "Lease Expense",
+                "side": "debit",
+                "amount": 2000,
+                "why": "Short-term election: expense the payments straight-line, period.",
+                "trap": "No ROU asset, no lease liability — that's the entire point of the election."
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 2000,
+                "why": "The monthly payment."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "tip",
+        "body": "Short-term election: lease term ≤ 12 months AND no purchase option the lessee is reasonably certain to exercise."
+      },
+      {
+        "kind": "watchout",
+        "body": "It's an ELECTION, not a requirement — and it evaporates if the term stretches past 12 months."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Under the short-term election, what lease liability does Pryor record at commencement?",
+        "answerExpr": "0",
+        "distractors": [
+          {
+            "expr": "18000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "You capitalized the gross payments (9 × 2,000). The short-term election skips the balance sheet entirely — no liability at all."
+          },
+          {
+            "expr": "2000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "2,000 is the monthly expense/payment. The election means NO liability is set up — the answer is zero."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Lease Expense",
+        "Cash",
+        "Right-of-Use Asset",
+        "Lease Liability",
+        "Prepaid Rent"
+      ],
+      "scaffold": "Simplest entry in the chapter — two lines. If you reached for ROU, re-read the election."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

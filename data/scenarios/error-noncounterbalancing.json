@@ -1,0 +1,62 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 21, "name": "Accounting Changes" },
+  "doc": {
+    "slug": "error-noncounterbalancing",
+    "title": "Noncounterbalancing error — expensed instead of capitalized",
+    "event": "At the start of year 3, Ives Co. discovers that a $50,000 machine bought two years ago (10-year life, straight-line, no salvage) was EXPENSED in full at purchase instead of capitalized. Ignore taxes. Prepare the correcting entry.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "noncounter",
+        "label": "This one never fixes itself",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "correct",
+            "caption": "Correcting entry at the start of year 3",
+            "lines": [
+              { "id": "eq", "account": "Equipment", "side": "debit", "label": "the asset finally exists", "amount": 50000,
+                "why": "The machine belongs on the balance sheet at cost — putting it there is step one.",
+                "trap": "Noncounterbalancing means the seesaw never swings back — without correction, the books stay wrong for the asset's whole life." },
+              { "id": "ad", "account": "Accumulated Depreciation", "side": "credit", "label": "2 years of catch-up", "amount": 10000,
+                "why": "Had it been capitalized, years 1–2 would each have taken 5,000 of depreciation — the accumulated account catches up to 10,000.",
+                "trap": "The correction rebuilds the world AS IF the error never happened — asset AND its accumulated depreciation, both." },
+              { "id": "re", "account": "Retained Earnings", "side": "credit", "label": "net prior-years effect", "amount": 40000,
+                "why": "Prior income was UNDER by 50,000 (the wrong expense) and OVER by 10,000 (the missing depreciation) — net understated 40,000, restored through beginning RE.",
+                "trap": "The RE figure is always the NET of every prior-year effect — expense error one way, missing depreciation the other. Netting wrong is where the points die." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          { "id": "rebuild", "narration": "Reconstruct the counterfactual: what SHOULD each account show today if the purchase had been capitalized on day one?",
+            "steps": [
+              { "label": "Equipment should show", "formulaText": "50,000" },
+              { "label": "Accum. depreciation should show", "formulaText": "2 × 5,000 = 10,000" },
+              { "label": "Prior income misstatement", "formulaText": "−50,000 (expense) + 10,000 (missed depr.) = net −40,000 → credit RE" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Noncounterbalancing correction: rebuild every affected balance-sheet account to what it SHOULD be today; the net of all prior-year income effects plugs to Retained Earnings.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Don't forget the CURRENT year's depreciation (5,000) as a separate, ordinary entry once the asset exists — the correction fixes the past; the current year still has to happen.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-noncounter",
+        "prompt": "A 50,000 machine (10-yr SL) was expensed 2 years ago. In the start-of-year-3 correcting entry, Retained Earnings is credited for…",
+        "answerExpr": "40000",
+        "distractors": [
+          { "expr": "50000", "misconceptionId": "accrual_fraction_missed", "feedback": "50,000 restores the expense error but ignores the 10,000 of depreciation those two years SHOULD have taken. Net prior understatement: 50,000 − 10,000 = 40,000." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Equipment" }, { "account": "Accumulated Depreciation" }, { "account": "Retained Earnings" },
+        { "account": "Depreciation Expense", "decoy": true }, { "account": "Repair Expense", "decoy": true }
+      ],
+      "scaffold": "Build the counterfactual balance sheet: asset at cost, accumulated depreciation caught up, RE takes the net. Current-year depreciation is its own ordinary entry afterward — the decoy expense accounts don't belong in the correction."
+    }
+  }
+}

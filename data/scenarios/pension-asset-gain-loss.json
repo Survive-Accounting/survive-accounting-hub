@@ -1,0 +1,123 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 19,
+    "name": "Pensions"
+  },
+  "doc": {
+    "slug": "pension-asset-gain-loss",
+    "title": "Asset Gain or Loss (Actual vs Expected Return)",
+    "event": "Sutter Co.'s pension plan assets were expected to earn $40,000 this year (8% expected rate on beginning plan assets of $500,000). Actual return differed from expected. Prepare the entry to defer the asset gain or loss to OCI.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [
+      {
+        "key": "actualReturn",
+        "label": "Actual return came in",
+        "options": [
+          {
+            "value": "above",
+            "label": "Above expected (asset gain)"
+          },
+          {
+            "value": "below",
+            "label": "Below expected (asset loss)"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "conditions": {
+          "actualReturn": "above"
+        },
+        "entries": [
+          {
+            "label": "Actual $52,000 vs expected $40,000 → $12,000 gain",
+            "lines": [
+              {
+                "account": "Pension Asset/Liability",
+                "side": "debit",
+                "amount": 12000,
+                "why": "Assets grew 12,000 more than the expense calc assumed — funded status improves.",
+                "trap": "Expense already used the EXPECTED 40,000. Only the surprise (12,000) gets its own entry."
+              },
+              {
+                "account": "OCI—Gain/Loss",
+                "side": "credit",
+                "amount": 12000,
+                "why": "The gain is deferred to OCI — it does NOT touch net income this period."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "conditions": {
+          "actualReturn": "below"
+        },
+        "entries": [
+          {
+            "label": "Actual $31,000 vs expected $40,000 → $9,000 loss",
+            "lines": [
+              {
+                "account": "OCI—Gain/Loss",
+                "side": "debit",
+                "amount": 9000,
+                "why": "Assets underperformed by 9,000 — a loss parked in OCI, awaiting possible corridor amortization."
+              },
+              {
+                "account": "Pension Asset/Liability",
+                "side": "credit",
+                "amount": 9000,
+                "why": "Funded status worsens by the shortfall."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Asset gain/(loss) = Actual return − Expected return"
+      },
+      {
+        "kind": "tip",
+        "body": "Pension expense uses EXPECTED return; the actual-vs-expected difference parks in OCI—Gain/Loss."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Actual return $52,000, expected return $40,000. What asset gain is deferred to OCI?",
+        "answerExpr": "12000",
+        "distractors": [
+          {
+            "expr": "52000",
+            "misconceptionId": "stated_rate_on_cv",
+            "feedback": "That's the whole actual return. The gain is only the piece expense didn't already assume: actual − expected = 12,000."
+          },
+          {
+            "expr": "40000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "That's the expected return — it already reduced pension expense. The OCI entry captures only the surprise."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Pension Asset/Liability",
+        "OCI—Gain/Loss",
+        "Pension Expense",
+        "Investment Income",
+        "Cash"
+      ],
+      "scaffold": "Direction check: did the surprise HELP or HURT funded status? Helped → debit Pension Asset/Liability."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

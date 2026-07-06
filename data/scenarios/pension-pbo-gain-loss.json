@@ -1,0 +1,119 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 19,
+    "name": "Pensions"
+  },
+  "doc": {
+    "slug": "pension-pbo-gain-loss",
+    "title": "Liability Gain or Loss (Actuarial Assumptions)",
+    "event": "At year-end, Hollis Co.'s actuary revises key assumptions (discount rate, mortality), changing the projected benefit obligation by $25,000. Prepare the entry to record the liability gain or loss.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [
+      {
+        "key": "pboChange",
+        "label": "The PBO",
+        "options": [
+          {
+            "value": "increase",
+            "label": "Increased (liability loss)"
+          },
+          {
+            "value": "decrease",
+            "label": "Decreased (liability gain)"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "conditions": {
+          "pboChange": "increase"
+        },
+        "entries": [
+          {
+            "label": "PBO up $25,000 → loss, even though no cash moved",
+            "lines": [
+              {
+                "account": "OCI—Gain/Loss",
+                "side": "debit",
+                "amount": 25000,
+                "why": "A bigger obligation is a LOSS — the direction that hurts funded status.",
+                "trap": "No cash, no expense — assumption changes go to OCI and wait for the corridor test."
+              },
+              {
+                "account": "Pension Asset/Liability",
+                "side": "credit",
+                "amount": 25000,
+                "why": "The net pension liability grows with the PBO."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "conditions": {
+          "pboChange": "decrease"
+        },
+        "entries": [
+          {
+            "label": "PBO down $25,000 → gain",
+            "lines": [
+              {
+                "account": "Pension Asset/Liability",
+                "side": "debit",
+                "amount": 25000,
+                "why": "A smaller obligation improves the funded position."
+              },
+              {
+                "account": "OCI—Gain/Loss",
+                "side": "credit",
+                "amount": 25000,
+                "why": "The gain defers to OCI — same treatment as asset gains."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "mnemonic",
+        "body": "PBO up = loss. Assets up = gain. Whichever direction HURTS funded status is the loss."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Assumption changes increase the PBO by $25,000. How much hits OCI—Gain/Loss this period?",
+        "answerExpr": "25000",
+        "distractors": [
+          {
+            "expr": "0",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "The change is recognized NOW, in OCI — you don't wait for benefits to be paid."
+          },
+          {
+            "expr": "2500",
+            "misconceptionId": "prior_period_expense",
+            "feedback": "You jumped to amortization. The full 25,000 lands in OCI first; corridor amortization (if any) starts NEXT year."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "OCI—Gain/Loss",
+        "Pension Asset/Liability",
+        "Pension Expense",
+        "Loss on Pension Settlement",
+        "Cash"
+      ],
+      "scaffold": "Two lines. First decide gain or loss (does the change hurt funded status?), then OCI takes the income-side line."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

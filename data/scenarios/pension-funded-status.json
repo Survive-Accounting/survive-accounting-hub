@@ -1,0 +1,113 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 19,
+    "name": "Pensions"
+  },
+  "doc": {
+    "slug": "pension-funded-status",
+    "title": "Funded Status on the Balance Sheet",
+    "event": "At December 31, Ingle Co.'s pension plan reports a projected benefit obligation of $1,200,000. Plan assets at fair value differ from the PBO. Determine the amount and classification Ingle reports on its balance sheet.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [
+      {
+        "key": "fundedStatus",
+        "label": "Plan assets vs PBO",
+        "options": [
+          {
+            "value": "under",
+            "label": "Assets below PBO (underfunded)"
+          },
+          {
+            "value": "over",
+            "label": "Assets above PBO (overfunded)"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "conditions": {
+          "fundedStatus": "under"
+        },
+        "computationPaths": [
+          {
+            "narration": "Plan assets $950,000 vs PBO $1,200,000. The balance sheet shows the NET position only — a single Pension Liability.",
+            "steps": [
+              {
+                "label": "Funded status",
+                "formulaText": "950,000 − 1,200,000",
+                "value": -250000
+              },
+              {
+                "label": "Reported",
+                "formulaText": "Pension Liability (noncurrent)",
+                "value": 250000
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "conditions": {
+          "fundedStatus": "over"
+        },
+        "computationPaths": [
+          {
+            "narration": "Plan assets $1,300,000 vs PBO $1,200,000. Overfunded plans show a single Pension Asset.",
+            "steps": [
+              {
+                "label": "Funded status",
+                "formulaText": "1,300,000 − 1,200,000",
+                "value": 100000
+              },
+              {
+                "label": "Reported",
+                "formulaText": "Pension Asset (noncurrent)",
+                "value": 100000
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Funded status = Plan assets (FV) − PBO. Negative → net pension liability; positive → net pension asset."
+      },
+      {
+        "kind": "tip",
+        "body": "Report the NET number only. PBO and plan assets never appear gross on the balance sheet — the detail lives in the notes."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "PBO $1,200,000, plan assets $950,000. What amount appears on Ingle's balance sheet?",
+        "answerExpr": "250000",
+        "distractors": [
+          {
+            "expr": "1200000",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "You reported the gross PBO. The balance sheet shows the NET of assets against the obligation: 1,200,000 − 950,000 = 250,000 liability."
+          },
+          {
+            "expr": "950000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "That's the gross plan assets. Net the two: 250,000 pension liability."
+          },
+          {
+            "expr": "0",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "Pensions are NOT off-balance-sheet under current GAAP — the funded status must be reported."
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

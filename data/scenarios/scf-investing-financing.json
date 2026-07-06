@@ -1,0 +1,49 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 22, "name": "Statement of Cash Flows" },
+  "doc": {
+    "slug": "scf-investing-financing",
+    "title": "Investing and financing sections",
+    "event": "Moss Co. this year: sold equipment (cost $50,000, accumulated depreciation $35,000) at a $10,000 gain; bought equipment for $80,000; issued common stock for $30,000; repaid a $25,000 note; paid $20,000 of dividends. Prepare the investing and financing sections.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "sections",
+        "label": "Reconstruct the cash from the account changes",
+        "conditions": {},
+        "entries": [],
+        "computationPaths": [
+          { "id": "invest",
+            "narration": "INVESTING: proceeds from the equipment sale must be reconstructed — book value (50,000 − 35,000 = 15,000) plus the 10,000 gain = 25,000 of cash in. That's exactly why the indirect operating section removed the gain: its cash is HERE.",
+            "steps": [
+              { "label": "Sale proceeds", "formulaText": "BV 15,000 + gain 10,000 = +25,000" },
+              { "label": "Equipment purchased", "formulaText": "− 80,000" },
+              { "label": "Net investing", "formulaText": "= (55,000)" }
+            ] },
+          { "id": "finance",
+            "narration": "FINANCING: capital in, capital out, dividends paid.",
+            "steps": [
+              { "label": "Stock issued", "formulaText": "+ 30,000" },
+              { "label": "Note repaid", "formulaText": "− 25,000" },
+              { "label": "Dividends paid", "formulaText": "− 20,000" },
+              { "label": "Net financing", "formulaText": "= (15,000)" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Sale proceeds = book value ± gain/loss. T-account every long-term account: whatever change isn't explained by noncash activity (depreciation, conversions) must be cash — that's the whole worksheet method in one sentence.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Dividends PAID (financing) ≠ dividends DECLARED — if a dividends payable balance changed, cash paid = declared ± the payable change. Same conversion discipline as the direct method.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-proceeds",
+        "prompt": "Equipment (cost 50,000, accumulated depreciation 35,000) is sold at a 10,000 gain. Investing-section cash inflow =",
+        "answerExpr": "25000",
+        "distractors": [
+          { "expr": "10000", "misconceptionId": "cash_vs_expense", "feedback": "10,000 is the GAIN, not the cash. Proceeds = book value 15,000 + gain 10,000 = 25,000 — and the gain's removal from operating exists precisely so this 25,000 counts once." },
+          { "expr": "15000", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "15,000 is the book value. The buyer paid book value PLUS the gain: 25,000 in cash." }
+        ] }
+    ]
+  }
+}

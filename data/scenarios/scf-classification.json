@@ -1,0 +1,41 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 22, "name": "Statement of Cash Flows" },
+  "doc": {
+    "slug": "scf-classification",
+    "title": "Classify the cash flows",
+    "event": "Jara Co. had these events: collected from customers; paid suppliers and employees; bought equipment; sold an investment; issued bonds; paid dividends; converted bonds into stock. Classify each as operating, investing, financing — or a noncash disclosure.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "classify",
+        "label": "The three buckets + the footnote bucket",
+        "conditions": {},
+        "entries": [],
+        "computationPaths": [
+          { "id": "buckets",
+            "narration": "The sorting rule: OPERATING = income-statement life (customers, suppliers, employees, interest, taxes). INVESTING = long-term ASSETS moving (buy/sell PP&E, investments, loans made). FINANCING = long-term CAPITAL moving (debt issued/repaid, stock issued/bought back, dividends PAID). No cash at all → noncash investing/financing, disclosed in a note, never on the statement face.",
+            "steps": [
+              { "label": "Collected from customers · paid suppliers/employees", "formulaText": "Operating" },
+              { "label": "Bought equipment · sold an investment", "formulaText": "Investing" },
+              { "label": "Issued bonds · paid dividends", "formulaText": "Financing" },
+              { "label": "Bonds converted to stock", "formulaText": "NONCASH — note disclosure only" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "mnemonic", "body": "GAAP's odd couples: interest PAID and interest/dividends RECEIVED = operating (they're on the income statement); dividends PAID = financing. Memorize the asymmetry — it's tested constantly.", "traceRefs": [] },
+      { "kind": "watchout", "body": "No cash, no statement: stock-for-land, bonds-to-stock conversions, capital-lease signings are NONCASH — a separate note, not a line item in any section.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-class",
+        "prompt": "Dividends PAID to shareholders are classified as…",
+        "answerExpr": "3",
+        "distractors": [
+          { "expr": "1", "misconceptionId": "premium_discount_direction_flip", "feedback": "Operating is where dividends RECEIVED go. Dividends PAID are a return to capital providers — FINANCING. (Interest paid, oddly, stays operating.)" }
+        ] }
+    ]
+  }
+}

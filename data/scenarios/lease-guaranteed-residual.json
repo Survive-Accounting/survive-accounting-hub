@@ -1,0 +1,87 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-guaranteed-residual",
+    "title": "Lessee — Guaranteed Residual Value",
+    "event": "Nolan Co. leases equipment for 3 years with payments of $40,000 due at the beginning of each year at a 7% rate. Nolan guarantees a $15,000 residual value; the expected residual value at lease-end is $10,000, so Nolan expects to owe $5,000 under the guarantee. The PV of the annual payments is $112,321 and the PV of $5,000 due in 3 years is $4,082. Prepare Nolan's commencement entry.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Capitalize payments + expected guarantee shortfall: 112,321 + 4,082",
+            "lines": [
+              {
+                "account": "Right-of-Use Asset",
+                "side": "debit",
+                "amount": 116403,
+                "why": "PV of the three payments (112,321) plus PV of the $5,000 Nolan expects to actually owe (4,082).",
+                "trap": "Only the expected SHORTFALL enters the liability — not the full $15,000 guarantee."
+              },
+              {
+                "account": "Lease Liability",
+                "side": "credit",
+                "amount": 116403,
+                "why": "Same total on the obligation side."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "tip",
+        "body": "Lessee includes a residual guarantee only to the extent it EXPECTS to owe: guarantee − expected residual value."
+      },
+      {
+        "kind": "watchout",
+        "body": "An UNguaranteed residual never enters the lessee's numbers at all — it matters only to the lessor."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Guarantee $15,000, expected residual value $10,000. What undiscounted amount from the guarantee enters Nolan's lease liability?",
+        "answerExpr": "5000",
+        "distractors": [
+          {
+            "expr": "15000",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "You capitalized the full guarantee. Include only the amount PROBABLE of being owed: 15,000 − 10,000 = 5,000."
+          },
+          {
+            "expr": "10000",
+            "misconceptionId": "stated_rate_on_cv",
+            "feedback": "That's the expected residual VALUE of the asset — the liability piece is the expected shortfall (5,000)."
+          },
+          {
+            "expr": "0",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "A guaranteed residual can't be ignored when a shortfall is expected — the probable $5,000 payment is part of the lease liability."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Right-of-Use Asset",
+        "Lease Liability",
+        "Cash",
+        "Guaranteed Residual Liability",
+        "Equipment"
+      ],
+      "scaffold": "One entry, two lines — the work is upstream: PV of payments + PV of the expected shortfall only."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

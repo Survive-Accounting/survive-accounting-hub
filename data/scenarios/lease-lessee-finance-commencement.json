@@ -1,0 +1,142 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-lessee-finance-commencement",
+    "title": "Lessee Finance Lease — Commencement",
+    "event": "Ramos Co. signs a 5-year lease for equipment with a 5-year useful life; ownership transfers to Ramos at the end of the term (finance lease). Annual payments are $50,000 and the 8% implicit rate is known to Ramos (PV factor, ordinary annuity, 8%, 5 periods = 3.99271). Prepare Ramos's entries at lease commencement, including any payment made that day.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [
+      {
+        "key": "paymentTiming",
+        "label": "Payments due at",
+        "options": [
+          {
+            "value": "beginning",
+            "label": "Beginning of year (annuity due)"
+          },
+          {
+            "value": "end",
+            "label": "End of year (ordinary annuity)"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "conditions": {
+          "paymentTiming": "beginning"
+        },
+        "entries": [
+          {
+            "label": "Commencement — PV = 50,000 × 3.99271 × 1.08 = $215,606",
+            "lines": [
+              {
+                "account": "Right-of-Use Asset",
+                "side": "debit",
+                "amount": 215606,
+                "why": "Capitalize the PV of the payments — annuity-due factor because payments start immediately.",
+                "trap": "Annuity due = ordinary factor × (1 + i). Missing the ×1.08 understates the asset by ~$16,000."
+              },
+              {
+                "account": "Lease Liability",
+                "side": "credit",
+                "amount": 215606,
+                "why": "The obligation equals the same PV at commencement."
+              }
+            ]
+          },
+          {
+            "label": "First payment — made the same day",
+            "lines": [
+              {
+                "account": "Lease Liability",
+                "side": "debit",
+                "amount": 50000,
+                "why": "A day-one payment is ALL principal — zero time has passed, so zero interest.",
+                "trap": "No Interest Expense line here. Interest needs time on the clock."
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 50000,
+                "why": "First of five annual payments."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "conditions": {
+          "paymentTiming": "end"
+        },
+        "entries": [
+          {
+            "label": "Commencement — PV = 50,000 × 3.99271 = $199,636 · no day-one payment",
+            "lines": [
+              {
+                "account": "Right-of-Use Asset",
+                "side": "debit",
+                "amount": 199636,
+                "why": "Ordinary-annuity PV — first payment is a full year away."
+              },
+              {
+                "account": "Lease Liability",
+                "side": "credit",
+                "amount": 199636,
+                "why": "Same PV. Interest will accrue on the full balance for year one."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "tip",
+        "body": "Beginning-of-period payments = annuity due: ordinary factor × (1 + i)."
+      },
+      {
+        "kind": "watchout",
+        "body": "ROU amortizes over the ASSET's life when ownership transfers or a purchase option is reasonably certain; otherwise the shorter of lease term or asset life."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Payments of $50,000 due at the BEGINNING of each of 5 years, 8% rate (ordinary factor 3.99271). Initial lease liability = ?",
+        "answerExpr": "215606",
+        "distractors": [
+          {
+            "expr": "199636",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "You used the ordinary-annuity factor. Beginning-of-year payments are an annuity due — multiply by 1.08."
+          },
+          {
+            "expr": "250000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "That's the gross payments (5 × 50,000). Capitalize the PRESENT VALUE, not the undiscounted total."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Right-of-Use Asset",
+        "Lease Liability",
+        "Cash",
+        "Equipment",
+        "Interest Expense",
+        "Rent Expense"
+      ],
+      "scaffold": "Entry 1 sets up ROU = Liability = PV. Entry 2 (if payment is due today): all principal, no interest."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": true
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-lessor-sales-type",
+    "title": "Lessor Sales-Type Lease — Commencement",
+    "event": "Hale Equipment (a dealer) leases a machine to a customer: 4 annual payments of $50,000 due at the beginning of each year, 8% implicit rate, PV of payments $178,855 (equal to the machine's fair value). Collectibility is probable. Prepare Hale's entries at commencement, including receipt of the first payment.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [
+      {
+        "key": "profit",
+        "label": "Hale's cost",
+        "options": [
+          {
+            "value": "selling",
+            "label": "$130,000 (selling profit — dealer)"
+          },
+          {
+            "value": "none",
+            "label": "$178,855 (no selling profit)"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "conditions": {
+          "profit": "selling"
+        },
+        "entries": [
+          {
+            "label": "Record the sale — receivable at PV, gross profit $48,855",
+            "lines": [
+              {
+                "account": "Lease Receivable",
+                "side": "debit",
+                "amount": 178855,
+                "why": "Receivable = PV of the lease payments, not the gross 200,000.",
+                "trap": "Booking the gross payments overstates the receivable — the difference is unearned interest."
+              },
+              {
+                "account": "Sales Revenue",
+                "side": "credit",
+                "amount": 178855,
+                "why": "Sales price = the PV. A sales-type lease is a sale in substance."
+              }
+            ]
+          },
+          {
+            "label": "Match the cost",
+            "lines": [
+              {
+                "account": "Cost of Goods Sold",
+                "side": "debit",
+                "amount": 130000,
+                "why": "The machine's carrying value to the dealer."
+              },
+              {
+                "account": "Inventory",
+                "side": "credit",
+                "amount": 130000,
+                "why": "The asset leaves Hale's books — it's been 'sold' via lease."
+              }
+            ]
+          },
+          {
+            "label": "Receive the first payment (due at commencement)",
+            "lines": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 50000,
+                "why": "First of four annual receipts."
+              },
+              {
+                "account": "Lease Receivable",
+                "side": "credit",
+                "amount": 50000,
+                "why": "All principal — no time has passed, so no interest yet."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "conditions": {
+          "profit": "none"
+        },
+        "entries": [
+          {
+            "label": "Record the sale — cost equals fair value, gross profit $0",
+            "lines": [
+              {
+                "account": "Lease Receivable",
+                "side": "debit",
+                "amount": 178855,
+                "why": "Same PV-based receivable."
+              },
+              {
+                "account": "Sales Revenue",
+                "side": "credit",
+                "amount": 178855,
+                "why": "Sales price = PV, unchanged."
+              }
+            ]
+          },
+          {
+            "label": "Match the cost — no profit spread",
+            "lines": [
+              {
+                "account": "Cost of Goods Sold",
+                "side": "debit",
+                "amount": 178855,
+                "why": "Cost = fair value, so COGS = Sales and gross profit is zero. Income comes only from interest over the term."
+              },
+              {
+                "account": "Inventory",
+                "side": "credit",
+                "amount": 178855,
+                "why": "Asset off the books."
+              }
+            ]
+          },
+          {
+            "label": "Receive the first payment",
+            "lines": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 50000,
+                "why": "First receipt."
+              },
+              {
+                "account": "Lease Receivable",
+                "side": "credit",
+                "amount": 50000,
+                "why": "All principal on day one."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Lessor gross profit = PV of lease payments (sales price) − cost of the asset"
+      },
+      {
+        "kind": "tip",
+        "body": "Sales-type = the lease meets ANY finance-lease criterion from the lessor's side. Selling profit exists only when fair value > cost."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "PV of payments $178,855, gross payments $200,000, cost $130,000. Gross profit at commencement = ?",
+        "answerExpr": "48855",
+        "distractors": [
+          {
+            "expr": "70000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "You used the gross 200,000 as the sales price. Sales = PV of payments (178,855); the extra 21,145 is future interest, not profit today."
+          },
+          {
+            "expr": "0",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "With collectibility probable, a sales-type lease recognizes the selling profit AT commencement — no deferral."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Lease Receivable",
+        "Sales Revenue",
+        "Cost of Goods Sold",
+        "Inventory",
+        "Cash",
+        "Equipment",
+        "Unearned Interest Revenue"
+      ],
+      "scaffold": "Three entries: (1) receivable vs sales at PV, (2) COGS vs inventory at cost, (3) day-one cash receipt — all principal."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": true
+  }
+}

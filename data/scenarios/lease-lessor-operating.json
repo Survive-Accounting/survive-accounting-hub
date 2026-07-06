@@ -1,0 +1,91 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-lessor-operating",
+    "title": "Lessor Operating Lease",
+    "event": "Boone Properties leases a floor of its building (building cost $900,000, 30-year life, no residual value) to a tenant under a 5-year operating lease for $60,000 per year, received at each year-end. Prepare Boone's entries for the first year.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Receive the annual rent",
+            "lines": [
+              {
+                "account": "Cash",
+                "side": "debit",
+                "amount": 60000,
+                "why": "The year's lease payment."
+              },
+              {
+                "account": "Lease Revenue",
+                "side": "credit",
+                "amount": 60000,
+                "why": "Straight-line revenue — operating lessor recognizes rent as earned."
+              }
+            ]
+          },
+          {
+            "label": "Depreciate the building — it never left Boone's books",
+            "lines": [
+              {
+                "account": "Depreciation Expense",
+                "side": "debit",
+                "amount": 30000,
+                "why": "900,000 ÷ 30 years. The lessor keeps the asset AND keeps depreciating it.",
+                "trap": "No receivable, no derecognition — that's the whole point of an operating lease for the lessor."
+              },
+              {
+                "account": "Accumulated Depreciation—Building",
+                "side": "credit",
+                "amount": 30000,
+                "why": "Normal contra-asset credit."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "watchout",
+        "body": "Operating lessor keeps the asset on its books and depreciates it. No Lease Receivable, no Sales Revenue, no derecognition."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Rent $60,000, depreciation $30,000. Boone's net income effect from the lease in year 1 = ?",
+        "answerExpr": "30000",
+        "distractors": [
+          {
+            "expr": "60000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "You counted the cash but skipped the depreciation. The building stayed on Boone's books, so its 30,000 depreciation offsets the rent."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Cash",
+        "Lease Revenue",
+        "Depreciation Expense",
+        "Accumulated Depreciation—Building",
+        "Lease Receivable",
+        "Building"
+      ],
+      "scaffold": "Two everyday entries: rent receipt and depreciation. If you're derecognizing the building, you've classified the lease wrong."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

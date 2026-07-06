@@ -1,0 +1,106 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-lessee-finance-year-end",
+    "title": "Lessee Finance Lease — Year-End Entries",
+    "event": "Continuing Ramos Co.'s finance lease: initial lease liability $215,606, first $50,000 payment made at commencement (January 1), 8% implicit rate, and the $215,606 right-of-use asset is amortized straight-line over 5 years. Prepare Ramos's December 31 year-end entries.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Interest accrual — 8% × (215,606 − 50,000) = 8% × 165,606",
+            "lines": [
+              {
+                "account": "Interest Expense",
+                "side": "debit",
+                "amount": 13248,
+                "why": "Interest accrues on the liability balance AFTER the day-one payment: 8% × 165,606.",
+                "trap": "8% × 215,606 = 17,248 is wrong — the commencement-day payment already knocked the balance down."
+              },
+              {
+                "account": "Interest Payable",
+                "side": "credit",
+                "amount": 13248,
+                "why": "Payable because the next cash payment isn't due until January 1."
+              }
+            ]
+          },
+          {
+            "label": "ROU amortization — 215,606 ÷ 5",
+            "lines": [
+              {
+                "account": "Amortization Expense",
+                "side": "debit",
+                "amount": 43121,
+                "why": "Straight-line over the 5-year life (ownership transfers, so use the asset's life)."
+              },
+              {
+                "account": "Right-of-Use Asset",
+                "side": "credit",
+                "amount": 43121,
+                "why": "Kieso credits the ROU asset directly; some texts use Accumulated Amortization — either is fine."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Interest = rate × liability carrying balance after any beginning-of-period payment"
+      },
+      {
+        "kind": "tip",
+        "body": "Finance lessee year-end = TWO entries: interest accrual AND ROU amortization. Students forget one every time."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Liability $215,606 at commencement, $50,000 paid that day, 8% rate. Year-1 interest expense = ?",
+        "answerExpr": "13248",
+        "distractors": [
+          {
+            "expr": "17248",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "You applied 8% to the FULL 215,606. The day-one payment dropped the balance to 165,606 before any interest accrued."
+          },
+          {
+            "expr": "50000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "That's the payment, not the expense. In a finance lease the payment splits into interest and principal."
+          },
+          {
+            "expr": "4000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "You applied the rate to the payment (8% × 50,000). Interest runs on the liability BALANCE."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Interest Expense",
+        "Interest Payable",
+        "Amortization Expense",
+        "Right-of-Use Asset",
+        "Lease Liability",
+        "Cash",
+        "Depreciation Expense"
+      ],
+      "scaffold": "Two entries, no cash. Interest = rate × post-payment balance. Amortization = ROU ÷ life."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": true
+  }
+}

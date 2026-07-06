@@ -1,0 +1,147 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 19,
+    "name": "Pensions"
+  },
+  "doc": {
+    "slug": "pension-expense-basic",
+    "title": "Pension Expense & Funding",
+    "event": "Vaughan Corp. sponsors a defined benefit pension plan. For the current year, the actuary reports service cost of $85,000 and a 7% settlement rate on a beginning PBO of $600,000. Expected and actual return on plan assets was $30,000. At year-end Vaughan funds the plan; the contribution differs from pension expense. Prepare the entry to record pension expense and the funding contribution.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [
+      {
+        "key": "funding",
+        "label": "Contribution vs expense",
+        "options": [
+          {
+            "value": "under",
+            "label": "Contribution below expense (liability grows)"
+          },
+          {
+            "value": "over",
+            "label": "Contribution above expense (net position improves)"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "conditions": {
+          "funding": "under"
+        },
+        "entries": [
+          {
+            "label": "Expense $97,000 (85,000 + 42,000 − 30,000) · contribution $95,000",
+            "lines": [
+              {
+                "account": "Pension Expense",
+                "side": "debit",
+                "amount": 97000,
+                "why": "Service cost 85,000 + interest cost 42,000 (7% × beginning PBO 600,000) − expected return 30,000.",
+                "trap": "Interest cost uses the settlement rate × BEGINNING PBO — not the rate on plan assets, not ending balances."
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 95000,
+                "why": "The amount actually contributed to the plan trustee.",
+                "trap": "Cash = the contribution. It is NOT pension expense — funding and expensing are independent decisions."
+              },
+              {
+                "account": "Pension Asset/Liability",
+                "side": "credit",
+                "amount": 2000,
+                "why": "The plug. Expense exceeded funding by 2,000, so the net pension liability grows."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "conditions": {
+          "funding": "over"
+        },
+        "entries": [
+          {
+            "label": "Expense $97,000 · contribution $100,000",
+            "lines": [
+              {
+                "account": "Pension Expense",
+                "side": "debit",
+                "amount": 97000,
+                "why": "Same components: 85,000 + 42,000 − 30,000. Funding level never changes expense."
+              },
+              {
+                "account": "Pension Asset/Liability",
+                "side": "debit",
+                "amount": 3000,
+                "why": "The plug flips to a debit — contributing 3,000 more than expense improves the funded position."
+              },
+              {
+                "account": "Cash",
+                "side": "credit",
+                "amount": 100000,
+                "why": "The amount contributed to the trustee.",
+                "trap": "Overfunding doesn't reduce pension expense — the extra 3,000 hits the balance-sheet account."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Pension expense = Service cost + Interest on beginning PBO − Expected return on plan assets + PSC amortization ± Gain/loss amortization"
+      },
+      {
+        "kind": "tip",
+        "body": "Interest cost = settlement rate × BEGINNING PBO. And it's the EXPECTED (not actual) return that reduces expense."
+      },
+      {
+        "kind": "watchout",
+        "body": "The credit to Cash is whatever was contributed. Pension Asset/Liability is the plug that balances the entry — it is never a choice."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Service cost $85,000, interest cost $42,000, expected return $30,000, contribution $95,000. What is pension expense for the year?",
+        "answerExpr": "97000",
+        "distractors": [
+          {
+            "expr": "127000",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "You left out a component — expected return REDUCES expense: 85,000 + 42,000 − 30,000 = 97,000."
+          },
+          {
+            "expr": "157000",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "You flipped the return's direction. Expected return is SUBTRACTED — plan earnings make the pension cheaper, not pricier."
+          },
+          {
+            "expr": "95000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "That's the contribution (cash), not pension expense. Funding and expensing are independent."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Pension Expense",
+        "Cash",
+        "Pension Asset/Liability",
+        "Interest Expense",
+        "OCI—Prior Service Cost",
+        "Retained Earnings"
+      ],
+      "scaffold": "Compute expense from components first (SC + IC − expected return). Credit cash for the contribution. Whatever's left is the Pension Asset/Liability plug."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

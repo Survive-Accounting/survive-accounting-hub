@@ -1,0 +1,83 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 20,
+    "name": "Leases"
+  },
+  "doc": {
+    "slug": "lease-lessor-interest-accrual",
+    "title": "Lessor — Year-End Interest Accrual",
+    "event": "Continuing Hale Equipment's sales-type lease: lease receivable of $178,855 at commencement, first $50,000 payment received that day, 8% implicit rate. Prepare Hale's December 31 entry to accrue interest.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Accrue 8% × (178,855 − 50,000) = 8% × 128,855",
+            "lines": [
+              {
+                "account": "Interest Receivable",
+                "side": "debit",
+                "amount": 10308,
+                "why": "Interest runs on the receivable balance AFTER the commencement-day receipt.",
+                "trap": "8% × 178,855 = 14,308 double-counts — the day-one receipt already reduced the balance."
+              },
+              {
+                "account": "Interest Revenue",
+                "side": "credit",
+                "amount": 10308,
+                "why": "Earned by the passage of time, collected with the next payment."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "tip",
+        "body": "Lessor interest accrues on the NET receivable after any beginning-of-period receipt — the mirror image of the lessee's interest calc."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "Receivable $178,855, $50,000 received at commencement, 8% rate. Year-1 interest revenue = ?",
+        "answerExpr": "10308",
+        "distractors": [
+          {
+            "expr": "14308",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "You applied 8% to the pre-receipt balance. The day-one collection dropped it to 128,855 first."
+          },
+          {
+            "expr": "4000",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "8% × the payment is meaningless — interest runs on the receivable BALANCE."
+          },
+          {
+            "expr": "0",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "Interest is earned by time passing, not by cash arriving — accrue it at year-end even though the next receipt is January 1."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "Interest Receivable",
+        "Interest Revenue",
+        "Lease Receivable",
+        "Cash",
+        "Sales Revenue"
+      ],
+      "scaffold": "One two-line accrual. The only work is picking the right base: post-receipt balance."
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": true
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 19,
+    "name": "Pensions"
+  },
+  "doc": {
+    "slug": "pension-psc-amendment",
+    "title": "Prior Service Cost — Plan Amendment",
+    "event": "On January 1, Delgado Co. amends its pension plan to grant employees credit for prior years of service. The actuary determines the amendment increases the projected benefit obligation by $180,000. Prepare the entry to record the amendment.",
+    "courseFamilies": [
+      "intermediate_2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "conditions": {},
+        "entries": [
+          {
+            "label": "Amendment day — PBO up $180,000, nothing hits income yet",
+            "lines": [
+              {
+                "account": "OCI—Prior Service Cost",
+                "side": "debit",
+                "amount": 180000,
+                "why": "The full cost of retroactive benefits parks in OCI on the amendment date.",
+                "trap": "Not a debit to Pension Expense. It reaches expense only through amortization in future periods."
+              },
+              {
+                "account": "Pension Asset/Liability",
+                "side": "credit",
+                "amount": 180000,
+                "why": "The obligation grew by 180,000 the moment the benefits were granted."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "memorize": [
+      {
+        "kind": "watchout",
+        "body": "PSC hits OCI at the grant date, then trickles into pension expense via amortization. It NEVER goes straight to expense."
+      }
+    ],
+    "questions": [
+      {
+        "prompt": "On the amendment date, by how much does pension EXPENSE increase?",
+        "answerExpr": "0",
+        "distractors": [
+          {
+            "expr": "180000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Nothing hits expense on day one — the 180,000 goes to OCI and reaches expense only through amortization."
+          },
+          {
+            "expr": "18000",
+            "misconceptionId": "prior_period_expense",
+            "feedback": "Amortization starts in the periods FOLLOWING the grant — on the amendment date itself, expense impact is zero."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        "OCI—Prior Service Cost",
+        "Pension Asset/Liability",
+        "Pension Expense",
+        "Retained Earnings",
+        "Cash"
+      ],
+      "scaffold": "Two lines. Ask: did any cash move? Did any expense belong to THIS period yet?"
+    },
+    "hasMemorizationGrid": false,
+    "isSequence": false
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 21, "name": "Accounting Changes" },
+  "doc": {
+    "slug": "chg-estimate-prospective",
+    "title": "Change in estimate — prospective only",
+    "event": "Gild Co. bought equipment for $100,000 (10-year life, no salvage, straight-line). After 4 years of depreciation ($40,000 taken; book value $60,000), the total useful life is revised: only 5 years REMAIN. Prepare this year's depreciation entry.",
+    "courseFamilies": ["ia2"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "prospective",
+        "label": "Book value forward over the new remaining life",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "dep",
+            "caption": "Year-5 depreciation on the revised estimate",
+            "lines": [
+              { "id": "de", "account": "Depreciation Expense", "side": "debit", "label": "BV ÷ new remaining life", "amount": 12000,
+                "why": "The undepreciated 60,000 spreads over the 5 years now expected: 12,000 per year, starting this year.",
+                "trap": "No catch-up, no restatement, no entry to fix the past — the old 10,000-a-year charges were RIGHT given what was known then." },
+              { "id": "ad", "account": "Accumulated Depreciation", "side": "credit", "label": "as usual", "amount": 12000,
+                "why": "Ordinary depreciation mechanics; only the number changed.",
+                "trap": "Formula: (book value − remaining salvage) ÷ REMAINING life. Using original cost or original life in either slot is the standard exam wound." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          { "id": "revise", "narration": "Prospective math in three steps — everything runs from the book value at the revision date.",
+            "steps": [
+              { "label": "Book value at revision", "formulaText": "100,000 − 40,000 = 60,000" },
+              { "label": "New remaining life", "formulaText": "5 years" },
+              { "label": "New annual depreciation", "formulaText": "60,000 ÷ 5 = 12,000" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Change in ESTIMATE → prospective: (book value − salvage) ÷ remaining life, from the change year forward. Prior years untouched.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Change in depreciation METHOD (SL → DDB) = a change in estimate effected by a change in principle → still PROSPECTIVE. The one 'principle-flavored' change that doesn't restate.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "The sorting rule of the whole chapter: Principle → retrospective · Estimate (and method changes) → prospective · Error → restate via prior-period adjustment.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-estimate",
+        "prompt": "Equipment: cost 100,000, 4 years of SL taken on a 10-year life; life revised to 5 years REMAINING. New annual depreciation =",
+        "answerExpr": "12000",
+        "distractors": [
+          { "expr": "20000", "misconceptionId": "prior_period_expense", "feedback": "20,000 divides the ORIGINAL cost by the new remaining life. Prospective treatment runs from BOOK VALUE: 60,000 ÷ 5 = 12,000." },
+          { "expr": "10000", "misconceptionId": "cash_vs_expense", "feedback": "10,000 is the old estimate. Estimates revise going forward — the undepreciated 60,000 now spreads over just 5 years." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Depreciation Expense" }, { "account": "Accumulated Depreciation" },
+        { "account": "Retained Earnings", "decoy": true }, { "account": "Equipment", "decoy": true }
+      ],
+      "scaffold": "One computation (book value ÷ remaining life), one ordinary entry. Both decoys are restatement-thinking — estimates never touch the past."
+    }
+  }
+}
