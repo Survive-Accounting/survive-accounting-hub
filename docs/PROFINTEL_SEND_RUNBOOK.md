@@ -60,8 +60,12 @@ log replies by hand.
 
 ## 8. Go live
 On **ProfIntel → Metrics**, click **Sending: OFF → ON**. The worker will start firing
-`status='scheduled'` rows at their times, up to the daily cap (40/day; adjustable in
-`profintel_settings.daily_send_cap`). Flip it back OFF anytime to pause.
+`status='scheduled'` rows at their times, up to today's cap. Flip it back OFF anytime to pause.
+
+**Automatic warmup:** the daily cap ramps itself on a cold domain — **15 → 22 → 30 → 38 → 40**,
+one step per week, anchored to the date the first real email sends (`warmup_start_date`).
+`daily_send_cap` (default 40) is just the ceiling. The Metrics tab shows today's effective cap
+and which warmup week you're in. Nothing to adjust by hand.
 
 ### Daily flow
 Choose-leads tab → create drafts → **Schedule N (top score first)** (spreads Tue–Thu 10–3,
