@@ -15,7 +15,8 @@ const STATUS_OPTS: [string, string][] = [
   ["delivered", "Delivered"], ["paid", "Paid"], ["cancelled", "Cancelled"],
 ];
 const TIER_OPTS: [string, string][] = [
-  ["all", "All tiers"], ["made_to_order", "Pre-order"], ["one_on_one", "1-on-1"], ["free_teaser", "Free teaser"],
+  ["all", "All tiers"], ["made_to_order", "Pre-order"], ["one_on_one", "1-on-1"],
+  ["something_else", "Something else"], ["free_teaser", "Free teaser"],
 ];
 
 const selectCls = "h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-primary";

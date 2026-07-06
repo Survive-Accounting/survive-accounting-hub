@@ -202,7 +202,7 @@ export default function Hero({ onBookTutoring, onReadReviews, headline, subtext,
                 fontFamily: "Inter, sans-serif",
               }}
             >
-              Meet Lee Ingram
+              Hey, it's Lee!
             </p>
           </div>
 

@@ -20,6 +20,11 @@ const PRESS: { outlet: string; date?: string; title: string; url: string }[] = [
     url: "https://oxfordeagle.com/2017/04/14/tutoring-startup-takes-top-prize-at-ole-miss-business-competition/",
   },
   {
+    outlet: "Hotty Toddy", date: "Apr 30, 2017",
+    title: "Ole Miss Musings: Tutor for All Seasons",
+    url: "https://www.hottytoddy.com/2017/04/30/ole-miss-musings-tutor-seasons-2/",
+  },
+  {
     outlet: "Innovate Mississippi", date: "Jul 2018",
     title: "Collegiate Tutoring: Art of the Pivot",
     url: "https://www.innovate.ms/collegiate_tutoring_pivot/",
@@ -28,11 +33,6 @@ const PRESS: { outlet: string; date?: string; title: string; url: string }[] = [
     outlet: "Magee News",
     title: "Lee Ingram: Making a Name for Himself in the SEC",
     url: "https://mageenews.com/lee-ingram-making-a-name-for-himself-in-the-sec/",
-  },
-  {
-    outlet: "RateMyProfessors",
-    title: "Lee's reviews",
-    url: "https://www.ratemyprofessors.com/professor/3070884",
   },
 ];
 
@@ -71,34 +71,19 @@ export default function SiteFooter(_props: SiteFooterProps = {}) {
   return (
     <footer style={{ background: FOOTER_BG }}>
       <div className="mx-auto max-w-[1100px] px-4 py-12 sm:px-6">
-        {/* "As featured in" press strip (moved here from the homepage). */}
-        <div className="mb-10 border-b pb-8 text-center" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={faint}>As featured in</p>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
-            {["Oxford Eagle", "Innovate Mississippi", "The Daily Mississippian"].map((o) => (
-              <span key={o} className="text-sm font-semibold tracking-tight sm:text-[15px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-                {o}
-              </span>
-            ))}
-          </div>
-        </div>
-
         <div className="grid gap-10 sm:grid-cols-[1.5fr_1fr_1fr]">
           {/* Brand */}
           <div>
             <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center transition-opacity hover:opacity-90">
               <img src={LOGO_URL} alt="Survive Accounting" className="h-[22px] w-auto select-none object-contain" draggable={false} />
             </a>
-            <p className="mt-3 max-w-xs text-[13px] leading-relaxed" style={muted}>
-              Survive it. Or learn to love it. Accounting tutoring from someone who genuinely loves it.
-            </p>
           </div>
 
           {/* Explore */}
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={faint}>Explore</p>
             <nav className="mt-3 flex flex-col gap-2">
-              <a href="/order" className={linkClass} style={muted}>Get started</a>
+              <a href="/order" className={linkClass} style={muted}>Get Started</a>
               <a href="/#plans" className={linkClass} style={muted}>Pricing</a>
               <button onClick={() => setPressOpen(true)} className={`${linkClass} text-left`} style={muted}>Press</button>
             </nav>
@@ -120,21 +105,19 @@ export default function SiteFooter(_props: SiteFooterProps = {}) {
           </div>
         </div>
 
-        {/* In memory — quiet, dignified, restrained */}
-        <div className="mt-10 border-t pt-6 text-center" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-          <button onClick={() => setBenOpen(true)} className="text-[12px] italic transition-colors hover:text-white/80"
-            style={{ color: "rgba(255,255,255,0.45)", fontFamily: "Inter, sans-serif" }}>
-            In memory of my twin brother, Ben Ingram (1993–2017).
-          </button>
-        </div>
       </div>
 
       {/* Legal row */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div className="mx-auto flex max-w-[1100px] flex-col items-center justify-between gap-2 px-4 py-4 sm:flex-row sm:px-6">
-          <p className="text-[11px]" style={faint}>
-            © {new Date().getFullYear()} Earned Wisdom, LLC
-          </p>
+          <div className="flex flex-col items-center gap-1 text-center sm:flex-row sm:gap-4 sm:text-left">
+            <p className="text-[11px]" style={faint}>
+              © {new Date().getFullYear()} Earned Wisdom, LLC
+            </p>
+            <button onClick={() => setBenOpen(true)} className="text-[11px] transition-colors hover:text-white/80" style={faint}>
+              In memory of my twin brother, Ben Ingram (1993–2017).
+            </button>
+          </div>
           <div className="flex items-center gap-4">
             <details className="group">
               <summary className="cursor-pointer list-none text-[11px] hover:underline" style={faint}>

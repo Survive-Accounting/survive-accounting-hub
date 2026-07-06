@@ -20,6 +20,7 @@ import {
   Settings,
   MailCheck,
   Check,
+  UserCheck,
 } from "lucide-react";
 
 import {
@@ -83,6 +84,16 @@ const PROFINTEL_SECTION: Section = {
   ],
 };
 
+// Active Roster — SEC-scope governance (which campuses/professors are active for
+// the /order pickers + ProfIntel). Shown in V2 since it's core to the SEC focus.
+const ACTIVE_ROSTER_SECTION: Section = {
+  key: "roster",
+  label: "Active Roster",
+  icon: UserCheck,
+  owns: (p) => p.startsWith("/outreach/active-roster"),
+  subtabs: [{ label: "Campuses & Professors", to: "/outreach/active-roster" }],
+};
+
 // V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
 // (Includes the Requests/orders admin added on main — a V1 surface hidden in V2.)
 const V1_SECTIONS: Section[] = [
@@ -93,7 +104,6 @@ const V1_SECTIONS: Section[] = [
     owns: (p) => p.startsWith("/outreach/orders"),
     subtabs: [
       { label: "All Requests", to: "/outreach/orders" },
-      { label: "Request settings", to: "/outreach/orders-settings" },
     ],
   },
   {
@@ -170,7 +180,9 @@ function OutreachShell() {
   };
 
   const sections: Section[] =
-    version === "v2" ? [PROFINTEL_SECTION] : [PROFINTEL_SECTION, ...V1_SECTIONS];
+    version === "v2"
+      ? [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION]
+      : [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, ...V1_SECTIONS];
   const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));
 

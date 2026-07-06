@@ -147,34 +147,29 @@ export const getOrderCampusContext = createServerFn({ method: "POST" })
   });
 
 // ------------------------------------------------------------------
-// Professor autocomplete — campus faculty, deduped, A→Z. Always optional:
-// the wizard allows free text regardless of matches.
+// Professor autocomplete — campus faculty, deduped, sorted by last name A→Z.
+// Always optional: the wizard allows free text regardless of matches.
+// `name` is natural order ("First Last", stored on the order); `first`/`last`
+// let the picker render "Last, First".
 // ------------------------------------------------------------------
-export type ProfessorLite = { id: string; name: string; title: string | null };
+export type ProfessorLite = { id: string; name: string; first: string; last: string };
 
 export const searchOrderProfessors = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ campusId: z.string().uuid(), q: z.string().trim().max(80).optional() }).parse(d))
   .handler(async ({ data }): Promise<ProfessorLite[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Emailed-first: profs Lee has emailed (outreach_leads.sent_at) take priority;
-    // until any emails have gone out for this campus we fall back to the full
-    // confirmed faculty directory so the picker is never empty.
-    const { data: emailedRows } = await supabaseAdmin
-      .from("outreach_leads")
-      .select("email")
+    // Active-roster AND RateMyProfessors-matched only: show professors we've
+    // verified against RMP (rmp_profile_url IS NOT NULL) so the picker stays
+    // high-confidence. If a student's professor isn't matched, they use the
+    // "My professor isn't listed" free-text path. A campus reaches this step
+    // from the picker only if it's on the active roster; free-text schools have
+    // no campusId, so the picker is empty. (post-typegen columns → cast.)
+    const { data: rows } = await (supabaseAdmin.from("campus_lead_suggestions") as any)
+      .select("id,first_name,last_name,email")
       .eq("campus_id", data.campusId)
-      .not("sent_at", "is", null);
-    const emailedSet = new Set(
-      ((emailedRows ?? []) as Array<{ email: string | null }>)
-        .map((r) => (r.email ?? "").toLowerCase().trim())
-        .filter(Boolean),
-    );
-
-    const { data: rows } = await supabaseAdmin
-      .from("campus_lead_suggestions")
-      .select("id,first_name,last_name,email,title")
-      .eq("campus_id", data.campusId)
+      .not("active_roster", "is", null)
+      .not("rmp_profile_url", "is", null)
       .is("archived_at", null)
       .order("last_name", { ascending: true })
       .limit(500);
@@ -183,8 +178,6 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     const out: ProfessorLite[] = [];
     for (const r of (rows ?? []) as Array<Record<string, string | null>>) {
       const email = (r.email ?? "").toLowerCase().trim();
-      // When Lee has emailed anyone at this campus, restrict to those profs.
-      if (emailedSet.size > 0 && !emailedSet.has(email)) continue;
       const last = (r.last_name ?? "").trim();
       const first = (r.first_name ?? "").trim();
       const key = `${last.toLowerCase()}|${first.toLowerCase()}|${email}`;
@@ -192,11 +185,34 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
       seen.add(key);
       const name = [first, last].filter(Boolean).join(" ").trim();
       if (!name) continue;
-      out.push({ id: r.id as string, name, title: r.title ?? null });
+      out.push({ id: r.id as string, name, first, last });
     }
     const q = (data.q ?? "").trim().toLowerCase();
     const filtered = q ? out.filter((p) => p.name.toLowerCase().includes(q)) : out;
-    return filtered.slice(0, 50);
+    return filtered.slice(0, 60);
+  });
+
+// ------------------------------------------------------------------
+// Campus search for the STUDENT /order picker — active-roster campuses only.
+// (Separate from onboarding.searchCampuses, which the waitlist flow uses and
+// filters by ready_for_outreach; do not merge the two.) active_roster is a
+// post-typegen column, hence the cast.
+// ------------------------------------------------------------------
+export type OrderCampusLite = { id: string; name: string };
+
+export const searchOrderCampuses = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ q: z.string().trim().max(80) }).parse(d))
+  .handler(async ({ data }): Promise<OrderCampusLite[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let query = (supabaseAdmin.from("campuses") as any)
+      .select("id,name")
+      .eq("active_roster", "sec")
+      .order("name")
+      .limit(20);
+    if (data.q) query = query.ilike("name", `%${data.q}%`);
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message);
+    return ((rows ?? []) as Array<Record<string, unknown>>).map((r) => ({ id: r.id as string, name: (r.name as string) ?? "" }));
   });
 
 // ------------------------------------------------------------------
@@ -245,20 +261,30 @@ const submitOrderSchema = z.object({
   textbookNotes: z.string().trim().max(500).nullable().optional(),
   examDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   examTimeframe: z.enum(["this_week", "next_week", "not_sure"]).nullable().optional(),
-  tier: z.enum(["free_teaser", "made_to_order", "one_on_one"]),
+  tier: z.enum(["free_teaser", "made_to_order", "one_on_one", "something_else"]),
+  // Full multi-select set (tier above is the PRIMARY pick, for pricing/notify).
+  requestedOptions: z.array(z.enum(["free_teaser", "made_to_order", "one_on_one", "something_else"])).max(4).optional(),
   rush: z.boolean().optional(),
   // Request fields — the specifics are refined in the post-request tracker.
   chapterCountOnly: z.number().int().min(0).max(50).nullable().optional(),
-  requestScope: z.enum(["topic", "chapter", "exam", "not_sure"]).nullable().optional(),
+  requestScope: z.enum(["everything_exam", "one_chapter", "one_or_two_topics", "homework_explained"]).nullable().optional(),
   requestNotes: z.string().trim().max(4000).nullable().optional(),
   interestedInGroup: z.boolean().optional(),
   groupSize: z.number().int().min(0).max(500).nullable().optional(),
+  specialInstructions: z.string().trim().max(2000).nullable().optional(),
+  // Student-uploaded supporting files (already stored in the student-syllabi
+  // bucket by the client); we persist only their metadata on the order.
+  attachments: z.array(z.object({
+    name: z.string().trim().min(1).max(300),
+    path: z.string().trim().min(1).max(500),
+    size: z.number().int().min(0).max(50_000_000),
+  })).max(20).optional(),
   chapters: z.array(chapterSchema).max(40).optional(),
 });
 
 export type SubmitOrderResult = {
   shortRef: string;
-  tier: "free_teaser" | "made_to_order" | "one_on_one";
+  tier: "free_teaser" | "made_to_order" | "one_on_one" | "something_else";
   chapterCount: number;
   subtotalCents: number;
   rush: boolean;
@@ -274,7 +300,7 @@ export const submitOrder = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const chapters = data.chapters ?? [];
     const isMTO = data.tier === "made_to_order";
-    // A Custom Study Pack REQUEST has no finalized price: pricing is only computed
+    // A Help Video REQUEST has no finalized price: pricing is only computed
     // when a concrete chapterCountOnly is provided (kept for back-compat). The
     // request flow passes chapterCountOnly = null, so subtotal/total stay $0 and
     // delivery is null until Lee builds a preview and sets an unlock price.
@@ -311,6 +337,13 @@ export const submitOrder = createServerFn({ method: "POST" })
       chapter_count_only: data.chapterCountOnly ?? null,
       request_scope: data.requestScope ?? null,
       request_notes: data.requestNotes ?? null,
+      // Unified with the tracker's editable field: the confirmation-step textarea
+      // writes special_requests, which the /order/$shortRef tracker pre-fills and
+      // lets the student refine. (The redundant special_instructions column was
+      // dropped live — one field, submit-time + tracker-editable.)
+      special_requests: data.specialInstructions ?? null,
+      attachments_json: data.attachments ?? [],
+      requested_options: data.requestedOptions ?? [],
       interested_in_group: data.interestedInGroup ?? false,
       group_size: data.groupSize ?? null,
       awaiting_syllabus: true,

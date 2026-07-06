@@ -6,31 +6,36 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Copy, Loader2, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, Paperclip, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  getOrder, updateOrderStatus, updateOrderAdminNotes, setAwaitingSyllabus,
+  getOrder, updateOrderStatus, updateOrderAdminNotes, setAwaitingSyllabus, updateOrderTriage,
   getOrderTimeline, advanceOrderStage,
   type AdminOrderDetail, type AdminStageEvent,
 } from "@/lib/orders-admin.functions";
 
 const NAVY = "#14213D";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
-const STATUSES = ["new", "in_progress", "delivered", "paid", "cancelled"] as const;
+const STATUSES = ["new", "gameplan_sent", "approved", "in_progress", "delivered", "paid", "cancelled"] as const;
 const STATUS_LABEL: Record<string, string> = {
-  new: "New", in_progress: "In progress", delivered: "Delivered", paid: "Paid", cancelled: "Cancelled",
+  new: "New", gameplan_sent: "Gameplan sent", approved: "Approved",
+  in_progress: "In progress", delivered: "Delivered", paid: "Paid", cancelled: "Cancelled",
 };
 const STATUS_CLASS: Record<string, string> = {
   new: "bg-sky-100 text-sky-700",
+  gameplan_sent: "bg-indigo-100 text-indigo-700",
+  approved: "bg-teal-100 text-teal-700",
   in_progress: "bg-amber-100 text-amber-700",
   delivered: "bg-violet-100 text-violet-700",
   paid: "bg-emerald-100 text-emerald-700",
   cancelled: "bg-gray-200 text-gray-600",
 };
 const TIER_LABEL: Record<string, string> = {
-  free_teaser: "Free teaser", made_to_order: "Custom Study Pack request", one_on_one: "Premium 1-on-1",
+  free_teaser: "Free teaser", made_to_order: "Help Video request", one_on_one: "Premium 1-on-1",
+  something_else: "Something else",
 };
 const STAGE_DISPLAY: Record<string, string> = {
   request_received: "Request received", reviewing: "Reviewing your class",
@@ -50,6 +55,16 @@ function copy(text: string, what: string) {
   navigator.clipboard.writeText(text).then(() => toast.success(`${what} copied`)).catch(() => toast.error("Copy failed"));
 }
 
+const humanSize = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+// Student uploads live in the private student-syllabi bucket; only authenticated
+// admins can read, so sign a short-lived URL on click and open it in a new tab.
+async function openAttachment(path: string) {
+  const { data, error } = await supabase.storage.from("student-syllabi").createSignedUrl(path, 60 * 30);
+  if (error || !data?.signedUrl) { toast.error("Couldn’t open file"); return; }
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
+
 export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
   shortRef: string | null; onClose: () => void; onChanged: () => void;
 }) {
@@ -57,6 +72,7 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
   const statusFn = useServerFn(updateOrderStatus);
   const notesFn = useServerFn(updateOrderAdminNotes);
   const syllabusFn = useServerFn(setAwaitingSyllabus);
+  const triageFn = useServerFn(updateOrderTriage);
 
   const q = useQuery({
     queryKey: ["admin-order", shortRef],
@@ -69,6 +85,20 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
   const [notesSaved, setNotesSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { setNotes(order?.admin_notes ?? ""); setNotesSaved(false); }, [order?.short_ref, order?.admin_notes]);
+
+  // Triage field state (synced from the order; saved on blur/change).
+  const [quoteStr, setQuoteStr] = useState("");
+  const [estMin, setEstMin] = useState("");
+  const [promisedDate, setPromisedDate] = useState("");
+  const [triageNotes, setTriageNotes] = useState("");
+  const [triageSaved, setTriageSaved] = useState(false);
+  useEffect(() => {
+    setQuoteStr(order?.quote_cents != null ? String(order.quote_cents / 100) : "");
+    setEstMin(order?.estimated_build_minutes != null ? String(order.estimated_build_minutes) : "");
+    setPromisedDate(order?.promised_delivery_date ?? "");
+    setTriageNotes(order?.triage_notes ?? "");
+    setTriageSaved(false);
+  }, [order?.short_ref, order?.quote_cents, order?.estimated_build_minutes, order?.promised_delivery_date, order?.triage_notes]);
 
   useEffect(() => {
     if (!shortRef) return;
@@ -97,6 +127,31 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
     if (!order || notes === (order.admin_notes ?? "")) return;
     try { await notesFn({ data: { short_ref: order.short_ref, admin_notes: notes } }); setNotesSaved(true); onChanged(); }
     catch (e) { toast.error((e as Error).message); }
+  };
+
+  const saveTriage = async (patch: Record<string, unknown>) => {
+    if (!order) return;
+    try { await triageFn({ data: { short_ref: order.short_ref, ...patch } }); setTriageSaved(true); await refresh(); }
+    catch (e) { toast.error((e as Error).message); }
+  };
+  const saveQuote = () => {
+    const s = quoteStr.trim();
+    const cents = s === "" ? null : Math.round(parseFloat(s) * 100);
+    if (s !== "" && (cents == null || Number.isNaN(cents) || cents < 0)) { toast.error("Enter a valid dollar amount"); return; }
+    if ((order?.quote_cents ?? null) === cents) return;
+    saveTriage({ quote_cents: cents });
+  };
+  const saveEstMin = () => {
+    const s = estMin.trim();
+    const n = s === "" ? null : parseInt(s, 10);
+    if (s !== "" && (n == null || Number.isNaN(n) || n < 0)) { toast.error("Enter a valid number of minutes"); return; }
+    if ((order?.estimated_build_minutes ?? null) === n) return;
+    saveTriage({ estimated_build_minutes: n });
+  };
+  const savePromised = (v: string) => { setPromisedDate(v); saveTriage({ promised_delivery_date: v || null }); };
+  const saveTriageNotes = () => {
+    if (!order || triageNotes === (order.triage_notes ?? "")) return;
+    saveTriage({ triage_notes: triageNotes });
   };
 
   return (
@@ -139,7 +194,12 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
                   <Row label="TOTAL" value={money(order.total_cents)} strong />
                   <Row label="DELIVERY TARGET" value={order.delivery_target_date ? `by ${fmtDate(order.delivery_target_date)}` : (order.awaiting_syllabus ? "TBD (syllabus pending)" : "—")} />
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground" style={{ fontFamily: MONO }}>Tier: {TIER_LABEL[order.tier] ?? order.tier}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground" style={{ fontFamily: MONO }}>
+                  Tier: {TIER_LABEL[order.tier] ?? order.tier}
+                  {(order.requested_options?.length ?? 0) > 1 && (
+                    <> · Requested: {order.requested_options!.map((o) => TIER_LABEL[o] ?? o).join(", ")}</>
+                  )}
+                </p>
               </div>
 
               {/* contact */}
@@ -181,16 +241,82 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
                   <p className="text-sm text-muted-foreground">No chapters.</p>
                 )}
               </div>
+
+              {/* student note + uploaded files ("Provide more detail" from /order) */}
+              {(order.special_requests || (order.attachments_json?.length ?? 0) > 0) && (
+                <div className="rounded-2xl border p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Student note &amp; files</p>
+                  {order.special_requests && (
+                    <p className="whitespace-pre-wrap text-sm text-foreground">“{order.special_requests}”</p>
+                  )}
+                  {(order.attachments_json?.length ?? 0) > 0 && (
+                    <ul className={`space-y-1.5 ${order.special_requests ? "mt-3" : ""}`}>
+                      {order.attachments_json!.map((a) => (
+                        <li key={a.path}>
+                          <button type="button" onClick={() => openAttachment(a.path)}
+                            className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm hover:bg-accent">
+                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="flex-1 truncate">{a.name}</span>
+                            <span className="shrink-0 text-[11px] text-muted-foreground">{humanSize(a.size)}</span>
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* RIGHT: admin controls */}
             <div className="space-y-4">
+              {/* Triage — quote, build estimate, promised delivery, tool coverage, notes */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Triage</p>
+                <div className="space-y-2.5">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-muted-foreground">Quote ($)</span>
+                    <input inputMode="decimal" value={quoteStr} placeholder="—"
+                      onChange={(e) => setQuoteStr(e.target.value)} onBlur={saveQuote}
+                      className="h-11 w-full rounded-lg border border-input bg-background px-2.5 text-sm" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-muted-foreground">Est. build (min)</span>
+                    <input inputMode="numeric" value={estMin} placeholder="—"
+                      onChange={(e) => setEstMin(e.target.value)} onBlur={saveEstMin}
+                      className="h-11 w-full rounded-lg border border-input bg-background px-2.5 text-sm" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-muted-foreground">Promised delivery</span>
+                    <input type="date" value={promisedDate}
+                      onChange={(e) => savePromised(e.target.value)}
+                      className="h-11 w-full rounded-lg border border-input bg-background px-2.5 text-sm" />
+                  </label>
+                  <div>
+                    <span className="mb-1 block text-[11px] text-muted-foreground">Tool exists?</span>
+                    <div className="flex gap-1.5">
+                      <Button variant={order.tool_exists === true ? "default" : "outline"} disabled={busy}
+                        onClick={() => saveTriage({ tool_exists: true })} className="h-11 flex-1">Yes</Button>
+                      <Button variant={order.tool_exists === false ? "default" : "outline"} disabled={busy}
+                        onClick={() => saveTriage({ tool_exists: false })} className="h-11 flex-1">No</Button>
+                    </div>
+                  </div>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] text-muted-foreground">Triage notes</span>
+                    <textarea rows={3} value={triageNotes} placeholder="Gameplan, blockers…"
+                      onChange={(e) => { setTriageNotes(e.target.value); setTriageSaved(false); }} onBlur={saveTriageNotes}
+                      className="w-full rounded-lg border border-input bg-background p-2 text-sm" />
+                    {triageSaved && <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-600"><Check className="h-3 w-3" /> Saved</p>}
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
                 <div className="flex flex-col gap-1.5">
                   {STATUSES.map((s) => (
                     <Button key={s} size="sm" variant={order.status === s ? "default" : "outline"}
-                      disabled={busy || order.status === s} onClick={() => changeStatus(s)} className="justify-start">
+                      disabled={busy || order.status === s} onClick={() => changeStatus(s)} className="h-11 justify-start">
                       {STATUS_LABEL[s]}
                     </Button>
                   ))}
@@ -228,7 +354,7 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
   );
 }
 
-// Custom Study Pack stage timeline + "Advance stage" (emails the student).
+// Help Video stage timeline + "Advance stage" (emails the student).
 function OrderTimeline({ shortRef, onChanged }: { shortRef: string; onChanged: () => void }) {
   const timelineFn = useServerFn(getOrderTimeline);
   const advanceFn = useServerFn(advanceOrderStage);

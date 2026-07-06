@@ -85,7 +85,7 @@ export default function ContactForm() {
               maxWidth: 480,
             }}
           >
-            Wondering which plan fits, or how tutoring works? Text me — I read and reply to every message myself.
+            Wondering how this works? Text me — I read and reply to every message myself.
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-4">
