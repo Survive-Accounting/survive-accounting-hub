@@ -281,6 +281,10 @@
         }
       ],
       "scaffold": "Start from cash: it always equals the issue price (PV at the market rate). Bonds Payable always takes face. Whatever gap remains is your discount (debit) or premium (credit)."
+    },
+    "grid": {
+      "row": "Issue",
+      "rowOrder": 1
     }
   }
 }

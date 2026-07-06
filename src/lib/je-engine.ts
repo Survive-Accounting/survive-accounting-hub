@@ -61,6 +61,11 @@ export interface ScenarioDoc {
   // Chapter-hub metadata (both optional, additive).
   group?: string; // study-path grouping within a chapter; defaults to "Scenarios" when absent
   videoUrl?: string; // when present, the hub shows a "Watch" verb button; nothing rendered when absent
+
+  // Chapter-grid placement (optional, additive). row = lifecycle-stage label ("Issue",
+  // "Each period", "Retire", …); rowOrder sorts the stages. Absent → the grid falls back to
+  // one row per doc (hub order). Columns come from the doc's FIRST axis, not this field.
+  grid?: { row: string; rowOrder?: number };
 }
 
 // ---- v2 numbers-layer shapes -------------------------------------------------

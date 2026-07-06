@@ -388,6 +388,10 @@
         }
       ],
       "scaffold": "Anchor on the two numbers you can always compute: cash (face × stated × time) and expense (carrying value × market × time). The plug between them is the amortization — its direction tells you discount vs premium."
+    },
+    "grid": {
+      "row": "Each period",
+      "rowOrder": 2
     }
   }
 }

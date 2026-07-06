@@ -224,6 +224,10 @@
         }
       ],
       "scaffold": "Ask two questions: how many months of the current coupon period fall before year-end (that's your fraction), and which direction does the amortization push expense (discount adds, premium subtracts). No cash moves at year-end."
+    },
+    "grid": {
+      "row": "Year-end",
+      "rowOrder": 3
     }
   }
 }

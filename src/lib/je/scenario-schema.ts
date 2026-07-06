@@ -175,6 +175,7 @@ export const scenarioDocV2Schema = z
       .optional(),
     group: z.string().optional(),
     videoUrl: z.string().optional(),
+    grid: z.object({ row: z.string().min(1), rowOrder: z.number().optional() }).optional(),
   })
   .superRefine((doc, ctx) => {
     // axis keys unique; every variant/computationPath condition key must name a declared axis

@@ -267,6 +267,10 @@
         }
       ],
       "scaffold": "Anchor on the carrying value at the retirement date (schedule, last column). Then: face off, remaining discount/premium off, cash at the quoted price, and the gain or loss is whatever balances."
+    },
+    "grid": {
+      "row": "Retire",
+      "rowOrder": 4
     }
   }
 }

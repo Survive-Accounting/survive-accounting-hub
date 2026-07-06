@@ -195,6 +195,10 @@
         }
       ],
       "scaffold": "Two lines, mirror logic: find CV on the schedule, compare with FV, and remember you're the DEBTOR — the debt getting pricier is your loss."
+    },
+    "grid": {
+      "row": "Reporting",
+      "rowOrder": 6
     }
   }
 }

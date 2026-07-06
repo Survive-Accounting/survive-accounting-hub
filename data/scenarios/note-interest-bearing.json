@@ -159,6 +159,10 @@
         }
       ],
       "scaffold": "Rates equal → no discount, no premium, no drama. Two two-line entries: cash-for-note, then expense-for-cash each year."
+    },
+    "grid": {
+      "row": "Notes",
+      "rowOrder": 5
     }
   }
 }

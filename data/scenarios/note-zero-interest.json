@@ -194,6 +194,10 @@
         }
       ],
       "scaffold": "First find the PV — that's the only real number on day one. Then every year is two lines: expense (CV × rate) and discount (same amount). No cash moves until maturity."
+    },
+    "grid": {
+      "row": "Notes",
+      "rowOrder": 5
     }
   }
 }

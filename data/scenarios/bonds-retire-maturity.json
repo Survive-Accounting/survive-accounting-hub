@@ -131,6 +131,10 @@
         }
       ],
       "scaffold": "Two lines, both at face. Every other account in the bank is a decoy — including the discount, which finished amortizing on the last coupon date."
+    },
+    "grid": {
+      "row": "Retire",
+      "rowOrder": 4
     }
   }
 }

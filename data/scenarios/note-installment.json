@@ -199,6 +199,10 @@
         }
       ],
       "scaffold": "Run the loop before touching the entry: balance × rate = interest; payment − interest = principal. The entry then writes itself — expense debit, note debit, cash credit."
+    },
+    "grid": {
+      "row": "Notes",
+      "rowOrder": 5
     }
   }
 }

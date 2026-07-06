@@ -62,6 +62,7 @@ import {
 import { BuildMode } from "@/components/je/build-mode";
 import { PresentMode } from "@/components/je/present-mode";
 import { Hub, MemorizeDeck, PracticeMix } from "@/components/je/hub";
+import { ChapterGrid } from "@/components/je/chapter-grid";
 
 // Accounts that make an entry a "periodic interest payment" (schedule-driven → row-click drives it).
 const PAYMENT_ACCTS = new Set([
@@ -231,10 +232,6 @@ function JePrototype() {
   const setMode = (m: "explore" | "build" | "present") =>
     navigate({ search: (prev) => ({ ...prev, mode: m === "explore" ? undefined : m }) });
   const [cleanScreen, setCleanScreen] = useState(false);
-  useEffect(() => {
-    if (mode !== "present") setCleanScreen(false);
-  }, [mode]);
-  const chromeHidden = mode === "present" && cleanScreen;
 
   const variant = doc ? resolveVariant(doc, conditions) : null;
   const entries: EntryTemplate[] = variant?.entries ?? [];
@@ -364,9 +361,15 @@ function JePrototype() {
   const isSequence = !!(doc?.isSequence || doc?.sequenceGroup);
   const hasMemGrid = !!doc?.hasMemorizationGrid;
 
-  // ---- Chapter-hub view: hub (study path) | scenario | deck | practice ----
-  const [view, setView] = useState<"hub" | "scenario" | "deck" | "practice">("hub");
+  // ---- Chapter-hub view: hub (study path) | scenario | deck | practice | grid ----
+  const [view, setView] = useState<"hub" | "scenario" | "deck" | "practice" | "grid">("hub");
   useEffect(() => setView("hub"), [activeChapter?.id]);
+
+  // Clean-screen chrome hiding applies to Present mode and the Grid view (both filming/print surfaces).
+  const chromeHidden = cleanScreen && (mode === "present" || view === "grid");
+  useEffect(() => {
+    if (!(mode === "present" || view === "grid")) setCleanScreen(false);
+  }, [mode, view]);
   const hubScenarios = useMemo(
     () => scenarios.map((s) => ({ slug: s.slug, title: s.title, doc: s.doc })),
     [scenarios],
@@ -505,6 +508,17 @@ function JePrototype() {
                 onOpen={openScenario}
                 onDeck={() => setView("deck")}
                 onPractice={() => setView("practice")}
+                onGrid={() => setView("grid")}
+              />
+            ) : view === "grid" ? (
+              <ChapterGrid
+                courseLabel={activeCourse?.course_name ?? activeCourse?.code ?? "Course"}
+                chapterLabel={chapterLabel(activeChapter)}
+                scenarios={hubScenarios}
+                onBack={() => setView("hub")}
+                onOpenCell={showInTool}
+                onCleanToggle={() => setCleanScreen((v) => !v)}
+                cleanScreen={cleanScreen}
               />
             ) : view === "deck" ? (
               <MemorizeDeck

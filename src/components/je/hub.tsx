@@ -2,7 +2,7 @@
 // Practice mix. All read the same scenarios the /je route already loaded; progress comes
 // from Prompt 3's localStorage (readProgress). Practice reuses resolveSlot for answers.
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, GraduationCap, Layers, PlayCircle, RotateCcw } from "lucide-react";
+import { ArrowLeft, GraduationCap, Grid3x3, Layers, PlayCircle, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { fmtUSD } from "@/lib/je/amortization";
@@ -59,6 +59,7 @@ export function Hub({
   onOpen,
   onDeck,
   onPractice,
+  onGrid,
 }: {
   courseLabel: string;
   chapterLabel: string;
@@ -66,6 +67,7 @@ export function Hub({
   onOpen: (slug: string, mode: "explore" | "build") => void;
   onDeck: () => void;
   onPractice: () => void;
+  onGrid: () => void;
 }) {
   const [prog, setProg] = useState<Record<string, Record<string, { completedAt: string | null }>>>({});
   useEffect(() => {
@@ -103,6 +105,9 @@ export function Hub({
           </button>
           <button onClick={onPractice} disabled={questionCount === 0} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40" style={{ backgroundColor: NAVY }}>
             <GraduationCap className="h-3.5 w-3.5" /> Practice mix
+          </button>
+          <button onClick={onGrid} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold hover:border-foreground">
+            <Grid3x3 className="h-3.5 w-3.5" /> Grid
           </button>
         </div>
       </div>

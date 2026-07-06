@@ -195,6 +195,10 @@
         }
       ],
       "scaffold": "Timeline first: dated Jan 1, sold Mar 1, coupon Jul 1. Count the months in each slice — 2 accrued (buyer prepays), 4 owned (issuer's expense), 6 paid (full coupon). Every number is face × stated × slice/12."
+    },
+    "grid": {
+      "row": "Issue",
+      "rowOrder": 1
     }
   }
 }

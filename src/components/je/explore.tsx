@@ -14,7 +14,8 @@ import {
 } from "@/lib/je/amortization";
 import { givenLineText } from "@/lib/je/explore";
 import type { SlotResolution } from "@/lib/je/slot-resolver";
-import type { MemorizeItem } from "@/lib/je-engine";
+import { resolveComputationPath, type MemorizeItem, type ScenarioDoc, type Variant } from "@/lib/je-engine";
+import { resolveLiteralAmount, type ExploreCtx } from "@/lib/je/explore";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
@@ -172,6 +173,79 @@ export function Amount({
     </button>
   );
 }
+
+// ============================================================================
+// MiniEntry — read-only, resolved entry display (shared by the chapter grid).
+// Renders account names + Dr/Cr with amounts resolved from the doc's own params/literals;
+// computation docs render their computationPath's final step. Amounts stay click-through.
+// ============================================================================
+function tryResolveExpr(explore: ExploreCtx | null, ref: string): SlotResolution | null {
+  if (!explore) return null;
+  try {
+    return explore.resolve(ref);
+  } catch {
+    return null;
+  }
+}
+
+export function MiniEntry({
+  variant,
+  conditions,
+  explore,
+  onOpen,
+}: {
+  variant: Variant;
+  conditions: Record<string, string>;
+  explore: ExploreCtx | null;
+  onOpen: (d: Derivation, x: number, y: number) => void;
+}) {
+  const entries = variant.entries ?? [];
+
+  if (entries.length === 0) {
+    const cp = resolveComputationPath(variant, conditions);
+    const last = cp?.steps?.[cp.steps.length - 1];
+    const res = last?.resultSlotKey ? tryResolveExpr(explore, last.resultSlotKey) : null;
+    if (!cp) return <span className="text-[10px] italic text-muted-foreground">—</span>;
+    return (
+      <div className="text-[11px]">
+        <div className="font-medium">{last?.label ?? "Result"}</div>
+        {res ? (
+          <Amount res={res} slotRef={last?.resultSlotKey} glowRefs={NO_GLOW_MINI} onOpen={onOpen} className="font-semibold" />
+        ) : (
+          <span className="text-muted-foreground">{last?.formulaText ?? cp.narration.slice(0, 40)}</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      {entries.map((e) => (
+        <table key={e.id} className="w-full text-[11px]" title={e.caption ?? undefined}>
+          <tbody>
+            {e.lines.map((l) => {
+              const amt = (explore ? explore.resolveLine(l) : null) ?? resolveLiteralAmount(l);
+              return (
+                <tr key={l.id}>
+                  <td className={cn("pr-2", l.side === "credit" && "pl-3")}>{l.account}</td>
+                  <td className="w-16 text-right tabular-nums">
+                    {l.side === "debit" &&
+                      (amt ? <Amount res={amt} slotRef={amt.slotRef} glowRefs={NO_GLOW_MINI} onOpen={onOpen} className="ml-auto" /> : (l.label || "—"))}
+                  </td>
+                  <td className="w-16 text-right tabular-nums">
+                    {l.side === "credit" &&
+                      (amt ? <Amount res={amt} slotRef={amt.slotRef} glowRefs={NO_GLOW_MINI} onOpen={onOpen} className="ml-auto" /> : (l.label || "—"))}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ))}
+    </div>
+  );
+}
+const NO_GLOW_MINI = new Set<string>();
 
 // ============================================================================
 // Amortization schedule panel
