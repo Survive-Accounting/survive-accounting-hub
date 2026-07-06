@@ -38,7 +38,7 @@ import {
 import { fetchCampuses } from "@/lib/outreach-api";
 import { type Campus } from "@/lib/outreach-mock";
 import { researchProgramCourses } from "@/lib/program-courses.functions";
-import { createMobilityCampus } from "@/lib/profintel.functions";
+import { createMobilityCampus, sendProfintelTestEmail } from "@/lib/profintel.functions";
 import {
   acceptIncomingMove,
   clearDrafts,
@@ -54,6 +54,7 @@ import {
   moveLead,
   parseV2Leads,
   pasteImportLeads,
+  renderTemplate,
   retireLead,
   scheduleCampaignDrafts,
   saveCampusCourseCodes,
@@ -1030,8 +1031,25 @@ function DraftCard({ draft, onChanged }: { draft: ProfIntelSend; onChanged: () =
   );
 }
 
+// Sample professor used to render template tokens for "Send test email".
+const SAMPLE_TEST_LEAD: ProfIntelLead = {
+  id: "sample",
+  first_name: "Jane",
+  last_name: "Smith",
+  email: null,
+  is_phd: true,
+  source_url: null,
+  rmp_profile_url: null,
+  rmp_rating: 4.6,
+  rmp_num_ratings: 87,
+  rmp_course_match_json: { acct: { code: "ACCT 2101", count: 3 } },
+};
+
 function TemplateEditor() {
-  const tplQuery = useQuery({ queryKey: ["profintel-template-config"], queryFn: getTemplateConfig });
+  const tplQuery = useQuery({
+    queryKey: ["profintel-template-config"],
+    queryFn: getTemplateConfig,
+  });
   const [open, setOpen] = useState(false);
   const [aSubject, setASubject] = useState("");
   const [aBody, setABody] = useState("");
@@ -1040,6 +1058,9 @@ function TemplateEditor() {
   const [abEnabled, setAbEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [testTo, setTestTo] = useState("lee@surviveaccounting.com");
+  const [testSending, setTestSending] = useState<"A" | "B" | null>(null);
+  const sendTest = useServerFn(sendProfintelTestEmail);
 
   useEffect(() => {
     if (tplQuery.data && !loaded) {
@@ -1051,6 +1072,30 @@ function TemplateEditor() {
       setLoaded(true);
     }
   }, [tplQuery.data, loaded]);
+
+  async function sendTestEmail(which: "A" | "B") {
+    const tpl =
+      which === "B" ? { subject: bSubject, body: bBody } : { subject: aSubject, body: aBody };
+    if (!tpl.subject.trim() || !tpl.body.trim()) {
+      toast.error(`Variant ${which} has no subject/body to send.`);
+      return;
+    }
+    if (!testTo.trim()) {
+      toast.error("Enter a test email address.");
+      return;
+    }
+    // Render the tokens against a sample professor so the test reads like a real send.
+    const { subject, body } = renderTemplate(tpl, SAMPLE_TEST_LEAD, "Sample University");
+    setTestSending(which);
+    try {
+      await sendTest({ data: { to: testTo.trim(), subject, body } });
+      toast.success(`Test email (variant ${which}) sent to ${testTo.trim()}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send test email.");
+    } finally {
+      setTestSending(null);
+    }
+  }
 
   async function save() {
     if (abEnabled && (!bSubject.trim() || !bBody.trim())) {
@@ -1119,10 +1164,7 @@ function TemplateEditor() {
                   Load default into A
                 </Button>
                 <label className="ml-2 flex cursor-pointer items-center gap-2 text-xs font-medium">
-                  <Checkbox
-                    checked={abEnabled}
-                    onCheckedChange={(v) => setAbEnabled(v === true)}
-                  />
+                  <Checkbox checked={abEnabled} onCheckedChange={(v) => setAbEnabled(v === true)} />
                   A/B test 50/50
                 </label>
                 <span className="text-[11px] text-muted-foreground">
@@ -1190,6 +1232,48 @@ function TemplateEditor() {
                   />
                 </div>
               )}
+
+              {/* Send test — preview a variant in your own inbox (sample tokens). */}
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
+                <span className="text-[11px] font-medium text-muted-foreground">Send test to</span>
+                <Input
+                  value={testTo}
+                  onChange={(e) => setTestTo(e.target.value)}
+                  className="h-8 w-[240px] text-sm"
+                  placeholder="you@example.com"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => sendTestEmail("A")}
+                  disabled={testSending !== null}
+                >
+                  {testSending === "A" ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Mail className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Send test{abEnabled ? " (A)" : ""}
+                </Button>
+                {abEnabled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sendTestEmail("B")}
+                    disabled={testSending !== null}
+                  >
+                    {testSending === "B" ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Mail className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    Send test (B)
+                  </Button>
+                )}
+                <span className="text-[11px] text-muted-foreground">
+                  Uses sample data (Dr. Jane Smith · ACCT 2101). Doesn't affect your saved template.
+                </span>
+              </div>
 
               <div className="flex justify-end">
                 <Button size="sm" onClick={save} disabled={saving}>

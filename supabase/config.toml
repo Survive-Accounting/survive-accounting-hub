@@ -39,6 +39,10 @@ verify_jwt = false
 [functions.profintel-inbound]
 verify_jwt = false
 
+# One-off operator reminders — pg_cron with x-cron-secret.
+[functions.profintel-reminder]
+verify_jwt = false
+
 # Called by pg_cron to drive the batch campus research worker.
 [functions.run-campus-batch]
 verify_jwt = false
