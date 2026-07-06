@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Loader2, Lock, PencilLine } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Lock, PencilLine, SlidersHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { isAdminUnlocked } from "@/components/AdminGate";
@@ -40,13 +40,21 @@ import {
   type ScenarioDoc,
 } from "@/lib/je-engine";
 import { entryAt, type Derivation, type DerivedEntry } from "@/lib/je/amortization";
-import { buildExplore, resolveLiteralAmount } from "@/lib/je/explore";
+import { buildExplore, formatEvent, resolveLiteralAmount } from "@/lib/je/explore";
+import {
+  DEFAULT_PANELS,
+  getGlobalPanels,
+  PANEL_KEYS,
+  resolveVisiblePanels,
+  setGlobalPanels,
+  type PanelKey,
+} from "@/lib/je/panel-settings";
 import {
   Amount,
   DerivationPopover,
+  GivenLine,
   LifeTAccounts,
   MemorizeSection,
-  ParamChips,
   PresentationBlock,
   ScheduleTable,
   type PopoverState,
@@ -123,6 +131,18 @@ function JePrototype() {
   const queryClient = useQueryClient();
   const [admin, setAdmin] = useState(false);
   useEffect(() => setAdmin(isAdminUnlocked()), []); // localStorage only exists client-side
+
+  // Global panel-visibility defaults (localStorage). Load client-side to avoid a hydration
+  // mismatch; a doc's ui.panels overrides these per scenario.
+  const [globalPanels, setGlobalPanelsState] = useState<Record<PanelKey, boolean>>(DEFAULT_PANELS);
+  useEffect(() => setGlobalPanelsState(getGlobalPanels()), []);
+  const [panelsOpen, setPanelsOpen] = useState(false);
+  const toggleGlobalPanel = (k: PanelKey) =>
+    setGlobalPanelsState((prev) => {
+      const next = { ...prev, [k]: !prev[k] };
+      setGlobalPanels(next);
+      return next;
+    });
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorText, setEditorText] = useState("");
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -169,7 +189,6 @@ function JePrototype() {
   const [seed, setSeed] = useState(1);
   const [regenerated, setRegenerated] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState(AUTHORED_PERIOD);
-  const [projTab, setProjTab] = useState<"projections" | "schedule">("projections");
   const [tacctView, setTacctView] = useState<"entry" | "life">("life");
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [activeTraceRefs, setActiveTraceRefs] = useState<Set<string>>(new Set());
@@ -185,7 +204,6 @@ function JePrototype() {
     setSeed(activeScenario.doc.params?.defaultSeed ?? 1);
     setRegenerated(false);
     setSelectedPeriod(AUTHORED_PERIOD);
-    setProjTab("projections");
     setTacctView("life");
     setPopover(null);
     setActiveTraceRefs(new Set());
@@ -227,6 +245,13 @@ function JePrototype() {
     }
   };
 
+  // Effective panel visibility: a doc's ui.panels overrides the global defaults.
+  const visiblePanels = resolveVisiblePanels(doc?.ui?.panels, globalPanels);
+  const visible = (k: PanelKey) => visiblePanels[k];
+  const anyConsequenceVisible =
+    (!!explore && (visible("schedule") || visible("presentation"))) ||
+    (!isComputation && (visible("ledger") || visible("statements") || visible("equation")));
+
   // Schedule-driven entries: a single periodic-interest payment whose lines bind schedule:N
   // slots. For those, clicking a schedule row ≠ the authored period re-renders the entry via
   // entryAt(); everything else keeps its authored reveal-grid entry.
@@ -257,17 +282,6 @@ function JePrototype() {
       tracePostingsToStatementLine(entries, coa, highlightAccount).map((r) => lineKey(r.entryId, r.lineId)),
     );
   }, [highlightAccount, entries, coa]);
-
-  // The connector arrows light along the path the highlighted account travels.
-  const stmtAccounts = useMemo(
-    () => new Set([...statementEffects.income, ...statementEffects.balanceSheet].map((e) => e.account)),
-    [statementEffects],
-  );
-  const highlightInLedger = !!highlightAccount && ledger.some((a) => a.account === highlightAccount);
-  const highlightInStatements =
-    !!highlightAccount &&
-    (stmtAccounts.has(highlightAccount) ||
-      (highlightAccount === "Cash" && statementEffects.cashFlow.touchesCash));
 
   // Accounts referenced by the current entry → the "vocabulary" shown in the COA panel.
   const usedAccounts = useMemo(() => {
@@ -454,6 +468,38 @@ function JePrototype() {
                     <PencilLine className="h-3.5 w-3.5" /> Edit scenario
                   </button>
                 )}
+                {admin && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setPanelsOpen((o) => !o)}
+                      title="Choose which explore panels show (global; admin)"
+                      className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-foreground hover:text-foreground"
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" /> Panels
+                    </button>
+                    {panelsOpen && (
+                      <div
+                        className="absolute left-0 z-30 mt-1 w-52 rounded-lg border-2 bg-card p-2 shadow-lg"
+                        style={{ borderColor: NAVY }}
+                      >
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Show panels (global)
+                        </div>
+                        {PANEL_KEYS.map((k) => (
+                          <label key={k} className="flex cursor-pointer items-center gap-2 py-0.5 text-xs capitalize">
+                            <input type="checkbox" checked={globalPanels[k]} onChange={() => toggleGlobalPanel(k)} />
+                            {k}
+                          </label>
+                        ))}
+                        {doc?.ui?.panels && (
+                          <p className="mt-1 border-t border-border/60 pt-1 text-[9px] text-amber-600">
+                            This scenario overrides globals via <code>ui.panels</code>.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -574,9 +620,9 @@ function JePrototype() {
                     )
                   }
                 >
-                  {/* Event + params + principles + condition toggles */}
-                  <p className="text-sm text-foreground/90">{doc?.event}</p>
-                  {explore && <ParamChips params={explore.effectiveParams} seed={seed} onNewNumbers={newNumbers} />}
+                  {/* Event (with {param} placeholders resolved) + Given line + principles + toggles */}
+                  <p className="text-sm text-foreground/90">{formatEvent(doc?.event ?? "", explore?.effectiveParams)}</p>
+                  {explore && <GivenLine params={explore.effectiveParams} seed={seed} onNewNumbers={newNumbers} />}
                   {(doc?.principleKeys ?? []).length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(doc?.principleKeys ?? []).map((k) => {
@@ -835,30 +881,11 @@ function JePrototype() {
                   )}
                 </Panel>
 
-                {/* JE → (Ledger | Statements) — entry-derived consequences; hidden for computation scenarios */}
-                {!isComputation && (
-                  <>
-                <BranchConnector left={highlightInLedger} right={highlightInStatements} />
+                {/* ---- Consequence panels — visibility per the Panels config / doc.ui.panels ---- */}
+                {anyConsequenceVisible && <VConnector active={!!highlightAccount || selectedPeriod > 0} />}
+                <div className="space-y-4">
 
-                {explore && (
-                  <div className="mb-3 flex justify-center gap-1">
-                    {(["projections", "schedule"] as const).map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setProjTab(tab)}
-                        className={cn(
-                          "rounded-md px-3 py-1 text-xs font-semibold capitalize transition",
-                          projTab === tab ? "text-white" : "border border-border text-muted-foreground hover:text-foreground",
-                        )}
-                        style={projTab === tab ? { backgroundColor: NAVY } : undefined}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {explore && projTab === "schedule" && (
+                {explore && visible("schedule") && (
                   <Panel
                     title="Amortization schedule"
                     subtitle="Click a row to drive the entry & statements; click any number to trace it."
@@ -873,9 +900,21 @@ function JePrototype() {
                   </Panel>
                 )}
 
-                {(!explore || projTab === "projections") && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {/* Ledger / T-accounts */}
+                {/* Balance-sheet presentation (params-derived + visible) */}
+                {explore && visible("presentation") && (
+                  <Panel title="Balance-sheet presentation" subtitle="Live at the selected schedule period.">
+                    <PresentationBlock
+                      schedule={explore.schedule}
+                      selectedPeriod={selectedPeriod}
+                      pricing={explore.pricing}
+                      onOpen={openPopover}
+                      glowRefs={activeTraceRefs}
+                    />
+                  </Panel>
+                )}
+
+                {/* Ledger / T-accounts (entry-derived + visible) */}
+                {!isComputation && visible("ledger") && (
                   <Panel
                     title="Ledger (T-accounts)"
                     subtitle="Click an account to trace it."
@@ -948,8 +987,10 @@ function JePrototype() {
                       </div>
                     )}
                   </Panel>
+                )}
 
-                  {/* Statement effects */}
+                {/* Statement effects (entry-derived + visible) */}
+                {!isComputation && visible("statements") && (
                   <Panel
                     title="Statement effects"
                     subtitle="Click a line to trace it back."
@@ -958,15 +999,6 @@ function JePrototype() {
                     onToggle={() => toggleCollapse("statements")}
                   >
                     <div className="space-y-3 text-sm">
-                      {explore && (
-                        <PresentationBlock
-                          schedule={explore.schedule}
-                          selectedPeriod={selectedPeriod}
-                          pricing={explore.pricing}
-                          onOpen={openPopover}
-                          glowRefs={activeTraceRefs}
-                        />
-                      )}
                       <StatementGroup label="Income statement" empty="No income-statement accounts move.">
                         {statementEffects.income.map((e) => (
                           <StatementRow
@@ -1007,13 +1039,10 @@ function JePrototype() {
                       </div>
                     </div>
                   </Panel>
-                </div>
                 )}
 
-                {/* (Ledger | Statements) → Equation */}
-                <VConnector active={!!highlightAccount} />
-
-                {/* Accounting equation — running summary at the bottom */}
+                {/* Accounting equation (entry-derived + visible) */}
+                {!isComputation && visible("equation") && (
                 <Panel title="Accounting equation">
                   <div className="flex flex-wrap items-center gap-3 text-sm">
                     <EquationCell label="Assets" dir={equation.assets} />
@@ -1037,8 +1066,8 @@ function JePrototype() {
                     </span>
                   </div>
                 </Panel>
-                  </>
                 )}
+                </div>
 
                 {/* ---- Memorize (real when the doc carries it) + placeholders ---- */}
                 <div className="mt-4 space-y-4">
@@ -1155,38 +1184,6 @@ function VConnector({ active }: { active: boolean }) {
   );
 }
 
-/** Branching connector: the entry splits into the ledger (left) and statements (right). */
-function BranchConnector({ left, right }: { left: boolean; right: boolean }) {
-  return (
-    <div className="py-1">
-      <svg viewBox="0 0 200 36" className="mx-auto h-9 w-full max-w-lg" fill="none">
-        <line x1="100" y1="0" x2="100" y2="12" stroke="currentColor" strokeWidth={1.25} className="text-border" />
-        <g
-          className={left ? "" : "text-border"}
-          style={left ? { color: NAVY } : undefined}
-          stroke="currentColor"
-          strokeWidth={left ? 2 : 1.25}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M100 12 C100 26, 70 20, 52 30" />
-          <path d="M48 24 L52 31 L59 28" />
-        </g>
-        <g
-          className={right ? "" : "text-border"}
-          style={right ? { color: NAVY } : undefined}
-          stroke="currentColor"
-          strokeWidth={right ? 2 : 1.25}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M100 12 C100 26, 130 20, 148 30" />
-          <path d="M141 28 L148 31 L152 24" />
-        </g>
-      </svg>
-    </div>
-  );
-}
 
 function DirArrow({ dir }: { dir: Dir }) {
   const glyph = dir === "up" ? "↑" : dir === "down" ? "↓" : dir === "unknown" ? "?" : "·";

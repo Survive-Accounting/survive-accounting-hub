@@ -1,7 +1,7 @@
 // Explore-mode UI for /je — the panels that render ScenarioDoc v2's numbers layer.
 // Prop-driven and presentational; the route owns state and the slot resolver (explore.ts).
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Dices, X } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -12,6 +12,7 @@ import {
   type BondPricing,
   type Derivation,
 } from "@/lib/je/amortization";
+import { givenLineText } from "@/lib/je/explore";
 import type { SlotResolution } from "@/lib/je/slot-resolver";
 import type { MemorizeItem } from "@/lib/je-engine";
 
@@ -22,9 +23,9 @@ const GOLD = "#FCA311"; // trace-glow accent
 const glows = (ref: string | undefined, glowRefs: Set<string>) => !!ref && glowRefs.has(ref);
 
 // ============================================================================
-// Param chips + "New numbers"
+// "Given:" problem-statement line (replaces the chip row) + inline New-numbers refresh
 // ============================================================================
-export function ParamChips({
+export function GivenLine({
   params,
   seed,
   onNewNumbers,
@@ -33,30 +34,20 @@ export function ParamChips({
   seed: number;
   onNewNumbers: () => void;
 }) {
-  const chip = (label: string, value: string) => (
-    <span key={label} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-0.5 text-[11px]">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold tabular-nums">{value}</span>
-    </span>
-  );
-  const freq = params.paymentsPerYear === 2 ? "Semiannual" : params.paymentsPerYear === 4 ? "Quarterly" : params.paymentsPerYear === 1 ? "Annual" : `${params.paymentsPerYear}×/yr`;
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      {chip("Face", fmtUSD(params.face))}
-      {chip("Stated", fmtPct(params.statedRateAnnual))}
-      {chip("Market", fmtPct(params.marketRateAnnual))}
-      {chip("Term", `${params.termYears} yr`)}
-      {chip("Pay", freq)}
-      {chip("Seed", `#${seed}`)}
+    <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
+      <span>
+        <span className="font-medium">Given:</span> {givenLineText(params)}
+      </span>
       <button
         onClick={onNewNumbers}
-        title="Generate fresh clean numbers for this pricing"
-        className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium text-white"
-        style={{ backgroundColor: NAVY, borderColor: NAVY }}
+        title={`Generate fresh numbers (seed #${seed})`}
+        aria-label="New numbers"
+        className="inline-flex items-center rounded p-0.5 transition hover:bg-muted hover:text-foreground"
       >
-        <Dices className="h-3 w-3" /> New numbers
+        <RefreshCw className="h-3 w-3" />
       </button>
-    </div>
+    </p>
   );
 }
 

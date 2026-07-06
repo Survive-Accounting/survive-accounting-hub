@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import type { ScenarioDoc } from "@/lib/je-engine";
 import { KNOWN_MISCONCEPTION_IDS, type MisconceptionId } from "@/lib/je/misconceptions";
+import { PANEL_KEYS, type PanelKey } from "@/lib/je/panel-settings";
 
 const slotRef = z.string().min(1); // "param:face" | "issuePrice" | "schedule:1:interestExpense" | arithmetic expr
 
@@ -169,6 +170,9 @@ export const scenarioDocV2Schema = z
     questions: z.array(questionSchema).optional(),
     traces: z.array(traceGroupSchema).optional(),
     build: buildSpecSchema.optional(),
+    ui: z
+      .object({ panels: z.array(z.enum([...PANEL_KEYS] as [PanelKey, ...PanelKey[]])).optional() })
+      .optional(),
   })
   .superRefine((doc, ctx) => {
     // axis keys unique; every variant/computationPath condition key must name a declared axis

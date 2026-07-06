@@ -4,6 +4,7 @@
 import {
   buildAmortSchedule,
   classifyPricing,
+  fmtPct,
   fmtUSD,
   generateParams,
   type AmortMethod,
@@ -91,6 +92,36 @@ export function buildExplore(
   };
 
   return { schedule, effectiveParams, pricing, method, resolve, resolveLine };
+}
+
+function freqWord(n: number): string {
+  return n === 2 ? "semiannual" : n === 4 ? "quarterly" : n === 1 ? "annual" : `${n}×/yr`;
+}
+
+/**
+ * Resolve {param} placeholders in a doc's `event` prose against the effective params —
+ * {face} → "$500,000", {statedRateAnnual}/{marketRateAnnual} → "8%"/"10%", {termYears} →
+ * "5", {paymentsPerYear} → "semiannual", {issueDate} → the date. Docs with no placeholders
+ * (all current docs) and paramless docs render their event text unchanged.
+ */
+export function formatEvent(event: string, params?: BondParams): string {
+  if (!params) return event;
+  const map: Record<string, string> = {
+    face: `$${fmtUSD(params.face)}`,
+    statedRateAnnual: fmtPct(params.statedRateAnnual),
+    marketRateAnnual: fmtPct(params.marketRateAnnual),
+    termYears: `${params.termYears}`,
+    paymentsPerYear: freqWord(params.paymentsPerYear ?? 2),
+    issueDate: params.issueDate,
+  };
+  return event.replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : m));
+}
+
+/** The compact "Given:" summary of the effective params (no pills). */
+export function givenLineText(params: BondParams): string {
+  return `$${fmtUSD(params.face)} face · ${fmtPct(params.statedRateAnnual)} stated · ${fmtPct(
+    params.marketRateAnnual,
+  )} market · ${params.termYears} yr · ${freqWord(params.paymentsPerYear ?? 2)}`;
 }
 
 /**

@@ -53,6 +53,10 @@ export interface ScenarioDoc {
   questions?: ScenarioQuestion[]; // practice questions with misconception-tagged distractors
   traces?: TraceGroup[]; // named ref groups the UI highlights together (click-through tracing)
   build?: BuildSpec; // "build the entry yourself" mode: account bank (with decoys) + scaffold
+
+  // Per-doc panel-visibility override. When present, `panels` IS the set of visible panels
+  // (keys from PANEL_KEYS), overriding the global defaults. Additive — omit for global behavior.
+  ui?: { panels?: string[] };
 }
 
 // ---- v2 numbers-layer shapes -------------------------------------------------
