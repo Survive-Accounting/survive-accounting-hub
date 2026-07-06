@@ -9,38 +9,9 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CalendarClock, Loader2, Mail, Shuffle } from "lucide-react";
 
-import { listSends, updateSend, type ProfIntelSend } from "@/lib/profintel";
+import { listSends, spreadSendTimes, updateSend, type ProfIntelSend } from "@/lib/profintel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-
-/** Deliverability-friendly send times: weekday Tue/Wed/Thu, 10:00 AM–3:00 PM local,
- *  jittered minutes (never on the hour), ~12/day, starting the next such weekday.
- *  Spreading + randomizing avoids the burst pattern spam filters flag. */
-function spreadSendTimes(n: number, perDay = 12): string[] {
-  const dayList: Date[] = [];
-  const day = new Date();
-  day.setHours(0, 0, 0, 0);
-  day.setDate(day.getDate() + 1); // start tomorrow
-  let guard = 0;
-  while (dayList.length < Math.ceil(n / perDay) && guard++ < 120) {
-    const dow = day.getDay(); // 2=Tue, 3=Wed, 4=Thu
-    if (dow >= 2 && dow <= 4) dayList.push(new Date(day));
-    day.setDate(day.getDate() + 1);
-  }
-  const out: string[] = [];
-  let i = 0;
-  for (const d of dayList) {
-    const slots: string[] = [];
-    for (let k = 0; k < perDay && i < n; k++, i++) {
-      const hour = 10 + Math.floor(Math.random() * 5); // 10..14 → 10:00–2:59 PM
-      const min = Math.floor(Math.random() * 60);
-      slots.push(new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, min).toISOString());
-    }
-    slots.sort();
-    out.push(...slots);
-  }
-  return out;
-}
 
 export const Route = createFileRoute("/outreach/profintel-schedule")({
   head: () => ({
@@ -126,10 +97,14 @@ function ProfIntelSchedule() {
       return;
     setSpreading(true);
     try {
-      const times = spreadSendTimes(drafts.length);
+      // Highest ProfIntel score first → earliest slots.
+      const ordered = [...drafts].sort(
+        (a, b) => (b.profintel_score ?? -1) - (a.profintel_score ?? -1),
+      );
+      const times = spreadSendTimes(ordered.length);
       let ok = 0;
-      for (let i = 0; i < drafts.length; i++) {
-        await updateSend(drafts[i].id, {
+      for (let i = 0; i < ordered.length; i++) {
+        await updateSend(ordered[i].id, {
           scheduled_at: times[i],
           ready: true,
           status: "scheduled",

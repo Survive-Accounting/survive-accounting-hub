@@ -37,6 +37,11 @@ export interface ProfIntelSend {
   scheduled_at: string | null;
   status: string;
   created_at: string;
+  profintel_score?: number | null;
+  sent_at?: string | null;
+  opened_at?: string | null;
+  replied_at?: string | null;
+  open_count?: number | null;
 }
 
 /** Comma-joined matched RMP course codes for a lead, e.g. "ACCT 2101, ACCT 2102". */
@@ -662,6 +667,8 @@ export async function createDrafts(input: {
       to_email: lead.email ?? null,
       school: input.school,
       course_matches: courseMatchesText(lead.rmp_course_match_json) || null,
+      // Denormalize the targeting score so scheduling can order sends by it.
+      profintel_score: (lead as { profintel_score?: number | null }).profintel_score ?? null,
       subject,
       body,
       ready: false,
@@ -669,19 +676,81 @@ export async function createDrafts(input: {
     };
   });
   const { error } = await (supabase.from("profintel_sends" as never) as any).insert(rows);
-  if (error) throw new Error(error.message);
+  if (error) {
+    // profintel_score column may not exist yet (pre-0048) — retry without it.
+    const stripped = rows.map(({ profintel_score, ...r }) => r);
+    const r2 = await (supabase.from("profintel_sends" as never) as any).insert(stripped);
+    if (r2.error) throw new Error(r2.error.message);
+  }
   return rows.length;
 }
 
+/** Deliverability-friendly send times: weekday Tue/Wed/Thu, 10:00 AM–3:00 PM local,
+ *  jittered minutes (never on the hour), ~perDay/day, starting the next such
+ *  weekday. Returned in chronological order — the caller assigns the earliest
+ *  slots to the highest-scored leads. */
+export function spreadSendTimes(n: number, perDay = 12): string[] {
+  const dayList: Date[] = [];
+  const day = new Date();
+  day.setHours(0, 0, 0, 0);
+  day.setDate(day.getDate() + 1); // start tomorrow
+  let guard = 0;
+  while (dayList.length < Math.ceil(n / perDay) && guard++ < 200) {
+    const dow = day.getDay(); // 2=Tue, 3=Wed, 4=Thu
+    if (dow >= 2 && dow <= 4) dayList.push(new Date(day));
+    day.setDate(day.getDate() + 1);
+  }
+  const out: string[] = [];
+  let i = 0;
+  for (const d of dayList) {
+    const slots: string[] = [];
+    for (let k = 0; k < perDay && i < n; k++, i++) {
+      const hour = 10 + Math.floor(Math.random() * 5); // 10..14 → 10:00–2:59 PM
+      const min = Math.floor(Math.random() * 60);
+      slots.push(new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, min).toISOString());
+    }
+    slots.sort();
+    out.push(...slots);
+  }
+  return out;
+}
+
+/** Schedule a set of drafts, highest ProfIntel score first (earliest slots),
+ *  across the spread window. Returns the assigned send times (chronological). */
+export async function scheduleCampaignDrafts(drafts: ProfIntelSend[]): Promise<string[]> {
+  const pending = drafts.filter((d) => d.status === "draft");
+  if (pending.length === 0) return [];
+  const ordered = [...pending].sort(
+    (a, b) => (b.profintel_score ?? -1) - (a.profintel_score ?? -1),
+  );
+  const times = spreadSendTimes(ordered.length);
+  for (let i = 0; i < ordered.length; i++) {
+    await updateSend(ordered[i].id, { scheduled_at: times[i], ready: true, status: "scheduled" });
+  }
+  return times;
+}
+
+const SEND_BASE_COLS =
+  "id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at";
+const SEND_EXT_COLS =
+  SEND_BASE_COLS + ", profintel_score, sent_at, opened_at, replied_at, open_count";
+
 export async function listSends(opts?: { campusId?: string }): Promise<ProfIntelSend[]> {
-  let q = (supabase.from("profintel_sends" as never) as any)
-    .select(
-      "id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at",
-    )
-    .order("created_at", { ascending: false });
-  if (opts?.campusId) q = q.eq("campus_id", opts.campusId);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  const run = async (cols: string) => {
+    let q = (supabase.from("profintel_sends" as never) as any)
+      .select(cols)
+      .order("created_at", { ascending: false });
+    if (opts?.campusId) q = q.eq("campus_id", opts.campusId);
+    return q;
+  };
+  // Prefer the tracking columns; fall back to base if 0048 isn't applied yet.
+  const first = await run(SEND_EXT_COLS);
+  let data = first.data;
+  if (first.error) {
+    const r = await run(SEND_BASE_COLS);
+    if (r.error) throw new Error(r.error.message);
+    data = r.data;
+  }
   return (data ?? []) as ProfIntelSend[];
 }
 

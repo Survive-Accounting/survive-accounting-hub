@@ -17,6 +17,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   ArrowRightLeft,
+  CalendarClock,
   Check,
   ChevronDown,
   ChevronRight,
@@ -54,6 +55,7 @@ import {
   pasteImportLeads,
   renderTemplate,
   retireLead,
+  scheduleCampaignDrafts,
   saveCampusCourseCodes,
   saveTemplate,
   updateLeadEmail,
@@ -670,7 +672,59 @@ function DraftsSection({
   onChanged: () => void;
 }) {
   const pending = drafts.filter((d) => d.status === "draft" || d.status === "scheduled");
+  const unscheduled = drafts.filter((d) => d.status === "draft");
+  const scheduled = drafts.filter((d) => d.status === "scheduled" && d.scheduled_at);
   const [resetting, setResetting] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  const range =
+    scheduled.length > 0
+      ? {
+          first: scheduled.reduce(
+            (m, d) => (d.scheduled_at! < m ? d.scheduled_at! : m),
+            scheduled[0].scheduled_at!,
+          ),
+          last: scheduled.reduce(
+            (m, d) => (d.scheduled_at! > m ? d.scheduled_at! : m),
+            scheduled[0].scheduled_at!,
+          ),
+        }
+      : null;
+
+  // Schedule this campus's unscheduled drafts, highest ProfIntel score first
+  // (earliest slots), spread across the Tue–Thu 10–3 window.
+  async function scheduleCampaign() {
+    if (unscheduled.length === 0) {
+      toast.message("No unscheduled drafts to schedule.");
+      return;
+    }
+    if (
+      !confirm(
+        `Schedule ${unscheduled.length} email${unscheduled.length === 1 ? "" : "s"} — highest score first, spread Tue–Thu 10 AM–3 PM?`,
+      )
+    )
+      return;
+    setScheduling(true);
+    try {
+      const times = await scheduleCampaignDrafts(drafts);
+      const days = new Set(times.map((t) => t.slice(0, 10))).size;
+      toast.success(
+        `Scheduled ${times.length} across ${days} day${days === 1 ? "" : "s"} — top score first.`,
+      );
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to schedule.");
+    } finally {
+      setScheduling(false);
+    }
+  }
 
   async function reset() {
     if (
@@ -697,26 +751,50 @@ function DraftsSection({
         <div className="text-sm font-semibold">
           Step 3 — review, edit &amp; schedule{" "}
           <span className="text-muted-foreground">
-            ({pending.length} draft{pending.length === 1 ? "" : "s"})
+            ({pending.length} draft{pending.length === 1 ? "" : "s"}
+            {scheduled.length > 0 ? ` · ${scheduled.length} scheduled` : ""})
           </span>
         </div>
-        {pending.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={reset}
-            disabled={resetting}
-            className="h-7 text-muted-foreground hover:text-destructive"
-          >
-            {resetting ? (
-              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Trash2 className="mr-1 h-3.5 w-3.5" />
-            )}
-            Reset drafts
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {unscheduled.length > 0 && (
+            <Button size="sm" onClick={scheduleCampaign} disabled={scheduling} className="h-7">
+              {scheduling ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CalendarClock className="mr-1 h-3.5 w-3.5" />
+              )}
+              Schedule {unscheduled.length} (top score first)
+            </Button>
+          )}
+          {pending.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={reset}
+              disabled={resetting}
+              className="h-7 text-muted-foreground hover:text-destructive"
+            >
+              {resetting ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+              )}
+              Reset
+            </Button>
+          )}
+        </div>
       </div>
+      {range && (
+        <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border bg-card/60 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+          <CalendarClock className="h-3.5 w-3.5" />
+          Campaign window:{" "}
+          <span className="font-medium text-foreground">{fmtDate(range.first)}</span> →{" "}
+          <span className="font-medium text-foreground">{fmtDate(range.last)}</span>
+          {unscheduled.length > 0 && (
+            <span className="ml-1 text-amber-600">· {unscheduled.length} still unscheduled</span>
+          )}
+        </div>
+      )}
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading drafts…
