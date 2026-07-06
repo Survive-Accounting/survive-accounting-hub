@@ -60,6 +60,7 @@ import {
   type PopoverState,
 } from "@/components/je/explore";
 import { BuildMode } from "@/components/je/build-mode";
+import { PresentMode } from "@/components/je/present-mode";
 import { Hub, MemorizeDeck, PracticeMix } from "@/components/je/hub";
 
 // Accounts that make an entry a "periodic interest payment" (schedule-driven → row-click drives it).
@@ -72,9 +73,10 @@ const PAYMENT_ACCTS = new Set([
 const AUTHORED_PERIOD = 1; // authored entries bind schedule:1 → period 1 keeps the teaching notes
 
 export const Route = createFileRoute("/je")({
-  // ?mode=build makes Build-mode links shareable; anything else is Explore.
-  validateSearch: (s: Record<string, unknown>): { mode?: "build" } => ({
-    mode: s.mode === "build" ? "build" : undefined,
+  // ?mode=build|present makes those links shareable; anything else is Explore. (present is
+  // admin-gated at render time — a non-admin ?mode=present falls back to Explore.)
+  validateSearch: (s: Record<string, unknown>): { mode?: "build" | "present" } => ({
+    mode: s.mode === "build" ? "build" : s.mode === "present" ? "present" : undefined,
   }),
   component: JePrototype,
 });
@@ -220,12 +222,19 @@ function JePrototype() {
 
   const doc = activeScenario?.doc ?? null;
 
-  // Explore | Build mode (Build only when the doc has a build.accountBank). URL-driven.
+  // Explore | Build | Present mode. Build needs a build.accountBank; Present is admin-only
+  // (students never enter it — a non-admin ?mode=present resolves to Explore). URL-driven.
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const mode: "explore" | "build" = search.mode === "build" && doc?.build ? "build" : "explore";
-  const setMode = (m: "explore" | "build") =>
-    navigate({ search: (prev) => ({ ...prev, mode: m === "build" ? "build" : undefined }) });
+  const mode: "explore" | "build" | "present" =
+    search.mode === "build" && doc?.build ? "build" : search.mode === "present" && admin ? "present" : "explore";
+  const setMode = (m: "explore" | "build" | "present") =>
+    navigate({ search: (prev) => ({ ...prev, mode: m === "explore" ? undefined : m }) });
+  const [cleanScreen, setCleanScreen] = useState(false);
+  useEffect(() => {
+    if (mode !== "present") setCleanScreen(false);
+  }, [mode]);
+  const chromeHidden = mode === "present" && cleanScreen;
 
   const variant = doc ? resolveVariant(doc, conditions) : null;
   const entries: EntryTemplate[] = variant?.entries ?? [];
@@ -401,18 +410,23 @@ function JePrototype() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-      <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Home</Link>
-      <div className="mt-1 flex items-center gap-2">
-        <span className="h-5 w-1.5 rounded-full" style={{ backgroundColor: RED }} aria-hidden />
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: NAVY }}>Journal Entry Scenario Engine</h1>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        The journal entry is the anchor. Toggle a condition — the entry, ledger, statements, and the accounting
-        equation all re-derive live. Click a line to trace it through the system.
-      </p>
+      {/* Header chrome — hidden under Present clean-screen */}
+      {!chromeHidden && (
+        <>
+          <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Home</Link>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="h-5 w-1.5 rounded-full" style={{ backgroundColor: RED }} aria-hidden />
+            <h1 className="text-2xl font-bold tracking-tight" style={{ color: NAVY }}>Journal Entry Scenario Engine</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The journal entry is the anchor. Toggle a condition — the entry, ledger, statements, and the accounting
+            equation all re-derive live. Click a line to trace it through the system.
+          </p>
+        </>
+      )}
 
-      {/* ---- Chapter browser (top selector) ---- */}
-      {courses.length === 0 ? (
+      {/* ---- Chapter browser (top selector) — hidden under Present clean-screen ---- */}
+      {!chromeHidden && (courses.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No scenarios seeded yet.</p>
       ) : (
         <div className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
@@ -469,6 +483,7 @@ function JePrototype() {
             })}
           </div>
         </div>
+        )
       )}
 
       {/* ---- Body: optional sequence sidebar + the hierarchy ---- */}
@@ -508,12 +523,15 @@ function JePrototype() {
               />
             ) : (
               <>
-              <button
-                onClick={() => setView("hub")}
-                className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                ← {chapterLabel(activeChapter)} hub
-              </button>
+              {!chromeHidden && (
+                <button
+                  onClick={() => setView("hub")}
+                  className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  ← {chapterLabel(activeChapter)} hub
+                </button>
+              )}
+              {!chromeHidden && (
               <div className="mb-4 flex flex-wrap gap-1.5">
                 {scenarios.map((s) => {
                   const active = activeScenario?.slug === s.slug;
@@ -573,6 +591,7 @@ function JePrototype() {
                   </div>
                 )}
               </div>
+              )}
 
             {/* Admin raw editor — textarea → Zod validate → upsert → re-render */}
             {admin && editorOpen && activeScenario && (
@@ -619,10 +638,16 @@ function JePrototype() {
 
             {!activeScenario ? null : (
               <div className="mx-auto max-w-3xl">
-                {/* Explore | Build mode toggle (Build only when the doc has an account bank) */}
-                {doc?.build && (
+                {/* Explore | Build | Present toggle. Build needs an account bank; Present is admin-only. */}
+                {(doc?.build || admin) && !chromeHidden && (
                   <div className="mb-3 flex justify-center gap-1">
-                    {(["explore", "build"] as const).map((m) => (
+                    {(
+                      [
+                        "explore",
+                        ...(doc?.build ? (["build"] as const) : []),
+                        ...(admin ? (["present"] as const) : []),
+                      ] as ("explore" | "build" | "present")[]
+                    ).map((m) => (
                       <button
                         key={m}
                         onClick={() => setMode(m)}
@@ -638,7 +663,17 @@ function JePrototype() {
                   </div>
                 )}
 
-                {mode === "build" && doc?.build ? (
+                {mode === "present" ? (
+                  <PresentMode
+                    doc={doc!}
+                    variant={variant}
+                    explore={explore}
+                    conditions={conditions}
+                    onSetConditions={(c) => setConditions(c)}
+                    onOpen={openPopover}
+                    onCleanToggle={() => setCleanScreen((v) => !v)}
+                  />
+                ) : mode === "build" && doc?.build ? (
                   variant ? (
                     <BuildMode
                       doc={doc}
