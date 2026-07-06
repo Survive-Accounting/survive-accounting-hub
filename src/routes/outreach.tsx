@@ -79,6 +79,7 @@ const PROFINTEL_SECTION: Section = {
   subtabs: [
     { label: "Choose campus leads", to: "/outreach/profintel" },
     { label: "Schedule emails", to: "/outreach/profintel-schedule" },
+    { label: "Metrics", to: "/outreach/profintel-metrics" },
   ],
 };
 
