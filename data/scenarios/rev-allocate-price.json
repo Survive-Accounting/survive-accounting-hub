@@ -1,0 +1,189 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 17,
+    "name": "Revenue Recognition"
+  },
+  "doc": {
+    "slug": "rev-allocate-price",
+    "title": "Allocate the transaction price",
+    "event": "Rae Co. collects $100,000 upfront on a contract bundling equipment (standalone price $75,000), installation ($15,000), and two years of service ($30,000). Equipment and installation are completed this period. Prepare the entries for signing, delivery, and year 1 of service.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "allocate",
+        "label": "Ratio split, then recognize each obligation on its own clock",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "signing",
+            "caption": "Contract signed, $100,000 collected upfront",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "full contract price",
+                "amount": 100000,
+                "why": "Cash timing and revenue timing are strangers in this chapter — collecting everything today earns nothing today.",
+                "trap": "Signing a contract alone is NOT a revenue event. The credit is a liability until promises are kept."
+              },
+              {
+                "id": "ul",
+                "account": "Unearned Revenue",
+                "side": "credit",
+                "label": "a contract liability",
+                "amount": 100000,
+                "why": "The obligation to deliver three promises — released PO by PO as each is satisfied.",
+                "trap": "Kieso also calls this 'Contract Liability' — same account, either name earns the point."
+              }
+            ]
+          },
+          {
+            "id": "deliver",
+            "caption": "Equipment delivered + installation completed (point in time)",
+            "lines": [
+              {
+                "id": "ul2",
+                "account": "Unearned Revenue",
+                "side": "debit",
+                "label": "release two POs",
+                "amount": 75000,
+                "why": "Equipment's slice (62,500) + installation's slice (12,500) release together when both are satisfied.",
+                "trap": "The slices come from the ALLOCATION (62,500 / 12,500), not the standalone prices (75,000 / 15,000) — the discount spreads proportionally."
+              },
+              {
+                "id": "sr",
+                "account": "Sales Revenue",
+                "side": "credit",
+                "label": "equipment's allocated 62,500",
+                "amount": 62500,
+                "why": "100,000 × 75/120.",
+                "trap": "Recognizing the full 75,000 standalone price ignores that the bundle sold at a discount."
+              },
+              {
+                "id": "svr",
+                "account": "Service Revenue",
+                "side": "credit",
+                "label": "installation's allocated 12,500",
+                "amount": 12500,
+                "why": "100,000 × 15/120.",
+                "trap": "Each PO carries its own proportional share of the bundle discount."
+              }
+            ]
+          },
+          {
+            "id": "service-y1",
+            "caption": "Year 1 of the 2-year service (over time)",
+            "lines": [
+              {
+                "id": "ul3",
+                "account": "Unearned Revenue",
+                "side": "debit",
+                "label": "half the service slice",
+                "amount": 12500,
+                "why": "Service's allocation is 25,000 (100,000 × 30/120), recognized ratably: 12,500 per year.",
+                "trap": "Over-time obligations release on the SERVICE clock, not the cash clock — the money's been in hand since day one."
+              },
+              {
+                "id": "svr2",
+                "account": "Service Revenue",
+                "side": "credit",
+                "label": "earned as time passes",
+                "amount": 12500,
+                "why": "Straight-line is the default measure for stand-ready service.",
+                "trap": "At any balance-sheet date, the remaining Unearned Revenue = the unserved months' slice — a favorite exam ask."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "ratio",
+            "narration": "Relative standalone split: total standalone 75 + 15 + 30 = 120. Each PO gets contract price × (its standalone ÷ 120). The 20,000 bundle discount spreads proportionally — nobody's slice escapes it.",
+            "steps": [
+              {
+                "label": "Equipment",
+                "formulaText": "100,000 × 75/120 = 62,500"
+              },
+              {
+                "label": "Installation",
+                "formulaText": "100,000 × 15/120 = 12,500"
+              },
+              {
+                "label": "Service",
+                "formulaText": "100,000 × 30/120 = 25,000"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Allocation = transaction price × (PO's standalone price ÷ total standalone prices). Standalone price unknown? Estimate: adjusted market, expected cost + margin, or residual (last resort).",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Third time you've met this ratio machine: lump-sum stock sales, bonds-with-warrants, now performance obligations. One skill, three chapters of points.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Contract MODIFICATIONS: new distinct goods at standalone prices → treat as a separate contract; otherwise reallocate the remaining price prospectively (or cumulative catch-up if not distinct). Know the fork exists.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-alloc",
+        "prompt": "A 100,000 contract bundles POs with standalone prices 75,000 / 15,000 / 30,000. Revenue recognized when the equipment (75,000 standalone) is delivered =",
+        "answerExpr": "62500",
+        "distractors": [
+          {
+            "expr": "75000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "75,000 is the STANDALONE price. The bundle sold at a discount (100 vs 120), and every PO absorbs its share: 100,000 × 75/120 = 62,500."
+          },
+          {
+            "expr": "100000",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "The full price covers THREE promises — only equipment's allocated slice (62,500) is earned at delivery; installation and service release on their own clocks."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Unearned Revenue"
+        },
+        {
+          "account": "Sales Revenue"
+        },
+        {
+          "account": "Service Revenue"
+        },
+        {
+          "account": "Accounts Receivable",
+          "decoy": true
+        },
+        {
+          "account": "Deferred Cost",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Ratio first (each standalone ÷ 120, times 100,000), entries second. Signing = cash vs liability only; each delivery releases its allocated slice — never its standalone price."
+    }
+  }
+}

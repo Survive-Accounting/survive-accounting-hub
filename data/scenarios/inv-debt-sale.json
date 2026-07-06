@@ -1,0 +1,200 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 16,
+    "name": "Investments"
+  },
+  "doc": {
+    "slug": "inv-debt-sale",
+    "title": "Sell a debt investment before maturity",
+    "event": "Two years after buying {face} of {statedRateAnnual} bonds at a market rate of {marketRateAnnual}, and just after the fourth coupon, Juno Co. sells the bonds. Prepare the sale entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [
+      {
+        "key": "outcome",
+        "label": "Sold",
+        "options": [
+          {
+            "value": "gain",
+            "label": "Above carrying amount (gain)"
+          },
+          {
+            "value": "loss",
+            "label": "Below carrying amount (loss)"
+          }
+        ]
+      }
+    ],
+    "params": {
+      "kind": "bond",
+      "defaults": {
+        "face": 500000,
+        "statedRateAnnual": 0.08,
+        "marketRateAnnual": 0.1,
+        "termYears": 5,
+        "paymentsPerYear": 2,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
+      "defaultSeed": 1
+    },
+    "variants": [
+      {
+        "id": "gain",
+        "label": "Sold at 480,000 — above the period-4 carrying amount",
+        "conditions": {
+          "outcome": "gain"
+        },
+        "entries": [
+          {
+            "id": "sell",
+            "caption": "Sell after period 4 for 480,000 (carrying amount = schedule row 4)",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "sale proceeds",
+                "amount": 480000,
+                "why": "Market price on sale day.",
+                "trap": "Bring amortization current to the sale date FIRST — the carrying amount you compare against must be up to date."
+              },
+              {
+                "id": "di",
+                "account": "Debt Investments",
+                "side": "credit",
+                "label": "amortized carrying amount off",
+                "amountSlotKey": "schedule:4:carryingValueAfter",
+                "why": "The investment leaves at its schedule value — cost plus every amortization step taken so far.",
+                "trap": "Not at original cost (461,391) and not at face — the amortized number in between."
+              },
+              {
+                "id": "gain",
+                "account": "Gain on Sale of Investments",
+                "side": "credit",
+                "label": "proceeds − carrying amount",
+                "amountSlotKey": "480000 - schedule:4:carryingValueAfter",
+                "why": "Realized in income — an actual transaction, unlike the unrealized holding adjustments elsewhere in this chapter.",
+                "trap": "Comparing proceeds to ORIGINAL COST double-counts the amortization you already recognized as revenue."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "loss",
+        "label": "Sold at 470,000 — below carrying amount",
+        "conditions": {
+          "outcome": "loss"
+        },
+        "entries": [
+          {
+            "id": "sell",
+            "caption": "Sell after period 4 for 470,000",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "sale proceeds",
+                "amount": 470000,
+                "why": "Less than the books carry.",
+                "trap": "Same discipline: amortize to the sale date first."
+              },
+              {
+                "id": "loss",
+                "account": "Loss on Sale of Investments",
+                "side": "debit",
+                "label": "carrying amount − proceeds",
+                "amountSlotKey": "schedule:4:carryingValueAfter - 470000",
+                "why": "The plug lands on the debit side this time.",
+                "trap": "The gain/loss is a PLUG after cash and the carrying amount are placed — wrong side means re-check the carrying amount."
+              },
+              {
+                "id": "di",
+                "account": "Debt Investments",
+                "side": "credit",
+                "label": "carrying amount off",
+                "amountSlotKey": "schedule:4:carryingValueAfter",
+                "why": "Full amortized balance clears.",
+                "trap": "The investment account must land on exactly zero for these bonds — a remainder means stale amortization."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Realized gain/loss = proceeds − amortized carrying amount at the sale date (schedule lookup). Identical logic to Ch. 13's early retirement — investor's chair.",
+        "traceRefs": [
+          "schedule:4:carryingValueAfter"
+        ]
+      },
+      {
+        "kind": "watchout",
+        "body": "Sale between coupon dates: collect and separate the ACCRUED INTEREST (that's interest revenue, not part of the gain/loss math).",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-sale-gain",
+        "prompt": "HTM bonds with a period-4 carrying amount are sold for 480,000. The realized gain =",
+        "answerExpr": "480000 - schedule:4:carryingValueAfter",
+        "distractors": [
+          {
+            "expr": "480000 - issuePrice",
+            "misconceptionId": "prior_period_expense",
+            "feedback": "That compares to ORIGINAL cost — but four periods of amortization were already recognized as revenue. Compare with the current amortized carrying amount (schedule row 4)."
+          },
+          {
+            "expr": "480000 - param:face",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "Face is where the schedule ENDS, not where it is today. The comparison base is the amortized carrying amount."
+          }
+        ]
+      }
+    ],
+    "traces": [
+      {
+        "id": "sale-vs-cv",
+        "label": "Schedule carrying amount ↔ the realized plug",
+        "refs": [
+          "schedule:4:carryingValueAfter",
+          "480000 - schedule:4:carryingValueAfter"
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Debt Investments"
+        },
+        {
+          "account": "Gain on Sale of Investments"
+        },
+        {
+          "account": "Loss on Sale of Investments"
+        },
+        {
+          "account": "Interest Revenue",
+          "decoy": true
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Income",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Three moves: amortize to today, clear the investment at its schedule value, plug the realized gain or loss against the proceeds. 'Unrealized' anything is bait — this sale is real."
+    }
+  }
+}

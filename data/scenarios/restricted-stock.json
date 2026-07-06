@@ -1,36 +1,76 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 15,
+    "name": "Dilutive Securities and EPS"
+  },
   "doc": {
     "slug": "restricted-stock",
     "title": "Restricted stock — grant, vest, forfeit",
-    "event": "An executive receives 4,000 restricted shares ($1 par) when the stock trades at $25 — $100,000 of compensation earned over 4 years of service. Unlike options, the shares are issued up front against Unearned Compensation… and if the executive leaves early, the whole thing UNWINDS, expense included.",
-    "courseFamilies": ["ia2"],
+    "event": "On January 1, Drew Corp. grants an executive 4,000 restricted shares ($1 par) when the stock trades at $25, vesting over 4 years. The executive leaves after year 2. Prepare the grant, annual, and forfeiture entries.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [
-      { "key": "leg", "label": "Transaction", "options": [
-        { "value": "grant", "label": "Grant" },
-        { "value": "vest_year", "label": "Each service year" },
-        { "value": "forfeit", "label": "Forfeit (leaves after yr 2)" }
-      ]}
+      {
+        "key": "leg",
+        "label": "Transaction",
+        "options": [
+          {
+            "value": "grant",
+            "label": "Grant"
+          },
+          {
+            "value": "vest_year",
+            "label": "Each service year"
+          },
+          {
+            "value": "forfeit",
+            "label": "Forfeit (leaves after yr 2)"
+          }
+        ]
+      }
     ],
     "variants": [
       {
         "id": "grant",
         "label": "Issue 4,000 restricted shares at $25 market",
-        "conditions": { "leg": "grant" },
+        "conditions": {
+          "leg": "grant"
+        },
         "entries": [
           {
             "id": "grant",
             "caption": "Grant date — shares issued, compensation deferred",
             "lines": [
-              { "id": "uc", "account": "Unearned Compensation", "side": "debit", "label": "4,000 × $25 FV", "amount": 100000,
+              {
+                "id": "uc",
+                "account": "Unearned Compensation",
+                "side": "debit",
+                "label": "4,000 × $25 FV",
+                "amount": 100000,
                 "why": "The full grant-date fair value parks in Unearned Compensation — a CONTRA-EQUITY account that drains into expense as service is rendered.",
-                "trap": "Contra-equity, not an asset — it's future services owed by the employee, shown as a reduction of equity until earned." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "4,000 × $1 par", "amount": 4000,
+                "trap": "Contra-equity, not an asset — it's future services owed by the employee, shown as a reduction of equity until earned."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "4,000 × $1 par",
+                "amount": 4000,
                 "why": "The shares legally exist from grant day — par to the stock account now.",
-                "trap": "Restricted stock issues REAL shares at grant (options don't issue anything until exercise) — that's why this entry exists on day one." },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the excess", "amount": 96000,
+                "trap": "Restricted stock issues REAL shares at grant (options don't issue anything until exercise) — that's why this entry exists on day one."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "the excess",
+                "amount": 96000,
                 "why": "FV over par, standard issuance mechanics.",
-                "trap": "Net equity effect at grant = ZERO (credits 100,000, contra-debit 100,000). Equity grows only as the expense runs." }
+                "trap": "Net equity effect at grant = ZERO (credits 100,000, contra-debit 100,000). Equity grows only as the expense runs."
+              }
             ]
           }
         ]
@@ -38,18 +78,32 @@
       {
         "id": "vest",
         "label": "Each of 4 years: 100,000 ÷ 4",
-        "conditions": { "leg": "vest_year" },
+        "conditions": {
+          "leg": "vest_year"
+        },
         "entries": [
           {
             "id": "annual",
             "caption": "Year-end (each service year)",
             "lines": [
-              { "id": "ce", "account": "Compensation Expense", "side": "debit", "label": "100,000 ÷ 4", "amount": 25000,
+              {
+                "id": "ce",
+                "account": "Compensation Expense",
+                "side": "debit",
+                "label": "100,000 ÷ 4",
+                "amount": 25000,
                 "why": "Straight-line over the service period, measured at grant-date FV — same photograph principle as options.",
-                "trap": "Later stock prices are irrelevant; $25 at grant is the number forever (unless forfeited)." },
-              { "id": "uc", "account": "Unearned Compensation", "side": "credit", "label": "drains toward zero", "amount": 25000,
+                "trap": "Later stock prices are irrelevant; $25 at grant is the number forever (unless forfeited)."
+              },
+              {
+                "id": "uc",
+                "account": "Unearned Compensation",
+                "side": "credit",
+                "label": "drains toward zero",
+                "amount": 25000,
                 "why": "The contra account releases as service is earned — 100,000 → 75,000 → 50,000 → 25,000 → 0.",
-                "trap": "Credit Unearned Compensation here, not PIC — the equity was already credited in full at grant." }
+                "trap": "Credit Unearned Compensation here, not PIC — the equity was already credited in full at grant."
+              }
             ]
           }
         ]
@@ -57,55 +111,125 @@
       {
         "id": "forfeit",
         "label": "Executive leaves after year 2 — unwind everything",
-        "conditions": { "leg": "forfeit" },
+        "conditions": {
+          "leg": "forfeit"
+        },
         "entries": [
           {
             "id": "forfeit",
             "caption": "Forfeiture: reverse the shares AND the expense taken",
             "lines": [
-              { "id": "cs", "account": "Common Stock", "side": "debit", "label": "shares cancelled", "amount": 4000,
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "debit",
+                "label": "shares cancelled",
+                "amount": 4000,
                 "why": "The unvested shares are cancelled — par comes back off.",
-                "trap": "Full unwind: the grant entry runs in reverse…" },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "debit", "label": "excess reversed", "amount": 96000,
+                "trap": "Full unwind: the grant entry runs in reverse…"
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "debit",
+                "label": "excess reversed",
+                "amount": 96000,
                 "why": "…including the issuance excess.",
-                "trap": "…AND the expense already booked comes back too:" },
-              { "id": "ce", "account": "Compensation Expense", "side": "credit", "label": "2 years reversed", "amount": 50000,
+                "trap": "…AND the expense already booked comes back too:"
+              },
+              {
+                "id": "ce",
+                "account": "Compensation Expense",
+                "side": "credit",
+                "label": "2 years reversed",
+                "amount": 50000,
                 "why": "Service condition failed, so the 2 × 25,000 already expensed REVERSES — the compensation was never actually earned.",
-                "trap": "This is the sharp contrast with option EXPIRATION (no reversal). Forfeiture = condition failed = unwind; expiration = earned but unused = keep the expense." },
-              { "id": "uc", "account": "Unearned Compensation", "side": "credit", "label": "remaining balance clears", "amount": 50000,
+                "trap": "This is the sharp contrast with option EXPIRATION (no reversal). Forfeiture = condition failed = unwind; expiration = earned but unused = keep the expense."
+              },
+              {
+                "id": "uc",
+                "account": "Unearned Compensation",
+                "side": "credit",
+                "label": "remaining balance clears",
+                "amount": 50000,
                 "why": "The undrained 50,000 of the contra account clears with the cancelled grant.",
-                "trap": "Check the unwind: all four lines together restore every account to its pre-grant balance." }
+                "trap": "Check the unwind: all four lines together restore every account to its pre-grant balance."
+              }
             ]
           }
         ],
         "computationPaths": [
-          { "id": "unwind", "narration": "Forfeiture arithmetic: expense reversed = years served × annual (2 × 25,000 = 50,000); Unearned Compensation cleared = the undrained remainder (100,000 − 50,000).",
+          {
+            "id": "unwind",
+            "narration": "Forfeiture arithmetic: expense reversed = years served × annual (2 × 25,000 = 50,000); Unearned Compensation cleared = the undrained remainder (100,000 − 50,000).",
             "steps": [
-              { "label": "Expense reversed", "formulaText": "2 × 25,000 = 50,000" },
-              { "label": "Unearned cleared", "formulaText": "100,000 − 50,000 = 50,000" }
-            ] }
+              {
+                "label": "Expense reversed",
+                "formulaText": "2 × 25,000 = 50,000"
+              },
+              {
+                "label": "Unearned cleared",
+                "formulaText": "100,000 − 50,000 = 50,000"
+              }
+            ]
+          }
         ]
       }
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Restricted stock: grant issues real shares vs Unearned Compensation (contra-equity) at grant-date FV; expense straight-line over service; forfeiture unwinds shares AND reverses expense taken.", "traceRefs": [] },
-      { "kind": "mnemonic", "body": "Options expire → expense stays. Restricted stock forfeits → expense reverses. 'Did they finish earning it?' decides which rule fires.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "Restricted stock: grant issues real shares vs Unearned Compensation (contra-equity) at grant-date FV; expense straight-line over service; forfeiture unwinds shares AND reverses expense taken.",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Options expire → expense stays. Restricted stock forfeits → expense reverses. 'Did they finish earning it?' decides which rule fires.",
+        "traceRefs": []
+      }
     ],
     "questions": [
-      { "id": "q-forfeit-reverse",
+      {
+        "id": "q-forfeit-reverse",
         "prompt": "4,000 restricted shares (100,000 grant-date FV, 4-year vesting) are forfeited when the executive quits after year 2. Compensation expense in the forfeiture entry is…",
         "answerExpr": "50000",
         "distractors": [
-          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "Zero-reversal is the option-EXPIRATION rule. Restricted-stock forfeiture means the service condition failed — the 2 years of expense (50,000) reverses as a CREDIT to Compensation Expense." },
-          { "expr": "100000", "misconceptionId": "accrual_fraction_missed", "feedback": "Only what was EXPENSED reverses through expense (2 × 25,000). The other 50,000 was still sitting in Unearned Compensation and clears from there." }
-        ] }
+          {
+            "expr": "0",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Zero-reversal is the option-EXPIRATION rule. Restricted-stock forfeiture means the service condition failed — the 2 years of expense (50,000) reverses as a CREDIT to Compensation Expense."
+          },
+          {
+            "expr": "100000",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "Only what was EXPENSED reverses through expense (2 × 25,000). The other 50,000 was still sitting in Unearned Compensation and clears from there."
+          }
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Unearned Compensation" }, { "account": "Compensation Expense" }, { "account": "Common Stock" },
-        { "account": "Paid-in Capital in Excess of Par — Common" },
-        { "account": "Paid-in Capital — Stock Options", "decoy": true }, { "account": "Cash", "decoy": true }
+        {
+          "account": "Unearned Compensation"
+        },
+        {
+          "account": "Compensation Expense"
+        },
+        {
+          "account": "Common Stock"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Common"
+        },
+        {
+          "account": "Paid-in Capital — Stock Options",
+          "decoy": true
+        },
+        {
+          "account": "Cash",
+          "decoy": true
+        }
       ],
       "scaffold": "Grant = full issuance offset by contra-equity (net zero). Each year = drain 1/N into expense. Forfeit = run the film backward — shares, excess, the drained expense, and the undrained remainder, all home."
     }

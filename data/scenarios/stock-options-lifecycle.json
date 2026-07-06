@@ -1,65 +1,134 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 15,
+    "name": "Dilutive Securities and EPS"
+  },
   "doc": {
     "slug": "stock-options-lifecycle",
     "title": "Stock options — grant to exercise (or expiration)",
-    "event": "Employees receive 10,000 options with a grant-date fair value of $6 each — $60,000 of compensation, earned over a 2-year service period. The grant-date FV is locked forever: it expenses over the service period, transfers to stock on exercise, and reclassifies (never reverses) on expiration.",
-    "courseFamilies": ["ia2"],
+    "event": "On January 1, Cole Corp. grants employees 10,000 stock options (grant-date fair value $6 each; $20 strike; $5 par) vesting over a 2-year service period. Later, 6,000 options are exercised and 4,000 expire. Prepare the annual expense, exercise, and expiration entries.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [
-      { "key": "leg", "label": "Transaction", "options": [
-        { "value": "expense", "label": "Annual expense" },
-        { "value": "exercise", "label": "Exercise" },
-        { "value": "expiration", "label": "Expiration" }
-      ]}
+      {
+        "key": "leg",
+        "label": "Transaction",
+        "options": [
+          {
+            "value": "expense",
+            "label": "Annual expense"
+          },
+          {
+            "value": "exercise",
+            "label": "Exercise"
+          },
+          {
+            "value": "expiration",
+            "label": "Expiration"
+          }
+        ]
+      }
     ],
     "variants": [
       {
         "id": "expense",
         "label": "Each service year: 60,000 ÷ 2",
-        "conditions": { "leg": "expense" },
+        "conditions": {
+          "leg": "expense"
+        },
         "entries": [
           {
             "id": "annual",
             "caption": "Year-end (each of 2 service years)",
             "lines": [
-              { "id": "ce", "account": "Compensation Expense", "side": "debit", "label": "60,000 ÷ 2 years", "amount": 30000,
+              {
+                "id": "ce",
+                "account": "Compensation Expense",
+                "side": "debit",
+                "label": "60,000 ÷ 2 years",
+                "amount": 30000,
                 "why": "Total compensation = options × GRANT-date FV (10,000 × $6), spread straight-line over the service period.",
-                "trap": "Measured ONCE at grant. The stock price can double or crater afterward — the expense never remeasures." },
-              { "id": "pic", "account": "Paid-in Capital — Stock Options", "side": "credit", "label": "equity accrues", "amount": 30000,
+                "trap": "Measured ONCE at grant. The stock price can double or crater afterward — the expense never remeasures."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital — Stock Options",
+                "side": "credit",
+                "label": "equity accrues",
+                "amount": 30000,
                 "why": "The credit builds equity as the employees earn it — options are equity instruments from grant.",
-                "trap": "Not a liability: the company will deliver SHARES, not cash. (Cash-settled SARs are the liability cousin — different animal.)" }
+                "trap": "Not a liability: the company will deliver SHARES, not cash. (Cash-settled SARs are the liability cousin — different animal.)"
+              }
             ]
           }
         ],
         "computationPaths": [
-          { "id": "comp", "narration": "Total compensation = 10,000 × $6 grant-date FV = 60,000; ÷ 2-year service = 30,000/yr.",
+          {
+            "id": "comp",
+            "narration": "Total compensation = 10,000 × $6 grant-date FV = 60,000; ÷ 2-year service = 30,000/yr.",
             "steps": [
-              { "label": "Total compensation", "formulaText": "10,000 × $6 = 60,000" },
-              { "label": "Annual expense", "formulaText": "60,000 ÷ 2 = 30,000" }
-            ] }
+              {
+                "label": "Total compensation",
+                "formulaText": "10,000 × $6 = 60,000"
+              },
+              {
+                "label": "Annual expense",
+                "formulaText": "60,000 ÷ 2 = 30,000"
+              }
+            ]
+          }
         ]
       },
       {
         "id": "exercise",
         "label": "6,000 options exercised at the $20 strike",
-        "conditions": { "leg": "exercise" },
+        "conditions": {
+          "leg": "exercise"
+        },
         "entries": [
           {
             "id": "exercise",
             "caption": "6,000 options exercised ($20 strike, $5 par)",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "6,000 × $20 strike", "amount": 120000,
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "6,000 × $20 strike",
+                "amount": 120000,
                 "why": "Employees pay the exercise price.",
-                "trap": "The strike — not the market price on exercise day — sets the cash." },
-              { "id": "pic", "account": "Paid-in Capital — Stock Options", "side": "debit", "label": "their share of the 60,000", "amount": 36000,
+                "trap": "The strike — not the market price on exercise day — sets the cash."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital — Stock Options",
+                "side": "debit",
+                "label": "their share of the 60,000",
+                "amount": 36000,
                 "why": "The equity built during vesting rides along: 6,000/10,000 × 60,000 = 36,000 transfers into the permanent stock accounts.",
-                "trap": "Proportional — only the EXERCISED options' slice moves; the rest stays for the remaining options' fate." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "6,000 × $5 par", "amount": 30000,
+                "trap": "Proportional — only the EXERCISED options' slice moves; the rest stays for the remaining options' fate."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "6,000 × $5 par",
+                "amount": 30000,
                 "why": "Par × shares, the eternal rule.",
-                "trap": "Par of the shares issued, nothing to do with the strike or the FV." },
-              { "id": "picc", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the plug", "amount": 126000,
+                "trap": "Par of the shares issued, nothing to do with the strike or the FV."
+              },
+              {
+                "id": "picc",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "the plug",
+                "amount": 126000,
                 "why": "Cash 120,000 + options equity 36,000 − par 30,000 = 126,000.",
-                "trap": "Both sources of value (cash paid + compensation earned) end up in contributed capital — no income effect at exercise." }
+                "trap": "Both sources of value (cash paid + compensation earned) end up in contributed capital — no income effect at exercise."
+              }
             ]
           }
         ]
@@ -67,18 +136,32 @@
       {
         "id": "expiration",
         "label": "The other 4,000 expire unexercised",
-        "conditions": { "leg": "expiration" },
+        "conditions": {
+          "leg": "expiration"
+        },
         "entries": [
           {
             "id": "expire",
             "caption": "4,000 options lapse",
             "lines": [
-              { "id": "pic", "account": "Paid-in Capital — Stock Options", "side": "debit", "label": "4,000/10,000 × 60,000", "amount": 24000,
+              {
+                "id": "pic",
+                "account": "Paid-in Capital — Stock Options",
+                "side": "debit",
+                "label": "4,000/10,000 × 60,000",
+                "amount": 24000,
                 "why": "The lapsed options' slice leaves the options account…",
-                "trap": "…but the EXPENSE recognized during the service period is NEVER reversed. The employees rendered the service; the accounting stands." },
-              { "id": "pice", "account": "Paid-in Capital — Expired Stock Options", "side": "credit", "label": "reclass, not reversal", "amount": 24000,
+                "trap": "…but the EXPENSE recognized during the service period is NEVER reversed. The employees rendered the service; the accounting stands."
+              },
+              {
+                "id": "pice",
+                "account": "Paid-in Capital — Expired Stock Options",
+                "side": "credit",
+                "label": "reclass, not reversal",
+                "amount": 24000,
                 "why": "Equity just changes labels — total paid-in capital is untouched.",
-                "trap": "Contrast with RESTRICTED STOCK forfeiture, which DOES reverse expense. Vested-but-unexercised ≠ forfeited-before-earning. This pairing is a classic exam discriminator." }
+                "trap": "Contrast with RESTRICTED STOCK forfeiture, which DOES reverse expense. Vested-but-unexercised ≠ forfeited-before-earning. This pairing is a classic exam discriminator."
+              }
             ]
           }
         ]
@@ -86,23 +169,64 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Options: total comp = options × grant-date FV, straight-line over service. Exercise: cash (strike) + options-PIC slice in → common par + PIC. Expiration: reclass PIC, never reverse expense.", "traceRefs": [] },
-      { "kind": "mnemonic", "body": "Grant-date FV is a photograph, not a video — snapped once, never retaken, no matter what the stock does after.", "traceRefs": [] },
-      { "kind": "watchout", "body": "Expiration ≠ forfeiture: expiration (vested, unexercised) reclasses equity and keeps the expense; forfeiture (service condition failed) reverses expense. Read which one the problem describes.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "Options: total comp = options × grant-date FV, straight-line over service. Exercise: cash (strike) + options-PIC slice in → common par + PIC. Expiration: reclass PIC, never reverse expense.",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Grant-date FV is a photograph, not a video — snapped once, never retaken, no matter what the stock does after.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Expiration ≠ forfeiture: expiration (vested, unexercised) reclasses equity and keeps the expense; forfeiture (service condition failed) reverses expense. Read which one the problem describes.",
+        "traceRefs": []
+      }
     ],
     "questions": [
-      { "id": "q-expire",
+      {
+        "id": "q-expire",
         "prompt": "Options carrying 24,000 of Paid-in Capital — Stock Options expire unexercised. Compensation expense is…",
         "answerExpr": "0",
         "distractors": [
-          { "expr": "-24000", "misconceptionId": "premium_discount_direction_flip", "feedback": "No reversal — the service was rendered and the grant-date measurement stands. Expiration only RECLASSES the 24,000 from PIC—Stock Options to PIC—Expired Stock Options. (Reversal is the FORFEITURE rule, for restricted stock or unvested awards.)" }
-        ] }
+          {
+            "expr": "-24000",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "No reversal — the service was rendered and the grant-date measurement stands. Expiration only RECLASSES the 24,000 from PIC—Stock Options to PIC—Expired Stock Options. (Reversal is the FORFEITURE rule, for restricted stock or unvested awards.)"
+          }
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Compensation Expense" }, { "account": "Paid-in Capital — Stock Options" }, { "account": "Cash" },
-        { "account": "Common Stock" }, { "account": "Paid-in Capital in Excess of Par — Common" }, { "account": "Paid-in Capital — Expired Stock Options" },
-        { "account": "Unearned Compensation", "decoy": true }, { "account": "Gain on Option Expiration", "decoy": true }
+        {
+          "account": "Compensation Expense"
+        },
+        {
+          "account": "Paid-in Capital — Stock Options"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Common Stock"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Common"
+        },
+        {
+          "account": "Paid-in Capital — Expired Stock Options"
+        },
+        {
+          "account": "Unearned Compensation",
+          "decoy": true
+        },
+        {
+          "account": "Gain on Option Expiration",
+          "decoy": true
+        }
       ],
       "scaffold": "Three legs, one photograph: the grant-date FV. It expenses over service, rides along at exercise (proportionally), and re-labels at expiration. Cash appears only at exercise, and only at the strike."
     }

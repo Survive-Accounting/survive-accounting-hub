@@ -1,18 +1,34 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 14, "name": "Stockholder's Equity" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 14,
+    "name": "Stockholder's Equity"
+  },
   "doc": {
     "slug": "equity-issue-common",
     "title": "Issue common stock",
-    "event": "A company sells 10,000 shares of its common stock for $15 per share — $150,000 cash in. How that $150,000 splits between the stock account and paid-in capital depends entirely on one thing: what kind of par (if any) the shares carry.",
-    "courseFamilies": ["ia2"],
+    "event": "Nola Corp. sells 10,000 shares of its common stock at $15 per share. Prepare the issuance entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [
       {
         "key": "parType",
         "label": "The shares are",
         "options": [
-          { "value": "par_excess", "label": "$1 par" },
-          { "value": "stated_value", "label": "No-par, $2 stated value" },
-          { "value": "no_par", "label": "True no-par" }
+          {
+            "value": "par_excess",
+            "label": "$1 par"
+          },
+          {
+            "value": "stated_value",
+            "label": "No-par, $2 stated value"
+          },
+          {
+            "value": "no_par",
+            "label": "True no-par"
+          }
         ]
       }
     ],
@@ -20,21 +36,41 @@
       {
         "id": "par-excess",
         "label": "$1 par sold at $15 — par to the stock account, the rest to PIC",
-        "conditions": { "parType": "par_excess" },
+        "conditions": {
+          "parType": "par_excess"
+        },
         "entries": [
           {
             "id": "issue",
             "caption": "Issue 10,000 shares, $1 par, at $15",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "10,000 × $15", "amount": 150000,
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "10,000 × $15",
+                "amount": 150000,
                 "why": "Proceeds are proceeds — shares × issue price, regardless of par.",
-                "trap": "Par has nothing to do with how much cash comes in. It only controls the split below." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "10,000 × $1 par", "amount": 10000,
+                "trap": "Par has nothing to do with how much cash comes in. It only controls the split below."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "10,000 × $1 par",
+                "amount": 10000,
                 "why": "The stock account is credited for PAR ONLY — a legal-capital relic, not a value measure.",
-                "trap": "Crediting Common Stock for the full $150,000 is the #1 issuance error. Par × shares, nothing more." },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the other $14/share", "amount": 140000,
+                "trap": "Crediting Common Stock for the full $150,000 is the #1 issuance error. Par × shares, nothing more."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "the other $14/share",
+                "amount": 140000,
                 "why": "Everything investors paid above par lands in additional paid-in capital — still contributed capital, just labeled honestly.",
-                "trap": "This is NOT a gain. A company never earns income by issuing its own stock." }
+                "trap": "This is NOT a gain. A company never earns income by issuing its own stock."
+              }
             ]
           }
         ]
@@ -42,21 +78,41 @@
       {
         "id": "stated",
         "label": "No-par with a $2 stated value — stated value plays the par role",
-        "conditions": { "parType": "stated_value" },
+        "conditions": {
+          "parType": "stated_value"
+        },
         "entries": [
           {
             "id": "issue",
             "caption": "Issue 10,000 no-par shares, $2 stated value, at $15",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "10,000 × $15", "amount": 150000,
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "10,000 × $15",
+                "amount": 150000,
                 "why": "Same proceeds either way.",
-                "trap": "Stated value changes the split, never the cash." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "10,000 × $2 stated", "amount": 20000,
+                "trap": "Stated value changes the split, never the cash."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "10,000 × $2 stated",
+                "amount": 20000,
                 "why": "Stated value is board-declared par-by-another-name; the stock account takes stated × shares.",
-                "trap": "Treat stated value exactly like par mechanically — students who learn them as different rules make double the errors." },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Stated Value", "side": "credit", "label": "the excess", "amount": 130000,
+                "trap": "Treat stated value exactly like par mechanically — students who learn them as different rules make double the errors."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Stated Value",
+                "side": "credit",
+                "label": "the excess",
+                "amount": 130000,
                 "why": "Same excess logic, renamed account.",
-                "trap": "Match the account NAME to the regime: 'in Excess of Stated Value' here, 'in Excess of Par' there. Graders check." }
+                "trap": "Match the account NAME to the regime: 'in Excess of Stated Value' here, 'in Excess of Par' there. Graders check."
+              }
             ]
           }
         ]
@@ -64,18 +120,32 @@
       {
         "id": "no-par",
         "label": "True no-par — the whole proceeds go to the stock account",
-        "conditions": { "parType": "no_par" },
+        "conditions": {
+          "parType": "no_par"
+        },
         "entries": [
           {
             "id": "issue",
             "caption": "Issue 10,000 true no-par shares at $15",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "10,000 × $15", "amount": 150000,
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "10,000 × $15",
+                "amount": 150000,
                 "why": "Proceeds, as always.",
-                "trap": "Two-line entry — no excess account exists when there's no par or stated value to be in excess OF." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "full proceeds", "amount": 150000,
+                "trap": "Two-line entry — no excess account exists when there's no par or stated value to be in excess OF."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "full proceeds",
+                "amount": 150000,
                 "why": "With no par and no stated value, the entire $150,000 is legal capital in the stock account.",
-                "trap": "Inventing a PIC line here is the mirror-image error of forgetting it in the par case. Read the share type first, then pick the pattern." }
+                "trap": "Inventing a PIC line here is the mirror-image error of forgetting it in the par case. Read the share type first, then pick the pattern."
+              }
             ]
           }
         ]
@@ -83,9 +153,21 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Common Stock credit = shares × par (or stated value). PIC in Excess = proceeds − that. True no-par: Common Stock takes it all.", "traceRefs": [] },
-      { "kind": "tip", "body": "Par is a legal floor from another century, not a price. A $1-par share selling at $15 is completely normal — the $14 gap is the whole reason PIC accounts exist.", "traceRefs": [] },
-      { "kind": "watchout", "body": "Issuance costs (underwriting, legal) DEBIT paid-in capital — they reduce the proceeds recorded, they are never expensed as a period cost.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "Common Stock credit = shares × par (or stated value). PIC in Excess = proceeds − that. True no-par: Common Stock takes it all.",
+        "traceRefs": []
+      },
+      {
+        "kind": "tip",
+        "body": "Par is a legal floor from another century, not a price. A $1-par share selling at $15 is completely normal — the $14 gap is the whole reason PIC accounts exist.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Issuance costs (underwriting, legal) DEBIT paid-in capital — they reduce the proceeds recorded, they are never expensed as a period cost.",
+        "traceRefs": []
+      }
     ],
     "questions": [
       {
@@ -93,19 +175,41 @@
         "prompt": "10,000 shares of $1-par common are issued at $15. What is credited to the Common Stock account?",
         "answerExpr": "10000",
         "distractors": [
-          { "expr": "150000", "misconceptionId": "cash_vs_expense", "feedback": "That's the CASH — the full proceeds. Common Stock takes only par × shares ($10,000); the other $140,000 belongs in PIC in Excess of Par." },
-          { "expr": "140000", "misconceptionId": "premium_discount_direction_flip", "feedback": "You've swapped the two credits — $140,000 is the PIC piece. The stock account gets the small number: par × shares." }
+          {
+            "expr": "150000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "That's the CASH — the full proceeds. Common Stock takes only par × shares ($10,000); the other $140,000 belongs in PIC in Excess of Par."
+          },
+          {
+            "expr": "140000",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "You've swapped the two credits — $140,000 is the PIC piece. The stock account gets the small number: par × shares."
+          }
         ]
       }
     ],
     "build": {
       "accountBank": [
-        { "account": "Cash" },
-        { "account": "Common Stock" },
-        { "account": "Paid-in Capital in Excess of Par — Common" },
-        { "account": "Paid-in Capital in Excess of Stated Value" },
-        { "account": "Gain on Sale of Stock", "decoy": true },
-        { "account": "Retained Earnings", "decoy": true }
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Common Stock"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Common"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Stated Value"
+        },
+        {
+          "account": "Gain on Sale of Stock",
+          "decoy": true
+        },
+        {
+          "account": "Retained Earnings",
+          "decoy": true
+        }
       ],
       "scaffold": "Cash first (shares × price — par is irrelevant to it). Then ask: par, stated value, or neither? Par/stated × shares to the stock account, remainder to the matching PIC account, and true no-par means no remainder at all."
     }

@@ -1,0 +1,146 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 16,
+    "name": "Investments"
+  },
+  "doc": {
+    "slug": "inv-afs-fv",
+    "title": "Available-for-sale debt — mark to market through OCI",
+    "event": "Lark Co. holds AVAILABLE-FOR-SALE debt securities with an amortized cost of $100,000 at year-end. Prepare the year-end fair value adjustment.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [
+      {
+        "key": "direction",
+        "label": "Fair value moved",
+        "options": [
+          {
+            "value": "up",
+            "label": "Up to 106,000"
+          },
+          {
+            "value": "down",
+            "label": "Down to 94,000"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "up",
+        "label": "FV 106,000 — gain to OCI, income untouched",
+        "conditions": {
+          "direction": "up"
+        },
+        "entries": [
+          {
+            "id": "adjust",
+            "caption": "Year-end: AFS portfolio to fair value (cost 100,000 → 106,000)",
+            "lines": [
+              {
+                "id": "fva",
+                "account": "Fair Value Adjustment — AFS",
+                "side": "debit",
+                "label": "FV − amortized cost",
+                "amount": 6000,
+                "why": "Same valuation-account mechanics as trading — the balance targets (FV − cost).",
+                "trap": "The mechanics are identical to trading ON PURPOSE; the exam is testing whether you know where the OTHER side goes."
+              },
+              {
+                "id": "uhg",
+                "account": "Unrealized Holding Gain or Loss — Equity",
+                "side": "credit",
+                "label": "to OCI, not income",
+                "amount": 6000,
+                "why": "AFS holdings aren't performance yet — the gain accumulates in AOCI (equity) until the security is sold.",
+                "trap": "—Equity vs —Income is a one-word difference that moves the number between net income and OCI. Graders live here."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "down",
+        "label": "FV 94,000 — loss to OCI",
+        "conditions": {
+          "direction": "down"
+        },
+        "entries": [
+          {
+            "id": "adjust",
+            "caption": "Year-end: cost 100,000 → 94,000",
+            "lines": [
+              {
+                "id": "uhl",
+                "account": "Unrealized Holding Gain or Loss — Equity",
+                "side": "debit",
+                "label": "OCI absorbs the drop",
+                "amount": 6000,
+                "why": "Net income never hears about it (unless it's a credit loss — that's impairment, a different rule).",
+                "trap": "A market-rate-driven drop parks in OCI; a CREDIT-driven drop is impairment and hits income. Read WHY the value fell."
+              },
+              {
+                "id": "fva",
+                "account": "Fair Value Adjustment — AFS",
+                "side": "credit",
+                "label": "to the (FV − cost) target",
+                "amount": 6000,
+                "why": "Adjustment to target, as always.",
+                "trap": "Amortized-cost interest revenue keeps accruing underneath in both directions."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Debt classification map: HTM → amortized cost, no remeasurement. Trading → FV, changes to INCOME. AFS → FV, changes to OCI (recycled to income when sold). One table worth memorizing cold.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "On SALE of AFS, the accumulated OCI for that security RECYCLES into net income as part of the realized gain/loss — the deferral ends, it never disappears.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-afs-where",
+        "prompt": "AFS debt (cost 100,000) has year-end FV 106,000. Net income includes…",
+        "answerExpr": "0",
+        "distractors": [
+          {
+            "expr": "6000",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "6,000-to-income is the TRADING treatment. AFS unrealized gains go to OCI (Unrealized Holding G/L — Equity); net income shows nothing until sale."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Fair Value Adjustment — AFS"
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Equity"
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Income",
+          "decoy": true
+        },
+        {
+          "account": "Retained Earnings",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Same two-line machine as trading — the whole test is picking '—Equity' over '—Income.' Say the classification out loud before touching the credit line."
+    }
+  }
+}

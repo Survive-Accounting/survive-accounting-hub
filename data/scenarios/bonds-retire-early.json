@@ -1,47 +1,94 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 13,
+    "name": "Long-Term Liabilities"
+  },
   "doc": {
     "slug": "bonds-retire-early",
     "title": "Retire bonds early — gain or loss",
-    "event": "Two years in (right after the fourth coupon), the company buys its discount bonds back on the open market. The price it pays is compared with the CARRYING VALUE — face minus the discount still unamortized — and the difference is a gain or loss on redemption.",
-    "courseFamilies": ["ia2"],
+    "event": "Two years after issuing {face} of {statedRateAnnual} bonds (market rate {marketRateAnnual} at issuance), and just after the fourth coupon, Ramos Co. buys the bonds back on the open market. Prepare the retirement entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [
       {
         "key": "outcome",
         "label": "Reacquisition price vs carrying value",
         "options": [
-          { "value": "loss", "label": "Paid above carrying value (loss)" },
-          { "value": "gain", "label": "Paid below carrying value (gain)" }
+          {
+            "value": "loss",
+            "label": "Paid above carrying value (loss)"
+          },
+          {
+            "value": "gain",
+            "label": "Paid below carrying value (gain)"
+          }
         ]
       }
     ],
     "params": {
       "kind": "bond",
-      "defaults": { "face": 500000, "statedRateAnnual": 0.08, "marketRateAnnual": 0.1, "termYears": 5, "paymentsPerYear": 2, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaults": {
+        "face": 500000,
+        "statedRateAnnual": 0.08,
+        "marketRateAnnual": 0.1,
+        "termYears": 5,
+        "paymentsPerYear": 2,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
       "defaultSeed": 1
     },
     "variants": [
       {
         "id": "loss",
         "label": "Bought back at 101 — above carrying value",
-        "conditions": { "outcome": "loss" },
+        "conditions": {
+          "outcome": "loss"
+        },
         "entries": [
           {
             "id": "retire",
             "caption": "Retire early at 101 (505,000) when carrying value is the period-4 balance",
             "lines": [
-              { "id": "bp", "account": "Bonds Payable", "side": "debit", "label": "face off the books", "amountSlotKey": "param:face",
+              {
+                "id": "bp",
+                "account": "Bonds Payable",
+                "side": "debit",
+                "label": "face off the books",
+                "amountSlotKey": "param:face",
                 "why": "The face leaves at face — the liability account never carried anything else.",
-                "trap": "Face comes off in full even in an early retirement; the discount handles the rest." },
-              { "id": "loss", "account": "Loss on Redemption of Bonds", "side": "debit", "label": "price − carrying value", "amountSlotKey": "505000 - schedule:4:carryingValueAfter",
+                "trap": "Face comes off in full even in an early retirement; the discount handles the rest."
+              },
+              {
+                "id": "loss",
+                "account": "Loss on Redemption of Bonds",
+                "side": "debit",
+                "label": "price − carrying value",
+                "amountSlotKey": "505000 - schedule:4:carryingValueAfter",
                 "why": "You paid more than the debt was carried at — the excess is a loss, reported in income in the period of retirement.",
-                "trap": "The comparison is price vs CARRYING VALUE, never price vs face. Face ignores the unamortized discount and gets the gain/loss wrong every time." },
-              { "id": "disc", "account": "Discount on Bonds Payable", "side": "credit", "label": "unamortized remainder", "amountSlotKey": "param:face - schedule:4:carryingValueAfter",
+                "trap": "The comparison is price vs CARRYING VALUE, never price vs face. Face ignores the unamortized discount and gets the gain/loss wrong every time."
+              },
+              {
+                "id": "disc",
+                "account": "Discount on Bonds Payable",
+                "side": "credit",
+                "label": "unamortized remainder",
+                "amountSlotKey": "param:face - schedule:4:carryingValueAfter",
                 "why": "Whatever discount hasn't amortized yet dies with the bond — credited away so the contra account zeroes out.",
-                "trap": "Forgetting this line leaves a phantom contra-liability on the books for a bond that no longer exists." },
-              { "id": "cash", "account": "Cash", "side": "credit", "label": "reacquisition price", "amount": 505000,
+                "trap": "Forgetting this line leaves a phantom contra-liability on the books for a bond that no longer exists."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "reacquisition price",
+                "amount": 505000,
                 "why": "The open-market price (often quoted as a percentage — 101 means 101% of face).",
-                "trap": "The quoted percentage applies to FACE: 101 on a 500,000 face = 505,000, regardless of carrying value." }
+                "trap": "The quoted percentage applies to FACE: 101 on a 500,000 face = 505,000, regardless of carrying value."
+              }
             ]
           }
         ],
@@ -50,9 +97,21 @@
             "id": "loss-math",
             "narration": "Loss = reacquisition price − carrying value. Carrying value = face − unamortized discount (read it straight off the schedule's period-4 row). Any accrued interest to the retirement date is settled in a separate entry first.",
             "steps": [
-              { "label": "Carrying value after period 4", "formulaText": "schedule row 4, last column", "resultSlotKey": "schedule:4:carryingValueAfter" },
-              { "label": "Unamortized discount", "formulaText": "face − carrying value", "resultSlotKey": "param:face - schedule:4:carryingValueAfter" },
-              { "label": "Loss", "formulaText": "505,000 − carrying value", "resultSlotKey": "505000 - schedule:4:carryingValueAfter" }
+              {
+                "label": "Carrying value after period 4",
+                "formulaText": "schedule row 4, last column",
+                "resultSlotKey": "schedule:4:carryingValueAfter"
+              },
+              {
+                "label": "Unamortized discount",
+                "formulaText": "face − carrying value",
+                "resultSlotKey": "param:face - schedule:4:carryingValueAfter"
+              },
+              {
+                "label": "Loss",
+                "formulaText": "505,000 − carrying value",
+                "resultSlotKey": "505000 - schedule:4:carryingValueAfter"
+              }
             ]
           }
         ]
@@ -60,24 +119,50 @@
       {
         "id": "gain",
         "label": "Bought back at 94 — below carrying value",
-        "conditions": { "outcome": "gain" },
+        "conditions": {
+          "outcome": "gain"
+        },
         "entries": [
           {
             "id": "retire",
             "caption": "Retire early at 94 (470,000) when carrying value is the period-4 balance",
             "lines": [
-              { "id": "bp", "account": "Bonds Payable", "side": "debit", "label": "face off the books", "amountSlotKey": "param:face",
+              {
+                "id": "bp",
+                "account": "Bonds Payable",
+                "side": "debit",
+                "label": "face off the books",
+                "amountSlotKey": "param:face",
                 "why": "Face leaves at face.",
-                "trap": "Same debit whether the retirement produces a gain or a loss." },
-              { "id": "disc", "account": "Discount on Bonds Payable", "side": "credit", "label": "unamortized remainder", "amountSlotKey": "param:face - schedule:4:carryingValueAfter",
+                "trap": "Same debit whether the retirement produces a gain or a loss."
+              },
+              {
+                "id": "disc",
+                "account": "Discount on Bonds Payable",
+                "side": "credit",
+                "label": "unamortized remainder",
+                "amountSlotKey": "param:face - schedule:4:carryingValueAfter",
                 "why": "The remaining discount is cleared with the bond.",
-                "trap": "This credit exists in BOTH the gain and loss cases — it's about closing the contra account, not about the outcome." },
-              { "id": "cash", "account": "Cash", "side": "credit", "label": "reacquisition price", "amount": 470000,
+                "trap": "This credit exists in BOTH the gain and loss cases — it's about closing the contra account, not about the outcome."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "reacquisition price",
+                "amount": 470000,
                 "why": "94% of face = 470,000 out the door.",
-                "trap": "Percentage of FACE, not of carrying value." },
-              { "id": "gain", "account": "Gain on Redemption of Bonds", "side": "credit", "label": "carrying value − price", "amountSlotKey": "schedule:4:carryingValueAfter - 470000",
+                "trap": "Percentage of FACE, not of carrying value."
+              },
+              {
+                "id": "gain",
+                "account": "Gain on Redemption of Bonds",
+                "side": "credit",
+                "label": "carrying value − price",
+                "amountSlotKey": "schedule:4:carryingValueAfter - 470000",
                 "why": "Extinguishing debt for less than its book value is a gain — the plug that balances the entry, on the credit side this time.",
-                "trap": "Gain or loss is always the PLUG after face, remaining discount/premium, and cash are placed. If your plug lands on the wrong side, re-check the carrying value." }
+                "trap": "Gain or loss is always the PLUG after face, remaining discount/premium, and cash are placed. If your plug lands on the wrong side, re-check the carrying value."
+              }
             ]
           }
         ],
@@ -86,8 +171,16 @@
             "id": "gain-math",
             "narration": "Gain = carrying value − reacquisition price. Same three ingredients as the loss case — the sign of the difference just flips which side the plug lands on.",
             "steps": [
-              { "label": "Carrying value after period 4", "formulaText": "schedule row 4, last column", "resultSlotKey": "schedule:4:carryingValueAfter" },
-              { "label": "Gain", "formulaText": "carrying value − 470,000", "resultSlotKey": "schedule:4:carryingValueAfter - 470000" }
+              {
+                "label": "Carrying value after period 4",
+                "formulaText": "schedule row 4, last column",
+                "resultSlotKey": "schedule:4:carryingValueAfter"
+              },
+              {
+                "label": "Gain",
+                "formulaText": "carrying value − 470,000",
+                "resultSlotKey": "schedule:4:carryingValueAfter - 470000"
+              }
             ]
           }
         ]
@@ -95,9 +188,28 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Gain/loss on early retirement = carrying value − reacquisition price. Positive → gain (credit); negative → loss (debit). Carrying value = face ± unamortized premium/discount, read off the schedule at the retirement date.", "traceRefs": ["schedule:4:carryingValueAfter", "param:face"] },
-      { "kind": "tip", "body": "Four-line ritual: (1) Dr Bonds Payable at face, (2) clear the unamortized discount/premium, (3) Cr Cash at the quoted price, (4) plug the gain or loss. Do them in that order and the plug can't hide from you.", "traceRefs": ["param:face"] },
-      { "kind": "watchout", "body": "If retirement falls BETWEEN coupon dates, first bring amortization and accrued interest up to the retirement date — the carrying value you compare against must be current as of that day.", "traceRefs": ["schedule:4:carryingValueAfter"] }
+      {
+        "kind": "formula",
+        "body": "Gain/loss on early retirement = carrying value − reacquisition price. Positive → gain (credit); negative → loss (debit). Carrying value = face ± unamortized premium/discount, read off the schedule at the retirement date.",
+        "traceRefs": [
+          "schedule:4:carryingValueAfter",
+          "param:face"
+        ]
+      },
+      {
+        "kind": "tip",
+        "body": "Four-line ritual: (1) Dr Bonds Payable at face, (2) clear the unamortized discount/premium, (3) Cr Cash at the quoted price, (4) plug the gain or loss. Do them in that order and the plug can't hide from you.",
+        "traceRefs": [
+          "param:face"
+        ]
+      },
+      {
+        "kind": "watchout",
+        "body": "If retirement falls BETWEEN coupon dates, first bring amortization and accrued interest up to the retirement date — the carrying value you compare against must be current as of that day.",
+        "traceRefs": [
+          "schedule:4:carryingValueAfter"
+        ]
+      }
     ],
     "questions": [
       {
@@ -105,23 +217,54 @@
         "prompt": "Discount bonds with a period-4 carrying value are reacquired at 101 (505,000 on 500,000 face). What is the loss on redemption?",
         "answerExpr": "505000 - schedule:4:carryingValueAfter",
         "distractors": [
-          { "expr": "505000 - param:face", "misconceptionId": "face_vs_cv_on_retirement" },
-          { "expr": "param:face - schedule:4:carryingValueAfter", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "That's the UNAMORTIZED DISCOUNT — an ingredient of the entry, not the loss. The loss compares the price PAID with the carrying value." }
+          {
+            "expr": "505000 - param:face",
+            "misconceptionId": "face_vs_cv_on_retirement"
+          },
+          {
+            "expr": "param:face - schedule:4:carryingValueAfter",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "That's the UNAMORTIZED DISCOUNT — an ingredient of the entry, not the loss. The loss compares the price PAID with the carrying value."
+          }
         ]
       }
     ],
     "traces": [
-      { "id": "cv-drives-gainloss", "label": "Schedule carrying value ↔ unamortized discount ↔ the plug", "refs": ["schedule:4:carryingValueAfter", "param:face - schedule:4:carryingValueAfter", "505000 - schedule:4:carryingValueAfter"] }
+      {
+        "id": "cv-drives-gainloss",
+        "label": "Schedule carrying value ↔ unamortized discount ↔ the plug",
+        "refs": [
+          "schedule:4:carryingValueAfter",
+          "param:face - schedule:4:carryingValueAfter",
+          "505000 - schedule:4:carryingValueAfter"
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Bonds Payable" },
-        { "account": "Discount on Bonds Payable" },
-        { "account": "Cash" },
-        { "account": "Loss on Redemption of Bonds" },
-        { "account": "Gain on Redemption of Bonds" },
-        { "account": "Interest Expense", "decoy": true },
-        { "account": "Retained Earnings", "decoy": true }
+        {
+          "account": "Bonds Payable"
+        },
+        {
+          "account": "Discount on Bonds Payable"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Loss on Redemption of Bonds"
+        },
+        {
+          "account": "Gain on Redemption of Bonds"
+        },
+        {
+          "account": "Interest Expense",
+          "decoy": true
+        },
+        {
+          "account": "Retained Earnings",
+          "decoy": true
+        }
       ],
       "scaffold": "Anchor on the carrying value at the retirement date (schedule, last column). Then: face off, remaining discount/premium off, cash at the quoted price, and the gain or loss is whatever balances."
     }

@@ -8,7 +8,7 @@
   "doc": {
     "slug": "equity-preferred-dividends",
     "title": "Allocate dividends — preferred vs common",
-    "event": "The board declares $20,000 of dividends. Preferred stock: 1,000 shares, $100 par, 6% — a $6,000-per-year claim — and NOTHING was paid for the last two years. How much reaches common depends entirely on one word in the preferred contract: cumulative.",
+    "event": "Lund Corp. declares $20,000 of dividends. Outstanding: 1,000 shares of 6%, $100-par preferred (two years in arrears) and common stock. Allocate the dividend and prepare the declaration entry.",
     "courseFamilies": [
       "ia2"
     ],

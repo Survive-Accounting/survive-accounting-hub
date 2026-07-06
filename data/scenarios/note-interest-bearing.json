@@ -1,14 +1,29 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 13,
+    "name": "Long-Term Liabilities"
+  },
   "doc": {
     "slug": "note-interest-bearing",
     "title": "Interest-bearing note — issue and pay interest",
-    "event": "A company borrows on a long-term note whose stated rate equals the market rate, so it's issued at face. Cash comes in at face, and each year-end the note pays interest at the stated rate — the note-world twin of a par bond.",
-    "courseFamilies": ["ia2"],
+    "event": "On {issueDate}, Vera Co. borrows {face} on a {termYears}, {statedRateAnnual} note issued at face, with interest paid each year-end. Prepare the issuance entry and the first interest payment.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [],
     "params": {
       "kind": "bond",
-      "defaults": { "face": 100000, "statedRateAnnual": 0.1, "marketRateAnnual": 0.1, "termYears": 3, "paymentsPerYear": 1, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaults": {
+        "face": 100000,
+        "statedRateAnnual": 0.1,
+        "marketRateAnnual": 0.1,
+        "termYears": 3,
+        "paymentsPerYear": 1,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
       "defaultSeed": 1
     },
     "variants": [
@@ -21,24 +36,48 @@
             "id": "issue",
             "caption": "Issue the note at face",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "= face", "amountSlotKey": "issuePrice",
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "= face",
+                "amountSlotKey": "issuePrice",
                 "why": "Stated equals market, so the PV of the note is exactly its face — the lender hands over face.",
-                "trap": "The moment the stated rate is unrealistic (below market, or zero), this stops being true and imputation kicks in — that's the zero-interest scenario." },
-              { "id": "np", "account": "Notes Payable", "side": "credit", "label": "face", "amountSlotKey": "param:face",
+                "trap": "The moment the stated rate is unrealistic (below market, or zero), this stops being true and imputation kicks in — that's the zero-interest scenario."
+              },
+              {
+                "id": "np",
+                "account": "Notes Payable",
+                "side": "credit",
+                "label": "face",
+                "amountSlotKey": "param:face",
                 "why": "Notes Payable at face, same discipline as Bonds Payable.",
-                "trap": "Notes and bonds follow identical valuation rules — a note is not exempt from present-value thinking just because it's private." }
+                "trap": "Notes and bonds follow identical valuation rules — a note is not exempt from present-value thinking just because it's private."
+              }
             ]
           },
           {
             "id": "interest",
             "caption": "Year-end — pay the annual interest",
             "lines": [
-              { "id": "ie", "account": "Interest Expense", "side": "debit", "label": "face × rate", "amountSlotKey": "schedule:1:interestExpense",
+              {
+                "id": "ie",
+                "account": "Interest Expense",
+                "side": "debit",
+                "label": "face × rate",
+                "amountSlotKey": "schedule:1:interestExpense",
                 "why": "At face there's nothing to amortize, so expense IS the cash interest: face × stated rate × 12/12.",
-                "trap": "One rate, one base — the clean case. Save the two-rate machinery for notes issued off-face." },
-              { "id": "cash2", "account": "Cash", "side": "credit", "label": "face × rate", "amountSlotKey": "schedule:1:cashPayment",
+                "trap": "One rate, one base — the clean case. Save the two-rate machinery for notes issued off-face."
+              },
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "credit",
+                "label": "face × rate",
+                "amountSlotKey": "schedule:1:cashPayment",
                 "why": "The contractual annual payment.",
-                "trap": "Annual, not semiannual, here — always check the payment frequency before multiplying by a fraction." }
+                "trap": "Annual, not semiannual, here — always check the payment frequency before multiplying by a fraction."
+              }
             ]
           }
         ],
@@ -47,7 +86,11 @@
             "id": "par-note",
             "narration": "A note issued at face is the simplest long-term liability alive: cash in at face, interest = face × stated each period, face back at maturity. Every complication in this chapter is a departure from this baseline.",
             "steps": [
-              { "label": "Annual interest", "formulaText": "face × stated × 12/12", "resultSlotKey": "schedule:1:interestExpense" }
+              {
+                "label": "Annual interest",
+                "formulaText": "face × stated × 12/12",
+                "resultSlotKey": "schedule:1:interestExpense"
+              }
             ]
           }
         ]
@@ -55,8 +98,20 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "tip", "body": "Notes payable = bonds payable with a private lender. Same PV valuation, same amortization logic when issued off-face — don't learn two rulebooks when one covers both.", "traceRefs": ["issuePrice"] },
-      { "kind": "watchout", "body": "If the note's payment date isn't the fiscal year-end, the same accrual-fraction machinery from bonds applies — accrue the elapsed months.", "traceRefs": ["schedule:1:interestExpense"] }
+      {
+        "kind": "tip",
+        "body": "Notes payable = bonds payable with a private lender. Same PV valuation, same amortization logic when issued off-face — don't learn two rulebooks when one covers both.",
+        "traceRefs": [
+          "issuePrice"
+        ]
+      },
+      {
+        "kind": "watchout",
+        "body": "If the note's payment date isn't the fiscal year-end, the same accrual-fraction machinery from bonds applies — accrue the elapsed months.",
+        "traceRefs": [
+          "schedule:1:interestExpense"
+        ]
+      }
     ],
     "questions": [
       {
@@ -64,20 +119,44 @@
         "prompt": "A 3-year note is issued at face with a 10% stated rate when the market rate is also 10%. What is year-1 interest expense?",
         "answerExpr": "schedule:1:interestExpense",
         "distractors": [
-          { "expr": "param:face * param:marketRateAnnual / 2", "misconceptionId": "accrual_fraction_missed", "feedback": "This note pays ANNUALLY — no ÷2. Check the payment frequency before reflexively halving." }
+          {
+            "expr": "param:face * param:marketRateAnnual / 2",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "This note pays ANNUALLY — no ÷2. Check the payment frequency before reflexively halving."
+          }
         ]
       }
     ],
     "traces": [
-      { "id": "face-note-baseline", "label": "Face ↔ annual coupon ↔ expense (all one number family)", "refs": ["param:face", "schedule:1:cashPayment", "schedule:1:interestExpense"] }
+      {
+        "id": "face-note-baseline",
+        "label": "Face ↔ annual coupon ↔ expense (all one number family)",
+        "refs": [
+          "param:face",
+          "schedule:1:cashPayment",
+          "schedule:1:interestExpense"
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Cash" },
-        { "account": "Notes Payable" },
-        { "account": "Interest Expense" },
-        { "account": "Discount on Notes Payable", "decoy": true },
-        { "account": "Interest Payable", "decoy": true }
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Notes Payable"
+        },
+        {
+          "account": "Interest Expense"
+        },
+        {
+          "account": "Discount on Notes Payable",
+          "decoy": true
+        },
+        {
+          "account": "Interest Payable",
+          "decoy": true
+        }
       ],
       "scaffold": "Rates equal → no discount, no premium, no drama. Two two-line entries: cash-for-note, then expense-for-cash each year."
     }

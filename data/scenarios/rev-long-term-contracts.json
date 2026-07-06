@@ -1,0 +1,207 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 17,
+    "name": "Revenue Recognition"
+  },
+  "doc": {
+    "slug": "rev-long-term-contracts",
+    "title": "Long-term contracts — percentage of completion",
+    "event": "Wren Co. signs a $1,000,000 construction contract qualifying for over-time recognition. Year-1 costs: $300,000. Prepare the year-1 revenue recognition entry (percentage-of-completion, cost-to-cost).",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [
+      {
+        "key": "outlook",
+        "label": "Contract outlook",
+        "options": [
+          {
+            "value": "profitable",
+            "label": "Profitable"
+          },
+          {
+            "value": "overall_loss",
+            "label": "Overall loss"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "profitable",
+        "label": "Cost-to-cost: 40% complete, recognize 40% of everything",
+        "conditions": {
+          "outlook": "profitable"
+        },
+        "entries": [
+          {
+            "id": "recognize",
+            "caption": "Year-1 revenue recognition (gross-profit form)",
+            "lines": [
+              {
+                "id": "cip",
+                "account": "Construction in Process",
+                "side": "debit",
+                "label": "the gross profit layer",
+                "amount": 100000,
+                "why": "CIP already holds the 300,000 of costs (debited as incurred); recognition adds the 100,000 profit layer on top — CIP carries the job at revenue-to-date.",
+                "trap": "CIP is an INVENTORY-like asset, netted against Billings on the balance sheet — not a receivable."
+              },
+              {
+                "id": "ce",
+                "account": "Construction Expenses",
+                "side": "debit",
+                "label": "costs matched",
+                "amount": 300000,
+                "why": "This period's incurred costs flow to the income statement against the revenue.",
+                "trap": "Expenses = costs INCURRED this period, not percentage × total estimated costs (same number in year 1, different later)."
+              },
+              {
+                "id": "rev",
+                "account": "Revenue from Long-Term Contracts",
+                "side": "credit",
+                "label": "40% × 1,000,000",
+                "amount": 400000,
+                "why": "Percent complete = 300,000 ÷ 750,000 = 40%; revenue = 40% of the price.",
+                "trap": "Percent complete uses estimated TOTAL costs (750,000) in the denominator — not the contract price, not costs-to-go."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "ctc",
+            "narration": "Cost-to-cost, the three-line engine: % = costs to date ÷ estimated total costs; revenue = % × price − revenue already recognized; gross profit = revenue − costs this period. Later years subtract prior recognition (the cumulative catch-up).",
+            "steps": [
+              {
+                "label": "Percent complete",
+                "formulaText": "300,000 ÷ 750,000 = 40%"
+              },
+              {
+                "label": "Revenue (yr 1)",
+                "formulaText": "40% × 1,000,000 = 400,000"
+              },
+              {
+                "label": "Gross profit (yr 1)",
+                "formulaText": "400,000 − 300,000 = 100,000"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "loss",
+        "label": "Estimates worsen: total costs now 1,100,000 — recognize the WHOLE loss now",
+        "conditions": {
+          "outlook": "overall_loss"
+        },
+        "entries": [
+          {
+            "id": "loss-entry",
+            "caption": "Year the estimate flips: overall loss of 100,000, recognized in full",
+            "lines": [
+              {
+                "id": "loss",
+                "account": "Loss from Long-Term Contracts",
+                "side": "debit",
+                "label": "the entire projected loss",
+                "amount": 100000,
+                "why": "Conservatism overrides the percentage: a contract expected to lose 100,000 (1,000,000 price − 1,100,000 est. costs) books the FULL loss the moment it's foreseeable — plus reversal of any profit recognized earlier.",
+                "trap": "Never prorate a projected LOSS by percent complete. Profits trickle in; losses land all at once."
+              },
+              {
+                "id": "cip2",
+                "account": "Construction in Process",
+                "side": "credit",
+                "label": "carrying value written down",
+                "amount": 100000,
+                "why": "CIP absorbs the write-down so the job carries at expected recoverable amount.",
+                "trap": "An INTERIM loss on a still-profitable contract (P17.10's twist) is different: just a bad period inside the normal percentage math — no special full-loss entry."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "loss-math",
+            "narration": "Overall-loss test each year-end: price − latest estimated total costs. Negative → recognize the whole thing now (and reverse prior-year profits as part of it).",
+            "steps": [
+              {
+                "label": "Projected outcome",
+                "formulaText": "1,000,000 − 1,100,000 = (100,000)"
+              },
+              {
+                "label": "Recognize",
+                "formulaText": "full 100,000 loss immediately"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Cost-to-cost: % = costs to date ÷ est. total costs · revenue = % × price − prior revenue · GP = revenue − period costs. Billings and cash NEVER drive recognition.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Two loss species: interim loss (bad year, contract still profitable) → normal % math absorbs it. OVERALL loss → full recognition immediately, prior profits reversed. Identify which before writing anything.",
+        "traceRefs": []
+      },
+      {
+        "kind": "tip",
+        "body": "Balance sheet: CIP > Billings → contract ASSET; Billings > CIP → contract LIABILITY. Netted per contract, never mixed across contracts.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-poc-rev",
+        "prompt": "Contract price 1,000,000; year-1 costs 300,000; estimated total costs 750,000. Year-1 revenue under percentage-of-completion =",
+        "answerExpr": "400000",
+        "distractors": [
+          {
+            "expr": "300000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "300,000 is the COSTS incurred. Revenue = percent complete × price: (300/750) × 1,000,000 = 400,000 — the 100,000 spread is year-1 gross profit."
+          },
+          {
+            "expr": "1000000",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "Full price waits for full completion only under the completed-contract/point-in-time method. Over-time recognition takes 40% now."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Construction in Process"
+        },
+        {
+          "account": "Construction Expenses"
+        },
+        {
+          "account": "Revenue from Long-Term Contracts"
+        },
+        {
+          "account": "Loss from Long-Term Contracts"
+        },
+        {
+          "account": "Billings on Construction",
+          "decoy": true
+        },
+        {
+          "account": "Accounts Receivable",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Run the three-line engine first (%, revenue, GP), then the entry writes itself. Billings is a decoy HERE — it has its own entries but never drives recognition."
+    }
+  }
+}

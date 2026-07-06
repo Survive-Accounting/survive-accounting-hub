@@ -1,0 +1,155 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 16,
+    "name": "Investments"
+  },
+  "doc": {
+    "slug": "inv-trading-fv",
+    "title": "Trading debt securities — mark to market through income",
+    "event": "Kite Co. holds TRADING debt securities with an amortized cost of $100,000 at year-end. Prepare the year-end fair value adjustment.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [
+      {
+        "key": "direction",
+        "label": "Fair value moved",
+        "options": [
+          {
+            "value": "up",
+            "label": "Up to 106,000"
+          },
+          {
+            "value": "down",
+            "label": "Down to 94,000"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "up",
+        "label": "FV 106,000 — unrealized gain in income",
+        "conditions": {
+          "direction": "up"
+        },
+        "entries": [
+          {
+            "id": "adjust",
+            "caption": "Year-end: adjust trading portfolio to fair value (cost 100,000 → FV 106,000)",
+            "lines": [
+              {
+                "id": "fva",
+                "account": "Fair Value Adjustment — Trading",
+                "side": "debit",
+                "label": "FV − amortized cost",
+                "amount": 6000,
+                "why": "A valuation account rides beside the investment so amortized cost stays intact underneath — presentation shows fair value.",
+                "trap": "Adjust the ALLOWANCE, not Debt Investments itself — the amortization schedule keeps running on the untouched cost."
+              },
+              {
+                "id": "uhg",
+                "account": "Unrealized Holding Gain or Loss — Income",
+                "side": "credit",
+                "label": "straight to net income",
+                "amount": 6000,
+                "why": "Trading securities exist to be flipped — holding gains are performance NOW, so they hit income even though nothing sold.",
+                "trap": "INCOME, not OCI. The classification (trading vs AFS) decides where the unrealized change lands — that's the entire chapter in one choice."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "down",
+        "label": "FV 94,000 — unrealized loss in income",
+        "conditions": {
+          "direction": "down"
+        },
+        "entries": [
+          {
+            "id": "adjust",
+            "caption": "Year-end: cost 100,000 → FV 94,000",
+            "lines": [
+              {
+                "id": "uhl",
+                "account": "Unrealized Holding Gain or Loss — Income",
+                "side": "debit",
+                "label": "the drop, in income now",
+                "amount": 6000,
+                "why": "Same account, debit side — losses on trading positions hit earnings immediately.",
+                "trap": "Asset chair this time: fair value DOWN = loss (the mirror of Ch. 13's fair-value-option liability, where FV up was the loss)."
+              },
+              {
+                "id": "fva",
+                "account": "Fair Value Adjustment — Trading",
+                "side": "credit",
+                "label": "allowance goes negative",
+                "amount": 6000,
+                "why": "The adjustment account can carry a credit balance, netting the presentation below cost.",
+                "trap": "Next year adjusts the ALLOWANCE to the new target — the entry is always 'move the adjustment to (FV − cost),' not the full swing from zero."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Year-end target: Fair Value Adjustment balance = FV − amortized cost. The ENTRY is whatever moves the existing balance to that target.",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Trading = Turnover = Through income. Held to sell soon → the market's opinion IS this period's performance.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Interest revenue still accrues on trading debt exactly as amortized-cost math dictates — marking to market is an ADDITIONAL layer, not a replacement.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-trading-where",
+        "prompt": "Trading debt (amortized cost 100,000) has year-end FV 106,000. The 6,000 unrealized gain is reported…",
+        "answerExpr": "6000",
+        "distractors": [
+          {
+            "expr": "0",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "'Nothing sold' doesn't mean 'nothing reported' for TRADING securities — unrealized holding gains go straight to net income. (Zero-until-sold is the HTM treatment.)"
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Fair Value Adjustment — Trading"
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Income"
+        },
+        {
+          "account": "Debt Investments",
+          "decoy": true
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Equity",
+          "decoy": true
+        },
+        {
+          "account": "Cash",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Two lines, always: the adjustment account moves to (FV − cost), and the other side names where the classification sends it — for trading, that's Income. The '—Equity' account in the bank belongs to the next scenario."
+    }
+  }
+}

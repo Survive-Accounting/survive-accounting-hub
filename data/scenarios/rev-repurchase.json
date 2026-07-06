@@ -1,0 +1,151 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 17,
+    "name": "Revenue Recognition"
+  },
+  "doc": {
+    "slug": "rev-repurchase",
+    "title": "Sale with a repurchase agreement — a loan in a trench coat",
+    "event": "Vane Co. transfers inventory to a financier for $100,000 and agrees to repurchase it in one year for $110,000. Prepare all entries over the year.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "financing",
+        "label": "Forward/call to repurchase at MORE than the sale price",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "receive",
+            "caption": "Receive 100,000 with an obligation to repurchase at 110,000",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "the 'sale' proceeds",
+                "amount": 100000,
+                "why": "Real cash — but borrowed, not earned.",
+                "trap": "Repurchase at ≥ the sale price + the right/obligation to buy back = the customer never controlled the asset. No sale exists."
+              },
+              {
+                "id": "lia",
+                "account": "Liability to Repurchase Inventory",
+                "side": "credit",
+                "label": "a borrowing",
+                "amount": 100000,
+                "why": "Substance over form: this is a collateralized loan with inventory as the collateral.",
+                "trap": "NO Sales Revenue, NO COGS, and the inventory NEVER leaves the seller's balance sheet."
+              }
+            ]
+          },
+          {
+            "id": "interest",
+            "caption": "Over the year — the 10,000 spread accretes as interest",
+            "lines": [
+              {
+                "id": "ie",
+                "account": "Interest Expense",
+                "side": "debit",
+                "label": "repurchase price − sale price",
+                "amount": 10000,
+                "why": "The cost of using 100,000 for a year is the 10,000 you'll pay above what you received — interest by any honest name.",
+                "trap": "The spread is never 'loss on repurchase' — it was the price of the money from day one."
+              },
+              {
+                "id": "lia2",
+                "account": "Liability to Repurchase Inventory",
+                "side": "credit",
+                "label": "accretes to 110,000",
+                "amount": 10000,
+                "why": "The liability grows to the full repurchase price by the buyback date.",
+                "trap": "Multi-year deals accrete period by period (effective-interest style), not all at the end."
+              }
+            ]
+          },
+          {
+            "id": "buyback",
+            "caption": "Repurchase — settle the loan",
+            "lines": [
+              {
+                "id": "lia3",
+                "account": "Liability to Repurchase Inventory",
+                "side": "debit",
+                "label": "full accreted balance",
+                "amount": 110000,
+                "why": "The borrowing is repaid.",
+                "trap": "The inventory needs no re-recognition — it never left."
+              },
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "credit",
+                "label": "buyback price",
+                "amount": 110000,
+                "why": "Loan plus interest, returned.",
+                "trap": "Compare: repurchase at LESS than the sale price with a customer PUT option can be a lease or a sale-with-return instead — the price relationship decides the animal."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Repurchase at ≥ original price (forward or call) → FINANCING: cash in = liability; spread = interest expense; inventory stays put. No revenue at any point.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "BILL-AND-HOLD is the opposite twist: revenue CAN be recognized without shipping if (1) a substantive reason exists (customer asked), (2) goods are identified separately, (3) ready for transfer, (4) seller can't use or redirect them. Control transfers on paper.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-repo",
+        "prompt": "Inventory is 'sold' for 100,000 with an agreement to repurchase it in one year for 110,000. Sales revenue recognized =",
+        "answerExpr": "0",
+        "distractors": [
+          {
+            "expr": "100000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Control never transferred — the buyback obligation makes this a FINANCING. Cash 100,000 = a liability; the 10,000 spread = interest expense; the inventory never leaves the books."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Liability to Repurchase Inventory"
+        },
+        {
+          "account": "Interest Expense"
+        },
+        {
+          "account": "Sales Revenue",
+          "decoy": true
+        },
+        {
+          "account": "Cost of Goods Sold",
+          "decoy": true
+        },
+        {
+          "account": "Inventory",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Name the substance first: buyback at a higher price = a loan. Then the three beats are ordinary borrowing mechanics — receive, accrete interest, repay. All three sale-flavored accounts in the bank are bait."
+    }
+  }
+}

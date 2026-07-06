@@ -1,0 +1,161 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 17,
+    "name": "Revenue Recognition"
+  },
+  "doc": {
+    "slug": "rev-consignment",
+    "title": "Consignment — revenue waits for the real sale",
+    "event": "Ursa Co. ships goods costing $40,000 to a dealer on consignment. The dealer sells all of them to customers for $60,000, keeps a 10% commission, and remits the balance. Prepare Ursa's entries.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "consignor",
+        "label": "The consignor's books",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "ship",
+            "caption": "Ship goods to the consignee",
+            "lines": [
+              {
+                "id": "ioc",
+                "account": "Inventory on Consignment",
+                "side": "debit",
+                "label": "reclassify, don't sell",
+                "amount": 40000,
+                "why": "Still the consignor's inventory — control (and risk) never transferred to the dealer. Only the shelf changed.",
+                "trap": "NO revenue at shipment. Consignment's entire exam existence is punishing people who book the sale here."
+              },
+              {
+                "id": "inv",
+                "account": "Inventory",
+                "side": "credit",
+                "label": "off the home shelf",
+                "amount": 40000,
+                "why": "A location reclass within assets.",
+                "trap": "The consignee books NOTHING for inventory either — it's not theirs to record."
+              }
+            ]
+          },
+          {
+            "id": "sold",
+            "caption": "Consignee sells all of it for 60,000, keeps 10%, remits 54,000",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "the net remittance",
+                "amount": 54000,
+                "why": "60,000 collected by the dealer minus their 6,000 commission.",
+                "trap": "Cash ≠ revenue here in the other direction: revenue is the GROSS 60,000, cash is the net."
+              },
+              {
+                "id": "ce",
+                "account": "Commission Expense",
+                "side": "debit",
+                "label": "the dealer's cut",
+                "amount": 6000,
+                "why": "The consignor is the principal — it reports gross revenue and the commission as ITS expense.",
+                "trap": "Netting revenue to 54,000 hides the commission and understates both revenue and expense — the principal/agent trap."
+              },
+              {
+                "id": "sr",
+                "account": "Sales Revenue",
+                "side": "credit",
+                "label": "gross — the real sale finally happened",
+                "amount": 60000,
+                "why": "Revenue recognizes when the CONSIGNEE sells to the end customer — that's when control leaves the consignor.",
+                "trap": "The consignee (agent) reports only its 6,000 commission as revenue — never the 60,000."
+              }
+            ]
+          },
+          {
+            "id": "cost",
+            "caption": "Match the cost",
+            "lines": [
+              {
+                "id": "cogs",
+                "account": "Cost of Goods Sold",
+                "side": "debit",
+                "label": "now it's sold",
+                "amount": 40000,
+                "why": "Cost releases when revenue does.",
+                "trap": "COGS waited on the consignment shelf exactly as long as revenue did."
+              },
+              {
+                "id": "ioc2",
+                "account": "Inventory on Consignment",
+                "side": "credit",
+                "label": "shelf clears",
+                "amount": 40000,
+                "why": "The reclass unwinds at the true sale.",
+                "trap": "Any UNSOLD consigned goods stay on the consignor's balance sheet at period end — a favorite inventory-count twist."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Consignor: shipment = inventory reclass only; revenue (GROSS) + commission expense + COGS all trigger when the consignee sells to the end customer.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Principal vs agent: whoever CONTROLS the good before transfer is the principal (gross revenue). The agent reports only its fee. Consignment is the textbook's cleanest principal/agent case.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-consign-rev",
+        "prompt": "Goods costing 40,000 are shipped on consignment. Revenue recognized by the consignor AT SHIPMENT =",
+        "answerExpr": "0",
+        "distractors": [
+          {
+            "expr": "60000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Shipment transfers location, not CONTROL — no revenue until the consignee sells to an end customer. At shipment: reclass inventory, nothing more."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Inventory on Consignment"
+        },
+        {
+          "account": "Inventory"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Commission Expense"
+        },
+        {
+          "account": "Sales Revenue"
+        },
+        {
+          "account": "Cost of Goods Sold"
+        },
+        {
+          "account": "Accounts Receivable — Consignee",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Three beats on the consignor's books: reclass at shipment (no revenue), gross revenue + commission when the END customer buys, cost matched at the same moment."
+    }
+  }
+}

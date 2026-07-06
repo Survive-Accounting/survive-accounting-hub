@@ -1,14 +1,29 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 13,
+    "name": "Long-Term Liabilities"
+  },
   "doc": {
     "slug": "note-zero-interest",
     "title": "Zero-interest note — imputed interest",
-    "event": "A company signs a $100,000, 3-year note with NO stated interest and receives only the note's present value in cash. The 'free' loan isn't free: the discount between face and PV is the interest, imputed at the market rate and recognized year by year.",
-    "courseFamilies": ["ia2"],
+    "event": "On {issueDate}, Brant Co. signs a {face}, {termYears} zero-interest-bearing note when the market rate for similar borrowing is {marketRateAnnual}, receiving the note's present value in cash. Prepare the issuance entry and the first year-end entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [],
     "params": {
       "kind": "bond",
-      "defaults": { "face": 100000, "statedRateAnnual": 0, "marketRateAnnual": 0.1, "termYears": 3, "paymentsPerYear": 1, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaults": {
+        "face": 100000,
+        "statedRateAnnual": 0,
+        "marketRateAnnual": 0.1,
+        "termYears": 3,
+        "paymentsPerYear": 1,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
       "defaultSeed": 1
     },
     "variants": [
@@ -21,27 +36,57 @@
             "id": "issue",
             "caption": "Issue the zero-interest note at its present value",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "PV of face at 10%", "amountSlotKey": "issuePrice",
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "PV of face at 10%",
+                "amountSlotKey": "issuePrice",
                 "why": "With no coupons, the issue price is just the PV of the face: 100,000 ÷ 1.10³ ≈ 75,131. That's all the cash that changes hands today.",
-                "trap": "Recording the note at face with 100,000 of cash would invent 24,869 the borrower never received." },
-              { "id": "disc", "account": "Discount on Notes Payable", "side": "debit", "label": "face − PV", "amountSlotKey": "param:face - issuePrice",
+                "trap": "Recording the note at face with 100,000 of cash would invent 24,869 the borrower never received."
+              },
+              {
+                "id": "disc",
+                "account": "Discount on Notes Payable",
+                "side": "debit",
+                "label": "face − PV",
+                "amountSlotKey": "param:face - issuePrice",
                 "why": "The entire future interest cost sits here on day one — a contra to Notes Payable that will amortize into expense at 10% per year.",
-                "trap": "'Zero-interest' is a marketing term, not an accounting fact. The discount IS the interest, imputed at the market rate." },
-              { "id": "np", "account": "Notes Payable", "side": "credit", "label": "face", "amountSlotKey": "param:face",
+                "trap": "'Zero-interest' is a marketing term, not an accounting fact. The discount IS the interest, imputed at the market rate."
+              },
+              {
+                "id": "np",
+                "account": "Notes Payable",
+                "side": "credit",
+                "label": "face",
+                "amountSlotKey": "param:face",
                 "why": "Face at maturity is the contract; the payable carries face, netted down by the discount for presentation.",
-                "trap": "Carrying value on day one = face − discount = the PV — not face." }
+                "trap": "Carrying value on day one = face − discount = the PV — not face."
+              }
             ]
           },
           {
             "id": "year1",
             "caption": "Year-end 1 — impute the interest",
             "lines": [
-              { "id": "ie", "account": "Interest Expense", "side": "debit", "label": "CV × market rate", "amountSlotKey": "schedule:1:interestExpense",
+              {
+                "id": "ie",
+                "account": "Interest Expense",
+                "side": "debit",
+                "label": "CV × market rate",
+                "amountSlotKey": "schedule:1:interestExpense",
                 "why": "Same law as every liability in this chapter: carrying value × market rate. Year 1: 75,131 × 10% ≈ 7,513 — with zero cash paid.",
-                "trap": "No cash line! The stated rate is zero, so the ENTIRE expense amortizes the discount. Expense without cash is exactly what imputation means." },
-              { "id": "disc2", "account": "Discount on Notes Payable", "side": "credit", "label": "= the full expense", "amountSlotKey": "schedule:1:amortization",
+                "trap": "No cash line! The stated rate is zero, so the ENTIRE expense amortizes the discount. Expense without cash is exactly what imputation means."
+              },
+              {
+                "id": "disc2",
+                "account": "Discount on Notes Payable",
+                "side": "credit",
+                "label": "= the full expense",
+                "amountSlotKey": "schedule:1:amortization",
                 "why": "With cash at zero, amortization = expense − 0 = the whole expense. The carrying value climbs toward face: 75,131 → 82,644 → 90,909 → 100,000.",
-                "trap": "The discount amortization ACCELERATES each year (bigger CV × same rate) — a straight-line shortcut misstates every single year." }
+                "trap": "The discount amortization ACCELERATES each year (bigger CV × same rate) — a straight-line shortcut misstates every single year."
+              }
             ]
           }
         ],
@@ -50,9 +95,21 @@
             "id": "imputation",
             "narration": "A zero-interest note is a bond with a 0% coupon — the same schedule machine runs it: cash column all zeros, expense = CV × market rate, amortization = expense, CV compounds up to face. E13.17/18's 'imputation of interest' is this exact computation with the market rate estimated from comparable borrowings.",
             "steps": [
-              { "label": "Issue price", "formulaText": "face ÷ (1 + market)^years", "resultSlotKey": "issuePrice" },
-              { "label": "Year-1 expense", "formulaText": "issue price × 10%", "resultSlotKey": "schedule:1:interestExpense" },
-              { "label": "Year-1 amortization", "formulaText": "= the expense (cash is zero)", "resultSlotKey": "schedule:1:amortization" }
+              {
+                "label": "Issue price",
+                "formulaText": "face ÷ (1 + market)^years",
+                "resultSlotKey": "issuePrice"
+              },
+              {
+                "label": "Year-1 expense",
+                "formulaText": "issue price × 10%",
+                "resultSlotKey": "schedule:1:interestExpense"
+              },
+              {
+                "label": "Year-1 amortization",
+                "formulaText": "= the expense (cash is zero)",
+                "resultSlotKey": "schedule:1:amortization"
+              }
             ]
           }
         ]
@@ -60,9 +117,28 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Zero-interest note: record at PV of face; each year expense = carrying value × imputed (market) rate; amortization = the full expense; CV compounds up to face by maturity.", "traceRefs": ["issuePrice", "schedule:1:interestExpense"] },
-      { "kind": "mnemonic", "body": "Discount starts with D — it increases with a Debit, contra to Notes Payable. Here it's born at its maximum (face − PV) and dies to zero at maturity.", "traceRefs": ["param:face - issuePrice"] },
-      { "kind": "watchout", "body": "If the note came bundled with goods, services, or a below-market side deal (E13.18's 'note issued with a right'), the discount may be part interest, part something else — read what the PV gap is actually paying for.", "traceRefs": ["issuePrice"] }
+      {
+        "kind": "formula",
+        "body": "Zero-interest note: record at PV of face; each year expense = carrying value × imputed (market) rate; amortization = the full expense; CV compounds up to face by maturity.",
+        "traceRefs": [
+          "issuePrice",
+          "schedule:1:interestExpense"
+        ]
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Discount starts with D — it increases with a Debit, contra to Notes Payable. Here it's born at its maximum (face − PV) and dies to zero at maturity.",
+        "traceRefs": [
+          "param:face - issuePrice"
+        ]
+      },
+      {
+        "kind": "watchout",
+        "body": "If the note came bundled with goods, services, or a below-market side deal (E13.18's 'note issued with a right'), the discount may be part interest, part something else — read what the PV gap is actually paying for.",
+        "traceRefs": [
+          "issuePrice"
+        ]
+      }
     ],
     "questions": [
       {
@@ -70,22 +146,52 @@
         "prompt": "A $100,000, 3-year, zero-interest note is issued when the market rate is 10% (PV ≈ 75,131). What is year-1 interest expense?",
         "answerExpr": "schedule:1:interestExpense",
         "distractors": [
-          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "Zero is the CASH paid, not the expense. The borrower's real cost is the discount unwinding at the market rate: 75,131 × 10%." },
-          { "expr": "param:face * param:marketRateAnnual", "misconceptionId": "market_rate_on_face", "feedback": "10% applies to the carrying value (75,131), not to face — face isn't owed-in-substance until the discount finishes amortizing." }
+          {
+            "expr": "0",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Zero is the CASH paid, not the expense. The borrower's real cost is the discount unwinding at the market rate: 75,131 × 10%."
+          },
+          {
+            "expr": "param:face * param:marketRateAnnual",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "10% applies to the carrying value (75,131), not to face — face isn't owed-in-substance until the discount finishes amortizing."
+          }
         ]
       }
     ],
     "traces": [
-      { "id": "discount-is-interest", "label": "Face − PV ↔ the discount ↔ three years of expense", "refs": ["param:face - issuePrice", "schedule:1:interestExpense", "schedule:1:carryingValueAfter"] }
+      {
+        "id": "discount-is-interest",
+        "label": "Face − PV ↔ the discount ↔ three years of expense",
+        "refs": [
+          "param:face - issuePrice",
+          "schedule:1:interestExpense",
+          "schedule:1:carryingValueAfter"
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Cash" },
-        { "account": "Notes Payable" },
-        { "account": "Discount on Notes Payable" },
-        { "account": "Interest Expense" },
-        { "account": "Interest Payable", "decoy": true },
-        { "account": "Prepaid Interest", "decoy": true }
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Notes Payable"
+        },
+        {
+          "account": "Discount on Notes Payable"
+        },
+        {
+          "account": "Interest Expense"
+        },
+        {
+          "account": "Interest Payable",
+          "decoy": true
+        },
+        {
+          "account": "Prepaid Interest",
+          "decoy": true
+        }
       ],
       "scaffold": "First find the PV — that's the only real number on day one. Then every year is two lines: expense (CV × rate) and discount (same amount). No cash moves until maturity."
     }

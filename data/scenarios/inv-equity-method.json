@@ -1,0 +1,185 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 16,
+    "name": "Investments"
+  },
+  "doc": {
+    "slug": "inv-equity-method",
+    "title": "Equity method — 20% to 50% influence",
+    "event": "Pell Co. buys 30% of Quin Inc. for $300,000, giving it significant influence. Quin then reports $100,000 of net income and pays $20,000 of total dividends. Prepare all entries and compute the investment's year-end carrying value.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "equity-method",
+        "label": "Buy 30% · accrue share of income · dividends shrink the stake",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "buy",
+            "caption": "Purchase 30% for 300,000",
+            "lines": [
+              {
+                "id": "ei",
+                "account": "Equity Investments",
+                "side": "debit",
+                "label": "at cost",
+                "amount": 300000,
+                "why": "In at cost — then the account starts breathing with the investee.",
+                "trap": "20–50% is a PRESUMPTION of influence, not a law — board seats, tech dependency, or contracts can push a 15% stake into the equity method (or block a 30% one out)."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "price paid",
+                "amount": 300000,
+                "why": "Cash out.",
+                "trap": "No fair-value marks from here on — influence stakes don't remeasure to market."
+              }
+            ]
+          },
+          {
+            "id": "income",
+            "caption": "Investee reports 100,000 of net income",
+            "lines": [
+              {
+                "id": "ei2",
+                "account": "Equity Investments",
+                "side": "debit",
+                "label": "30% × 100,000",
+                "amount": 30000,
+                "why": "Your share of their earnings grows YOUR asset — you influence the machine that earned it.",
+                "trap": "Accrues when THEY report income, not when cash moves — the equity method is accrual accounting applied to ownership."
+              },
+              {
+                "id": "ii",
+                "account": "Investment Income",
+                "side": "credit",
+                "label": "your 30% slice",
+                "amount": 30000,
+                "why": "Income on your books in the same period they earn it.",
+                "trap": "Investee reports a LOSS? Same entry, flipped: debit Investment Loss, credit the investment."
+              }
+            ]
+          },
+          {
+            "id": "dividend",
+            "caption": "Investee pays 20,000 of dividends",
+            "lines": [
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "debit",
+                "label": "30% × 20,000",
+                "amount": 6000,
+                "why": "Your share of the distribution arrives.",
+                "trap": "THE equity-method trap: this is NOT revenue."
+              },
+              {
+                "id": "ei3",
+                "account": "Equity Investments",
+                "side": "credit",
+                "label": "dividends REDUCE the stake",
+                "amount": 6000,
+                "why": "You already counted this money when they EARNED it (entry above). The dividend just converts part of your investment into cash — a return OF capital, not income.",
+                "trap": "Crediting Dividend Revenue here double-counts the earnings. If one line separates fair-value from equity-method on the exam, it's this one."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "carrying",
+            "narration": "The investment account as a running story: cost + share of income − share of dividends. That balance is also the answer to 'what would the gain/loss be if sold' questions.",
+            "steps": [
+              {
+                "label": "Cost",
+                "formulaText": "300,000"
+              },
+              {
+                "label": "+ share of income",
+                "formulaText": "30% × 100,000 = +30,000"
+              },
+              {
+                "label": "− share of dividends",
+                "formulaText": "30% × 20,000 = −6,000"
+              },
+              {
+                "label": "Carrying value",
+                "formulaText": "324,000"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Equity-method carrying value = cost + your % of investee income − your % of investee dividends. Income when they EARN; dividends shrink the INVESTMENT.",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Fair value method: dividends = revenue. Equity method: dividends = refund. Ask 'did I already count these earnings?' — under influence, yes you did.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "If purchase price exceeds your share of the investee's BOOK value, the excess tied to depreciable assets amortizes against Investment Income each year — the P-level twist on this machinery.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-em-cv",
+        "prompt": "30% stake bought for 300,000. Investee then reports 100,000 income and pays 20,000 total dividends. Year-end carrying value of the investment =",
+        "answerExpr": "324000",
+        "distractors": [
+          {
+            "expr": "330000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "330,000 adds the income share but treats the 6,000 dividend as revenue instead of reducing the investment. Equity method: 300,000 + 30,000 − 6,000 = 324,000."
+          },
+          {
+            "expr": "300000",
+            "misconceptionId": "prior_period_expense",
+            "feedback": "Frozen-at-cost is the OLD cost method. Under the equity method the account moves with the investee: +30,000 income share, −6,000 dividends → 324,000."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Equity Investments"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Investment Income"
+        },
+        {
+          "account": "Dividend Revenue",
+          "decoy": true
+        },
+        {
+          "account": "Fair Value Adjustment — Equity Investments",
+          "decoy": true
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Income",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Three beats: cost in; their income grows your asset (and your income); their dividends shrink your asset (never revenue). All three decoys are fair-value-method furniture — wrong method, wrong room."
+    }
+  }
+}

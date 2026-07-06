@@ -1,0 +1,251 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 16,
+    "name": "Investments"
+  },
+  "doc": {
+    "slug": "inv-htm-purchase-interest",
+    "title": "Held-to-maturity debt — purchase and interest",
+    "event": "On {issueDate}, Juno Co. purchases {face} of {statedRateAnnual}, {termYears} bonds ({paymentsPerYear}) to hold to maturity, when the market rate is {marketRateAnnual}. Prepare the purchase entry and the first interest receipt.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [
+      {
+        "key": "pricing",
+        "label": "Purchased at",
+        "options": [
+          {
+            "value": "discount",
+            "label": "A discount"
+          },
+          {
+            "value": "premium",
+            "label": "A premium"
+          }
+        ]
+      }
+    ],
+    "params": {
+      "kind": "bond",
+      "defaults": {
+        "face": 500000,
+        "statedRateAnnual": 0.08,
+        "marketRateAnnual": 0.1,
+        "termYears": 5,
+        "paymentsPerYear": 2,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
+      "defaultSeed": 1
+    },
+    "variants": [
+      {
+        "id": "discount",
+        "label": "Bought below face — revenue runs ABOVE the coupon",
+        "conditions": {
+          "pricing": "discount"
+        },
+        "entries": [
+          {
+            "id": "purchase",
+            "caption": "Purchase HTM bonds at the market price",
+            "lines": [
+              {
+                "id": "di",
+                "account": "Debt Investments",
+                "side": "debit",
+                "label": "at cost (PV at market)",
+                "amountSlotKey": "issuePrice",
+                "why": "One account, carried at amortized cost — Kieso nets the discount INTO Debt Investments rather than using a separate contra (the investor's simplification).",
+                "trap": "Not at face. The investment starts at what you paid and amortizes UP toward face."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "price paid",
+                "amountSlotKey": "issuePrice",
+                "why": "Cash out at the market price.",
+                "trap": "HTM classification requires the intent AND ability to hold to maturity — the label is a commitment, not a preference."
+              }
+            ]
+          },
+          {
+            "id": "interest",
+            "caption": "Receive the semiannual coupon — effective-interest revenue",
+            "lines": [
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "debit",
+                "label": "the fixed coupon",
+                "amountSlotKey": "schedule:1:cashPayment",
+                "why": "Same contractual coupon as Ch. 13 — now arriving instead of leaving.",
+                "trap": "Cash is still not the revenue. Same trap, other chair."
+              },
+              {
+                "id": "di2",
+                "account": "Debt Investments",
+                "side": "debit",
+                "label": "amortization walks cost up",
+                "amountSlotKey": "schedule:1:amortization",
+                "why": "The discount amortizes by debiting the investment itself — carrying amount climbs the schedule toward face.",
+                "trap": "Investor-side discount amortization DEBITS the asset (grows it); flipping it shrinks your investment into fiction."
+              },
+              {
+                "id": "rev",
+                "account": "Interest Revenue",
+                "side": "credit",
+                "label": "CV × market × 6/12",
+                "amountSlotKey": "schedule:1:interestExpense",
+                "why": "Identical number to the issuer's interest expense — one schedule, two chairs. Revenue = carrying amount × market rate.",
+                "trap": "Face × coupon gives the CASH, never the revenue. The market rate at purchase runs the revenue forever."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "mirror",
+            "narration": "The Ch. 13 schedule, re-read from the buyer's chair: issue price = your cost; interest expense column = your interest revenue; carrying value = your investment balance. One table, both sides of the trade.",
+            "steps": [
+              {
+                "label": "Cost",
+                "formulaText": "PV at market rate",
+                "resultSlotKey": "issuePrice"
+              },
+              {
+                "label": "Period-1 revenue",
+                "formulaText": "cost × market × 6/12",
+                "resultSlotKey": "schedule:1:interestExpense"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "premium",
+        "label": "Bought above face — revenue runs BELOW the coupon",
+        "conditions": {
+          "pricing": "premium"
+        },
+        "entries": [
+          {
+            "id": "interest",
+            "caption": "Coupon receipt on premium-purchased bonds",
+            "lines": [
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "debit",
+                "label": "the fixed coupon",
+                "amountSlotKey": "schedule:1:cashPayment",
+                "why": "Contract unchanged.",
+                "trap": "Only the split changes."
+              },
+              {
+                "id": "rev",
+                "account": "Interest Revenue",
+                "side": "credit",
+                "label": "CV × market × 6/12",
+                "amountSlotKey": "schedule:1:interestExpense",
+                "why": "You paid extra for an above-market coupon; the premium amortizes AGAINST revenue, so revenue < cash.",
+                "trap": "Premium at purchase = you overpaid for coupons — part of each coupon is your own money coming back, not income."
+              },
+              {
+                "id": "di2",
+                "account": "Debt Investments",
+                "side": "credit",
+                "label": "premium walks cost down",
+                "amountSlotKey": "schedule:1:amortization",
+                "why": "The investment amortizes DOWN toward face — credit side this time.",
+                "trap": "Direction check: discount purchase → investment grows; premium purchase → investment shrinks. Both land exactly at face at maturity."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "HTM = amortized cost. Interest revenue = carrying amount × market rate at purchase × time. Same schedule as the issuer — expense column becomes your revenue column.",
+        "traceRefs": [
+          "schedule:1:interestExpense"
+        ]
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Two chairs, one table: everything you memorized in Ch. 13 flips sides but keeps its number. Discount still means 'the rate story favored the buyer.'",
+        "traceRefs": [
+          "issuePrice"
+        ]
+      },
+      {
+        "kind": "watchout",
+        "body": "HTM never marks to market — fair value changes are ignored unless there's a CREDIT LOSS (impairment), which books an allowance against income. And selling HTM early can taint the whole portfolio's classification.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-htm-revenue",
+        "prompt": "HTM bonds bought at 461,391 (face 500,000, 8% coupon, 10% market, semiannual). Period-1 interest REVENUE =",
+        "answerExpr": "schedule:1:interestExpense",
+        "distractors": [
+          {
+            "expr": "schedule:1:cashPayment",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "20,000 is the coupon CASH. Revenue = carrying amount × market rate: 461,391 × 5% = 23,070 — the discount amortization is also income."
+          },
+          {
+            "expr": "param:face * param:marketRateAnnual / 2",
+            "misconceptionId": "market_rate_on_face",
+            "feedback": "The market rate applies to your COST (the carrying amount), not to face — face isn't what you invested."
+          }
+        ]
+      }
+    ],
+    "traces": [
+      {
+        "id": "two-chairs",
+        "label": "Cost ↔ schedule ↔ revenue (the Ch. 13 mirror)",
+        "refs": [
+          "issuePrice",
+          "schedule:1:interestExpense",
+          "schedule:1:carryingValueAfter"
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Debt Investments"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Interest Revenue"
+        },
+        {
+          "account": "Discount on Debt Investments",
+          "decoy": true
+        },
+        {
+          "account": "Interest Expense",
+          "decoy": true
+        },
+        {
+          "account": "Fair Value Adjustment",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Run the Ch. 13 machine from the other chair: cost in, coupon cash + amortization vs revenue each period. The separate-discount-account is a decoy — the investor amortizes the investment itself."
+    }
+  }
+}

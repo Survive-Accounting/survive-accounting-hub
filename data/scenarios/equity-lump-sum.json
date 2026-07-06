@@ -1,17 +1,30 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 14, "name": "Stockholder's Equity" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 14,
+    "name": "Stockholder's Equity"
+  },
   "doc": {
     "slug": "equity-lump-sum",
     "title": "Lump-sum issuance — allocate the basket",
-    "event": "One check, two securities: 1,000 common shares ($10 par) and 500 preferred shares ($10 par) sold together for a single $30,000 payment. Before any entry exists, the $30,000 must be split between the two classes — and the split method depends on how many fair values you actually know.",
-    "courseFamilies": ["ia2"],
+    "event": "Ida Corp. sells 1,000 shares of $10-par common and 500 shares of $10-par preferred for a single lump-sum payment of $30,000. Prepare the issuance entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [
       {
         "key": "method",
         "label": "Fair values known",
         "options": [
-          { "value": "proportional", "label": "Both known — proportional" },
-          { "value": "incremental", "label": "Only common known — incremental" }
+          {
+            "value": "proportional",
+            "label": "Both known — proportional"
+          },
+          {
+            "value": "incremental",
+            "label": "Only common known — incremental"
+          }
         ]
       }
     ],
@@ -19,27 +32,59 @@
       {
         "id": "proportional",
         "label": "Both FVs known: common $24,000, preferred $8,000 — split by ratio",
-        "conditions": { "method": "proportional" },
+        "conditions": {
+          "method": "proportional"
+        },
         "entries": [
           {
             "id": "issue",
             "caption": "Proportional method: allocate $30,000 by relative fair values (24k : 8k)",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "the lump sum", "amount": 30000,
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "the lump sum",
+                "amount": 30000,
                 "why": "One check for the basket.",
-                "trap": "The lump sum rarely equals the sum of the fair values — that's WHY allocation exists." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "1,000 × $10 par", "amount": 10000,
+                "trap": "The lump sum rarely equals the sum of the fair values — that's WHY allocation exists."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "1,000 × $10 par",
+                "amount": 10000,
                 "why": "Common's allocated share = 30,000 × 24/32 = 22,500. Of that, par capital is 1,000 × $10.",
-                "trap": "Allocate FIRST, split par second — reversing the order scrambles both classes." },
-              { "id": "picc", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "22,500 − 10,000", "amount": 12500,
+                "trap": "Allocate FIRST, split par second — reversing the order scrambles both classes."
+              },
+              {
+                "id": "picc",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "22,500 − 10,000",
+                "amount": 12500,
                 "why": "Common's excess over its par capital.",
-                "trap": "Each class keeps its own PIC account — never pool the excess." },
-              { "id": "ps", "account": "Preferred Stock", "side": "credit", "label": "500 × $10 par", "amount": 5000,
+                "trap": "Each class keeps its own PIC account — never pool the excess."
+              },
+              {
+                "id": "ps",
+                "account": "Preferred Stock",
+                "side": "credit",
+                "label": "500 × $10 par",
+                "amount": 5000,
                 "why": "Preferred's allocated share = 30,000 × 8/32 = 7,500; par piece is 5,000.",
-                "trap": "Preferred follows the same par mechanics as common — different class, identical machinery." },
-              { "id": "picp", "account": "Paid-in Capital in Excess of Par — Preferred", "side": "credit", "label": "7,500 − 5,000", "amount": 2500,
+                "trap": "Preferred follows the same par mechanics as common — different class, identical machinery."
+              },
+              {
+                "id": "picp",
+                "account": "Paid-in Capital in Excess of Par — Preferred",
+                "side": "credit",
+                "label": "7,500 − 5,000",
+                "amount": 2500,
                 "why": "Preferred's excess.",
-                "trap": "Check: 10,000 + 12,500 + 5,000 + 2,500 = 30,000. Allocations must consume the lump sum exactly." }
+                "trap": "Check: 10,000 + 12,500 + 5,000 + 2,500 = 30,000. Allocations must consume the lump sum exactly."
+              }
             ]
           }
         ],
@@ -48,8 +93,14 @@
             "id": "prop-math",
             "narration": "Relative-FV split: total FV = 24,000 + 8,000 = 32,000. Common takes 24/32 of the $30,000 (22,500); preferred takes 8/32 (7,500). Then each class runs normal par mechanics on its slice.",
             "steps": [
-              { "label": "Common allocation", "formulaText": "30,000 × 24,000/32,000 = 22,500" },
-              { "label": "Preferred allocation", "formulaText": "30,000 × 8,000/32,000 = 7,500" }
+              {
+                "label": "Common allocation",
+                "formulaText": "30,000 × 24,000/32,000 = 22,500"
+              },
+              {
+                "label": "Preferred allocation",
+                "formulaText": "30,000 × 8,000/32,000 = 7,500"
+              }
             ]
           }
         ]
@@ -57,27 +108,59 @@
       {
         "id": "incremental",
         "label": "Only common's FV known ($24,000) — preferred gets the leftover",
-        "conditions": { "method": "incremental" },
+        "conditions": {
+          "method": "incremental"
+        },
         "entries": [
           {
             "id": "issue",
             "caption": "Incremental method: known FV first, remainder to the unknown class",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "the lump sum", "amount": 30000,
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "the lump sum",
+                "amount": 30000,
                 "why": "Same check.",
-                "trap": "Method choice is forced by the facts — you don't get to pick incremental when both FVs are known." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "par piece of the known 24,000", "amount": 10000,
+                "trap": "Method choice is forced by the facts — you don't get to pick incremental when both FVs are known."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "par piece of the known 24,000",
+                "amount": 10000,
                 "why": "Common (the known one) takes its full fair value: 24,000. Par piece: 10,000.",
-                "trap": "The KNOWN security anchors at its FV; only the unknown one flexes." },
-              { "id": "picc", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "24,000 − 10,000", "amount": 14000,
+                "trap": "The KNOWN security anchors at its FV; only the unknown one flexes."
+              },
+              {
+                "id": "picc",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "24,000 − 10,000",
+                "amount": 14000,
                 "why": "Common's excess on its full FV.",
-                "trap": "Note this differs from the proportional answer (12,500) — same deal, different information, different numbers. Exams exploit exactly that." },
-              { "id": "ps", "account": "Preferred Stock", "side": "credit", "label": "par piece of the residual", "amount": 5000,
+                "trap": "Note this differs from the proportional answer (12,500) — same deal, different information, different numbers. Exams exploit exactly that."
+              },
+              {
+                "id": "ps",
+                "account": "Preferred Stock",
+                "side": "credit",
+                "label": "par piece of the residual",
+                "amount": 5000,
                 "why": "Preferred gets what's left: 30,000 − 24,000 = 6,000. Par piece: 5,000.",
-                "trap": "The residual can be unflattering (here just 1,000 above par) — that's the price of not having a market quote." },
-              { "id": "picp", "account": "Paid-in Capital in Excess of Par — Preferred", "side": "credit", "label": "6,000 − 5,000", "amount": 1000,
+                "trap": "The residual can be unflattering (here just 1,000 above par) — that's the price of not having a market quote."
+              },
+              {
+                "id": "picp",
+                "account": "Paid-in Capital in Excess of Par — Preferred",
+                "side": "credit",
+                "label": "6,000 − 5,000",
+                "amount": 1000,
                 "why": "The last dollar of the lump sum, accounted for.",
-                "trap": "Same check-figure discipline: the five lines must reconstruct 30,000 exactly." }
+                "trap": "Same check-figure discipline: the five lines must reconstruct 30,000 exactly."
+              }
             ]
           }
         ],
@@ -86,8 +169,14 @@
             "id": "incr-math",
             "narration": "Known-first: common anchors at 24,000; preferred is the plug (30,000 − 24,000 = 6,000). Each slice then splits par/excess normally.",
             "steps": [
-              { "label": "Common (known)", "formulaText": "= its FV: 24,000" },
-              { "label": "Preferred (plug)", "formulaText": "30,000 − 24,000 = 6,000" }
+              {
+                "label": "Common (known)",
+                "formulaText": "= its FV: 24,000"
+              },
+              {
+                "label": "Preferred (plug)",
+                "formulaText": "30,000 − 24,000 = 6,000"
+              }
             ]
           }
         ]
@@ -95,8 +184,16 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Both FVs known → proportional: each class gets lump × (its FV ÷ total FV). One FV known → incremental: known class at its FV, other class gets the residual.", "traceRefs": [] },
-      { "kind": "tip", "body": "Always reconcile: the credits across both classes must sum exactly to the lump sum. It's a free arithmetic check the exam gives you.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "Both FVs known → proportional: each class gets lump × (its FV ÷ total FV). One FV known → incremental: known class at its FV, other class gets the residual.",
+        "traceRefs": []
+      },
+      {
+        "kind": "tip",
+        "body": "Always reconcile: the credits across both classes must sum exactly to the lump sum. It's a free arithmetic check the exam gives you.",
+        "traceRefs": []
+      }
     ],
     "questions": [
       {
@@ -104,18 +201,35 @@
         "prompt": "A $30,000 lump sum buys common (FV $24,000) and preferred (FV $8,000). Under the proportional method, common's allocation is…",
         "answerExpr": "22500",
         "distractors": [
-          { "expr": "24000", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "24,000 is common's standalone FAIR VALUE — the ratio ingredient, not the allocation. The basket sold for less than the FVs sum to, so common gets 30,000 × 24/32 = 22,500. (Anchoring at full FV is the INCREMENTAL method, used only when the other FV is unknown.)" }
+          {
+            "expr": "24000",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "24,000 is common's standalone FAIR VALUE — the ratio ingredient, not the allocation. The basket sold for less than the FVs sum to, so common gets 30,000 × 24/32 = 22,500. (Anchoring at full FV is the INCREMENTAL method, used only when the other FV is unknown.)"
+          }
         ]
       }
     ],
     "build": {
       "accountBank": [
-        { "account": "Cash" },
-        { "account": "Common Stock" },
-        { "account": "Preferred Stock" },
-        { "account": "Paid-in Capital in Excess of Par — Common" },
-        { "account": "Paid-in Capital in Excess of Par — Preferred" },
-        { "account": "Gain on Sale of Stock", "decoy": true }
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Common Stock"
+        },
+        {
+          "account": "Preferred Stock"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Common"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Preferred"
+        },
+        {
+          "account": "Gain on Sale of Stock",
+          "decoy": true
+        }
       ],
       "scaffold": "Allocate before you journalize: how many fair values do you know? Two → ratio split. One → known at FV, other gets the leftover. THEN run par mechanics inside each slice."
     }

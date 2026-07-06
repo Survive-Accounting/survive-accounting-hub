@@ -1,10 +1,17 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 15,
+    "name": "Dilutive Securities and EPS"
+  },
   "doc": {
     "slug": "eps-weighted-average-shares",
     "title": "Weighted-average shares outstanding",
-    "event": "The denominator of every EPS number: 100,000 shares on Jan 1, 20,000 more issued Apr 1, and a 2-for-1 split on Jul 1. Issuances count from their date forward — but splits and stock dividends restate the clock ALL the way back.",
-    "courseFamilies": ["ia2"],
+    "event": "Falk Corp. begins the year with 100,000 shares outstanding, issues 20,000 shares on April 1, and executes a 2-for-1 stock split on July 1. Compute weighted-average shares outstanding.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [],
     "variants": [
       {
@@ -17,10 +24,22 @@
             "id": "waso-calc",
             "narration": "Two different rules working the same problem. New-share issuances (Apr 1) weight by months outstanding — they only earned for part of the year. But the 2-for-1 split (Jul 1) restates EVERY earlier share count as if it had always been split — a split changes the unit of measurement, not the economics, so the whole timeline converts to post-split units.",
             "steps": [
-              { "label": "Jan–Mar (3 mo)", "formulaText": "100,000 × 2 (split restated) × 3/12 = 50,000" },
-              { "label": "Apr–Jun (3 mo)", "formulaText": "120,000 × 2 (split restated) × 3/12 = 60,000" },
-              { "label": "Jul–Dec (6 mo)", "formulaText": "240,000 × 6/12 = 120,000" },
-              { "label": "Weighted-average shares", "formulaText": "50,000 + 60,000 + 120,000 = 230,000" }
+              {
+                "label": "Jan–Mar (3 mo)",
+                "formulaText": "100,000 × 2 (split restated) × 3/12 = 50,000"
+              },
+              {
+                "label": "Apr–Jun (3 mo)",
+                "formulaText": "120,000 × 2 (split restated) × 3/12 = 60,000"
+              },
+              {
+                "label": "Jul–Dec (6 mo)",
+                "formulaText": "240,000 × 6/12 = 120,000"
+              },
+              {
+                "label": "Weighted-average shares",
+                "formulaText": "50,000 + 60,000 + 120,000 = 230,000"
+              }
             ]
           }
         ]
@@ -28,9 +47,21 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "WASO = Σ (shares outstanding × months ÷ 12), with splits and stock dividends restated retroactively to the START of the year (and to all comparative prior years).", "traceRefs": [] },
-      { "kind": "mnemonic", "body": "Money events (issuances, buybacks) weight by time — new capital only works part of the year. Paper events (splits, stock dividends) restate all of time — no new capital, just smaller slices of the same pie.", "traceRefs": [] },
-      { "kind": "watchout", "body": "Treasury purchases weight from their date too — REDUCING shares for the remaining months. And a split occurring after year-end but before statements issue STILL restates the year. Exams love that one.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "WASO = Σ (shares outstanding × months ÷ 12), with splits and stock dividends restated retroactively to the START of the year (and to all comparative prior years).",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Money events (issuances, buybacks) weight by time — new capital only works part of the year. Paper events (splits, stock dividends) restate all of time — no new capital, just smaller slices of the same pie.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Treasury purchases weight from their date too — REDUCING shares for the remaining months. And a split occurring after year-end but before statements issue STILL restates the year. Exams love that one.",
+        "traceRefs": []
+      }
     ],
     "questions": [
       {
@@ -38,8 +69,16 @@
         "prompt": "100,000 shares Jan 1; 20,000 issued Apr 1; 2-for-1 split Jul 1. Weighted-average shares for the year =",
         "answerExpr": "230000",
         "distractors": [
-          { "expr": "175000", "misconceptionId": "accrual_fraction_missed", "feedback": "That weights the split by time like an issuance (only Jul–Dec doubled). A split restates RETROACTIVELY — the Jan–Jun share counts double too: (200,000 × 3/12) + (240,000 × 3/12) + (240,000 × 6/12) = 230,000." },
-          { "expr": "240000", "misconceptionId": "cash_vs_expense", "feedback": "240,000 is the year-END share count. EPS needs the weighted AVERAGE — the April issuance only worked 9 months of the year." }
+          {
+            "expr": "175000",
+            "misconceptionId": "accrual_fraction_missed",
+            "feedback": "That weights the split by time like an issuance (only Jul–Dec doubled). A split restates RETROACTIVELY — the Jan–Jun share counts double too: (200,000 × 3/12) + (240,000 × 3/12) + (240,000 × 6/12) = 230,000."
+          },
+          {
+            "expr": "240000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "240,000 is the year-END share count. EPS needs the weighted AVERAGE — the April issuance only worked 9 months of the year."
+          }
         ]
       }
     ]

@@ -1,10 +1,17 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 15,
+    "name": "Dilutive Securities and EPS"
+  },
   "doc": {
     "slug": "convert-bonds-induced",
     "title": "Induced conversion — the sweetener",
-    "event": "The company WANTS its convertible debt gone, so it offers bondholders an extra $15,000 cash to convert now. The conversion itself follows the normal book value method — but the sweetener is an expense of the period, full stop.",
-    "courseFamilies": ["ia2"],
+    "event": "To retire its convertible debt early, Dade Co. pays bondholders an extra $15,000 cash to convert now. The bonds ($500,000 face, $12,000 unamortized discount) convert into 40,000 shares of $5-par common. Prepare all entries.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [],
     "variants": [
       {
@@ -16,57 +23,138 @@
             "id": "sweetener",
             "caption": "Pay the inducement",
             "lines": [
-              { "id": "dce", "account": "Debt Conversion Expense", "side": "debit", "label": "the extra consideration", "amount": 15000,
+              {
+                "id": "dce",
+                "account": "Debt Conversion Expense",
+                "side": "debit",
+                "label": "the extra consideration",
+                "amount": 15000,
                 "why": "Anything paid BEYOND the original conversion terms is a cost of getting the debt off the books early — expensed immediately.",
-                "trap": "Not a reduction of the equity recorded, not a loss on retirement, not PIC — a plain income-statement expense." },
-              { "id": "cash", "account": "Cash", "side": "credit", "label": "the sweetener", "amount": 15000,
+                "trap": "Not a reduction of the equity recorded, not a loss on retirement, not PIC — a plain income-statement expense."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "the sweetener",
+                "amount": 15000,
                 "why": "Cash (or the fair value of whatever extra was given).",
-                "trap": "If the sweetener is extra SHARES instead of cash, expense their fair value — same principle." }
+                "trap": "If the sweetener is extra SHARES instead of cash, expense their fair value — same principle."
+              }
             ]
           },
           {
             "id": "convert",
             "caption": "Then the ordinary book-value conversion (CV 488,000 → 40,000 shares, $5 par)",
             "lines": [
-              { "id": "bp", "account": "Bonds Payable", "side": "debit", "label": "face", "amount": 500000,
+              {
+                "id": "bp",
+                "account": "Bonds Payable",
+                "side": "debit",
+                "label": "face",
+                "amount": 500000,
                 "why": "The conversion entry is IDENTICAL to an uninduced one — the sweetener never contaminates it.",
-                "trap": "Blending the 15,000 into this entry is the exam's favorite wrong answer." },
-              { "id": "disc", "account": "Discount on Bonds Payable", "side": "credit", "label": "unamortized remainder", "amount": 12000,
-                "why": "Cleared with the bond.", "trap": "Current as of the conversion date." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "40,000 × $5", "amount": 200000,
-                "why": "Par × shares.", "trap": "Original conversion terms govern the share count." },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the plug", "amount": 288000,
-                "why": "Carrying value minus par capital, as always.", "trap": "Unchanged by the inducement." }
+                "trap": "Blending the 15,000 into this entry is the exam's favorite wrong answer."
+              },
+              {
+                "id": "disc",
+                "account": "Discount on Bonds Payable",
+                "side": "credit",
+                "label": "unamortized remainder",
+                "amount": 12000,
+                "why": "Cleared with the bond.",
+                "trap": "Current as of the conversion date."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "40,000 × $5",
+                "amount": 200000,
+                "why": "Par × shares.",
+                "trap": "Original conversion terms govern the share count."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "the plug",
+                "amount": 288000,
+                "why": "Carrying value minus par capital, as always.",
+                "trap": "Unchanged by the inducement."
+              }
             ]
           }
         ],
         "computationPaths": [
-          { "id": "split-brain", "narration": "Two separate thoughts: (1) sweetener = expense at fair value; (2) conversion = plain book value method. Keeping them in separate entries is the whole lesson.",
+          {
+            "id": "split-brain",
+            "narration": "Two separate thoughts: (1) sweetener = expense at fair value; (2) conversion = plain book value method. Keeping them in separate entries is the whole lesson.",
             "steps": [
-              { "label": "Inducement expense", "formulaText": "= extra consideration: 15,000" },
-              { "label": "Equity recorded", "formulaText": "= carrying value 488,000 (unaffected)" }
-            ] }
+              {
+                "label": "Inducement expense",
+                "formulaText": "= extra consideration: 15,000"
+              },
+              {
+                "label": "Equity recorded",
+                "formulaText": "= carrying value 488,000 (unaffected)"
+              }
+            ]
+          }
         ]
       }
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Induced conversion = ordinary book-value conversion + Debt Conversion Expense for the fair value of ALL extra consideration (cash, extra shares, sweetened terms).", "traceRefs": [] },
-      { "kind": "watchout", "body": "The sweetener never touches the conversion equity and is never a 'loss on retirement' — it is a current-period expense with its own entry.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "Induced conversion = ordinary book-value conversion + Debt Conversion Expense for the fair value of ALL extra consideration (cash, extra shares, sweetened terms).",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "The sweetener never touches the conversion equity and is never a 'loss on retirement' — it is a current-period expense with its own entry.",
+        "traceRefs": []
+      }
     ],
     "questions": [
-      { "id": "q-sweetener",
+      {
+        "id": "q-sweetener",
         "prompt": "A company pays bondholders $15,000 extra to convert. The $15,000 is recorded as…",
         "answerExpr": "15000",
         "distractors": [
-          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "Not zero, and not buried in PIC — inducements are expensed. Debt Conversion Expense 15,000, its own entry, on the income statement this period." }
-        ] }
+          {
+            "expr": "0",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Not zero, and not buried in PIC — inducements are expensed. Debt Conversion Expense 15,000, its own entry, on the income statement this period."
+          }
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Debt Conversion Expense" }, { "account": "Cash" }, { "account": "Bonds Payable" },
-        { "account": "Discount on Bonds Payable" }, { "account": "Common Stock" }, { "account": "Paid-in Capital in Excess of Par — Common" },
-        { "account": "Loss on Redemption of Bonds", "decoy": true }
+        {
+          "account": "Debt Conversion Expense"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Bonds Payable"
+        },
+        {
+          "account": "Discount on Bonds Payable"
+        },
+        {
+          "account": "Common Stock"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Common"
+        },
+        {
+          "account": "Loss on Redemption of Bonds",
+          "decoy": true
+        }
       ],
       "scaffold": "Two entries, two ideas: pay-and-expense the sweetener first, then run the untouched book-value conversion. If your conversion entry changed because of the inducement, un-blend them."
     }

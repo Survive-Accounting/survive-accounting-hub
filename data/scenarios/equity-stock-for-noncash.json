@@ -1,10 +1,17 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 14, "name": "Stockholder's Equity" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 14,
+    "name": "Stockholder's Equity"
+  },
   "doc": {
     "slug": "equity-stock-for-noncash",
     "title": "Stock issued for noncash assets",
-    "event": "A company acquires land by handing the seller 5,000 shares of its $10-par common stock — no cash anywhere in the deal. The land goes on the books at fair value, and the measurement rule is about WHICH fair value: the stock's, when it's the more clearly determinable one.",
-    "courseFamilies": ["ia2"],
+    "event": "Kerr Corp. acquires land by issuing 5,000 shares of its $10-par common stock, which is actively traded at $28 per share. Prepare the entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [],
     "variants": [
       {
@@ -16,15 +23,33 @@
             "id": "acquire",
             "caption": "5,000 shares of $10-par stock (trading at $28) exchanged for land",
             "lines": [
-              { "id": "land", "account": "Land", "side": "debit", "label": "5,000 × $28 stock FV", "amount": 140000,
+              {
+                "id": "land",
+                "account": "Land",
+                "side": "debit",
+                "label": "5,000 × $28 stock FV",
+                "amount": 140000,
                 "why": "Record at the MORE CLEARLY DETERMINABLE fair value. The stock trades daily at $28; the land's value is an appraisal opinion — the market quote wins: 5,000 × $28 = $140,000.",
-                "trap": "The seller's asking price and the land's tax-assessed value are both noise. Determinability decides, and an active market beats an appraisal." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "5,000 × $10 par", "amount": 50000,
+                "trap": "The seller's asking price and the land's tax-assessed value are both noise. Determinability decides, and an active market beats an appraisal."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "5,000 × $10 par",
+                "amount": 50000,
                 "why": "Par discipline never bends — par × shares to the stock account even in a noncash deal.",
-                "trap": "Same #1 error as cash issuances: the stock account never takes the full $140,000." },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the excess", "amount": 90000,
+                "trap": "Same #1 error as cash issuances: the stock account never takes the full $140,000."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "the excess",
+                "amount": 90000,
                 "why": "Deal value minus par-capital, exactly as if the $140,000 had arrived in cash and been spent on land a second later.",
-                "trap": "No gain, no loss — issuing your own stock is a capital transaction whatever you receive for it." }
+                "trap": "No gain, no loss — issuing your own stock is a capital transaction whatever you receive for it."
+              }
             ]
           }
         ],
@@ -33,9 +58,18 @@
             "id": "measurement",
             "narration": "One measurement, then normal issuance mechanics: deal value = stock FV (5,000 × $28 = 140,000, the determinable one) → land debited at it → par split as usual (50,000 par / 90,000 excess).",
             "steps": [
-              { "label": "Deal value", "formulaText": "5,000 shares × $28 market = 140,000" },
-              { "label": "Par capital", "formulaText": "5,000 × $10 = 50,000" },
-              { "label": "Excess", "formulaText": "140,000 − 50,000 = 90,000" }
+              {
+                "label": "Deal value",
+                "formulaText": "5,000 shares × $28 market = 140,000"
+              },
+              {
+                "label": "Par capital",
+                "formulaText": "5,000 × $10 = 50,000"
+              },
+              {
+                "label": "Excess",
+                "formulaText": "140,000 − 50,000 = 90,000"
+              }
             ]
           }
         ]
@@ -43,9 +77,21 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Noncash issuance: record at the more clearly determinable of (asset FV, stock FV). Actively traded stock almost always wins that contest.", "traceRefs": [] },
-      { "kind": "watchout", "body": "If the stock does NOT trade actively (closely held company), the logic flips — the ASSET's appraised fair value measures the deal instead.", "traceRefs": [] },
-      { "kind": "watchout", "body": "Never measure at par, at book value, or at the seller's asking price — three tempting numbers, all wrong.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "Noncash issuance: record at the more clearly determinable of (asset FV, stock FV). Actively traded stock almost always wins that contest.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "If the stock does NOT trade actively (closely held company), the logic flips — the ASSET's appraised fair value measures the deal instead.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Never measure at par, at book value, or at the seller's asking price — three tempting numbers, all wrong.",
+        "traceRefs": []
+      }
     ],
     "questions": [
       {
@@ -53,17 +99,33 @@
         "prompt": "Land is acquired for 5,000 shares of $10-par stock trading at $28. Land is recorded at…",
         "answerExpr": "140000",
         "distractors": [
-          { "expr": "50000", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "That's par × shares — legal capital, not value. Par measures nothing about the deal; the $28 market price does. Land = 5,000 × $28 = $140,000." }
+          {
+            "expr": "50000",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "That's par × shares — legal capital, not value. Par measures nothing about the deal; the $28 market price does. Land = 5,000 × $28 = $140,000."
+          }
         ]
       }
     ],
     "build": {
       "accountBank": [
-        { "account": "Land" },
-        { "account": "Common Stock" },
-        { "account": "Paid-in Capital in Excess of Par — Common" },
-        { "account": "Cash", "decoy": true },
-        { "account": "Gain on Exchange", "decoy": true }
+        {
+          "account": "Land"
+        },
+        {
+          "account": "Common Stock"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Common"
+        },
+        {
+          "account": "Cash",
+          "decoy": true
+        },
+        {
+          "account": "Gain on Exchange",
+          "decoy": true
+        }
       ],
       "scaffold": "Find the deal's ONE fair value first (the determinable one — here, the traded stock). Debit the asset at it, then run standard issuance mechanics: par to the stock account, excess to PIC."
     }

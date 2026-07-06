@@ -8,25 +8,44 @@
   "doc": {
     "slug": "bonds-pay-periodic-interest",
     "title": "Pay periodic bond interest",
-    "event": "A company issued term bonds and the semiannual coupon date has arrived. It pays the cash coupon and records interest expense — amortizing any discount or premium along the way.",
-    "courseFamilies": ["ia2"],
-    "principleKeys": ["matching"],
+    "event": "On {issueDate}, Ramos Co. issues {face} of {statedRateAnnual} bonds ({paymentsPerYear} interest payments) when the market rate is {marketRateAnnual}. Prepare the entry for the next interest payment.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "principleKeys": [
+      "matching"
+    ],
     "axes": [
       {
         "key": "pricing",
         "label": "Issued at",
         "options": [
-          { "value": "at_par", "label": "Par" },
-          { "value": "premium", "label": "A premium" },
-          { "value": "discount", "label": "A discount" }
+          {
+            "value": "at_par",
+            "label": "Par"
+          },
+          {
+            "value": "premium",
+            "label": "A premium"
+          },
+          {
+            "value": "discount",
+            "label": "A discount"
+          }
         ]
       },
       {
         "key": "method",
         "label": "Amortization method",
         "options": [
-          { "value": "effective_interest", "label": "Effective interest" },
-          { "value": "straight_line", "label": "Straight line" }
+          {
+            "value": "effective_interest",
+            "label": "Effective interest"
+          },
+          {
+            "value": "straight_line",
+            "label": "Straight line"
+          }
         ]
       }
     ],
@@ -47,7 +66,9 @@
       {
         "id": "discount",
         "label": "Issued at a discount — expense runs ABOVE the cash coupon",
-        "conditions": { "pricing": "discount" },
+        "conditions": {
+          "pricing": "discount"
+        },
         "entries": [
           {
             "id": "pay-interest",
@@ -86,23 +107,55 @@
         "computationPaths": [
           {
             "id": "discount-effective",
-            "appliesWhen": { "method": "effective_interest" },
+            "appliesWhen": {
+              "method": "effective_interest"
+            },
             "narration": "Effective interest: expense = prior carrying value × market rate × 6/12. Cash stays face × stated × 6/12; the difference amortizes the discount, so the carrying value climbs toward face and next period's expense climbs with it.",
             "steps": [
-              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
-              { "label": "Interest expense", "formulaText": "carrying value × market × 6/12", "resultSlotKey": "schedule:1:interestExpense" },
-              { "label": "Discount amortized", "formulaText": "expense − cash", "resultSlotKey": "schedule:1:amortization" },
-              { "label": "New carrying value", "formulaText": "carrying value + amortization", "resultSlotKey": "schedule:1:carryingValueAfter" }
+              {
+                "label": "Cash coupon",
+                "formulaText": "face × stated × 6/12",
+                "resultSlotKey": "schedule:1:cashPayment"
+              },
+              {
+                "label": "Interest expense",
+                "formulaText": "carrying value × market × 6/12",
+                "resultSlotKey": "schedule:1:interestExpense"
+              },
+              {
+                "label": "Discount amortized",
+                "formulaText": "expense − cash",
+                "resultSlotKey": "schedule:1:amortization"
+              },
+              {
+                "label": "New carrying value",
+                "formulaText": "carrying value + amortization",
+                "resultSlotKey": "schedule:1:carryingValueAfter"
+              }
             ]
           },
           {
             "id": "discount-straight",
-            "appliesWhen": { "method": "straight_line" },
+            "appliesWhen": {
+              "method": "straight_line"
+            },
             "narration": "Straight line: amortize the SAME slice of the total discount every period (total discount ÷ number of periods, with the final period plugging any rounding). Expense = cash + that slice, so expense is constant instead of climbing.",
             "steps": [
-              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
-              { "label": "Discount amortized", "formulaText": "total discount ÷ periods", "resultSlotKey": "schedule:1:amortization" },
-              { "label": "Interest expense", "formulaText": "cash + amortization", "resultSlotKey": "schedule:1:interestExpense" }
+              {
+                "label": "Cash coupon",
+                "formulaText": "face × stated × 6/12",
+                "resultSlotKey": "schedule:1:cashPayment"
+              },
+              {
+                "label": "Discount amortized",
+                "formulaText": "total discount ÷ periods",
+                "resultSlotKey": "schedule:1:amortization"
+              },
+              {
+                "label": "Interest expense",
+                "formulaText": "cash + amortization",
+                "resultSlotKey": "schedule:1:interestExpense"
+              }
             ]
           }
         ]
@@ -110,7 +163,9 @@
       {
         "id": "premium",
         "label": "Issued at a premium — expense runs BELOW the cash coupon",
-        "conditions": { "pricing": "premium" },
+        "conditions": {
+          "pricing": "premium"
+        },
         "entries": [
           {
             "id": "pay-interest",
@@ -149,23 +204,55 @@
         "computationPaths": [
           {
             "id": "premium-effective",
-            "appliesWhen": { "method": "effective_interest" },
+            "appliesWhen": {
+              "method": "effective_interest"
+            },
             "narration": "Effective interest: expense = prior carrying value × market rate × 6/12 — which is LESS than the cash coupon. The difference amortizes the premium, so the carrying value steps down toward face.",
             "steps": [
-              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
-              { "label": "Interest expense", "formulaText": "carrying value × market × 6/12", "resultSlotKey": "schedule:1:interestExpense" },
-              { "label": "Premium amortized", "formulaText": "cash − expense", "resultSlotKey": "schedule:1:amortization" },
-              { "label": "New carrying value", "formulaText": "carrying value − amortization", "resultSlotKey": "schedule:1:carryingValueAfter" }
+              {
+                "label": "Cash coupon",
+                "formulaText": "face × stated × 6/12",
+                "resultSlotKey": "schedule:1:cashPayment"
+              },
+              {
+                "label": "Interest expense",
+                "formulaText": "carrying value × market × 6/12",
+                "resultSlotKey": "schedule:1:interestExpense"
+              },
+              {
+                "label": "Premium amortized",
+                "formulaText": "cash − expense",
+                "resultSlotKey": "schedule:1:amortization"
+              },
+              {
+                "label": "New carrying value",
+                "formulaText": "carrying value − amortization",
+                "resultSlotKey": "schedule:1:carryingValueAfter"
+              }
             ]
           },
           {
             "id": "premium-straight",
-            "appliesWhen": { "method": "straight_line" },
+            "appliesWhen": {
+              "method": "straight_line"
+            },
             "narration": "Straight line: total premium ÷ periods, the same slice every time (final period plugs rounding). Expense = cash − that slice, constant across periods.",
             "steps": [
-              { "label": "Cash coupon", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:cashPayment" },
-              { "label": "Premium amortized", "formulaText": "total premium ÷ periods", "resultSlotKey": "schedule:1:amortization" },
-              { "label": "Interest expense", "formulaText": "cash − amortization", "resultSlotKey": "schedule:1:interestExpense" }
+              {
+                "label": "Cash coupon",
+                "formulaText": "face × stated × 6/12",
+                "resultSlotKey": "schedule:1:cashPayment"
+              },
+              {
+                "label": "Premium amortized",
+                "formulaText": "total premium ÷ periods",
+                "resultSlotKey": "schedule:1:amortization"
+              },
+              {
+                "label": "Interest expense",
+                "formulaText": "cash − amortization",
+                "resultSlotKey": "schedule:1:interestExpense"
+              }
             ]
           }
         ]
@@ -173,7 +260,9 @@
       {
         "id": "par",
         "label": "Issued at par — expense equals the cash coupon",
-        "conditions": { "pricing": "at_par" },
+        "conditions": {
+          "pricing": "at_par"
+        },
         "entries": [
           {
             "id": "pay-interest",
@@ -205,7 +294,11 @@
             "id": "par-any-method",
             "narration": "At par there is no discount or premium, so BOTH methods produce the same entry: expense = cash = face × stated × 6/12, every period.",
             "steps": [
-              { "label": "Cash coupon = interest expense", "formulaText": "face × stated × 6/12", "resultSlotKey": "schedule:1:interestExpense" }
+              {
+                "label": "Cash coupon = interest expense",
+                "formulaText": "face × stated × 6/12",
+                "resultSlotKey": "schedule:1:interestExpense"
+              }
             ]
           }
         ]
@@ -216,17 +309,25 @@
       {
         "kind": "formula",
         "body": "Interest EXPENSE = carrying value × market rate × time. The market rate priced the bond; it prices every period's expense.",
-        "traceRefs": ["schedule:1:interestExpense", "issuePrice"]
+        "traceRefs": [
+          "schedule:1:interestExpense",
+          "issuePrice"
+        ]
       },
       {
         "kind": "watchout",
         "body": "CASH is contractual: face × stated rate × time — the same number every period, no matter what the market rate is. The expense moves; the coupon never does.",
-        "traceRefs": ["schedule:1:cashPayment"]
+        "traceRefs": [
+          "schedule:1:cashPayment"
+        ]
       },
       {
         "kind": "mnemonic",
         "body": "Discount climbs, premium slides: a discount amortizes the carrying value UP to face (expense > cash); a premium amortizes it DOWN to face (expense < cash).",
-        "traceRefs": ["schedule:1:amortization", "schedule:1:carryingValueAfter"]
+        "traceRefs": [
+          "schedule:1:amortization",
+          "schedule:1:carryingValueAfter"
+        ]
       }
     ],
     "questions": [
@@ -265,12 +366,26 @@
     ],
     "build": {
       "accountBank": [
-        { "account": "Interest Expense" },
-        { "account": "Cash" },
-        { "account": "Discount on Bonds Payable" },
-        { "account": "Premium on Bonds Payable" },
-        { "account": "Interest Payable", "decoy": true },
-        { "account": "Bonds Payable", "decoy": true }
+        {
+          "account": "Interest Expense"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Discount on Bonds Payable"
+        },
+        {
+          "account": "Premium on Bonds Payable"
+        },
+        {
+          "account": "Interest Payable",
+          "decoy": true
+        },
+        {
+          "account": "Bonds Payable",
+          "decoy": true
+        }
       ],
       "scaffold": "Anchor on the two numbers you can always compute: cash (face × stated × time) and expense (carrying value × market × time). The plug between them is the amortization — its direction tells you discount vs premium."
     }

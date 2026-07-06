@@ -1,0 +1,153 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 16,
+    "name": "Investments"
+  },
+  "doc": {
+    "slug": "inv-equity-fvni",
+    "title": "Equity investments under 20% — fair value through income",
+    "event": "Nash Co. buys 10,000 shares of Oro Inc. (a passive stake, under 20%) at $12 per share, later receives a $0.50-per-share dividend, and holds the shares at year-end when they trade at $13. Prepare all three entries.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "fvni",
+        "label": "Buy · collect dividends · mark to market",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "buy",
+            "caption": "Purchase 10,000 shares at $12",
+            "lines": [
+              {
+                "id": "ei",
+                "account": "Equity Investments",
+                "side": "debit",
+                "label": "10,000 × $12",
+                "amount": 120000,
+                "why": "In at cost, like everything.",
+                "trap": "No 'AFS equity' exists anymore — since ASU 2016-01, passive equity stakes are FV-through-income, full stop. Older solution manuals disagree; the current rule doesn't."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "price paid",
+                "amount": 120000,
+                "why": "Cash out.",
+                "trap": "Brokerage fees expense for FVNI holdings — they don't capitalize."
+              }
+            ]
+          },
+          {
+            "id": "dividend",
+            "caption": "Receive a $0.50/share dividend",
+            "lines": [
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "debit",
+                "label": "10,000 × $0.50",
+                "amount": 5000,
+                "why": "Cash arrives.",
+                "trap": "Under the FAIR VALUE method dividends are INCOME. (Under the equity method — next scenario — they'd shrink the investment instead. The contrast is the exam.)"
+              },
+              {
+                "id": "dr",
+                "account": "Dividend Revenue",
+                "side": "credit",
+                "label": "revenue when declared/received",
+                "amount": 5000,
+                "why": "A passive holder's return is dividends + price changes; both run through income.",
+                "trap": "Never credit the investment account here — that's equity-method thinking leaking in."
+              }
+            ]
+          },
+          {
+            "id": "mark",
+            "caption": "Year-end: shares at $13",
+            "lines": [
+              {
+                "id": "fva",
+                "account": "Fair Value Adjustment — Equity Investments",
+                "side": "debit",
+                "label": "(13 − 12) × 10,000",
+                "amount": 10000,
+                "why": "Same target discipline: adjustment balance = FV − cost.",
+                "trap": "Price DOWN next year? Move the adjustment to the new target — the entry is the delta, not the cumulative."
+              },
+              {
+                "id": "uhg",
+                "account": "Unrealized Holding Gain or Loss — Income",
+                "side": "credit",
+                "label": "to net income",
+                "amount": 10000,
+                "why": "Equity securities: always income, never OCI — there is no AFS-style parking lot for stocks.",
+                "trap": "'—Equity' on an equity SECURITY is the trap answer: OCI treatment belongs to AFS DEBT only."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Passive equity (<20%, no influence): carry at FV through NET INCOME. Dividends = Dividend Revenue. No OCI option exists for equity securities.",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "Ownership ladder: <20% passive → fair value (income) · 20–50% influence → equity method · >50% control → consolidate. Percent is a presumption — INFLUENCE is the real test.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-fvni-div",
+        "prompt": "A 5% passive stockholder receives a 5,000 dividend. The credit is…",
+        "answerExpr": "5000",
+        "distractors": [
+          {
+            "expr": "-5000",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "Crediting (reducing) the INVESTMENT is the EQUITY-method rule for 20–50% influence stakes. A passive holder records Dividend Revenue — income, not a return of the investment."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Equity Investments"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Dividend Revenue"
+        },
+        {
+          "account": "Fair Value Adjustment — Equity Investments"
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Income"
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Equity",
+          "decoy": true
+        },
+        {
+          "account": "Investment Income",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Three beats: cost in, dividends to revenue, year-end mark to income. Both decoys are 'right account, wrong method' — the whole chapter is picking the method before picking accounts."
+    }
+  }
+}

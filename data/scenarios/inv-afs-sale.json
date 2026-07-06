@@ -1,0 +1,124 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 16,
+    "name": "Investments"
+  },
+  "doc": {
+    "slug": "inv-afs-sale",
+    "title": "Sell an AFS security — the deferred gain comes home",
+    "event": "Mona Co. sells AFS bonds carried at amortized cost $50,000 (with a $4,000 prior unrealized gain in AOCI) for $55,000. Prepare the sale entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "sale",
+        "label": "Proceeds 55,000 vs amortized cost 50,000",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "sell",
+            "caption": "Sell the AFS bonds",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "proceeds",
+                "amount": 55000,
+                "why": "Market price received.",
+                "trap": "As always: amortize to the sale date and settle accrued interest separately first."
+              },
+              {
+                "id": "di",
+                "account": "Debt Investments",
+                "side": "credit",
+                "label": "amortized cost off",
+                "amount": 50000,
+                "why": "The investment clears at amortized cost — the fair-value layer lives in the adjustment account, not here.",
+                "trap": "Don't credit the FV-adjusted 54,000; the adjustment account unwinds separately at the next portfolio true-up."
+              },
+              {
+                "id": "gain",
+                "account": "Gain on Sale of Investments",
+                "side": "credit",
+                "label": "proceeds − amortized cost",
+                "amount": 5000,
+                "why": "The FULL realized gain — including the 4,000 that had been deferred in OCI — lands in net income at sale.",
+                "trap": "Realized gain measures against amortized COST, not against last year-end's fair value. The previously-parked OCI recycles rather than reducing the gain."
+              }
+            ]
+          }
+        ],
+        "computationPaths": [
+          {
+            "id": "recycle",
+            "narration": "The recycling story: 4,000 of this gain was already reported in OCI over prior periods. At sale it reclassifies OUT of AOCI and INTO net income (via the portfolio's next fair-value true-up and the comprehensive-income reclassification adjustment) — total comprehensive income over the security's life counts the gain exactly once.",
+            "steps": [
+              {
+                "label": "Realized gain",
+                "formulaText": "55,000 − 50,000 = 5,000 (to income now)"
+              },
+              {
+                "label": "Reclassification adjustment",
+                "formulaText": "4,000 leaves AOCI so it isn't double-counted"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "AFS sale: realized G/L = proceeds − amortized cost, all to income. Prior unrealized amounts in AOCI reclassify out (the 'reclassification adjustment') so comprehensive income never counts the same gain twice.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "The Fair Value Adjustment account is a PORTFOLIO-level allowance — it re-targets at the next year-end for whatever securities remain; it isn't reversed security-by-security at each sale.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-afs-realized",
+        "prompt": "AFS bonds: amortized cost 50,000, prior unrealized gain in AOCI 4,000, sold for 55,000. Gain reported in NET INCOME at sale =",
+        "answerExpr": "5000",
+        "distractors": [
+          {
+            "expr": "1000",
+            "misconceptionId": "prior_period_expense",
+            "feedback": "1,000 nets the sale against last year's FAIR VALUE (54,000) — but that 4,000 was only ever in OCI, never in income. At sale the whole 5,000 (proceeds − amortized cost) hits income, and the 4,000 recycles out of AOCI."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Debt Investments"
+        },
+        {
+          "account": "Gain on Sale of Investments"
+        },
+        {
+          "account": "Unrealized Holding Gain or Loss — Equity",
+          "decoy": true
+        },
+        {
+          "account": "Fair Value Adjustment — AFS",
+          "decoy": true
+        }
+      ],
+      "scaffold": "The sale entry itself is plain: cash, investment off at amortized cost, realized plug. The OCI unwind happens at the portfolio true-up — resist stuffing it into this entry."
+    }
+  }
+}

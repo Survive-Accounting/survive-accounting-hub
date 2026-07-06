@@ -1,41 +1,76 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 13,
+    "name": "Long-Term Liabilities"
+  },
   "doc": {
     "slug": "bonds-fair-value-option",
     "title": "Fair value option — unrealized holding gain or loss",
-    "event": "The company elected the fair value option for its bonds payable. At year-end the bonds' amortized carrying value and their market fair value have drifted apart — the gap is booked as an unrealized holding gain or loss, remeasuring the debt to what it would cost to settle today.",
-    "courseFamilies": ["ia2"],
+    "event": "Ramos Co. elected the fair value option for its {face} bonds (issued at a discount; market rate {marketRateAnnual}). At year-end, two years in, the bonds' fair value differs from their amortized carrying value. Prepare the year-end remeasurement entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [
       {
         "key": "direction",
         "label": "Fair value moved",
         "options": [
-          { "value": "fv_up", "label": "Above carrying value (loss)" },
-          { "value": "fv_down", "label": "Below carrying value (gain)" }
+          {
+            "value": "fv_up",
+            "label": "Above carrying value (loss)"
+          },
+          {
+            "value": "fv_down",
+            "label": "Below carrying value (gain)"
+          }
         ]
       }
     ],
     "params": {
       "kind": "bond",
-      "defaults": { "face": 500000, "statedRateAnnual": 0.08, "marketRateAnnual": 0.1, "termYears": 5, "paymentsPerYear": 2, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaults": {
+        "face": 500000,
+        "statedRateAnnual": 0.08,
+        "marketRateAnnual": 0.1,
+        "termYears": 5,
+        "paymentsPerYear": 2,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
       "defaultSeed": 1
     },
     "variants": [
       {
         "id": "fv-up-loss",
         "label": "Rates fell → the debt is worth MORE → loss",
-        "conditions": { "direction": "fv_up" },
+        "conditions": {
+          "direction": "fv_up"
+        },
         "entries": [
           {
             "id": "remeasure",
             "caption": "Year-end remeasurement: FV 480,000 vs period-4 carrying value",
             "lines": [
-              { "id": "uhl", "account": "Unrealized Holding Gain or Loss — Income", "side": "debit", "label": "FV − carrying value", "amountSlotKey": "480000 - schedule:4:carryingValueAfter",
+              {
+                "id": "uhl",
+                "account": "Unrealized Holding Gain or Loss — Income",
+                "side": "debit",
+                "label": "FV − carrying value",
+                "amountSlotKey": "480000 - schedule:4:carryingValueAfter",
                 "why": "Market rates fell, so your fixed-coupon debt became MORE expensive to settle — bad news for the borrower, so a LOSS. Counterintuitive on purpose: for liabilities, fair value up = loss.",
-                "trap": "Students flip the sign here constantly. Think 'what would it cost me to escape this debt today?' — costlier escape = loss." },
-              { "id": "fva", "account": "Fair Value Adjustment — Bonds Payable", "side": "credit", "label": "valuation account", "amountSlotKey": "480000 - schedule:4:carryingValueAfter",
+                "trap": "Students flip the sign here constantly. Think 'what would it cost me to escape this debt today?' — costlier escape = loss."
+              },
+              {
+                "id": "fva",
+                "account": "Fair Value Adjustment — Bonds Payable",
+                "side": "credit",
+                "label": "valuation account",
+                "amountSlotKey": "480000 - schedule:4:carryingValueAfter",
                 "why": "The adjustment rides beside Bonds Payable so amortized cost stays intact underneath — presentation shows the bonds AT fair value.",
-                "trap": "Don't write Bonds Payable itself up or down — the valuation account carries the drift so the amortization schedule keeps working." }
+                "trap": "Don't write Bonds Payable itself up or down — the valuation account carries the drift so the amortization schedule keeps working."
+              }
             ]
           }
         ],
@@ -44,8 +79,16 @@
             "id": "fv-loss",
             "narration": "Compare year-end fair value with the amortized carrying value off the schedule. FV 480,000 above CV → the difference is a holding LOSS in income. (One refinement Kieso notes: the piece of the change caused by the company's OWN credit risk goes to OCI, not income — flag it, don't sweat it at this level.)",
             "steps": [
-              { "label": "Amortized carrying value", "formulaText": "schedule row 4, last column", "resultSlotKey": "schedule:4:carryingValueAfter" },
-              { "label": "Holding loss", "formulaText": "480,000 − carrying value", "resultSlotKey": "480000 - schedule:4:carryingValueAfter" }
+              {
+                "label": "Amortized carrying value",
+                "formulaText": "schedule row 4, last column",
+                "resultSlotKey": "schedule:4:carryingValueAfter"
+              },
+              {
+                "label": "Holding loss",
+                "formulaText": "480,000 − carrying value",
+                "resultSlotKey": "480000 - schedule:4:carryingValueAfter"
+              }
             ]
           }
         ]
@@ -53,18 +96,32 @@
       {
         "id": "fv-down-gain",
         "label": "Rates rose → the debt is worth LESS → gain",
-        "conditions": { "direction": "fv_down" },
+        "conditions": {
+          "direction": "fv_down"
+        },
         "entries": [
           {
             "id": "remeasure",
             "caption": "Year-end remeasurement: FV 465,000 vs period-4 carrying value",
             "lines": [
-              { "id": "fva", "account": "Fair Value Adjustment — Bonds Payable", "side": "debit", "label": "CV − fair value", "amountSlotKey": "schedule:4:carryingValueAfter - 465000",
+              {
+                "id": "fva",
+                "account": "Fair Value Adjustment — Bonds Payable",
+                "side": "debit",
+                "label": "CV − fair value",
+                "amountSlotKey": "schedule:4:carryingValueAfter - 465000",
                 "why": "Fair value dropped below carrying value, so the adjustment debits — presenting the bonds at the cheaper settle-today number.",
-                "trap": "Same valuation account both directions; only the side flips." },
-              { "id": "uhg", "account": "Unrealized Holding Gain or Loss — Income", "side": "credit", "label": "the gain", "amountSlotKey": "schedule:4:carryingValueAfter - 465000",
+                "trap": "Same valuation account both directions; only the side flips."
+              },
+              {
+                "id": "uhg",
+                "account": "Unrealized Holding Gain or Loss — Income",
+                "side": "credit",
+                "label": "the gain",
+                "amountSlotKey": "schedule:4:carryingValueAfter - 465000",
                 "why": "Rates rose, your locked-in coupon looks cheap, escaping the debt got cheaper — a GAIN for the borrower.",
-                "trap": "Unrealized means no cash moved and nothing was retired — remeasurement only." }
+                "trap": "Unrealized means no cash moved and nothing was retired — remeasurement only."
+              }
             ]
           }
         ]
@@ -72,8 +129,20 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "mnemonic", "body": "Liability mirror rule: fair value UP = LOSS, fair value DOWN = GAIN — the exact opposite of holding an asset, because you OWE this thing.", "traceRefs": ["schedule:4:carryingValueAfter"] },
-      { "kind": "watchout", "body": "The gain/loss compares FV with the AMORTIZED carrying value (schedule number), not with face — the amortization keeps running underneath the fair value option.", "traceRefs": ["schedule:4:carryingValueAfter"] }
+      {
+        "kind": "mnemonic",
+        "body": "Liability mirror rule: fair value UP = LOSS, fair value DOWN = GAIN — the exact opposite of holding an asset, because you OWE this thing.",
+        "traceRefs": [
+          "schedule:4:carryingValueAfter"
+        ]
+      },
+      {
+        "kind": "watchout",
+        "body": "The gain/loss compares FV with the AMORTIZED carrying value (schedule number), not with face — the amortization keeps running underneath the fair value option.",
+        "traceRefs": [
+          "schedule:4:carryingValueAfter"
+        ]
+      }
     ],
     "questions": [
       {
@@ -81,21 +150,49 @@
         "prompt": "Under the fair value option, bonds with a period-4 carrying value have a year-end fair value of 480,000 — ABOVE carrying value. The issuer records…",
         "answerExpr": "480000 - schedule:4:carryingValueAfter",
         "distractors": [
-          { "expr": "480000 - param:face", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "The comparison base is the amortized CARRYING VALUE from the schedule, not face — amortization keeps running under the fair value option." },
-          { "expr": "schedule:4:carryingValueAfter - 480000", "misconceptionId": "premium_discount_direction_flip", "feedback": "Sign flip: for a LIABILITY, fair value rising above carrying value is a LOSS (it costs more to settle), so the difference is FV − CV booked as a loss." }
+          {
+            "expr": "480000 - param:face",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "The comparison base is the amortized CARRYING VALUE from the schedule, not face — amortization keeps running under the fair value option."
+          },
+          {
+            "expr": "schedule:4:carryingValueAfter - 480000",
+            "misconceptionId": "premium_discount_direction_flip",
+            "feedback": "Sign flip: for a LIABILITY, fair value rising above carrying value is a LOSS (it costs more to settle), so the difference is FV − CV booked as a loss."
+          }
         ]
       }
     ],
     "traces": [
-      { "id": "cv-vs-fv", "label": "Schedule carrying value ↔ fair value ↔ holding gain/loss", "refs": ["schedule:4:carryingValueAfter", "480000 - schedule:4:carryingValueAfter"] }
+      {
+        "id": "cv-vs-fv",
+        "label": "Schedule carrying value ↔ fair value ↔ holding gain/loss",
+        "refs": [
+          "schedule:4:carryingValueAfter",
+          "480000 - schedule:4:carryingValueAfter"
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Unrealized Holding Gain or Loss — Income" },
-        { "account": "Fair Value Adjustment — Bonds Payable" },
-        { "account": "Bonds Payable", "decoy": true },
-        { "account": "Cash", "decoy": true },
-        { "account": "Loss on Redemption of Bonds", "decoy": true }
+        {
+          "account": "Unrealized Holding Gain or Loss — Income"
+        },
+        {
+          "account": "Fair Value Adjustment — Bonds Payable"
+        },
+        {
+          "account": "Bonds Payable",
+          "decoy": true
+        },
+        {
+          "account": "Cash",
+          "decoy": true
+        },
+        {
+          "account": "Loss on Redemption of Bonds",
+          "decoy": true
+        }
       ],
       "scaffold": "Two lines, mirror logic: find CV on the schedule, compare with FV, and remember you're the DEBTOR — the debt getting pricier is your loss."
     }

@@ -1,0 +1,85 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 17,
+    "name": "Revenue Recognition"
+  },
+  "doc": {
+    "slug": "rev-five-steps",
+    "title": "The five-step model — one contract, start to finish",
+    "event": "Rae Co. signs a $100,000 contract bundling equipment, installation, and two years of service. Walk the contract through the five steps of revenue recognition.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "five-steps",
+        "label": "Identify → obligations → price → allocate → recognize",
+        "conditions": {},
+        "entries": [],
+        "computationPaths": [
+          {
+            "id": "walk",
+            "narration": "ASC 606's whole machine in five moves. Steps 1–2 are judgment (what did we promise, and to whom?); steps 3–4 are arithmetic (how much, split how?); step 5 is timing (when is each promise kept — at a point, or over time?). Every exercise in this chapter isolates one step and tests whether you can run it without the other four falling over.",
+            "steps": [
+              {
+                "label": "1 · Identify the contract",
+                "formulaText": "approved + rights identifiable + payment terms + commercial substance + collection probable"
+              },
+              {
+                "label": "2 · Identify performance obligations",
+                "formulaText": "distinct promises: equipment · installation · 2-yr service = 3 POs"
+              },
+              {
+                "label": "3 · Determine transaction price",
+                "formulaText": "fixed + variable consideration (expected value or most-likely) = 100,000"
+              },
+              {
+                "label": "4 · Allocate to POs",
+                "formulaText": "by RELATIVE STANDALONE selling prices (next scenario runs this math)"
+              },
+              {
+                "label": "5 · Recognize",
+                "formulaText": "point in time (equipment, installation) or over time (service) — as each PO is satisfied"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "The five steps: (1) contract exists → (2) distinct performance obligations → (3) transaction price → (4) allocate by relative standalone prices → (5) recognize as each obligation is satisfied.",
+        "traceRefs": []
+      },
+      {
+        "kind": "tip",
+        "body": "Variable consideration (step 3): estimate by EXPECTED VALUE (probability-weighted, many outcomes) or MOST LIKELY AMOUNT (binary outcomes) — then apply the constraint: include it only to the extent a significant reversal is improbable.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "'Distinct' (step 2) has two halves: the customer can benefit from it alone AND it's separately identifiable in the contract. Installation that's simple and routine = usually distinct; installation that heavily customizes = bundled with the equipment.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-step-order",
+        "prompt": "A bundled contract's price must be split between equipment and service. Which step is this, and by what basis?",
+        "answerExpr": "4",
+        "distractors": [
+          {
+            "expr": "3",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Step 3 sets the TOTAL price. Splitting it across performance obligations is step 4 — allocation by RELATIVE STANDALONE selling prices."
+          }
+        ]
+      }
+    ]
+  }
+}

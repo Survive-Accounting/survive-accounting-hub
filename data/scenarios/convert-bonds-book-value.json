@@ -1,68 +1,148 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 15, "name": "Dilutive Securities and EPS" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 15,
+    "name": "Dilutive Securities and EPS"
+  },
   "doc": {
     "slug": "convert-bonds-book-value",
     "title": "Convert bonds to common stock",
-    "event": "Holders of $500,000 of convertible bonds exercise their conversion right, trading the bonds for 40,000 shares of $5-par common. Under the book value method, the stock is recorded at the BONDS' carrying value — and no gain or loss can ever appear.",
-    "courseFamilies": ["ia2"],
+    "event": "Holders of Dade Co.'s $500,000 convertible bonds convert them into 40,000 shares of $5-par common. Prepare the conversion entry (book value method).",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [
-      { "key": "balance", "label": "The bonds carry", "options": [
-        { "value": "discount", "label": "Unamortized discount" },
-        { "value": "premium", "label": "Unamortized premium" }
-      ]}
+      {
+        "key": "balance",
+        "label": "The bonds carry",
+        "options": [
+          {
+            "value": "discount",
+            "label": "Unamortized discount"
+          },
+          {
+            "value": "premium",
+            "label": "Unamortized premium"
+          }
+        ]
+      }
     ],
     "variants": [
       {
         "id": "discount",
         "label": "Carrying value 488,000 (12,000 discount remains)",
-        "conditions": { "balance": "discount" },
+        "conditions": {
+          "balance": "discount"
+        },
         "entries": [
           {
             "id": "convert",
             "caption": "Convert $500,000 bonds (12,000 unamortized discount) into 40,000 shares of $5 par",
             "lines": [
-              { "id": "bp", "account": "Bonds Payable", "side": "debit", "label": "face off the books", "amount": 500000,
+              {
+                "id": "bp",
+                "account": "Bonds Payable",
+                "side": "debit",
+                "label": "face off the books",
+                "amount": 500000,
                 "why": "The debt leaves at face; the discount line handles the rest of the carrying value.",
-                "trap": "Bring amortization current to the conversion date FIRST — the 12,000 must be the up-to-date remainder." },
-              { "id": "disc", "account": "Discount on Bonds Payable", "side": "credit", "label": "unamortized remainder", "amount": 12000,
+                "trap": "Bring amortization current to the conversion date FIRST — the 12,000 must be the up-to-date remainder."
+              },
+              {
+                "id": "disc",
+                "account": "Discount on Bonds Payable",
+                "side": "credit",
+                "label": "unamortized remainder",
+                "amount": 12000,
                 "why": "The contra account dies with the bond, exactly as in a retirement.",
-                "trap": "Forgetting this credit overstates the equity recorded by 12,000." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "40,000 × $5 par", "amount": 200000,
+                "trap": "Forgetting this credit overstates the equity recorded by 12,000."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "40,000 × $5 par",
+                "amount": 200000,
                 "why": "Par discipline survives conversion: shares × par to the stock account.",
-                "trap": "Market price of the stock on conversion day is IRRELEVANT under the book value method — resist the urge to use it." },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the plug", "amount": 288000,
+                "trap": "Market price of the stock on conversion day is IRRELEVANT under the book value method — resist the urge to use it."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "the plug",
+                "amount": 288000,
                 "why": "Carrying value 488,000 − par 200,000 = 288,000. The bonds' book value simply changes clothes into equity.",
-                "trap": "NO gain or loss, ever, under the book value method — the plug always lands in PIC." }
+                "trap": "NO gain or loss, ever, under the book value method — the plug always lands in PIC."
+              }
             ]
           }
         ],
         "computationPaths": [
-          { "id": "bv-math", "narration": "Book value method: equity recorded = the bonds' carrying value. CV = 500,000 − 12,000 = 488,000 → par 200,000 + PIC 288,000.",
+          {
+            "id": "bv-math",
+            "narration": "Book value method: equity recorded = the bonds' carrying value. CV = 500,000 − 12,000 = 488,000 → par 200,000 + PIC 288,000.",
             "steps": [
-              { "label": "Carrying value", "formulaText": "500,000 − 12,000 = 488,000" },
-              { "label": "PIC plug", "formulaText": "488,000 − 200,000 = 288,000" }
-            ] }
+              {
+                "label": "Carrying value",
+                "formulaText": "500,000 − 12,000 = 488,000"
+              },
+              {
+                "label": "PIC plug",
+                "formulaText": "488,000 − 200,000 = 288,000"
+              }
+            ]
+          }
         ]
       },
       {
         "id": "premium",
         "label": "Carrying value 509,000 (9,000 premium remains)",
-        "conditions": { "balance": "premium" },
+        "conditions": {
+          "balance": "premium"
+        },
         "entries": [
           {
             "id": "convert",
             "caption": "Convert $500,000 bonds (9,000 unamortized premium) into 40,000 shares of $5 par",
             "lines": [
-              { "id": "bp", "account": "Bonds Payable", "side": "debit", "label": "face", "amount": 500000,
-                "why": "Face off, as always.", "trap": "Same ritual as retirement: face, then the premium/discount remainder." },
-              { "id": "prem", "account": "Premium on Bonds Payable", "side": "debit", "label": "unamortized remainder", "amount": 9000,
+              {
+                "id": "bp",
+                "account": "Bonds Payable",
+                "side": "debit",
+                "label": "face",
+                "amount": 500000,
+                "why": "Face off, as always.",
+                "trap": "Same ritual as retirement: face, then the premium/discount remainder."
+              },
+              {
+                "id": "prem",
+                "account": "Premium on Bonds Payable",
+                "side": "debit",
+                "label": "unamortized remainder",
+                "amount": 9000,
                 "why": "The adjunct account clears on the debit side — the carrying value being converted is 509,000.",
-                "trap": "Premium DEBITS out; flipping it is the same direction error as in amortization." },
-              { "id": "cs", "account": "Common Stock", "side": "credit", "label": "40,000 × $5 par", "amount": 200000,
-                "why": "Par × shares.", "trap": "Unchanged by which side the balance sits on." },
-              { "id": "pic", "account": "Paid-in Capital in Excess of Par — Common", "side": "credit", "label": "the plug", "amount": 309000,
+                "trap": "Premium DEBITS out; flipping it is the same direction error as in amortization."
+              },
+              {
+                "id": "cs",
+                "account": "Common Stock",
+                "side": "credit",
+                "label": "40,000 × $5 par",
+                "amount": 200000,
+                "why": "Par × shares.",
+                "trap": "Unchanged by which side the balance sits on."
+              },
+              {
+                "id": "pic",
+                "account": "Paid-in Capital in Excess of Par — Common",
+                "side": "credit",
+                "label": "the plug",
+                "amount": 309000,
                 "why": "509,000 − 200,000 = 309,000.",
-                "trap": "Bigger carrying value → bigger PIC. The plug tracks CV, not face." }
+                "trap": "Bigger carrying value → bigger PIC. The plug tracks CV, not face."
+              }
             ]
           }
         ]
@@ -70,22 +150,56 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "formula", "body": "Book value method: equity recorded = bonds' carrying value at conversion (face ± unamortized premium/discount). Common Stock takes par × shares; PIC takes the rest. Gain/loss: never.", "traceRefs": [] },
-      { "kind": "watchout", "body": "Update amortization (and settle accrued interest) to the conversion date BEFORE converting — the carrying value must be current.", "traceRefs": [] }
+      {
+        "kind": "formula",
+        "body": "Book value method: equity recorded = bonds' carrying value at conversion (face ± unamortized premium/discount). Common Stock takes par × shares; PIC takes the rest. Gain/loss: never.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Update amortization (and settle accrued interest) to the conversion date BEFORE converting — the carrying value must be current.",
+        "traceRefs": []
+      }
     ],
     "questions": [
-      { "id": "q-pic-plug",
+      {
+        "id": "q-pic-plug",
         "prompt": "Bonds with face 500,000 and unamortized discount 12,000 convert into 40,000 shares of $5-par common. PIC in Excess of Par is credited for…",
         "answerExpr": "288000",
         "distractors": [
-          { "expr": "300000", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "300,000 uses FACE (500,000 − 200,000). The book value method transfers the CARRYING value — 488,000 — so PIC gets 488,000 − 200,000 = 288,000." }
-        ] }
+          {
+            "expr": "300000",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "300,000 uses FACE (500,000 − 200,000). The book value method transfers the CARRYING value — 488,000 — so PIC gets 488,000 − 200,000 = 288,000."
+          }
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Bonds Payable" }, { "account": "Discount on Bonds Payable" }, { "account": "Premium on Bonds Payable" },
-        { "account": "Common Stock" }, { "account": "Paid-in Capital in Excess of Par — Common" },
-        { "account": "Gain on Conversion", "decoy": true }, { "account": "Cash", "decoy": true }
+        {
+          "account": "Bonds Payable"
+        },
+        {
+          "account": "Discount on Bonds Payable"
+        },
+        {
+          "account": "Premium on Bonds Payable"
+        },
+        {
+          "account": "Common Stock"
+        },
+        {
+          "account": "Paid-in Capital in Excess of Par — Common"
+        },
+        {
+          "account": "Gain on Conversion",
+          "decoy": true
+        },
+        {
+          "account": "Cash",
+          "decoy": true
+        }
       ],
       "scaffold": "Retirement mechanics without cash: face off, clear the remaining discount/premium, then the carrying value becomes stock — par first, PIC plug last. If you're reaching for Gain or Cash, stop."
     }

@@ -1,0 +1,211 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 17,
+    "name": "Revenue Recognition"
+  },
+  "doc": {
+    "slug": "rev-warranties",
+    "title": "Warranties — assurance vs service",
+    "event": "Tio Co. sells equipment for $80,000. Prepare the required entries for the warranty that accompanies the sale.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [
+      {
+        "key": "type",
+        "label": "Warranty type",
+        "options": [
+          {
+            "value": "assurance",
+            "label": "Assurance (quality promise)"
+          },
+          {
+            "value": "service",
+            "label": "Service (sold separately)"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "id": "assurance",
+        "label": "Standard quality warranty — accrue the expected cost",
+        "conditions": {
+          "type": "assurance"
+        },
+        "entries": [
+          {
+            "id": "sale",
+            "caption": "Sell for 80,000; expected warranty repairs 3,000",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "sale price",
+                "amount": 80000,
+                "why": "One PO: the equipment. The quality promise isn't a separate sale.",
+                "trap": "Assurance warranties never touch revenue — they're a COST of the sale."
+              },
+              {
+                "id": "sr",
+                "account": "Sales Revenue",
+                "side": "credit",
+                "label": "full price, one obligation",
+                "amount": 80000,
+                "why": "Nothing deferred; the warranty is bundled quality, not a purchasable service.",
+                "trap": "Deferring revenue for an assurance warranty is the flip-side error of expensing a service one."
+              }
+            ]
+          },
+          {
+            "id": "accrue",
+            "caption": "Same period — accrue the expected warranty cost (matching)",
+            "lines": [
+              {
+                "id": "we",
+                "account": "Warranty Expense",
+                "side": "debit",
+                "label": "estimated repairs",
+                "amount": 3000,
+                "why": "Matching: the cost of honoring this sale's warranty belongs to this sale's period, estimated now.",
+                "trap": "Expense when SOLD, not when the repair truck rolls — waiting for actual claims mismatches the periods."
+              },
+              {
+                "id": "wl",
+                "account": "Warranty Liability",
+                "side": "credit",
+                "label": "the standing obligation",
+                "amount": 3000,
+                "why": "Actual repairs later debit this liability (Dr Warranty Liability / Cr Cash, Parts, Wages).",
+                "trap": "Actual repair costs never hit Warranty Expense a second time."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "label": "Extended warranty sold for 6,000 — a separate performance obligation",
+        "conditions": {
+          "type": "service"
+        },
+        "entries": [
+          {
+            "id": "sale",
+            "caption": "Sell equipment 80,000 + 3-year extended warranty 6,000",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "both pieces",
+                "amount": 86000,
+                "why": "One check, two performance obligations.",
+                "trap": "The extended warranty is something the customer CHOSE to buy — the definition of a separate PO."
+              },
+              {
+                "id": "sr",
+                "account": "Sales Revenue",
+                "side": "credit",
+                "label": "the equipment PO",
+                "amount": 80000,
+                "why": "Recognized at delivery, point in time.",
+                "trap": "If the two weren't separately priced, you'd ALLOCATE by relative standalone prices first — the ratio machine again."
+              },
+              {
+                "id": "uwr",
+                "account": "Unearned Warranty Revenue",
+                "side": "credit",
+                "label": "the service PO, deferred",
+                "amount": 6000,
+                "why": "A contract liability until the coverage period runs.",
+                "trap": "Deferred REVENUE, not warranty expense — the service warranty is a product you sold, not a cost you owe."
+              }
+            ]
+          },
+          {
+            "id": "earn",
+            "caption": "Each coverage year (3-year term, starting after the assurance period)",
+            "lines": [
+              {
+                "id": "uwr2",
+                "account": "Unearned Warranty Revenue",
+                "side": "debit",
+                "label": "6,000 ÷ 3",
+                "amount": 2000,
+                "why": "Released ratably (straight-line default) over the coverage years.",
+                "trap": "The clock starts when COVERAGE starts — often after the free assurance year ends, not at the sale date."
+              },
+              {
+                "id": "wr",
+                "account": "Warranty Revenue",
+                "side": "credit",
+                "label": "earned by standing ready",
+                "amount": 2000,
+                "why": "Stand-ready obligations earn with time.",
+                "trap": "Costs of servicing THIS warranty expense as incurred — no accrual-at-sale like assurance."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Assurance warranty → Warranty Expense + Warranty Liability at sale (matching). Service warranty → separate PO: Unearned Warranty Revenue, released over the coverage period.",
+        "traceRefs": []
+      },
+      {
+        "kind": "mnemonic",
+        "body": "The tell: could the customer buy it separately (or decline it)? Yes → service (revenue world). No, it just came with the product → assurance (expense world).",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-warranty-type",
+        "prompt": "A customer pays 6,000 extra for a 3-year extended warranty. At the sale date this 6,000 is credited to…",
+        "answerExpr": "6000",
+        "distractors": [
+          {
+            "expr": "0",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "Not expense-side at all — a PURCHASED warranty is a separate performance obligation: credit Unearned Warranty Revenue 6,000, release 2,000 per coverage year. (Expense-accrual is the ASSURANCE pattern.)"
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Sales Revenue"
+        },
+        {
+          "account": "Warranty Expense"
+        },
+        {
+          "account": "Warranty Liability"
+        },
+        {
+          "account": "Unearned Warranty Revenue"
+        },
+        {
+          "account": "Warranty Revenue"
+        },
+        {
+          "account": "Repair Parts Inventory",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Classify before journalizing: did they BUY the protection? Service → defer revenue, earn over coverage. Came free with quality? Assurance → full revenue now, accrue the expected repair cost."
+    }
+  }
+}

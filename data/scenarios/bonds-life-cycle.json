@@ -1,16 +1,31 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 13,
+    "name": "Long-Term Liabilities"
+  },
   "doc": {
     "slug": "bonds-life-cycle",
     "title": "Life cycle of a bond — issue to payoff",
-    "event": "One discount bond, cradle to grave: issued below face, coupons paid and amortized period after period, carrying value climbing the schedule, until the final coupon lands the carrying value exactly at face and the payoff closes the book.",
-    "courseFamilies": ["ia2"],
+    "event": "Follow one bond from start to finish: on {issueDate}, Ramos Co. issues {face} of {statedRateAnnual}, {termYears} bonds ({paymentsPerYear}) at a market rate of {marketRateAnnual}. Prepare the issuance entry, a representative interest entry, and the maturity payoff.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "isSequence": true,
     "sequenceGroup": "bonds-lifecycle",
     "axes": [],
     "params": {
       "kind": "bond",
-      "defaults": { "face": 500000, "statedRateAnnual": 0.08, "marketRateAnnual": 0.1, "termYears": 5, "paymentsPerYear": 2, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaults": {
+        "face": 500000,
+        "statedRateAnnual": 0.08,
+        "marketRateAnnual": 0.1,
+        "termYears": 5,
+        "paymentsPerYear": 2,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
       "defaultSeed": 1
     },
     "variants": [
@@ -23,41 +38,90 @@
             "id": "birth",
             "caption": "Day 1 — issue at a discount",
             "lines": [
-              { "id": "cash", "account": "Cash", "side": "debit", "label": "issue price", "amountSlotKey": "issuePrice",
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "issue price",
+                "amountSlotKey": "issuePrice",
                 "why": "The story starts below face — the market rate beat the coupon.",
-                "trap": "Everything that follows exists to close the gap this line creates." },
-              { "id": "disc", "account": "Discount on Bonds Payable", "side": "debit", "label": "the gap", "amountSlotKey": "param:face - issuePrice",
+                "trap": "Everything that follows exists to close the gap this line creates."
+              },
+              {
+                "id": "disc",
+                "account": "Discount on Bonds Payable",
+                "side": "debit",
+                "label": "the gap",
+                "amountSlotKey": "param:face - issuePrice",
                 "why": "The gap, parked — future interest cost waiting to be recognized.",
-                "trap": "This account only shrinks from here; it never grows again." },
-              { "id": "bp", "account": "Bonds Payable", "side": "credit", "label": "face", "amountSlotKey": "param:face",
-                "why": "Face, once, forever.", "trap": "This line never moves again until the last day." }
+                "trap": "This account only shrinks from here; it never grows again."
+              },
+              {
+                "id": "bp",
+                "account": "Bonds Payable",
+                "side": "credit",
+                "label": "face",
+                "amountSlotKey": "param:face",
+                "why": "Face, once, forever.",
+                "trap": "This line never moves again until the last day."
+              }
             ]
           },
           {
             "id": "middle",
             "caption": "Every coupon date — the engine room (period 1 shown)",
             "lines": [
-              { "id": "ie", "account": "Interest Expense", "side": "debit", "label": "CV × market × 6/12", "amountSlotKey": "schedule:1:interestExpense",
+              {
+                "id": "ie",
+                "account": "Interest Expense",
+                "side": "debit",
+                "label": "CV × market × 6/12",
+                "amountSlotKey": "schedule:1:interestExpense",
                 "why": "Each period the expense recomputes on the NEW carrying value — which is why it creeps up every row of a discount schedule.",
-                "trap": "The creeping expense is the fingerprint of effective interest; a flat expense means straight-line (or par)." },
-              { "id": "disc2", "account": "Discount on Bonds Payable", "side": "credit", "label": "the gap shrinks", "amountSlotKey": "schedule:1:amortization",
+                "trap": "The creeping expense is the fingerprint of effective interest; a flat expense means straight-line (or par)."
+              },
+              {
+                "id": "disc2",
+                "account": "Discount on Bonds Payable",
+                "side": "credit",
+                "label": "the gap shrinks",
+                "amountSlotKey": "schedule:1:amortization",
                 "why": "Every coupon date a slice of the gap moves from the balance sheet into expense — the carrying value takes one step up the schedule.",
-                "trap": "Ten periods, ten steps, no skipping — the schedule IS the story." },
-              { "id": "cash2", "account": "Cash", "side": "credit", "label": "fixed coupon", "amountSlotKey": "schedule:1:cashPayment",
+                "trap": "Ten periods, ten steps, no skipping — the schedule IS the story."
+              },
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "credit",
+                "label": "fixed coupon",
+                "amountSlotKey": "schedule:1:cashPayment",
                 "why": "The one constant in the whole life cycle.",
-                "trap": "Cash never learns about the market rate." }
+                "trap": "Cash never learns about the market rate."
+              }
             ]
           },
           {
             "id": "death",
             "caption": "Maturity — carrying value has arrived at face",
             "lines": [
-              { "id": "bp2", "account": "Bonds Payable", "side": "debit", "label": "face off", "amountSlotKey": "param:face",
+              {
+                "id": "bp2",
+                "account": "Bonds Payable",
+                "side": "debit",
+                "label": "face off",
+                "amountSlotKey": "param:face",
                 "why": "The discount hit zero on the final coupon (the plug guarantees it), so the payoff is face-for-face.",
-                "trap": "No gain, no loss, no discount line — if any of those appear at maturity, a middle chapter of the story went wrong." },
-              { "id": "cash3", "account": "Cash", "side": "credit", "label": "face out", "amountSlotKey": "param:face",
+                "trap": "No gain, no loss, no discount line — if any of those appear at maturity, a middle chapter of the story went wrong."
+              },
+              {
+                "id": "cash3",
+                "account": "Cash",
+                "side": "credit",
+                "label": "face out",
+                "amountSlotKey": "param:face",
                 "why": "Story over: borrowed 461,391, paid 20,000 ten times plus 500,000 back — the extra 38,609 was recognized as expense along the way, exactly once, exactly on schedule.",
-                "trap": "Total interest expense over the life = total coupons + total discount (or − total premium). Great exam check-figure." }
+                "trap": "Total interest expense over the life = total coupons + total discount (or − total premium). Great exam check-figure."
+              }
             ]
           }
         ],
@@ -66,9 +130,21 @@
             "id": "arc",
             "narration": "Read the schedule top to bottom and you've read the bond's biography: issue price at the top, ten rows of expense/amortization/climbing CV, face at the bottom. Every entry in this chapter is just one row of that table wearing a different costume.",
             "steps": [
-              { "label": "Born at", "formulaText": "issue price (PV @ market)", "resultSlotKey": "issuePrice" },
-              { "label": "Climbs by", "formulaText": "one amortization per period", "resultSlotKey": "schedule:1:amortization" },
-              { "label": "Dies at", "formulaText": "face — guaranteed by the final plug", "resultSlotKey": "param:face" }
+              {
+                "label": "Born at",
+                "formulaText": "issue price (PV @ market)",
+                "resultSlotKey": "issuePrice"
+              },
+              {
+                "label": "Climbs by",
+                "formulaText": "one amortization per period",
+                "resultSlotKey": "schedule:1:amortization"
+              },
+              {
+                "label": "Dies at",
+                "formulaText": "face — guaranteed by the final plug",
+                "resultSlotKey": "param:face"
+              }
             ]
           }
         ]
@@ -76,8 +152,21 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "tip", "body": "Lifetime check-figure: total interest expense over the whole life = total cash coupons + total discount (or − total premium). If your period entries don't sum to it, a row is off.", "traceRefs": ["issuePrice", "param:face"] },
-      { "kind": "formula", "body": "Carrying value at ANY date = the schedule's last row at or before that date. It answers three exam questions at once: interest expense next period, gain/loss if retired now, and the balance-sheet number today.", "traceRefs": ["schedule:1:carryingValueAfter"] }
+      {
+        "kind": "tip",
+        "body": "Lifetime check-figure: total interest expense over the whole life = total cash coupons + total discount (or − total premium). If your period entries don't sum to it, a row is off.",
+        "traceRefs": [
+          "issuePrice",
+          "param:face"
+        ]
+      },
+      {
+        "kind": "formula",
+        "body": "Carrying value at ANY date = the schedule's last row at or before that date. It answers three exam questions at once: interest expense next period, gain/loss if retired now, and the balance-sheet number today.",
+        "traceRefs": [
+          "schedule:1:carryingValueAfter"
+        ]
+      }
     ],
     "questions": [
       {
@@ -85,21 +174,47 @@
         "prompt": "Bonds with 500,000 face are issued for 461,391 and pay 20,000 semiannually for 5 years. Total interest expense over the bonds' LIFE is…",
         "answerExpr": "20000 * 10 + (param:face - issuePrice)",
         "distractors": [
-          { "expr": "20000 * 10", "misconceptionId": "cash_vs_expense", "feedback": "200,000 is the total CASH coupons. The 38,609 discount is ALSO interest — recognized through amortization rather than cash." }
+          {
+            "expr": "20000 * 10",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "200,000 is the total CASH coupons. The 38,609 discount is ALSO interest — recognized through amortization rather than cash."
+          }
         ]
       }
     ],
     "traces": [
-      { "id": "biography", "label": "Issue price ↔ every amortization step ↔ face at the end", "refs": ["issuePrice", "schedule:1:amortization", "param:face"] }
+      {
+        "id": "biography",
+        "label": "Issue price ↔ every amortization step ↔ face at the end",
+        "refs": [
+          "issuePrice",
+          "schedule:1:amortization",
+          "param:face"
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Cash" },
-        { "account": "Bonds Payable" },
-        { "account": "Discount on Bonds Payable" },
-        { "account": "Interest Expense" },
-        { "account": "Premium on Bonds Payable", "decoy": true },
-        { "account": "Gain on Redemption of Bonds", "decoy": true }
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Bonds Payable"
+        },
+        {
+          "account": "Discount on Bonds Payable"
+        },
+        {
+          "account": "Interest Expense"
+        },
+        {
+          "account": "Premium on Bonds Payable",
+          "decoy": true
+        },
+        {
+          "account": "Gain on Redemption of Bonds",
+          "decoy": true
+        }
       ],
       "scaffold": "Three acts: birth (cash + discount vs face), the repeating middle (expense / discount / cash — ten times), death (face for face). Build them in order and notice which line never changes."
     }

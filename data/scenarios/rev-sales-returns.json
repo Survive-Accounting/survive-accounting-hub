@@ -1,0 +1,170 @@
+{
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 17,
+    "name": "Revenue Recognition"
+  },
+  "doc": {
+    "slug": "rev-sales-returns",
+    "title": "Sales with a right of return",
+    "event": "Sena Co. sells $100,000 of goods (cost $60,000) with a right of return; experience says 10% comes back. Later, $8,000 (sales value) is actually returned. Prepare the sale, cost, and return entries.",
+    "courseFamilies": [
+      "ia2"
+    ],
+    "axes": [],
+    "variants": [
+      {
+        "id": "returns",
+        "label": "Book the sale net of expected returns, then true up",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "sale",
+            "caption": "Sell 100,000 (10% expected returns) — revenue side",
+            "lines": [
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "debit",
+                "label": "full amount collected",
+                "amount": 100000,
+                "why": "Customers pay full price; the return estimate is the seller's problem.",
+                "trap": "Variable consideration in the wild: expected returns REDUCE the transaction price from day one — not when the box shows up."
+              },
+              {
+                "id": "sr",
+                "account": "Sales Revenue",
+                "side": "credit",
+                "label": "the 90% expected to stick",
+                "amount": 90000,
+                "why": "Revenue only for consideration the seller expects to keep.",
+                "trap": "Booking 100,000 and 'fixing it later' overstates this period's revenue — the estimate belongs in the sale entry."
+              },
+              {
+                "id": "rl",
+                "account": "Refund Liability",
+                "side": "credit",
+                "label": "expected give-backs",
+                "amount": 10000,
+                "why": "A real obligation: cash the seller expects to hand back.",
+                "trap": "Liability, not contra-revenue-someday — it sits on the balance sheet from the sale date."
+              }
+            ]
+          },
+          {
+            "id": "cost",
+            "caption": "Cost side — inventory expected back is still an asset",
+            "lines": [
+              {
+                "id": "cogs",
+                "account": "Cost of Goods Sold",
+                "side": "debit",
+                "label": "cost of the 90% staying sold",
+                "amount": 54000,
+                "why": "COGS mirrors the revenue haircut: 60,000 × 90%.",
+                "trap": "Full-COGS-now overstates expense exactly as full-revenue-now overstates income."
+              },
+              {
+                "id": "eir",
+                "account": "Estimated Inventory Returns",
+                "side": "debit",
+                "label": "cost of the 10% coming home",
+                "amount": 6000,
+                "why": "The right to recover returned goods is an ASSET at the old inventory cost.",
+                "trap": "Two-sided symmetry: refund liability at SALES value (10,000), returns asset at COST (6,000). Mixing the bases is the classic scramble."
+              },
+              {
+                "id": "inv",
+                "account": "Inventory",
+                "side": "credit",
+                "label": "all of it shipped",
+                "amount": 60000,
+                "why": "Physically, everything left the warehouse.",
+                "trap": "Inventory credits for what SHIPPED; the estimate splits the debit side, not this line."
+              }
+            ]
+          },
+          {
+            "id": "actual",
+            "caption": "8,000 (sales value) actually returned — settle against the estimates",
+            "lines": [
+              {
+                "id": "rl2",
+                "account": "Refund Liability",
+                "side": "debit",
+                "label": "liability absorbs the refund",
+                "amount": 8000,
+                "why": "The give-back was pre-booked — actual returns draw down the liability, not revenue.",
+                "trap": "Debiting Sales Revenue here would double-count the haircut taken at sale."
+              },
+              {
+                "id": "cash2",
+                "account": "Cash",
+                "side": "credit",
+                "label": "refund paid",
+                "amount": 8000,
+                "why": "Money back to customers.",
+                "trap": "Returns better or worse than estimated? True up the remaining liability through revenue — estimates get revisited, not ignored."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      {
+        "kind": "formula",
+        "body": "Right of return: Revenue = sales × (1 − expected return %) · Refund Liability = sales × return % · Estimated Inventory Returns (asset) = cost × return %. Sales value on the liability, cost on the asset.",
+        "traceRefs": []
+      },
+      {
+        "kind": "watchout",
+        "body": "Sales with ALLOWANCES (price concessions) run the same variable-consideration logic — revenue net of expected concessions — without the inventory-asset side.",
+        "traceRefs": []
+      }
+    ],
+    "questions": [
+      {
+        "id": "q-returns-rev",
+        "prompt": "100,000 of goods sell with 10% expected returns. Sales Revenue recorded at the sale date =",
+        "answerExpr": "90000",
+        "distractors": [
+          {
+            "expr": "100000",
+            "misconceptionId": "cash_vs_expense",
+            "feedback": "100,000 is the CASH. Expected returns are variable consideration — revenue books at the 90,000 expected to stick, with a 10,000 Refund Liability for the rest."
+          }
+        ]
+      }
+    ],
+    "build": {
+      "accountBank": [
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Sales Revenue"
+        },
+        {
+          "account": "Refund Liability"
+        },
+        {
+          "account": "Cost of Goods Sold"
+        },
+        {
+          "account": "Estimated Inventory Returns"
+        },
+        {
+          "account": "Inventory"
+        },
+        {
+          "account": "Sales Returns and Allowances",
+          "decoy": true
+        }
+      ],
+      "scaffold": "Two mirrored splits: revenue side splits 90/10 at SALES value; cost side splits 90/10 at COST. Actual returns then settle against the pre-booked liability — never back through revenue."
+    }
+  }
+}

@@ -1,14 +1,29 @@
 {
-  "chapter": { "courseFamily": "intermediate_2", "courseSlug": "intermediate-accounting-2", "number": 13, "name": "Long-Term Liabilities" },
+  "chapter": {
+    "courseFamily": "intermediate_2",
+    "courseSlug": "intermediate-accounting-2",
+    "number": 13,
+    "name": "Long-Term Liabilities"
+  },
   "doc": {
     "slug": "bonds-retire-maturity",
     "title": "Retire bonds at maturity",
-    "event": "The final coupon has been paid and the term is up. Every dollar of discount or premium has fully amortized, so the carrying value sits exactly at face — and the payoff entry is two clean lines with no gain or loss possible.",
-    "courseFamilies": ["ia2"],
+    "event": "Ramos Co.'s {face} bonds mature today; the final coupon has already been paid. Prepare the retirement entry.",
+    "courseFamilies": [
+      "ia2"
+    ],
     "axes": [],
     "params": {
       "kind": "bond",
-      "defaults": { "face": 500000, "statedRateAnnual": 0.08, "marketRateAnnual": 0.1, "termYears": 5, "paymentsPerYear": 2, "issueDate": "2026-01-01", "fiscalYearEnd": "12-31" },
+      "defaults": {
+        "face": 500000,
+        "statedRateAnnual": 0.08,
+        "marketRateAnnual": 0.1,
+        "termYears": 5,
+        "paymentsPerYear": 2,
+        "issueDate": "2026-01-01",
+        "fiscalYearEnd": "12-31"
+      },
       "defaultSeed": 1
     },
     "variants": [
@@ -21,12 +36,24 @@
             "id": "retire",
             "caption": "Maturity date — retire the bonds at face",
             "lines": [
-              { "id": "bp", "account": "Bonds Payable", "side": "debit", "label": "face", "amountSlotKey": "param:face",
+              {
+                "id": "bp",
+                "account": "Bonds Payable",
+                "side": "debit",
+                "label": "face",
+                "amountSlotKey": "param:face",
                 "why": "The liability leaves the books at the amount it was always carried at: face.",
-                "trap": "If you're reaching for the discount or premium account here, the amortization schedule wasn't finished — at maturity those accounts are already zero." },
-              { "id": "cash", "account": "Cash", "side": "credit", "label": "face", "amountSlotKey": "param:face",
+                "trap": "If you're reaching for the discount or premium account here, the amortization schedule wasn't finished — at maturity those accounts are already zero."
+              },
+              {
+                "id": "cash",
+                "account": "Cash",
+                "side": "credit",
+                "label": "face",
+                "amountSlotKey": "param:face",
                 "why": "The contract pays face at maturity. Carrying value = face by construction (the final period plugs to land exactly there), so cash out equals book value and no gain or loss can exist.",
-                "trap": "A maturity retirement NEVER produces a gain or loss — that's the built-in check on your amortization work." }
+                "trap": "A maturity retirement NEVER produces a gain or loss — that's the built-in check on your amortization work."
+              }
             ]
           }
         ],
@@ -35,7 +62,11 @@
             "id": "why-no-gain",
             "narration": "Amortization exists precisely so the carrying value arrives at face on the last day. Discount climbed up to face; premium slid down to it. Cash out (face) minus carrying value (face) = zero, always.",
             "steps": [
-              { "label": "Carrying value at maturity", "formulaText": "= face (schedule's final row lands here by the plug)", "resultSlotKey": "param:face" }
+              {
+                "label": "Carrying value at maturity",
+                "formulaText": "= face (schedule's final row lands here by the plug)",
+                "resultSlotKey": "param:face"
+              }
             ]
           }
         ]
@@ -43,8 +74,20 @@
     ],
     "hasMemorizationGrid": true,
     "memorize": [
-      { "kind": "tip", "body": "Maturity retirement is the free space on the bingo card: Dr Bonds Payable, Cr Cash, both at face. If an exam shows a gain or loss at MATURITY, something upstream is wrong.", "traceRefs": ["param:face"] },
-      { "kind": "watchout", "body": "Don't confuse this with EARLY retirement — before maturity the carrying value is NOT face, and the difference against the reacquisition price is a real gain or loss.", "traceRefs": ["param:face"] }
+      {
+        "kind": "tip",
+        "body": "Maturity retirement is the free space on the bingo card: Dr Bonds Payable, Cr Cash, both at face. If an exam shows a gain or loss at MATURITY, something upstream is wrong.",
+        "traceRefs": [
+          "param:face"
+        ]
+      },
+      {
+        "kind": "watchout",
+        "body": "Don't confuse this with EARLY retirement — before maturity the carrying value is NOT face, and the difference against the reacquisition price is a real gain or loss.",
+        "traceRefs": [
+          "param:face"
+        ]
+      }
     ],
     "questions": [
       {
@@ -52,19 +95,40 @@
         "prompt": "Bonds issued at a discount are held to maturity and paid off. What gain or loss is recognized at retirement?",
         "answerExpr": "param:face - param:face",
         "distractors": [
-          { "expr": "param:face - issuePrice", "misconceptionId": "face_vs_cv_on_retirement", "feedback": "That's the ORIGINAL discount — but it fully amortized over the term. At maturity carrying value equals face, so the payoff produces exactly zero gain or loss." }
+          {
+            "expr": "param:face - issuePrice",
+            "misconceptionId": "face_vs_cv_on_retirement",
+            "feedback": "That's the ORIGINAL discount — but it fully amortized over the term. At maturity carrying value equals face, so the payoff produces exactly zero gain or loss."
+          }
         ]
       }
     ],
     "traces": [
-      { "id": "cv-lands-at-face", "label": "Final schedule row ↔ face ↔ the two-line payoff", "refs": ["param:face", "issuePrice"] }
+      {
+        "id": "cv-lands-at-face",
+        "label": "Final schedule row ↔ face ↔ the two-line payoff",
+        "refs": [
+          "param:face",
+          "issuePrice"
+        ]
+      }
     ],
     "build": {
       "accountBank": [
-        { "account": "Bonds Payable" },
-        { "account": "Cash" },
-        { "account": "Discount on Bonds Payable", "decoy": true },
-        { "account": "Loss on Redemption of Bonds", "decoy": true }
+        {
+          "account": "Bonds Payable"
+        },
+        {
+          "account": "Cash"
+        },
+        {
+          "account": "Discount on Bonds Payable",
+          "decoy": true
+        },
+        {
+          "account": "Loss on Redemption of Bonds",
+          "decoy": true
+        }
       ],
       "scaffold": "Two lines, both at face. Every other account in the bank is a decoy — including the discount, which finished amortizing on the last coupon date."
     }
