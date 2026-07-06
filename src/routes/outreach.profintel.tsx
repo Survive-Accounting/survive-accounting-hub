@@ -215,13 +215,15 @@ function ProfIntelChoose() {
   const [importing, setImporting] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [chips, setChips] = useState<Set<string>>(new Set());
+  // Default filters ON: RMP course match ("confirmed") + recent evidence. This
+  // lands the operator straight on the highest-signal, ready-to-email leads.
+  const [chips, setChips] = useState<Set<string>>(new Set(["confirmed", "recent"]));
 
   // Reset per-campus UI state when switching campus.
   useEffect(() => {
     setSelected(new Set());
     setPaste("");
-    setChips(new Set());
+    setChips(new Set(["confirmed", "recent"]));
   }, [campusId]);
 
   const toggle = (id: string) =>
@@ -229,6 +231,18 @@ function ProfIntelChoose() {
       const next = new Set(s);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  // Select/clear only the currently-filtered targets (leaves any off-filter
+  // selections untouched).
+  const toggleSelectAllFiltered = (ids: string[]) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      const allSelected = ids.length > 0 && ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
       return next;
     });
   const toggleChip = (k: string) =>
@@ -305,6 +319,8 @@ function ProfIntelChoose() {
         (a.last_name ?? "").localeCompare(b.last_name ?? ""),
     );
   }, [leads, chips]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((l) => selected.has(l.id));
 
   async function handleCreate() {
     if (!campusId || !campus) return;
@@ -493,14 +509,24 @@ function ProfIntelChoose() {
                   ({filtered.length} shown · {selected.size} selected)
                 </span>
               </div>
-              <Button size="sm" onClick={handleCreate} disabled={creating || selected.size === 0}>
-                {creating ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <MailPlus className="mr-1 h-4 w-4" />
-                )}
-                Create {selected.size || ""} draft{selected.size === 1 ? "" : "s"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => toggleSelectAllFiltered(filtered.map((l) => l.id))}
+                  disabled={filtered.length === 0}
+                >
+                  {allFilteredSelected ? "Clear" : `Select all (${filtered.length})`}
+                </Button>
+                <Button size="sm" onClick={handleCreate} disabled={creating || selected.size === 0}>
+                  {creating ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <MailPlus className="mr-1 h-4 w-4" />
+                  )}
+                  Create {selected.size || ""} draft{selected.size === 1 ? "" : "s"}
+                </Button>
+              </div>
             </div>
 
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
