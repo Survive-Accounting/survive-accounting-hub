@@ -47,17 +47,16 @@ import {
   fetchActiveRosterCampusIds,
   fetchCampusCourseCodes,
   fetchProfintelV2Leads,
-  getTemplate,
+  getTemplateConfig,
+  saveTemplateConfig,
   listIncomingMoves,
   listSends,
   moveLead,
   parseV2Leads,
   pasteImportLeads,
-  renderTemplate,
   retireLead,
   scheduleCampaignDrafts,
   saveCampusCourseCodes,
-  saveTemplate,
   updateLeadEmail,
   updateSend,
   DEFAULT_PROFINTEL_TEMPLATE,
@@ -65,7 +64,6 @@ import {
   type IncomingMove,
   type ProfIntelLead,
   type ProfIntelSend,
-  type ProfIntelTemplate,
   type ProfIntelV2Lead,
 } from "@/lib/profintel";
 import { enrichProfintelCampus } from "@/lib/rmp-scrape.functions";
@@ -331,14 +329,16 @@ function ProfIntelChoose() {
     }
     setCreating(true);
     try {
-      const tpl = await getTemplate();
+      const cfg = await getTemplateConfig();
       const n = await createDrafts({
         campusId,
         school: campus.school_name,
-        template: tpl,
+        template: cfg,
         leads: chosen,
       });
-      toast.success(`Created ${n} draft${n === 1 ? "" : "s"}.`);
+      const abNote =
+        cfg.abEnabled && cfg.b.subject.trim() && cfg.b.body.trim() ? " (split A/B)" : "";
+      toast.success(`Created ${n} draft${n === 1 ? "" : "s"}${abNote}.`);
       setSelected(new Set());
       await draftsQuery.refetch();
     } catch (e) {
@@ -1031,43 +1031,43 @@ function DraftCard({ draft, onChanged }: { draft: ProfIntelSend; onChanged: () =
 }
 
 function TemplateEditor() {
-  const tplQuery = useQuery({ queryKey: ["profintel-template"], queryFn: getTemplate });
+  const tplQuery = useQuery({ queryKey: ["profintel-template-config"], queryFn: getTemplateConfig });
   const [open, setOpen] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [aSubject, setASubject] = useState("");
+  const [aBody, setABody] = useState("");
+  const [bSubject, setBSubject] = useState("");
+  const [bBody, setBBody] = useState("");
+  const [abEnabled, setAbEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (tplQuery.data && !loaded) {
-      setSubject(tplQuery.data.subject);
-      setBody(tplQuery.data.body);
+      setASubject(tplQuery.data.a.subject);
+      setABody(tplQuery.data.a.body);
+      setBSubject(tplQuery.data.b.subject);
+      setBBody(tplQuery.data.b.body);
+      setAbEnabled(tplQuery.data.abEnabled);
       setLoaded(true);
     }
   }, [tplQuery.data, loaded]);
 
   async function save() {
+    if (abEnabled && (!bSubject.trim() || !bBody.trim())) {
+      toast.error("Fill in variant B's subject and body, or turn A/B off.");
+      return;
+    }
     setSaving(true);
     try {
-      const tpl: ProfIntelTemplate = { subject, body };
-      await saveTemplate(tpl);
-      toast.success("Template saved. New drafts will use it.");
-      // sample preview proof to console-free path; just confirm.
-      renderTemplate(
-        tpl,
-        {
-          id: "x",
-          first_name: "Jane",
-          last_name: "Smith",
-          email: null,
-          is_phd: true,
-          source_url: null,
-          rmp_profile_url: null,
-          rmp_rating: 4.5,
-          rmp_num_ratings: 120,
-          rmp_course_match_json: { acct: { code: "ACCT 2101", count: 3 } },
-        },
-        "Sample U",
+      await saveTemplateConfig({
+        a: { subject: aSubject, body: aBody },
+        b: { subject: bSubject, body: bBody },
+        abEnabled,
+      });
+      toast.success(
+        abEnabled
+          ? "Saved. New drafts will split ~50/50 between A and B."
+          : "Template saved. New drafts will use it.",
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save template.");
@@ -1075,6 +1075,15 @@ function TemplateEditor() {
       setSaving(false);
     }
   }
+
+  const tokenHelp = (
+    <p className="text-[11px] text-muted-foreground">
+      Tokens: <code>{"{recipient_name}"}</code> (Dr. Lastname for PhDs, else first name){" "}
+      <code>{"{course_prefix}"}</code> (e.g. ACCY) <code>{"{first_name}"}</code>{" "}
+      <code>{"{last_name}"}</code> <code>{"{full_name}"}</code> <code>{"{school}"}</code>{" "}
+      <code>{"{course}"}</code> <code>{"{rmp_rating}"}</code>
+    </p>
+  );
 
   return (
     <section className="rounded-xl border border-border bg-card/60">
@@ -1086,7 +1095,7 @@ function TemplateEditor() {
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         Base email template
         <span className="ml-2 font-normal text-muted-foreground">
-          — edit the default used for new drafts
+          — edit the default used for new drafts{abEnabled ? " · A/B on" : ""}
         </span>
       </button>
       {open && (
@@ -1097,47 +1106,91 @@ function TemplateEditor() {
             </div>
           ) : (
             <>
-              <p className="text-[11px] text-muted-foreground">
-                Tokens: <code>{"{recipient_name}"}</code> (Dr. Lastname for PhDs, else first name){" "}
-                <code>{"{course_prefix}"}</code> (e.g. ACCY) <code>{"{first_name}"}</code>{" "}
-                <code>{"{last_name}"}</code> <code>{"{full_name}"}</code> <code>{"{school}"}</code>{" "}
-                <code>{"{course}"}</code> <code>{"{rmp_rating}"}</code>
-              </p>
-              <div>
+              {tokenHelp}
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    setSubject(DEFAULT_PROFINTEL_TEMPLATE.subject);
-                    setBody(DEFAULT_PROFINTEL_TEMPLATE.body);
+                    setASubject(DEFAULT_PROFINTEL_TEMPLATE.subject);
+                    setABody(DEFAULT_PROFINTEL_TEMPLATE.body);
                   }}
                 >
-                  Load default template
+                  Load default into A
                 </Button>
-                <span className="ml-2 text-[11px] text-muted-foreground">
-                  Fills the editor with Lee's base email — review, then Save.
+                <label className="ml-2 flex cursor-pointer items-center gap-2 text-xs font-medium">
+                  <Checkbox
+                    checked={abEnabled}
+                    onCheckedChange={(v) => setAbEnabled(v === true)}
+                  />
+                  A/B test 50/50
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  {abEnabled
+                    ? "Each new batch splits randomly between A and B."
+                    : "Off — all drafts use variant A."}
                 </span>
               </div>
-              <div>
+
+              {/* Variant A */}
+              <div className="rounded-lg border border-border p-3">
+                <div className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">
+                  {abEnabled ? "Variant A" : "Template"}
+                </div>
                 <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
                   Subject
                 </label>
                 <Input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="text-sm"
+                  value={aSubject}
+                  onChange={(e) => setASubject(e.target.value)}
+                  className="mb-2 text-sm"
                 />
-              </div>
-              <div>
                 <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
                   Body
                 </label>
                 <Textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  className="min-h-[200px] text-sm"
+                  value={aBody}
+                  onChange={(e) => setABody(e.target.value)}
+                  className="min-h-[180px] text-sm"
                 />
               </div>
+
+              {/* Variant B (only when A/B is on) */}
+              {abEnabled && (
+                <div className="rounded-lg border border-dashed border-primary/40 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase text-muted-foreground">
+                    Variant B
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[11px]"
+                      onClick={() => {
+                        setBSubject(aSubject);
+                        setBBody(aBody);
+                      }}
+                    >
+                      Copy A → B
+                    </Button>
+                  </div>
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                    Subject
+                  </label>
+                  <Input
+                    value={bSubject}
+                    onChange={(e) => setBSubject(e.target.value)}
+                    className="mb-2 text-sm"
+                  />
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                    Body
+                  </label>
+                  <Textarea
+                    value={bBody}
+                    onChange={(e) => setBBody(e.target.value)}
+                    className="min-h-[180px] text-sm"
+                  />
+                </div>
+              )}
+
               <div className="flex justify-end">
                 <Button size="sm" onClick={save} disabled={saving}>
                   {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}

@@ -1,5 +1,5 @@
 // profintel-email-webhook — receives Resend event webhooks for ProfIntel sends
-// and records opens (and bounces/complaints). Matches by resend_message_id.
+// and records opens, clicks, and bounces/complaints. Matches by resend_message_id.
 // Auth: a shared secret in the URL query (?secret=…), configured on the Resend
 // webhook endpoint. Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // PROFINTEL_WEBHOOK_SECRET.
@@ -34,6 +34,25 @@ Deno.serve(async (req) => {
       await admin
         .from("profintel_sends")
         .update({ opened_at: row.opened_at ?? new Date().toISOString(), open_count: (row.open_count ?? 0) + 1 })
+        .eq("id", row.id);
+    }
+  } else if (type === "email.clicked") {
+    // Requires click tracking enabled on the Resend domain. data.click.link holds
+    // the clicked URL. Record first-click time, total clicks, and the last URL.
+    const link: string | null = evt.data?.click?.link ?? evt.data?.link ?? null;
+    const { data: row } = await admin
+      .from("profintel_sends")
+      .select("id, clicked_at, click_count")
+      .eq("resend_message_id", emailId)
+      .maybeSingle();
+    if (row) {
+      await admin
+        .from("profintel_sends")
+        .update({
+          clicked_at: row.clicked_at ?? new Date().toISOString(),
+          click_count: (row.click_count ?? 0) + 1,
+          last_clicked_url: link,
+        })
         .eq("id", row.id);
     }
   } else if (type === "email.bounced" || type === "email.complained") {

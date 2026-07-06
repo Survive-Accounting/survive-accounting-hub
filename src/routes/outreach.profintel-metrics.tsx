@@ -62,6 +62,22 @@ function has(s: ProfIntelSend, k: string): string | null {
   const v = (s as unknown as Record<string, unknown>)[k];
   return typeof v === "string" ? v : null;
 }
+/** Numeric field reader (open_count / click_count), 0 when absent. */
+function num(s: ProfIntelSend, k: string): number {
+  const v = (s as unknown as Record<string, unknown>)[k];
+  return typeof v === "number" ? v : 0;
+}
+/** Engagement score for follow-up prioritization: replies count most, then
+ *  clicks, then repeat opens. Lets you sort out who's actually interested. */
+function engagement(s: ProfIntelSend): number {
+  return (
+    (has(s, "replied_at") ? 100 : 0) +
+    (has(s, "clicked_at") ? 20 : 0) +
+    num(s, "click_count") * 5 +
+    (has(s, "opened_at") ? 5 : 0) +
+    Math.max(0, num(s, "open_count") - 1) * 2
+  );
+}
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -114,12 +130,26 @@ function ProfIntelMetrics() {
 
   const m = useMemo(() => {
     const counts = { draft: 0, scheduled: 0, sent: 0, canceled: 0 } as Record<string, number>;
+    const blank = () => ({ sent: 0, opened: 0, clicked: 0, replied: 0 });
+    const variants: Record<"A" | "B", ReturnType<typeof blank>> = { A: blank(), B: blank() };
     let opened = 0,
-      replied = 0;
+      replied = 0,
+      clicked = 0;
     for (const s of sends) {
       counts[s.status] = (counts[s.status] ?? 0) + 1;
-      if (has(s, "opened_at")) opened += 1;
-      if (has(s, "replied_at")) replied += 1;
+      const isOpen = !!has(s, "opened_at");
+      const isReply = !!has(s, "replied_at");
+      const isClick = !!has(s, "clicked_at");
+      if (isOpen) opened += 1;
+      if (isReply) replied += 1;
+      if (isClick) clicked += 1;
+      const v = s.variant === "A" || s.variant === "B" ? s.variant : null;
+      if (v && s.status === "sent") {
+        variants[v].sent += 1;
+        if (isOpen) variants[v].opened += 1;
+        if (isClick) variants[v].clicked += 1;
+        if (isReply) variants[v].replied += 1;
+      }
     }
     const sent = counts.sent ?? 0;
     const pct = (n: number) => (sent > 0 ? `${Math.round((n / sent) * 100)}%` : "—");
@@ -128,19 +158,30 @@ function ProfIntelMetrics() {
       sent,
       opened,
       replied,
+      clicked,
       openPct: pct(opened),
       replyPct: pct(replied),
-      tracked: sent > 0 && (opened > 0 || replied > 0),
+      clickPct: pct(clicked),
+      variants,
+      abActive: variants.A.sent + variants.B.sent > 0,
+      tracked: sent > 0 && (opened > 0 || replied > 0 || clicked > 0),
     };
   }, [sends]);
 
-  // Newest activity first: sent, then scheduled (by time), then drafts.
+  // Sent first (most-engaged at the very top, so follow-up targets surface),
+  // then scheduled, then drafts.
   const rows = useMemo(() => {
     const rank = (s: ProfIntelSend) =>
       s.status === "sent" ? 0 : s.status === "scheduled" ? 1 : s.status === "draft" ? 2 : 3;
-    return [...sends].sort(
-      (a, b) => rank(a) - rank(b) || (b.created_at ?? "").localeCompare(a.created_at ?? ""),
-    );
+    return [...sends].sort((a, b) => {
+      const r = rank(a) - rank(b);
+      if (r) return r;
+      if (a.status === "sent" && b.status === "sent") {
+        const e = engagement(b) - engagement(a);
+        if (e) return e;
+      }
+      return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+    });
   }, [sends]);
 
   return (
@@ -181,11 +222,16 @@ function ProfIntelMetrics() {
         </div>
       )}
 
-      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-6">
         <Stat label="Emails sent" value={String(m.sent)} />
         <Stat label="Scheduled" value={String(m.counts.scheduled ?? 0)} />
         <Stat label="Drafts" value={String(m.counts.draft ?? 0)} />
         <Stat label="Open rate" value={m.openPct} sub={m.sent ? `${m.opened} opened` : undefined} />
+        <Stat
+          label="Click rate"
+          value={m.clickPct}
+          sub={m.sent ? `${m.clicked} clicked` : undefined}
+        />
         <Stat
           label="Reply rate"
           value={m.replyPct}
@@ -193,10 +239,43 @@ function ProfIntelMetrics() {
         />
       </div>
 
+      {/* A/B comparison — only once split sends exist. */}
+      {m.abActive && (
+        <div className="mb-4 overflow-x-auto rounded-lg border border-border text-xs">
+          <table className="w-full">
+            <thead className="bg-muted/50 text-[11px] uppercase text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left">A/B variant</th>
+                <th className="px-3 py-2 text-right">Sent</th>
+                <th className="px-3 py-2 text-right">Open %</th>
+                <th className="px-3 py-2 text-right">Click %</th>
+                <th className="px-3 py-2 text-right">Reply %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(["A", "B"] as const).map((v) => {
+                const d = m.variants[v];
+                const p = (n: number) => (d.sent > 0 ? `${Math.round((n / d.sent) * 100)}%` : "—");
+                return (
+                  <tr key={v} className="border-t border-border">
+                    <td className="px-3 py-2 font-medium">Variant {v}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{d.sent}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{p(d.opened)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{p(d.clicked)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{p(d.replied)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {!m.tracked && (
         <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Open % and Reply % populate once real sending + tracking are turned on (drafts-only for
-          now). Sent/scheduled/draft counts and the log below are live.
+          Open / Click / Reply rates populate once real sending + tracking are turned on (drafts-only
+          for now). Click % also needs click tracking enabled on the Resend domain. Sent counts and
+          the log below are live.
         </div>
       )}
 
@@ -221,8 +300,10 @@ function ProfIntelMetrics() {
                 <th className="px-3 py-2 text-left">Campus</th>
                 <th className="px-3 py-2 text-left">RMP courses matched</th>
                 <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-center">A/B</th>
                 <th className="px-3 py-2 text-left">Send time</th>
                 <th className="px-3 py-2 text-left">Opened</th>
+                <th className="px-3 py-2 text-center">Clicks</th>
                 <th className="px-3 py-2 text-left">Replied</th>
               </tr>
             </thead>
@@ -256,9 +337,35 @@ function ProfIntelMetrics() {
                       {s.status}
                     </Badge>
                   </td>
+                  <td className="px-3 py-2 text-center">
+                    {s.variant ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        {s.variant}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 tabular-nums">{fmtWhen(s.scheduled_at)}</td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
                     {fmtWhen(has(s, "opened_at"))}
+                    {num(s, "open_count") > 1 && (
+                      <span className="ml-1 text-emerald-700" title={`${num(s, "open_count")} opens`}>
+                        ×{num(s, "open_count")}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-center tabular-nums">
+                    {has(s, "clicked_at") ? (
+                      <span
+                        className="font-medium text-emerald-700"
+                        title={has(s, "last_clicked_url") ?? "clicked"}
+                      >
+                        {num(s, "click_count") || 1}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 tabular-nums">
                     <button

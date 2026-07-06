@@ -42,6 +42,10 @@ export interface ProfIntelSend {
   opened_at?: string | null;
   replied_at?: string | null;
   open_count?: number | null;
+  variant?: string | null;
+  clicked_at?: string | null;
+  click_count?: number | null;
+  last_clicked_url?: string | null;
 }
 
 /** Comma-joined matched RMP course codes for a lead, e.g. "ACCT 2101, ACCT 2102". */
@@ -145,6 +149,48 @@ export async function getTemplate(): Promise<ProfIntelTemplate> {
 export async function saveTemplate(t: ProfIntelTemplate): Promise<void> {
   const { error } = await (supabase.from("profintel_template" as never) as any)
     .update({ subject: t.subject, body: t.body, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) throw new Error(error.message);
+}
+
+/** A/B config: variant A is the base subject/body; variant B is optional. When
+ *  abEnabled, createDrafts splits sends ~50/50 between A and B. */
+export interface ProfIntelTemplateConfig {
+  a: ProfIntelTemplate;
+  b: ProfIntelTemplate;
+  abEnabled: boolean;
+}
+
+/** Load both variants + the A/B flag. Falls back gracefully if 0050 isn't applied
+ *  (returns A only, abEnabled false). */
+export async function getTemplateConfig(): Promise<ProfIntelTemplateConfig> {
+  const base = { a: { subject: "", body: "" }, b: { subject: "", body: "" }, abEnabled: false };
+  const ext = await (supabase.from("profintel_template" as never) as any)
+    .select("subject, body, subject_b, body_b, ab_enabled")
+    .eq("id", 1)
+    .maybeSingle();
+  if (ext.error) {
+    const a = await getTemplate();
+    return { ...base, a };
+  }
+  const d = ext.data ?? {};
+  return {
+    a: { subject: d.subject ?? "", body: d.body ?? "" },
+    b: { subject: d.subject_b ?? "", body: d.body_b ?? "" },
+    abEnabled: !!d.ab_enabled,
+  };
+}
+
+export async function saveTemplateConfig(cfg: ProfIntelTemplateConfig): Promise<void> {
+  const { error } = await (supabase.from("profintel_template" as never) as any)
+    .update({
+      subject: cfg.a.subject,
+      body: cfg.a.body,
+      subject_b: cfg.b.subject,
+      body_b: cfg.b.body,
+      ab_enabled: cfg.abEnabled,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", 1);
   if (error) throw new Error(error.message);
 }
@@ -650,16 +696,39 @@ export async function pasteImportLeads(
   return { inserted: toInsert.length, updated };
 }
 
-/** Create one draft per selected lead, pre-filled from the template. */
+/** Balanced 50/50 A/B labels for n sends, shuffled so neither variant is biased
+ *  toward the higher-scored (earlier) leads. */
+function abLabels(n: number): ("A" | "B")[] {
+  const labels: ("A" | "B")[] = Array.from({ length: n }, (_, i) => (i % 2 === 0 ? "A" : "B"));
+  for (let i = labels.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [labels[i], labels[j]] = [labels[j], labels[i]];
+  }
+  return labels;
+}
+
+/** Create one draft per selected lead, pre-filled from the template. When the
+ *  config has A/B enabled (and a non-empty B), sends split ~50/50 between the two
+ *  variants; each row records which `variant` it used. */
 export async function createDrafts(input: {
   campusId: string;
   school: string;
-  template: ProfIntelTemplate;
+  template: ProfIntelTemplate | ProfIntelTemplateConfig;
   leads: ProfIntelLead[];
 }): Promise<number> {
   if (input.leads.length === 0) return 0;
-  const rows = input.leads.map((lead) => {
-    const { subject, body } = renderTemplate(input.template, lead, input.school);
+  // Accept either a single template (variant A only) or a full A/B config.
+  const cfg: ProfIntelTemplateConfig =
+    "a" in input.template
+      ? input.template
+      : { a: input.template, b: { subject: "", body: "" }, abEnabled: false };
+  const abLive = cfg.abEnabled && !!cfg.b.subject.trim() && !!cfg.b.body.trim();
+  const labels = abLive ? abLabels(input.leads.length) : [];
+
+  const rows = input.leads.map((lead, i) => {
+    const variant = abLive ? labels[i] : null;
+    const tpl = variant === "B" ? cfg.b : cfg.a;
+    const { subject, body } = renderTemplate(tpl, lead, input.school);
     return {
       campus_id: input.campusId,
       lead_id: lead.id,
@@ -669,6 +738,7 @@ export async function createDrafts(input: {
       course_matches: courseMatchesText(lead.rmp_course_match_json) || null,
       // Denormalize the targeting score so scheduling can order sends by it.
       profintel_score: (lead as { profintel_score?: number | null }).profintel_score ?? null,
+      variant,
       subject,
       body,
       ready: false,
@@ -677,8 +747,8 @@ export async function createDrafts(input: {
   });
   const { error } = await (supabase.from("profintel_sends" as never) as any).insert(rows);
   if (error) {
-    // profintel_score column may not exist yet (pre-0048) — retry without it.
-    const stripped = rows.map(({ profintel_score, ...r }) => r);
+    // Newer columns (profintel_score/variant) may not exist yet — retry without them.
+    const stripped = rows.map(({ profintel_score, variant, ...r }) => r);
     const r2 = await (supabase.from("profintel_sends" as never) as any).insert(stripped);
     if (r2.error) throw new Error(r2.error.message);
   }
@@ -733,7 +803,8 @@ export async function scheduleCampaignDrafts(drafts: ProfIntelSend[]): Promise<s
 const SEND_BASE_COLS =
   "id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at";
 const SEND_EXT_COLS =
-  SEND_BASE_COLS + ", profintel_score, sent_at, opened_at, replied_at, open_count";
+  SEND_BASE_COLS +
+  ", profintel_score, sent_at, opened_at, replied_at, open_count, variant, clicked_at, click_count, last_clicked_url";
 
 export async function listSends(opts?: { campusId?: string }): Promise<ProfIntelSend[]> {
   const run = async (cols: string) => {
