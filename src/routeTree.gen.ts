@@ -26,6 +26,7 @@ import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
+import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
 import { Route as OutreachProfintelMetricsRouteImport } from './routes/outreach.profintel-metrics'
 import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
@@ -130,6 +131,11 @@ const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
 const OutreachResearchRoute = OutreachResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachRedditRoute = OutreachRedditRouteImport.update({
+  id: '/reddit',
+  path: '/reddit',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachProfintelScheduleRoute =
@@ -266,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -304,6 +311,7 @@ export interface FileRoutesByTo {
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -344,6 +352,7 @@ export interface FileRoutesById {
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -385,6 +394,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -423,6 +433,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -462,6 +473,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -612,6 +624,13 @@ declare module '@tanstack/react-router' {
       path: '/research'
       fullPath: '/outreach/research'
       preLoaderRoute: typeof OutreachResearchRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/reddit': {
+      id: '/outreach/reddit'
+      path: '/reddit'
+      fullPath: '/outreach/reddit'
+      preLoaderRoute: typeof OutreachRedditRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/outreach/profintel-schedule': {
@@ -795,6 +814,7 @@ interface OutreachRouteChildren {
   OutreachProfintelRoute: typeof OutreachProfintelRoute
   OutreachProfintelMetricsRoute: typeof OutreachProfintelMetricsRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
+  OutreachRedditRoute: typeof OutreachRedditRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
@@ -814,6 +834,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachProfintelRoute: OutreachProfintelRoute,
   OutreachProfintelMetricsRoute: OutreachProfintelMetricsRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
+  OutreachRedditRoute: OutreachRedditRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
   OutreachIndexRoute: OutreachIndexRoute,
