@@ -16,7 +16,8 @@ const ORDER_COLS =
   "tier,chapter_count,chapter_count_only,awaiting_syllabus,interested_in_group,group_size," +
   "exam_date,exam_timeframe,subtotal_cents,rush,rush_fee_cents,total_cents," +
   "delivery_target_date,delivery_estimate_days,status,admin_notes,special_requests,attachments_json,requested_options," +
-  "quote_cents,quoted_at,estimated_build_minutes,promised_delivery_date,tool_exists,triage_notes,approved_at";
+  "quote_cents,quoted_at,estimated_build_minutes,promised_delivery_date,tool_exists,triage_notes,approved_at," +
+  "interests,is_accounting_major,referral_source,referral_source_detail";
 
 export type AdminOrderRow = {
   id: string;
@@ -61,6 +62,10 @@ export type AdminOrderRow = {
   tool_exists: boolean | null;
   triage_notes: string | null;
   approved_at: string | null;
+  interests: string[] | null;
+  is_accounting_major: string | null;
+  referral_source: string | null;
+  referral_source_detail: string | null;
   chapter_rows: number;
 };
 
@@ -139,6 +144,10 @@ function mapRow(r: Record<string, unknown>, campusName: string | null, chapterRo
     tool_exists: typeof r.tool_exists === "boolean" ? r.tool_exists : null,
     triage_notes: (r.triage_notes as string) ?? null,
     approved_at: (r.approved_at as string) ?? null,
+    interests: Array.isArray(r.interests) ? (r.interests as string[]) : null,
+    is_accounting_major: (r.is_accounting_major as string) ?? null,
+    referral_source: (r.referral_source as string) ?? null,
+    referral_source_detail: (r.referral_source_detail as string) ?? null,
     chapter_rows: chapterRows,
   };
 }

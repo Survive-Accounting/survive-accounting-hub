@@ -37,6 +37,17 @@ const TIER_LABEL: Record<string, string> = {
   free_teaser: "Free teaser", made_to_order: "Help Video request", one_on_one: "Premium 1-on-1",
   something_else: "Something else",
 };
+const INTEREST_LABEL: Record<string, string> = {
+  one_on_one: "1-on-1 virtual tutoring", group: "Group virtual tutoring",
+  videos_tools: "Exam prep videos + practice tools", something_else: "Something else",
+};
+const MAJOR_LABEL: Record<string, string> = {
+  yes: "Yes", no: "No", definitely_not: "Definitely not", not_sure: "Not sure yet",
+};
+const REFERRAL_LABEL: Record<string, string> = {
+  professor: "Professor", friend: "Friend/classmate", greek: "Greek chapter",
+  social: "Social media", search: "Search", other: "Other",
+};
 const STAGE_DISPLAY: Record<string, string> = {
   request_received: "Request received", reviewing: "Reviewing your class",
   preview_in_progress: "Preview in progress", preview_ready: "Preview ready",
@@ -201,6 +212,24 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
                   )}
                 </p>
               </div>
+
+              {/* Demand signals — interests, major, referral (drive quoting) */}
+              {((order.interests?.length ?? 0) > 0 || order.is_accounting_major || order.referral_source) && (
+                <div className="rounded-2xl border border-primary/40 bg-primary/5 p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Interest &amp; signals</p>
+                  {(order.interests?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {order.interests!.map((i) => (
+                        <span key={i} className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{INTEREST_LABEL[i] ?? i}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2.5 space-y-1 text-sm">
+                    <div><span className="text-muted-foreground">Accounting major:</span> <span className="font-medium">{order.is_accounting_major ? (MAJOR_LABEL[order.is_accounting_major] ?? order.is_accounting_major) : "—"}</span></div>
+                    <div><span className="text-muted-foreground">Found via:</span> <span className="font-medium">{order.referral_source ? (REFERRAL_LABEL[order.referral_source] ?? order.referral_source) : "—"}{order.referral_source === "other" && order.referral_source_detail ? ` — ${order.referral_source_detail}` : ""}</span></div>
+                  </div>
+                </div>
+              )}
 
               {/* contact */}
               <div className="rounded-2xl border p-4">
