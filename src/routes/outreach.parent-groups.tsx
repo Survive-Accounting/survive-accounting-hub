@@ -24,6 +24,7 @@ import {
   type ParentGroupCampus,
 } from "@/lib/parent-groups";
 import { FilterPill } from "@/components/outreach/FilterPill";
+import { CampusCombobox } from "@/components/outreach/CampusCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -156,16 +157,9 @@ function ParentGroups() {
         )}
       </div>
 
-      {/* Campus filter (tabs) */}
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        <FilterPill active={!campusId} onClick={() => setCampusId(null)}>
-          All campuses
-        </FilterPill>
-        {campuses.map((c) => (
-          <FilterPill key={c.id} active={campusId === c.id} onClick={() => setCampusId(c.id)}>
-            {c.name.replace(/^University of /, "").replace(/ University$/, "")}
-          </FilterPill>
-        ))}
+      {/* Campus filter */}
+      <div className="mb-2">
+        <CampusCombobox items={campuses} value={campusId} onChange={setCampusId} />
       </div>
       {/* Status filter */}
       <div className="mb-4 flex flex-wrap items-center gap-1.5">

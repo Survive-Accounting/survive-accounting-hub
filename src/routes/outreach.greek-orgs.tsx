@@ -1,44 +1,79 @@
-// /outreach/greek-orgs — Greek org registry v1. Registry only: NO outreach, NO
-// scraping. Per-campus chapters (campus_greek_chapters) linked to the national
-// catalog (greek_orgs), with research link helpers (ProPublica 990s, LinkedIn
-// advisor search, state SOS, campus FSL directory) and CSV import. Reuses the
-// reddit/parent-groups campus-tabbed patterns + shared FilterPill.
+// /outreach/greek-orgs — Greek org registry v2. Per-campus chapters
+// (campus_greek_chapters) linked to the national catalog (greek_orgs), plus
+// ProPublica 990 enrichment: per-org filings (financials) and officers/advisors
+// tenure — THE LEADS. Registry only; no outreach. Add-chapter + CSV import are
+// gated behind ?admin=1. Reuses the shared CampusCombobox + FilterPill.
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check, ExternalLink, Loader2, Pencil, Plus, Trash2, Upload, Users2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+  Pencil,
+  Plus,
+  Sparkles,
+  Trash2,
+  Upload,
+  Users2,
+} from "lucide-react";
 
 import {
+  accumulateOfficers,
   addGreekChapter,
   COUNCILS,
   councilLabel,
   deleteGreekChapter,
+  fetchCampusContext,
   fetchGreekCampuses,
   fetchGreekCatalog,
+  FILING_ITEM_FIELDS,
   GREEK_STATUSES,
+  importChapterGpaTsv,
   importGreekChaptersCsv,
   linkedInAdvisorUrl,
+  listAllFilings,
+  listChapterGpa,
   listGreekChapters,
+  listGreekFilings,
+  listGreekPeople,
   nextGreekStatus,
   proPublicaUrl,
   sosSearchUrl,
   updateCampusFslUrl,
   updateGreekChapter,
+  updateGreekFiling,
+  updateGreekPerson,
+  upsertCampusContext,
+  type CampusContext,
   type GreekCampus,
   type GreekChapter,
+  type GreekFiling,
+  type GreekOrgCatalog,
+  type GreekPerson,
 } from "@/lib/greek-orgs";
+import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
+import { parseOfficers } from "@/lib/greek-officers";
+import { computeOrgSignals, SIGNALS, signalLabel, type SignalKey } from "@/lib/greek-signals";
 import { FilterPill } from "@/components/outreach/FilterPill";
+import { CampusCombobox } from "@/components/outreach/CampusCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/outreach/greek-orgs")({
+  validateSearch: (s: Record<string, unknown>): { admin?: number } => ({
+    admin: s.admin === "1" || s.admin === 1 ? 1 : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Outreach — Greek orgs" },
-      { name: "description", content: "SEC Greek chapter registry + research link helpers." },
+      { name: "description", content: "SEC Greek chapter registry + ProPublica enrichment." },
     ],
   }),
   component: GreekOrgs,
@@ -53,21 +88,135 @@ const STATUS_STYLE: Record<string, string> = {
   dormant: "bg-muted text-muted-foreground border-border",
 };
 const inputCls = "h-9 rounded-md border border-input bg-background px-2 text-sm";
+const fmtMoney = (n: number | null) =>
+  n == null ? "—" : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : `$${Math.round(n / 1e3)}k`;
 
 function GreekOrgs() {
+  const { admin } = Route.useSearch();
+  const isAdmin = admin === 1;
+  const [tab, setTab] = useState<"chapters" | "people" | "leads">("chapters");
+
   const campusesQuery = useQuery({ queryKey: ["greek-campuses"], queryFn: fetchGreekCampuses });
   const catalogQuery = useQuery({ queryKey: ["greek-catalog"], queryFn: fetchGreekCatalog });
   const chaptersQuery = useQuery({ queryKey: ["greek-chapters"], queryFn: listGreekChapters });
+  const allFilingsQuery = useQuery({ queryKey: ["greek-all-filings"], queryFn: listAllFilings });
+  const gpaQuery = useQuery({ queryKey: ["greek-gpa"], queryFn: listChapterGpa });
+  const peopleQuery = useQuery({ queryKey: ["greek-people"], queryFn: listGreekPeople });
   const campuses = useMemo(() => campusesQuery.data ?? [], [campusesQuery.data]);
-  const catalog = catalogQuery.data ?? [];
+  const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const chapters = useMemo(() => chaptersQuery.data ?? [], [chaptersQuery.data]);
   const campusById = useMemo(() => new Map(campuses.map((c) => [c.id, c])), [campuses]);
+  const catalogById = useMemo(() => new Map(catalog.map((o) => [o.id, o])), [catalog]);
 
+  // Per-org signals from all filings + GPA terms.
+  const signalsByOrg = useMemo(() => {
+    const fBy = new Map<string, any[]>();
+    for (const f of allFilingsQuery.data ?? []) {
+      if (!f.org_id) continue;
+      (fBy.get(f.org_id) ?? fBy.set(f.org_id, []).get(f.org_id)!).push(f);
+    }
+    const gBy = new Map<string, any[]>();
+    for (const g of gpaQuery.data ?? []) {
+      if (!g.greek_org_id) continue;
+      (gBy.get(g.greek_org_id) ?? gBy.set(g.greek_org_id, []).get(g.greek_org_id)!).push(g);
+    }
+    const m = new Map<string, SignalKey[]>();
+    for (const id of new Set([...fBy.keys(), ...gBy.keys()])) {
+      const sig = computeOrgSignals(fBy.get(id) ?? [], gBy.get(id) ?? []);
+      if (sig.length) m.set(id, sig);
+    }
+    return m;
+  }, [allFilingsQuery.data, gpaQuery.data]);
+
+  const refetchAll = () => {
+    chaptersQuery.refetch();
+    catalogQuery.refetch();
+    allFilingsQuery.refetch();
+    gpaQuery.refetch();
+    peopleQuery.refetch();
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-6">
+      <div className="mb-1 flex items-center gap-2">
+        <Users2 className="h-5 w-5" />
+        <h1 className="text-xl font-bold tracking-tight">Greek org registry</h1>
+        <Badge variant="outline" className="text-[10px]">
+          GreekIntel
+        </Badge>
+      </div>
+      <div className="mb-4 flex gap-1.5">
+        <FilterPill active={tab === "chapters"} onClick={() => setTab("chapters")}>
+          Chapters
+        </FilterPill>
+        <FilterPill active={tab === "leads"} onClick={() => setTab("leads")}>
+          Leads
+        </FilterPill>
+        <FilterPill active={tab === "people"} onClick={() => setTab("people")}>
+          People
+        </FilterPill>
+      </div>
+
+      {tab === "chapters" && (
+        <ChaptersTab
+          isAdmin={isAdmin}
+          campuses={campuses}
+          catalog={catalog}
+          catalogById={catalogById}
+          campusById={campusById}
+          chapters={chapters}
+          signalsByOrg={signalsByOrg}
+          loading={chaptersQuery.isLoading}
+          refetchChapters={refetchAll}
+          refetchCampuses={() => campusesQuery.refetch()}
+          refetchCatalog={() => catalogQuery.refetch()}
+        />
+      )}
+      {tab === "leads" && (
+        <LeadsTab
+          catalog={catalog}
+          signalsByOrg={signalsByOrg}
+          filings={allFilingsQuery.data ?? []}
+          people={peopleQuery.data ?? []}
+          onPersonChanged={() => peopleQuery.refetch()}
+        />
+      )}
+      {tab === "people" && (
+        <PeopleTab campuses={campuses} chapters={chapters} catalogById={catalogById} />
+      )}
+    </div>
+  );
+}
+
+function ChaptersTab({
+  isAdmin,
+  campuses,
+  catalog,
+  catalogById,
+  campusById,
+  chapters,
+  signalsByOrg,
+  loading,
+  refetchChapters,
+  refetchCampuses,
+  refetchCatalog,
+}: {
+  isAdmin: boolean;
+  campuses: GreekCampus[];
+  catalog: GreekOrgCatalog[];
+  catalogById: Map<string, GreekOrgCatalog>;
+  campusById: Map<string, GreekCampus>;
+  chapters: GreekChapter[];
+  signalsByOrg: Map<string, SignalKey[]>;
+  loading: boolean;
+  refetchChapters: () => void;
+  refetchCampuses: () => void;
+  refetchCatalog: () => void;
+}) {
   const [campusId, setCampusId] = useState<string | null>(null);
   const [council, setCouncil] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const refetch = () => chaptersQuery.refetch();
-
+  const [signal, setSignal] = useState<SignalKey | null>(null);
   const selectedCampus = campusId ? (campusById.get(campusId) ?? null) : null;
 
   const filtered = useMemo(
@@ -77,7 +226,10 @@ function GreekOrgs() {
           (ch) =>
             (!campusId || ch.campus_id === campusId) &&
             (!council || ch.council === council) &&
-            (!status || ch.status === status),
+            (!status || ch.status === status) &&
+            (!signal ||
+              (ch.greek_org_id != null &&
+                (signalsByOrg.get(ch.greek_org_id) ?? []).includes(signal))),
         )
         .sort(
           (a, b) =>
@@ -85,56 +237,18 @@ function GreekOrgs() {
               campusById.get(b.campus_id ?? "")?.name ?? "",
             ) || a.national_org.localeCompare(b.national_org),
         ),
-    [chapters, campusId, council, status, campusById],
+    [chapters, campusId, council, status, signal, campusById, signalsByOrg],
   );
 
-  // Stats: chapters by status (across the current campus filter).
-  const statusCounts = useMemo(() => {
-    const scope = campusId ? chapters.filter((c) => c.campus_id === campusId) : chapters;
-    const by: Record<string, number> = {};
-    for (const c of scope) by[c.status] = (by[c.status] ?? 0) + 1;
-    return by;
-  }, [chapters, campusId]);
-
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div className="mb-1 flex items-center gap-2">
-        <Users2 className="h-5 w-5" />
-        <h1 className="text-xl font-bold tracking-tight">Greek org registry</h1>
-        <Badge variant="outline" className="text-[10px]">
-          registry
-        </Badge>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">
-        SEC chapter inventory for FSL research — no outreach or scraping. Log chapters, track
-        status, and use the per-row research links (990s, advisor search, SOS, FSL directory).
-      </p>
-
-      {/* Stats */}
-      <div className="mb-4 flex flex-wrap gap-1.5 rounded-lg border border-border bg-card/60 p-3 text-[11px]">
-        <span className="font-semibold uppercase text-muted-foreground">
-          {campusId ? campusById.get(campusId)?.name : "All campuses"} · {filtered.length} chapters
+    <>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <CampusCombobox items={campuses} value={campusId} onChange={setCampusId} />
+        <span className="text-[11px] text-muted-foreground">
+          {filtered.length} of {chapters.length} chapters
         </span>
-        {GREEK_STATUSES.filter((s) => statusCounts[s]).map((s) => (
-          <span key={s} className={`rounded-full border px-2 py-0.5 capitalize ${STATUS_STYLE[s]}`}>
-            {s} {statusCounts[s]}
-          </span>
-        ))}
       </div>
-
-      {/* Campus tabs */}
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        <FilterPill active={!campusId} onClick={() => setCampusId(null)}>
-          All campuses
-        </FilterPill>
-        {campuses.map((c) => (
-          <FilterPill key={c.id} active={campusId === c.id} onClick={() => setCampusId(c.id)}>
-            {c.name.replace(/^University of /, "").replace(/ University$/, "")}
-          </FilterPill>
-        ))}
-      </div>
-      {/* Council + status filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <span className="text-[11px] text-muted-foreground">Council:</span>
         <FilterPill active={!council} onClick={() => setCouncil(null)}>
           All
@@ -154,33 +268,48 @@ function GreekOrgs() {
           </FilterPill>
         ))}
       </div>
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-muted-foreground">Signal:</span>
+        <FilterPill active={!signal} onClick={() => setSignal(null)}>
+          Any
+        </FilterPill>
+        {SIGNALS.map((s) => (
+          <FilterPill key={s.key} active={signal === s.key} onClick={() => setSignal(s.key)}>
+            {s.label}
+          </FilterPill>
+        ))}
+      </div>
 
-      {/* Per-campus FSL directory URL */}
       {selectedCampus && (
-        <div className="mb-4 rounded-lg border border-border bg-muted/20 p-3">
-          <FslEditor campus={selectedCampus} onSaved={() => campusesQuery.refetch()} />
+        <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+          <FslEditor campus={selectedCampus} onSaved={refetchCampuses} />
+          <CampusContextPanel campus={selectedCampus} />
         </div>
       )}
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2">
-        <QuickAdd
-          campuses={campuses}
-          catalog={catalog}
-          defaultCampusId={campusId}
-          onAdded={refetch}
-        />
-        <CsvImport onDone={refetch} />
+        <GpaImport onDone={refetchChapters} />
+        {isAdmin && <CsvImport onDone={refetchChapters} />}
       </div>
+      {isAdmin && (
+        <div className="mb-3">
+          <QuickAdd
+            campuses={campuses}
+            catalog={catalog}
+            defaultCampusId={campusId}
+            onAdded={refetchChapters}
+          />
+        </div>
+      )}
 
-      {/* Chapters */}
       <div className="space-y-2">
-        {chaptersQuery.isLoading ? (
+        {loading ? (
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
-            No chapters match. Add one below, import a CSV, or clear a filter.
+            No chapters match this filter.
           </div>
         ) : (
           filtered.map((ch) => (
@@ -188,27 +317,52 @@ function GreekOrgs() {
               key={ch.id}
               ch={ch}
               campus={campusById.get(ch.campus_id ?? "") ?? null}
-              onChanged={refetch}
+              org={ch.greek_org_id ? (catalogById.get(ch.greek_org_id) ?? null) : null}
+              signals={ch.greek_org_id ? (signalsByOrg.get(ch.greek_org_id) ?? []) : []}
+              onChanged={() => {
+                refetchChapters();
+                refetchCatalog();
+              }}
             />
           ))
         )}
       </div>
-    </div>
+    </>
+  );
+}
+
+function SignalChips({ signals }: { signals: SignalKey[] }) {
+  if (signals.length === 0) return null;
+  return (
+    <span className="flex flex-wrap gap-1">
+      {signals.map((s) => (
+        <span
+          key={s}
+          title={SIGNALS.find((x) => x.key === s)?.hint}
+          className="cursor-help rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+        >
+          {signalLabel(s)}
+        </span>
+      ))}
+    </span>
   );
 }
 
 function ChapterCard({
   ch,
   campus,
+  org,
+  signals,
   onChanged,
 }: {
   ch: GreekChapter;
   campus: GreekCampus | null;
+  org: GreekOrgCatalog | null;
+  signals: SignalKey[];
   onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [advisor, setAdvisor] = useState(ch.advisor_name ?? "");
-  const [advisorNotes, setAdvisorNotes] = useState(ch.advisor_notes ?? "");
+  const [showEnrich, setShowEnrich] = useState(false);
 
   async function patch(p: Parameters<typeof updateGreekChapter>[1]) {
     try {
@@ -219,15 +373,10 @@ function ChapterCard({
     }
   }
 
-  const links: { label: string; url: string }[] = [
+  const links = [
     {
       label: "990s (ProPublica)",
-      url: proPublicaUrl(
-        ch.national_org,
-        ch.chapter_designation,
-        campus?.state ?? null,
-        campus?.city ?? null,
-      ),
+      url: proPublicaUrl(ch.national_org, ch.chapter_designation, campus?.city ?? null),
     },
     { label: "Advisor (LinkedIn)", url: linkedInAdvisorUrl(ch.national_org, campus?.name ?? "") },
     { label: "SOS search", url: sosSearchUrl(campus?.state ?? null) },
@@ -250,12 +399,13 @@ function ChapterCard({
               {councilLabel(ch.council)}
             </Badge>
             <span className="text-muted-foreground">{campus?.name ?? "—"}</span>
-            {ch.member_count_estimate != null && (
-              <span className="text-muted-foreground">· ~{ch.member_count_estimate} members</span>
-            )}
+            {org?.ein && <span className="text-emerald-700">EIN {org.ein}</span>}
           </div>
-
-          {/* research links */}
+          {signals.length > 0 && (
+            <div className="mt-1">
+              <SignalChips signals={signals} />
+            </div>
+          )}
           <div className="mt-1 flex flex-wrap gap-1.5">
             {links.map((l) => (
               <a
@@ -269,25 +419,20 @@ function ChapterCard({
                 <ExternalLink className="h-3 w-3 text-muted-foreground" />
               </a>
             ))}
-          </div>
-
-          {(ch.house_corp_name || ch.house_corp_990_url) && (
-            <div className="mt-1 text-[11px] text-muted-foreground">
-              House corp: {ch.house_corp_name || "—"}
-              {ch.house_corp_990_url && (
-                <a
-                  href={ch.house_corp_990_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-1 text-primary underline"
-                >
-                  990
-                </a>
+            <button
+              type="button"
+              onClick={() => setShowEnrich((v) => !v)}
+              className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/5 px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/10"
+            >
+              {showEnrich ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
               )}
-            </div>
-          )}
+              <Sparkles className="h-3 w-3" /> Enrich / filings
+            </button>
+          </div>
         </div>
-
         <div className="flex shrink-0 flex-col items-end gap-1">
           <button
             type="button"
@@ -307,29 +452,9 @@ function ChapterCard({
         </div>
       </div>
 
-      {/* inline advisor fields */}
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <Input
-          value={advisor}
-          onChange={(e) => setAdvisor(e.target.value)}
-          onBlur={() =>
-            advisor !== (ch.advisor_name ?? "") && patch({ advisor_name: advisor || null })
-          }
-          placeholder="Advisor name…"
-          className="h-8 text-[11px]"
-        />
-        <Input
-          value={advisorNotes}
-          onChange={(e) => setAdvisorNotes(e.target.value)}
-          onBlur={() =>
-            advisorNotes !== (ch.advisor_notes ?? "") &&
-            patch({ advisor_notes: advisorNotes || null })
-          }
-          placeholder="Advisor notes…"
-          className="h-8 text-[11px]"
-        />
-      </div>
-
+      {showEnrich && ch.greek_org_id && (
+        <EnrichBlock orgId={ch.greek_org_id} org={org} onEnriched={onChanged} />
+      )}
       {editing && (
         <ChapterEditor
           ch={ch}
@@ -343,6 +468,424 @@ function ChapterCard({
   );
 }
 
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const w = 90;
+  const h = 22;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values
+    .map((v, i) => `${(i / (values.length - 1)) * w},${h - ((v - min) / span) * h}`)
+    .join(" ");
+  return (
+    <svg width={w} height={h} className="inline-block align-middle">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-primary"
+      />
+    </svg>
+  );
+}
+
+function EnrichBlock({
+  orgId,
+  org,
+  onEnriched,
+}: {
+  orgId: string;
+  org: GreekOrgCatalog | null;
+  onEnriched: () => void;
+}) {
+  const enrich = useServerFn(enrichGreekOrgFilings);
+  const filingsQuery = useQuery({
+    queryKey: ["greek-filings", orgId],
+    queryFn: () => listGreekFilings(orgId),
+  });
+  const filings = filingsQuery.data ?? [];
+  const [ein, setEin] = useState(org?.ein ?? "");
+  const [busy, setBusy] = useState(false);
+  const [openFiling, setOpenFiling] = useState<string | null>(null);
+
+  async function runEnrich() {
+    if (!ein.trim()) return toast.error("Paste an EIN or ProPublica URL.");
+    setBusy(true);
+    try {
+      const r = (await enrich({ data: { orgId, einOrUrl: ein.trim() } })) as
+        | { ok: false; error: string }
+        | { ok: true; filings: number; years: number[] };
+      if (!r.ok) toast.error(r.error);
+      else {
+        toast.success(`Enriched: ${r.filings} filing years.`);
+        filingsQuery.refetch();
+        onEnriched();
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Enrich failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // latest-year chips + YoY
+  const byYearAsc = [...filings].sort((a, b) => (a.tax_year ?? 0) - (b.tax_year ?? 0));
+  const latest = byYearAsc[byYearAsc.length - 1];
+  const prev = byYearAsc[byYearAsc.length - 2];
+  const yoy =
+    latest?.revenue != null && prev?.revenue != null && prev.revenue !== 0
+      ? Math.round(((latest.revenue - prev.revenue) / Math.abs(prev.revenue)) * 100)
+      : null;
+
+  return (
+    <div className="mt-2 rounded-md border border-dashed border-primary/40 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-muted-foreground">EIN / ProPublica URL</span>
+        <Input
+          value={ein}
+          onChange={(e) => setEin(e.target.value)}
+          placeholder="23-7219356"
+          className="h-8 w-48 text-sm"
+        />
+        <Button size="sm" className="h-7" disabled={busy} onClick={runEnrich}>
+          {busy ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="mr-1 h-3.5 w-3.5" />
+          )}
+          Enrich filings
+        </Button>
+        {org?.propublica_url && (
+          <a
+            href={org.propublica_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] text-primary underline"
+          >
+            ProPublica <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+
+      {filings.length > 0 && (
+        <>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {latest && (
+              <>
+                <Badge className="bg-emerald-100 text-[10px] text-emerald-700">
+                  {latest.tax_year} rev {fmtMoney(latest.revenue)}
+                </Badge>
+                <Badge className="bg-blue-100 text-[10px] text-blue-700">
+                  assets {fmtMoney(latest.assets_eoy)}
+                </Badge>
+                {yoy != null && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${yoy >= 0 ? "text-emerald-700" : "text-red-600"}`}
+                  >
+                    YoY {yoy >= 0 ? "+" : ""}
+                    {yoy}%
+                  </Badge>
+                )}
+              </>
+            )}
+            <span className="text-muted-foreground">
+              <Sparkline values={byYearAsc.map((f) => f.revenue ?? 0)} />
+            </span>
+          </div>
+
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="px-1 text-left">Year</th>
+                  <th className="px-1 text-right">Revenue</th>
+                  <th className="px-1 text-right">Expenses</th>
+                  <th className="px-1 text-right">Assets</th>
+                  <th className="px-1 text-right">Liabilities</th>
+                  <th className="px-1 text-left">990</th>
+                  <th className="px-1 text-left">PDF fields</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filings.map((f) => (
+                  <FragmentRow key={f.id}>
+                    <tr className="border-t border-border/60">
+                      <td className="px-1 tabular-nums">{f.tax_year}</td>
+                      <td className="px-1 text-right tabular-nums">{fmtMoney(f.revenue)}</td>
+                      <td className="px-1 text-right tabular-nums">{fmtMoney(f.expenses)}</td>
+                      <td className="px-1 text-right tabular-nums">{fmtMoney(f.assets_eoy)}</td>
+                      <td className="px-1 text-right tabular-nums">
+                        {fmtMoney(f.liabilities_eoy)}
+                      </td>
+                      <td className="px-1">
+                        {f.pdf_url ? (
+                          <a
+                            href={f.pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline"
+                          >
+                            PDF
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-1">
+                        <button
+                          type="button"
+                          onClick={() => setOpenFiling((v) => (v === f.id ? null : f.id))}
+                          className="inline-flex items-center gap-0.5 text-primary hover:underline"
+                        >
+                          {openFiling === f.id ? (
+                            <ChevronDown className="h-3 w-3" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3" />
+                          )}
+                          edit
+                        </button>
+                      </td>
+                    </tr>
+                    {openFiling === f.id && (
+                      <tr>
+                        <td colSpan={7} className="px-1 pb-2">
+                          <FilingDrawer
+                            filing={f}
+                            onSaved={() => {
+                              filingsQuery.refetch();
+                              onEnriched();
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </FragmentRow>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <OfficersPaste orgId={orgId} defaultYear={latest?.tax_year ?? null} onDone={onEnriched} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function OfficersPaste({
+  orgId,
+  defaultYear,
+  onDone,
+}: {
+  orgId: string;
+  defaultYear: number | null;
+  onDone: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [year, setYear] = useState(defaultYear ? String(defaultYear) : "");
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    const y = Number(year);
+    if (!y) return toast.error("Enter the filing year for this officers block.");
+    const officers = parseOfficers(text);
+    if (officers.length === 0) return toast.error("No (name, title) pairs found in that paste.");
+    setBusy(true);
+    try {
+      const r = await accumulateOfficers(orgId, officers, y);
+      toast.success(`${officers.length} officers: ${r.inserted} new, ${r.updated} updated.`);
+      setText("");
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save officers.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 border-t border-border/60 pt-2">
+      <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+        Paste 990 Part VII officers
+        <Input
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          placeholder="year"
+          className="h-7 w-20 text-[11px]"
+        />
+      </div>
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Paste the officers/directors block…"
+        className="min-h-[60px] text-[11px]"
+      />
+      <Button size="sm" className="mt-1 h-7" disabled={busy} onClick={run}>
+        {busy ? (
+          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Plus className="mr-1 h-3.5 w-3.5" />
+        )}
+        Extract officers
+      </Button>
+    </div>
+  );
+}
+
+function PeopleTab({
+  campuses,
+  chapters,
+  catalogById,
+}: {
+  campuses: GreekCampus[];
+  chapters: GreekChapter[];
+  catalogById: Map<string, GreekOrgCatalog>;
+}) {
+  const peopleQuery = useQuery({ queryKey: ["greek-people"], queryFn: listGreekPeople });
+  const people = useMemo(() => peopleQuery.data ?? [], [peopleQuery.data]);
+  const [campusId, setCampusId] = useState<string | null>(null);
+  const [titleFilter, setTitleFilter] = useState("");
+
+  // org → set of campus_ids (a national org may have chapters at many campuses).
+  const orgCampuses = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const ch of chapters) {
+      if (!ch.greek_org_id || !ch.campus_id) continue;
+      (m.get(ch.greek_org_id) ?? m.set(ch.greek_org_id, new Set()).get(ch.greek_org_id)!).add(
+        ch.campus_id,
+      );
+    }
+    return m;
+  }, [chapters]);
+
+  const rows = useMemo(() => {
+    const tf = titleFilter.trim().toLowerCase();
+    return people
+      .filter((p) => {
+        if (campusId && !(orgCampuses.get(p.org_id)?.has(campusId) ?? false)) return false;
+        if (tf && !(p.titles ?? []).some((t) => t.toLowerCase().includes(tf))) return false;
+        return true;
+      })
+      .sort((a, b) => b.years_count - a.years_count || (b.last_year ?? 0) - (a.last_year ?? 0));
+  }, [people, campusId, titleFilter, orgCampuses]);
+
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <CampusCombobox items={campuses} value={campusId} onChange={setCampusId} />
+        <Input
+          value={titleFilter}
+          onChange={(e) => setTitleFilter(e.target.value)}
+          placeholder="Filter title (advisor / president / treasurer)…"
+          className="h-8 w-64 text-sm"
+        />
+        <span className="text-[11px] text-muted-foreground">{rows.length} people</span>
+      </div>
+
+      {peopleQuery.isLoading ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+          No people yet. Enrich a chapter's filings, then paste its 990 Part VII officers block.
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {rows.map((p) => (
+            <PersonRow
+              key={p.id}
+              p={p}
+              orgName={catalogById.get(p.org_id)?.name ?? "—"}
+              onChanged={() => peopleQuery.refetch()}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function PersonRow({
+  p,
+  orgName,
+  onChanged,
+}: {
+  p: GreekPerson;
+  orgName: string;
+  onChanged: () => void;
+}) {
+  const [email, setEmail] = useState(p.email ?? "");
+  const [phone, setPhone] = useState(p.phone ?? "");
+  const [linkedin, setLinkedin] = useState(p.linkedin_url ?? "");
+
+  async function save(patch: Parameters<typeof updateGreekPerson>[1]) {
+    try {
+      await updateGreekPerson(p.id, patch);
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save.");
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card/60 p-2.5 text-xs">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-semibold">{p.person_name}</span>
+        {p.is_current && (
+          <Badge className="bg-emerald-100 text-[10px] text-emerald-700">current</Badge>
+        )}
+        <span className="text-muted-foreground">{orgName}</span>
+        <Badge variant="secondary" className="text-[10px]">
+          {p.years_count} yr{p.years_count === 1 ? "" : "s"}
+        </Badge>
+        <span className="text-[10px] text-muted-foreground">
+          {p.first_year}–{p.last_year}
+        </span>
+        <span className="flex flex-wrap gap-1">
+          {(p.titles ?? []).map((t) => (
+            <span
+              key={t}
+              className="rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+            >
+              {t}
+            </span>
+          ))}
+        </span>
+      </div>
+      <div className="mt-1.5 grid gap-1.5 sm:grid-cols-3">
+        <Input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onBlur={() => email !== (p.email ?? "") && save({ email: email || null })}
+          placeholder="email"
+          className="h-7 text-[11px]"
+        />
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          onBlur={() => phone !== (p.phone ?? "") && save({ phone: phone || null })}
+          placeholder="phone"
+          className="h-7 text-[11px]"
+        />
+        <Input
+          value={linkedin}
+          onChange={(e) => setLinkedin(e.target.value)}
+          onBlur={() =>
+            linkedin !== (p.linkedin_url ?? "") && save({ linkedin_url: linkedin || null })
+          }
+          placeholder="linkedin url"
+          className="h-7 text-[11px]"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---- Editors / admin forms (add + CSV gated behind ?admin=1) -----------------
 function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void }) {
   const [chapterDesignation, setChapterDesignation] = useState(ch.chapter_designation ?? "");
   const [council, setCouncil] = useState(ch.council ?? "");
@@ -394,7 +937,6 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
           value={chapterDesignation}
           onChange={(e) => setChapterDesignation(e.target.value)}
           className="mt-0.5 h-9 text-sm"
-          placeholder="e.g. Delta Psi"
         />
       </label>
       <label className="text-[11px] font-medium text-muted-foreground">
@@ -418,7 +960,6 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
           value={letters}
           onChange={(e) => setLetters(e.target.value)}
           className="mt-0.5 h-9 text-sm"
-          placeholder="ATO"
         />
       </label>
       <label className="text-[11px] font-medium text-muted-foreground">
@@ -427,7 +968,6 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
           value={members}
           onChange={(e) => setMembers(e.target.value)}
           className="mt-0.5 h-9 text-sm"
-          placeholder="e.g. 120"
         />
       </label>
       <label className="text-[11px] font-medium text-muted-foreground">
@@ -524,7 +1064,7 @@ function QuickAdd({
   onAdded,
 }: {
   campuses: GreekCampus[];
-  catalog: { id: string; name: string }[];
+  catalog: GreekOrgCatalog[];
   defaultCampusId: string | null;
   onAdded: () => void;
 }) {
@@ -562,7 +1102,8 @@ function QuickAdd({
   return (
     <div className="rounded-lg border border-border p-3">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <Plus className="h-4 w-4" /> Add a chapter
+        <Plus className="h-4 w-4" /> Add a chapter{" "}
+        <span className="text-[10px] text-muted-foreground">(admin)</span>
       </div>
       <div className="grid gap-2">
         <select value={campusId} onChange={(e) => setCampusId(e.target.value)} className={inputCls}>
@@ -576,7 +1117,7 @@ function QuickAdd({
         <Input
           value={org}
           onChange={(e) => setOrg(e.target.value)}
-          placeholder="National org (e.g. Alpha Tau Omega)"
+          placeholder="National org"
           list="greek-catalog"
           className="text-sm"
         />
@@ -589,13 +1130,13 @@ function QuickAdd({
           <Input
             value={designation}
             onChange={(e) => setDesignation(e.target.value)}
-            placeholder="Designation (Delta Psi)"
+            placeholder="Designation"
             className="flex-1 text-sm"
           />
           <Input
             value={letters}
             onChange={(e) => setLetters(e.target.value)}
-            placeholder="Letters (ATO)"
+            placeholder="Letters"
             className="w-28 text-sm"
           />
         </div>
@@ -631,10 +1172,7 @@ function CsvImport({ onDone }: { onDone: () => void }) {
     setResult(null);
     try {
       const r = await importGreekChaptersCsv(text);
-      setResult(
-        `Imported ${r.inserted}, skipped ${r.skipped}.` +
-          (r.errors.length ? ` Issues: ${r.errors.slice(0, 5).join("; ")}` : ""),
-      );
+      setResult(`Imported ${r.inserted}, skipped ${r.skipped}.`);
       toast.success(`Imported ${r.inserted} chapter(s).`);
       onDone();
     } catch (e) {
@@ -647,11 +1185,9 @@ function CsvImport({ onDone }: { onDone: () => void }) {
   return (
     <div className="rounded-lg border border-border p-3">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <Upload className="h-4 w-4" /> CSV import
+        <Upload className="h-4 w-4" /> CSV import{" "}
+        <span className="text-[10px] text-muted-foreground">(admin)</span>
       </div>
-      <p className="mb-2 text-[11px] text-muted-foreground">
-        Headers: <code>campus_slug, national_org, chapter_designation, council, letters</code>
-      </p>
       <input
         type="file"
         accept=".csv,text/csv"
@@ -664,8 +1200,8 @@ function CsvImport({ onDone }: { onDone: () => void }) {
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="…or paste CSV here"
-        className="min-h-[70px] font-mono text-[11px]"
+        placeholder="…or paste CSV (campus_slug,national_org,…)"
+        className="min-h-[60px] font-mono text-[11px]"
       />
       <div className="mt-2 flex items-center gap-2">
         <Button size="sm" onClick={run} disabled={busy}>
@@ -678,6 +1214,376 @@ function CsvImport({ onDone }: { onDone: () => void }) {
         </Button>
         {result && <span className="text-[11px] text-muted-foreground">{result}</span>}
       </div>
+    </div>
+  );
+}
+
+function FragmentRow({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
+
+// ---- Filing itemized drawer ("from the PDF" manual entry) --------------------
+function FilingDrawer({ filing, onSaved }: { filing: GreekFiling; onSaved: () => void }) {
+  const [vals, setVals] = useState<Record<string, string>>(() => {
+    const o: Record<string, string> = {};
+    for (const f of FILING_ITEM_FIELDS) {
+      const v = (filing as unknown as Record<string, unknown>)[f];
+      o[f] = v == null ? "" : String(v);
+    }
+    o.fundraiser_firm = filing.fundraiser_firm ?? "";
+    o.preparer_firm = filing.preparer_firm ?? "";
+    return o;
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k: string, v: string) => setVals((s) => ({ ...s, [k]: v }));
+
+  async function save() {
+    setSaving(true);
+    try {
+      const patch: Record<string, unknown> = {};
+      for (const f of FILING_ITEM_FIELDS) {
+        const raw = vals[f].replace(/[^0-9.-]/g, "");
+        patch[f] = raw === "" ? null : Number(raw);
+      }
+      patch.fundraiser_firm = vals.fundraiser_firm.trim() || null;
+      patch.preparer_firm = vals.preparer_firm.trim() || null;
+      await updateGreekFiling(filing.id, patch);
+      toast.success("Saved PDF fields.");
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-dashed border-primary/40 p-2">
+      <div className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
+        {filing.tax_year} — from the PDF (manual)
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {FILING_ITEM_FIELDS.map((f) => (
+          <label key={f} className="text-[10px] text-muted-foreground">
+            {f.replace(/_/g, " ")}
+            <Input
+              value={vals[f]}
+              onChange={(e) => set(f, e.target.value)}
+              className="mt-0.5 h-7 text-[11px]"
+            />
+          </label>
+        ))}
+        <label className="text-[10px] text-muted-foreground">
+          fundraiser firm
+          <Input
+            value={vals.fundraiser_firm}
+            onChange={(e) => set("fundraiser_firm", e.target.value)}
+            className="mt-0.5 h-7 text-[11px]"
+          />
+        </label>
+        <label className="text-[10px] text-muted-foreground">
+          preparer firm
+          <Input
+            value={vals.preparer_firm}
+            onChange={(e) => set("preparer_firm", e.target.value)}
+            className="mt-0.5 h-7 text-[11px]"
+          />
+        </label>
+      </div>
+      <Button size="sm" className="mt-1.5 h-7" disabled={saving} onClick={save}>
+        {saving ? (
+          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Check className="mr-1 h-3.5 w-3.5" />
+        )}
+        Save PDF fields
+      </Button>
+    </div>
+  );
+}
+
+// ---- Campus context panel ----------------------------------------------------
+const CTX_NUM: [keyof CampusContext, string][] = [
+  ["enrollment", "Enrollment"],
+  ["undergrad_enrollment", "Undergrad"],
+  ["business_enrollment", "Business school"],
+  ["tuition_in_state", "Tuition (in-state)"],
+  ["tuition_out_state", "Tuition (out-state)"],
+  ["greek_population_pct", "Greek %"],
+];
+const CTX_DATE: [keyof CampusContext, string][] = [
+  ["rush_fall_start", "Rush (fall)"],
+  ["rush_spring_start", "Rush (spring)"],
+  ["semester_start", "Semester start"],
+  ["semester_end", "Semester end"],
+];
+const CTX_TEXT: [keyof CampusContext, string][] = [
+  ["midterm_window", "Midterm window"],
+  ["finals_window", "Finals window"],
+  ["football_schedule_url", "Football schedule URL"],
+  ["fsl_grade_report_url", "FSL grade report URL"],
+];
+
+function CampusContextPanel({ campus }: { campus: GreekCampus }) {
+  const ctxQuery = useQuery({
+    queryKey: ["campus-context", campus.id],
+    queryFn: () => fetchCampusContext(campus.id),
+  });
+  const [open, setOpen] = useState(false);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  if (ctxQuery.data && !loaded) {
+    const c = ctxQuery.data as unknown as Record<string, unknown>;
+    const o: Record<string, string> = {};
+    for (const [k] of [...CTX_NUM, ...CTX_DATE, ...CTX_TEXT])
+      o[k as string] = c[k as string] != null ? String(c[k as string]) : "";
+    o.notes = (c.notes as string) ?? "";
+    setVals(o);
+    setLoaded(true);
+  }
+  const set = (k: string, v: string) => setVals((s) => ({ ...s, [k]: v }));
+
+  async function save() {
+    setSaving(true);
+    try {
+      const patch: Record<string, unknown> = {};
+      for (const [k] of CTX_NUM) {
+        const r = (vals[k as string] ?? "").replace(/[^0-9.-]/g, "");
+        patch[k as string] = r === "" ? null : Number(r);
+      }
+      for (const [k] of CTX_DATE) patch[k as string] = vals[k as string]?.trim() || null;
+      for (const [k] of CTX_TEXT) patch[k as string] = vals[k as string]?.trim() || null;
+      patch.notes = vals.notes?.trim() || null;
+      await upsertCampusContext(campus.id, patch as Partial<CampusContext>);
+      toast.success("Campus context saved.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-[11px] font-semibold uppercase text-muted-foreground"
+      >
+        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        Campus context
+      </button>
+      {open && (
+        <div className="mt-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            {[...CTX_NUM, ...CTX_TEXT].map(([k, label]) => (
+              <label key={k as string} className="text-[10px] text-muted-foreground">
+                {label}
+                <Input
+                  value={vals[k as string] ?? ""}
+                  onChange={(e) => set(k as string, e.target.value)}
+                  className="mt-0.5 h-7 text-[11px]"
+                />
+              </label>
+            ))}
+            {CTX_DATE.map(([k, label]) => (
+              <label key={k as string} className="text-[10px] text-muted-foreground">
+                {label}
+                <Input
+                  type="date"
+                  value={vals[k as string] ?? ""}
+                  onChange={(e) => set(k as string, e.target.value)}
+                  className="mt-0.5 h-7 text-[11px]"
+                />
+              </label>
+            ))}
+          </div>
+          <Textarea
+            value={vals.notes ?? ""}
+            onChange={(e) => set("notes", e.target.value)}
+            placeholder="Notes"
+            className="mt-1.5 min-h-[44px] text-[11px]"
+          />
+          <Button size="sm" className="mt-1.5 h-7" disabled={saving} onClick={save}>
+            {saving ? (
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="mr-1 h-3.5 w-3.5" />
+            )}
+            Save context
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- GPA bulk import ---------------------------------------------------------
+function GpaImport({ onDone }: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [tsv, setTsv] = useState("");
+  const [term, setTerm] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [unmatched, setUnmatched] = useState<{ org: string; gpa: number | null }[]>([]);
+
+  async function run() {
+    if (!term.trim()) return toast.error("Enter a term (e.g. fall_2025).");
+    if (!tsv.trim()) return toast.error("Paste the GPA report (TSV).");
+    setBusy(true);
+    setUnmatched([]);
+    try {
+      const r = await importChapterGpaTsv(tsv, term.trim(), sourceUrl.trim() || null);
+      setUnmatched(r.unmatched);
+      toast.success(`Imported ${r.imported} GPA rows; ${r.unmatched.length} unmatched.`);
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Import failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-sm font-semibold"
+      >
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        <Upload className="h-4 w-4" /> GPA import (TSV)
+      </button>
+      {open && (
+        <div className="mt-2 grid gap-2">
+          <div className="flex gap-2">
+            <Input
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder="term e.g. fall_2025"
+              className="w-40 text-sm"
+            />
+            <Input
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="source URL (optional)"
+              className="flex-1 text-sm"
+            />
+          </div>
+          <Textarea
+            value={tsv}
+            onChange={(e) => setTsv(e.target.value)}
+            placeholder="org [tab] gpa [tab] rank [tab] members"
+            className="min-h-[80px] font-mono text-[11px]"
+          />
+          <Button size="sm" onClick={run} disabled={busy}>
+            {busy ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-1 h-4 w-4" />
+            )}
+            Import GPA
+          </Button>
+          {unmatched.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-800">
+              Unmatched (pair manually): {unmatched.map((u) => u.org).join(", ")}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Leads tab: orgs ranked by signal count ---------------------------------
+function LeadsTab({
+  catalog,
+  signalsByOrg,
+  filings,
+  people,
+  onPersonChanged,
+}: {
+  catalog: GreekOrgCatalog[];
+  signalsByOrg: Map<string, SignalKey[]>;
+  filings: Pick<GreekFiling, "org_id" | "tax_year" | "revenue">[];
+  people: GreekPerson[];
+  onPersonChanged: () => void;
+}) {
+  const nameById = useMemo(() => new Map(catalog.map((o) => [o.id, o.name])), [catalog]);
+  const latestRevByOrg = useMemo(() => {
+    const m = new Map<string, { year: number; revenue: number | null }>();
+    for (const f of filings) {
+      if (!f.org_id || f.tax_year == null) continue;
+      const cur = m.get(f.org_id);
+      if (!cur || f.tax_year > cur.year) m.set(f.org_id, { year: f.tax_year, revenue: f.revenue });
+    }
+    return m;
+  }, [filings]);
+  const topPersonByOrg = useMemo(() => {
+    const m = new Map<string, GreekPerson>();
+    for (const p of people) {
+      const cur = m.get(p.org_id);
+      if (!cur || p.years_count > cur.years_count) m.set(p.org_id, p);
+    }
+    return m;
+  }, [people]);
+
+  const rows = useMemo(
+    () =>
+      [...signalsByOrg.entries()]
+        .map(([orgId, sig]) => ({ orgId, sig }))
+        .sort((a, b) => b.sig.length - a.sig.length),
+    [signalsByOrg],
+  );
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+        No signals yet. Enrich chapters' filings and import GPA to surface leads.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map(({ orgId, sig }) => {
+        const rev = latestRevByOrg.get(orgId);
+        const top = topPersonByOrg.get(orgId);
+        return (
+          <div key={orgId} className="rounded-lg border border-border bg-card/60 p-3 text-xs">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-semibold">{nameById.get(orgId) ?? "—"}</span>
+              <Badge className="bg-amber-100 text-[10px] text-amber-700">
+                {sig.length} signal{sig.length === 1 ? "" : "s"}
+              </Badge>
+              {rev && (
+                <span className="text-muted-foreground">
+                  {rev.year} rev {fmtMoney(rev.revenue)}
+                </span>
+              )}
+            </div>
+            <div className="mt-1">
+              <SignalChips signals={sig} />
+            </div>
+            {top ? (
+              <div className="mt-2">
+                <div className="mb-0.5 text-[10px] uppercase text-muted-foreground">
+                  Top-tenure contact
+                </div>
+                <PersonRow
+                  p={top}
+                  orgName={nameById.get(orgId) ?? "—"}
+                  onChanged={onPersonChanged}
+                />
+              </div>
+            ) : (
+              <div className="mt-1 text-[10px] text-muted-foreground">No officers logged yet.</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
