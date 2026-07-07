@@ -41,6 +41,7 @@ import {
   type RedditMention,
 } from "@/lib/reddit";
 import { fetchRedditPost, refreshRedditMentions } from "@/lib/reddit.functions";
+import { parseRedditPaste } from "@/lib/reddit-paste";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -793,6 +794,7 @@ function QuickAdd({
   const [notes, setNotes] = useState("");
   const [snippet, setSnippet] = useState<string | null>(null);
   const [postedAt, setPostedAt] = useState<string | null>(null);
+  const [pasteBlob, setPasteBlob] = useState("");
   const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
@@ -802,6 +804,26 @@ function QuickAdd({
   useEffect(() => {
     if (activeCampusId) setCampusId(activeCampusId);
   }, [activeCampusId]);
+
+  // PRIMARY path: paste the whole Reddit page → heuristic parse prefills the form.
+  // If the paste (or URL field) contains a post URL, we ALSO fire the .json fetch
+  // as a silent first attempt to enrich — it may 403, in which case the parse wins.
+  function applyPaste(text: string) {
+    const p = parseRedditPaste(text);
+    if (p.title) setTitle(p.title);
+    if (p.author) setAuthor(p.author);
+    if (p.snippet) setSnippet(p.snippet);
+    if (p.posted_at) setPostedAt(p.posted_at);
+    if (p.url) setUrl(p.url);
+    if (!campusId && p.subreddit) {
+      const match = campuses.find(
+        (c) => (c.subreddit ?? "").toLowerCase() === p.subreddit!.toLowerCase(),
+      );
+      if (match) setCampusId(match.id);
+    }
+    if (p.title || p.author || p.snippet || p.url) setAutoFilled(true);
+    if (p.url) void tryAutofill(p.url);
+  }
 
   // On paste/blur of a Reddit URL: fetch the post once and prefill. Silent on
   // failure — Lee just types it in manually.
@@ -863,6 +885,7 @@ function QuickAdd({
       setNotes("");
       setSnippet(null);
       setPostedAt(null);
+      setPasteBlob("");
       setAutoFilled(false);
       onAdded();
     } catch (e) {
@@ -883,6 +906,18 @@ function QuickAdd({
       </button>
       {open && (
         <div className="grid gap-2 border-t border-border p-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Textarea
+              value={pasteBlob}
+              onChange={(e) => setPasteBlob(e.target.value)}
+              onPaste={(e) => applyPaste(e.clipboardData.getData("text"))}
+              placeholder="Paste the whole Reddit page here to auto-fill…"
+              className="min-h-[60px] text-[11px]"
+            />
+            <div className="mt-0.5 text-[10px] text-muted-foreground">
+              Open the post → Ctrl+A, Ctrl+C → paste here. Everything below stays editable.
+            </div>
+          </div>
           <select
             value={campusId}
             onChange={(e) => setCampusId(e.target.value)}
