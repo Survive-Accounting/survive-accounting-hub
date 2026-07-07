@@ -21,21 +21,69 @@ export interface RedditMention {
   url: string | null;
   title: string | null;
   snippet: string | null;
-  author: string | null;
+  author: string | null; // reddit username
   posted_at: string | null;
   matched_terms: string[] | null;
   found_at: string;
-  status: string; // new | reviewed | engaged | ignored
+  status: string; // open | sent | engaged | ignored
   notes: string | null;
+  starred: boolean;
+  is_accounting_major: boolean | null;
+  taking_course: string | null; // family key: intro_1 | intro_2 | intermediate_1 | intermediate_2
+  taking_term: string | null; // e.g. "Fall 2025"
+  sent_via: string[] | null; // dm | comment
 }
 
-export const REDDIT_STATUSES = ["new", "reviewed", "engaged", "ignored"] as const;
+export const REDDIT_STATUSES = ["open", "sent", "engaged", "ignored"] as const;
 export type RedditStatus = (typeof REDDIT_STATUSES)[number];
 
-/** One-click status cycle: new → reviewed → engaged → ignored → new. */
+/** One-click status cycle: open → sent → engaged → ignored → open. */
 export function nextRedditStatus(s: string): RedditStatus {
   const i = REDDIT_STATUSES.indexOf(s as RedditStatus);
   return REDDIT_STATUSES[(i + 1) % REDDIT_STATUSES.length];
+}
+
+export const SENT_CHANNELS = ["dm", "comment"] as const;
+
+/** Course families a student might mention taking. */
+export const COURSE_FAMILIES = [
+  { key: "intro_1", label: "Intro 1" },
+  { key: "intro_2", label: "Intro 2" },
+  { key: "intermediate_1", label: "IA1" },
+  { key: "intermediate_2", label: "IA2" },
+] as const;
+
+export function courseFamilyLabel(key: string | null): string {
+  return COURSE_FAMILIES.find((f) => f.key === key)?.label ?? key ?? "";
+}
+
+/** Loose forward projection: if a student is taking `family` in `term`, guess the
+ *  rest of the sequence one long semester at a time (Fall→Spring→Fall, skipping
+ *  summer). Returns the timeline from the current course onward. Empty if the term
+ *  can't be parsed. Purely a heuristic for later follow-up timing. */
+export function projectSchedule(
+  family: string | null,
+  term: string | null,
+): { label: string; term: string }[] {
+  if (!family || !term) return [];
+  const m = term.match(/(fall|spring)\s*'?(\d{2,4})/i);
+  if (!m) return [];
+  let season = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
+  let year = Number(m[2].length === 2 ? `20${m[2]}` : m[2]);
+  const startIdx = COURSE_FAMILIES.findIndex((f) => f.key === family);
+  if (startIdx < 0) return [];
+  const out: { label: string; term: string }[] = [];
+  for (let i = startIdx; i < COURSE_FAMILIES.length; i++) {
+    out.push({ label: COURSE_FAMILIES[i].label, term: `${season} ${year}` });
+    // advance one long semester
+    if (season === "Fall") {
+      season = "Spring";
+      year += 1;
+    } else {
+      season = "Fall";
+    }
+  }
+  return out;
 }
 
 /** course_family_codes_json can be an object or a double-encoded JSON string. */
@@ -135,12 +183,29 @@ export async function addRedditMention(input: {
   subreddit: string | null;
   url: string;
   title: string;
+  author?: string | null;
   snippet?: string | null;
   notes?: string | null;
   matched_terms?: string[];
+  is_accounting_major?: boolean | null;
+  taking_course?: string | null;
+  taking_term?: string | null;
 }): Promise<void> {
   const post_id = extractRedditPostId(input.url);
   if (!post_id) throw new Error("Could not read a post id from that URL.");
+
+  const fields = {
+    campus_id: input.campus_id,
+    subreddit: input.subreddit,
+    url: input.url.trim(),
+    title: input.title.trim(),
+    author: input.author?.trim() || null,
+    snippet: input.snippet ?? null,
+    notes: input.notes ?? null,
+    is_accounting_major: input.is_accounting_major ?? null,
+    taking_course: input.taking_course || null,
+    taking_term: input.taking_term?.trim() || null,
+  };
 
   const { data: existing } = await (supabase.from("reddit_mentions" as never) as any)
     .select("id, matched_terms")
@@ -152,40 +217,48 @@ export async function addRedditMention(input: {
       ...new Set([...(existing.matched_terms ?? []), ...(input.matched_terms ?? [])]),
     ];
     const { error } = await (supabase.from("reddit_mentions" as never) as any)
-      .update({
-        campus_id: input.campus_id,
-        subreddit: input.subreddit,
-        url: input.url.trim(),
-        title: input.title.trim(),
-        snippet: input.snippet ?? null,
-        notes: input.notes ?? null,
-        matched_terms: merged,
-      })
+      .update({ ...fields, matched_terms: merged })
       .eq("id", existing.id);
     if (error) throw new Error(error.message);
     return;
   }
 
   const { error } = await (supabase.from("reddit_mentions" as never) as any).insert({
-    campus_id: input.campus_id,
-    subreddit: input.subreddit,
+    ...fields,
     post_id,
-    url: input.url.trim(),
-    title: input.title.trim(),
-    snippet: input.snippet ?? null,
-    notes: input.notes ?? null,
     matched_terms: input.matched_terms ?? [],
-    status: "new",
+    status: "open",
   });
   if (error) throw new Error(error.message);
 }
 
 export async function updateRedditMention(
   id: string,
-  patch: Partial<Pick<RedditMention, "status" | "notes">>,
+  patch: Partial<
+    Pick<
+      RedditMention,
+      | "status"
+      | "notes"
+      | "starred"
+      | "campus_id"
+      | "subreddit"
+      | "author"
+      | "title"
+      | "url"
+      | "is_accounting_major"
+      | "taking_course"
+      | "taking_term"
+      | "sent_via"
+    >
+  >,
 ): Promise<void> {
   const { error } = await (supabase.from("reddit_mentions" as never) as any)
     .update(patch)
     .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteRedditMention(id: string): Promise<void> {
+  const { error } = await (supabase.from("reddit_mentions" as never) as any).delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

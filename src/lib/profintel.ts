@@ -79,6 +79,75 @@ export function coursePrefix(j: ProfIntelLead["rmp_course_match_json"]): string 
   return best;
 }
 
+// --- Course-family labels (Metrics shows the family; code lives in a tooltip) ---
+export const FAMILY_SHORT: Record<string, string> = {
+  intro_1: "Intro 1",
+  intro_2: "Intro 2",
+  intermediate_1: "IA1",
+  intermediate_2: "IA2",
+};
+const FAMILY_ORDER = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
+const normCode = (s: string) => s.trim().toUpperCase().replace(/\s+/g, " ");
+
+/** course_family_codes_json may be an object or a double-encoded JSON string. */
+function parseFamilyCodes(v: unknown): Record<string, string> {
+  let val = v;
+  if (typeof val === "string") {
+    try {
+      val = JSON.parse(val);
+    } catch {
+      return {};
+    }
+  }
+  if (val && typeof val === "object" && !Array.isArray(val)) {
+    const out: Record<string, string> = {};
+    for (const [k, code] of Object.entries(val as Record<string, unknown>)) {
+      if (typeof code === "string" && code.trim()) out[k] = code.trim();
+    }
+    return out;
+  }
+  return {};
+}
+
+/** Per-campus map: normalized course code → family key (e.g. "ACCY 201" → intro_1). */
+export async function fetchCampusFamilyMaps(): Promise<Record<string, Record<string, string>>> {
+  const { data, error } = await (supabase.from("campuses" as never) as any)
+    .select("id, course_family_codes_json")
+    .eq("active_roster", "sec");
+  if (error) return {};
+  const out: Record<string, Record<string, string>> = {};
+  for (const c of (data ?? []) as Array<{ id: string; course_family_codes_json: unknown }>) {
+    const codes = parseFamilyCodes(c.course_family_codes_json);
+    const inv: Record<string, string> = {};
+    for (const [fam, code] of Object.entries(codes)) inv[normCode(code)] = fam;
+    out[c.id] = inv;
+  }
+  return out;
+}
+
+/** Resolve a send's comma-joined course codes to campus-agnostic family labels
+ *  (Intro 1 / Intro 2 / IA1 / IA2), each carrying its campus code for a tooltip.
+ *  Unmapped codes fall back to showing the raw code. Ordered Intro→IA. */
+export function familiesForMatches(
+  courseMatches: string | null | undefined,
+  codeMap: Record<string, string> | undefined,
+): { label: string; code: string; family: string | null }[] {
+  if (!courseMatches) return [];
+  const byLabel = new Map<string, { label: string; code: string; family: string | null }>();
+  for (const raw of courseMatches.split(",")) {
+    const code = raw.trim();
+    if (!code) continue;
+    const family = codeMap?.[normCode(code)] ?? null;
+    const label = family ? (FAMILY_SHORT[family] ?? family) : code;
+    if (!byLabel.has(label)) byLabel.set(label, { label, code, family });
+  }
+  return [...byLabel.values()].sort((a, b) => {
+    const ia = a.family ? FAMILY_ORDER.indexOf(a.family) : 99;
+    const ib = b.family ? FAMILY_ORDER.indexOf(b.family) : 99;
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.label.localeCompare(b.label);
+  });
+}
+
 /** How to address the lead in a greeting, matching the old email template's rule:
  * PhDs are "Dr. Lastname"; everyone else gets their first name (no reliable gender
  * data, so first name avoids any chance of misgendering). */
