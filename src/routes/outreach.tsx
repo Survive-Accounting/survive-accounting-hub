@@ -22,6 +22,7 @@ import {
   MailCheck,
   Check,
   UserCheck,
+  Users,
 } from "lucide-react";
 
 import {
@@ -102,6 +103,15 @@ const REDDIT_SECTION: Section = {
   icon: MessageSquare,
   owns: (p) => p.startsWith("/outreach/reddit"),
   subtabs: [{ label: "Listening", to: "/outreach/reddit" }],
+};
+
+// Parent-group tracker — manual inventory of campus parent Facebook groups.
+const PARENT_GROUPS_SECTION: Section = {
+  key: "parent-groups",
+  label: "Parent groups",
+  icon: Users,
+  owns: (p) => p.startsWith("/outreach/parent-groups"),
+  subtabs: [{ label: "Tracker", to: "/outreach/parent-groups" }],
 };
 
 // V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
@@ -189,8 +199,14 @@ function OutreachShell() {
 
   const sections: Section[] =
     version === "v2"
-      ? [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, REDDIT_SECTION]
-      : [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, REDDIT_SECTION, ...V1_SECTIONS];
+      ? [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION]
+      : [
+          PROFINTEL_SECTION,
+          ACTIVE_ROSTER_SECTION,
+          REDDIT_SECTION,
+          PARENT_GROUPS_SECTION,
+          ...V1_SECTIONS,
+        ];
   const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));
 

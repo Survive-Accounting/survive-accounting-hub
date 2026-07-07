@@ -24,6 +24,7 @@ import {
   type RedditMention,
 } from "@/lib/reddit";
 import { refreshRedditMentions } from "@/lib/reddit.functions";
+import { FilterPill } from "@/components/outreach/FilterPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -272,30 +273,6 @@ function RedditListener() {
         )}
       </div>
     </div>
-  );
-}
-
-function FilterPill({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize transition-colors ${
-        active
-          ? "border-primary bg-primary/10 text-primary"
-          : "border-border bg-background hover:bg-muted"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
