@@ -35,6 +35,7 @@ import { Route as OutreachOrdersRouteImport } from './routes/outreach.orders'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
 import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
+import { Route as OutreachGreekOrgsRouteImport } from './routes/outreach.greek-orgs'
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
@@ -182,6 +183,11 @@ const OutreachLandingRoute = OutreachLandingRouteImport.update({
   path: '/landing',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachGreekOrgsRoute = OutreachGreekOrgsRouteImport.update({
+  id: '/greek-orgs',
+  path: '/greek-orgs',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachCampusesRoute = OutreachCampusesRouteImport.update({
   id: '/campuses',
   path: '/campuses',
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
@@ -311,6 +318,7 @@ export interface FileRoutesByTo {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
@@ -353,6 +361,7 @@ export interface FileRoutesById {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
@@ -396,6 +405,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/greek-orgs'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
@@ -436,6 +446,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/greek-orgs'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
@@ -477,6 +488,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/greek-orgs'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
@@ -701,6 +713,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLandingRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/greek-orgs': {
+      id: '/outreach/greek-orgs'
+      path: '/greek-orgs'
+      fullPath: '/outreach/greek-orgs'
+      preLoaderRoute: typeof OutreachGreekOrgsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/campuses': {
       id: '/outreach/campuses'
       path: '/campuses'
@@ -826,6 +845,7 @@ interface OutreachRouteChildren {
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
+  OutreachGreekOrgsRoute: typeof OutreachGreekOrgsRoute
   OutreachLandingRoute: typeof OutreachLandingRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
@@ -847,6 +867,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,
+  OutreachGreekOrgsRoute: OutreachGreekOrgsRoute,
   OutreachLandingRoute: OutreachLandingRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
