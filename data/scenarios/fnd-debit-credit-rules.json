@@ -1,0 +1,71 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 2, "name": "Accounts & Debits and Credits" },
+  "doc": {
+    "slug": "fnd-debit-credit-rules",
+    "title": "Debits and credits in action",
+    "event": "Maya's studio has three events this week: it buys a $1,200 computer with cash; it pays $800 rent; it bills a client $2,000 for finished work. Record each — and watch the rules, not your instincts.",
+    "courseFamilies": ["foundations"],
+    "axes": [
+      { "key": "event", "label": "The event", "options": [
+        { "value": "asset_swap", "label": "Buy computer (cash)" },
+        { "value": "pay_expense", "label": "Pay rent" },
+        { "value": "earn_revenue", "label": "Bill a client" }
+      ]}
+    ],
+    "variants": [
+      { "id": "swap", "label": "One asset trades for another — equation unchanged",
+        "conditions": { "event": "asset_swap" },
+        "entries": [
+          { "id": "buy", "caption": "Buy a $1,200 computer with cash",
+            "lines": [
+              { "id": "eq", "account": "Equipment", "side": "debit", "label": "asset up → debit", "amount": 1200,
+                "why": "Equipment is an asset arriving — assets grow with debits.",
+                "trap": "Not an expense! The computer will serve for years — it's a resource acquired, not a cost used up. (Using it up over time is depreciation — Ch. 5's world.)" },
+              { "id": "cash", "account": "Cash", "side": "credit", "label": "asset down → credit", "amount": 1200,
+                "why": "Cash is an asset leaving — assets shrink with credits.",
+                "trap": "Total assets didn't change: one asset swapped for another. A = L + E never even flinched." } ] } ] },
+      { "id": "expense", "label": "A cost is used up — equity shrinks via an expense",
+        "conditions": { "event": "pay_expense" },
+        "entries": [
+          { "id": "rent", "caption": "Pay $800 rent for this month",
+            "lines": [
+              { "id": "re", "account": "Rent Expense", "side": "debit", "label": "expense up → debit", "amount": 800,
+                "why": "This month's space is used up as you occupy it — a cost consumed NOW is an expense, and expenses grow with debits.",
+                "trap": "'Debit' does not mean bad and 'credit' does not mean good — they're directions, not judgments. Expenses are debit-normal because they REDUCE equity." },
+              { "id": "cash", "account": "Cash", "side": "credit", "label": "asset down → credit", "amount": 800,
+                "why": "Cash out.",
+                "trap": "Paying NEXT month's rent in advance would be Prepaid Rent — an asset — not an expense. When the benefit arrives decides the account." } ] } ] },
+      { "id": "revenue", "label": "Work is earned — equity grows via revenue (no cash yet!)",
+        "conditions": { "event": "earn_revenue" },
+        "entries": [
+          { "id": "bill", "caption": "Bill a client $2,000 for completed work",
+            "lines": [
+              { "id": "ar", "account": "Accounts Receivable", "side": "debit", "label": "asset up → debit", "amount": 2000,
+                "why": "A right to collect $2,000 is an asset the moment the work is DONE.",
+                "trap": "Revenue doesn't wait for cash. Earned = revenue, even if the money comes next month. This one idea (accrual accounting) is half of Intro 1." },
+              { "id": "rev", "account": "Service Revenue", "side": "credit", "label": "revenue up → credit", "amount": 2000,
+                "why": "Revenue grows with credits because earnings grow EQUITY, and equity is credit-normal.",
+                "trap": "Crediting Cash here is the #1 beginner reflex — but no cash moved. The credit answers 'why did assets grow?': because we earned it." } ] } ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "The whole rulebook: Assets & Expenses grow with DEBITS. Liabilities, Equity & Revenues grow with CREDITS. Shrinking = the opposite side. Every entry: debits = credits.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Ask two questions per line: WHICH family is this account? and did it GROW or SHRINK? The rules do the rest — instincts about 'debit sounds negative' will only betray you.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-bill",
+        "prompt": "The studio bills a client $2,000 for finished work (payment due in 30 days). The entry is…",
+        "answerExpr": "2000",
+        "distractors": [
+          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "'No cash, no entry' is the cash-basis trap. The work is EARNED, so revenue is recognized now: Dr Accounts Receivable 2,000 / Cr Service Revenue 2,000. Cash arriving later just swaps AR for Cash." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" }, { "account": "Equipment" }, { "account": "Rent Expense" }, { "account": "Accounts Receivable" }, { "account": "Service Revenue" },
+        { "account": "Accounts Payable", "decoy": true }, { "account": "Owner's Capital", "decoy": true }
+      ],
+      "scaffold": "Per line: name the family, name the direction, apply DEALER. Never start from which word 'sounds right.'"
+    }
+  }
+}

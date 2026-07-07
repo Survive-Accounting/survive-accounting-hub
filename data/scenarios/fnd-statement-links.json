@@ -1,0 +1,46 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 6, "name": "Financial Statements" },
+  "doc": {
+    "slug": "fnd-statement-links",
+    "title": "The statements are a relay — IS → RE → BS",
+    "event": "Year-end totals for Maya's studio: revenues $48,000, expenses $31,000, beginning owner's capital $10,000, owner draws $8,000, assets $27,000, liabilities $8,000. Build the three statements and prove they connect.",
+    "courseFamilies": ["foundations"],
+    "axes": [],
+    "variants": [
+      { "id": "relay", "label": "Each statement hands its answer to the next", "conditions": {},
+        "entries": [],
+        "computationPaths": [
+          { "id": "is", "narration": "INCOME STATEMENT — a period's performance: revenues earned minus expenses incurred. Its bottom line is the baton.",
+            "steps": [
+              { "label": "Revenues", "formulaText": "48,000" },
+              { "label": "− Expenses", "formulaText": "31,000" },
+              { "label": "Net income", "formulaText": "= 17,000 → passes to the equity statement" } ] },
+          { "id": "re", "narration": "STATEMENT OF OWNER'S EQUITY — how the owner's claim moved: contributions and income up, draws down.",
+            "steps": [
+              { "label": "Beginning capital", "formulaText": "10,000" },
+              { "label": "+ Net income", "formulaText": "17,000 (the baton from the IS)" },
+              { "label": "− Draws", "formulaText": "8,000" },
+              { "label": "Ending capital", "formulaText": "= 19,000 → passes to the balance sheet" } ] },
+          { "id": "bs", "narration": "BALANCE SHEET — a snapshot at the last instant of the period: A = L + E, with E being the baton just handed over. If it doesn't balance, the relay dropped somewhere upstream.",
+            "steps": [
+              { "label": "Assets", "formulaText": "27,000" },
+              { "label": "Liabilities + Ending capital", "formulaText": "8,000 + 19,000 = 27,000 ✓" } ] }
+        ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "The relay: Net income (IS) → Statement of Owner's Equity → Ending capital → Balance Sheet's equity. Prepare them in that order; each needs the previous one's answer.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "IS = a video of the period. BS = a photo of the last day. Equity's statement is the editing room where the two meet.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Draws (and dividends) are NOT expenses and never appear on the income statement — they're distributions of equity, living only on the equity statement.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-relay",
+        "prompt": "Revenues 48,000, expenses 31,000, beginning capital 10,000, draws 8,000. Ending owner's capital =",
+        "answerExpr": "19000",
+        "distractors": [
+          { "expr": "27000", "misconceptionId": "accrual_fraction_missed", "feedback": "27,000 forgets the draws — the owner took 8,000 out. 10,000 + 17,000 − 8,000 = 19,000." },
+          { "expr": "9000", "misconceptionId": "cash_vs_expense", "feedback": "9,000 treats draws as an expense inside net income AND subtracts them again — draws bypass the income statement entirely and subtract once, on the equity statement: 10,000 + 17,000 − 8,000 = 19,000." }
+        ] }
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 5, "name": "Adjusting Entries" },
+  "doc": {
+    "slug": "fnd-deferrals",
+    "title": "Deferrals — cash moved first, adjust later",
+    "event": "Two December 31 adjustments: the studio paid $1,200 on Oct 1 for 12 months of insurance (3 months now used), and it received $600 on Dec 1 for a 3-month project (1 month now earned). Prepare both adjusting entries.",
+    "courseFamilies": ["foundations"],
+    "axes": [
+      { "key": "kind", "label": "Deferral type", "options": [
+        { "value": "prepaid", "label": "Prepaid expense" },
+        { "value": "unearned", "label": "Unearned revenue" }
+      ]}
+    ],
+    "variants": [
+      { "id": "prepaid", "label": "Asset drains into expense as time passes", "conditions": { "kind": "prepaid" },
+        "entries": [
+          { "id": "adj", "caption": "Dec 31: 3 of 12 insurance months used (1,200 × 3/12)",
+            "lines": [
+              { "id": "ie", "account": "Insurance Expense", "side": "debit", "label": "the used slice", "amount": 300,
+                "why": "Oct–Dec's coverage is consumed — 3/12 of the 1,200 becomes expense.",
+                "trap": "Not the full 1,200 — nine months of future coverage is still an asset you own." },
+              { "id": "pi", "account": "Prepaid Insurance", "side": "credit", "label": "asset drains", "amount": 300,
+                "why": "The asset shrinks from 1,200 to 900 — exactly the unused months remaining.",
+                "trap": "No Cash line! Cash moved back in October. Adjusting entries NEVER touch cash — that's their defining feature." } ] } ] },
+      { "id": "unearned", "label": "Liability converts to revenue as work is done", "conditions": { "kind": "unearned" },
+        "entries": [
+          { "id": "adj", "caption": "Dec 31: 1 of 3 project months earned (600 × 1/3)",
+            "lines": [
+              { "id": "ur", "account": "Unearned Revenue", "side": "debit", "label": "owe less work", "amount": 200,
+                "why": "One month delivered — the liability shrinks from 600 to 400.",
+                "trap": "Debiting a liability DOWN, not recording an expense — read the account family before the direction." },
+              { "id": "rev", "account": "Service Revenue", "side": "credit", "label": "the earned slice", "amount": 200,
+                "why": "Revenue follows the work: 1/3 done, 1/3 earned.",
+                "trap": "The December cash receipt was NOT revenue then; this adjustment is where revenue actually happens." } ] } ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Deferral = cash FIRST, income effect LATER. Prepaid: Dr Expense / Cr the prepaid asset (used slice). Unearned: Dr Unearned Revenue / Cr Revenue (earned slice). Slice = amount × time used ÷ total time.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Adjusting entries never include Cash. If you've written Cash in an adjustment, it isn't an adjustment.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-prepaid",
+        "prompt": "$1,200 paid Oct 1 for 12 months of insurance. The Dec 31 adjusting entry debits Insurance Expense for…",
+        "answerExpr": "300",
+        "distractors": [
+          { "expr": "1200", "misconceptionId": "accrual_fraction_missed", "feedback": "The full 1,200 expenses only if ALL 12 months were used — only 3 have passed. 1,200 × 3/12 = 300; the other 900 stays in Prepaid Insurance." },
+          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "No-cash-this-month doesn't mean no expense — three months of coverage were consumed. That mismatch is exactly why adjusting entries exist." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Insurance Expense" }, { "account": "Prepaid Insurance" }, { "account": "Unearned Revenue" }, { "account": "Service Revenue" },
+        { "account": "Cash", "decoy": true }
+      ],
+      "scaffold": "Compute the slice (time used ÷ total time), then move it: asset→expense, or liability→revenue. Cash is always the decoy in this chapter."
+    }
+  }
+}

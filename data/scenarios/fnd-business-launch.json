@@ -1,0 +1,68 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 3, "name": "Journal Entries" },
+  "doc": {
+    "slug": "fnd-business-launch",
+    "title": "A business's first week — three entries",
+    "event": "Rico opens a lawn-care company: he invests $5,000 cash; buys a $3,000 mower paying $1,000 down with the rest on a note; and finishes his first job for $400 cash. Journalize the week.",
+    "courseFamilies": ["foundations"],
+    "isSequence": true,
+    "axes": [],
+    "variants": [
+      { "id": "week-one", "label": "Invest → equip → earn", "conditions": {},
+        "entries": [
+          { "id": "invest", "caption": "Day 1 — owner invests $5,000",
+            "lines": [
+              { "id": "c1", "account": "Cash", "side": "debit", "label": "asset in", "amount": 5000,
+                "why": "The business's first asset.", "trap": "Business ≠ Rico. Its books track ITS stuff." },
+              { "id": "cap", "account": "Owner's Capital", "side": "credit", "label": "owner's claim", "amount": 5000,
+                "why": "Contribution, not earnings.", "trap": "Never Service Revenue — nothing was earned." } ] },
+          { "id": "mower", "caption": "Day 2 — $3,000 mower: $1,000 cash + $2,000 note",
+            "lines": [
+              { "id": "eq", "account": "Equipment", "side": "debit", "label": "full cost of the asset", "amount": 3000,
+                "why": "The asset records at its FULL cost regardless of how it's financed.",
+                "trap": "Not 1,000 — how you PAY never changes what the thing COST." },
+              { "id": "c2", "account": "Cash", "side": "credit", "label": "the down payment", "amount": 1000,
+                "why": "Cash covers part.", "trap": "A three-line (compound) entry is normal — debits (3,000) still equal credits (1,000 + 2,000)." },
+              { "id": "np", "account": "Notes Payable", "side": "credit", "label": "the borrowed rest", "amount": 2000,
+                "why": "A creditor's claim is born — a liability.",
+                "trap": "Borrowing is never revenue and repaying is never expense: loans move A and L, not income." } ] },
+          { "id": "job", "caption": "Day 5 — first job done, $400 cash",
+            "lines": [
+              { "id": "c3", "account": "Cash", "side": "debit", "label": "earned AND collected", "amount": 400,
+                "why": "This time cash and earning happen together.",
+                "trap": "Compare with billing a client (Ch. 2's third event): same revenue credit, different debit." },
+              { "id": "rev", "account": "Service Revenue", "side": "credit", "label": "equity grows by earning", "amount": 400,
+                "why": "The first dollar the business ever EARNED.",
+                "trap": "Now equity has both doors open: 5,000 contributed + 400 earned." } ] }
+        ],
+        "computationPaths": [
+          { "id": "running-eq", "narration": "The equation after each day — always balanced:",
+            "steps": [
+              { "label": "Day 1", "formulaText": "A 5,000 = L 0 + E 5,000" },
+              { "label": "Day 2", "formulaText": "A 7,000 (4,000 cash + 3,000 equip) = L 2,000 + E 5,000" },
+              { "label": "Day 5", "formulaText": "A 7,400 = L 2,000 + E 5,400 ✓" }
+            ] }
+        ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "tip", "body": "Compound entries (3+ lines) are ordinary — the only law is total debits = total credits. Read the event, list what moved, balance it.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Assets record at FULL cost no matter the financing mix. The payment plan splits the CREDITS, never the debit.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-mower",
+        "prompt": "A $3,000 mower is bought with $1,000 cash and a $2,000 note. Equipment is debited for…",
+        "answerExpr": "3000",
+        "distractors": [
+          { "expr": "1000", "misconceptionId": "cash_vs_expense", "feedback": "1,000 is the CASH paid, not the asset's cost. Equipment debits for the full 3,000; the credits split between Cash (1,000) and Notes Payable (2,000)." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" }, { "account": "Owner's Capital" }, { "account": "Equipment" }, { "account": "Notes Payable" }, { "account": "Service Revenue" },
+        { "account": "Mower Expense", "decoy": true }
+      ],
+      "scaffold": "Three days, three entries. Day 2 is the teacher: full cost on the debit, financing mix on the credits."
+    }
+  }
+}

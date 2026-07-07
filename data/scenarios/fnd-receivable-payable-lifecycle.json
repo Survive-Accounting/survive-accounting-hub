@@ -1,0 +1,71 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 4, "name": "Receivables & Payables" },
+  "doc": {
+    "slug": "fnd-receivable-payable-lifecycle",
+    "title": "On credit, both chairs — AR and AP lifecycles",
+    "event": "Same $900 job, two chairs. As the SELLER: the studio finishes work and collects 30 days later. As the BUYER: the studio receives a $900 supply order and pays 30 days later. Journalize each chair's two-entry lifecycle.",
+    "courseFamilies": ["foundations"],
+    "axes": [
+      { "key": "chair", "label": "You are the", "options": [
+        { "value": "seller", "label": "Seller (receivable)" },
+        { "value": "buyer", "label": "Buyer (payable)" }
+      ]}
+    ],
+    "variants": [
+      { "id": "seller", "label": "Earn → collect", "conditions": { "chair": "seller" },
+        "entries": [
+          { "id": "earn", "caption": "Finish the $900 job (payment in 30 days)",
+            "lines": [
+              { "id": "ar", "account": "Accounts Receivable", "side": "debit", "label": "claim is born", "amount": 900,
+                "why": "An IOU in your favor — an asset from the moment the work is done.",
+                "trap": "AR is created by EARNING, never by collecting." },
+              { "id": "rev", "account": "Service Revenue", "side": "credit", "label": "earned now", "amount": 900,
+                "why": "Recognition follows the work.", "trap": "This is the only revenue this job will EVER record — remember that when the cash shows up." } ] },
+          { "id": "collect", "caption": "30 days later — the check arrives",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "asset form changes", "amount": 900,
+                "why": "The claim becomes cash.", "trap": "Total assets unchanged: one asset swapped for another." },
+              { "id": "ar2", "account": "Accounts Receivable", "side": "credit", "label": "claim dies", "amount": 900,
+                "why": "The IOU is settled and leaves the books.",
+                "trap": "NO revenue here — crediting Service Revenue on collection double-counts the job. Most-made error in the chapter." } ] } ] },
+      { "id": "buyer", "label": "Incur → pay", "conditions": { "chair": "buyer" },
+        "entries": [
+          { "id": "incur", "caption": "Receive $900 of supplies (pay in 30 days)",
+            "lines": [
+              { "id": "sup", "account": "Supplies", "side": "debit", "label": "asset arrives", "amount": 900,
+                "why": "You HAVE the supplies now — ownership, not payment, puts them on your books.",
+                "trap": "Supplies are an asset until USED (using them up is an adjusting entry — next chapter)." },
+              { "id": "ap", "account": "Accounts Payable", "side": "credit", "label": "IOU against you", "amount": 900,
+                "why": "The mirror of the seller's AR — their receivable is your payable.",
+                "trap": "One transaction, two sets of books, perfectly mirrored. Accounting is a two-player game." } ] },
+          { "id": "pay", "caption": "30 days later — pay the bill",
+            "lines": [
+              { "id": "ap2", "account": "Accounts Payable", "side": "debit", "label": "IOU settled", "amount": 900,
+                "why": "The liability leaves.",
+                "trap": "NOT Supplies Expense — the supplies were recorded at delivery; paying the bill is pure settlement." },
+              { "id": "cash", "account": "Cash", "side": "credit", "label": "cash out", "amount": 900,
+                "why": "Both sides of the equation shrink together: A −900, L −900. Still balanced.",
+                "trap": "Paying a liability is never an expense — the cost (if any) was counted when incurred." } ] } ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Both lifecycles are two entries: BIRTH (earn→AR+Revenue, or receive→Asset/Expense+AP) then SETTLEMENT (Cash↔AR, or AP↔Cash). Settlement never touches income.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Your AR is someone's AP — every credit sale is a mirror-image pair of entries on two sets of books.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-collect",
+        "prompt": "A client pays the $900 they've owed for 30 days (the job was recorded when finished). Today's credit is…",
+        "answerExpr": "900",
+        "distractors": [
+          { "expr": "1800", "misconceptionId": "prior_period_expense", "feedback": "Crediting Service Revenue today would record the job twice. The revenue lived in the FIRST entry; today is Dr Cash 900 / Cr Accounts Receivable 900 — an asset swap." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Accounts Receivable" }, { "account": "Service Revenue" }, { "account": "Cash" }, { "account": "Supplies" }, { "account": "Accounts Payable" },
+        { "account": "Supplies Expense", "decoy": true }
+      ],
+      "scaffold": "Name the chair, then the phase: birth records the economics; settlement just moves cash against the IOU. If income appears in a settlement entry, stop."
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 5, "name": "Adjusting Entries" },
+  "doc": {
+    "slug": "fnd-accruals",
+    "title": "Accruals — earned or incurred first, cash later",
+    "event": "Two more December 31 adjustments: employees earned $500 of wages in late December (payday is Jan 3), and the studio finished $800 of work in December that won't be billed until January. Prepare both accruals.",
+    "courseFamilies": ["foundations"],
+    "axes": [
+      { "key": "kind", "label": "Accrual type", "options": [
+        { "value": "accrued_expense", "label": "Accrued expense" },
+        { "value": "accrued_revenue", "label": "Accrued revenue" }
+      ]}
+    ],
+    "variants": [
+      { "id": "expense", "label": "Cost incurred, unpaid → expense + payable", "conditions": { "kind": "accrued_expense" },
+        "entries": [
+          { "id": "adj", "caption": "Dec 31: $500 of wages earned by employees, payday Jan 3",
+            "lines": [
+              { "id": "we", "account": "Wages Expense", "side": "debit", "label": "December's cost in December", "amount": 500,
+                "why": "The work happened this year — matching puts the cost in this year, payday or not.",
+                "trap": "Waiting for payday shoves December's cost into January — the exact error adjustments exist to prevent." },
+              { "id": "wp", "account": "Wages Payable", "side": "credit", "label": "owed, not paid", "amount": 500,
+                "why": "A real liability on Dec 31.",
+                "trap": "Jan 3's entry is then Dr Wages Payable / Cr Cash — NOT expense again. The follow-through is where the second point is won or lost." } ] } ] },
+      { "id": "revenue", "label": "Work done, unbilled → receivable + revenue", "conditions": { "kind": "accrued_revenue" },
+        "entries": [
+          { "id": "adj", "caption": "Dec 31: $800 of December work, billing in January",
+            "lines": [
+              { "id": "ar", "account": "Accounts Receivable", "side": "debit", "label": "earned = owed to you", "amount": 800,
+                "why": "The claim exists because the work is done — the invoice is paperwork, not the earning event.",
+                "trap": "'We haven't billed yet' doesn't delay revenue. Earned in December = December's revenue." },
+              { "id": "rev", "account": "Service Revenue", "side": "credit", "label": "December's earnings in December", "amount": 800,
+                "why": "The mirror of the wage accrual — same logic, revenue side.",
+                "trap": "All four adjustment types are the same idea: put the income effect in the period it BELONGS, wherever the cash is." } ] } ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Accrual = income effect FIRST, cash LATER. Accrued expense: Dr Expense / Cr Payable. Accrued revenue: Dr Receivable / Cr Revenue. Later cash settles the payable/receivable — no second income hit.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "The four-type map: cash-first = deferrals (prepaid, unearned) · cash-later = accruals (accrued expense, accrued revenue). Every adjusting entry you'll ever see is one of the four.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-payday",
+        "prompt": "Wages of $500 were accrued Dec 31; payday is Jan 3. The Jan 3 entry debits…",
+        "answerExpr": "500",
+        "distractors": [
+          { "expr": "1000", "misconceptionId": "prior_period_expense", "feedback": "Debiting Wages Expense on payday double-counts December's cost. The accrual already expensed it; Jan 3 is Dr Wages Payable 500 / Cr Cash 500." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Wages Expense" }, { "account": "Wages Payable" }, { "account": "Accounts Receivable" }, { "account": "Service Revenue" },
+        { "account": "Cash", "decoy": true }, { "account": "Unearned Revenue", "decoy": true }
+      ],
+      "scaffold": "Ask: has the economic event happened (work done, cost incurred)? Then it goes in THIS period — pair it with a payable or receivable and leave Cash alone."
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 2, "name": "Accounts & Debits and Credits" },
+  "doc": {
+    "slug": "fnd-account-types",
+    "title": "The five account types",
+    "event": "Sort these accounts into their families and name each one's normal balance: Cash, Accounts Payable, Service Revenue, Rent Expense, Owner's Capital, Supplies, Unearned Revenue, Accounts Receivable.",
+    "courseFamilies": ["foundations"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "classify",
+        "label": "Five families, two teams",
+        "conditions": {},
+        "entries": [],
+        "computationPaths": [
+          { "id": "sort",
+            "narration": "Every account belongs to one of five families — Assets, Liabilities, Equity, Revenues, Expenses — and each family has a NORMAL BALANCE side. Debit team: Assets and Expenses (and Draws). Credit team: Liabilities, Equity, Revenues. An account grows on its normal side and shrinks on the other. That one fact runs every entry you'll ever make.",
+            "steps": [
+              { "label": "Assets (normal: DEBIT)", "formulaText": "Cash · Supplies · Accounts Receivable — things the business has or is owed" },
+              { "label": "Liabilities (normal: CREDIT)", "formulaText": "Accounts Payable · Unearned Revenue — what the business owes (money or work)" },
+              { "label": "Equity (normal: CREDIT)", "formulaText": "Owner's Capital — the owners' claim" },
+              { "label": "Revenues (normal: CREDIT)", "formulaText": "Service Revenue — earnings grow equity, so they live on equity's side" },
+              { "label": "Expenses (normal: DEBIT)", "formulaText": "Rent Expense — costs shrink equity, so they live opposite it" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "mnemonic", "body": "DEALER: Debits grow Draws, Expenses, Assets · credits grow Liabilities, Equity, Revenues. Say it until it's boring — then it's yours.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Unearned Revenue is a LIABILITY, not revenue — cash received for work not yet done means the business OWES the work. The name fools someone on every exam.", "traceRefs": [] },
+      { "kind": "tip", "body": "Why expenses are debit-normal: they REDUCE equity, and reductions live on the opposite side of the thing they reduce. Revenues grow equity, so they share equity's credit side.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-unearned",
+        "prompt": "A client pays $500 in advance for next month's work. Unearned Revenue is a(n)…",
+        "answerExpr": "2",
+        "distractors": [
+          { "expr": "4", "misconceptionId": "cash_vs_expense", "feedback": "Not revenue yet — nothing has been earned. Cash-in-advance creates a LIABILITY: the business owes $500 of work. It becomes revenue only as the work is done." }
+        ] }
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 7, "name": "The Accounting Cycle & Closing" },
+  "doc": {
+    "slug": "fnd-closing-entries",
+    "title": "Closing the books — reset the scoreboard",
+    "event": "Dec 31, after adjustments: Service Revenue shows $48,000, total expenses $31,000, owner draws $8,000. Close the books with the four closing entries and prove Income Summary does its job.",
+    "courseFamilies": ["foundations"],
+    "isSequence": true,
+    "axes": [],
+    "variants": [
+      { "id": "close", "label": "Four entries, one purpose: zero the temporary accounts into capital", "conditions": {},
+        "entries": [
+          { "id": "c1", "caption": "1 — Close revenues to Income Summary",
+            "lines": [
+              { "id": "rev", "account": "Service Revenue", "side": "debit", "label": "zero it out", "amount": 48000,
+                "why": "Revenue is credit-normal, so closing it takes a DEBIT for its full balance — the account resets to zero for next year.",
+                "trap": "Temporary accounts (revenues, expenses, draws) measure ONE period; permanent accounts (A, L, capital) run forever. Closing only touches the temporaries." },
+              { "id": "is1", "account": "Income Summary", "side": "credit", "label": "collect the credits", "amount": 48000,
+                "why": "A one-day scratchpad account that exists only to net income together.",
+                "trap": "Income Summary never appears on any financial statement — born and buried on closing day." } ] },
+          { "id": "c2", "caption": "2 — Close expenses to Income Summary",
+            "lines": [
+              { "id": "is2", "account": "Income Summary", "side": "debit", "label": "collect the debits", "amount": 31000,
+                "why": "After entries 1–2, Income Summary's balance IS net income: 48,000 cr − 31,000 dr = 17,000 credit.",
+                "trap": "That 17,000 matching the income statement is your built-in check — a mismatch means an account was missed." },
+              { "id": "exp", "account": "Expenses (total)", "side": "credit", "label": "zero them out", "amount": 31000,
+                "why": "Each expense (debit-normal) is credited for its balance — in practice one compound entry crediting every expense account.",
+                "trap": "Every single expense account must appear; the one you forget stays open and poisons next year." } ] },
+          { "id": "c3", "caption": "3 — Close Income Summary to Capital",
+            "lines": [
+              { "id": "is3", "account": "Income Summary", "side": "debit", "label": "empty the scratchpad", "amount": 17000,
+                "why": "The netted income moves home to the owner's claim.",
+                "trap": "A net LOSS flips this entry (credit Income Summary, debit Capital) — direction follows the balance." },
+              { "id": "cap", "account": "Owner's Capital", "side": "credit", "label": "earnings become equity", "amount": 17000,
+                "why": "This entry IS the relay from Ch. 6 written in journal form: net income flowing into capital.",
+                "trap": "Corporations do the identical move into Retained Earnings — same machine, different label." } ] },
+          { "id": "c4", "caption": "4 — Close Draws to Capital",
+            "lines": [
+              { "id": "cap2", "account": "Owner's Capital", "side": "debit", "label": "capital shrinks", "amount": 8000,
+                "why": "Draws reduce the owner's claim directly.",
+                "trap": "Draws close to CAPITAL, never through Income Summary — they are not an expense and never touch income." },
+              { "id": "dr", "account": "Owner's Draws", "side": "credit", "label": "zero it out", "amount": 8000,
+                "why": "Capital now reads 10,000 + 17,000 − 8,000 = 19,000 — exactly Ch. 6's ending capital.",
+                "trap": "After closing, ONLY balance-sheet accounts have balances. That's the definition of ready-for-next-year." } ] }
+        ],
+        "computationPaths": [
+          { "id": "cycle", "narration": "Where closing sits — the full accounting cycle, the loop every business runs every period:",
+            "steps": [
+              { "label": "During the period", "formulaText": "1 analyze transactions → 2 journalize → 3 post to ledger" },
+              { "label": "At period end", "formulaText": "4 trial balance → 5 adjusting entries → 6 adjusted trial balance" },
+              { "label": "Report & reset", "formulaText": "7 financial statements → 8 closing entries → 9 post-closing trial balance" } ] }
+        ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Four closes, in order: (1) revenues → Income Summary, (2) expenses → Income Summary, (3) Income Summary (= net income) → Capital, (4) Draws → Capital. Temporaries hit zero; Capital catches everything.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Temporary vs permanent: 'does this account measure THIS period or the whole life?' Period → close it. Life → leave it.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Post-closing trial balance contains ONLY assets, liabilities, and capital. If a revenue or expense shows up on it, a closing entry was missed.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-close",
+        "prompt": "After closing revenues (48,000) and expenses (31,000), Income Summary's balance before entry 3 is…",
+        "answerExpr": "17000",
+        "distractors": [
+          { "expr": "48000", "misconceptionId": "cash_vs_expense", "feedback": "48,000 is only the revenue side — Income Summary nets BOTH closes: 48,000 credit − 31,000 debit = 17,000 credit, which is net income. That equality is the point of the account." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Service Revenue" }, { "account": "Income Summary" }, { "account": "Expenses (total)" }, { "account": "Owner's Capital" }, { "account": "Owner's Draws" },
+        { "account": "Cash", "decoy": true }
+      ],
+      "scaffold": "March the four in order and check the milestone: after entry 2, Income Summary must equal net income. Draws take the side door (entry 4) — never through the summary."
+    }
+  }
+}

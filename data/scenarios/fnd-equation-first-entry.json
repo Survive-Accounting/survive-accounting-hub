@@ -1,0 +1,59 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 1, "name": "What Accounting Is & A = L + E" },
+  "doc": {
+    "slug": "fnd-equation-first-entry",
+    "title": "The accounting equation — and the first entry ever",
+    "event": "Maya opens a design studio by depositing $10,000 of her own money into a business bank account. Show what happens to A = L + E, and record the very first journal entry of the business's life.",
+    "courseFamilies": ["foundations"],
+    "axes": [],
+    "variants": [
+      {
+        "id": "launch",
+        "label": "Every event moves the equation — and it always stays balanced",
+        "conditions": {},
+        "entries": [
+          {
+            "id": "invest",
+            "caption": "Owner invests $10,000 cash",
+            "lines": [
+              { "id": "cash", "account": "Cash", "side": "debit", "label": "an asset arrives", "amount": 10000,
+                "why": "The business now HAS something: $10,000 of cash. Assets are what the business owns or controls.",
+                "trap": "The business and Maya are separate — this is the business's cash now, not hers. That separation (the economic entity idea) is why the credit side exists at all." },
+              { "id": "cap", "account": "Owner's Capital", "side": "credit", "label": "who has claim to it", "amount": 10000,
+                "why": "Every asset is claimed by someone: creditors (liabilities) or owners (equity). Maya's claim on the business = equity.",
+                "trap": "Not revenue! The business didn't EARN this — the owner contributed it. Contributions and earnings are different doors into equity." }
+            ]
+          }
+        ],
+        "computationPaths": [
+          { "id": "equation", "narration": "A = L + E is not a formula to solve — it's a statement that's ALWAYS true: everything the business has (A) is claimed by someone (L + E). Every transaction moves at least two things and leaves the equation balanced.",
+            "steps": [
+              { "label": "Before", "formulaText": "A 0 = L 0 + E 0" },
+              { "label": "Owner invests 10,000", "formulaText": "A +10,000 (cash) = L 0 + E +10,000 (capital)" },
+              { "label": "After", "formulaText": "A 10,000 = L 0 + E 10,000 ✓ balanced" }
+            ] }
+        ]
+      }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "A = L + E. Assets = what the business has. Liabilities = creditors' claims. Equity = owners' claim (contributions + earnings kept). Always balanced, after every single transaction.", "traceRefs": [] },
+      { "kind": "mnemonic", "body": "Two questions for any event: what does the business HAVE now (left side)? and WHO has claim to it (right side)? Answer both and you've done accounting.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-eq",
+        "prompt": "The owner deposits $10,000 into the new business's account. The credit is to…",
+        "answerExpr": "10000",
+        "distractors": [
+          { "expr": "0", "misconceptionId": "cash_vs_expense", "feedback": "Not revenue — the business earned nothing. Owner contributions credit Owner's Capital (equity). Revenue is the OTHER door into equity, opened only by serving customers." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" }, { "account": "Owner's Capital" },
+        { "account": "Service Revenue", "decoy": true }, { "account": "Notes Payable", "decoy": true }
+      ],
+      "scaffold": "What arrived (debit it), and whose claim grew (credit it)? The two decoys are the two classic wrong answers: it's not earned, and it's not borrowed."
+    }
+  }
+}

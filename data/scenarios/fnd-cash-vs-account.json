@@ -1,0 +1,68 @@
+{
+  "chapter": { "courseFamily": "foundations", "courseSlug": "accounting-foundations", "number": 3, "name": "Journal Entries" },
+  "doc": {
+    "slug": "fnd-cash-vs-account",
+    "title": "Cash now vs. on account — same event, different second line",
+    "event": "Two versions of the same week: the studio earns $1,500 of revenue and incurs $600 of advertising. In version one everything settles in cash; in version two everything is on account. Journalize both worlds.",
+    "courseFamilies": ["foundations"],
+    "axes": [
+      { "key": "settlement", "label": "Settled", "options": [
+        { "value": "cash", "label": "In cash now" },
+        { "value": "on_account", "label": "On account" }
+      ]}
+    ],
+    "variants": [
+      { "id": "cash", "label": "Cash world", "conditions": { "settlement": "cash" },
+        "entries": [
+          { "id": "rev", "caption": "Earn $1,500, collected immediately",
+            "lines": [
+              { "id": "c", "account": "Cash", "side": "debit", "label": "asset in", "amount": 1500,
+                "why": "Earning and collecting coincide.", "trap": "Coincidence, not a rule — the revenue credit is identical either way." },
+              { "id": "r", "account": "Service Revenue", "side": "credit", "label": "earned", "amount": 1500,
+                "why": "Recognized because the work is done.", "trap": "The credit never changes across the axis — flip it and watch." } ] },
+          { "id": "exp", "caption": "Pay $600 for this month's ads",
+            "lines": [
+              { "id": "ae", "account": "Advertising Expense", "side": "debit", "label": "cost used up", "amount": 600,
+                "why": "Benefit consumed this period.", "trap": "The debit never changes across the axis either." },
+              { "id": "c2", "account": "Cash", "side": "credit", "label": "paid now", "amount": 600,
+                "why": "Settled immediately.", "trap": "Only THIS line differs between worlds." } ] } ] },
+      { "id": "credit", "label": "On-account world", "conditions": { "settlement": "on_account" },
+        "entries": [
+          { "id": "rev", "caption": "Earn $1,500, client will pay later",
+            "lines": [
+              { "id": "ar", "account": "Accounts Receivable", "side": "debit", "label": "right to collect", "amount": 1500,
+                "why": "The asset is a claim instead of cash — value either way.",
+                "trap": "Revenue timing did NOT move. Accrual accounting recognizes earning, not collecting." },
+              { "id": "r", "account": "Service Revenue", "side": "credit", "label": "earned — identical", "amount": 1500,
+                "why": "Same credit as the cash world.", "trap": "If your revenue changes when payment timing changes, you're doing cash-basis by accident." } ] },
+          { "id": "exp", "caption": "Receive the $600 ad bill, pay later",
+            "lines": [
+              { "id": "ae", "account": "Advertising Expense", "side": "debit", "label": "cost used up — identical", "amount": 600,
+                "why": "The ads ran; the cost is incurred.",
+                "trap": "Expense doesn't wait for payment any more than revenue waits for collection." },
+              { "id": "ap", "account": "Accounts Payable", "side": "credit", "label": "owe it instead", "amount": 600,
+                "why": "A creditor's claim until paid.",
+                "trap": "Later payment (Dr AP / Cr Cash) touches NO expense — the cost was already counted. Double-counting it is the classic follow-up error." } ] } ] }
+    ],
+    "hasMemorizationGrid": true,
+    "memorize": [
+      { "kind": "formula", "body": "Payment timing changes ONE line: the cash line becomes AR (if owed to you) or AP (if you owe). The revenue/expense line is untouchable — earning and incurring set it, not cash.", "traceRefs": [] },
+      { "kind": "watchout", "body": "Settling later is a two-entry story: recognize now (revenue/expense + AR/AP), settle later (Cash + AR/AP). The second entry never repeats the income effect.", "traceRefs": [] }
+    ],
+    "questions": [
+      { "id": "q-settle",
+        "prompt": "Last month's $600 ad bill (already recorded) is paid today. Today's entry debits…",
+        "answerExpr": "600",
+        "distractors": [
+          { "expr": "1200", "misconceptionId": "prior_period_expense", "feedback": "Debiting Advertising Expense again would count the cost twice. It was recognized when incurred; today is just Dr Accounts Payable 600 / Cr Cash 600." }
+        ] }
+    ],
+    "build": {
+      "accountBank": [
+        { "account": "Cash" }, { "account": "Accounts Receivable" }, { "account": "Accounts Payable" }, { "account": "Service Revenue" }, { "account": "Advertising Expense" },
+        { "account": "Unearned Revenue", "decoy": true }
+      ],
+      "scaffold": "Write the income line first (it never changes), then ask: did cash move? If not, AR or AP takes its seat."
+    }
+  }
+}
