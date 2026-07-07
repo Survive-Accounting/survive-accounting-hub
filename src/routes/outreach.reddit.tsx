@@ -40,7 +40,7 @@ import {
   type RedditCampus,
   type RedditMention,
 } from "@/lib/reddit";
-import { refreshRedditMentions } from "@/lib/reddit.functions";
+import { fetchRedditPost, refreshRedditMentions } from "@/lib/reddit.functions";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,6 +78,23 @@ function relTime(iso: string | null): string {
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
   if (s < 7 * 86400) return `${Math.round(s / 86400)}d ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** Color-coded post age: fresh (<1wk) green, recent (<6mo) neutral, stale (>6mo)
+ *  amber with a "check if archived" nudge. Null posted_at → no chip. */
+function recency(postedAt: string | null): { label: string; cls: string; tip?: string } | null {
+  if (!postedAt) return null;
+  const t = new Date(postedAt).getTime();
+  if (Number.isNaN(t)) return null;
+  const days = (Date.now() - t) / 86_400_000;
+  const label = relTime(postedAt);
+  if (days < 7) return { label, cls: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+  if (days < 180) return { label, cls: "bg-muted text-muted-foreground border-border" };
+  return {
+    label,
+    cls: "bg-amber-100 text-amber-700 border-amber-200",
+    tip: "older — check if archived before commenting",
+  };
 }
 
 function RedditListener() {
@@ -326,8 +343,21 @@ function MentionCard({
             </a>
             <span className="text-muted-foreground">
               {campusName(m.campus_id)} · r/{m.subreddit || "?"}
-              {m.author ? ` · u/${m.author}` : ""} · {relTime(m.posted_at ?? m.found_at)}
+              {m.author ? ` · u/${m.author}` : ""}
             </span>
+            {(() => {
+              const r = recency(m.posted_at);
+              return r ? (
+                <span
+                  title={r.tip}
+                  className={`rounded-full border px-1.5 py-0.5 text-[10px] ${r.cls} ${r.tip ? "cursor-help" : ""}`}
+                >
+                  {r.label}
+                </span>
+              ) : (
+                <span className="text-[10px] text-muted-foreground">{relTime(m.found_at)}</span>
+              );
+            })()}
           </div>
 
           {/* tags row */}
@@ -761,12 +791,48 @@ function QuickAdd({
   const [takingCourse, setTakingCourse] = useState("");
   const [takingTerm, setTakingTerm] = useState("");
   const [notes, setNotes] = useState("");
+  const [snippet, setSnippet] = useState<string | null>(null);
+  const [postedAt, setPostedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+  const fetchPost = useServerFn(fetchRedditPost);
 
   // Auto-populate the campus dropdown from the active filter.
   useEffect(() => {
     if (activeCampusId) setCampusId(activeCampusId);
   }, [activeCampusId]);
+
+  // On paste/blur of a Reddit URL: fetch the post once and prefill. Silent on
+  // failure — Lee just types it in manually.
+  async function tryAutofill(u: string) {
+    const isPostUrl = /reddit\.com\/r\/[^/]+\/comments\//i.test(u) || /redd\.it\//i.test(u);
+    if (!u.trim() || !isPostUrl) return;
+    setFetching(true);
+    try {
+      const r = (await fetchPost({ data: { url: u.trim() } })) as
+        | { ok: false }
+        | {
+            ok: true;
+            title: string | null;
+            author: string | null;
+            snippet: string | null;
+            posted_at: string | null;
+            campus_id: string | null;
+          };
+      if (!r.ok) return;
+      if (r.title) setTitle(r.title);
+      if (r.author) setAuthor(r.author);
+      setSnippet(r.snippet);
+      setPostedAt(r.posted_at);
+      if (r.campus_id && !campusId) setCampusId(r.campus_id);
+      setAutoFilled(true);
+    } catch {
+      /* silent fallback to manual entry */
+    } finally {
+      setFetching(false);
+    }
+  }
 
   async function add() {
     if (!campusId) return toast.error("Pick a campus.");
@@ -780,6 +846,8 @@ function QuickAdd({
         url,
         title,
         author: author || null,
+        snippet,
+        posted_at: postedAt,
         is_accounting_major: major === "yes" ? true : major === "no" ? false : null,
         taking_course: takingCourse || null,
         taking_term: takingTerm || null,
@@ -793,6 +861,9 @@ function QuickAdd({
       setTakingCourse("");
       setTakingTerm("");
       setNotes("");
+      setSnippet(null);
+      setPostedAt(null);
+      setAutoFilled(false);
       onAdded();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add.");
@@ -836,12 +907,26 @@ function QuickAdd({
             placeholder="Post title"
             className="text-sm sm:col-span-2"
           />
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://www.reddit.com/r/…/comments/…"
-            className="text-sm sm:col-span-2"
-          />
+          <div className="sm:col-span-2">
+            <div className="flex items-center gap-2">
+              <Input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onBlur={(e) => tryAutofill(e.target.value)}
+                onPaste={(e) => tryAutofill(e.clipboardData.getData("text"))}
+                placeholder="https://www.reddit.com/r/…/comments/…  (paste to auto-fill)"
+                className="text-sm"
+              />
+              {fetching && (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            {autoFilled && (
+              <div className="mt-0.5 text-[10px] text-emerald-700">
+                Auto-filled from Reddit — edit anything before saving.
+              </div>
+            )}
+          </div>
           <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls}>
             <option value="unknown">Major? Unknown</option>
             <option value="yes">Accounting major</option>

@@ -190,6 +190,7 @@ export async function addRedditMention(input: {
   is_accounting_major?: boolean | null;
   taking_course?: string | null;
   taking_term?: string | null;
+  posted_at?: string | null;
 }): Promise<void> {
   const post_id = extractRedditPostId(input.url);
   if (!post_id) throw new Error("Could not read a post id from that URL.");
@@ -205,6 +206,7 @@ export async function addRedditMention(input: {
     is_accounting_major: input.is_accounting_major ?? null,
     taking_course: input.taking_course || null,
     taking_term: input.taking_term?.trim() || null,
+    posted_at: input.posted_at ?? null,
   };
 
   const { data: existing } = await (supabase.from("reddit_mentions" as never) as any)
