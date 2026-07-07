@@ -16,6 +16,7 @@ import {
   GraduationCap,
   LayoutTemplate,
   Megaphone,
+  MessageSquare,
   Search,
   Settings,
   MailCheck,
@@ -80,6 +81,7 @@ const PROFINTEL_SECTION: Section = {
   subtabs: [
     { label: "Choose campus leads", to: "/outreach/profintel" },
     { label: "Schedule emails", to: "/outreach/profintel-schedule" },
+    { label: "Metrics", to: "/outreach/profintel-metrics" },
   ],
 };
 
@@ -93,6 +95,15 @@ const ACTIVE_ROSTER_SECTION: Section = {
   subtabs: [{ label: "Campuses & Professors", to: "/outreach/active-roster" }],
 };
 
+// Reddit listener — read-only campus-subreddit search + mention triage.
+const REDDIT_SECTION: Section = {
+  key: "reddit",
+  label: "Reddit",
+  icon: MessageSquare,
+  owns: (p) => p.startsWith("/outreach/reddit"),
+  subtabs: [{ label: "Listening", to: "/outreach/reddit" }],
+};
+
 // V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
 // (Includes the Requests/orders admin added on main — a V1 surface hidden in V2.)
 const V1_SECTIONS: Section[] = [
@@ -101,9 +112,7 @@ const V1_SECTIONS: Section[] = [
     label: "Requests",
     icon: ClipboardList,
     owns: (p) => p.startsWith("/outreach/orders"),
-    subtabs: [
-      { label: "All Requests", to: "/outreach/orders" },
-    ],
+    subtabs: [{ label: "All Requests", to: "/outreach/orders" }],
   },
   {
     key: "leads",
@@ -180,8 +189,8 @@ function OutreachShell() {
 
   const sections: Section[] =
     version === "v2"
-      ? [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION]
-      : [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, ...V1_SECTIONS];
+      ? [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, REDDIT_SECTION]
+      : [PROFINTEL_SECTION, ACTIVE_ROSTER_SECTION, REDDIT_SECTION, ...V1_SECTIONS];
   const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));
 

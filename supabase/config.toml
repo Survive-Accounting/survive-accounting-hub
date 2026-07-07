@@ -26,6 +26,23 @@ verify_jwt = false
 [functions.outreach-scheduler]
 verify_jwt = false
 
+# ProfIntel send worker — pg_cron with x-cron-secret. Master kill-switch lives in
+# profintel_settings.sending_enabled (default OFF).
+[functions.profintel-send-worker]
+verify_jwt = false
+
+# Resend event webhook for ProfIntel opens — auth via ?secret= query param.
+[functions.profintel-email-webhook]
+verify_jwt = false
+
+# Inbound-reply webhook for ProfIntel — auth via ?secret= query param.
+[functions.profintel-inbound]
+verify_jwt = false
+
+# One-off operator reminders — pg_cron with x-cron-secret.
+[functions.profintel-reminder]
+verify_jwt = false
+
 # Called by pg_cron to drive the batch campus research worker.
 [functions.run-campus-batch]
 verify_jwt = false

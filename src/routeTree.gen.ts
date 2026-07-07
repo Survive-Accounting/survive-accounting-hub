@@ -26,7 +26,9 @@ import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
+import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
+import { Route as OutreachProfintelMetricsRouteImport } from './routes/outreach.profintel-metrics'
 import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
 import { Route as OutreachOrdersRouteImport } from './routes/outreach.orders'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
@@ -131,10 +133,21 @@ const OutreachResearchRoute = OutreachResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachRedditRoute = OutreachRedditRouteImport.update({
+  id: '/reddit',
+  path: '/reddit',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachProfintelScheduleRoute =
   OutreachProfintelScheduleRouteImport.update({
     id: '/profintel-schedule',
     path: '/profintel-schedule',
+    getParentRoute: () => OutreachRoute,
+  } as any)
+const OutreachProfintelMetricsRoute =
+  OutreachProfintelMetricsRouteImport.update({
+    id: '/profintel-metrics',
+    path: '/profintel-metrics',
     getParentRoute: () => OutreachRoute,
   } as any)
 const OutreachProfintelRoute = OutreachProfintelRouteImport.update({
@@ -257,7 +270,9 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -294,7 +309,9 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -333,7 +350,9 @@ export interface FileRoutesById {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
@@ -373,7 +392,9 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/profintel'
+    | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -410,7 +431,9 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/profintel'
+    | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -448,7 +471,9 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/profintel'
+    | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/t/$slug'
@@ -601,11 +626,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachResearchRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/reddit': {
+      id: '/outreach/reddit'
+      path: '/reddit'
+      fullPath: '/outreach/reddit'
+      preLoaderRoute: typeof OutreachRedditRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/profintel-schedule': {
       id: '/outreach/profintel-schedule'
       path: '/profintel-schedule'
       fullPath: '/outreach/profintel-schedule'
       preLoaderRoute: typeof OutreachProfintelScheduleRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/profintel-metrics': {
+      id: '/outreach/profintel-metrics'
+      path: '/profintel-metrics'
+      fullPath: '/outreach/profintel-metrics'
+      preLoaderRoute: typeof OutreachProfintelMetricsRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/outreach/profintel': {
@@ -773,7 +812,9 @@ interface OutreachRouteChildren {
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
   OutreachOrdersRoute: typeof OutreachOrdersRoute
   OutreachProfintelRoute: typeof OutreachProfintelRoute
+  OutreachProfintelMetricsRoute: typeof OutreachProfintelMetricsRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
+  OutreachRedditRoute: typeof OutreachRedditRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
@@ -791,7 +832,9 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
   OutreachOrdersRoute: OutreachOrdersRoute,
   OutreachProfintelRoute: OutreachProfintelRoute,
+  OutreachProfintelMetricsRoute: OutreachProfintelMetricsRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
+  OutreachRedditRoute: OutreachRedditRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
   OutreachIndexRoute: OutreachIndexRoute,

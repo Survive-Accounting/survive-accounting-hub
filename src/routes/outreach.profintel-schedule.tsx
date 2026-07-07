@@ -3,13 +3,13 @@
 // ready flag, and scheduled send time. Read-mostly — drafts are edited on the
 // "Choose campus leads" tab. NOTHING sends automatically yet; "scheduled" rows
 // are just queued for a future worker once real sending is turned on.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CalendarClock, Loader2, Mail } from "lucide-react";
+import { CalendarClock, Loader2, Mail, Shuffle } from "lucide-react";
 
-import { listSends, updateSend, type ProfIntelSend } from "@/lib/profintel";
+import { listSends, spreadSendTimes, updateSend, type ProfIntelSend } from "@/lib/profintel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -17,7 +17,10 @@ export const Route = createFileRoute("/outreach/profintel-schedule")({
   head: () => ({
     meta: [
       { title: "ProfIntel — Schedule emails" },
-      { name: "description", content: "Outgoing professor-outreach drafts and their scheduled send times." },
+      {
+        name: "description",
+        content: "Outgoing professor-outreach drafts and their scheduled send times.",
+      },
     ],
   }),
   component: ProfIntelSchedule,
@@ -27,7 +30,12 @@ function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -39,7 +47,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
 
 function ProfIntelSchedule() {
   const sendsQuery = useQuery({ queryKey: ["profintel-all-sends"], queryFn: () => listSends() });
-  const sends = sendsQuery.data ?? [];
+  const sends = useMemo(() => sendsQuery.data ?? [], [sendsQuery.data]);
 
   const counts = useMemo(() => {
     const c = { draft: 0, scheduled: 0, sent: 0, canceled: 0 } as Record<string, number>;
@@ -49,7 +57,8 @@ function ProfIntelSchedule() {
 
   // scheduled first (by time), then drafts, then the rest.
   const ordered = useMemo(() => {
-    const rank = (s: ProfIntelSend) => (s.status === "scheduled" ? 0 : s.status === "draft" ? 1 : 2);
+    const rank = (s: ProfIntelSend) =>
+      s.status === "scheduled" ? 0 : s.status === "draft" ? 1 : 2;
     return [...sends].sort((a, b) => {
       const r = rank(a) - rank(b);
       if (r !== 0) return r;
@@ -58,6 +67,8 @@ function ProfIntelSchedule() {
       return at - bt;
     });
   }, [sends]);
+
+  const [spreading, setSpreading] = useState(false);
 
   async function cancel(s: ProfIntelSend) {
     if (!confirm(`Cancel the scheduled send to ${s.to_name || s.to_email || "this lead"}?`)) return;
@@ -70,22 +81,81 @@ function ProfIntelSchedule() {
     }
   }
 
+  // Spread every unscheduled draft across randomized Tue–Thu 10–3 send times, so
+  // the eventual send worker fires them naturally instead of in one burst.
+  async function autoSchedule() {
+    const drafts = sends.filter((s) => s.status === "draft");
+    if (drafts.length === 0) {
+      toast.message("No drafts to schedule.");
+      return;
+    }
+    if (
+      !confirm(
+        `Spread ${drafts.length} draft${drafts.length === 1 ? "" : "s"} across Tue–Thu, 10 AM–3 PM (randomized)?`,
+      )
+    )
+      return;
+    setSpreading(true);
+    try {
+      // Highest ProfIntel score first → earliest slots.
+      const ordered = [...drafts].sort(
+        (a, b) => (b.profintel_score ?? -1) - (a.profintel_score ?? -1),
+      );
+      const times = spreadSendTimes(ordered.length);
+      let ok = 0;
+      for (let i = 0; i < ordered.length; i++) {
+        await updateSend(ordered[i].id, {
+          scheduled_at: times[i],
+          ready: true,
+          status: "scheduled",
+        });
+        ok += 1;
+      }
+      toast.success(
+        `Scheduled ${ok} — spread across ${new Set(times.map((t) => t.slice(0, 10))).size} day(s).`,
+      );
+      await sendsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to auto-schedule.");
+    } finally {
+      setSpreading(false);
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
       <div className="mb-4 flex items-center gap-2">
         <CalendarClock className="h-5 w-5" />
         <h1 className="text-xl font-bold tracking-tight">Outgoing professor emails</h1>
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto h-8"
+          onClick={autoSchedule}
+          disabled={spreading || (counts.draft ?? 0) === 0}
+          title="Assign randomized Tue–Thu 10 AM–3 PM send times to all drafts"
+        >
+          {spreading ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Shuffle className="mr-1 h-3.5 w-3.5" />
+          )}
+          Auto-schedule drafts (spread 10–3)
+        </Button>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
         <Badge variant="secondary">{counts.scheduled ?? 0} scheduled</Badge>
         <Badge variant="outline">{counts.draft ?? 0} draft</Badge>
         <Badge variant="default">{counts.sent ?? 0} sent</Badge>
-        {(counts.canceled ?? 0) > 0 && <Badge variant="destructive">{counts.canceled} canceled</Badge>}
+        {(counts.canceled ?? 0) > 0 && (
+          <Badge variant="destructive">{counts.canceled} canceled</Badge>
+        )}
       </div>
 
       <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        Drafts-only for now — nothing here sends automatically. Scheduled rows are queued for review.
+        Drafts-only for now — nothing here sends automatically. Scheduled rows are queued for
+        review.
       </div>
 
       {sendsQuery.isLoading ? (
@@ -121,21 +191,31 @@ function ProfIntelSchedule() {
                       <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                       <div className="min-w-0">
                         <div className="truncate font-medium">{s.to_name || "—"}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">{s.to_email || "no email"}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {s.to_email || "no email"}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{s.school || "—"}</td>
                   <td className="px-3 py-2 max-w-[260px] truncate">{s.subject || "—"}</td>
                   <td className="px-3 py-2">
-                    <Badge variant={STATUS_VARIANT[s.status] ?? "outline"} className="text-[10px] capitalize">
+                    <Badge
+                      variant={STATUS_VARIANT[s.status] ?? "outline"}
+                      className="text-[10px] capitalize"
+                    >
                       {s.status}
                     </Badge>
                   </td>
                   <td className="px-3 py-2 tabular-nums">{fmtWhen(s.scheduled_at)}</td>
                   <td className="px-3 py-2 text-right">
                     {s.status === "scheduled" && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => cancel(s)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-muted-foreground"
+                        onClick={() => cancel(s)}
+                      >
                         Cancel
                       </Button>
                     )}

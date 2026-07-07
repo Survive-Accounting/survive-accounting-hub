@@ -37,6 +37,15 @@ export interface ProfIntelSend {
   scheduled_at: string | null;
   status: string;
   created_at: string;
+  profintel_score?: number | null;
+  sent_at?: string | null;
+  opened_at?: string | null;
+  replied_at?: string | null;
+  open_count?: number | null;
+  variant?: string | null;
+  clicked_at?: string | null;
+  click_count?: number | null;
+  last_clicked_url?: string | null;
 }
 
 /** Comma-joined matched RMP course codes for a lead, e.g. "ACCT 2101, ACCT 2102". */
@@ -117,7 +126,7 @@ They can text me anytime at (662) 565-8818.
 
 Thanks,
 Lee Ingram
-surviveaccounting.com
+https://surviveaccounting.com
 
 —
 
@@ -140,6 +149,48 @@ export async function getTemplate(): Promise<ProfIntelTemplate> {
 export async function saveTemplate(t: ProfIntelTemplate): Promise<void> {
   const { error } = await (supabase.from("profintel_template" as never) as any)
     .update({ subject: t.subject, body: t.body, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) throw new Error(error.message);
+}
+
+/** A/B config: variant A is the base subject/body; variant B is optional. When
+ *  abEnabled, createDrafts splits sends ~50/50 between A and B. */
+export interface ProfIntelTemplateConfig {
+  a: ProfIntelTemplate;
+  b: ProfIntelTemplate;
+  abEnabled: boolean;
+}
+
+/** Load both variants + the A/B flag. Falls back gracefully if 0050 isn't applied
+ *  (returns A only, abEnabled false). */
+export async function getTemplateConfig(): Promise<ProfIntelTemplateConfig> {
+  const base = { a: { subject: "", body: "" }, b: { subject: "", body: "" }, abEnabled: false };
+  const ext = await (supabase.from("profintel_template" as never) as any)
+    .select("subject, body, subject_b, body_b, ab_enabled")
+    .eq("id", 1)
+    .maybeSingle();
+  if (ext.error) {
+    const a = await getTemplate();
+    return { ...base, a };
+  }
+  const d = ext.data ?? {};
+  return {
+    a: { subject: d.subject ?? "", body: d.body ?? "" },
+    b: { subject: d.subject_b ?? "", body: d.body_b ?? "" },
+    abEnabled: !!d.ab_enabled,
+  };
+}
+
+export async function saveTemplateConfig(cfg: ProfIntelTemplateConfig): Promise<void> {
+  const { error } = await (supabase.from("profintel_template" as never) as any)
+    .update({
+      subject: cfg.a.subject,
+      body: cfg.a.body,
+      subject_b: cfg.b.subject,
+      body_b: cfg.b.body,
+      ab_enabled: cfg.abEnabled,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", 1);
   if (error) throw new Error(error.message);
 }
@@ -645,16 +696,39 @@ export async function pasteImportLeads(
   return { inserted: toInsert.length, updated };
 }
 
-/** Create one draft per selected lead, pre-filled from the template. */
+/** Balanced 50/50 A/B labels for n sends, shuffled so neither variant is biased
+ *  toward the higher-scored (earlier) leads. */
+function abLabels(n: number): ("A" | "B")[] {
+  const labels: ("A" | "B")[] = Array.from({ length: n }, (_, i) => (i % 2 === 0 ? "A" : "B"));
+  for (let i = labels.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [labels[i], labels[j]] = [labels[j], labels[i]];
+  }
+  return labels;
+}
+
+/** Create one draft per selected lead, pre-filled from the template. When the
+ *  config has A/B enabled (and a non-empty B), sends split ~50/50 between the two
+ *  variants; each row records which `variant` it used. */
 export async function createDrafts(input: {
   campusId: string;
   school: string;
-  template: ProfIntelTemplate;
+  template: ProfIntelTemplate | ProfIntelTemplateConfig;
   leads: ProfIntelLead[];
 }): Promise<number> {
   if (input.leads.length === 0) return 0;
-  const rows = input.leads.map((lead) => {
-    const { subject, body } = renderTemplate(input.template, lead, input.school);
+  // Accept either a single template (variant A only) or a full A/B config.
+  const cfg: ProfIntelTemplateConfig =
+    "a" in input.template
+      ? input.template
+      : { a: input.template, b: { subject: "", body: "" }, abEnabled: false };
+  const abLive = cfg.abEnabled && !!cfg.b.subject.trim() && !!cfg.b.body.trim();
+  const labels = abLive ? abLabels(input.leads.length) : [];
+
+  const rows = input.leads.map((lead, i) => {
+    const variant = abLive ? labels[i] : null;
+    const tpl = variant === "B" ? cfg.b : cfg.a;
+    const { subject, body } = renderTemplate(tpl, lead, input.school);
     return {
       campus_id: input.campusId,
       lead_id: lead.id,
@@ -662,6 +736,9 @@ export async function createDrafts(input: {
       to_email: lead.email ?? null,
       school: input.school,
       course_matches: courseMatchesText(lead.rmp_course_match_json) || null,
+      // Denormalize the targeting score so scheduling can order sends by it.
+      profintel_score: (lead as { profintel_score?: number | null }).profintel_score ?? null,
+      variant,
       subject,
       body,
       ready: false,
@@ -669,20 +746,152 @@ export async function createDrafts(input: {
     };
   });
   const { error } = await (supabase.from("profintel_sends" as never) as any).insert(rows);
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Newer columns (profintel_score/variant) may not exist yet — retry without them.
+    const stripped = rows.map(({ profintel_score, variant, ...r }) => r);
+    const r2 = await (supabase.from("profintel_sends" as never) as any).insert(stripped);
+    if (r2.error) throw new Error(r2.error.message);
+  }
   return rows.length;
 }
 
+/** Deliverability-friendly send times: weekday Tue/Wed/Thu, 10:00 AM–3:00 PM local,
+ *  jittered minutes (never on the hour), ~perDay/day, starting the next such
+ *  weekday. Returned in chronological order — the caller assigns the earliest
+ *  slots to the highest-scored leads. */
+export function spreadSendTimes(n: number, perDay = 12): string[] {
+  const dayList: Date[] = [];
+  const day = new Date();
+  day.setHours(0, 0, 0, 0);
+  day.setDate(day.getDate() + 1); // start tomorrow
+  let guard = 0;
+  while (dayList.length < Math.ceil(n / perDay) && guard++ < 200) {
+    const dow = day.getDay(); // 2=Tue, 3=Wed, 4=Thu
+    if (dow >= 2 && dow <= 4) dayList.push(new Date(day));
+    day.setDate(day.getDate() + 1);
+  }
+  const out: string[] = [];
+  let i = 0;
+  for (const d of dayList) {
+    const slots: string[] = [];
+    for (let k = 0; k < perDay && i < n; k++, i++) {
+      const hour = 10 + Math.floor(Math.random() * 5); // 10..14 → 10:00–2:59 PM
+      const min = Math.floor(Math.random() * 60);
+      slots.push(new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, min).toISOString());
+    }
+    slots.sort();
+    out.push(...slots);
+  }
+  return out;
+}
+
+/** Schedule a set of drafts, highest ProfIntel score first (earliest slots),
+ *  across the spread window. Returns the assigned send times (chronological). */
+export async function scheduleCampaignDrafts(drafts: ProfIntelSend[]): Promise<string[]> {
+  const pending = drafts.filter((d) => d.status === "draft");
+  if (pending.length === 0) return [];
+  const ordered = [...pending].sort(
+    (a, b) => (b.profintel_score ?? -1) - (a.profintel_score ?? -1),
+  );
+  const times = spreadSendTimes(ordered.length);
+  for (let i = 0; i < ordered.length; i++) {
+    await updateSend(ordered[i].id, { scheduled_at: times[i], ready: true, status: "scheduled" });
+  }
+  return times;
+}
+
+const SEND_BASE_COLS =
+  "id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at";
+const SEND_EXT_COLS =
+  SEND_BASE_COLS +
+  ", profintel_score, sent_at, opened_at, replied_at, open_count, variant, clicked_at, click_count, last_clicked_url";
+
 export async function listSends(opts?: { campusId?: string }): Promise<ProfIntelSend[]> {
-  let q = (supabase.from("profintel_sends" as never) as any)
-    .select(
-      "id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at",
-    )
-    .order("created_at", { ascending: false });
-  if (opts?.campusId) q = q.eq("campus_id", opts.campusId);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  const run = async (cols: string) => {
+    let q = (supabase.from("profintel_sends" as never) as any)
+      .select(cols)
+      .order("created_at", { ascending: false });
+    if (opts?.campusId) q = q.eq("campus_id", opts.campusId);
+    return q;
+  };
+  // Prefer the tracking columns; fall back to base if 0048 isn't applied yet.
+  const first = await run(SEND_EXT_COLS);
+  let data = first.data;
+  if (first.error) {
+    const r = await run(SEND_BASE_COLS);
+    if (r.error) throw new Error(r.error.message);
+    data = r.data;
+  }
   return (data ?? []) as ProfIntelSend[];
+}
+
+export interface ProfIntelSettings {
+  sending_enabled: boolean;
+  daily_send_cap: number;
+  sent_today: number;
+  sent_today_date: string | null;
+  last_run_at: string | null;
+  warmup_start_date: string | null;
+}
+
+// Automatic cold-domain warmup. Cap ramps weekly, anchored to the first send
+// date, and never exceeds the ceiling (daily_send_cap). Keep in sync with the
+// copy in supabase/functions/profintel-send-worker/index.ts.
+const WARMUP_STEPS = [15, 22, 30, 38]; // weeks 1..4; week 5+ = ceiling
+function warmupCap(days: number, ceiling: number): number {
+  const wk = Math.floor(Math.max(0, days) / 7);
+  const base = wk < WARMUP_STEPS.length ? WARMUP_STEPS[wk] : ceiling;
+  return Math.min(base, ceiling);
+}
+/** Today's effective daily cap given the warmup ramp. Returns the starting cap
+ *  until the first email sends (warmup_start_date is null). */
+export function effectiveDailyCap(s: ProfIntelSettings | null): number {
+  const ceiling = s?.daily_send_cap ?? 40;
+  if (!s?.warmup_start_date) return Math.min(WARMUP_STEPS[0], ceiling);
+  const start = Date.parse(`${s.warmup_start_date}T00:00:00Z`);
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const days = Number.isNaN(start) ? 0 : Math.max(0, Math.floor((today - start) / 86_400_000));
+  return warmupCap(days, ceiling);
+}
+/** Human label for where the ramp is today (e.g. "warming up · week 2 of 4"). */
+export function warmupStatus(s: ProfIntelSettings | null): string {
+  const ceiling = s?.daily_send_cap ?? 40;
+  const cap = effectiveDailyCap(s);
+  if (cap >= ceiling) return "at full volume";
+  if (!s?.warmup_start_date) return `warmup starts at first send`;
+  const start = Date.parse(`${s.warmup_start_date}T00:00:00Z`);
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const days = Number.isNaN(start) ? 0 : Math.max(0, Math.floor((today - start) / 86_400_000));
+  return `warming up · week ${Math.floor(days / 7) + 1} of ${WARMUP_STEPS.length + 1}`;
+}
+
+/** Global send settings (kill-switch + cap). Null if 0048 isn't applied yet. */
+export async function getProfintelSettings(): Promise<ProfIntelSettings | null> {
+  const { data, error } = await (supabase.from("profintel_settings" as never) as any)
+    .select(
+      "sending_enabled, daily_send_cap, sent_today, sent_today_date, last_run_at, warmup_start_date",
+    )
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) return null;
+  return (data ?? null) as ProfIntelSettings | null;
+}
+
+export async function updateProfintelSettings(
+  patch: Partial<Pick<ProfIntelSettings, "sending_enabled">>,
+): Promise<void> {
+  const { error } = await (supabase.from("profintel_settings" as never) as any)
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) throw new Error(error.message);
+}
+
+/** Manual reply marker (fallback until inbound-reply capture is configured). */
+export async function markReplied(id: string, replied: boolean): Promise<void> {
+  const { error } = await (supabase.from("profintel_sends" as never) as any)
+    .update({ replied_at: replied ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function updateSend(
