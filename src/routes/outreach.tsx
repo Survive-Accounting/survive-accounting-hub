@@ -21,7 +21,6 @@ import {
   Settings,
   MailCheck,
   Check,
-  UserCheck,
   Users,
   Users2,
 } from "lucide-react";
@@ -73,34 +72,30 @@ type Section = {
   /** True when the current pathname belongs to this section. */
   owns: (pathname: string) => boolean;
   subtabs: Subtab[];
+  /** When set, the section renders as a single direct link (no submenu/chevron)
+   *  instead of a collapsible group — for sections with only one destination. */
+  flatTo?: string;
 };
 
+// Active Roster (SEC-scope governance: which campuses/professors are active for
+// the /order pickers + ProfIntel) lives here as a Prof Intel submenu item.
 const PROFINTEL_SECTION: Section = {
   key: "profintel",
-  label: "ProfIntel",
+  label: "Prof Intel",
   icon: MailCheck,
-  owns: (p) => p.startsWith("/outreach/profintel"),
+  owns: (p) => p.startsWith("/outreach/profintel") || p.startsWith("/outreach/active-roster"),
   subtabs: [
     { label: "Choose campus leads", to: "/outreach/profintel" },
     { label: "Schedule emails", to: "/outreach/profintel-schedule" },
     { label: "Metrics", to: "/outreach/profintel-metrics" },
+    { label: "Active Roster", to: "/outreach/active-roster" },
   ],
-};
-
-// Active Roster — SEC-scope governance (which campuses/professors are active for
-// the /order pickers + ProfIntel). Shown in V2 since it's core to the SEC focus.
-const ACTIVE_ROSTER_SECTION: Section = {
-  key: "roster",
-  label: "Active Roster",
-  icon: UserCheck,
-  owns: (p) => p.startsWith("/outreach/active-roster"),
-  subtabs: [{ label: "Campuses & Professors", to: "/outreach/active-roster" }],
 };
 
 // Reddit listener — read-only campus-subreddit search + mention triage.
 const REDDIT_SECTION: Section = {
   key: "reddit",
-  label: "Reddit",
+  label: "Reddit Intel",
   icon: MessageSquare,
   owns: (p) => p.startsWith("/outreach/reddit"),
   subtabs: [{ label: "Listening", to: "/outreach/reddit" }],
@@ -109,19 +104,22 @@ const REDDIT_SECTION: Section = {
 // Parent-group tracker — manual inventory of campus parent Facebook groups.
 const PARENT_GROUPS_SECTION: Section = {
   key: "parent-groups",
-  label: "Parent groups",
+  label: "Parent Intel",
   icon: Users,
   owns: (p) => p.startsWith("/outreach/parent-groups"),
   subtabs: [{ label: "Tracker", to: "/outreach/parent-groups" }],
 };
 
-// Greek org registry — SEC chapter inventory + research link helpers.
+// Greek org registry — SEC chapter inventory + research link helpers. Flat link:
+// the registry page has its own internal tabs (Chapters/Leads/People/Firms) plus
+// the enrichment queues, so no sidebar submenu is needed.
 const GREEK_SECTION: Section = {
   key: "greek",
-  label: "Greek orgs",
+  label: "Greek Intel",
   icon: Users2,
   owns: (p) => p.startsWith("/outreach/greek-orgs"),
-  subtabs: [{ label: "Registry", to: "/outreach/greek-orgs" }],
+  subtabs: [],
+  flatTo: "/outreach/greek-orgs",
 };
 
 // V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
@@ -209,21 +207,8 @@ function OutreachShell() {
 
   const sections: Section[] =
     version === "v2"
-      ? [
-          PROFINTEL_SECTION,
-          ACTIVE_ROSTER_SECTION,
-          REDDIT_SECTION,
-          PARENT_GROUPS_SECTION,
-          GREEK_SECTION,
-        ]
-      : [
-          PROFINTEL_SECTION,
-          ACTIVE_ROSTER_SECTION,
-          REDDIT_SECTION,
-          PARENT_GROUPS_SECTION,
-          GREEK_SECTION,
-          ...V1_SECTIONS,
-        ];
+      ? [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION]
+      : [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, ...V1_SECTIONS];
   const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));
 
@@ -238,6 +223,18 @@ function OutreachShell() {
                 <SidebarMenu>
                   {sections.map((section) => {
                     const owned = section.owns(pathname);
+                    if (section.flatTo) {
+                      return (
+                        <SidebarMenuItem key={section.key}>
+                          <SidebarMenuButton asChild isActive={owned} tooltip={section.label}>
+                            <Link to={section.flatTo} className="flex w-full items-center gap-2">
+                              <section.icon className="h-4 w-4" />
+                              <span>{section.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    }
                     return (
                       <Collapsible
                         key={section.key}
