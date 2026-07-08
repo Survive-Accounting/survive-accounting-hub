@@ -1,9 +1,9 @@
 // /outreach/greek-orgs/queue — VA enrichment queue. One org per screen, worked
 // like a deck. STEP 1 find on ProPublica + paste EIN/URL (auto-fills financials +
-// itemized fields the API exposes). STEP 2 read the most-recent 990 PDF and fill
-// the manual bits (preparer + officers; the 990 efile XML/text isn't reliably
-// machine-readable — many chapter 990s are scanned). STEP 3 Confirm & next (Enter)
-// / Skip (S). Financials come from the ProPublica API; officers/preparer are VA-entered.
+// itemized fields the API exposes). STEP 2: for e-filed years, open the ProPublica
+// /full render, click into the filing, Ctrl+A/Ctrl+C, and paste the whole page —
+// the parser pulls officers AND the paid-preparer block out of the paste. Only
+// scanned/paper filings need hand-typing. STEP 3 Confirm & next (Enter) / Skip (S).
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ import {
   type GreekChapter,
 } from "@/lib/greek-orgs";
 import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
-import { parseOfficers } from "@/lib/greek-officers";
+import { extractPreparer, parseOfficers } from "@/lib/greek-officers";
 import { CampusCombobox } from "@/components/outreach/CampusCombobox";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { Button } from "@/components/ui/button";
@@ -35,13 +35,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
-export const Route = createFileRoute("/outreach/greek-orgs/queue")({
+export const Route = createFileRoute("/outreach/greek-orgs_/queue")({
   head: () => ({ meta: [{ title: "GreekIntel — enrichment queue" }] }),
   component: Queue,
 });
 
 const money = (n: number | null) =>
   n == null ? "—" : n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : `$${Math.round(n / 1e3)}k`;
+
+const fullRenderUrl = (ein: string, objectId: string) =>
+  `https://projects.propublica.org/nonprofits/organizations/${ein}/${objectId}/full`;
 
 interface QueueItem {
   orgId: string;
@@ -204,13 +207,54 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [officersText, setOfficersText] = useState("");
   const [officerYear, setOfficerYear] = useState("");
+  const [savedPastes, setSavedPastes] = useState(0);
   const [prepFirm, setPrepFirm] = useState("");
   const [prepPhone, setPrepPhone] = useState("");
+  const [prepAddress, setPrepAddress] = useState("");
   const [note, setNote] = useState("");
 
   useEffect(() => {
     if (latest?.tax_year && !officerYear) setOfficerYear(String(latest.tax_year));
   }, [latest, officerYear]);
+
+  // e-filed years with a /full render (per-year object ids from the enrich scrape).
+  const einDigits =
+    ein.replace(/-/g, "").match(/\b\d{9}\b/)?.[0] ?? item.ein?.replace(/\D/g, "") ?? "";
+  const renderYears =
+    einDigits.length === 9
+      ? filings
+          .filter((f) => f.object_id && f.tax_year != null)
+          .sort((a, b) => (b.tax_year ?? 0) - (a.tax_year ?? 0))
+      : [];
+
+  /** Whole-page paste → officers + best-effort preparer auto-fill (editable). */
+  function onOfficersPaste(text: string) {
+    setOfficersText(text);
+    const prep = extractPreparer(text);
+    if (prep.firm && !prepFirm.trim()) setPrepFirm(prep.firm);
+    if (prep.phone && !prepPhone.trim()) setPrepPhone(prep.phone);
+    if (prep.address && !prepAddress.trim()) setPrepAddress(prep.address);
+  }
+
+  /** Save the current paste for its year and clear the box — supports the
+   *  multi-paste tenure flow (latest + oldest + a middle year). */
+  async function saveOfficersPaste() {
+    const y = Number(officerYear);
+    if (!y) return toast.error("Set the filing year for this paste.");
+    const officers = parseOfficers(officersText);
+    if (officers.length === 0) return toast.error("No (name, title) pairs found in that paste.");
+    setBusy(true);
+    try {
+      const r = await accumulateOfficers(item.orgId, officers, y);
+      toast.success(`${y}: ${officers.length} officers (${r.inserted} new, ${r.updated} updated).`);
+      setOfficersText("");
+      setSavedPastes((n) => n + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save officers.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function runEnrich() {
     if (!ein.trim()) return toast.error("Paste an EIN or ProPublica URL first.");
@@ -238,10 +282,11 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
       const officers = parseOfficers(officersText);
       const y = Number(officerYear);
       if (officers.length && y) await accumulateOfficers(item.orgId, officers, y);
-      if (latest && (prepFirm.trim() || prepPhone.trim())) {
+      if (latest && (prepFirm.trim() || prepPhone.trim() || prepAddress.trim())) {
         await updateGreekFiling(latest.id, {
           preparer_firm: prepFirm.trim() || null,
           preparer_phone: prepPhone.trim() || null,
+          preparer_address: prepAddress.trim() || null,
         });
       }
       await setOrgEnrichment(item.orgId, "enriched");
@@ -282,7 +327,7 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, officersText, officerYear, prepFirm, prepPhone, note, latest]);
+  }, [busy, officersText, officerYear, prepFirm, prepPhone, prepAddress, note, latest]);
 
   return (
     <div className="rounded-lg border border-border bg-card/60 p-4 text-sm">
@@ -364,10 +409,53 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
           </div>
         ) : (
           <div className="mb-2 text-xs text-muted-foreground">
-            Pull filings above; financials auto-fill from ProPublica. Officers + preparer are manual
-            (read the PDF).
+            Pull filings above; financials auto-fill from ProPublica.
           </div>
         )}
+
+        {renderYears.length > 0 ? (
+          <div className="mb-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-[11px]">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <a
+                href={fullRenderUrl(einDigits, renderYears[0].object_id!)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded border border-primary/40 bg-background px-2 py-0.5 font-medium text-primary hover:bg-primary/10"
+              >
+                View filing render ({renderYears[0].tax_year}) <ExternalLink className="h-3 w-3" />
+              </a>
+              {renderYears.slice(1).map((f) => (
+                <a
+                  key={f.id}
+                  href={fullRenderUrl(einDigits, f.object_id!)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setOfficerYear(String(f.tax_year))}
+                  title={`Open the ${f.tax_year} render (also sets the paste year)`}
+                  className="rounded border border-border bg-background px-1.5 py-0.5 text-primary hover:bg-muted"
+                >
+                  {f.tax_year}
+                </a>
+              ))}
+            </div>
+            <div className="mt-1 text-muted-foreground">
+              Click into the filing, then <kbd className="rounded bg-muted px-1">Ctrl+A</kbd>,{" "}
+              <kbd className="rounded bg-muted px-1">Ctrl+C</kbd> the page → paste in the officers
+              box. Officers and preparer are extracted from the paste. Tenure tip: paste the latest
+              year, the oldest year, and one middle year (Save officers between pastes) — 3 pastes ≈
+              tenure.
+            </div>
+          </div>
+        ) : (
+          filings.length > 0 && (
+            <div className="mb-2 text-[11px] text-muted-foreground">
+              No e-file render for this org. Scanned/paper filings have no text and no render —
+              enter the president/treasurer/advisor by hand from the PDF images, or Skip with a
+              note.
+            </div>
+          )
+        )}
+
         <div className="grid gap-2 sm:grid-cols-2">
           <Input
             value={prepFirm}
@@ -381,6 +469,12 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
             placeholder="Preparer phone"
             className="h-8 text-sm"
           />
+          <Input
+            value={prepAddress}
+            onChange={(e) => setPrepAddress(e.target.value)}
+            placeholder="Preparer address"
+            className="h-8 text-sm sm:col-span-2"
+          />
         </div>
         <div className="mt-2 flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground">Officers (Part VII) for year</span>
@@ -389,16 +483,32 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
             onChange={(e) => setOfficerYear(e.target.value)}
             className="h-7 w-20 text-[11px]"
           />
+          {savedPastes > 0 && (
+            <Badge variant="secondary" className="text-[10px]">
+              {savedPastes} paste{savedPastes === 1 ? "" : "s"} saved
+            </Badge>
+          )}
         </div>
         <Textarea
           value={officersText}
-          onChange={(e) => setOfficersText(e.target.value)}
-          placeholder="Paste/type the Part VII officers block ((N) NAME .... then TITLE on next line)"
+          onChange={(e) => onOfficersPaste(e.target.value)}
+          placeholder="Paste the /full render page here (Ctrl+A, Ctrl+C) — or type the Part VII block for scanned filings"
           className="mt-1 min-h-[70px] text-[11px]"
         />
         {officersText.trim() && (
-          <div className="mt-1 text-[10px] text-muted-foreground">
-            Parsed {parseOfficers(officersText).length} officer(s).
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">
+              Parsed {parseOfficers(officersText).length} officer(s).
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[11px]"
+              disabled={busy}
+              onClick={saveOfficersPaste}
+            >
+              Save officers for {officerYear || "…"}
+            </Button>
           </div>
         )}
       </div>

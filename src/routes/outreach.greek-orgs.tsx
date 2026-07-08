@@ -4,7 +4,7 @@
 // ProPublica 990 enrichment: per-org filings (financials) and officers/advisors
 // tenure — THE LEADS. Registry only; no outreach. Add-chapter + CSV import are
 // gated behind ?admin=1. Reuses the shared CampusCombobox + FilterPill.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -168,6 +168,12 @@ function GreekOrgs() {
         >
           Enrichment queue →
         </Link>
+        <Link
+          to="/outreach/greek-orgs/people-queue"
+          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+        >
+          People queue →
+        </Link>
       </div>
 
       {tab === "chapters" && (
@@ -178,6 +184,7 @@ function GreekOrgs() {
           catalogById={catalogById}
           campusById={campusById}
           chapters={chapters}
+          filings={allFilingsQuery.data ?? []}
           signalsByOrg={signalsByOrg}
           loading={chaptersQuery.isLoading}
           refetchChapters={refetchAll}
@@ -323,6 +330,7 @@ function ChaptersTab({
   catalogById,
   campusById,
   chapters,
+  filings,
   signalsByOrg,
   loading,
   refetchChapters,
@@ -335,6 +343,7 @@ function ChaptersTab({
   catalogById: Map<string, GreekOrgCatalog>;
   campusById: Map<string, GreekCampus>;
   chapters: GreekChapter[];
+  filings: Pick<GreekFiling, "org_id" | "tax_year" | "revenue">[];
   signalsByOrg: Map<string, SignalKey[]>;
   loading: boolean;
   refetchChapters: () => void;
@@ -345,7 +354,33 @@ function ChaptersTab({
   const [council, setCouncil] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [signal, setSignal] = useState<SignalKey | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null); // drawer
   const selectedCampus = campusId ? (campusById.get(campusId) ?? null) : null;
+
+  // Latest revenue + YoY per org for the dense-row chips.
+  const revByOrg = useMemo(() => {
+    const byOrg = new Map<string, { year: number; revenue: number | null }[]>();
+    for (const f of filings) {
+      if (!f.org_id || f.tax_year == null) continue;
+      (byOrg.get(f.org_id) ?? byOrg.set(f.org_id, []).get(f.org_id)!).push({
+        year: f.tax_year,
+        revenue: f.revenue,
+      });
+    }
+    const m = new Map<string, { year: number; revenue: number | null; yoy: number | null }>();
+    for (const [orgId, rows] of byOrg) {
+      const withRev = rows.filter((r) => r.revenue != null).sort((a, b) => a.year - b.year);
+      const latest = withRev[withRev.length - 1];
+      if (!latest) continue;
+      const prev = withRev[withRev.length - 2];
+      const yoy =
+        prev?.revenue != null && prev.revenue !== 0 && latest.revenue != null
+          ? Math.round(((latest.revenue - prev.revenue) / Math.abs(prev.revenue)) * 100)
+          : null;
+      m.set(orgId, { year: latest.year, revenue: latest.revenue, yoy });
+    }
+    return m;
+  }, [filings]);
 
   const filtered = useMemo(
     () =>
@@ -430,19 +465,107 @@ function ChaptersTab({
         </div>
       )}
 
-      <div className="space-y-2">
-        {loading ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
-            No chapters match this filter.
-          </div>
-        ) : (
-          filtered.map((ch) => (
-            <ChapterCard
-              key={ch.id}
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+          No chapters match this filter.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground">
+              <tr>
+                <th className="px-2 py-1.5 text-left">Org</th>
+                <th className="px-2 py-1.5 text-left">Campus</th>
+                <th className="px-2 py-1.5 text-left">Status</th>
+                <th className="px-2 py-1.5 text-right">Latest rev</th>
+                <th className="px-2 py-1.5 text-right">YoY</th>
+                <th className="px-2 py-1.5 text-left">Signals</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((ch) => {
+                const rev = ch.greek_org_id ? revByOrg.get(ch.greek_org_id) : undefined;
+                const sig = ch.greek_org_id ? (signalsByOrg.get(ch.greek_org_id) ?? []) : [];
+                return (
+                  <tr
+                    key={ch.id}
+                    onClick={() => setOpenId(ch.id)}
+                    className="cursor-pointer border-t border-border/60 hover:bg-muted/30"
+                  >
+                    <td className="px-2 py-1.5">
+                      <span className="font-semibold">
+                        {ch.letters ? `${ch.letters} · ` : ""}
+                        {ch.national_org}
+                      </span>
+                      {ch.chapter_designation && (
+                        <span className="ml-1 text-muted-foreground">
+                          ({ch.chapter_designation})
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-muted-foreground">
+                      {campusById.get(ch.campus_id ?? "")?.name ?? "—"}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await updateGreekChapter(ch.id, { status: nextGreekStatus(ch.status) });
+                            refetchChapters();
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to update.");
+                          }
+                        }}
+                        title="Click to cycle status"
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLE[ch.status] ?? STATUS_STYLE.identified}`}
+                      >
+                        {ch.status}
+                      </button>
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {rev ? (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">
+                          {rev.year} {fmtMoney(rev.revenue)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {rev?.yoy != null ? (
+                        <span
+                          className={`rounded border px-1.5 py-0.5 text-[10px] ${rev.yoy >= 0 ? "border-emerald-200 text-emerald-700" : "border-red-200 text-red-600"}`}
+                        >
+                          {rev.yoy >= 0 ? "+" : ""}
+                          {rev.yoy}%
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <SignalChips signals={sig} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {openId != null &&
+        (() => {
+          const ch = filtered.find((c) => c.id === openId) ?? chapters.find((c) => c.id === openId);
+          if (!ch) return null;
+          return (
+            <ChapterDrawer
               ch={ch}
               campus={campusById.get(ch.campus_id ?? "") ?? null}
               org={ch.greek_org_id ? (catalogById.get(ch.greek_org_id) ?? null) : null}
@@ -451,10 +574,10 @@ function ChaptersTab({
                 refetchChapters();
                 refetchCatalog();
               }}
+              onClose={() => setOpenId(null)}
             />
-          ))
-        )}
-      </div>
+          );
+        })()}
     </>
   );
 }
@@ -476,21 +599,30 @@ function SignalChips({ signals }: { signals: SignalKey[] }) {
   );
 }
 
-function ChapterCard({
+// Click-open drawer: everything the old always-expanded card held (research
+// links, filings/enrich, officers paste, edit fields) lives here now.
+function ChapterDrawer({
   ch,
   campus,
   org,
   signals,
   onChanged,
+  onClose,
 }: {
   ch: GreekChapter;
   campus: GreekCampus | null;
   org: GreekOrgCatalog | null;
   signals: SignalKey[];
   onChanged: () => void;
+  onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [showEnrich, setShowEnrich] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function patch(p: Parameters<typeof updateGreekChapter>[1]) {
     try {
@@ -512,86 +644,89 @@ function ChapterCard({
   if (campus?.fsl_url) links.push({ label: "FSL directory", url: campus.fsl_url });
 
   return (
-    <div className="rounded-lg border border-border bg-card/60 p-3 text-xs">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-semibold">
-              {ch.letters ? `${ch.letters} · ` : ""}
-              {ch.national_org}
-            </span>
-            {ch.chapter_designation && (
-              <span className="text-muted-foreground">({ch.chapter_designation})</span>
-            )}
-            <Badge variant="outline" className="text-[10px] uppercase">
-              {councilLabel(ch.council)}
-            </Badge>
-            <span className="text-muted-foreground">{campus?.name ?? "—"}</span>
-            {org?.ein && <span className="text-emerald-700">EIN {org.ein}</span>}
-          </div>
-          {signals.length > 0 && (
-            <div className="mt-1">
-              <SignalChips signals={signals} />
-            </div>
-          )}
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {links.map((l) => (
-              <a
-                key={l.label}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] hover:bg-muted"
-              >
-                {l.label}
-                <ExternalLink className="h-3 w-3 text-muted-foreground" />
-              </a>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowEnrich((v) => !v)}
-              className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/5 px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/10"
-            >
-              {showEnrich ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronRight className="h-3 w-3" />
+    <div className="fixed inset-0 z-50 bg-black/30" onClick={onClose}>
+      <div
+        className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto border-l border-border bg-background p-4 text-xs shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-sm font-bold">
+                {ch.letters ? `${ch.letters} · ` : ""}
+                {ch.national_org}
+              </span>
+              {ch.chapter_designation && (
+                <span className="text-muted-foreground">({ch.chapter_designation})</span>
               )}
-              <Sparkles className="h-3 w-3" /> Enrich / filings
-            </button>
+              <Badge variant="outline" className="text-[10px] uppercase">
+                {councilLabel(ch.council)}
+              </Badge>
+              <span className="text-muted-foreground">{campus?.name ?? "—"}</span>
+              {org?.ein && <span className="text-emerald-700">EIN {org.ein}</span>}
+            </div>
+            {signals.length > 0 && (
+              <div className="mt-1">
+                <SignalChips signals={signals} />
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
           <button
             type="button"
             onClick={() => patch({ status: nextGreekStatus(ch.status) })}
             title="Click to cycle status"
-            className={`rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLE[ch.status] ?? STATUS_STYLE.identified}`}
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLE[ch.status] ?? STATUS_STYLE.identified}`}
           >
             {ch.status}
           </button>
           <button
             type="button"
-            onClick={() => setEditing((v) => !v)}
-            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+            onClick={onClose}
+            title="Close (Esc)"
+            className="shrink-0 rounded border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
           >
-            <Pencil className="h-3 w-3" /> Edit
+            ✕
           </button>
         </div>
-      </div>
 
-      {showEnrich && ch.greek_org_id && (
-        <EnrichBlock orgId={ch.greek_org_id} org={org} onEnriched={onChanged} />
-      )}
-      {editing && (
-        <ChapterEditor
-          ch={ch}
-          onSaved={() => {
-            setEditing(false);
-            onChanged();
-          }}
-        />
-      )}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {links.map((l) => (
+            <a
+              key={l.label}
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] hover:bg-muted"
+            >
+              {l.label}
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </a>
+          ))}
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
+          >
+            <Pencil className="h-3 w-3" /> Edit fields
+          </button>
+        </div>
+
+        {editing && (
+          <ChapterEditor
+            ch={ch}
+            onSaved={() => {
+              setEditing(false);
+              onChanged();
+            }}
+          />
+        )}
+
+        {ch.greek_org_id ? (
+          <EnrichBlock orgId={ch.greek_org_id} org={org} onEnriched={onChanged} />
+        ) : (
+          <div className="mt-2 text-muted-foreground">No national org linked.</div>
+        )}
+      </div>
     </div>
   );
 }

@@ -46,7 +46,8 @@ import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
-import { Route as OutreachGreekOrgsQueueRouteImport } from './routes/outreach.greek-orgs.queue'
+import { Route as OutreachGreekOrgsQueueRouteImport } from './routes/outreach.greek-orgs_.queue'
+import { Route as OutreachGreekOrgsPeopleQueueRouteImport } from './routes/outreach.greek-orgs_.people-queue'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
@@ -241,10 +242,16 @@ const OutreachLeadfinderCampusIdRoute =
     getParentRoute: () => OutreachRoute,
   } as any)
 const OutreachGreekOrgsQueueRoute = OutreachGreekOrgsQueueRouteImport.update({
-  id: '/queue',
-  path: '/queue',
-  getParentRoute: () => OutreachGreekOrgsRoute,
+  id: '/greek-orgs_/queue',
+  path: '/greek-orgs/queue',
+  getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachGreekOrgsPeopleQueueRoute =
+  OutreachGreekOrgsPeopleQueueRouteImport.update({
+    id: '/greek-orgs_/people-queue',
+    path: '/greek-orgs/people-queue',
+    getParentRoute: () => OutreachRoute,
+  } as any)
 const CeqIdTutorRoute = CeqIdTutorRouteImport.update({
   id: '/$id/tutor',
   path: '/$id/tutor',
@@ -283,7 +290,7 @@ export interface FileRoutesByFullPath {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
-  '/outreach/greek-orgs': typeof OutreachGreekOrgsRouteWithChildren
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
@@ -325,7 +333,7 @@ export interface FileRoutesByTo {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
-  '/outreach/greek-orgs': typeof OutreachGreekOrgsRouteWithChildren
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
@@ -342,6 +350,7 @@ export interface FileRoutesByTo {
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
@@ -369,7 +378,7 @@ export interface FileRoutesById {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
-  '/outreach/greek-orgs': typeof OutreachGreekOrgsRouteWithChildren
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
@@ -386,7 +395,8 @@ export interface FileRoutesById {
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
-  '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
+  '/outreach/greek-orgs_/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
+  '/outreach/greek-orgs_/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
@@ -431,6 +441,7 @@ export interface FileRouteTypes {
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/greek-orgs/people-queue'
     | '/outreach/greek-orgs/queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
@@ -473,6 +484,7 @@ export interface FileRouteTypes {
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/greek-orgs/people-queue'
     | '/outreach/greek-orgs/queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
@@ -516,7 +528,8 @@ export interface FileRouteTypes {
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
-    | '/outreach/greek-orgs/queue'
+    | '/outreach/greek-orgs_/people-queue'
+    | '/outreach/greek-orgs_/queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
     | '/outreach/leadfinder/'
@@ -802,12 +815,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLeadfinderCampusIdRouteImport
       parentRoute: typeof OutreachRoute
     }
-    '/outreach/greek-orgs/queue': {
-      id: '/outreach/greek-orgs/queue'
-      path: '/queue'
+    '/outreach/greek-orgs_/queue': {
+      id: '/outreach/greek-orgs_/queue'
+      path: '/greek-orgs/queue'
       fullPath: '/outreach/greek-orgs/queue'
       preLoaderRoute: typeof OutreachGreekOrgsQueueRouteImport
-      parentRoute: typeof OutreachGreekOrgsRoute
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/greek-orgs_/people-queue': {
+      id: '/outreach/greek-orgs_/people-queue'
+      path: '/greek-orgs/people-queue'
+      fullPath: '/outreach/greek-orgs/people-queue'
+      preLoaderRoute: typeof OutreachGreekOrgsPeopleQueueRouteImport
+      parentRoute: typeof OutreachRoute
     }
     '/ceq/$id/tutor': {
       id: '/ceq/$id/tutor'
@@ -859,23 +879,12 @@ const OrderRouteChildren: OrderRouteChildren = {
 
 const OrderRouteWithChildren = OrderRoute._addFileChildren(OrderRouteChildren)
 
-interface OutreachGreekOrgsRouteChildren {
-  OutreachGreekOrgsQueueRoute: typeof OutreachGreekOrgsQueueRoute
-}
-
-const OutreachGreekOrgsRouteChildren: OutreachGreekOrgsRouteChildren = {
-  OutreachGreekOrgsQueueRoute: OutreachGreekOrgsQueueRoute,
-}
-
-const OutreachGreekOrgsRouteWithChildren =
-  OutreachGreekOrgsRoute._addFileChildren(OutreachGreekOrgsRouteChildren)
-
 interface OutreachRouteChildren {
   OutreachActiveRosterRoute: typeof OutreachActiveRosterRoute
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
-  OutreachGreekOrgsRoute: typeof OutreachGreekOrgsRouteWithChildren
+  OutreachGreekOrgsRoute: typeof OutreachGreekOrgsRoute
   OutreachLandingRoute: typeof OutreachLandingRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
@@ -888,6 +897,8 @@ interface OutreachRouteChildren {
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
+  OutreachGreekOrgsPeopleQueueRoute: typeof OutreachGreekOrgsPeopleQueueRoute
+  OutreachGreekOrgsQueueRoute: typeof OutreachGreekOrgsQueueRoute
   OutreachLeadfinderCampusIdRoute: typeof OutreachLeadfinderCampusIdRoute
   OutreachLeadfinderIndexRoute: typeof OutreachLeadfinderIndexRoute
 }
@@ -897,7 +908,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,
-  OutreachGreekOrgsRoute: OutreachGreekOrgsRouteWithChildren,
+  OutreachGreekOrgsRoute: OutreachGreekOrgsRoute,
   OutreachLandingRoute: OutreachLandingRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
@@ -910,6 +921,8 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
   OutreachIndexRoute: OutreachIndexRoute,
+  OutreachGreekOrgsPeopleQueueRoute: OutreachGreekOrgsPeopleQueueRoute,
+  OutreachGreekOrgsQueueRoute: OutreachGreekOrgsQueueRoute,
   OutreachLeadfinderCampusIdRoute: OutreachLeadfinderCampusIdRoute,
   OutreachLeadfinderIndexRoute: OutreachLeadfinderIndexRoute,
 }

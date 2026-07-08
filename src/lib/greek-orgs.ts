@@ -105,10 +105,13 @@ export function sosSearchUrl(state: string | null): string {
 }
 
 // --- Data access --------------------------------------------------------------
+// SEC roster + research-only campuses (nationwide KKG/ATO imports). Research-only
+// stays out of student-facing pickers/ProfIntel/orders — those use their own
+// fetches — but the registry/queues must see it.
 export async function fetchGreekCampuses(): Promise<GreekCampus[]> {
   const { data, error } = await (supabase.from("campuses" as never) as any)
     .select("id, name, state, city, fsl_url")
-    .eq("active_roster", "sec")
+    .or("active_roster.eq.sec,is_research_only.eq.true")
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []) as GreekCampus[];

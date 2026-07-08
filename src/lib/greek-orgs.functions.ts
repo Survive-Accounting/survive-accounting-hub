@@ -21,6 +21,33 @@ function extractEin(s: string): string | null {
 const num = (v: unknown): number | null =>
   typeof v === "number" ? v : v != null && !Number.isNaN(Number(v)) ? Number(v) : null;
 
+/** Per-year efile object ids, scraped from the ProPublica org page. These power
+ *  the /organizations/{ein}/{object_id}/full render links (VA copies officers +
+ *  preparer from the render). NOT derivable from the API: the pdf_url filename
+ *  suffix is a submission timestamp, not an object id. Best-effort — {} on error. */
+async function fetchObjectIds(ein: string): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const res = await fetch(`https://projects.propublica.org/nonprofits/organizations/${ein}`, {
+      headers: { "User-Agent": "surviveaccounting-research/1.0" },
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(t));
+    if (!res.ok) return map;
+    const html = await res.text();
+    // Filing sections are `id='filing{YYYY}'` blocks, each containing its /full link.
+    for (const part of html.split(/id=['"]filing/).slice(1)) {
+      const year = part.match(/^(\d{4})['"]/)?.[1];
+      const oid = part.match(/\/organizations\/\d{9}\/(\d{15,})\/full/)?.[1];
+      if (year && oid) map.set(Number(year), oid);
+    }
+  } catch {
+    // render links just won't show
+  }
+  return map;
+}
+
 type EnrichResult =
   | { ok: false; error: string }
   | { ok: true; ein: string; org_name: string; years: number[]; filings: number };
@@ -73,8 +100,7 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
       })
       .eq("id", data.orgId);
 
-    // Object id lives in the pdf_url filename (…_{objectid}.pdf), not a JSON field.
-    const objId = (f: any) => f.pdf_url?.match(/_(\d{10,})\.pdf/)?.[1] ?? null;
+    const objectIds = await fetchObjectIds(ein);
     const rows = (payload?.filings_with_data ?? []).map((f: any) => ({
       org_id: data.orgId,
       tax_year: num(f.tax_prd_yr),
@@ -88,10 +114,32 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
       fundraiser_fee: num(f.profndraising),
       mortgages_payable: num(f.secrdmrtgsend),
       pdf_url: f.pdf_url ?? null,
-      object_id: objId(f),
+      object_id: objectIds.get(num(f.tax_prd_yr) as number) ?? null,
       source: "propublica",
     }));
     const withYear = rows.filter((r: any) => r.tax_year != null);
+    // Years with a /full render but no extracted API data yet (usually the newest
+    // filing) still get a row so the queue can link its render. Same shape as the
+    // API rows — PostgREST bulk upserts need uniform keys.
+    const apiYears = new Set(withYear.map((r: any) => r.tax_year));
+    for (const [year, oid] of objectIds) {
+      if (apiYears.has(year)) continue;
+      withYear.push({
+        org_id: data.orgId,
+        tax_year: year,
+        revenue: null,
+        expenses: null,
+        assets_eoy: null,
+        liabilities_eoy: null,
+        contributions: null,
+        salaries: null,
+        fundraiser_fee: null,
+        mortgages_payable: null,
+        pdf_url: null,
+        object_id: oid,
+        source: "propublica",
+      });
+    }
     if (withYear.length) {
       const { error } = await filings().upsert(withYear, { onConflict: "org_id,tax_year" });
       if (error) return { ok: false, error: error.message };
