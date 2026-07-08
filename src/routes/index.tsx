@@ -247,12 +247,6 @@ function Home() {
                 <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.</figcaption>
               </figure>
 
-              <blockquote className="mt-9 border-l-2 pl-5" style={{ borderColor: RED }}>
-                <p className="text-[22px] leading-snug sm:text-2xl" style={{ color: NAVY, fontFamily: "'DM Serif Display', serif" }}>
-                  &ldquo;I take good care of every student who comes my way.&rdquo;
-                </p>
-              </blockquote>
-
               <div className="mt-8">
                 <a href="/order"
                   className="group inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
