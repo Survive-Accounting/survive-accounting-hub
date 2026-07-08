@@ -37,14 +37,31 @@ export function parseOfficers(text: string): ParsedOfficer[] {
   const out: ParsedOfficer[] = [];
   let pendingName: string | null = null;
 
+  // Strip dot leaders and trailing hours/comp from a title, keeping truncations.
+  const cleanTitle = (t: string) =>
+    t
+      .replace(/\s*\.{2,}.*$/, "")
+      .replace(/\s+[\d.,]+\s*$/, "")
+      .trim();
+
   for (const l of lines) {
     if (HEADER_RE.test(l)) {
       pendingName = null;
       continue;
     }
+    // Dot-leader index format from 990 efile renders:
+    //   "(9) MELANIE LANDRUM WOODALL ...................." → name (TITLE next line).
+    const dot = l.match(/^\(\d+\)\s+([A-Z][A-Z0-9 .,'&-]*?)\s*(?:\.{2,}.*)?$/);
+    if (dot) {
+      const nm = dot[1].replace(/[.\s]+$/, "").trim();
+      if (nm.length >= 3 && /[A-Z]/.test(nm)) {
+        pendingName = nm;
+        continue;
+      }
+    }
     const same = l.match(SAME_LINE_RE);
     if (same) {
-      out.push({ name: same[1].trim(), title: same[2].trim() });
+      out.push({ name: same[1].trim(), title: cleanTitle(same[2]) });
       pendingName = null;
       continue;
     }
@@ -55,7 +72,7 @@ export function parseOfficers(text: string): ParsedOfficer[] {
     }
     // We already have a name; the next content line is its title (as-is, even if
     // it happens to look like a name, e.g. "CHAPTER ADVI").
-    out.push({ name: pendingName, title: l });
+    out.push({ name: pendingName, title: cleanTitle(l) });
     pendingName = null;
   }
 

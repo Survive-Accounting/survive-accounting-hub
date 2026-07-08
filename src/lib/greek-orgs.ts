@@ -127,15 +127,36 @@ export interface GreekOrgCatalog {
   ein: string | null;
   address: string | null;
   propublica_url: string | null;
+  enrichment_status: string;
+  enrichment_note: string | null;
 }
+
+export const ORG_ENRICH_STATUSES = ["pending", "enriched", "no_filing_found"] as const;
 
 /** National catalog with enrichment fields, for the picker + org-level rendering. */
 export async function fetchGreekCatalog(): Promise<GreekOrgCatalog[]> {
   const { data, error } = await (supabase.from("greek_orgs" as never) as any)
-    .select("id, name, ein, address, propublica_url")
+    .select("id, name, ein, address, propublica_url, enrichment_status, enrichment_note")
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []) as GreekOrgCatalog[];
+  return (data ?? []).map((o: any) => ({
+    ...o,
+    enrichment_status: o.enrichment_status ?? "pending",
+  })) as GreekOrgCatalog[];
+}
+
+/** Set an org's queue enrichment status (pending → enriched | no_filing_found). */
+export async function setOrgEnrichment(
+  orgId: string,
+  status: string,
+  note?: string | null,
+): Promise<void> {
+  const patch: Record<string, unknown> = { enrichment_status: status };
+  if (note !== undefined) patch.enrichment_note = note || null;
+  const { error } = await (supabase.from("greek_orgs" as never) as any)
+    .update(patch)
+    .eq("id", orgId);
+  if (error) throw new Error(error.message);
 }
 
 const CHAPTER_COLS =
@@ -352,6 +373,8 @@ export interface GreekFiling {
   fundraiser_firm: string | null;
   fundraiser_fee: number | null;
   preparer_firm: string | null;
+  preparer_address: string | null;
+  preparer_phone: string | null;
 }
 
 /** Editable itemized fields on a filing (the "from the PDF" drawer). */
@@ -402,7 +425,14 @@ export interface GreekPerson {
   linkedin_url: string | null;
   notes: string | null;
   source: string;
+  employer: string | null;
+  role_now: string | null;
+  alma_mater: string | null;
+  business_url: string | null;
+  enrichment_status: string;
 }
+
+export const PERSON_ENRICH_STATUSES = ["pending", "enriched", "not_found"] as const;
 
 export async function listGreekPeople(): Promise<GreekPerson[]> {
   const { data, error } = await (supabase.from("greek_org_people" as never) as any)
@@ -414,7 +444,20 @@ export async function listGreekPeople(): Promise<GreekPerson[]> {
 
 export async function updateGreekPerson(
   id: string,
-  patch: Partial<Pick<GreekPerson, "email" | "phone" | "linkedin_url" | "notes">>,
+  patch: Partial<
+    Pick<
+      GreekPerson,
+      | "email"
+      | "phone"
+      | "linkedin_url"
+      | "notes"
+      | "employer"
+      | "role_now"
+      | "alma_mater"
+      | "business_url"
+      | "enrichment_status"
+    >
+  >,
 ): Promise<void> {
   const { error } = await (supabase.from("greek_org_people" as never) as any)
     .update({ ...patch, updated_at: new Date().toISOString() })
@@ -641,4 +684,103 @@ export async function importChapterGpaTsv(
     result.imported++;
   }
   return result;
+}
+
+// --- Person queue helper ------------------------------------------------------
+export async function setPersonEnrichment(id: string, status: string): Promise<void> {
+  const { error } = await (supabase.from("greek_org_people" as never) as any)
+    .update({ enrichment_status: status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// --- Firms rollup (generated from filings; lead-tracking status/notes) ---------
+export interface FirmRow {
+  firm_name: string;
+  roles: string[]; // preparer | fundraiser
+  phone: string | null;
+  address: string | null;
+  org_ids: string[];
+  status: string;
+  notes: string | null;
+}
+
+export async function listFirmLeads(): Promise<
+  { firm_name: string; status: string; notes: string | null }[]
+> {
+  const { data } = await (supabase.from("greek_firm_leads" as never) as any).select(
+    "firm_name, status, notes",
+  );
+  return (data ?? []) as any;
+}
+
+export async function upsertFirmLead(
+  firmName: string,
+  patch: { status?: string; notes?: string | null },
+): Promise<void> {
+  const { error } = await (supabase.from("greek_firm_leads" as never) as any).upsert(
+    { firm_name: firmName, ...patch, updated_at: new Date().toISOString() },
+    { onConflict: "firm_name" },
+  );
+  if (error) throw new Error(error.message);
+}
+
+/** Roll up distinct preparer + fundraiser firms across all filings, with the org
+ *  set they serve and any lead status/notes. Generated — no manual entry. */
+export async function fetchFirmRollup(): Promise<FirmRow[]> {
+  const [{ data: filings }, leads] = await Promise.all([
+    (supabase.from("greek_org_filings" as never) as any).select(
+      "org_id, preparer_firm, preparer_phone, preparer_address, fundraiser_firm",
+    ),
+    listFirmLeads(),
+  ]);
+  const leadBy = new Map(leads.map((l) => [l.firm_name.toLowerCase(), l]));
+  const acc = new Map<
+    string,
+    {
+      firm_name: string;
+      roles: Set<string>;
+      phone: string | null;
+      address: string | null;
+      orgs: Set<string>;
+    }
+  >();
+  const add = (
+    name: string | null,
+    role: string,
+    orgId: string,
+    phone?: string | null,
+    address?: string | null,
+  ) => {
+    const n = (name ?? "").trim();
+    if (!n) return;
+    const key = n.toLowerCase();
+    const e =
+      acc.get(key) ??
+      acc
+        .set(key, { firm_name: n, roles: new Set(), phone: null, address: null, orgs: new Set() })
+        .get(key)!;
+    e.roles.add(role);
+    if (orgId) e.orgs.add(orgId);
+    if (phone && !e.phone) e.phone = phone;
+    if (address && !e.address) e.address = address;
+  };
+  for (const f of (filings ?? []) as any[]) {
+    add(f.preparer_firm, "preparer", f.org_id, f.preparer_phone, f.preparer_address);
+    add(f.fundraiser_firm, "fundraiser", f.org_id);
+  }
+  return [...acc.values()]
+    .map((e) => {
+      const lead = leadBy.get(e.firm_name.toLowerCase());
+      return {
+        firm_name: e.firm_name,
+        roles: [...e.roles],
+        phone: e.phone,
+        address: e.address,
+        org_ids: [...e.orgs],
+        status: lead?.status ?? "new",
+        notes: lead?.notes ?? null,
+      };
+    })
+    .sort((a, b) => b.org_ids.length - a.org_ids.length || a.firm_name.localeCompare(b.firm_name));
 }

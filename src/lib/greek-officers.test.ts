@@ -52,3 +52,22 @@ test("dedupes repeated pairs", () => {
   const o = parseOfficers("JANE SMITH\nPRESIDENT\nJANE SMITH\nPRESIDENT");
   expect(o).toEqual([{ name: "JANE SMITH", title: "PRESIDENT" }]);
 });
+
+// 990 efile dot-leader format: "(N) NAME ...." with the TITLE on the next line,
+// hours after the dots. This is the format that previously slipped through.
+const DOT_LEADER = `Part VII Section A
+(1) SARAH JANE MILLER .......................... 2.00
+PRESIDENT
+(2) ASHLEY NICOLE DAVIS .........................
+VICE-PRESIDE
+(9) MELANIE LANDRUM WOODALL .................... 1.00
+SECRETARY`;
+
+test("dot-leader (N) NAME .... / TITLE format", () => {
+  const o = parseOfficers(DOT_LEADER);
+  expect(o).toEqual([
+    { name: "SARAH JANE MILLER", title: "PRESIDENT" },
+    { name: "ASHLEY NICOLE DAVIS", title: "VICE-PRESIDE" },
+    { name: "MELANIE LANDRUM WOODALL", title: "SECRETARY" },
+  ]);
+});

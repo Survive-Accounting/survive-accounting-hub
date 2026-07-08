@@ -73,15 +73,22 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
       })
       .eq("id", data.orgId);
 
+    // Object id lives in the pdf_url filename (…_{objectid}.pdf), not a JSON field.
+    const objId = (f: any) => f.pdf_url?.match(/_(\d{10,})\.pdf/)?.[1] ?? null;
     const rows = (payload?.filings_with_data ?? []).map((f: any) => ({
       org_id: data.orgId,
       tax_year: num(f.tax_prd_yr),
       revenue: num(f.totrevenue),
-      expenses: num(f.totfunctexpns),
+      expenses: num(f.totfuncexpns),
       assets_eoy: num(f.totassetsend),
       liabilities_eoy: num(f.totliabend),
+      // Itemized fields the ProPublica JSON exposes directly (rest are manual):
+      contributions: num(f.totcntrbgfts),
+      salaries: num(f.othrsalwages),
+      fundraiser_fee: num(f.profndraising),
+      mortgages_payable: num(f.secrdmrtgsend),
       pdf_url: f.pdf_url ?? null,
-      object_id: f.object_id != null ? String(f.object_id) : null,
+      object_id: objId(f),
       source: "propublica",
     }));
     const withYear = rows.filter((r: any) => r.tax_year != null);

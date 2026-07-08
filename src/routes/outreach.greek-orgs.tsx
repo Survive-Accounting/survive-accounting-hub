@@ -5,7 +5,7 @@
 // tenure — THE LEADS. Registry only; no outreach. Add-chapter + CSV import are
 // gated behind ?admin=1. Reuses the shared CampusCombobox + FilterPill.
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ import {
   councilLabel,
   deleteGreekChapter,
   fetchCampusContext,
+  fetchFirmRollup,
   fetchGreekCampuses,
   fetchGreekCatalog,
   FILING_ITEM_FIELDS,
@@ -50,7 +51,9 @@ import {
   updateGreekFiling,
   updateGreekPerson,
   upsertCampusContext,
+  upsertFirmLead,
   type CampusContext,
+  type FirmRow,
   type GreekCampus,
   type GreekChapter,
   type GreekFiling,
@@ -95,7 +98,7 @@ const fmtMoney = (n: number | null) =>
 function GreekOrgs() {
   const { admin } = Route.useSearch();
   const isAdmin = admin === 1;
-  const [tab, setTab] = useState<"chapters" | "people" | "leads">("chapters");
+  const [tab, setTab] = useState<"chapters" | "people" | "leads" | "firms">("chapters");
 
   const campusesQuery = useQuery({ queryKey: ["greek-campuses"], queryFn: fetchGreekCampuses });
   const catalogQuery = useQuery({ queryKey: ["greek-catalog"], queryFn: fetchGreekCatalog });
@@ -146,7 +149,7 @@ function GreekOrgs() {
           GreekIntel
         </Badge>
       </div>
-      <div className="mb-4 flex gap-1.5">
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
         <FilterPill active={tab === "chapters"} onClick={() => setTab("chapters")}>
           Chapters
         </FilterPill>
@@ -156,6 +159,15 @@ function GreekOrgs() {
         <FilterPill active={tab === "people"} onClick={() => setTab("people")}>
           People
         </FilterPill>
+        <FilterPill active={tab === "firms"} onClick={() => setTab("firms")}>
+          Firms
+        </FilterPill>
+        <Link
+          to="/outreach/greek-orgs/queue"
+          className="ml-2 inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+        >
+          Enrichment queue →
+        </Link>
       </div>
 
       {tab === "chapters" && (
@@ -184,6 +196,121 @@ function GreekOrgs() {
       )}
       {tab === "people" && (
         <PeopleTab campuses={campuses} chapters={chapters} catalogById={catalogById} />
+      )}
+      {tab === "firms" && <FirmsTab catalogById={catalogById} />}
+    </div>
+  );
+}
+
+function FirmsTab({ catalogById }: { catalogById: Map<string, GreekOrgCatalog> }) {
+  const firmsQuery = useQuery({ queryKey: ["greek-firms"], queryFn: fetchFirmRollup });
+  const firms = firmsQuery.data ?? [];
+  const [open, setOpen] = useState<string | null>(null);
+
+  async function saveLead(name: string, patch: { status?: string; notes?: string | null }) {
+    try {
+      await upsertFirmLead(name, patch);
+      firmsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save.");
+    }
+  }
+
+  if (firmsQuery.isLoading)
+    return (
+      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+      </div>
+    );
+  if (firms.length === 0)
+    return (
+      <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+        No firms yet. Enter preparer/fundraiser firms on filings (queue or chapter drawer) and they
+        roll up here.
+      </div>
+    );
+
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] text-muted-foreground">
+        {firms.length} distinct firms across all filings — generated, no manual entry.
+      </div>
+      {firms.map((f) => (
+        <FirmRowCard
+          key={f.firm_name}
+          f={f}
+          catalogById={catalogById}
+          expanded={open === f.firm_name}
+          onToggle={() => setOpen((v) => (v === f.firm_name ? null : f.firm_name))}
+          onSave={(patch) => saveLead(f.firm_name, patch)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FirmRowCard({
+  f,
+  catalogById,
+  expanded,
+  onToggle,
+  onSave,
+}: {
+  f: FirmRow;
+  catalogById: Map<string, GreekOrgCatalog>;
+  expanded: boolean;
+  onToggle: () => void;
+  onSave: (patch: { status?: string; notes?: string | null }) => void;
+}) {
+  const [notes, setNotes] = useState(f.notes ?? "");
+  return (
+    <div className="rounded-lg border border-border bg-card/60 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <button type="button" onClick={onToggle} className="font-semibold hover:underline">
+          {f.firm_name}
+        </button>
+        {f.roles.map((r) => (
+          <Badge key={r} variant="outline" className="text-[10px] capitalize">
+            {r}
+          </Badge>
+        ))}
+        <Badge variant="secondary" className="text-[10px]">
+          {f.org_ids.length} org{f.org_ids.length === 1 ? "" : "s"}
+        </Badge>
+        {f.phone && <span className="text-muted-foreground">{f.phone}</span>}
+        <select
+          value={f.status}
+          onChange={(e) => onSave({ status: e.target.value })}
+          className={`ml-auto h-7 rounded-md border border-input bg-background px-1.5 text-[11px]`}
+        >
+          {["new", "contacted", "meeting", "client", "passed"].map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      {f.address && <div className="mt-0.5 text-[10px] text-muted-foreground">{f.address}</div>}
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          <div className="flex flex-wrap gap-1">
+            {f.org_ids.map((id) => (
+              <span
+                key={id}
+                className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px]"
+              >
+                {catalogById.get(id)?.name ?? id}
+              </span>
+            ))}
+          </div>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={() => notes !== (f.notes ?? "") && onSave({ notes: notes || null })}
+            placeholder="Lead notes…"
+            className="min-h-[44px] text-[11px]"
+          />
+        </div>
       )}
     </div>
   );
