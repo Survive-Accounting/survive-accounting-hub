@@ -216,6 +216,35 @@ export async function setOrgEnrichment(
   if (error) throw new Error(error.message);
 }
 
+/** Wipe one org's enrichment data back to a fresh "pending" state — every 990
+ *  filing, every officer/tenure record, and the ein/address/propublica_url on
+ *  the catalog row. NOTE: greek_orgs is the shared national catalog, not a
+ *  per-campus row — this clears the org for ALL of its chapters, not just the
+ *  one the reset was triggered from. Does not touch the chapter's own fields
+ *  (status/house corp/advisor/notes) or vendor-queue data (domain/vendor_*). */
+export async function resetGreekOrgEnrichment(orgId: string): Promise<void> {
+  const { error: filingsErr } = await (supabase.from("greek_org_filings" as never) as any)
+    .delete()
+    .eq("org_id", orgId);
+  if (filingsErr) throw new Error(filingsErr.message);
+
+  const { error: peopleErr } = await (supabase.from("greek_org_people" as never) as any)
+    .delete()
+    .eq("org_id", orgId);
+  if (peopleErr) throw new Error(peopleErr.message);
+
+  const { error: orgErr } = await (supabase.from("greek_orgs" as never) as any)
+    .update({
+      ein: null,
+      address: null,
+      propublica_url: null,
+      enrichment_status: "pending",
+      enrichment_note: null,
+    })
+    .eq("id", orgId);
+  if (orgErr) throw new Error(orgErr.message);
+}
+
 const CHAPTER_COLS =
   "id, campus_id, greek_org_id, chapter_designation, council, council_raw, letters, status, house_corp_name, house_corp_990_url, advisor_name, advisor_notes, chapter_size, notes, created_at";
 

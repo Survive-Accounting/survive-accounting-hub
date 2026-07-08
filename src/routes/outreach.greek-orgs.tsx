@@ -17,6 +17,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Sparkles,
   Trash2,
   Upload,
@@ -45,6 +46,7 @@ import {
   listGreekPeople,
   nextGreekStatus,
   proPublicaUrl,
+  resetGreekOrgEnrichment,
   updateCampusFslUrl,
   updateGreekChapter,
   updateGreekFiling,
@@ -63,12 +65,24 @@ import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
 import { parseOfficers } from "@/lib/greek-officers";
 import { deriveNameFromDomain, INDUSTRIES, industryLabel } from "@/lib/greek-vendors";
 import { computeOrgSignals, SIGNALS, signalLabel, type SignalKey } from "@/lib/greek-signals";
+import { ADMIN_PASSCODE } from "@/components/AdminGate";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { CampusCombobox } from "@/components/outreach/CampusCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/outreach/greek-orgs")({
   validateSearch: (s: Record<string, unknown>): { admin?: number } => ({
@@ -973,6 +987,9 @@ function ChapterDrawer({
           >
             <Pencil className="h-3 w-3" /> Edit fields
           </button>
+          {ch.greek_org_id && (
+            <ResetOrgButton orgId={ch.greek_org_id} orgName={ch.national_org} onReset={onChanged} />
+          )}
         </div>
 
         {editing && (
@@ -992,6 +1009,106 @@ function ChapterDrawer({
         )}
       </div>
     </div>
+  );
+}
+
+/** "Start it over": wipes one org's enrichment data (filings, officers, EIN/
+ *  ProPublica URL) back to pending. Gated behind re-entering the admin
+ *  passcode — a second friction point so a stray click can't nuke real work.
+ *  One org at a time; there's no bulk variant. */
+function ResetOrgButton({
+  orgId,
+  orgName,
+  onReset,
+}: {
+  orgId: string;
+  orgName: string;
+  onReset: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function confirmReset() {
+    if (password !== ADMIN_PASSCODE) {
+      toast.error("Wrong passcode.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await resetGreekOrgEnrichment(orgId);
+      toast.success(`${orgName}: enrichment data reset.`);
+      setPassword("");
+      setOpen(false);
+      onReset();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Reset failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setPassword("");
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-700 hover:bg-red-100"
+        >
+          <RotateCcw className="h-3 w-3" /> Reset enrichment
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reset {orgName}'s enrichment data?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-left">
+              <p>
+                This deletes every 990 filing and officer/tenure record for{" "}
+                <strong>{orgName}</strong>, and clears its EIN, address, and ProPublica URL back to
+                pending — as if it had never been enriched.
+              </p>
+              <p className="font-medium text-foreground">
+                {orgName} is the national organization, shared across every chapter that uses it —
+                this resets it everywhere, not just this campus.
+              </p>
+              <p>Chapter fields (status, house corp, advisor, notes) are not affected.</p>
+              <label className="block pt-1 text-xs font-medium text-foreground">
+                Admin passcode to confirm
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && confirmReset()}
+                  className="mt-1 h-9"
+                  autoFocus
+                />
+              </label>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              confirmReset();
+            }}
+            disabled={busy || !password}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+            Reset it
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
