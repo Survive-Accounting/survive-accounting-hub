@@ -38,7 +38,6 @@ import {
   GREEK_STATUSES,
   importChapterGpaTsv,
   importGreekChaptersCsv,
-  linkedInAdvisorUrl,
   listAllFilings,
   listChapterGpa,
   listGreekChapters,
@@ -46,7 +45,6 @@ import {
   listGreekPeople,
   nextGreekStatus,
   proPublicaUrl,
-  sosSearchUrl,
   updateCampusFslUrl,
   updateGreekChapter,
   updateGreekFiling,
@@ -906,8 +904,6 @@ function ChapterDrawer({
       label: "990s (ProPublica)",
       url: proPublicaUrl(ch.national_org, ch.chapter_designation, campus?.city ?? null),
     },
-    { label: "Advisor (LinkedIn)", url: linkedInAdvisorUrl(ch.national_org, campus?.name ?? "") },
-    { label: "SOS search", url: sosSearchUrl(campus?.state ?? null) },
   ];
   if (campus?.fsl_url) links.push({ label: "FSL directory", url: campus.fsl_url });
 

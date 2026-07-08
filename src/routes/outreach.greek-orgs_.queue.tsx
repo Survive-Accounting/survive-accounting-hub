@@ -9,18 +9,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check, ExternalLink, Loader2, SkipForward, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, Loader2, SkipForward, Sparkles } from "lucide-react";
 
 import {
   accumulateOfficers,
   councilLabel,
   COUNCILS,
+  einFromPastedUrl,
   fetchGreekCampuses,
   fetchGreekCatalog,
   listGreekChapters,
   listGreekFilings,
   ORG_ENRICH_STATUSES,
-  proPublicaUrl,
+  proPublicaSearchVariants,
   setOrgEnrichment,
   updateGreekFiling,
   type GreekCampus,
@@ -34,6 +35,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/outreach/greek-orgs_/queue")({
   head: () => ({ meta: [{ title: "GreekIntel — enrichment queue" }] }),
@@ -50,6 +57,7 @@ interface QueueItem {
   orgId: string;
   orgName: string;
   ein: string | null;
+  propublicaUrl: string | null;
   status: string;
   chapter: GreekChapter;
   campus: GreekCampus | null;
@@ -88,6 +96,7 @@ function Queue() {
         orgId: ch.greek_org_id,
         orgName: ch.national_org,
         ein: org?.ein ?? null,
+        propublicaUrl: org?.propublica_url ?? null,
         status: orgStatus,
         chapter: ch,
         campus: campusById.get(ch.campus_id ?? "") ?? null,
@@ -256,6 +265,10 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
     }
   }
 
+  function onEinChange(raw: string) {
+    setEin(einFromPastedUrl(raw));
+  }
+
   async function runEnrich() {
     if (!ein.trim()) return toast.error("Paste an EIN or ProPublica URL first.");
     setBusy(true);
@@ -350,22 +363,52 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
         <div className="mb-1 text-[11px] font-semibold uppercase text-muted-foreground">
           Step 1 · Find on ProPublica
         </div>
+        {item.propublicaUrl && (
+          <div className="mb-2 text-xs">
+            <a
+              href={item.propublicaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-emerald-700 hover:bg-emerald-100"
+            >
+              Saved ProPublica page <ExternalLink className="h-3 w-3" />
+            </a>
+            <span className="ml-2 text-muted-foreground">
+              found once, saved forever — no need to search again.
+            </span>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={proPublicaUrl(
-              item.orgName,
-              item.chapter.chapter_designation,
-              item.campus?.city ?? null,
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-xs hover:bg-muted"
-          >
-            Find on ProPublica <ExternalLink className="h-3 w-3" />
-          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                Find on ProPublica <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-80">
+              {proPublicaSearchVariants(
+                item.orgName,
+                item.chapter.chapter_designation,
+                item.campus?.state ?? null,
+                item.campus?.city ?? null,
+              ).map((v, i) => (
+                <DropdownMenuItem key={i} asChild>
+                  <a
+                    href={v.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex cursor-pointer items-center justify-between gap-2"
+                  >
+                    <span className="truncate text-xs">{v.label}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  </a>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Input
             value={ein}
-            onChange={(e) => setEin(e.target.value)}
+            onChange={(e) => onEinChange(e.target.value)}
             placeholder="EIN or ProPublica URL"
             className="h-8 w-56 text-sm"
           />
@@ -377,6 +420,10 @@ function OrgCard({ item, onDone }: { item: QueueItem; onDone: () => void }) {
             )}
             Pull filings
           </Button>
+        </div>
+        <div className="mt-1.5 text-[10px] text-muted-foreground">
+          Try each until you find it, then paste the URL — the EIN fills automatically. 90 seconds
+          max; if none hit, press S with "not on ProPublica" as the note.
         </div>
       </div>
 

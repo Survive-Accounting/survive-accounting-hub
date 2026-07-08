@@ -59,21 +59,6 @@ const COUNCIL_LABEL: Record<string, string> = {
 export const councilLabel = (c: string | null) => (c ? (COUNCIL_LABEL[c] ?? c) : "—");
 
 // --- Research link helpers (links only) ---------------------------------------
-const STATE_NAME: Record<string, string> = {
-  AL: "Alabama",
-  AR: "Arkansas",
-  FL: "Florida",
-  GA: "Georgia",
-  KY: "Kentucky",
-  LA: "Louisiana",
-  MS: "Mississippi",
-  MO: "Missouri",
-  OK: "Oklahoma",
-  SC: "South Carolina",
-  TN: "Tennessee",
-  TX: "Texas",
-};
-export const stateName = (s: string | null) => (s ? (STATE_NAME[s] ?? s) : "");
 
 /** ProPublica nonprofit search. With a chapter designation: "{org} {designation}";
  *  otherwise fall back to "{org} {campus city}". */
@@ -88,21 +73,67 @@ export function proPublicaUrl(
   return `https://projects.propublica.org/nonprofits/search?q=${encodeURIComponent(q)}`;
 }
 
-export function linkedInAdvisorUrl(nationalOrg: string, campusName: string): string {
-  const kw = `"chapter advisor" ${nationalOrg} ${campusName}`;
-  return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(kw)}`;
+export interface SearchVariant {
+  label: string;
+  url: string;
 }
 
-// State Secretary-of-State business search. Direct entry where known (link-only —
-// these sites don't take a simple GET query param); otherwise a Google fallback so
-// the link always works. Fill in more direct URLs over time.
-const SOS_DIRECT: Record<string, string> = {
-  MS: "https://corp.sos.ms.gov/corp/portal/c/page/corpBusinessIdSearch",
+/** "-" or blank chapter designations are placeholders, not real data. */
+const cleanDesignation = (d: string | null): string => {
+  const t = (d ?? "").trim();
+  return t && t !== "-" ? t : "";
 };
-export function sosSearchUrl(state: string | null): string {
-  if (state && SOS_DIRECT[state]) return SOS_DIRECT[state];
-  const q = `${stateName(state)} secretary of state business entity search`;
-  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+
+/** The queue's "Find on ProPublica" dropdown: 7 prebuilt search variants, ordered
+ *  by hit-rate (each labeled with its actual query so the VA learns the pattern —
+ *  which one hits tells you why). Missing city (research-only campuses store no
+ *  city) falls back to state; missing designation just drops that token instead
+ *  of hiding the variant, so the shape stays consistent across orgs. */
+export function proPublicaSearchVariants(
+  nationalOrg: string,
+  chapterDesignation: string | null,
+  state: string | null,
+  city: string | null,
+): SearchVariant[] {
+  const designation = cleanDesignation(chapterDesignation);
+  const st = (state ?? "").trim();
+  const cityOrState = (city ?? "").trim() || st;
+  const join = (...parts: string[]) => parts.filter(Boolean).join(" ").trim();
+  const pp = (q: string) =>
+    `https://projects.propublica.org/nonprofits/search?q=${encodeURIComponent(q)}`;
+
+  const q1 = join(nationalOrg, designation, st);
+  const q2 = join(nationalOrg, cityOrState);
+  const q3 = join(nationalOrg, "house corporation", st);
+  const q4 = join(nationalOrg, designation);
+  const q5 = join(nationalOrg, "house association", cityOrState);
+  const irsQuery = join(nationalOrg, designation, st);
+  const googleQuery = join(nationalOrg, designation, st, "990 site:projects.propublica.org");
+
+  return [
+    { label: `"${q1}"`, url: pp(q1) },
+    { label: `"${q2}"`, url: pp(q2) },
+    { label: `"${q3}"`, url: pp(q3) },
+    { label: `"${q4}"`, url: pp(q4) },
+    { label: `"${q5}"`, url: pp(q5) },
+    {
+      label: "IRS EO search (catches revoked/inactive)",
+      url: `https://apps.irs.gov/app/eos/allSearch.do?dispatchMethod=searchAll&names=${encodeURIComponent(irsQuery)}&city=&state=${encodeURIComponent(st)}&country=US`,
+    },
+    {
+      label: "Google fallback (990 + ProPublica)",
+      url: `https://www.google.com/search?q=${encodeURIComponent(googleQuery)}`,
+    },
+  ];
+}
+
+/** Pull a 9-digit EIN out of a pasted ProPublica org/full-render URL, so pasting a
+ *  URL prefills just the EIN (still editable) instead of leaving the raw URL in
+ *  the field. Falls through to the raw text when there's no match — plain EINs
+ *  (dashed or not) pass through untouched for the server-side extractor to parse. */
+export function einFromPastedUrl(raw: string): string {
+  const m = raw.match(/organizations\/(\d{9})/);
+  return m ? m[1] : raw;
 }
 
 // --- Data access --------------------------------------------------------------
