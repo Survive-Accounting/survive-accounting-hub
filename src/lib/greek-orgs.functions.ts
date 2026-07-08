@@ -91,12 +91,15 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
     const org = payload?.organization ?? {};
     const address =
       [org.address, org.city, org.state, org.zipcode].filter(Boolean).join(", ") || null;
+    // NEVER overwrite the org name: greek_orgs rows are NATIONAL catalog entries
+    // shared by every chapter row; the EIN entered here is usually one chapter's
+    // house corp, and copying ProPublica's filer name renamed the whole org
+    // ("Alpha Delta Pi" → "Delta Sigma Chapter Of … House Corporation").
     await orgs()
       .update({
         ein,
         address,
         propublica_url: `https://projects.propublica.org/nonprofits/organizations/${ein}`,
-        ...(org.name ? { name: org.name } : {}),
       })
       .eq("id", data.orgId);
 

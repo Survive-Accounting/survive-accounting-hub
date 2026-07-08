@@ -3,6 +3,7 @@
 // per-campus `campus_greek_chapters`. Anon Supabase client (AdminGate'd UI),
 // mirroring the reddit/parent-groups pattern.
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeFirmName } from "@/lib/greek-vendors";
 
 export interface GreekCampus {
   id: string;
@@ -132,20 +133,42 @@ export interface GreekOrgCatalog {
   propublica_url: string | null;
   enrichment_status: string;
   enrichment_note: string | null;
+  // Vendor-list research (per national org — greek_orgs IS the national catalog).
+  domain: string | null;
+  housing_entity: string | null;
+  vendor_status: string;
+  vendor_notes: string | null;
 }
 
 export const ORG_ENRICH_STATUSES = ["pending", "enriched", "no_filing_found"] as const;
+export const VENDOR_STATUSES = ["pending", "lists_found", "none_found", "portal_gated"] as const;
 
 /** National catalog with enrichment fields, for the picker + org-level rendering. */
 export async function fetchGreekCatalog(): Promise<GreekOrgCatalog[]> {
   const { data, error } = await (supabase.from("greek_orgs" as never) as any)
-    .select("id, name, ein, address, propublica_url, enrichment_status, enrichment_note")
+    .select(
+      "id, name, ein, address, propublica_url, enrichment_status, enrichment_note, domain, housing_entity, vendor_status, vendor_notes",
+    )
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []).map((o: any) => ({
     ...o,
     enrichment_status: o.enrichment_status ?? "pending",
+    vendor_status: o.vendor_status ?? "pending",
   })) as GreekOrgCatalog[];
+}
+
+/** Vendor-queue org fields (domain / housing entity / status / notes). */
+export async function updateGreekOrgVendor(
+  orgId: string,
+  patch: Partial<
+    Pick<GreekOrgCatalog, "domain" | "housing_entity" | "vendor_status" | "vendor_notes">
+  >,
+): Promise<void> {
+  const { error } = await (supabase.from("greek_orgs" as never) as any)
+    .update(patch)
+    .eq("id", orgId);
+  if (error) throw new Error(error.message);
 }
 
 /** Set an org's queue enrichment status (pending → enriched | no_filing_found). */
@@ -697,29 +720,118 @@ export async function setPersonEnrichment(id: string, status: string): Promise<v
   if (error) throw new Error(error.message);
 }
 
-// --- Firms rollup (generated from filings; lead-tracking status/notes) ---------
+// --- Vendor lists (captured per national org; PDFs in storage) -----------------
+export const VENDOR_LIST_TYPES = [
+  "approved_vendors",
+  "preferred_partners",
+  "exhibitors",
+  "lenders",
+  "other",
+] as const;
+
+export interface VendorList {
+  id: string;
+  national_org: string;
+  list_type: string;
+  url: string | null;
+  pdf_storage_path: string | null;
+  found_at: string;
+  notes: string | null;
+}
+
+export async function listVendorLists(nationalOrg?: string): Promise<VendorList[]> {
+  let q = (supabase.from("vendor_lists" as never) as any).select("*");
+  if (nationalOrg) q = q.eq("national_org", nationalOrg);
+  const { data, error } = await q.order("found_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as VendorList[];
+}
+
+export async function addVendorList(input: {
+  national_org: string;
+  list_type: string;
+  url?: string | null;
+  pdf_storage_path?: string | null;
+  notes?: string | null;
+}): Promise<void> {
+  const { error } = await (supabase.from("vendor_lists" as never) as any).insert({
+    national_org: input.national_org,
+    list_type: input.list_type,
+    url: input.url || null,
+    pdf_storage_path: input.pdf_storage_path || null,
+    notes: input.notes || null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Upload a captured vendor-list PDF to the public `vendor-lists` bucket.
+ *  Timestamped path (anon has insert-only, no overwrite). Returns the path. */
+export async function uploadVendorPdf(nationalOrg: string, file: File): Promise<string> {
+  const slug = nationalOrg
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const path = `${slug}/${Date.now()}_${file.name.replace(/[^\w.-]+/g, "_")}`;
+  const { error } = await supabase.storage
+    .from("vendor-lists")
+    .upload(path, file, { contentType: file.type || "application/pdf" });
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+export function vendorPdfPublicUrl(path: string): string {
+  return supabase.storage.from("vendor-lists").getPublicUrl(path).data.publicUrl;
+}
+
+// --- Firms rollup (990 filings + vendor-list/manual leads; cross-referenced) ---
+export const FIRM_SOURCES = [
+  "990_preparer",
+  "990_fundraiser",
+  "990_contractor",
+  "national_vendor_list",
+  "manual",
+] as const;
+
+export interface FirmLead {
+  firm_name: string;
+  status: string;
+  notes: string | null;
+  source: string;
+  vendor_list_org: string | null;
+  vendor_list_url: string | null;
+  category: string | null;
+  industry: string | null;
+  website_url: string | null;
+  phone: string | null;
+}
+
 export interface FirmRow {
   firm_name: string;
-  roles: string[]; // preparer | fundraiser
+  roles: string[]; // preparer | fundraiser (from 990s)
+  sources: string[]; // FIRM_SOURCES values present for this firm
   phone: string | null;
   address: string | null;
+  website_url: string | null;
+  industry: string | null;
+  category: string | null;
+  vendor_list_org: string | null;
+  vendor_list_url: string | null;
   org_ids: string[];
+  seen_in_990s: number; // cross-ref: normalized-name matches across filings
   status: string;
   notes: string | null;
 }
 
-export async function listFirmLeads(): Promise<
-  { firm_name: string; status: string; notes: string | null }[]
-> {
+export async function listFirmLeads(): Promise<FirmLead[]> {
   const { data } = await (supabase.from("greek_firm_leads" as never) as any).select(
-    "firm_name, status, notes",
+    "firm_name, status, notes, source, vendor_list_org, vendor_list_url, category, industry, website_url, phone",
   );
-  return (data ?? []) as any;
+  return (data ?? []) as FirmLead[];
 }
 
 export async function upsertFirmLead(
   firmName: string,
-  patch: { status?: string; notes?: string | null },
+  patch: Partial<Omit<FirmLead, "firm_name">>,
 ): Promise<void> {
   const { error } = await (supabase.from("greek_firm_leads" as never) as any).upsert(
     { firm_name: firmName, ...patch, updated_at: new Date().toISOString() },
@@ -728,8 +840,42 @@ export async function upsertFirmLead(
   if (error) throw new Error(error.message);
 }
 
-/** Roll up distinct preparer + fundraiser firms across all filings, with the org
- *  set they serve and any lead status/notes. Generated — no manual entry. */
+/** Batch-insert vendor-list firms (source='national_vendor_list'). Upserts by
+ *  firm_name so re-confirming a list is idempotent and a name that already
+ *  exists (e.g. a 990 preparer) gains the vendor fields without losing its
+ *  lead status/notes. */
+export async function upsertVendorFirms(
+  firms: {
+    name: string;
+    website: string | null;
+    phone: string | null;
+    category: string | null;
+    industry: string | null;
+  }[],
+  vendorListOrg: string,
+  vendorListUrl: string | null,
+): Promise<number> {
+  let n = 0;
+  for (const f of firms) {
+    if (!f.name.trim()) continue;
+    await upsertFirmLead(f.name.trim(), {
+      source: "national_vendor_list",
+      vendor_list_org: vendorListOrg,
+      vendor_list_url: vendorListUrl,
+      category: f.category,
+      industry: f.industry,
+      website_url: f.website,
+      phone: f.phone,
+    });
+    n++;
+  }
+  return n;
+}
+
+/** Roll up firms from BOTH sources: distinct preparer/fundraiser firms across
+ *  all 990 filings, plus vendor-list/manual rows from greek_firm_leads. Keyed by
+ *  normalized name so the same firm converges; `seen_in_990s` counts filing
+ *  matches (preparer + fundraiser fields) — the cross-reference column. */
 export async function fetchFirmRollup(): Promise<FirmRow[]> {
   const [{ data: filings }, leads] = await Promise.all([
     (supabase.from("greek_org_filings" as never) as any).select(
@@ -737,53 +883,101 @@ export async function fetchFirmRollup(): Promise<FirmRow[]> {
     ),
     listFirmLeads(),
   ]);
-  const leadBy = new Map(leads.map((l) => [l.firm_name.toLowerCase(), l]));
-  const acc = new Map<
-    string,
-    {
-      firm_name: string;
-      roles: Set<string>;
-      phone: string | null;
-      address: string | null;
-      orgs: Set<string>;
-    }
-  >();
-  const add = (
-    name: string | null,
-    role: string,
-    orgId: string,
-    phone?: string | null,
-    address?: string | null,
-  ) => {
-    const n = (name ?? "").trim();
-    if (!n) return;
-    const key = n.toLowerCase();
-    const e =
-      acc.get(key) ??
-      acc
-        .set(key, { firm_name: n, roles: new Set(), phone: null, address: null, orgs: new Set() })
-        .get(key)!;
-    e.roles.add(role);
-    if (orgId) e.orgs.add(orgId);
-    if (phone && !e.phone) e.phone = phone;
-    if (address && !e.address) e.address = address;
-  };
-  for (const f of (filings ?? []) as any[]) {
-    add(f.preparer_firm, "preparer", f.org_id, f.preparer_phone, f.preparer_address);
-    add(f.fundraiser_firm, "fundraiser", f.org_id);
+
+  interface Acc {
+    firm_name: string;
+    roles: Set<string>;
+    sources: Set<string>;
+    phone: string | null;
+    address: string | null;
+    website_url: string | null;
+    industry: string | null;
+    category: string | null;
+    vendor_list_org: string | null;
+    vendor_list_url: string | null;
+    orgs: Set<string>;
+    seen_in_990s: number;
+    status: string;
+    notes: string | null;
   }
-  return [...acc.values()]
-    .map((e) => {
-      const lead = leadBy.get(e.firm_name.toLowerCase());
-      return {
-        firm_name: e.firm_name,
-        roles: [...e.roles],
-        phone: e.phone,
-        address: e.address,
-        org_ids: [...e.orgs],
-        status: lead?.status ?? "new",
-        notes: lead?.notes ?? null,
+  const acc = new Map<string, Acc>();
+  const get = (name: string): Acc => {
+    const key = normalizeFirmName(name);
+    let e = acc.get(key);
+    if (!e) {
+      e = {
+        firm_name: name,
+        roles: new Set(),
+        sources: new Set(),
+        phone: null,
+        address: null,
+        website_url: null,
+        industry: null,
+        category: null,
+        vendor_list_org: null,
+        vendor_list_url: null,
+        orgs: new Set(),
+        seen_in_990s: 0,
+        status: "new",
+        notes: null,
       };
-    })
-    .sort((a, b) => b.org_ids.length - a.org_ids.length || a.firm_name.localeCompare(b.firm_name));
+      acc.set(key, e);
+    }
+    return e;
+  };
+
+  for (const f of (filings ?? []) as any[]) {
+    for (const [field, role] of [
+      ["preparer_firm", "preparer"],
+      ["fundraiser_firm", "fundraiser"],
+    ] as const) {
+      const n = (f[field] ?? "").trim();
+      if (!n) continue;
+      const e = get(n);
+      e.roles.add(role);
+      e.sources.add(`990_${role}`);
+      e.seen_in_990s++;
+      if (f.org_id) e.orgs.add(f.org_id);
+      if (role === "preparer") {
+        if (f.preparer_phone && !e.phone) e.phone = f.preparer_phone;
+        if (f.preparer_address && !e.address) e.address = f.preparer_address;
+      }
+    }
+  }
+  for (const l of leads) {
+    const e = get(l.firm_name);
+    e.sources.add(l.source ?? "manual");
+    e.status = l.status ?? "new";
+    e.notes = l.notes ?? null;
+    if (l.phone && !e.phone) e.phone = l.phone;
+    if (l.website_url) e.website_url = l.website_url;
+    if (l.industry) e.industry = l.industry;
+    if (l.category) e.category = l.category;
+    if (l.vendor_list_org) e.vendor_list_org = l.vendor_list_org;
+    if (l.vendor_list_url) e.vendor_list_url = l.vendor_list_url;
+  }
+
+  return [...acc.values()]
+    .map((e) => ({
+      firm_name: e.firm_name,
+      roles: [...e.roles],
+      sources: [...e.sources],
+      phone: e.phone,
+      address: e.address,
+      website_url: e.website_url,
+      industry: e.industry,
+      category: e.category,
+      vendor_list_org: e.vendor_list_org,
+      vendor_list_url: e.vendor_list_url,
+      org_ids: [...e.orgs],
+      seen_in_990s: e.seen_in_990s,
+      status: e.status,
+      notes: e.notes,
+    }))
+    .sort(
+      (a, b) =>
+        b.seen_in_990s - a.seen_in_990s ||
+        b.org_ids.length - a.org_ids.length ||
+        a.firm_name.localeCompare(b.firm_name),
+    );
 }

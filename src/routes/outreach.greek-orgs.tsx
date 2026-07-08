@@ -34,6 +34,7 @@ import {
   fetchGreekCampuses,
   fetchGreekCatalog,
   FILING_ITEM_FIELDS,
+  FIRM_SOURCES,
   GREEK_STATUSES,
   importChapterGpaTsv,
   importGreekChaptersCsv,
@@ -62,6 +63,7 @@ import {
 } from "@/lib/greek-orgs";
 import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
 import { parseOfficers } from "@/lib/greek-officers";
+import { deriveNameFromDomain, INDUSTRIES, industryLabel } from "@/lib/greek-vendors";
 import { computeOrgSignals, SIGNALS, signalLabel, type SignalKey } from "@/lib/greek-signals";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { CampusCombobox } from "@/components/outreach/CampusCombobox";
@@ -174,6 +176,12 @@ function GreekOrgs() {
         >
           People queue →
         </Link>
+        <Link
+          to="/outreach/greek-orgs/vendor-queue"
+          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+        >
+          Vendor queue →
+        </Link>
       </div>
 
       {tab === "chapters" && (
@@ -209,12 +217,30 @@ function GreekOrgs() {
   );
 }
 
+const SOURCE_LABEL: Record<string, string> = {
+  "990_preparer": "990 preparer",
+  "990_fundraiser": "990 fundraiser",
+  "990_contractor": "990 contractor",
+  national_vendor_list: "vendor list",
+  manual: "manual",
+};
+
 function FirmsTab({ catalogById }: { catalogById: Map<string, GreekOrgCatalog> }) {
   const firmsQuery = useQuery({ queryKey: ["greek-firms"], queryFn: fetchFirmRollup });
-  const firms = firmsQuery.data ?? [];
+  const firms = useMemo(() => firmsQuery.data ?? [], [firmsQuery.data]);
   const [open, setOpen] = useState<string | null>(null);
+  const [source, setSource] = useState<string | null>(null);
+  const [industry, setIndustry] = useState<string>("");
 
-  async function saveLead(name: string, patch: { status?: string; notes?: string | null }) {
+  const filtered = useMemo(
+    () =>
+      firms.filter(
+        (f) => (!source || f.sources.includes(source)) && (!industry || f.industry === industry),
+      ),
+    [firms, source, industry],
+  );
+
+  async function saveLead(name: string, patch: Parameters<typeof upsertFirmLead>[1]) {
     try {
       await upsertFirmLead(name, patch);
       firmsQuery.refetch();
@@ -223,35 +249,190 @@ function FirmsTab({ catalogById }: { catalogById: Map<string, GreekOrgCatalog> }
     }
   }
 
-  if (firmsQuery.isLoading)
-    return (
-      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+  return (
+    <>
+      <FirmQuickAdd onAdded={() => firmsQuery.refetch()} />
+
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-muted-foreground">Source:</span>
+        <FilterPill active={!source} onClick={() => setSource(null)}>
+          All
+        </FilterPill>
+        {FIRM_SOURCES.map((s) => (
+          <FilterPill key={s} active={source === s} onClick={() => setSource(s)}>
+            {SOURCE_LABEL[s]}
+          </FilterPill>
+        ))}
+        <span className="ml-2 text-[11px] text-muted-foreground">Industry:</span>
+        <select
+          value={industry}
+          onChange={(e) => setIndustry(e.target.value)}
+          className="h-7 rounded-md border border-input bg-background px-1.5 text-[11px]"
+        >
+          <option value="">all</option>
+          {INDUSTRIES.map((i) => (
+            <option key={i} value={i}>
+              {industryLabel(i)}
+            </option>
+          ))}
+        </select>
+        <span className="ml-2 text-[11px] text-muted-foreground">
+          {filtered.length} of {firms.length} firms
+        </span>
       </div>
-    );
-  if (firms.length === 0)
-    return (
-      <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
-        No firms yet. Enter preparer/fundraiser firms on filings (queue or chapter drawer) and they
-        roll up here.
-      </div>
-    );
+
+      {firmsQuery.isLoading ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+          No firms match. 990 preparers/fundraisers roll up from filings; vendor-list firms come
+          from the vendor queue.
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map((f) => (
+            <FirmRowCard
+              key={f.firm_name}
+              f={f}
+              catalogById={catalogById}
+              expanded={open === f.firm_name}
+              onToggle={() => setOpen((v) => (v === f.firm_name ? null : f.firm_name))}
+              onSave={(patch) => saveLead(f.firm_name, patch)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** One-line manual firm quick-add: website URL → derived (editable) name →
+ *  industry → note. Doubles as King's vendor-list logger via the source select
+ *  (org + list URL fields appear for source=vendor list). */
+function FirmQuickAdd({ onAdded }: { onAdded: () => void }) {
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  const [industry, setIndustry] = useState("");
+  const [source, setSource] = useState<string>("manual");
+  const [vendorOrg, setVendorOrg] = useState("");
+  const [vendorUrl, setVendorUrl] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function onUrl(v: string) {
+    setUrl(v);
+    if (!nameTouched && v.trim()) setName(deriveNameFromDomain(v));
+  }
+
+  async function add() {
+    if (!name.trim()) return toast.error("Firm name required (paste a website URL to derive it).");
+    setBusy(true);
+    try {
+      await upsertFirmLead(name.trim(), {
+        source,
+        website_url: url.trim() || null,
+        industry: industry || null,
+        phone: phone.trim() || null,
+        notes: note.trim() || null,
+        vendor_list_org: source === "national_vendor_list" ? vendorOrg.trim() || null : null,
+        vendor_list_url: source === "national_vendor_list" ? vendorUrl.trim() || null : null,
+      });
+      toast.success(`Added ${name.trim()}.`);
+      setUrl("");
+      setName("");
+      setNameTouched(false);
+      setPhone("");
+      setNote("");
+      onAdded();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <div className="space-y-1.5">
-      <div className="text-[11px] text-muted-foreground">
-        {firms.length} distinct firms across all filings — generated, no manual entry.
-      </div>
-      {firms.map((f) => (
-        <FirmRowCard
-          key={f.firm_name}
-          f={f}
-          catalogById={catalogById}
-          expanded={open === f.firm_name}
-          onToggle={() => setOpen((v) => (v === f.firm_name ? null : f.firm_name))}
-          onSave={(patch) => saveLead(f.firm_name, patch)}
+    <div className="mb-3 rounded-lg border border-border p-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input
+          value={url}
+          onChange={(e) => onUrl(e.target.value)}
+          placeholder="website URL (holmesmurphy.com)"
+          className="h-8 w-56 text-xs"
         />
-      ))}
+        <Input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameTouched(true);
+          }}
+          placeholder="firm name"
+          className="h-8 w-44 text-xs"
+        />
+        <select
+          value={industry}
+          onChange={(e) => setIndustry(e.target.value)}
+          className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
+        >
+          <option value="">industry…</option>
+          {INDUSTRIES.map((i) => (
+            <option key={i} value={i}>
+              {industryLabel(i)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
+        >
+          {FIRM_SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {SOURCE_LABEL[s]}
+            </option>
+          ))}
+        </select>
+        {source === "national_vendor_list" && (
+          <>
+            <Input
+              value={vendorOrg}
+              onChange={(e) => setVendorOrg(e.target.value)}
+              placeholder="national org"
+              className="h-8 w-36 text-xs"
+            />
+            <Input
+              value={vendorUrl}
+              onChange={(e) => setVendorUrl(e.target.value)}
+              placeholder="list URL"
+              className="h-8 w-40 text-xs"
+            />
+          </>
+        )}
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="phone"
+          className="h-8 w-28 text-xs"
+        />
+        <Input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="note (optional)"
+          className="h-8 w-36 text-xs"
+        />
+        <Button size="sm" className="h-8" disabled={busy} onClick={add}>
+          {busy ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="mr-1 h-3.5 w-3.5" />
+          )}
+          Add firm
+        </Button>
+      </div>
     </div>
   );
 }
@@ -267,27 +448,63 @@ function FirmRowCard({
   catalogById: Map<string, GreekOrgCatalog>;
   expanded: boolean;
   onToggle: () => void;
-  onSave: (patch: { status?: string; notes?: string | null }) => void;
+  onSave: (patch: Parameters<typeof upsertFirmLead>[1]) => void;
 }) {
   const [notes, setNotes] = useState(f.notes ?? "");
+  const [website, setWebsite] = useState(f.website_url ?? "");
+  // A status/notes edit on a lead-less 990 firm creates its row — carry the
+  // right source so the chip doesn't degrade to "manual".
+  const primarySource =
+    f.sources.find((s) => s === "national_vendor_list") ??
+    f.sources.find((s) => s.startsWith("990_")) ??
+    "manual";
+
   return (
     <div className="rounded-lg border border-border bg-card/60 p-3 text-xs">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <button type="button" onClick={onToggle} className="font-semibold hover:underline">
           {f.firm_name}
         </button>
-        {f.roles.map((r) => (
-          <Badge key={r} variant="outline" className="text-[10px] capitalize">
-            {r}
+        {f.sources.map((s) => (
+          <Badge
+            key={s}
+            variant="outline"
+            className={`text-[10px] ${s === "national_vendor_list" ? "border-violet-300 bg-violet-50 text-violet-700" : ""}`}
+          >
+            {SOURCE_LABEL[s] ?? s}
           </Badge>
         ))}
-        <Badge variant="secondary" className="text-[10px]">
-          {f.org_ids.length} org{f.org_ids.length === 1 ? "" : "s"}
+        {f.industry && (
+          <Badge variant="secondary" className="text-[10px]">
+            {industryLabel(f.industry)}
+          </Badge>
+        )}
+        {/* The money column: this vendor/manual firm also shows up in N 990s. */}
+        <Badge
+          className={`text-[10px] ${f.seen_in_990s > 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}
+          title="Cross-reference: filings whose preparer/fundraiser matches this firm (normalized name)"
+        >
+          seen in {f.seen_in_990s} 990{f.seen_in_990s === 1 ? "" : "s"}
         </Badge>
+        {f.org_ids.length > 0 && (
+          <Badge variant="secondary" className="text-[10px]">
+            {f.org_ids.length} org{f.org_ids.length === 1 ? "" : "s"}
+          </Badge>
+        )}
         {f.phone && <span className="text-muted-foreground">{f.phone}</span>}
+        {f.website_url && (
+          <a
+            href={f.website_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 text-primary underline"
+          >
+            site <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
         <select
           value={f.status}
-          onChange={(e) => onSave({ status: e.target.value })}
+          onChange={(e) => onSave({ status: e.target.value, source: primarySource })}
           className={`ml-auto h-7 rounded-md border border-input bg-background px-1.5 text-[11px]`}
         >
           {["new", "contacted", "meeting", "client", "passed"].map((s) => (
@@ -297,23 +514,74 @@ function FirmRowCard({
           ))}
         </select>
       </div>
-      {f.address && <div className="mt-0.5 text-[10px] text-muted-foreground">{f.address}</div>}
+      {(f.address || f.vendor_list_org) && (
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+          {f.address && <span>{f.address}</span>}
+          {f.vendor_list_org && (
+            <span>
+              via {f.vendor_list_org}
+              {f.vendor_list_url && (
+                <>
+                  {" "}
+                  <a
+                    href={f.vendor_list_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline"
+                  >
+                    list
+                  </a>
+                </>
+              )}
+              {f.category ? ` · ${f.category}` : ""}
+            </span>
+          )}
+        </div>
+      )}
       {expanded && (
         <div className="mt-2 space-y-2">
-          <div className="flex flex-wrap gap-1">
-            {f.org_ids.map((id) => (
-              <span
-                key={id}
-                className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px]"
-              >
-                {catalogById.get(id)?.name ?? id}
-              </span>
-            ))}
+          {f.org_ids.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {f.org_ids.map((id) => (
+                <span
+                  key={id}
+                  className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px]"
+                >
+                  {catalogById.get(id)?.name ?? id}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Input
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              onBlur={() =>
+                website !== (f.website_url ?? "") &&
+                onSave({ website_url: website || null, source: primarySource })
+              }
+              placeholder="website URL"
+              className="h-7 w-64 text-[11px]"
+            />
+            <select
+              value={f.industry ?? ""}
+              onChange={(e) => onSave({ industry: e.target.value || null, source: primarySource })}
+              className="h-7 rounded-md border border-input bg-background px-1.5 text-[11px]"
+            >
+              <option value="">industry…</option>
+              {INDUSTRIES.map((i) => (
+                <option key={i} value={i}>
+                  {industryLabel(i)}
+                </option>
+              ))}
+            </select>
           </div>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            onBlur={() => notes !== (f.notes ?? "") && onSave({ notes: notes || null })}
+            onBlur={() =>
+              notes !== (f.notes ?? "") && onSave({ notes: notes || null, source: primarySource })
+            }
             placeholder="Lead notes…"
             className="min-h-[44px] text-[11px]"
           />
