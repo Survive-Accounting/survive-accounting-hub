@@ -178,3 +178,77 @@ export const refreshRedditMentions = createServerFn({ method: "POST" })
       backoffs,
     };
   });
+
+// --- Quick-add prefill: fetch a single Reddit post's public .json --------------
+// Distinct from the bulk listener above: ONE request, 5s timeout, no retries, no
+// bulk. Triggered when Lee pastes a post URL in quick-add. Fails silently (returns
+// {ok:false}) so entry always falls back to manual.
+const TRIAGE_UA = `surviveaccounting-triage/1.0 by /u/${process.env.REDDIT_USERNAME ?? "surviveaccounting"}`;
+const fetchPostSchema = z.object({ url: z.string().min(1) });
+
+type FetchPostResult =
+  | { ok: false }
+  | {
+      ok: true;
+      title: string | null;
+      author: string | null;
+      snippet: string | null;
+      posted_at: string | null;
+      subreddit: string | null;
+      campus_id: string | null;
+    };
+
+export const fetchRedditPost = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => fetchPostSchema.parse(d))
+  .handler(async ({ data }): Promise<FetchPostResult> => {
+    try {
+      const raw = data.url.trim();
+      if (!/reddit\.com\/r\/[^/]+\/comments\//i.test(raw) && !/redd\.it\//i.test(raw)) {
+        return { ok: false };
+      }
+      const jsonUrl = raw.split("?")[0].replace(/\/+$/, "") + ".json";
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      let res: Response;
+      try {
+        res = await fetch(jsonUrl, {
+          headers: { "User-Agent": TRIAGE_UA, Accept: "application/json" },
+          signal: ctrl.signal,
+          redirect: "follow",
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!res.ok) return { ok: false };
+      const j = (await res.json()) as any;
+      const post = Array.isArray(j)
+        ? j[0]?.data?.children?.[0]?.data
+        : j?.data?.children?.[0]?.data;
+      if (!post) return { ok: false };
+
+      const subreddit: string = String(post.subreddit ?? "");
+      let campus_id: string | null = null;
+      if (subreddit) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        // active_roster/subreddit aren't in the generated types yet — cast like the
+        // client data layer does.
+        const { data: c } = await (supabaseAdmin.from("campuses" as never) as any)
+          .select("id")
+          .eq("active_roster", "sec")
+          .ilike("subreddit", subreddit)
+          .limit(1);
+        campus_id = (c?.[0]?.id as string | undefined) ?? null;
+      }
+      return {
+        ok: true,
+        title: post.title ?? null,
+        author: post.author ?? null,
+        snippet: (post.selftext ?? "").slice(0, 300) || null,
+        posted_at: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : null,
+        subreddit: subreddit || null,
+        campus_id,
+      };
+    } catch {
+      return { ok: false };
+    }
+  });

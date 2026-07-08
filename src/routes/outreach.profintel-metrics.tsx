@@ -6,7 +6,7 @@
 // NOTE: ProfIntel is drafts-only today — nothing sends automatically yet, so
 // "Sent" reads 0 and open/reply are "—" until the send worker + open/reply
 // tracking are wired. The itemized list and draft/scheduled counts work now.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -14,6 +14,8 @@ import { BarChart3, Loader2, Mail, Power } from "lucide-react";
 
 import {
   effectiveDailyCap,
+  familiesForMatches,
+  fetchCampusFamilyMaps,
   getProfintelSettings,
   listSends,
   markReplied,
@@ -23,6 +25,7 @@ import {
 } from "@/lib/profintel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 export const Route = createFileRoute("/outreach/profintel-metrics")({
   head: () => ({
@@ -89,6 +92,9 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
+// null = default (sent/engagement) order; else sort by scheduled send time.
+type TimeSort = null | "asc" | "desc";
+
 function ProfIntelMetrics() {
   const sendsQuery = useQuery({ queryKey: ["profintel-all-sends"], queryFn: () => listSends() });
   const sends = useMemo(() => sendsQuery.data ?? [], [sendsQuery.data]);
@@ -97,6 +103,12 @@ function ProfIntelMetrics() {
     queryFn: getProfintelSettings,
   });
   const settings = settingsQuery.data ?? null;
+  const familyMapsQuery = useQuery({
+    queryKey: ["profintel-family-maps"],
+    queryFn: fetchCampusFamilyMaps,
+  });
+  const familyMaps = familyMapsQuery.data ?? {};
+  const [timeSort, setTimeSort] = useState<TimeSort>(null);
 
   async function toggleSending() {
     if (!settings) return;
@@ -168,12 +180,25 @@ function ProfIntelMetrics() {
     };
   }, [sends]);
 
-  // Sent first (most-engaged at the very top, so follow-up targets surface),
-  // then scheduled, then drafts.
+  // Default: sent first (most-engaged at top, so follow-ups surface), then
+  // scheduled, then drafts. When the Send-time header is toggled, sort purely by
+  // scheduled_at (nulls last) in the chosen direction.
   const rows = useMemo(() => {
     const rank = (s: ProfIntelSend) =>
       s.status === "sent" ? 0 : s.status === "scheduled" ? 1 : s.status === "draft" ? 2 : 3;
-    return [...sends].sort((a, b) => {
+    const arr = [...sends];
+    if (timeSort) {
+      arr.sort((a, b) => {
+        const ta = a.scheduled_at ? new Date(a.scheduled_at).getTime() : null;
+        const tb = b.scheduled_at ? new Date(b.scheduled_at).getTime() : null;
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1; // nulls last
+        if (tb === null) return -1;
+        return timeSort === "asc" ? ta - tb : tb - ta;
+      });
+      return arr;
+    }
+    arr.sort((a, b) => {
       const r = rank(a) - rank(b);
       if (r) return r;
       if (a.status === "sent" && b.status === "sent") {
@@ -182,7 +207,8 @@ function ProfIntelMetrics() {
       }
       return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     });
-  }, [sends]);
+    return arr;
+  }, [sends, timeSort]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
@@ -212,8 +238,8 @@ function ProfIntelMetrics() {
           <span className="text-muted-foreground">
             Today's cap{" "}
             <span className="font-medium text-foreground">{effectiveDailyCap(settings)}</span>
-            <span className="text-muted-foreground/80"> ({warmupStatus(settings)})</span> · sent today{" "}
-            <span className="font-medium text-foreground">{settings.sent_today ?? 0}</span>
+            <span className="text-muted-foreground/80"> ({warmupStatus(settings)})</span> · sent
+            today <span className="font-medium text-foreground">{settings.sent_today ?? 0}</span>
             {settings.last_run_at && ` · worker last ran ${fmtWhen(settings.last_run_at)}`}
           </span>
           {!settings.sending_enabled && (
@@ -273,9 +299,9 @@ function ProfIntelMetrics() {
 
       {!m.tracked && (
         <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Open / Click / Reply rates populate once real sending + tracking are turned on (drafts-only
-          for now). Click % also needs click tracking enabled on the Resend domain. Sent counts and
-          the log below are live.
+          Open / Click / Reply rates populate once real sending + tracking are turned on
+          (drafts-only for now). Click % also needs click tracking enabled on the Resend domain.
+          Sent counts and the log below are live.
         </div>
       )}
 
@@ -298,10 +324,28 @@ function ProfIntelMetrics() {
               <tr>
                 <th className="px-3 py-2 text-left">Professor</th>
                 <th className="px-3 py-2 text-left">Campus</th>
-                <th className="px-3 py-2 text-left">RMP courses matched</th>
+                <th className="px-3 py-2 text-left">Course</th>
                 <th className="px-3 py-2 text-left">Status</th>
                 <th className="px-3 py-2 text-center">A/B</th>
-                <th className="px-3 py-2 text-left">Send time</th>
+                <th className="px-3 py-2 text-left">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTimeSort((t) => (t === "desc" ? "asc" : t === "asc" ? null : "desc"))
+                    }
+                    className="inline-flex items-center gap-1 hover:text-foreground"
+                    title="Sort by send time"
+                  >
+                    Send time
+                    {timeSort === "desc" ? (
+                      <ArrowDown className="h-3 w-3" />
+                    ) : timeSort === "asc" ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 opacity-50" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-3 py-2 text-left">Opened</th>
                 <th className="px-3 py-2 text-center">Clicks</th>
                 <th className="px-3 py-2 text-left">Replied</th>
@@ -323,11 +367,26 @@ function ProfIntelMetrics() {
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{s.school || "—"}</td>
                   <td className="px-3 py-2">
-                    {s.course_matches ? (
-                      <span className="text-emerald-700">{s.course_matches}</span>
-                    ) : (
-                      "—"
-                    )}
+                    {(() => {
+                      const fams = familiesForMatches(
+                        s.course_matches,
+                        familyMaps[s.campus_id ?? ""],
+                      );
+                      if (fams.length === 0) return "—";
+                      return (
+                        <div className="flex flex-wrap gap-1">
+                          {fams.map((f) => (
+                            <span
+                              key={f.label}
+                              title={f.code}
+                              className="cursor-help rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
+                            >
+                              {f.label}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-3 py-2">
                     <Badge
@@ -350,7 +409,10 @@ function ProfIntelMetrics() {
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
                     {fmtWhen(has(s, "opened_at"))}
                     {num(s, "open_count") > 1 && (
-                      <span className="ml-1 text-emerald-700" title={`${num(s, "open_count")} opens`}>
+                      <span
+                        className="ml-1 text-emerald-700"
+                        title={`${num(s, "open_count")} opens`}
+                      >
                         ×{num(s, "open_count")}
                       </span>
                     )}
