@@ -1,0 +1,77 @@
+{
+  "slug": "intro2-fifo-equivalent-units",
+  "title": "Equivalent Units \u2014 FIFO",
+  "event": "Reyes Co.'s beginning WIP was 5,000 units, 60% complete for conversion. During July, 35,000 units were started and completed, and ending WIP is 10,000 units, 40% complete for conversion. Compute FIFO equivalent units for conversion.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 16,
+    "name": "Process Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "FIFO counts only THIS period's work: finish the beginning inventory (the remaining 40%), run the started-and-completed units, start the ending inventory.",
+          "steps": [
+            {
+              "label": "Finish beginning WIP",
+              "formulaText": "5,000 \u00d7 (100% \u2212 60%)",
+              "value": 2000
+            },
+            {
+              "label": "Started & completed",
+              "formulaText": "35,000 \u00d7 100%",
+              "value": 35000
+            },
+            {
+              "label": "Start ending WIP",
+              "formulaText": "10,000 \u00d7 40%",
+              "value": 4000
+            },
+            {
+              "label": "FIFO EU \u2014 conversion",
+              "formulaText": "2,000 + 35,000 + 4,000",
+              "value": 41000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "FIFO EU = beg WIP \u00d7 (1 \u2212 % already done) + started & completed + end WIP \u00d7 % done."
+    },
+    {
+      "kind": "tip",
+      "body": "FIFO EU is always \u2264 weighted-average EU \u2014 the difference is exactly the work already inside beginning WIP (here 3,000)."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the facts above, FIFO equivalent units for conversion = ?",
+      "answerExpr": "41000",
+      "distractors": [
+        {
+          "expr": "44000",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "That's weighted average \u2014 you counted the 3,000 EU of work done LAST period inside beginning WIP. FIFO strips it out."
+        },
+        {
+          "expr": "40000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You took completed units only. FIFO needs the ending WIP's 4,000 EU of started work \u2014 and only 2,000 (not 5,000) for beginning WIP."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,181 @@
+{
+  "slug": "intro1-treasury-stock",
+  "title": "Treasury Stock \u2014 Purchase and Reissue",
+  "event": "Reyes Co. purchases 1,000 of its own shares at $20 each, then later reissues 400 of them. Prepare both entries (cost method).",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 11,
+    "name": "Equity"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "reissue",
+      "label": "Reissue price",
+      "options": [
+        {
+          "value": "above",
+          "label": "$25 per share (above cost)"
+        },
+        {
+          "value": "below",
+          "label": "$16 per share (below cost)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "reissue": "above"
+      },
+      "entries": [
+        {
+          "label": "1 \u2014 Buy back 1,000 \u00d7 $20",
+          "lines": [
+            {
+              "account": "Treasury Stock",
+              "side": "debit",
+              "label": "1,000 \u00d7 $20 cost",
+              "amount": 20000,
+              "why": "Treasury stock records at COST and sits as a contra-EQUITY account.",
+              "trap": "Not an asset \u2014 a company cannot own itself. It reduces total equity."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "paid",
+              "amount": 20000,
+              "why": "The buyback spends real cash.",
+              "trap": "Outstanding shares fall; issued shares don't \u2014 treasury shares are issued-but-not-outstanding."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Reissue 400 \u00d7 $25 (cost $8,000)",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "400 \u00d7 $25",
+              "amount": 10000,
+              "why": "Proceeds above the shares' cost.",
+              "trap": "Compare to the treasury COST (20/share), not to par or original issue price."
+            },
+            {
+              "account": "Treasury Stock",
+              "side": "credit",
+              "label": "400 \u00d7 $20 cost",
+              "amount": 8000,
+              "why": "Treasury relieves at cost, always.",
+              "trap": "Credit at COST regardless of the reissue price \u2014 the account never carries gains."
+            },
+            {
+              "account": "Paid-In Capital, Treasury Stock",
+              "side": "credit",
+              "label": "400 \u00d7 $5",
+              "amount": 2000,
+              "why": "The excess is contributed capital, not income.",
+              "trap": "NEVER a gain \u2014 companies don't earn profit trading their own shares."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "reissue": "below"
+      },
+      "entries": [
+        {
+          "label": "1 \u2014 Buy back 1,000 \u00d7 $20",
+          "lines": [
+            {
+              "account": "Treasury Stock",
+              "side": "debit",
+              "label": "1,000 \u00d7 $20 cost",
+              "amount": 20000,
+              "why": "Cost method: record what was paid.",
+              "trap": "Contra-equity \u2014 it appears as a NEGATIVE in the equity section."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "paid",
+              "amount": 20000,
+              "why": "The buyback.",
+              "trap": "Same first entry either way; the reissue price is where the variants diverge."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Reissue 400 \u00d7 $16 (cost $8,000)",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "400 \u00d7 $16",
+              "amount": 6400,
+              "why": "Proceeds below cost.",
+              "trap": "The 1,600 shortfall must come from equity \u2014 the only question is which account."
+            },
+            {
+              "account": "Paid-In Capital, Treasury Stock",
+              "side": "debit",
+              "label": "shortfall absorbed",
+              "amount": 1600,
+              "why": "The deficiency draws down PIC\u2013Treasury first (assume a sufficient balance); RE absorbs any excess beyond it.",
+              "trap": "Never a 'Loss on Treasury Stock' \u2014 deficiencies reduce equity accounts, not income."
+            },
+            {
+              "account": "Treasury Stock",
+              "side": "credit",
+              "label": "400 \u00d7 $20 cost",
+              "amount": 8000,
+              "why": "Relieved at cost, as always.",
+              "trap": "Cost in, cost out \u2014 the treasury account is a parking lot, not a scoreboard."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Cost method rules: in at cost, out at cost. Reissue differences flow to PIC\u2013Treasury (and RE if PIC runs dry) \u2014 never to income."
+    },
+    {
+      "kind": "watchout",
+      "body": "Treasury purchases reduce OUTSTANDING shares \u2014 which raises EPS. That's often the strategic point of the buyback."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Treasury shares bought at $20, reissued at $25. The $5-per-share excess is credited to ___ for 400 shares = ?",
+      "answerExpr": "2000",
+      "distractors": [
+        {
+          "expr": "2000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "Right number \u2014 but make sure it went to Paid-In Capital, Treasury Stock. Booking it as a GAIN puts equity dealings into income, which GAAP forbids."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Treasury Stock",
+      "Cash",
+      "Paid-In Capital, Treasury Stock",
+      "Retained Earnings",
+      "Gain on Treasury Stock"
+    ],
+    "scaffold": "In at cost, out at cost; the price difference lands in PIC\u2013Treasury. The gain account in the bank is a trap."
+  }
+}

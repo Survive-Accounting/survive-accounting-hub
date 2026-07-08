@@ -1,0 +1,76 @@
+{
+  "slug": "intro1-bank-reconciliation",
+  "title": "Bank Reconciliation",
+  "event": "Reyes Co.'s December 31 book balance of cash is $7,235; the bank statement shows $9,410. Reconciling items: deposits in transit $1,200, outstanding checks $2,150, a $1,650 note (including $50 interest) collected by the bank, a $45 bank service charge, and a $380 NSF check from a customer. Compute the adjusted cash balance.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 6,
+    "name": "Cash & Internal Controls"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Two columns marching to the same number. Bank side gets the timing items the bank hasn't seen; book side gets the items the company learned from the statement.",
+          "steps": [
+            {
+              "label": "Bank side",
+              "formulaText": "9,410 + 1,200 DIT \u2212 2,150 outstanding",
+              "value": 8460
+            },
+            {
+              "label": "Book side",
+              "formulaText": "7,235 + 1,650 note \u2212 45 charge \u2212 380 NSF",
+              "value": 8460
+            },
+            {
+              "label": "Adjusted (true) cash",
+              "formulaText": "both columns agree",
+              "value": 8460
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Bank side = timing (Deposits in transit +, Outstanding checks \u2212). Book side = news (notes collected +, charges \u2212, NSF \u2212)."
+    },
+    {
+      "kind": "tip",
+      "body": "The adjusted balance \u2014 not the bank's number, not the book's \u2014 is what the balance sheet reports."
+    },
+    {
+      "kind": "watchout",
+      "body": "DIT and outstanding checks NEVER touch the book side; the books already recorded them. Sorting items to the wrong column is the #1 exam error."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the facts above, the adjusted cash balance = ?",
+      "answerExpr": "8460",
+      "distractors": [
+        {
+          "expr": "9410",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the raw bank statement \u2014 before deposits in transit and outstanding checks. Adjusted cash is 8,460."
+        },
+        {
+          "expr": "7235",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "That's the unadjusted book balance \u2014 before the note, service charge, and NSF check the statement revealed. Adjusted cash is 8,460."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

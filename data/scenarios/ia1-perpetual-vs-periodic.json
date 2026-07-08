@@ -1,0 +1,182 @@
+{
+  "slug": "ia1-perpetual-vs-periodic",
+  "title": "Perpetual vs Periodic \u2014 The Entry Sets",
+  "event": "Hollis Co. purchases $8,000 of merchandise on account, then sells goods for $5,000 that cost $3,000. Prepare the entries under the assumed system.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 7,
+    "name": "Inventories, Cost Approach"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [
+    {
+      "key": "system",
+      "label": "Inventory system",
+      "options": [
+        {
+          "value": "perpetual",
+          "label": "Perpetual (running record)"
+        },
+        {
+          "value": "periodic",
+          "label": "Periodic (count later)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "system": "perpetual"
+      },
+      "entries": [
+        {
+          "label": "Purchase straight into Inventory",
+          "lines": [
+            {
+              "account": "Inventory",
+              "side": "debit",
+              "label": "real-time record",
+              "amount": 8000,
+              "why": "Perpetual runs everything through the Inventory account, live.",
+              "trap": "No Purchases account exists under perpetual \u2014 its appearance is the system tell."
+            },
+            {
+              "account": "Accounts Payable",
+              "side": "credit",
+              "label": "on account",
+              "amount": 8000,
+              "why": "Standard credit purchase.",
+              "trap": "Same credit either system \u2014 the debit side carries the difference."
+            }
+          ]
+        },
+        {
+          "label": "Sale: revenue AND cost, immediately",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "retail",
+              "amount": 5000,
+              "why": "The sale at selling price.",
+              "trap": "Retail in entry one, cost in entry two \u2014 never mixed."
+            },
+            {
+              "account": "Sales Revenue",
+              "side": "credit",
+              "label": "earned",
+              "amount": 5000,
+              "why": "Revenue at retail.",
+              "trap": "Identical under both systems \u2014 revenue recognition doesn't care about inventory records."
+            },
+            {
+              "account": "Cost of Goods Sold",
+              "side": "debit",
+              "label": "cost out now",
+              "amount": 3000,
+              "why": "Perpetual books the cost the moment goods leave.",
+              "trap": "This immediate COGS entry is exactly what periodic OMITS until closing."
+            },
+            {
+              "account": "Inventory",
+              "side": "credit",
+              "label": "off the shelf",
+              "amount": 3000,
+              "why": "The running record drops in real time.",
+              "trap": "At cost, never retail \u2014 crediting 5,000 here corrupts the account."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "system": "periodic"
+      },
+      "entries": [
+        {
+          "label": "Purchase into a Purchases account",
+          "lines": [
+            {
+              "account": "Purchases",
+              "side": "debit",
+              "label": "temporary holding",
+              "amount": 8000,
+              "why": "Periodic parks purchases in a temporary account; Inventory sleeps until the count.",
+              "trap": "The Inventory account shows the BEGINNING balance all year under periodic."
+            },
+            {
+              "account": "Accounts Payable",
+              "side": "credit",
+              "label": "on account",
+              "amount": 8000,
+              "why": "Same credit as perpetual.",
+              "trap": "The debit account is the entire difference at purchase."
+            }
+          ]
+        },
+        {
+          "label": "Sale: revenue ONLY",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "retail",
+              "amount": 5000,
+              "why": "The sale at selling price.",
+              "trap": "One entry, not two \u2014 periodic doesn't know the cost yet."
+            },
+            {
+              "account": "Sales Revenue",
+              "side": "credit",
+              "label": "earned",
+              "amount": 5000,
+              "why": "Revenue as usual.",
+              "trap": "COGS waits for period-end: beginning + purchases \u2212 ending count. Adding a cost entry here is the giveaway error."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Periodic COGS = beginning inventory + net purchases \u2212 ending inventory (by count). Perpetual knows COGS at every sale."
+    },
+    {
+      "kind": "tip",
+      "body": "Fastest system check on an exam: does the entry set include a Purchases account (periodic) or a COGS-at-sale entry (perpetual)?"
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Under PERIODIC, what cost of goods sold is recorded at the moment of the $5,000 sale?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "3000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's the perpetual move. Periodic computes ALL of COGS at period-end from the count \u2014 nothing at the sale."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Inventory",
+      "Purchases",
+      "Accounts Payable",
+      "Accounts Receivable",
+      "Sales Revenue",
+      "Cost of Goods Sold"
+    ],
+    "scaffold": "Pick the system first. Perpetual: Inventory account, two-entry sales. Periodic: Purchases account, one-entry sales."
+  }
+}

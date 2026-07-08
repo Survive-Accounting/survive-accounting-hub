@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-cogm-schedule",
+  "title": "Schedule of Cost of Goods Manufactured",
+  "event": "Ortiz Manufacturing: raw materials began at $8,000, purchases were $42,000, and raw materials ended at $6,000. Direct labor was $30,000 and factory overhead $26,000. Work in process began at $12,000 and ended at $9,000. Compute cost of goods manufactured.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 14,
+    "name": "Managerial Accounting Concepts"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Three inventories, one river: materials flow into WIP, WIP flows into finished goods. COGM is what EXITS the factory floor.",
+          "steps": [
+            {
+              "label": "Direct materials used",
+              "formulaText": "8,000 + 42,000 \u2212 6,000",
+              "value": 44000
+            },
+            {
+              "label": "Total manufacturing costs",
+              "formulaText": "44,000 + 30,000 DL + 26,000 OH",
+              "value": 100000
+            },
+            {
+              "label": "Cost of goods manufactured",
+              "formulaText": "100,000 + 12,000 beg WIP \u2212 9,000 end WIP",
+              "value": 103000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "DM used = beg RM + purchases \u2212 end RM. COGM = total mfg costs + beg WIP \u2212 end WIP."
+    },
+    {
+      "kind": "tip",
+      "body": "Every stage is the same pattern: beginning + additions \u2212 ending = what moved on. Learn it once, use it three times."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Total manufacturing costs $100,000, beginning WIP $12,000, ending WIP $9,000. COGM = ?",
+      "answerExpr": "103000",
+      "distractors": [
+        {
+          "expr": "100000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You ignored the WIP change. Finishing more than you started this period pushes COGM ABOVE current costs: +12,000 \u2212 9,000."
+        },
+        {
+          "expr": "97000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "WIP backwards \u2014 ADD beginning (finished this period) and SUBTRACT ending (still on the floor)."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-cost-classification",
+  "title": "Product vs Period Costs",
+  "event": "Reyes Manufacturing incurs: direct materials $30,000, direct labor $25,000, factory overhead $20,000, selling expenses $12,000, and administrative expenses $8,000. Compute total product cost.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 14,
+    "name": "Managerial Accounting Concepts"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Product costs attach to inventory and wait for the sale; period costs expense immediately. The factory wall is the dividing line.",
+          "steps": [
+            {
+              "label": "Product cost",
+              "formulaText": "30,000 DM + 25,000 DL + 20,000 OH",
+              "value": 75000
+            },
+            {
+              "label": "Period costs (expensed now)",
+              "formulaText": "12,000 selling + 8,000 admin",
+              "value": 20000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Inside the factory = product cost (DM + DL + OH). Outside the factory = period cost (selling + admin)."
+    },
+    {
+      "kind": "tip",
+      "body": "Prime cost = DM + DL. Conversion cost = DL + OH. DL sits in both \u2014 the overlap is a favorite quiz question."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "DM $30,000 \u00b7 DL $25,000 \u00b7 OH $20,000 \u00b7 selling $12,000 \u00b7 admin $8,000. Total product cost = ?",
+      "answerExpr": "75000",
+      "distractors": [
+        {
+          "expr": "95000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You capitalized the period costs. Selling and admin expense immediately \u2014 they never enter inventory."
+        },
+        {
+          "expr": "55000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's PRIME cost (DM + DL). Product cost also carries factory overhead: 75,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

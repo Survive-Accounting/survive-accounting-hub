@@ -1,0 +1,76 @@
+{
+  "slug": "intro2-materials-variances",
+  "title": "Direct Materials Variances",
+  "event": "Reyes Co. used 5,200 pounds of material at an actual price of $3.10 per pound. Standards allow 5,000 pounds at $3.00 for the output achieved. Compute the price and quantity variances.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 21,
+    "name": "Standard Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Split the total miss into two accountable pieces: purchasing owns price, production owns quantity.",
+          "steps": [
+            {
+              "label": "Price variance",
+              "formulaText": "5,200 \u00d7 (3.10 \u2212 3.00) = 520 Unfavorable",
+              "value": 520
+            },
+            {
+              "label": "Quantity variance",
+              "formulaText": "3.00 \u00d7 (5,200 \u2212 5,000) = 600 Unfavorable",
+              "value": 600
+            },
+            {
+              "label": "Total materials variance",
+              "formulaText": "520 U + 600 U",
+              "value": 1120
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Price variance = AQ \u00d7 (AP \u2212 SP). Quantity variance = SP \u00d7 (AQ \u2212 SQ)."
+    },
+    {
+      "kind": "mnemonic",
+      "body": "Actual quantity anchors the PRICE variance; standard price anchors the QUANTITY variance \u2014 the terms cross."
+    },
+    {
+      "kind": "watchout",
+      "body": "Favorable/unfavorable by direction, not by math sign: paid more or used more = Unfavorable."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "AQ 5,200 lbs, AP $3.10, SP $3.00, SQ 5,000 lbs. Materials QUANTITY variance = ?",
+      "answerExpr": "600",
+      "distractors": [
+        {
+          "expr": "620",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You priced the quantity gap at ACTUAL price (3.10 \u00d7 200). The quantity variance uses STANDARD price: 3.00 \u00d7 200 = 600."
+        },
+        {
+          "expr": "520",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the PRICE variance (5,200 \u00d7 $0.10). Quantity measures the 200 extra pounds at standard: 600."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

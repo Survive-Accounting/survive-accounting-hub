@@ -1,0 +1,67 @@
+{
+  "slug": "intro1-gross-profit",
+  "title": "Net Sales & Gross Profit",
+  "event": "Ortiz Co. reports gross sales of $200,000, sales returns and allowances of $8,000, and cost of goods sold of $120,000. Compute net sales, gross profit, and the gross profit ratio.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 4,
+    "name": "Merchandising"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Strip returns out of sales first, then take out the cost of the goods. What remains is gross profit \u2014 the markup the business actually kept.",
+          "steps": [
+            {
+              "label": "Net sales",
+              "formulaText": "200,000 \u2212 8,000",
+              "value": 192000
+            },
+            {
+              "label": "Gross profit",
+              "formulaText": "192,000 \u2212 120,000",
+              "value": 72000
+            },
+            {
+              "label": "Gross profit ratio",
+              "formulaText": "72,000 \u00f7 192,000",
+              "value": 37.5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Net sales \u2212 COGS = Gross profit. GP ratio = Gross profit \u00f7 NET sales."
+    },
+    {
+      "kind": "watchout",
+      "body": "The ratio divides by NET sales, not gross. Returns come out before anything else."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Gross sales $200,000, returns $8,000, COGS $120,000. Gross profit = ?",
+      "answerExpr": "72000",
+      "distractors": [
+        {
+          "expr": "80000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You used gross sales. Returns come out first: (200,000 \u2212 8,000) \u2212 120,000 = 72,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

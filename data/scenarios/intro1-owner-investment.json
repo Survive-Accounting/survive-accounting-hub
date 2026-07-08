@@ -1,0 +1,77 @@
+{
+  "slug": "intro1-owner-investment",
+  "title": "Owner Investment for Stock",
+  "event": "Tran launches Tran Consulting Inc. by investing $25,000 cash in exchange for common stock. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 1,
+    "name": "Accounting in Business"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Cash in, stock out \u2014 no revenue anywhere",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "cash received",
+              "amount": 25000,
+              "why": "The business received cash \u2014 assets up.",
+              "trap": "Don't overthink the debit; the trap in this entry lives entirely on the credit side."
+            },
+            {
+              "account": "Common Stock",
+              "side": "credit",
+              "label": "contributed capital",
+              "amount": 25000,
+              "why": "The owner got shares, so equity grows through contributed capital.",
+              "trap": "NOT revenue. Revenue comes from customers, never from owners funding the business."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "watchout",
+      "body": "Owner investments and revenues both increase equity \u2014 but only revenue touches the income statement."
+    },
+    {
+      "kind": "tip",
+      "body": "Ask where the cash came FROM. Owner \u2192 Common Stock. Customer \u2192 revenue. Lender \u2192 Notes Payable."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "How much REVENUE does Tran Consulting recognize from this investment?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "25000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "Cash arriving isn't automatically revenue. This cash came from the owner, not a customer \u2014 it's contributed capital."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Common Stock",
+      "Service Revenue",
+      "Notes Payable"
+    ],
+    "scaffold": "Ask where the cash came FROM. Owner \u2192 equity (Common Stock). Customer \u2192 revenue."
+  }
+}

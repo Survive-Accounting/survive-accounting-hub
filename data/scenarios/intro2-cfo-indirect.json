@@ -1,0 +1,87 @@
+{
+  "slug": "intro2-cfo-indirect",
+  "title": "Operating Cash Flows \u2014 Indirect Method",
+  "event": "Reyes Co. reports net income of $60,000, depreciation expense of $14,000, and a $3,000 gain on the sale of equipment. During the year accounts receivable increased $5,000, inventory decreased $2,000, and accounts payable increased $4,000. Compute cash flows from operating activities (indirect method).",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 12,
+    "name": "Cash Flow Statements"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Start with net income and undo everything non-cash: add back depreciation, strip out gains (they belong to investing), then translate accruals to cash via working-capital changes.",
+          "steps": [
+            {
+              "label": "Start: net income",
+              "formulaText": "60,000",
+              "value": 60000
+            },
+            {
+              "label": "Add noncash depreciation",
+              "formulaText": "+14,000",
+              "value": 74000
+            },
+            {
+              "label": "Remove gain (investing item)",
+              "formulaText": "\u22123,000",
+              "value": 71000
+            },
+            {
+              "label": "AR up = cash not yet collected",
+              "formulaText": "\u22125,000",
+              "value": 66000
+            },
+            {
+              "label": "Inventory down = cash freed",
+              "formulaText": "+2,000",
+              "value": 68000
+            },
+            {
+              "label": "AP up = cash not yet paid",
+              "formulaText": "+4,000",
+              "value": 72000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Asset UP \u2192 cash DOWN. Liability UP \u2192 cash UP. Every working-capital change follows this."
+    },
+    {
+      "kind": "watchout",
+      "body": "Gains are SUBTRACTED and losses ADDED \u2014 the full sale proceeds already live in investing; leaving the gain in operating double-counts it."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the facts above, cash from operating activities = ?",
+      "answerExpr": "72000",
+      "distractors": [
+        {
+          "expr": "78000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You ADDED the gain. Gains come out of operating income \u2014 the cash from that sale sits in investing: 72,000."
+        },
+        {
+          "expr": "58000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You forgot to add back depreciation \u2014 a noncash expense that reduced income but never touched cash."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

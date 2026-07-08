@@ -1,0 +1,77 @@
+{
+  "slug": "intro1-collect-receivable",
+  "title": "Collecting a Receivable",
+  "event": "A client pays Tran Consulting the $1,200 it owed from work completed last month. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 2,
+    "name": "Journalizing Transactions"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Swapping one asset for another",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "collection",
+              "amount": 1200,
+              "why": "The money finally arrives.",
+              "trap": "Tempting to pair this debit with revenue \u2014 resist. Look at what already sits in AR."
+            },
+            {
+              "account": "Accounts Receivable",
+              "side": "credit",
+              "label": "claim settled",
+              "amount": 1200,
+              "why": "The claim is settled \u2014 the receivable comes off the books.",
+              "trap": "NO revenue in this entry. Revenue was recorded last month when the work was done; recording it again double-counts."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "watchout",
+      "body": "Collecting a receivable is an asset SWAP (AR \u2192 Cash), not an earning event. Revenue only ever gets recorded once."
+    },
+    {
+      "kind": "tip",
+      "body": "Total assets don't change here \u2014 one asset up, another down by the same amount."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "How much revenue does Tran recognize when collecting the $1,200?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "1200",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "The revenue already happened \u2014 last month, when the work was performed. This entry just converts the receivable into cash."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Accounts Receivable",
+      "Service Revenue",
+      "Unearned Revenue"
+    ],
+    "scaffold": "Two assets: one up, one down. If you typed 'Revenue,' back up a month \u2014 it's already there."
+  }
+}

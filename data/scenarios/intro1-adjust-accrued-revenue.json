@@ -1,0 +1,77 @@
+{
+  "slug": "intro1-adjust-accrued-revenue",
+  "title": "Adjusting: Accrued Revenue",
+  "event": "By December 31, Tran Consulting has performed $1,500 of services for a client that have not yet been billed or collected. Prepare the adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Earned but unbilled",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "earned, not yet billed",
+              "amount": 1500,
+              "why": "The claim exists the moment the work is done \u2014 the invoice is paperwork, not the earning event.",
+              "trap": "Unbilled \u2260 unearned. Don't wait for the invoice to recognize what's already been performed."
+            },
+            {
+              "account": "Service Revenue",
+              "side": "credit",
+              "label": "work performed by 12/31",
+              "amount": 1500,
+              "why": "December's work belongs in December's income.",
+              "trap": "Skipping this understates both revenue and assets \u2014 a classic exam 'find the missing adjustment.'"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "The fourth adjustment family: accrued revenue = work first, cash later. Mirror image of accrued salaries."
+    },
+    {
+      "kind": "watchout",
+      "body": "When cash arrives next month, the entry is Dr Cash / Cr Accounts Receivable \u2014 revenue does NOT repeat."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$1,500 of services performed by Dec 31, billed in January. Revenue recognized at Dec 31 = ?",
+      "answerExpr": "1500",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Billing timing doesn't control earning. The work is performed, so the revenue accrues at year-end."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Accounts Receivable",
+      "Service Revenue",
+      "Cash",
+      "Unearned Revenue"
+    ],
+    "scaffold": "Work done + no cash yet = receivable and revenue. The invoice date is irrelevant."
+  }
+}

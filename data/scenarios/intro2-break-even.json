@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-break-even",
+  "title": "Break-Even Point \u2014 Units & Dollars",
+  "event": "Reyes Co. has fixed costs of $120,000, a $20 contribution margin per unit, and a 40% contribution margin ratio. Compute the break-even point in units and in sales dollars.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 18,
+    "name": "Cost Volume Profit"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Break-even asks: how many $20 contributions does it take to bury $120,000 of fixed costs?",
+          "steps": [
+            {
+              "label": "Break-even units",
+              "formulaText": "120,000 \u00f7 20",
+              "value": 6000
+            },
+            {
+              "label": "Break-even dollars",
+              "formulaText": "120,000 \u00f7 40%",
+              "value": 300000
+            },
+            {
+              "label": "Check",
+              "formulaText": "6,000 units \u00d7 $50 price",
+              "value": 300000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "BE units = Fixed costs \u00f7 CM per unit. BE dollars = Fixed costs \u00f7 CM ratio."
+    },
+    {
+      "kind": "watchout",
+      "body": "Divide by CM, never by price \u2014 dividing 120,000 by the $50 price gives a meaningless 2,400."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Fixed costs $120,000, CM per unit $20. Break-even in units = ?",
+      "answerExpr": "6000",
+      "distractors": [
+        {
+          "expr": "2400",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You divided by the $50 PRICE. Only the $20 contribution margin pays fixed costs: 6,000 units."
+        },
+        {
+          "expr": "4000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You divided by the $30 variable cost. The denominator is CM (price \u2212 VC) = $20."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

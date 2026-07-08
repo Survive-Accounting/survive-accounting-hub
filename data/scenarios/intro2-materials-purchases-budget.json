@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-materials-purchases-budget",
+  "title": "Direct Materials Purchases Budget",
+  "event": "Reyes Co. plans to produce 25,000 units; each requires 2 pounds of material at $3 per pound. Desired ending raw materials are 4,000 pounds; beginning raw materials are 5,000 pounds. Compute budgeted purchases in dollars.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 20,
+    "name": "Master Budgets"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Same skeleton as the production budget, one level down the supply chain \u2014 needs plus ending stock minus what's on hand.",
+          "steps": [
+            {
+              "label": "Materials needed for production",
+              "formulaText": "25,000 \u00d7 2 lbs",
+              "value": 50000
+            },
+            {
+              "label": "Pounds to purchase",
+              "formulaText": "50,000 + 4,000 \u2212 5,000",
+              "value": 49000
+            },
+            {
+              "label": "Purchases in dollars",
+              "formulaText": "49,000 \u00d7 $3",
+              "value": 147000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Purchases (lbs) = production needs + desired ending RM \u2212 beginning RM; then \u00d7 cost per pound."
+    },
+    {
+      "kind": "tip",
+      "body": "The budgets chain: sales \u2192 production \u2192 materials. Each feeds the next, each uses the same +ending \u2212beginning pattern."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Needs 50,000 lbs, ending RM 4,000, beginning RM 5,000, $3/lb. Budgeted purchases = ?",
+      "answerExpr": "147000",
+      "distractors": [
+        {
+          "expr": "150000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You priced production needs (50,000 lbs) and ignored the inventory adjustment \u2014 purchases are 49,000 lbs."
+        },
+        {
+          "expr": "153000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "RM signs flipped (50 + 5 \u2212 4). Add the ENDING target, subtract the BEGINNING stock: 49,000 lbs \u00d7 $3."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

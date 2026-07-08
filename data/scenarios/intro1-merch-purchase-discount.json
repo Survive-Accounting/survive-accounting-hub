@@ -1,0 +1,135 @@
+{
+  "slug": "intro1-merch-purchase-discount",
+  "title": "Purchase Discounts (2/10, n/30)",
+  "event": "Reyes Co. buys $8,000 of merchandise on account, terms 2/10, n/30 (perpetual system). Prepare the entry when Reyes pays the invoice.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 4,
+    "name": "Merchandising"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "timing",
+      "label": "Reyes pays",
+      "options": [
+        {
+          "value": "within",
+          "label": "Within the 10-day window"
+        },
+        {
+          "value": "after",
+          "label": "After the window"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "timing": "within"
+      },
+      "entries": [
+        {
+          "label": "Take the 2%",
+          "lines": [
+            {
+              "account": "Accounts Payable",
+              "side": "debit",
+              "label": "full invoice",
+              "amount": 8000,
+              "why": "The full recorded obligation comes off the books.",
+              "trap": "Debit the FULL 8,000 \u2014 the payable was booked gross; the discount shows up on the credit side."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "8,000 \u00d7 98%",
+              "amount": 7840,
+              "why": "Pay 98% of the invoice.",
+              "trap": "2% off the INVOICE, not off some other base \u2014 8,000 \u00d7 0.02 = 160 saved."
+            },
+            {
+              "account": "Merchandise Inventory",
+              "side": "credit",
+              "label": "discount reduces cost",
+              "amount": 160,
+              "why": "Perpetual system: the discount REDUCES the inventory's cost.",
+              "trap": "Not a revenue account, not Purchase Discounts \u2014 under perpetual it lands in Inventory itself."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "timing": "after"
+      },
+      "entries": [
+        {
+          "label": "Missed it \u2014 pay full freight",
+          "lines": [
+            {
+              "account": "Accounts Payable",
+              "side": "debit",
+              "label": "full invoice",
+              "amount": 8000,
+              "why": "Same obligation.",
+              "trap": "Missing the window doesn't change the payable \u2014 only the cash."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "no discount",
+              "amount": 8000,
+              "why": "Full amount after day 10 \u2014 an expensive delay (2% for 20 days \u2248 36% annualized).",
+              "trap": "No penalty account, no extra expense \u2014 you simply lose the savings."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Read 2/10, n/30 as: 2% off if paid in 10 days, otherwise the net (full) amount is due in 30."
+    },
+    {
+      "kind": "watchout",
+      "body": "Under perpetual, discounts, returns, and freight-in all run THROUGH the Inventory account \u2014 cost is whatever it took to get goods ready to sell."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Invoice $8,000, terms 2/10 n/30, paid on day 8. Cash paid = ?",
+      "answerExpr": "7840",
+      "distractors": [
+        {
+          "expr": "8000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Day 8 is inside the 10-day window \u2014 take the 2% discount: 8,000 \u00d7 0.98 = 7,840."
+        },
+        {
+          "expr": "160",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the discount itself. The CASH paid is the invoice net of it: 7,840."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Accounts Payable",
+      "Cash",
+      "Merchandise Inventory",
+      "Purchase Discounts"
+    ],
+    "scaffold": "Debit A/P for the full invoice either way. Within the window, the cash credit shrinks and Inventory absorbs the difference."
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "slug": "intro1-adjust-accrued-salaries",
+  "title": "Adjusting: Accrued Salaries",
+  "event": "Reyes Co.'s employees have earned $4,200 of wages by December 31 that will not be paid until the first payday in January. Prepare the adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Expense the work now, pay in January",
+          "lines": [
+            {
+              "account": "Salaries Expense",
+              "side": "debit",
+              "label": "wages earned by 12/31",
+              "amount": 4200,
+              "why": "The work happened THIS year, so the expense belongs to this year.",
+              "trap": "No cash yet is irrelevant \u2014 matching puts the expense where the work is."
+            },
+            {
+              "account": "Salaries Payable",
+              "side": "credit",
+              "label": "owed at year-end",
+              "amount": 4200,
+              "why": "The obligation to pay in January.",
+              "trap": "Payable, not Cash \u2014 Cash appears in January's payment entry, not this one."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Accruals run opposite to deferrals: the expense comes FIRST, the cash comes later. Payable = the IOU in between."
+    },
+    {
+      "kind": "watchout",
+      "body": "January's payment entry will split: debit the payable for December's piece, debit expense for January's piece."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Employees earned $4,200 by Dec 31, payday is Jan 3. Salaries expense recorded at Dec 31 = ?",
+      "answerExpr": "4200",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Waiting for payday is cash-basis thinking. The work is done, so the expense accrues now."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Salaries Expense",
+      "Salaries Payable",
+      "Cash",
+      "Prepaid Salaries"
+    ],
+    "scaffold": "Expense for the work done, payable for the cash owed. Cash shows up in January, not here."
+  }
+}

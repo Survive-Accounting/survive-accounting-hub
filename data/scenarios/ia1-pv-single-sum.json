@@ -1,0 +1,62 @@
+{
+  "slug": "ia1-pv-single-sum",
+  "title": "Present Value of a Single Sum",
+  "event": "Delgado Co. will receive $20,000 six years from now. The market rate is 10% (PV factor, 10%, 6 periods = 0.56447). Compute the present value.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 5,
+    "name": "Time Value of Money"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "A dollar later is worth less than a dollar now \u2014 discounting strips out the interest that time would have earned.",
+          "steps": [
+            {
+              "label": "Present value",
+              "formulaText": "20,000 \u00d7 0.56447",
+              "value": 11289
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "PV = FV \u00d7 PV factor = FV \u00f7 (1 + i)^n. FV = PV \u00d7 (1 + i)^n \u2014 the factors are reciprocals."
+    },
+    {
+      "kind": "tip",
+      "body": "Sanity check every answer's direction: PV < FV always (positive rates). If your 'present value' grew, you compounded instead of discounting."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Receive $20,000 in 6 years at 10%. PV = ?",
+      "answerExpr": "11289",
+      "distractors": [
+        {
+          "expr": "35431",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You compounded FORWARD (\u00d7 1.77156). Money coming later gets discounted BACK: \u00d7 0.56447."
+        },
+        {
+          "expr": "12500",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "Simple-interest shortcut. TVM compounds \u2014 use the factor: 20,000 \u00d7 0.56447 = 11,289."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,67 @@
+{
+  "slug": "intro1-return-on-assets",
+  "title": "Return on Assets",
+  "event": "Reyes Co. reports net income of $40,000. Total assets were $380,000 at the beginning of the year and $420,000 at year-end. Compute return on assets.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 1,
+    "name": "Accounting in Business"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "ROA measures how much income each dollar of assets produced \u2014 and it uses AVERAGE assets, since income was earned across the whole year.",
+          "steps": [
+            {
+              "label": "Average total assets",
+              "formulaText": "(380,000 + 420,000) \u00f7 2",
+              "value": 400000
+            },
+            {
+              "label": "Return on assets",
+              "formulaText": "40,000 \u00f7 400,000",
+              "value": 10
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "ROA = Net income \u00f7 AVERAGE total assets. Average = (beginning + ending) \u00f7 2."
+    },
+    {
+      "kind": "tip",
+      "body": "Any ratio pairing an income-statement number (a flow) with a balance-sheet number (a snapshot) uses the AVERAGE snapshot."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "NI $40,000 \u00b7 assets $380,000 beginning, $420,000 ending. ROA = ? (%)",
+      "answerExpr": "10",
+      "distractors": [
+        {
+          "expr": "9.5",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "You divided by ENDING assets. Income was earned all year, so use the average base: 400,000 \u2192 10%."
+        },
+        {
+          "expr": "10.5",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You divided by BEGINNING assets. Average the two snapshots first: (380 + 420) \u00f7 2 = 400."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

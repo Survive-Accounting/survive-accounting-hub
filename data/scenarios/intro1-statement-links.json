@@ -1,0 +1,72 @@
+{
+  "slug": "intro1-statement-links",
+  "title": "How the Statements Connect",
+  "event": "Ortiz Co. reports revenues of $120,000 and expenses of $85,000 for the year. Retained earnings began the year at $40,000 and dividends of $10,000 were declared and paid. Compute net income and ending retained earnings.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 1,
+    "name": "Accounting in Business"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Income statement feeds the retained earnings statement, which feeds the balance sheet. One river, three lakes.",
+          "steps": [
+            {
+              "label": "Net income",
+              "formulaText": "120,000 \u2212 85,000",
+              "value": 35000
+            },
+            {
+              "label": "Ending retained earnings",
+              "formulaText": "40,000 + 35,000 \u2212 10,000",
+              "value": 65000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Ending RE = Beginning RE + Net income \u2212 Dividends"
+    },
+    {
+      "kind": "tip",
+      "body": "Dividends are NOT an expense \u2014 they never touch net income. They come out of retained earnings directly."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Beg RE $40,000 \u00b7 NI $35,000 \u00b7 dividends $10,000. Ending retained earnings = ?",
+      "answerExpr": "65000",
+      "distractors": [
+        {
+          "expr": "75000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You forgot the dividends. They reduce retained earnings even though they skip the income statement: 40 + 35 \u2212 10 = 65."
+        },
+        {
+          "expr": "25000",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "You dropped the beginning balance. RE rolls forward \u2014 start with last year's 40,000."
+        },
+        {
+          "expr": "35000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's net income alone. The question asked for ending RETAINED EARNINGS, the running total."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

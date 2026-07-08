@@ -1,0 +1,169 @@
+{
+  "slug": "ia1-nonmonetary-exchange",
+  "title": "Nonmonetary Exchange \u2014 Substance Decides the Gain",
+  "event": "Hollis Co. trades an old machine (cost $90,000, accumulated depreciation $60,000, fair value $36,000) plus $10,000 cash for a new machine. Prepare the exchange entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 9,
+    "name": "Property, Plant, and Equipment"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [
+    {
+      "key": "substance",
+      "label": "The exchange",
+      "options": [
+        {
+          "value": "yes",
+          "label": "Has commercial substance"
+        },
+        {
+          "value": "no",
+          "label": "Lacks commercial substance"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "substance": "yes"
+      },
+      "entries": [
+        {
+          "label": "FV basis \u2014 recognize the full 6,000 gain",
+          "lines": [
+            {
+              "account": "Equipment (new)",
+              "side": "debit",
+              "label": "FV given 36,000 + cash 10,000",
+              "amount": 46000,
+              "why": "With commercial substance, the new asset records at the fair value of what was surrendered.",
+              "trap": "FV of the OLD asset plus cash paid \u2014 not the old asset's book value."
+            },
+            {
+              "account": "Accumulated Depreciation\u2014Equipment",
+              "side": "debit",
+              "label": "old contra cleared",
+              "amount": 60000,
+              "why": "The old machine's accumulated depreciation dies with it.",
+              "trap": "Same disposal mechanics as a sale \u2014 this line always clears."
+            },
+            {
+              "account": "Equipment (old)",
+              "side": "credit",
+              "label": "original cost off",
+              "amount": 90000,
+              "why": "The old asset exits at original cost.",
+              "trap": "Cost off, contra off \u2014 book value leaves in two pieces."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "boot paid",
+              "amount": 10000,
+              "why": "The cash sweetener.",
+              "trap": "Cash PAID adds to the new asset's basis; cash RECEIVED would change the analysis."
+            },
+            {
+              "account": "Gain on Exchange",
+              "side": "credit",
+              "label": "FV 36,000 \u2212 BV 30,000",
+              "amount": 6000,
+              "why": "Commercial substance = economic positions genuinely changed = recognize the full gain now.",
+              "trap": "The gain measures FV against BOOK VALUE of the old asset \u2014 the exchange's own version of the disposal rule."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "substance": "no"
+      },
+      "entries": [
+        {
+          "label": "BV basis \u2014 the 6,000 gain hides in the new asset",
+          "lines": [
+            {
+              "account": "Equipment (new)",
+              "side": "debit",
+              "label": "BV 30,000 + cash 10,000",
+              "amount": 40000,
+              "why": "No commercial substance (and cash paid): the gain defers by recording the new asset at book value plus cash.",
+              "trap": "The 6,000 unrecognized gain lowers the new basis \u2014 it surfaces later as smaller depreciation."
+            },
+            {
+              "account": "Accumulated Depreciation\u2014Equipment",
+              "side": "debit",
+              "label": "old contra cleared",
+              "amount": 60000,
+              "why": "Cleared as always.",
+              "trap": "Disposal mechanics don't change \u2014 only the gain treatment does."
+            },
+            {
+              "account": "Equipment (old)",
+              "side": "credit",
+              "label": "original cost off",
+              "amount": 90000,
+              "why": "Old asset off at cost.",
+              "trap": "Same line both variants."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "boot paid",
+              "amount": 10000,
+              "why": "Cash paid in the trade.",
+              "trap": "No gain line \u2014 the entry balances at the deferred basis, which is the whole point."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Commercial substance = future cash flows genuinely change \u2192 recognize gains. Without it, gains defer (losses are ALWAYS recognized, either way)."
+    },
+    {
+      "kind": "watchout",
+      "body": "Losses never defer \u2014 conservatism cuts one direction. A trade at FV below BV books the loss under both variants."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Old machine BV $30,000, FV $36,000, commercial substance exists. Gain recognized = ?",
+      "answerExpr": "6000",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Deferral is the NO-substance treatment. With commercial substance, the full FV-over-BV gain is recognized: 6,000."
+        },
+        {
+          "expr": "36000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the old asset's fair value. The gain is FV minus BOOK VALUE: 36,000 \u2212 30,000 = 6,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Equipment (new)",
+      "Accumulated Depreciation\u2014Equipment",
+      "Equipment (old)",
+      "Cash",
+      "Gain on Exchange",
+      "Loss on Exchange"
+    ],
+    "scaffold": "Clear the old asset both ways. Substance \u2192 new at FV + cash, gain recognized. No substance \u2192 new at BV + cash, gain buried."
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-compensated-absences",
+  "title": "Compensated Absences (Vacation Accrual)",
+  "event": "By year-end, Hollis Co.'s employees have earned 20 employees \u00d7 5 unused vacation days \u00d7 8 hours \u00d7 $25 per hour of vested vacation pay, to be taken next year. Prepare the accrual entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 12,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "20 \u00d7 5 \u00d7 8 \u00d7 $25 = 20,000 earned, not yet taken",
+          "lines": [
+            {
+              "account": "Salaries and Wages Expense",
+              "side": "debit",
+              "label": "vacation earned this year",
+              "amount": 20000,
+              "why": "The vacation was EARNED by this year's service \u2014 the expense belongs here, not when the beach trip happens.",
+              "trap": "Accrual requires: services rendered, rights vest or accumulate, payment probable, amount estimable \u2014 all four hold."
+            },
+            {
+              "account": "Salaries and Wages Payable",
+              "side": "credit",
+              "label": "owed for future absences",
+              "amount": 20000,
+              "why": "The obligation to pay for next year's time off.",
+              "trap": "SICK pay that doesn't vest is the standard exception \u2014 accumulating-but-nonvesting sick days MAY be accrued but usually aren't."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Four accrual criteria: services rendered, rights vest or accumulate, probable payment, estimable amount. Vacation almost always qualifies; nonvesting sick pay is the carve-out."
+    },
+    {
+      "kind": "watchout",
+      "body": "If pay RATES rise before the vacation is taken, the difference is expensed in the year of payment \u2014 the accrual uses current rates."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "20 employees \u00d7 5 days \u00d7 8 hours \u00d7 $25, vested and unused. Vacation expense accrued THIS year = ?",
+      "answerExpr": "20000",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Waiting until the vacations are taken is cash-basis thinking. Vested, earned, probable, estimable \u2192 accrue 20,000 now."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Salaries and Wages Expense",
+      "Salaries and Wages Payable",
+      "Cash",
+      "Prepaid Vacation"
+    ],
+    "scaffold": "Earned this year, paid next year \u2014 the accrual family's signature. Rate changes wait for the payment year."
+  }
+}

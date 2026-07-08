@@ -100,6 +100,12 @@ async function importOne(
     throw new Error(`invalid JSON: ${e instanceof Error ? e.message : e}`);
   }
 
+  // Tolerate the FLAT authoring shape (doc fields at top level, chapter embedded):
+  // reshape { slug, …, chapter } → { chapter, doc: {…rest} } before validating.
+  if (json && typeof json === "object" && !(json as any).doc && (json as any).slug) {
+    const { chapter, ...docFields } = json as any;
+    json = { chapter, doc: docFields };
+  }
   // Tolerate the looser authoring shape (missing ids, string account banks) before validating.
   if (json && typeof json === "object" && (json as any).doc) {
     (json as any).doc = normalizeScenarioDoc((json as any).doc);

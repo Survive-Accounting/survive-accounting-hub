@@ -1,0 +1,72 @@
+{
+  "slug": "ia1-proper-cash-balance",
+  "title": "What Counts as Cash?",
+  "event": "Reyes Co. holds: checking account $26,000, savings account $15,000, petty cash $500, a customer's postdated check for $1,200, an NSF check returned for $800, a 120-day certificate of deposit of $10,000, and undeposited customer checks of $2,400. Compute the amount reported as Cash.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 6,
+    "name": "Cash & Receivables"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Cash = immediately spendable. Anything with a wait, a condition, or a maturity beyond three months gets reclassified.",
+          "steps": [
+            {
+              "label": "Cash items",
+              "formulaText": "26,000 + 15,000 + 500 + 2,400",
+              "value": 43900
+            },
+            {
+              "label": "Postdated + NSF checks",
+              "formulaText": "\u2192 Accounts Receivable",
+              "value": 2000
+            },
+            {
+              "label": "120-day CD",
+              "formulaText": "\u2192 short-term investment (> 90 days)",
+              "value": 10000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Cash equivalents must mature within THREE MONTHS of purchase. A 120-day CD misses the cut and reports as a short-term investment."
+    },
+    {
+      "kind": "watchout",
+      "body": "Postdated and NSF checks are receivables \u2014 the customer's promise failed or hasn't started, so it's a claim, not cash."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the items above, the amount reported as Cash = ?",
+      "answerExpr": "43900",
+      "distractors": [
+        {
+          "expr": "45100",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You counted the postdated check. Until its date arrives it's a receivable: 43,900."
+        },
+        {
+          "expr": "53900",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You included the 120-day CD. Beyond three months to maturity = short-term investment, not a cash equivalent."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-liquidity-ratios",
+  "title": "Liquidity: Current vs Acid-Test",
+  "event": "Reyes Co.'s current assets total $150,000: cash $20,000, short-term investments $10,000, accounts receivable $40,000, inventory $70,000, and prepaid expenses $10,000. Current liabilities are $75,000. Compute the current ratio and the acid-test ratio.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 13,
+    "name": "Financial Statement Analysis"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The acid test strips out the slow assets \u2014 inventory has to be sold and prepaids can never be spent.",
+          "steps": [
+            {
+              "label": "Current ratio",
+              "formulaText": "150,000 \u00f7 75,000",
+              "value": 2.0
+            },
+            {
+              "label": "Quick assets",
+              "formulaText": "20,000 + 10,000 + 40,000",
+              "value": 70000
+            },
+            {
+              "label": "Acid-test ratio",
+              "formulaText": "70,000 \u00f7 75,000",
+              "value": 0.93
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Acid-test = (Cash + ST investments + Receivables) \u00f7 Current liabilities. Inventory and prepaids are OUT."
+    },
+    {
+      "kind": "tip",
+      "body": "When the two ratios diverge sharply, inventory is doing the heavy lifting \u2014 a liquidity red flag examiners love."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the facts above, the acid-test ratio = ?",
+      "answerExpr": "0.93",
+      "distractors": [
+        {
+          "expr": "2.0",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the CURRENT ratio. The acid test excludes inventory and prepaids: 70,000 \u00f7 75,000 = 0.93."
+        },
+        {
+          "expr": "1.07",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You excluded inventory but kept prepaids. Prepaids can't pay bills either \u2014 quick assets are cash, investments, receivables."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,62 @@
+{
+  "slug": "intro2-plantwide-allocation",
+  "title": "Plantwide Overhead Rate",
+  "event": "Reyes Co. budgets total overhead of $480,000 and 32,000 direct labor hours plantwide. Product A uses 1,200 direct labor hours. Compute the plantwide rate and the overhead allocated to Product A.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 17,
+    "name": "Activity Based Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "One rate for the whole plant \u2014 simple, but it assumes every product consumes overhead in proportion to one single driver.",
+          "steps": [
+            {
+              "label": "Plantwide rate",
+              "formulaText": "480,000 \u00f7 32,000 DLH",
+              "value": 15
+            },
+            {
+              "label": "Allocated to Product A",
+              "formulaText": "1,200 DLH \u00d7 $15",
+              "value": 18000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Plantwide rate = total budgeted OH \u00f7 total budgeted driver. Allocation = rate \u00d7 the product's driver usage."
+    },
+    {
+      "kind": "watchout",
+      "body": "Plantwide rates overcost high-volume simple products and undercost low-volume complex ones \u2014 the distortion ABC exists to fix."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Plantwide rate $15/DLH, Product A uses 1,200 DLH. Overhead allocated = ?",
+      "answerExpr": "18000",
+      "distractors": [
+        {
+          "expr": "15",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the rate. Allocation multiplies it by the product's 1,200 hours: 18,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

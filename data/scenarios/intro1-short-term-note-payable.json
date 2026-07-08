@@ -1,0 +1,141 @@
+{
+  "slug": "intro1-short-term-note-payable",
+  "title": "Short-Term Note Payable \u2014 Full Cycle",
+  "event": "On November 1, Reyes Co. borrows $30,000 on a 6-month, 8% note. Prepare the issuance entry, the December 31 interest accrual, and the maturity payment entry on May 1.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 9,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Nov 1: borrow",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "proceeds",
+              "amount": 30000,
+              "why": "The loan arrives.",
+              "trap": "Face value in, face value owed \u2014 interest accrues with time, not at signing."
+            },
+            {
+              "account": "Notes Payable",
+              "side": "credit",
+              "label": "obligation",
+              "amount": 30000,
+              "why": "The formal obligation at face.",
+              "trap": "No interest liability yet \u2014 zero days have passed."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Dec 31: accrue 2 months \u2014 30,000 \u00d7 8% \u00d7 2/12",
+          "lines": [
+            {
+              "account": "Interest Expense",
+              "side": "debit",
+              "label": "Nov + Dec cost",
+              "amount": 400,
+              "why": "Two months of borrowing cost belong to this year.",
+              "trap": "The fraction is 2/12 (Nov\u2013Dec) \u2014 not the note's full 6-month term."
+            },
+            {
+              "account": "Interest Payable",
+              "side": "credit",
+              "label": "owed, unpaid",
+              "amount": 400,
+              "why": "Accrued but not due until maturity.",
+              "trap": "This payable is exactly what maturity's entry will pick up first."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 May 1: pay 31,200 (30,000 + 1,200 total interest)",
+          "lines": [
+            {
+              "account": "Notes Payable",
+              "side": "debit",
+              "label": "principal off",
+              "amount": 30000,
+              "why": "The face comes off the books.",
+              "trap": "Principal never touches interest expense \u2014 keep the streams separate."
+            },
+            {
+              "account": "Interest Payable",
+              "side": "debit",
+              "label": "last year's 2 months",
+              "amount": 400,
+              "why": "Clears the accrual from December 31.",
+              "trap": "Without this line, December's interest gets expensed TWICE."
+            },
+            {
+              "account": "Interest Expense",
+              "side": "debit",
+              "label": "this year's 4 months",
+              "amount": 800,
+              "why": "Jan\u2013Apr's interest belongs to the new year: 30,000 \u00d7 8% \u00d7 4/12.",
+              "trap": "The 1,200 total interest splits by calendar: 400 last year, 800 this year."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "maturity value",
+              "amount": 31200,
+              "why": "Principal plus all six months of interest.",
+              "trap": "Maturity value = 30,000 + 1,200, regardless of when year-end fell."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Interest = principal \u00d7 rate \u00d7 months/12. Total interest splits between years by the calendar."
+    },
+    {
+      "kind": "tip",
+      "body": "The maturity entry has THREE debits when a year-end intervened \u2014 payable, expense, principal. Two debits means someone's interest got lost."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$30,000 note at 8%, signed Nov 1. Interest accrued at Dec 31 = ?",
+      "answerExpr": "400",
+      "distractors": [
+        {
+          "expr": "1200",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's the full 6-month interest. Only Nov\u2013Dec (2 months) had passed: 1,200 \u00d7 2/6 = 400."
+        },
+        {
+          "expr": "2400",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "A full YEAR at 8%. This note accrued only 2 of 12 months by year-end: 400."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Notes Payable",
+      "Interest Expense",
+      "Interest Payable",
+      "Accounts Payable"
+    ],
+    "scaffold": "Borrow at face. Accrue by calendar. At maturity: payable + current expense + principal, one cash credit."
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "slug": "intro1-ar-turnover",
+  "title": "Accounts Receivable Turnover",
+  "event": "Reyes Co. reports net credit sales of $480,000. Accounts receivable were $38,000 at the beginning of the year and $42,000 at year-end. Compute accounts receivable turnover and days' sales uncollected.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 7,
+    "name": "Receivables"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Turnover asks how many times the receivables pool converted to cash this year \u2014 higher is faster collection.",
+          "steps": [
+            {
+              "label": "Average AR",
+              "formulaText": "(38,000 + 42,000) \u00f7 2",
+              "value": 40000
+            },
+            {
+              "label": "AR turnover",
+              "formulaText": "480,000 \u00f7 40,000",
+              "value": 12
+            },
+            {
+              "label": "Days' sales uncollected",
+              "formulaText": "365 \u00f7 12",
+              "value": 30.4
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "AR turnover = net credit sales \u00f7 AVERAGE accounts receivable. Days = 365 \u00f7 turnover."
+    },
+    {
+      "kind": "tip",
+      "body": "Compare days-to-collect against the credit terms: 30 days collected on net-30 terms is healthy; 45 is a problem."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Net credit sales $480,000, average AR $40,000. AR turnover = ?",
+      "answerExpr": "12",
+      "distractors": [
+        {
+          "expr": "11.43",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "You divided by ENDING AR (42,000). Flow \u00f7 snapshot ratios use the AVERAGE balance: 12."
+        },
+        {
+          "expr": "30.4",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's DAYS' sales uncollected (365 \u00f7 12) \u2014 the turnover itself is 12 times."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

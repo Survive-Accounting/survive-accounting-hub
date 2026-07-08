@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-departmental-contribution",
+  "title": "Departmental Contribution to Overhead",
+  "event": "Reyes Co.'s West Department has sales of $300,000 and direct expenses of $210,000. Allocated indirect expenses are $50,000. Compute the department's contribution to overhead and explain which figure judges the manager.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 22,
+    "name": "Performance Measures"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Judge managers on what they CONTROL: sales minus direct expenses. Allocated overhead is headquarters' arithmetic, not the manager's performance.",
+          "steps": [
+            {
+              "label": "Contribution to overhead",
+              "formulaText": "300,000 \u2212 210,000",
+              "value": 90000
+            },
+            {
+              "label": "Departmental income (after allocations)",
+              "formulaText": "90,000 \u2212 50,000",
+              "value": 40000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Contribution to overhead = departmental sales \u2212 DIRECT expenses. Allocated indirect costs come out only for full departmental income."
+    },
+    {
+      "kind": "watchout",
+      "body": "A department with positive contribution but negative income after allocations may still be worth KEEPING \u2014 eliminating it kills the contribution but not the allocated overhead."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Sales $300,000, direct expenses $210,000, allocated indirect $50,000. Contribution to overhead = ?",
+      "answerExpr": "90000",
+      "distractors": [
+        {
+          "expr": "40000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's income AFTER allocations. Contribution stops at controllable items: 300,000 \u2212 210,000 = 90,000."
+        },
+        {
+          "expr": "250000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You subtracted only the allocated 50,000. Direct expenses (210,000) are the controllable costs that count here."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

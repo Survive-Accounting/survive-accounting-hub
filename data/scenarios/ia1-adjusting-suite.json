@@ -1,0 +1,199 @@
+{
+  "slug": "ia1-adjusting-suite",
+  "title": "Adjusting Entries \u2014 The Four Families",
+  "event": "Hollis Co. reaches December 31 with one adjustment pending. Prepare the adjusting entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 2,
+    "name": "The Accounting System"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [
+    {
+      "key": "family",
+      "label": "The pending item",
+      "options": [
+        {
+          "value": "prepaid",
+          "label": "Prepaid: $24,000 rent paid Sep 1 for 12 months"
+        },
+        {
+          "value": "unearned",
+          "label": "Unearned: $15,000 received Aug 1 for 10 months of service"
+        },
+        {
+          "value": "accrued_expense",
+          "label": "Accrued expense: 9% interest on a $100,000 note, 4 months old"
+        },
+        {
+          "value": "accrued_revenue",
+          "label": "Accrued revenue: $6,200 of services performed, unbilled"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "family": "prepaid"
+      },
+      "entries": [
+        {
+          "label": "4 of 12 months used: 24,000 \u00d7 4/12",
+          "lines": [
+            {
+              "account": "Rent Expense",
+              "side": "debit",
+              "label": "24,000 \u00d7 4/12",
+              "amount": 8000,
+              "why": "Sep\u2013Dec = 4 months consumed at $2,000/month.",
+              "trap": "Count months from SEPTEMBER 1 \u2014 four have passed, not three."
+            },
+            {
+              "account": "Prepaid Rent",
+              "side": "credit",
+              "label": "asset used",
+              "amount": 8000,
+              "why": "The asset drains as the space is used; $16,000 remains for next year.",
+              "trap": "Credit the prepaid, never Cash \u2014 cash left in September."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "family": "unearned"
+      },
+      "entries": [
+        {
+          "label": "5 of 10 months earned: 15,000 \u00d7 5/10",
+          "lines": [
+            {
+              "account": "Unearned Service Revenue",
+              "side": "debit",
+              "label": "15,000 \u00d7 5/10",
+              "amount": 7500,
+              "why": "Five months (Aug\u2013Dec) of the obligation are worked off.",
+              "trap": "Debiting a liability to shrink it \u2014 the direction that trips people."
+            },
+            {
+              "account": "Service Revenue",
+              "side": "credit",
+              "label": "earned to date",
+              "amount": 7500,
+              "why": "Half the contract is now earned income.",
+              "trap": "The other 7,500 stays parked as a liability into next year."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "family": "accrued_expense"
+      },
+      "entries": [
+        {
+          "label": "100,000 \u00d7 9% \u00d7 4/12",
+          "lines": [
+            {
+              "account": "Interest Expense",
+              "side": "debit",
+              "label": "principal \u00d7 rate \u00d7 time",
+              "amount": 3000,
+              "why": "Four months of borrowing cost belong to this year.",
+              "trap": "The fraction is the whole battle: 4/12 of a FULL year's 9,000."
+            },
+            {
+              "account": "Interest Payable",
+              "side": "credit",
+              "label": "owed, unpaid",
+              "amount": 3000,
+              "why": "The obligation accrues even though no payment is due yet.",
+              "trap": "Payable, not Cash \u2014 accruals record cost BEFORE cash moves."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "family": "accrued_revenue"
+      },
+      "entries": [
+        {
+          "label": "Earned but unbilled",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "earned, unbilled",
+              "amount": 6200,
+              "why": "The claim exists the moment the work is done.",
+              "trap": "Unbilled \u2260 unearned \u2014 the invoice is paperwork, not the earning event."
+            },
+            {
+              "account": "Service Revenue",
+              "side": "credit",
+              "label": "work performed",
+              "amount": 6200,
+              "why": "December's work belongs in December's income.",
+              "trap": "Omitting this understates revenue AND assets \u2014 a favorite 'find the missing adjustment.'"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Four families: two deferrals (cash first \u2014 prepaids, unearned) and two accruals (cash later \u2014 accrued expenses, accrued revenues)."
+    },
+    {
+      "kind": "tip",
+      "body": "Every adjusting entry pairs one income-statement account with one balance-sheet account, and NEVER touches Cash."
+    },
+    {
+      "kind": "watchout",
+      "body": "The time fraction is where the points are lost \u2014 anchor to the exact start date and count on your fingers."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$100,000 note at 9%, outstanding 4 months at year-end. Accrued interest = ?",
+      "answerExpr": "3000",
+      "distractors": [
+        {
+          "expr": "9000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's a FULL year. Only 4 months have run: 9,000 \u00d7 4/12 = 3,000."
+        },
+        {
+          "expr": "750",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's one month. Four have accrued since the note was signed."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Rent Expense",
+      "Prepaid Rent",
+      "Unearned Service Revenue",
+      "Service Revenue",
+      "Interest Expense",
+      "Interest Payable",
+      "Accounts Receivable",
+      "Cash"
+    ],
+    "scaffold": "Name the family first (deferral vs accrual, expense vs revenue) \u2014 the accounts then pick themselves."
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "slug": "intro2-manufacturer-cogs",
+  "title": "Manufacturer's Cost of Goods Sold",
+  "event": "Ortiz Manufacturing began the year with finished goods of $15,000, completed goods costing $103,000 (COGM), and ended with finished goods of $18,000. Compute cost of goods sold.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 14,
+    "name": "Managerial Accounting Concepts"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Same beginning-plus-additions-minus-ending pattern, final stage: finished goods shelf to customer.",
+          "steps": [
+            {
+              "label": "Cost of goods sold",
+              "formulaText": "15,000 + 103,000 \u2212 18,000",
+              "value": 100000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "COGS = Beginning FG + COGM \u2212 Ending FG. COGM plays the role 'purchases' played for a merchandiser."
+    },
+    {
+      "kind": "watchout",
+      "body": "COGM \u2260 COGS. Manufactured is what left the FLOOR; sold is what left the BUILDING."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Beg FG $15,000, COGM $103,000, end FG $18,000. COGS = ?",
+      "answerExpr": "100000",
+      "distractors": [
+        {
+          "expr": "103000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's COGM \u2014 goods FINISHED. Some of them are still on the shelf: COGS = 100,000."
+        },
+        {
+          "expr": "106000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "FG change applied backwards. Ending inventory is SUBTRACTED \u2014 those goods didn't sell."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

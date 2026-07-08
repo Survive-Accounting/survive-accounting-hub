@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-goodwill",
+  "title": "Computing Goodwill in an Acquisition",
+  "event": "Hollis Co. pays $900,000 to acquire Delgado Co. The fair value of Delgado's identifiable net assets (assets minus liabilities) is $720,000. Compute goodwill and state its subsequent treatment.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 11,
+    "name": "Intangible Assets"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Goodwill is the residual \u2014 what the buyer paid beyond every asset it could name and value.",
+          "steps": [
+            {
+              "label": "Goodwill",
+              "formulaText": "900,000 \u2212 720,000",
+              "value": 180000
+            },
+            {
+              "label": "Subsequent treatment",
+              "formulaText": "NOT amortized \u2014 tested annually for impairment",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Goodwill = purchase price \u2212 fair value of identifiable net assets acquired."
+    },
+    {
+      "kind": "watchout",
+      "body": "Goodwill is recorded ONLY when purchased in an acquisition \u2014 internally generated goodwill is never booked. And a bargain purchase (price < FV of net assets) produces a GAIN, not negative goodwill on the balance sheet."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Purchase price $900,000, FV of identifiable net assets $720,000. Goodwill = ?",
+      "answerExpr": "180000",
+      "distractors": [
+        {
+          "expr": "900000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's the full purchase price. Goodwill is only the residual ABOVE the identifiable net assets: 180,000."
+        },
+        {
+          "expr": "720000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the identifiable net assets \u2014 the part that ISN'T goodwill. The unexplained premium is 180,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

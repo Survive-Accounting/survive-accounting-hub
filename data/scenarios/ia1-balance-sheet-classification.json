@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-balance-sheet-classification",
+  "title": "Balance Sheet Classification",
+  "event": "Reyes Co. holds: cash $30,000, accounts receivable $45,000, inventory $60,000, prepaid insurance $5,000, and land held for speculation $80,000. Compute total current assets.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 4,
+    "name": "The Balance Sheet"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Current = cash within one year or one operating cycle. Intent controls: the same land is PP&E if used in operations, an investment if held for appreciation.",
+          "steps": [
+            {
+              "label": "Current assets",
+              "formulaText": "30,000 + 45,000 + 60,000 + 5,000",
+              "value": 140000
+            },
+            {
+              "label": "Land held for speculation",
+              "formulaText": "long-term INVESTMENT, excluded",
+              "value": 80000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Asset sections in order: Current \u2192 Long-term Investments \u2192 PP&E \u2192 Intangibles \u2192 Other. Liquidity descends as you read down."
+    },
+    {
+      "kind": "tip",
+      "body": "Classification follows INTENT: land used in operations = PP&E; land held for appreciation = investment; land held for resale by a developer = inventory."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the items above, total current assets = ?",
+      "answerExpr": "140000",
+      "distractors": [
+        {
+          "expr": "220000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You included the speculative land. Held for appreciation = long-term investment, not current: 140,000."
+        },
+        {
+          "expr": "135000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You dropped the prepaid insurance. Prepaids are current assets \u2014 they'll be consumed within the year."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

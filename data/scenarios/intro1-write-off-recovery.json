@@ -1,0 +1,119 @@
+{
+  "slug": "intro1-write-off-recovery",
+  "title": "Write-Off and Recovery",
+  "event": "Reyes Co. writes off a customer's $900 account as uncollectible. A month later, the customer pays in full. Prepare all entries.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 7,
+    "name": "Receivables"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Write off",
+          "lines": [
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "debit",
+              "label": "cushion used",
+              "amount": 900,
+              "why": "The write-off spends allowance that was expensed in advance.",
+              "trap": "NO Bad Debt Expense here \u2014 the expense already happened at estimation time."
+            },
+            {
+              "account": "Accounts Receivable",
+              "side": "credit",
+              "label": "account removed",
+              "amount": 900,
+              "why": "The specific customer comes off the books.",
+              "trap": "Net realizable value doesn't move \u2014 AR and the allowance drop together."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Reinstate",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "claim revived",
+              "amount": 900,
+              "why": "The account returns \u2014 it proved collectible.",
+              "trap": "Reinstate BEFORE collecting so the customer's history shows the recovery."
+            },
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "credit",
+              "label": "cushion restored",
+              "amount": 900,
+              "why": "The allowance gets its 900 back.",
+              "trap": "Not revenue, not a gain \u2014 the estimate simply un-spends itself."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 Collect",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "payment",
+              "amount": 900,
+              "why": "The money arrives.",
+              "trap": "Plain collection mechanics from here."
+            },
+            {
+              "account": "Accounts Receivable",
+              "side": "credit",
+              "label": "claim settled",
+              "amount": 900,
+              "why": "The reinstated receivable clears.",
+              "trap": "Across all three entries, income effect = zero \u2014 everything ran through balance-sheet accounts."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Under the allowance method, write-offs and recoveries never touch income \u2014 the expense lives entirely in the year-end estimate."
+    },
+    {
+      "kind": "watchout",
+      "body": "Direct write-off (Dr Bad Debt Expense at failure) exists but violates matching \u2014 GAAP allows it only when amounts are immaterial."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Bad debt EXPENSE recorded at the moment of the $900 write-off = ?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "900",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "The expense was estimated in advance. The write-off just consumes existing allowance."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Allowance for Doubtful Accounts",
+      "Accounts Receivable",
+      "Cash",
+      "Bad Debt Expense"
+    ],
+    "scaffold": "Write off: allowance vs AR. Recover: reverse, then collect. Income never moves."
+  }
+}

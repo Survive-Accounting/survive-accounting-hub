@@ -1,0 +1,62 @@
+{
+  "slug": "intro2-target-income",
+  "title": "Units for Target Income",
+  "event": "Reyes Co. has fixed costs of $120,000 and a $20 contribution margin per unit. Management wants pretax income of $60,000. Compute the required unit sales.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 18,
+    "name": "Cost Volume Profit"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Target income is just more mountain to climb \u2014 stack it on top of fixed costs and divide by the same CM.",
+          "steps": [
+            {
+              "label": "Required units",
+              "formulaText": "(120,000 + 60,000) \u00f7 20",
+              "value": 9000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Units for target = (Fixed costs + target income) \u00f7 CM per unit."
+    },
+    {
+      "kind": "tip",
+      "body": "For an AFTER-tax target, gross it up first: pretax = after-tax \u00f7 (1 \u2212 tax rate), then run the same formula."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "FC $120,000, CM $20/unit, target income $60,000. Required units = ?",
+      "answerExpr": "9000",
+      "distractors": [
+        {
+          "expr": "6000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's plain break-even \u2014 you dropped the target. The 60,000 goal needs 3,000 more contributions."
+        },
+        {
+          "expr": "3000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That covers ONLY the target income. Fixed costs must be buried first: (120 + 60) \u00f7 20 = 9,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,90 @@
+{
+  "slug": "intro1-sales-tax",
+  "title": "Sales with Sales Tax",
+  "event": "Reyes Co. rings up $20,000 of cash sales subject to a 6% sales tax. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 9,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Customer pays 21,200; only 20,000 is yours",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "20,000 \u00d7 1.06",
+              "amount": 21200,
+              "why": "The register collects price plus tax.",
+              "trap": "If given only the 21,200 total, back the sales out: 21,200 \u00f7 1.06."
+            },
+            {
+              "account": "Sales Revenue",
+              "side": "credit",
+              "label": "the store's share",
+              "amount": 20000,
+              "why": "Revenue is the PRICE \u2014 the tax was never the company's income.",
+              "trap": "Crediting the full 21,200 to sales overstates revenue by the state's money."
+            },
+            {
+              "account": "Sales Taxes Payable",
+              "side": "credit",
+              "label": "the state's share",
+              "amount": 1200,
+              "why": "Collected as the state's agent \u2014 a liability until remitted.",
+              "trap": "Not an expense either \u2014 the company is a pass-through, not the taxpayer."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "The retailer is a collection agent: tax collected is a liability, and remitting it later just clears the payable (no expense)."
+    },
+    {
+      "kind": "watchout",
+      "body": "Given a tax-inclusive total, divide by (1 + rate) to find sales \u2014 multiplying the total by the rate is wrong."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Register total $21,200 including 6% tax. Sales revenue = ?",
+      "answerExpr": "20000",
+      "distractors": [
+        {
+          "expr": "21200",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's cash collected. 1,200 of it belongs to the state \u2014 revenue is 20,000."
+        },
+        {
+          "expr": "19928",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You multiplied 21,200 \u00d7 6% and subtracted. Divide by 1.06 instead: 20,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Sales Revenue",
+      "Sales Taxes Payable",
+      "Sales Tax Expense"
+    ],
+    "scaffold": "Three lines: cash for the total, revenue for the price, payable for the state's cut."
+  }
+}

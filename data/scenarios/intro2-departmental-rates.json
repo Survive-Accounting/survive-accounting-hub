@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-departmental-rates",
+  "title": "Departmental Overhead Rates",
+  "event": "Reyes Co. uses departmental rates: Department 1 budgets $90,000 of overhead on 15,000 machine hours; Department 2 budgets $150,000 on 10,000 direct labor hours. A job uses 200 machine hours in Department 1 and 120 direct labor hours in Department 2. Compute the overhead assigned to the job.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 17,
+    "name": "Activity Based Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Halfway between plantwide and ABC: each department picks the driver that best explains ITS overhead.",
+          "steps": [
+            {
+              "label": "Dept 1 rate",
+              "formulaText": "90,000 \u00f7 15,000 MH",
+              "value": 6
+            },
+            {
+              "label": "Dept 2 rate",
+              "formulaText": "150,000 \u00f7 10,000 DLH",
+              "value": 15
+            },
+            {
+              "label": "Job's overhead",
+              "formulaText": "200 \u00d7 $6 + 120 \u00d7 $15",
+              "value": 3000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Different departments, different drivers \u2014 machine-heavy rooms use machine hours, labor-heavy rooms use labor hours."
+    },
+    {
+      "kind": "watchout",
+      "body": "Apply each department's rate to the job's usage IN THAT department \u2014 cross-applying drivers is the classic slip."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Dept 1: 200 MH \u00d7 $6. Dept 2: 120 DLH \u00d7 $15. Total overhead on the job = ?",
+      "answerExpr": "3000",
+      "distractors": [
+        {
+          "expr": "1200",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Department 1 only. The job also passed through Department 2: +1,800."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

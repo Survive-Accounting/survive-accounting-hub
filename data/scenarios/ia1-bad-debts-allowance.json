@@ -1,0 +1,127 @@
+{
+  "slug": "ia1-bad-debts-allowance",
+  "title": "Estimating Bad Debts \u2014 % of Sales vs Aging",
+  "event": "Ortiz Co. estimates uncollectibles at year-end. Credit sales were $600,000, and the Allowance for Doubtful Accounts has an existing credit balance of $2,000. Prepare the adjusting entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 6,
+    "name": "Cash & Receivables"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [
+    {
+      "key": "method",
+      "label": "Estimation method",
+      "options": [
+        {
+          "value": "sales",
+          "label": "% of credit sales: 1%"
+        },
+        {
+          "value": "aging",
+          "label": "Aging: required ending allowance $9,000"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "method": "sales"
+      },
+      "entries": [
+        {
+          "label": "Income-statement approach: 600,000 \u00d7 1%",
+          "lines": [
+            {
+              "account": "Bad Debt Expense",
+              "side": "debit",
+              "label": "600,000 \u00d7 1%",
+              "amount": 6000,
+              "why": "The sales method matches expense to the revenue that created the risk \u2014 the existing allowance balance is IGNORED.",
+              "trap": "Don't net the 2,000 here \u2014 %-of-sales computes the EXPENSE directly, not an ending balance."
+            },
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "credit",
+              "label": "cushion grows",
+              "amount": 6000,
+              "why": "The contra-asset absorbs future write-offs; ending balance becomes 8,000.",
+              "trap": "Never credit AR itself \u2014 no specific customer has defaulted yet."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "aging"
+      },
+      "entries": [
+        {
+          "label": "Balance-sheet approach: target 9,000, have 2,000",
+          "lines": [
+            {
+              "account": "Bad Debt Expense",
+              "side": "debit",
+              "label": "9,000 target \u2212 2,000 existing",
+              "amount": 7000,
+              "why": "Aging computes the required ENDING allowance; the entry is whatever plugs the gap.",
+              "trap": "The existing balance matters HERE and not in %-of-sales \u2014 the single most-tested contrast in the chapter."
+            },
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "credit",
+              "label": "topped up to 9,000",
+              "amount": 7000,
+              "why": "Allowance rises from 2,000 to exactly the 9,000 the aging demands.",
+              "trap": "If the existing balance were a DEBIT 2,000, the entry would be 11,000 \u2014 direction of the existing balance matters."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "% of sales \u2192 expense DIRECTLY (ignore existing allowance). Aging \u2192 ending BALANCE (net the existing allowance)."
+    },
+    {
+      "kind": "tip",
+      "body": "Net realizable value = gross AR \u2212 allowance. Only the aging method targets NRV explicitly."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Aging requires a $9,000 ending allowance; the account holds a $2,000 credit. Bad debt expense = ?",
+      "answerExpr": "7000",
+      "distractors": [
+        {
+          "expr": "9000",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "That's the required ENDING balance. Part of it already exists \u2014 the entry adds only the 7,000 gap."
+        },
+        {
+          "expr": "11000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You treated the existing 2,000 as a DEBIT balance. It's a credit \u2014 subtract it: 9,000 \u2212 2,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Bad Debt Expense",
+      "Allowance for Doubtful Accounts",
+      "Accounts Receivable",
+      "Sales Revenue"
+    ],
+    "scaffold": "First question: which method? Sales % \u2192 compute expense directly. Aging \u2192 target minus existing balance."
+  }
+}

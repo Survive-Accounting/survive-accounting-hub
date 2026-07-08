@@ -1,0 +1,72 @@
+{
+  "slug": "intro1-revised-depreciation",
+  "title": "Revising a Depreciation Estimate",
+  "event": "Reyes Co. bought equipment for $60,000 (no salvage) and has depreciated it straight-line for 4 years of a 10-year life. At the start of year 5, management revises the TOTAL remaining life to 4 more years. Compute the revised annual depreciation.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 8,
+    "name": "Long Term Assets"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Estimate changes are handled PROSPECTIVELY: take the remaining book value and spread it over the remaining life. The past stays put.",
+          "steps": [
+            {
+              "label": "Depreciation to date",
+              "formulaText": "(60,000 \u00f7 10) \u00d7 4 years",
+              "value": 24000
+            },
+            {
+              "label": "Book value at revision",
+              "formulaText": "60,000 \u2212 24,000",
+              "value": 36000
+            },
+            {
+              "label": "Revised annual depreciation",
+              "formulaText": "36,000 \u00f7 4 remaining years",
+              "value": 9000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Revised depreciation = (book value \u2212 remaining salvage) \u00f7 remaining useful life."
+    },
+    {
+      "kind": "tip",
+      "body": "No catch-up entry, no restating prior years \u2014 a change in ESTIMATE only touches the future."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "BV $36,000 at the start of year 5, 4 years of revised life remain. Revised annual depreciation = ?",
+      "answerExpr": "9000",
+      "distractors": [
+        {
+          "expr": "6000",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "That's the ORIGINAL rate. The revision respreads today's book value over the NEW remaining life: 36,000 \u00f7 4."
+        },
+        {
+          "expr": "15000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You divided the full 60,000 cost by 4. Only the undepreciated 36,000 remains to allocate."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

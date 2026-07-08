@@ -1,0 +1,112 @@
+{
+  "slug": "intro1-note-receivable",
+  "title": "Note Receivable \u2014 Accept and Honor",
+  "event": "On November 1, Reyes Co. accepts a $10,000, 8%, 90-day note from a customer to settle a past-due account. The note is honored at maturity. Prepare the entries (use a 360-day year).",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 7,
+    "name": "Receivables"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Accept the note",
+          "lines": [
+            {
+              "account": "Notes Receivable",
+              "side": "debit",
+              "label": "formal promise",
+              "amount": 10000,
+              "why": "The open account upgrades to a formal, interest-bearing note.",
+              "trap": "Face value only \u2014 interest hasn't been earned yet on day one."
+            },
+            {
+              "account": "Accounts Receivable",
+              "side": "credit",
+              "label": "old claim replaced",
+              "amount": 10000,
+              "why": "The past-due account is settled by the note.",
+              "trap": "Not Sales Revenue \u2014 nothing new was sold; an old claim changed form."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Honor at maturity: 10,000 \u00d7 8% \u00d7 90/360 = 200",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "principal + interest",
+              "amount": 10200,
+              "why": "Maturity value collected: face plus 90 days of interest.",
+              "trap": "Maturity value = principal + interest \u2014 not face alone."
+            },
+            {
+              "account": "Notes Receivable",
+              "side": "credit",
+              "label": "note settled",
+              "amount": 10000,
+              "why": "The note comes off the books at face.",
+              "trap": "Credit the note at FACE \u2014 the interest has its own line."
+            },
+            {
+              "account": "Interest Revenue",
+              "side": "credit",
+              "label": "90 days earned",
+              "amount": 200,
+              "why": "10,000 \u00d7 8% \u00d7 90/360.",
+              "trap": "The 8% is ANNUAL \u2014 the 90/360 fraction is where points die."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Interest = Principal \u00d7 annual rate \u00d7 time/360 (banker's year in this text)."
+    },
+    {
+      "kind": "tip",
+      "body": "If the note straddled year-end, the interest would split via an accrual \u2014 earned by calendar, not by collection."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$10,000 note, 8%, 90 days. Interest at maturity = ?",
+      "answerExpr": "200",
+      "distractors": [
+        {
+          "expr": "800",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's a full YEAR of interest. This note ran 90 days: 800 \u00d7 90/360 = 200."
+        },
+        {
+          "expr": "720",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You used 90/365 days against a different base \u2014 this text uses the 360-day banker's year: 200."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Notes Receivable",
+      "Accounts Receivable",
+      "Cash",
+      "Interest Revenue",
+      "Sales Revenue"
+    ],
+    "scaffold": "Accept at face against AR. Honor: cash for maturity value, split face vs interest."
+  }
+}

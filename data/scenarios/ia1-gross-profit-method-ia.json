@@ -1,0 +1,72 @@
+{
+  "slug": "ia1-gross-profit-method-ia",
+  "title": "Gross Profit Method \u2014 Markup on Cost",
+  "event": "A fire destroys Hollis Co.'s warehouse. Beginning inventory was $60,000 and purchases were $90,000. Sales to the fire date were $125,000, and the company marks up goods 25% ON COST. Compute the estimated inventory destroyed.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 8,
+    "name": "Inventories, Additional Issues"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Markup ON COST must convert before it can touch sales: 25% on cost means sales = 125% of cost, so COGS = sales \u00f7 1.25.",
+          "steps": [
+            {
+              "label": "Goods available",
+              "formulaText": "60,000 + 90,000",
+              "value": 150000
+            },
+            {
+              "label": "Estimated COGS",
+              "formulaText": "125,000 \u00f7 1.25",
+              "value": 100000
+            },
+            {
+              "label": "Estimated inventory destroyed",
+              "formulaText": "150,000 \u2212 100,000",
+              "value": 50000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Markup on cost c \u2192 GP on selling = c \u00f7 (1 + c). 25% on cost = 20% on selling. COGS = sales \u00f7 (1 + markup on cost)."
+    },
+    {
+      "kind": "watchout",
+      "body": "'25% on cost' and '25% on selling' are different worlds \u2014 the conversion is the entire IA-level twist on this method."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Sales $125,000, markup 25% ON COST, goods available $150,000. Estimated ending inventory = ?",
+      "answerExpr": "50000",
+      "distractors": [
+        {
+          "expr": "56250",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You treated 25% as a margin ON SELLING (COGS = 93,750). On-cost markup converts: COGS = 125,000 \u00f7 1.25 = 100,000 \u2192 EI 50,000."
+        },
+        {
+          "expr": "25000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You subtracted full sales from goods available. Sales are at RETAIL \u2014 deflate to cost first: 100,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

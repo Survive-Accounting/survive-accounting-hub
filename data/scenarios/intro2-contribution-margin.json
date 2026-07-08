@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-contribution-margin",
+  "title": "Contribution Margin \u2014 Per Unit & Ratio",
+  "event": "Reyes Co. sells a product for $50 per unit with variable costs of $30 per unit. Compute the contribution margin per unit and the contribution margin ratio.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 18,
+    "name": "Cost Volume Profit"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Contribution margin is what each unit contributes toward covering fixed costs \u2014 and after break-even, toward profit.",
+          "steps": [
+            {
+              "label": "CM per unit",
+              "formulaText": "50 \u2212 30",
+              "value": 20
+            },
+            {
+              "label": "CM ratio",
+              "formulaText": "20 \u00f7 50",
+              "value": 40
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "CM per unit = price \u2212 variable cost per unit. CM ratio = CM \u00f7 price."
+    },
+    {
+      "kind": "tip",
+      "body": "Fixed costs don't appear in CM at all \u2014 that's the point. CM measures what's LEFT to pay them."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Price $50, variable cost $30. CM ratio = ? (%)",
+      "answerExpr": "40",
+      "distractors": [
+        {
+          "expr": "60",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "That's the variable-cost ratio (30/50). CM is the other side: 20/50 = 40%."
+        },
+        {
+          "expr": "20",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's CM per UNIT in dollars. The RATIO divides by price: 40%."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

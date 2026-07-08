@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-partial-year-depreciation",
+  "title": "Partial-Year Depreciation",
+  "event": "Hollis Co. buys a machine on April 1 for $96,000 with a $6,000 salvage value and a 5-year life, using straight-line depreciation. Compute depreciation for the year of acquisition.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 10,
+    "name": "Depreciation, Impairments, and Depletion"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Assets earn depreciation only for the months they're in service \u2014 April 1 to December 31 is nine months.",
+          "steps": [
+            {
+              "label": "Full-year depreciation",
+              "formulaText": "(96,000 \u2212 6,000) \u00f7 5",
+              "value": 18000
+            },
+            {
+              "label": "Year-of-acquisition depreciation",
+              "formulaText": "18,000 \u00d7 9/12",
+              "value": 13500
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Partial-year = full-year depreciation \u00d7 months in service \u00f7 12."
+    },
+    {
+      "kind": "tip",
+      "body": "For accelerated methods the proration applies to each RATE-YEAR: an April 1 DDB asset's second calendar year mixes 3 months of year-1 rate with 9 months of year-2 rate."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Machine in service April 1; full-year SL depreciation $18,000. First calendar year's depreciation = ?",
+      "answerExpr": "13500",
+      "distractors": [
+        {
+          "expr": "18000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's a full year. The machine served only April\u2013December: 18,000 \u00d7 9/12 = 13,500."
+        },
+        {
+          "expr": "12000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's 8 months. April 1 through December 31 is NINE months: 13,500."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

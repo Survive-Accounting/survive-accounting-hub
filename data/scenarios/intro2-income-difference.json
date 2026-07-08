@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-income-difference",
+  "title": "Why the Incomes Differ",
+  "event": "Reyes Co. produced 10,000 units and sold 8,000. Fixed overhead per unit under absorption costing is $6. Compute the difference between absorption and variable costing income.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 19,
+    "name": "Variable Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The 2,000 unsold units carry $6 of fixed overhead each INTO inventory under absorption \u2014 cost that variable costing already expensed.",
+          "steps": [
+            {
+              "label": "Units added to inventory",
+              "formulaText": "10,000 \u2212 8,000",
+              "value": 2000
+            },
+            {
+              "label": "Fixed OH deferred in inventory",
+              "formulaText": "2,000 \u00d7 $6",
+              "value": 12000
+            },
+            {
+              "label": "Absorption income is HIGHER by",
+              "formulaText": "production > sales \u2192 deferral",
+              "value": 12000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Income difference = change in inventory units \u00d7 fixed OH per unit. Production > sales \u2192 absorption higher; production < sales \u2192 variable higher."
+    },
+    {
+      "kind": "tip",
+      "body": "Sell exactly what you produce and the two incomes match \u2014 the difference lives entirely in inventory movement."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Produced 10,000, sold 8,000, fixed OH $6/unit. Absorption income exceeds variable income by ?",
+      "answerExpr": "12000",
+      "distractors": [
+        {
+          "expr": "-12000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Direction flipped. Inventory GREW, so absorption DEFERS fixed cost and reports HIGHER income."
+        },
+        {
+          "expr": "60000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's ALL the fixed overhead. Only the 2,000 unsold units' share (12,000) is deferred."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,124 @@
+{
+  "slug": "ia1-reversing-entries",
+  "title": "Reversing Entries \u2014 Why and How",
+  "event": "On December 31, Hollis Co. accrued $4,000 of salaries (payday is January 8, when $10,000 of total wages will be paid). Hollis uses reversing entries. Prepare the December 31 accrual, the January 1 reversing entry, and the January 8 payment entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 2,
+    "name": "The Accounting System"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Dec 31: accrue the year-end obligation",
+          "lines": [
+            {
+              "account": "Salaries Expense",
+              "side": "debit",
+              "label": "earned by 12/31",
+              "amount": 4000,
+              "why": "December's work belongs in December's expense.",
+              "trap": "Standard accrual \u2014 nothing exotic yet."
+            },
+            {
+              "account": "Salaries Payable",
+              "side": "credit",
+              "label": "owed at year-end",
+              "amount": 4000,
+              "why": "The liability bridges the year-end.",
+              "trap": "This payable is exactly what the reversing entry will erase on day one."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Jan 1: reverse it",
+          "lines": [
+            {
+              "account": "Salaries Payable",
+              "side": "debit",
+              "label": "liability erased",
+              "amount": 4000,
+              "why": "The payable disappears before business even starts.",
+              "trap": "Reversing is OPTIONAL bookkeeping convenience \u2014 it changes no year's income, only the mechanics."
+            },
+            {
+              "account": "Salaries Expense",
+              "side": "credit",
+              "label": "temporary credit balance",
+              "amount": 4000,
+              "why": "Salaries Expense now holds a 4,000 CREDIT balance \u2014 deliberately backwards.",
+              "trap": "The weird credit balance is the point: it pre-absorbs December's share of the coming payment."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 Jan 8: pay the full 10,000 with zero thinking",
+          "lines": [
+            {
+              "account": "Salaries Expense",
+              "side": "debit",
+              "label": "full payment, no splitting",
+              "amount": 10000,
+              "why": "The bookkeeper debits the whole check to expense \u2014 no need to remember any year-end split.",
+              "trap": "Without the reversal, this entry must split: Dr Payable 4,000 + Dr Expense 6,000 \u2014 and forgetting the split double-counts December."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "payday",
+              "amount": 10000,
+              "why": "Wages paid.",
+              "trap": "Check the math: 10,000 debit \u2212 4,000 credit balance = 6,000 net January expense. Exactly right, automatically."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Reverse only ACCRUALS (accrued expenses and revenues) \u2014 never deferrals like depreciation or prepaid adjustments."
+    },
+    {
+      "kind": "watchout",
+      "body": "The reversal creates a temporary 'wrong-way' balance on purpose. It self-corrects the moment the related cash entry posts."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "After the reversing entry, the Jan 8 payment of $10,000 is debited entirely to Salaries Expense. Net January expense = ?",
+      "answerExpr": "6000",
+      "distractors": [
+        {
+          "expr": "10000",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "You counted December's 4,000 in January again. The reversal pre-loaded a 4,000 credit, netting January to 6,000."
+        },
+        {
+          "expr": "4000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's December's accrued piece. January's own expense is the remainder: 10,000 \u2212 4,000 = 6,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Salaries Expense",
+      "Salaries Payable",
+      "Cash",
+      "Prepaid Salaries"
+    ],
+    "scaffold": "Accrue, reverse, pay. The reversal makes entry 3 mindless \u2014 that's its entire job."
+  }
+}

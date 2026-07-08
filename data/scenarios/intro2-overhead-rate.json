@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-overhead-rate",
+  "title": "Predetermined Overhead Rate & Application",
+  "event": "Reyes Co. estimates annual factory overhead of $200,000 and 25,000 direct labor hours. Job 314 used 340 direct labor hours. Compute the predetermined overhead rate and the overhead applied to Job 314.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 15,
+    "name": "Job Order Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The rate is set BEFORE the year from estimates, so jobs can be costed in real time instead of waiting for December's actual bills.",
+          "steps": [
+            {
+              "label": "Predetermined rate",
+              "formulaText": "200,000 \u00f7 25,000 DLH",
+              "value": 8
+            },
+            {
+              "label": "Applied to Job 314",
+              "formulaText": "340 DLH \u00d7 $8",
+              "value": 2720
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "POHR = ESTIMATED overhead \u00f7 ESTIMATED activity base. Applied = POHR \u00d7 ACTUAL base used by the job."
+    },
+    {
+      "kind": "tip",
+      "body": "Estimates set the rate; actuals drive the application. Mixing that up is the chapter's signature error."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "POHR $8/DLH, Job 314 used 340 DLH. Overhead applied = ?",
+      "answerExpr": "2720",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Waiting for actual overhead defeats the system's purpose \u2014 jobs are costed NOW using the predetermined rate."
+        },
+        {
+          "expr": "340",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's the hours. Multiply by the $8 rate to convert activity into applied cost."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

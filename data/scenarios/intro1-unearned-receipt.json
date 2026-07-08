@@ -1,0 +1,77 @@
+{
+  "slug": "intro1-unearned-receipt",
+  "title": "Receiving Cash Before the Work",
+  "event": "A client pays Tran Consulting a $3,000 retainer for services to be performed next quarter. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 2,
+    "name": "Journalizing Transactions"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Cash now, obligation now, revenue later",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "received in advance",
+              "amount": 3000,
+              "why": "The money is real and it's yours to hold.",
+              "trap": "Holding cash and having earned it are different things \u2014 the credit line is where that shows."
+            },
+            {
+              "account": "Unearned Revenue",
+              "side": "credit",
+              "label": "work still owed",
+              "amount": 3000,
+              "why": "You OWE the work \u2014 that's a liability until it's performed.",
+              "trap": "Not revenue yet. Crediting Service Revenue here overstates income and hides the obligation."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "watchout",
+      "body": "Unearned Revenue is a LIABILITY with 'revenue' in its name \u2014 the most treacherous account title in the course."
+    },
+    {
+      "kind": "tip",
+      "body": "It converts to real revenue later via the adjusting entry, as the work actually gets done."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Revenue recognized when the $3,000 retainer arrives = ?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "3000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "Cash before work = a liability (Unearned Revenue). It converts to revenue only as the work is performed."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Unearned Revenue",
+      "Service Revenue",
+      "Accounts Receivable"
+    ],
+    "scaffold": "Cash before work \u2192 Unearned Revenue (liability). Work before cash \u2192 Accounts Receivable (asset)."
+  }
+}

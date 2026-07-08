@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-deferred-annuity",
+  "title": "Deferred Annuity",
+  "event": "Hollis Co. will receive four annual payments of $5,000, with the first payment at the end of year 3 (a two-year deferral), at 10% (PV-OA factor, 10%, 4 = 3.16987; PV single-sum factor, 10%, 2 = 0.82645). Compute the present value today.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 5,
+    "name": "Time Value of Money"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Two steps: value the annuity as of the period BEFORE its first payment, then discount that lump back through the deferral.",
+          "steps": [
+            {
+              "label": "Value at end of year 2",
+              "formulaText": "5,000 \u00d7 3.16987",
+              "value": 15849
+            },
+            {
+              "label": "Discount 2 years to today",
+              "formulaText": "15,849 \u00d7 0.82645",
+              "value": 13099
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "The ordinary-annuity factor lands you ONE PERIOD BEFORE the first payment \u2014 first payment end of year 3 means the annuity value sits at end of year 2."
+    },
+    {
+      "kind": "watchout",
+      "body": "Forgetting the second discount is the classic slip \u2014 the 15,849 is a year-2 value, not a today value."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Four payments of $5,000 starting end of year 3, 10%. PV today = ?",
+      "answerExpr": "13099",
+      "distractors": [
+        {
+          "expr": "15849",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's the value at the END OF YEAR 2. Discount it two more years: \u00d7 0.82645 = 13,099."
+        },
+        {
+          "expr": "20000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "Undiscounted total. Every payment must be discounted \u2014 through the deferral too."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

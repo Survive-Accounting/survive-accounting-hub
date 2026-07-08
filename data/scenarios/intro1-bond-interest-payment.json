@@ -1,0 +1,149 @@
+{
+  "slug": "intro1-bond-interest-payment",
+  "title": "First Interest Payment \u2014 Amortizing the Discount",
+  "event": "Continuing Reyes Co.'s discount bonds: $500,000 face, 8% stated, issued at $461,391 to yield 10% (semiannual periods; discount $38,609). Prepare the first semiannual interest entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 10,
+    "name": "Long Term Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "method",
+      "label": "Amortization method",
+      "options": [
+        {
+          "value": "sl",
+          "label": "Straight-line ($38,609 \u00f7 10 periods)"
+        },
+        {
+          "value": "ei",
+          "label": "Effective interest (5% \u00d7 carrying value)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "method": "sl"
+      },
+      "entries": [
+        {
+          "label": "Cash 20,000 + level amortization 3,861",
+          "lines": [
+            {
+              "account": "Bond Interest Expense",
+              "side": "debit",
+              "label": "20,000 + 3,861",
+              "amount": 23861,
+              "why": "Cash coupon plus an equal slice of the discount each period.",
+              "trap": "Straight-line expense is CONSTANT \u2014 the tell that distinguishes it from effective interest."
+            },
+            {
+              "account": "Discount on Bonds Payable",
+              "side": "credit",
+              "label": "38,609 \u00f7 10",
+              "amount": 3861,
+              "why": "One-tenth of the discount amortized per period.",
+              "trap": "The contra shrinks toward zero, walking carrying value up to face by maturity."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "500,000 \u00d7 8% \u00f7 2",
+              "amount": 20000,
+              "why": "The coupon is fixed by the STATED rate \u2014 same check every period, either method.",
+              "trap": "Cash never changes with the method \u2014 only the expense and amortization split does."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "ei"
+      },
+      "entries": [
+        {
+          "label": "5% \u00d7 461,391 carrying value",
+          "lines": [
+            {
+              "account": "Bond Interest Expense",
+              "side": "debit",
+              "label": "461,391 \u00d7 5%",
+              "amount": 23070,
+              "why": "Market rate per period times CARRYING VALUE \u2014 the economically true cost.",
+              "trap": "Not 5% \u00d7 face (25,000) and not 4% \u00d7 carrying value \u2014 market rate on carrying value, always."
+            },
+            {
+              "account": "Discount on Bonds Payable",
+              "side": "credit",
+              "label": "23,070 \u2212 20,000",
+              "amount": 3070,
+              "why": "The gap between true expense and cash paid amortizes the discount.",
+              "trap": "Under effective interest the amortization GROWS each period as carrying value climbs."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "500,000 \u00d7 8% \u00f7 2",
+              "amount": 20000,
+              "why": "Same fixed coupon.",
+              "trap": "New carrying value: 461,391 + 3,070 = 464,461 \u2014 next period's expense base."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Effective interest: expense = market rate/period \u00d7 carrying value; amortization = expense \u2212 cash coupon. Straight-line: amortization = discount \u00f7 number of periods."
+    },
+    {
+      "kind": "tip",
+      "body": "Either way, cash = face \u00d7 stated \u00f7 2 and carrying value marches toward face \u2014 the methods only disagree on the path."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Effective interest method: carrying value $461,391, market 10% annual. First-period interest EXPENSE = ?",
+      "answerExpr": "23070",
+      "distractors": [
+        {
+          "expr": "25000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You applied 5% to the 500,000 FACE. Effective interest runs on CARRYING VALUE: 5% \u00d7 461,391."
+        },
+        {
+          "expr": "18456",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You applied the stated 4% to carrying value. The stated rate writes checks; the MARKET rate measures expense."
+        },
+        {
+          "expr": "20000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's the cash coupon. Expense exceeds cash on discount bonds \u2014 the 3,070 gap amortizes the discount."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Bond Interest Expense",
+      "Discount on Bonds Payable",
+      "Cash",
+      "Bonds Payable",
+      "Interest Payable"
+    ],
+    "scaffold": "Anchor on cash (face \u00d7 stated \u00f7 2), compute expense by the method, and the discount line is the difference."
+  }
+}

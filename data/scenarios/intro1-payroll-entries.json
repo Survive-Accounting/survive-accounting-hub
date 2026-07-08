@@ -1,0 +1,138 @@
+{
+  "slug": "intro1-payroll-entries",
+  "title": "Payroll \u2014 Employee and Employer Entries",
+  "event": "Reyes Co.'s employee earns gross pay of $4,000. Withholdings: FICA taxes of $306 (7.65%) and federal income tax of $480. Employer payroll taxes: FICA match $306, FUTA $24 (0.6%), SUTA $216 (5.4%). Prepare both payroll entries.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 9,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Employee payroll: gross to net",
+          "lines": [
+            {
+              "account": "Salaries Expense",
+              "side": "debit",
+              "label": "gross pay",
+              "amount": 4000,
+              "why": "The expense is GROSS \u2014 the full cost of the labor, before any withholding.",
+              "trap": "Debiting net pay (3,214) understates the expense; withholdings are still the company's cost of labor."
+            },
+            {
+              "account": "FICA Taxes Payable",
+              "side": "credit",
+              "label": "employee's 7.65%",
+              "amount": 306,
+              "why": "Withheld from the employee, owed to the government.",
+              "trap": "Withholdings are LIABILITIES \u2014 the company is holding someone else's money."
+            },
+            {
+              "account": "Employee Income Taxes Payable",
+              "side": "credit",
+              "label": "federal withholding",
+              "amount": 480,
+              "why": "Income tax withheld on the employee's behalf.",
+              "trap": "Not the company's tax expense \u2014 it's the employee's tax, briefly parked."
+            },
+            {
+              "account": "Salaries Payable",
+              "side": "credit",
+              "label": "net pay",
+              "amount": 3214,
+              "why": "What actually reaches the employee: 4,000 \u2212 306 \u2212 480.",
+              "trap": "Net pay is the plug \u2014 if it isn't gross minus every withholding, a line is missing."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Employer payroll taxes: 306 + 24 + 216",
+          "lines": [
+            {
+              "account": "Payroll Taxes Expense",
+              "side": "debit",
+              "label": "employer's own burden",
+              "amount": 546,
+              "why": "The employer's ADDITIONAL cost on top of gross pay: FICA match + FUTA + SUTA.",
+              "trap": "This is a second, separate expense \u2014 total labor cost is 4,546, not 4,000."
+            },
+            {
+              "account": "FICA Taxes Payable",
+              "side": "credit",
+              "label": "employer match",
+              "amount": 306,
+              "why": "The employer matches the employee's FICA dollar for dollar.",
+              "trap": "Two FICA credits exist across the two entries \u2014 one withheld, one matched."
+            },
+            {
+              "account": "Federal Unemployment Taxes Payable",
+              "side": "credit",
+              "label": "FUTA 0.6%",
+              "amount": 24,
+              "why": "Employer-only tax.",
+              "trap": "Employees never pay FUTA/SUTA \u2014 these appear ONLY in the employer entry."
+            },
+            {
+              "account": "State Unemployment Taxes Payable",
+              "side": "credit",
+              "label": "SUTA 5.4%",
+              "amount": 216,
+              "why": "Employer-only state unemployment tax.",
+              "trap": "Unemployment taxes apply to a wage base cap in practice \u2014 exams usually hand you the amounts."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Two entries, two hats: entry 1 records the employee's pay (gross \u2192 withholdings \u2192 net); entry 2 records the employer's OWN taxes."
+    },
+    {
+      "kind": "watchout",
+      "body": "FICA shows up twice on purpose \u2014 withheld from the employee AND matched by the employer."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Gross pay $4,000, FICA withheld $306, income tax withheld $480. NET pay = ?",
+      "answerExpr": "3214",
+      "distractors": [
+        {
+          "expr": "4000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's GROSS. Net pay is what survives the withholdings: 4,000 \u2212 306 \u2212 480 = 3,214."
+        },
+        {
+          "expr": "2908",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You also subtracted the employer's taxes. FUTA/SUTA and the FICA match never reduce the employee's check."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Salaries Expense",
+      "FICA Taxes Payable",
+      "Employee Income Taxes Payable",
+      "Salaries Payable",
+      "Payroll Taxes Expense",
+      "Federal Unemployment Taxes Payable",
+      "State Unemployment Taxes Payable"
+    ],
+    "scaffold": "Entry 1: gross expense, withholding payables, net pay plug. Entry 2: employer's tax expense against three payables."
+  }
+}

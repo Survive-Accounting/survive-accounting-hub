@@ -1,0 +1,72 @@
+{
+  "slug": "ia1-rd-costs",
+  "title": "Research & Development Costs",
+  "event": "During the year, Hollis Co. incurs: laboratory research $120,000; prototype construction $45,000; and $60,000 for lab equipment with alternative future uses (10-year life, straight-line). Compute this year's R&D expense.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 11,
+    "name": "Intangible Assets"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "GAAP expenses R&D as incurred \u2014 with one carve-out: equipment with ALTERNATIVE future uses is capitalized, and its depreciation flows into R&D expense.",
+          "steps": [
+            {
+              "label": "Research + prototype",
+              "formulaText": "120,000 + 45,000",
+              "value": 165000
+            },
+            {
+              "label": "Equipment depreciation into R&D",
+              "formulaText": "60,000 \u00f7 10",
+              "value": 6000
+            },
+            {
+              "label": "Total R&D expense",
+              "formulaText": "165,000 + 6,000",
+              "value": 171000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "R&D expense = all research and development costs as incurred + depreciation on capitalized alternative-use R&D equipment."
+    },
+    {
+      "kind": "watchout",
+      "body": "Two-way trap: expensing the alternative-use equipment (too much) or forgetting its depreciation belongs to R&D (too little)."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Research $120,000, prototype $45,000, alternative-use equipment $60,000 (10-yr SL). R&D EXPENSE this year = ?",
+      "answerExpr": "171000",
+      "distractors": [
+        {
+          "expr": "225000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You expensed the equipment outright. Alternative future uses \u2192 capitalize it; only its 6,000 depreciation hits R&D."
+        },
+        {
+          "expr": "165000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You capitalized the equipment but dropped its depreciation \u2014 that 6,000 belongs IN R&D expense: 171,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

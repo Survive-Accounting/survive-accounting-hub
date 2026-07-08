@@ -1,0 +1,87 @@
+{
+  "slug": "intro1-adjust-prepaid",
+  "title": "Adjusting: Prepaid Insurance",
+  "event": "On October 1, Reyes Co. paid $12,000 for a 12-month insurance policy and debited Prepaid Insurance. Prepare the December 31 adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "3 of 12 months used",
+          "lines": [
+            {
+              "account": "Insurance Expense",
+              "side": "debit",
+              "label": "12,000 \u00d7 3/12",
+              "amount": 3000,
+              "why": "Oct\u2013Dec = 3 months of coverage consumed at $1,000/month.",
+              "trap": "Count the months on your fingers. Oct 1 to Dec 31 is 3 months \u2014 not 2, not 12."
+            },
+            {
+              "account": "Prepaid Insurance",
+              "side": "credit",
+              "label": "asset used up",
+              "amount": 3000,
+              "why": "The asset shrinks as coverage is used; $9,000 remains for next year.",
+              "trap": "Credit the ASSET, not Cash \u2014 cash moved back in October. Adjusting entries never touch Cash."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Expense = cost \u00d7 months used \u00f7 total months. The prepaid balance = what's LEFT."
+    },
+    {
+      "kind": "tip",
+      "body": "Adjusting entries never touch Cash. The adjustment only fixes the TIMING of the expense."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$12,000 policy bought Oct 1 covers 12 months. Insurance expense at Dec 31 = ?",
+      "answerExpr": "3000",
+      "distractors": [
+        {
+          "expr": "12000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You expensed the whole payment. Only the 3 months USED (Oct\u2013Dec) belong to this year."
+        },
+        {
+          "expr": "9000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "That's what REMAINS prepaid. The adjusting entry records what was USED: 3 months = 3,000."
+        },
+        {
+          "expr": "1000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's one month. Three have passed since October 1."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Insurance Expense",
+      "Prepaid Insurance",
+      "Cash",
+      "Insurance Payable"
+    ],
+    "scaffold": "Months used \u00f7 months bought \u00d7 cost. Debit the expense for what's used; credit the asset down."
+  }
+}

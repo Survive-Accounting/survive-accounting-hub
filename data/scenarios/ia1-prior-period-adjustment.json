@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-prior-period-adjustment",
+  "title": "Prior Period Adjustment",
+  "event": "In 2026, Delgado Co. discovers that 2025 depreciation was understated by $30,000 (ignore taxes). Prepare the correcting entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 3,
+    "name": "The Income Statement"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Fix the past through RE, not this year's income",
+          "lines": [
+            {
+              "account": "Retained Earnings",
+              "side": "debit",
+              "label": "prior year's error absorbed",
+              "amount": 30000,
+              "why": "Last year's overstated income already closed into RE \u2014 so RE is where the fix lands.",
+              "trap": "NOT Depreciation Expense. Running it through 2026 income punishes the wrong year twice."
+            },
+            {
+              "account": "Accumulated Depreciation\u2014Equipment",
+              "side": "credit",
+              "label": "catch-up",
+              "amount": 30000,
+              "why": "The contra-asset catches up to where it should have been.",
+              "trap": "The asset's cost is untouched \u2014 only the accumulated depreciation was short."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Error corrections restate: adjust beginning RE (net of tax, when taxes apply) and fix the balance-sheet account. Current income is untouched."
+    },
+    {
+      "kind": "watchout",
+      "body": "On the retained earnings statement it appears as an adjustment to the BEGINNING balance \u2014 labeled 'prior period adjustment.'"
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "The $30,000 prior-year depreciation error is corrected in 2026. Effect on 2026 NET INCOME = ?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "30000",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "You expensed it in 2026 \u2014 but the cost belongs to 2025. Corrections route through beginning Retained Earnings, not current income."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Retained Earnings",
+      "Accumulated Depreciation\u2014Equipment",
+      "Depreciation Expense",
+      "Equipment"
+    ],
+    "scaffold": "Ask which year's income was wrong. If it's a CLOSED year, the debit goes to RE."
+  }
+}

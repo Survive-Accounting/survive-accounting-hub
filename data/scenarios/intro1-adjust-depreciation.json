@@ -1,0 +1,82 @@
+{
+  "slug": "intro1-adjust-depreciation",
+  "title": "Adjusting: Depreciation",
+  "event": "Reyes Co. owns equipment that cost $48,000 with an 8-year useful life and no salvage value. Prepare the annual straight-line depreciation adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "48,000 \u00f7 8 years",
+          "lines": [
+            {
+              "account": "Depreciation Expense",
+              "side": "debit",
+              "label": "cost \u00f7 life",
+              "amount": 6000,
+              "why": "One year's slice of the equipment's cost.",
+              "trap": "Depreciation allocates COST over use \u2014 it does not track the market value of the machine."
+            },
+            {
+              "account": "Accumulated Depreciation\u2014Equipment",
+              "side": "credit",
+              "label": "contra-asset builds",
+              "amount": 6000,
+              "why": "A CONTRA-asset that piles up against the equipment.",
+              "trap": "Never credit Equipment itself. Original cost stays on the books; Accumulated Depreciation tracks the used-up portion."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Straight-line depreciation = (Cost \u2212 Salvage) \u00f7 Useful life"
+    },
+    {
+      "kind": "tip",
+      "body": "Book value = Cost \u2212 Accumulated Depreciation. The balance sheet shows both, netted."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Equipment cost $48,000, 8-year life, no salvage. Annual depreciation = ?",
+      "answerExpr": "6000",
+      "distractors": [
+        {
+          "expr": "48000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You expensed the whole machine in year one. Depreciation spreads the cost across all 8 years of use."
+        },
+        {
+          "expr": "500",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's ONE MONTH (6,000 \u00f7 12). The annual adjusting entry takes the full year: 6,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Depreciation Expense",
+      "Accumulated Depreciation\u2014Equipment",
+      "Equipment",
+      "Cash"
+    ],
+    "scaffold": "Cost \u00f7 life for the amount. Debit the expense; credit the contra-asset \u2014 Equipment itself never moves."
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "slug": "intro1-petty-cash",
+  "title": "Petty Cash \u2014 Establish & Reimburse",
+  "event": "Reyes Co. establishes a $300 petty cash fund. A month later the box holds receipts for postage $74, office supplies $128, and delivery fees $60, plus $32 in cash. Prepare the entries to establish and to reimburse the fund.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 6,
+    "name": "Cash & Internal Controls"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Establish the fund",
+          "lines": [
+            {
+              "account": "Petty Cash",
+              "side": "debit",
+              "label": "fund created",
+              "amount": 300,
+              "why": "A new asset account for the cash box.",
+              "trap": "This is the ONLY time Petty Cash is debited \u2014 until the fund's size itself changes."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "moved to the box",
+              "amount": 300,
+              "why": "Cash moves from the bank account to the box; total cash is unchanged.",
+              "trap": "An internal transfer, not an expense \u2014 nothing has been spent yet."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Reimburse: receipts 262 + cash 32 = 294 \u2192 $6 short",
+          "lines": [
+            {
+              "account": "Postage Expense",
+              "side": "debit",
+              "label": "receipt",
+              "amount": 74,
+              "why": "Expenses are recorded at REIMBURSEMENT, when the receipts surface.",
+              "trap": "Not when each dollar left the box \u2014 petty cash expenses batch up until replenishment."
+            },
+            {
+              "account": "Office Supplies Expense",
+              "side": "debit",
+              "label": "receipt",
+              "amount": 128,
+              "why": "Supplies bought and consumed through the fund.",
+              "trap": "Small purchases through petty cash typically go straight to expense."
+            },
+            {
+              "account": "Delivery Expense",
+              "side": "debit",
+              "label": "receipt",
+              "amount": 60,
+              "why": "Delivery costs from the receipts.",
+              "trap": "Each receipt gets its own expense line \u2014 no lumping into 'petty cash expense.'"
+            },
+            {
+              "account": "Cash Over and Short",
+              "side": "debit",
+              "label": "300 \u2212 262 \u2212 32",
+              "amount": 6,
+              "why": "The box is $6 short of explaining itself \u2014 the plug goes to Cash Over and Short.",
+              "trap": "Debit when short, credit when over. Small and normal; large or chronic = internal-control red flag."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "restore fund to 300",
+              "amount": 268,
+              "why": "Replenish enough to bring the box back to $300: 300 \u2212 32 on hand.",
+              "trap": "Credit CASH, not Petty Cash \u2014 the Petty Cash account only moves when the fund SIZE changes."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Petty Cash (the account) is touched only at setup and when resizing the fund. Every reimbursement debits expenses and credits regular Cash."
+    },
+    {
+      "kind": "watchout",
+      "body": "Cash Over and Short is the plug that makes reimbursement balance: debit when short, credit when over."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Fund $300, receipts $262, cash on hand $32. Credit to Cash at reimbursement = ?",
+      "answerExpr": "268",
+      "distractors": [
+        {
+          "expr": "262",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You replenished only the receipts, ignoring the $6 shortage. The box must return to exactly $300: credit Cash 268."
+        },
+        {
+          "expr": "300",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the fund's full size. You only replace what's MISSING from the box: 300 \u2212 32 = 268."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Petty Cash",
+      "Cash",
+      "Postage Expense",
+      "Office Supplies Expense",
+      "Delivery Expense",
+      "Cash Over and Short"
+    ],
+    "scaffold": "Entry 1: Petty Cash vs Cash. Entry 2: expenses per receipt + over/short plug, credit CASH for the amount that refills the box."
+  }
+}

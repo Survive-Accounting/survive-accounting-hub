@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-special-order",
+  "title": "Special Order Decision",
+  "event": "Reyes Co. has excess capacity. A customer offers $12 per unit for 5,000 units; normal full cost is $15 per unit, of which $9 is variable. Fixed costs will not change. Compute the incremental income and determine whether to accept.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 23,
+    "name": "Relevant Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "With idle capacity, fixed costs are irrelevant \u2014 they'll be paid either way. Only the variable $9 is a real cost of saying yes.",
+          "steps": [
+            {
+              "label": "Incremental revenue per unit",
+              "formulaText": "12 offer \u2212 9 variable cost",
+              "value": 3
+            },
+            {
+              "label": "Incremental income",
+              "formulaText": "5,000 \u00d7 $3 \u2192 ACCEPT",
+              "value": 15000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "With excess capacity: accept if offer price > variable cost per unit. Incremental income = units \u00d7 (price \u2212 VC)."
+    },
+    {
+      "kind": "watchout",
+      "body": "The $15 'full cost' is the trap \u2014 it smuggles in fixed costs that don't change. At full capacity the answer flips: lost regular sales become an opportunity cost."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Offer $12/unit, variable cost $9, full cost $15, excess capacity. Incremental income on 5,000 units = ?",
+      "answerExpr": "15000",
+      "distractors": [
+        {
+          "expr": "-15000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You compared the $12 offer to the $15 FULL cost. Fixed costs don't change \u2014 only the $9 variable cost is relevant: +15,000."
+        },
+        {
+          "expr": "60000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's total revenue (5,000 \u00d7 12). Incremental INCOME nets out the variable costs: 15,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

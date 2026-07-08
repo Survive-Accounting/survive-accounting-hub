@@ -1,0 +1,66 @@
+{
+  "slug": "ia1-assumptions-principles",
+  "title": "Assumptions, Principles & the Cost Constraint",
+  "event": "Delgado Co. purchased land in 1998 for $100,000. A current appraisal values it at $480,000. Determine the amount at which the land is reported on today's balance sheet.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 1,
+    "name": "The Conceptual Framework"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The historical cost (measurement) principle: land is carried at acquisition cost \u2014 verifiable and neutral \u2014 and is never depreciated or written up.",
+          "steps": [
+            {
+              "label": "Reported amount",
+              "formulaText": "1998 acquisition cost",
+              "value": 100000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Assumptions: Economic entity, Going concern, Monetary unit, Periodicity. Principles: Measurement (historical cost / fair value), Revenue recognition, Expense recognition, Full disclosure. Constraint: cost-benefit."
+    },
+    {
+      "kind": "tip",
+      "body": "Going concern is what JUSTIFIES historical cost \u2014 a business not facing liquidation doesn't need exit prices on operating assets."
+    },
+    {
+      "kind": "watchout",
+      "body": "Land appreciates in the real world and never on the balance sheet. Gains wait for a sale."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Land bought for $100,000 in 1998, appraised at $480,000 today. Balance sheet amount = ?",
+      "answerExpr": "100000",
+      "distractors": [
+        {
+          "expr": "480000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's fair value. Land follows the historical cost principle \u2014 no write-ups, no depreciation."
+        },
+        {
+          "expr": "290000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "Averaging cost and appraisal has no basis in GAAP \u2014 historical cost holds at 100,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

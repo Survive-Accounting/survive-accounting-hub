@@ -1,0 +1,127 @@
+{
+  "slug": "intro1-bad-debts-methods",
+  "title": "Estimating Bad Debts \u2014 % of Sales vs Aging",
+  "event": "Reyes Co. estimates uncollectibles at year-end. Credit sales were $400,000, and the Allowance for Doubtful Accounts has an existing credit balance of $1,200. Prepare the adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 7,
+    "name": "Receivables"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "method",
+      "label": "Estimation method",
+      "options": [
+        {
+          "value": "sales",
+          "label": "% of credit sales: 0.5%"
+        },
+        {
+          "value": "aging",
+          "label": "Aging: required ending allowance $5,500"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "method": "sales"
+      },
+      "entries": [
+        {
+          "label": "400,000 \u00d7 0.5% \u2014 existing balance ignored",
+          "lines": [
+            {
+              "account": "Bad Debt Expense",
+              "side": "debit",
+              "label": "400,000 \u00d7 0.5%",
+              "amount": 2000,
+              "why": "The sales method computes the EXPENSE directly \u2014 matched to the revenue that created the risk.",
+              "trap": "The existing 1,200 balance is IGNORED under this method \u2014 netting it here mixes the two approaches."
+            },
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "credit",
+              "label": "cushion grows",
+              "amount": 2000,
+              "why": "The contra-asset builds toward future write-offs.",
+              "trap": "Never credit AR \u2014 no specific customer has failed yet."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "aging"
+      },
+      "entries": [
+        {
+          "label": "Target 5,500 \u2212 existing 1,200",
+          "lines": [
+            {
+              "account": "Bad Debt Expense",
+              "side": "debit",
+              "label": "5,500 \u2212 1,200",
+              "amount": 4300,
+              "why": "Aging sets the required ENDING balance; the entry plugs the gap.",
+              "trap": "Using the full 5,500 double-counts the cushion that already exists."
+            },
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "credit",
+              "label": "topped up to 5,500",
+              "amount": 4300,
+              "why": "Allowance lands exactly at the aging's requirement.",
+              "trap": "If the existing balance were a DEBIT, you'd ADD it instead: 5,500 + 1,200."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "% of sales \u2192 EXPENSE directly (ignore existing allowance). Aging \u2192 ending BALANCE (net the existing allowance)."
+    },
+    {
+      "kind": "tip",
+      "body": "Net realizable value = gross AR \u2212 allowance. That's the number the balance sheet actually reports."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Aging requires a $5,500 ending allowance; the account holds a $1,200 credit. Bad debt expense = ?",
+      "answerExpr": "4300",
+      "distractors": [
+        {
+          "expr": "5500",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "That's the required ENDING balance \u2014 part of it already exists. The entry adds only the 4,300 gap."
+        },
+        {
+          "expr": "6700",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You ADDED the existing credit balance. Credits get subtracted from the target: 5,500 \u2212 1,200."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Bad Debt Expense",
+      "Allowance for Doubtful Accounts",
+      "Accounts Receivable",
+      "Sales Revenue"
+    ],
+    "scaffold": "Method first: sales % \u2192 compute expense directly; aging \u2192 target minus what's already there."
+  }
+}

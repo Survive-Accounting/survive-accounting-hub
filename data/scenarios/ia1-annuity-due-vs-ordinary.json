@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-annuity-due-vs-ordinary",
+  "title": "Ordinary Annuity vs Annuity Due",
+  "event": "Reyes Co. will make five annual payments of $6,000 at an 8% rate (PV factor, ordinary annuity, 8%, 5 = 3.99271). Compute the present value if payments occur at the END of each year, and at the BEGINNING of each year.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 5,
+    "name": "Time Value of Money"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "An annuity due starts one period sooner, so every payment is discounted one period less \u2014 multiply the ordinary factor by (1 + i).",
+          "steps": [
+            {
+              "label": "Ordinary annuity PV",
+              "formulaText": "6,000 \u00d7 3.99271",
+              "value": 23956
+            },
+            {
+              "label": "Annuity due PV",
+              "formulaText": "23,956 \u00d7 1.08",
+              "value": 25873
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Annuity-due factor = ordinary factor \u00d7 (1 + i). Works for both PV and FV tables."
+    },
+    {
+      "kind": "tip",
+      "body": "Read the timing words: 'beginning of each period,' 'payments start immediately,' 'first payment today' \u2192 annuity due."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Five payments of $6,000, 8%, payments at the BEGINNING of each year. PV = ?",
+      "answerExpr": "25873",
+      "distractors": [
+        {
+          "expr": "23956",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's the ordinary annuity. Beginning-of-period payments are worth more \u2014 multiply by 1.08."
+        },
+        {
+          "expr": "30000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's the undiscounted total (5 \u00d7 6,000). Present value discounts every payment."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

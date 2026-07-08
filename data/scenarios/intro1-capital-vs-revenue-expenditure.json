@@ -1,0 +1,122 @@
+{
+  "slug": "intro1-capital-vs-revenue-expenditure",
+  "title": "Capital vs Revenue Expenditures",
+  "event": "Reyes Co. spends money on a machine already in service. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 8,
+    "name": "Long Term Assets"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "nature",
+      "label": "The expenditure",
+      "options": [
+        {
+          "value": "repair",
+          "label": "Ordinary repair: $1,800 tune-up and belts"
+        },
+        {
+          "value": "betterment",
+          "label": "Betterment: $25,000 upgrade extending life and capacity"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "nature": "repair"
+      },
+      "entries": [
+        {
+          "label": "Keeps it running \u2192 expense now",
+          "lines": [
+            {
+              "account": "Repairs and Maintenance Expense",
+              "side": "debit",
+              "label": "ordinary upkeep",
+              "amount": 1800,
+              "why": "Ordinary repairs maintain NORMAL operating condition \u2014 expense in the period incurred.",
+              "trap": "Capitalizing routine maintenance inflates assets and income \u2014 a classic manipulation exam questions probe."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "paid",
+              "amount": 1800,
+              "why": "Paid for the work.",
+              "trap": "The credit is the easy half \u2014 the classification battle is all on the debit."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "nature": "betterment"
+      },
+      "entries": [
+        {
+          "label": "Makes it better/longer-lived \u2192 capitalize",
+          "lines": [
+            {
+              "account": "Machinery",
+              "side": "debit",
+              "label": "future benefit added",
+              "amount": 25000,
+              "why": "Betterments extend life or capacity \u2014 the cost joins the asset and depreciates over remaining life.",
+              "trap": "Expensing a betterment crushes current income and understates the asset \u2014 mirror image of the repair error."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "paid",
+              "amount": 25000,
+              "why": "Paid for the upgrade.",
+              "trap": "Future depreciation must be recomputed on the new, larger book value."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "The test: does it EXTEND life or capability (capitalize) or just MAINTAIN it (expense)?"
+    },
+    {
+      "kind": "watchout",
+      "body": "Materiality gives cover for small items \u2014 companies expense minor tools regardless. The principle bends for immaterial amounts."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "A $25,000 upgrade extends a machine's life by 3 years. Amount expensed IMMEDIATELY = ?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "25000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "Life-extending expenditures are CAPITALIZED \u2014 the cost reaches income gradually through future depreciation."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Repairs and Maintenance Expense",
+      "Machinery",
+      "Cash",
+      "Accumulated Depreciation\u2014Machinery"
+    ],
+    "scaffold": "One question decides the debit: maintain (expense) or improve (capitalize)?"
+  }
+}

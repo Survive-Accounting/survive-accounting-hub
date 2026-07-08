@@ -1,0 +1,90 @@
+{
+  "slug": "intro1-installment-note",
+  "title": "Installment Note \u2014 First Payment Split",
+  "event": "Reyes Co. borrows $60,000 on a 3-year, 8% installment note requiring equal annual payments of $23,282. Prepare the first payment entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 10,
+    "name": "Long Term Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Interest first, principal takes the rest",
+          "lines": [
+            {
+              "account": "Interest Expense",
+              "side": "debit",
+              "label": "60,000 \u00d7 8%",
+              "amount": 4800,
+              "why": "Interest on the FULL beginning balance \u2014 the first payment is the most interest-heavy.",
+              "trap": "Rate \u00d7 outstanding BALANCE, never rate \u00d7 payment."
+            },
+            {
+              "account": "Notes Payable",
+              "side": "debit",
+              "label": "23,282 \u2212 4,800",
+              "amount": 18482,
+              "why": "Whatever the payment doesn't spend on interest reduces principal.",
+              "trap": "Principal is the PLUG \u2014 each year interest shrinks and this line grows; balance is now 41,518."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "level payment",
+              "amount": 23282,
+              "why": "Same check every year \u2014 the internal split is what moves.",
+              "trap": "Equal PAYMENTS \u2260 equal principal reduction; that confusion is the chapter's core trap."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Each period: interest = rate \u00d7 beginning balance; principal = payment \u2212 interest; new balance = old \u2212 principal."
+    },
+    {
+      "kind": "tip",
+      "body": "An amortization table is just this three-step loop repeated \u2014 build one row and you can build them all."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$60,000 note at 8%, annual payment $23,282. Principal reduction in payment 1 = ?",
+      "answerExpr": "18482",
+      "distractors": [
+        {
+          "expr": "23282",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's the whole payment \u2014 4,800 of it is interest. Only the remainder touches principal."
+        },
+        {
+          "expr": "20000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "Dividing 60,000 by 3 assumes equal PRINCIPAL. Installment notes have equal PAYMENTS \u2014 principal grows each year."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Interest Expense",
+      "Notes Payable",
+      "Cash",
+      "Interest Payable"
+    ],
+    "scaffold": "Interest from the balance, principal as the plug, cash for the level payment."
+  }
+}

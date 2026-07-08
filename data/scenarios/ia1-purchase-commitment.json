@@ -1,0 +1,82 @@
+{
+  "slug": "ia1-purchase-commitment",
+  "title": "Loss on Purchase Commitment",
+  "event": "Hollis Co. has a noncancelable contract to buy raw materials next year for $50,000. At year-end, the market price of those materials has fallen to $44,000. Prepare the required entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 8,
+    "name": "Inventories, Additional Issues"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Locked in at 50,000, now worth 44,000",
+          "lines": [
+            {
+              "account": "Loss on Purchase Commitments",
+              "side": "debit",
+              "label": "50,000 \u2212 44,000",
+              "amount": 6000,
+              "why": "The contract obligates a purchase above market \u2014 the loss is recognized when the price falls, not at delivery.",
+              "trap": "No inventory exists yet, but the LOSS does \u2014 noncancelable + price decline = accrue now."
+            },
+            {
+              "account": "Estimated Liability on Purchase Commitments",
+              "side": "credit",
+              "label": "obligation recognized",
+              "amount": 6000,
+              "why": "A liability for the excess of contract price over market.",
+              "trap": "At delivery next year, inventory records at the 44,000 market and this liability clears against the 50,000 paid."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Same conservatism as LCNRV, applied one step earlier in the pipeline \u2014 to goods you've promised to buy but don't yet hold."
+    },
+    {
+      "kind": "watchout",
+      "body": "If the price RECOVERS before delivery, the loss can be reversed \u2014 one of the rare write-ups GAAP permits, capped at the original loss."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Contract price $50,000, year-end market $44,000, noncancelable. Loss recognized THIS year = ?",
+      "answerExpr": "6000",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Waiting for delivery ignores a committed, measurable loss. Noncancelable contract + price decline \u2192 accrue 6,000 now."
+        },
+        {
+          "expr": "44000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the market value of the goods. The LOSS is only the excess committed above it: 6,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Loss on Purchase Commitments",
+      "Estimated Liability on Purchase Commitments",
+      "Inventory",
+      "Accounts Payable"
+    ],
+    "scaffold": "Contract price minus market price = the loss, accrued before any goods arrive."
+  }
+}

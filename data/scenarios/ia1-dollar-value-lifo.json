@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-dollar-value-lifo",
+  "title": "Dollar-Value LIFO",
+  "event": "Hollis Co. adopts dollar-value LIFO with a base-year ending inventory of $100,000. At the end of year 1, inventory at current-year cost is $121,000 and the price index is 1.10. Compute the dollar-value LIFO ending inventory.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 7,
+    "name": "Inventories, Cost Approach"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Three moves: deflate to base-year dollars to see the REAL change, identify the new layer, then reinflate that layer at ITS year's index.",
+          "steps": [
+            {
+              "label": "Deflate to base-year dollars",
+              "formulaText": "121,000 \u00f7 1.10",
+              "value": 110000
+            },
+            {
+              "label": "Real layer added",
+              "formulaText": "110,000 \u2212 100,000 base",
+              "value": 10000
+            },
+            {
+              "label": "Reinflate the new layer",
+              "formulaText": "10,000 \u00d7 1.10",
+              "value": 11000
+            },
+            {
+              "label": "DVL ending inventory",
+              "formulaText": "100,000 base + 11,000 layer",
+              "value": 111000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Deflate current cost by the index \u2192 compare in base dollars \u2192 each layer carries the index of the year it was BORN."
+    },
+    {
+      "kind": "watchout",
+      "body": "Layers keep their birth-year index forever \u2014 and once a layer is eaten in a decrement, it never comes back."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Base $100,000; year-1 EI at current cost $121,000; index 1.10. Dollar-value LIFO inventory = ?",
+      "answerExpr": "111000",
+      "distractors": [
+        {
+          "expr": "121000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's current-year cost \u2014 mostly inflation, not real growth. DVL strips it out: 111,000."
+        },
+        {
+          "expr": "110000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You deflated but never REinflated the new layer. The 10,000 base-dollar layer carries its 1.10 index: 111,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

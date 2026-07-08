@@ -1,0 +1,82 @@
+{
+  "slug": "ia1-depletion",
+  "title": "Depletion of Natural Resources",
+  "event": "Hollis Co. acquires a coal mine for $2,400,000, expects $300,000 of restoration costs, and estimates a $200,000 residual land value. The mine holds an estimated 1,000,000 tons; 80,000 tons are extracted this year. Prepare the depletion entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 10,
+    "name": "Depreciation, Impairments, and Depletion"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Base 2,500,000 \u00f7 1,000,000 tons = $2.50 \u00d7 80,000",
+          "lines": [
+            {
+              "account": "Coal Inventory",
+              "side": "debit",
+              "label": "80,000 tons \u00d7 $2.50",
+              "amount": 200000,
+              "why": "Depletion flows into INVENTORY first \u2014 it becomes expense only as the coal sells.",
+              "trap": "Debiting depletion expense directly skips the inventory stage; unsold coal should hold its depletion on the balance sheet."
+            },
+            {
+              "account": "Accumulated Depletion",
+              "side": "credit",
+              "label": "resource consumed",
+              "amount": 200000,
+              "why": "The contra-asset tracks the mine's consumption.",
+              "trap": "Base = acquisition + restoration \u2212 residual: restoration ADDS (a real future cost), residual SUBTRACTS."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Depletion base = acquisition + development + restoration (ARO) \u2212 residual value. Rate = base \u00f7 estimated units; depletion = rate \u00d7 units EXTRACTED."
+    },
+    {
+      "kind": "tip",
+      "body": "Extraction drives depletion into inventory; SALES drive it into COGS. Two different triggers, one period apart when coal stockpiles."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Base: 2,400,000 + 300,000 restoration \u2212 200,000 residual, over 1,000,000 tons; 80,000 tons extracted. Depletion = ?",
+      "answerExpr": "200000",
+      "distractors": [
+        {
+          "expr": "192000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You dropped the restoration cost from the base (2.40/ton). Restoration is a real cost of the resource: rate = 2.50."
+        },
+        {
+          "expr": "208000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Residual value sign flipped \u2014 it SUBTRACTS from the base: (2,400 + 300 \u2212 200)k \u00f7 1M = $2.50/ton."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Coal Inventory",
+      "Accumulated Depletion",
+      "Depletion Expense",
+      "Coal Mine"
+    ],
+    "scaffold": "Build the base (+ restoration, \u2212 residual), rate it per ton, apply to tons EXTRACTED, and land it in inventory."
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "slug": "intro2-payback-period",
+  "title": "Payback Period",
+  "event": "Reyes Co. considers a $240,000 machine expected to generate $60,000 of net cash flow per year. Compute the payback period.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 24,
+    "name": "Capital Budgeting"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Payback asks one blunt question: how fast do I get my money back?",
+          "steps": [
+            {
+              "label": "Payback period",
+              "formulaText": "240,000 \u00f7 60,000",
+              "value": 4
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Payback = investment \u00f7 annual net CASH flow (even flows). Uneven flows: accumulate year by year until recovered."
+    },
+    {
+      "kind": "watchout",
+      "body": "Payback uses CASH flow, not net income \u2014 and it ignores both the time value of money and everything after recovery."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Investment $240,000, annual net cash flow $60,000. Payback period (years) = ?",
+      "answerExpr": "4",
+      "distractors": [
+        {
+          "expr": "8",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You likely divided by net INCOME (cash flow minus depreciation). Payback runs on CASH: 240 \u00f7 60 = 4 years."
+        },
+        {
+          "expr": "0.25",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Inverted \u2014 that's the payback RECIPROCAL. Investment over annual cash flow: 4 years."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

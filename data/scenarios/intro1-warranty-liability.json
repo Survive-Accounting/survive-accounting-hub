@@ -1,0 +1,98 @@
+{
+  "slug": "intro1-warranty-liability",
+  "title": "Estimated Warranty Liability",
+  "event": "Reyes Co. sells $500,000 of products in December and estimates warranty costs at 2% of sales. In January, it replaces defective parts costing $1,400 under warranty. Prepare both entries.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 9,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 At sale: estimate and match",
+          "lines": [
+            {
+              "account": "Warranty Expense",
+              "side": "debit",
+              "label": "500,000 \u00d7 2%",
+              "amount": 10000,
+              "why": "Matching demands the expense in the SALE's period \u2014 the promise was part of the sale.",
+              "trap": "Waiting for actual claims pushes the expense into the wrong year."
+            },
+            {
+              "account": "Estimated Warranty Liability",
+              "side": "credit",
+              "label": "future claims reserved",
+              "amount": 10000,
+              "why": "A probable, estimable obligation \u2014 the definition of an accruable contingency.",
+              "trap": "Estimated, but still a real liability on the balance sheet."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 At repair: consume the reserve",
+          "lines": [
+            {
+              "account": "Estimated Warranty Liability",
+              "side": "debit",
+              "label": "claim honored",
+              "amount": 1400,
+              "why": "Actual repairs SPEND the liability, not the income statement.",
+              "trap": "No Warranty Expense here \u2014 that would double-count what the estimate already recorded."
+            },
+            {
+              "account": "Repair Parts Inventory",
+              "side": "credit",
+              "label": "parts used",
+              "amount": 1400,
+              "why": "The parts leave inventory to fix the product.",
+              "trap": "Credit whatever resource was consumed \u2014 parts, cash, or wages payable."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Same architecture as bad debts: estimate the expense with the revenue, then let actual events consume the reserve."
+    },
+    {
+      "kind": "watchout",
+      "body": "Accrue a contingency only if it's PROBABLE and ESTIMABLE \u2014 reasonably possible ones are disclosed, remote ones ignored."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Warranty EXPENSE recorded in January when the $1,400 repair is made = ?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "1400",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "The expense hit December, with the sale. January's repair consumes the liability already on the books."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Warranty Expense",
+      "Estimated Warranty Liability",
+      "Repair Parts Inventory",
+      "Cash"
+    ],
+    "scaffold": "Sale period: expense the estimate. Claim period: debit the liability, credit the resource used."
+  }
+}

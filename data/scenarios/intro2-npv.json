@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-npv",
+  "title": "Net Present Value",
+  "event": "Reyes Co. considers a $200,000 investment returning $60,000 of net cash flow annually for 5 years. The required rate is 10% (PV annuity factor, 10%, 5 = 3.79079). Compute the net present value.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 24,
+    "name": "Capital Budgeting"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "NPV discounts every future dollar to today, then nets the cost \u2014 positive means the project beats the 10% hurdle.",
+          "steps": [
+            {
+              "label": "PV of cash inflows",
+              "formulaText": "60,000 \u00d7 3.79079",
+              "value": 227447
+            },
+            {
+              "label": "Net present value",
+              "formulaText": "227,447 \u2212 200,000 \u2192 ACCEPT",
+              "value": 27447
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "NPV = PV of net cash inflows \u2212 initial investment. NPV \u2265 0 \u2192 the project earns at least the required rate."
+    },
+    {
+      "kind": "tip",
+      "body": "NPV of exactly zero isn't failure \u2014 it means the project earns precisely the hurdle rate."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Inflows $60,000 \u00d7 5 years at 10% (factor 3.79079), cost $200,000. NPV = ?",
+      "answerExpr": "27447",
+      "distractors": [
+        {
+          "expr": "100000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "Undiscounted: 300,000 \u2212 200,000. NPV discounts the future flows first: 227,447 \u2212 200,000 = 27,447."
+        },
+        {
+          "expr": "227447",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the PV of the inflows. NET present value subtracts the 200,000 investment: 27,447."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

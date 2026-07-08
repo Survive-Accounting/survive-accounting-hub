@@ -1,0 +1,276 @@
+{
+  "slug": "intro1-closing-entries",
+  "title": "Closing Entries \u2014 The Full Sequence",
+  "event": "At year-end, Ortiz Co. shows Service Revenue of $50,000, Salaries Expense and Rent Expense, and Dividends of $5,000. Prepare the four closing entries.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "result",
+      "label": "The year produced",
+      "options": [
+        {
+          "value": "income",
+          "label": "Net income (expenses $38,000)"
+        },
+        {
+          "value": "loss",
+          "label": "Net loss (expenses $56,000)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "result": "income"
+      },
+      "entries": [
+        {
+          "label": "1 \u2014 Close revenues",
+          "lines": [
+            {
+              "account": "Service Revenue",
+              "side": "debit",
+              "label": "zero out revenue",
+              "amount": 50000,
+              "why": "Debit the revenue account against its credit balance to empty it.",
+              "trap": "Closing means ZEROING \u2014 temporary accounts start every year at zero."
+            },
+            {
+              "account": "Income Summary",
+              "side": "credit",
+              "label": "revenues pour in",
+              "amount": 50000,
+              "why": "Revenues collect in the summary bucket.",
+              "trap": "Income Summary exists for about five minutes a year \u2014 only during closing."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Close expenses",
+          "lines": [
+            {
+              "account": "Income Summary",
+              "side": "debit",
+              "label": "30,000 + 8,000",
+              "amount": 38000,
+              "why": "All expenses gather in the summary.",
+              "trap": "One combined debit \u2014 don't close expenses one entry at a time on an exam; it burns the clock."
+            },
+            {
+              "account": "Salaries Expense",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 30000,
+              "why": "Emptied for the new year.",
+              "trap": "Credit an expense to close it \u2014 the one time expenses take credits."
+            },
+            {
+              "account": "Rent Expense",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 8000,
+              "why": "Emptied for the new year.",
+              "trap": "Same move \u2014 every expense account gets its own credit line."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 Close Income Summary (credit balance = income)",
+          "lines": [
+            {
+              "account": "Income Summary",
+              "side": "debit",
+              "label": "50,000 \u2212 38,000",
+              "amount": 12000,
+              "why": "The summary holds a 12,000 credit balance \u2014 the year's net income.",
+              "trap": "The summary's balance IS net income. If it doesn't match the income statement, something upstream is wrong."
+            },
+            {
+              "account": "Retained Earnings",
+              "side": "credit",
+              "label": "income banked",
+              "amount": 12000,
+              "why": "Income lands in retained earnings, permanently.",
+              "trap": "Credit RE for income \u2014 the direction flips in the loss variant."
+            }
+          ]
+        },
+        {
+          "label": "4 \u2014 Close Dividends",
+          "lines": [
+            {
+              "account": "Retained Earnings",
+              "side": "debit",
+              "label": "dividends out of RE",
+              "amount": 5000,
+              "why": "Dividends reduce retained earnings directly.",
+              "trap": "Dividends NEVER route through Income Summary \u2014 they aren't an expense."
+            },
+            {
+              "account": "Dividends",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 5000,
+              "why": "Emptied for the new year.",
+              "trap": "Fourth and final closing entry, every year, income or loss."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "result": "loss"
+      },
+      "entries": [
+        {
+          "label": "1 \u2014 Close revenues",
+          "lines": [
+            {
+              "account": "Service Revenue",
+              "side": "debit",
+              "label": "zero out revenue",
+              "amount": 50000,
+              "why": "Same first step regardless of the year's result.",
+              "trap": "Steps 1, 2, and 4 are identical in income and loss years \u2014 only step 3 flips."
+            },
+            {
+              "account": "Income Summary",
+              "side": "credit",
+              "label": "revenues in",
+              "amount": 50000,
+              "why": "Revenues in.",
+              "trap": "Nothing about a loss year changes how revenues close."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Close expenses",
+          "lines": [
+            {
+              "account": "Income Summary",
+              "side": "debit",
+              "label": "44,000 + 12,000",
+              "amount": 56000,
+              "why": "Expenses total more than revenue this time.",
+              "trap": "The summary now holds a DEBIT balance \u2014 that's the loss signal."
+            },
+            {
+              "account": "Salaries Expense",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 44000,
+              "why": "Emptied.",
+              "trap": "Same mechanics as the income case."
+            },
+            {
+              "account": "Rent Expense",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 12000,
+              "why": "Emptied.",
+              "trap": "Same mechanics as the income case."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 Close Income Summary (debit balance = loss)",
+          "lines": [
+            {
+              "account": "Retained Earnings",
+              "side": "debit",
+              "label": "loss absorbed",
+              "amount": 6000,
+              "why": "The loss comes OUT of retained earnings.",
+              "trap": "The direction flips with a loss \u2014 RE takes the debit, Income Summary takes the credit."
+            },
+            {
+              "account": "Income Summary",
+              "side": "credit",
+              "label": "56,000 \u2212 50,000 cleared",
+              "amount": 6000,
+              "why": "Clears the summary's 6,000 debit balance.",
+              "trap": "Whichever side the summary's balance sits on, the closing entry hits the OPPOSITE side."
+            }
+          ]
+        },
+        {
+          "label": "4 \u2014 Close Dividends",
+          "lines": [
+            {
+              "account": "Retained Earnings",
+              "side": "debit",
+              "label": "dividends out of RE",
+              "amount": 5000,
+              "why": "Dividends still close straight to RE \u2014 loss year or not.",
+              "trap": "A loss year doesn't suspend the dividends close; RE just takes two debits this year."
+            },
+            {
+              "account": "Dividends",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 5000,
+              "why": "Emptied.",
+              "trap": "Dividends and Income Summary never meet \u2014 in any year."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Closing order: REID \u2014 Revenues, Expenses, Income summary, Dividends."
+    },
+    {
+      "kind": "tip",
+      "body": "Only TEMPORARY accounts close: revenues, expenses, dividends. Assets, liabilities, equity carry forward."
+    },
+    {
+      "kind": "watchout",
+      "body": "Income Summary's balance IS net income or loss. Credit balance \u2192 income \u2192 credit RE. Debit balance \u2192 loss \u2192 debit RE."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Revenues $50,000, expenses $38,000, dividends $5,000. What amount is closed FROM Income Summary TO Retained Earnings?",
+      "answerExpr": "12000",
+      "distractors": [
+        {
+          "expr": "7000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You ran dividends through Income Summary. They close separately, straight against RE \u2014 the summary transfers only the 12,000 income."
+        },
+        {
+          "expr": "50000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's gross revenue. Income Summary nets revenues against expenses first; only the 12,000 residual moves to RE."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Service Revenue",
+      "Income Summary",
+      "Salaries Expense",
+      "Rent Expense",
+      "Retained Earnings",
+      "Dividends",
+      "Cash"
+    ],
+    "scaffold": "Four entries, REID order. Entry 3's direction depends on whether the summary holds a credit (income) or debit (loss)."
+  }
+}

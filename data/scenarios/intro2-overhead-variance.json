@@ -1,0 +1,62 @@
+{
+  "slug": "intro2-overhead-variance",
+  "title": "Total Overhead Variance",
+  "event": "Reyes Co. incurred actual overhead of $82,000; the standard cost system applied $80,000 of overhead for the output achieved. Compute the total overhead variance and its direction.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 21,
+    "name": "Standard Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The total overhead variance compares what happened against what the standards applied for actual output.",
+          "steps": [
+            {
+              "label": "Total OH variance",
+              "formulaText": "82,000 actual \u2212 80,000 applied = 2,000 Unfavorable",
+              "value": 2000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Total OH variance = actual overhead \u2212 overhead applied at standard for actual output. Actual higher = Unfavorable."
+    },
+    {
+      "kind": "tip",
+      "body": "This total splits into controllable and volume variances in the extended analysis \u2014 the total is always the sanity check on the pieces."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Actual OH $82,000, applied at standard $80,000. Total overhead variance = ?",
+      "answerExpr": "2000",
+      "distractors": [
+        {
+          "expr": "-2000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Magnitude right, direction wrong \u2014 actual EXCEEDED applied, so the 2,000 is UNFAVORABLE."
+        },
+        {
+          "expr": "162000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You added the two figures. Variances are DIFFERENCES: 82,000 \u2212 80,000 = 2,000 U."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

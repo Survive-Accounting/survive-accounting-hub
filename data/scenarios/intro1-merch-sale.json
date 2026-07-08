@@ -1,0 +1,170 @@
+{
+  "slug": "intro1-merch-sale",
+  "title": "Merchandise Sale \u2014 Two Entries, Always",
+  "event": "Reyes Co. sells merchandise for $5,000; the goods cost $3,200 (perpetual system). Prepare the entries.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 4,
+    "name": "Merchandising"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "collection",
+      "label": "Customer pays",
+      "options": [
+        {
+          "value": "cash",
+          "label": "Cash"
+        },
+        {
+          "value": "account",
+          "label": "On account"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "collection": "cash"
+      },
+      "entries": [
+        {
+          "label": "1 \u2014 Record the sale at selling price",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "retail price",
+              "amount": 5000,
+              "why": "Selling price collected.",
+              "trap": "Retail lives in entry 1 only \u2014 never let it leak into the cost entry."
+            },
+            {
+              "account": "Sales Revenue",
+              "side": "credit",
+              "label": "revenue at retail",
+              "amount": 5000,
+              "why": "Revenue at RETAIL \u2014 what the customer pays.",
+              "trap": "Not 1,800, not 3,200 \u2014 revenue is the full selling price; profit emerges only after COGS."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Move the cost",
+          "lines": [
+            {
+              "account": "Cost of Goods Sold",
+              "side": "debit",
+              "label": "cost of goods delivered",
+              "amount": 3200,
+              "why": "The goods' COST becomes expense the moment they sell.",
+              "trap": "The forgotten twin. Every perpetual sale has this second entry \u2014 exams love catching its absence."
+            },
+            {
+              "account": "Merchandise Inventory",
+              "side": "credit",
+              "label": "off the shelf at cost",
+              "amount": 3200,
+              "why": "Goods leave the shelf at cost.",
+              "trap": "Credit Inventory at COST \u2014 crediting it at retail destroys the account."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "collection": "account"
+      },
+      "entries": [
+        {
+          "label": "1 \u2014 Record the sale at selling price",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "retail price",
+              "amount": 5000,
+              "why": "On account \u2014 the claim replaces the cash.",
+              "trap": "Only the debit changes between variants; revenue is identical."
+            },
+            {
+              "account": "Sales Revenue",
+              "side": "credit",
+              "label": "revenue at retail",
+              "amount": 5000,
+              "why": "Same revenue either way.",
+              "trap": "Payment timing never changes the earning \u2014 chapter 2's lesson, still true."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Move the cost",
+          "lines": [
+            {
+              "account": "Cost of Goods Sold",
+              "side": "debit",
+              "label": "cost of goods delivered",
+              "amount": 3200,
+              "why": "Cost flows out with the goods, regardless of when cash arrives.",
+              "trap": "On-account sales still need the cost entry immediately \u2014 COGS doesn't wait for collection."
+            },
+            {
+              "account": "Merchandise Inventory",
+              "side": "credit",
+              "label": "off the shelf at cost",
+              "amount": 3200,
+              "why": "Off the shelf at cost.",
+              "trap": "Same trap as the cash case: cost, never retail."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Two prices live in every sale: RETAIL (entry 1, revenue) and COST (entry 2, COGS). Never mix them in one entry."
+    },
+    {
+      "kind": "watchout",
+      "body": "If your answer has one entry, it's half an answer."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Sale $5,000, cost $3,200. Gross profit on this sale = ?",
+      "answerExpr": "1800",
+      "distractors": [
+        {
+          "expr": "5000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's revenue before the cost of the goods. Gross profit nets out COGS: 5,000 \u2212 3,200 = 1,800."
+        },
+        {
+          "expr": "3200",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the COST of the goods. Gross profit is what's left of the selling price after it: 1,800."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Accounts Receivable",
+      "Sales Revenue",
+      "Cost of Goods Sold",
+      "Merchandise Inventory"
+    ],
+    "scaffold": "Entry 1 at retail, entry 2 at cost. If your answer has one entry, it's half an answer."
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "slug": "intro1-bank-rec-entries",
+  "title": "Bank Reconciliation \u2014 The Entries",
+  "event": "From Reyes Co.'s December 31 bank reconciliation: the bank collected a $1,600 note plus $50 interest, charged a $45 service fee, and returned a customer's $380 NSF check. Prepare the required journal entries.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 6,
+    "name": "Cash & Internal Controls"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Note the bank collected",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "note + interest",
+              "amount": 1650,
+              "why": "The bank already put this in your account \u2014 the books catch up now.",
+              "trap": "Book-side items ONLY get entries. Deposits in transit and outstanding checks need nothing \u2014 the books already have them."
+            },
+            {
+              "account": "Notes Receivable",
+              "side": "credit",
+              "label": "principal collected",
+              "amount": 1600,
+              "why": "The note comes off the books \u2014 it's been collected.",
+              "trap": "Split the credit: principal to the note, interest to its own account."
+            },
+            {
+              "account": "Interest Revenue",
+              "side": "credit",
+              "label": "the $50 earned",
+              "amount": 50,
+              "why": "Interest earned on the note.",
+              "trap": "Forgetting this line leaves the entry unbalanced by exactly the interest \u2014 a dead giveaway."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Bank service charge",
+          "lines": [
+            {
+              "account": "Miscellaneous Expense",
+              "side": "debit",
+              "label": "bank fee",
+              "amount": 45,
+              "why": "The fee is an expense the statement just revealed.",
+              "trap": "Small, but skipping it leaves book cash overstated by $45."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "fee taken by bank",
+              "amount": 45,
+              "why": "Already gone from the bank account; now gone from the books.",
+              "trap": "Credit Cash \u2014 the bank already took it; you're recording, not paying."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 NSF check",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "customer still owes",
+              "amount": 380,
+              "why": "The customer's check bounced \u2014 they still owe you, so the receivable comes BACK.",
+              "trap": "Not an expense (yet) \u2014 the debt is alive again and collectible."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "deposit reversed",
+              "amount": 380,
+              "why": "The deposit you thought you had gets backed out.",
+              "trap": "NSF reduces YOUR cash even though the failure was the customer's \u2014 their check, your problem."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Entries come from the BOOK side of the reconciliation only. Bank-side items (DIT, outstanding checks) fix themselves with time."
+    },
+    {
+      "kind": "watchout",
+      "body": "Net effect on Cash here: +1,650 \u2212 45 \u2212 380 = +1,225 \u2014 exactly the book-side adjustment from the reconciliation. Use that as a self-check."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Which reconciliation items require journal entries: the net cash adjustment from them = ?",
+      "answerExpr": "1225",
+      "distractors": [
+        {
+          "expr": "-950",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You journalized the BANK-side items (1,200 DIT \u2212 2,150 outstanding). Those never get entries \u2014 only book-side items do: +1,650 \u2212 45 \u2212 380 = +1,225."
+        },
+        {
+          "expr": "1650",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the note alone. The service charge and NSF check also need entries: net +1,225."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Notes Receivable",
+      "Interest Revenue",
+      "Miscellaneous Expense",
+      "Accounts Receivable",
+      "Accounts Payable"
+    ],
+    "scaffold": "Three entries, all book-side. Ask of each reconciliation item: do the books already know? If yes, no entry."
+  }
+}

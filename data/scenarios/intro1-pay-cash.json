@@ -1,0 +1,122 @@
+{
+  "slug": "intro1-pay-cash",
+  "title": "Paying Cash \u2014 Expense vs Payable",
+  "event": "Reyes Co. writes a check. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 2,
+    "name": "Journalizing Transactions"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "purpose",
+      "label": "The check covers",
+      "options": [
+        {
+          "value": "expense",
+          "label": "This month's rent, $900"
+        },
+        {
+          "value": "payable",
+          "label": "An old supplier bill (A/P), $750"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "purpose": "expense"
+      },
+      "entries": [
+        {
+          "label": "New cost incurred this period",
+          "lines": [
+            {
+              "account": "Rent Expense",
+              "side": "debit",
+              "label": "this period's cost",
+              "amount": 900,
+              "why": "The space was used THIS period \u2014 that's what makes it this period's expense.",
+              "trap": "If the payment covered FUTURE months, it would be Prepaid Rent (an asset), not expense."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "paid",
+              "amount": 900,
+              "why": "Paid directly.",
+              "trap": "Same credit both variants \u2014 the entire question lives on the debit side."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "purpose": "payable"
+      },
+      "entries": [
+        {
+          "label": "Settling an old promise \u2014 no new expense",
+          "lines": [
+            {
+              "account": "Accounts Payable",
+              "side": "debit",
+              "label": "liability settled",
+              "amount": 750,
+              "why": "Paying off the liability recorded when the bill first arrived.",
+              "trap": "NO expense here. The expense (or asset) was recorded when the bill was incurred \u2014 this is just settling up."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "paid",
+              "amount": 750,
+              "why": "The check clears the debt.",
+              "trap": "Cash out \u2260 expense. The expense's timing was set when the cost was INCURRED."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "When cash goes out, ask: NEW cost of this period (expense) or paying an OLD promise (payable)? Same credit, totally different debit."
+    },
+    {
+      "kind": "watchout",
+      "body": "Cash going out and expense being recognized are separate events that only sometimes coincide."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Reyes pays $750 on its account payable. Expense recognized in this entry = ?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "750",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "Paying a bill isn't the expense \u2014 incurring it was. Debit the liability, not an expense account."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Rent Expense",
+      "Accounts Payable",
+      "Cash",
+      "Prepaid Rent"
+    ],
+    "scaffold": "Credit Cash is a given. The whole question is the debit: new cost \u2192 expense; old bill \u2192 payable."
+  }
+}

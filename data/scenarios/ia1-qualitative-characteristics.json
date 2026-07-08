@@ -1,0 +1,71 @@
+{
+  "slug": "ia1-qualitative-characteristics",
+  "title": "Qualitative Characteristics of Useful Information",
+  "event": "An auditor flags a $45,000 misstatement against net income of $900,000, applying the common 5%-of-income materiality benchmark. Compute the misstatement as a percent of net income and determine whether it clears the benchmark.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 1,
+    "name": "The Conceptual Framework"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Materiality is relevance's threshold: information is material if omitting or misstating it would change a user's decision. Benchmarks like 5% of income operationalize the judgment.",
+          "steps": [
+            {
+              "label": "Misstatement percent",
+              "formulaText": "45,000 \u00f7 900,000",
+              "value": 5
+            },
+            {
+              "label": "Against the 5% benchmark",
+              "formulaText": "at the line \u2014 material",
+              "value": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Fundamental: Relevance (predictive value, confirmatory value, materiality) + Faithful Representation (complete, neutral, free from error). Enhancing: Comparability, Verifiability, Timeliness, Understandability \u2014 'CVTU'."
+    },
+    {
+      "kind": "tip",
+      "body": "Relevance asks 'does it matter?'; faithful representation asks 'is it true?'. Every framework question sorts into one of the two."
+    },
+    {
+      "kind": "watchout",
+      "body": "Materiality is entity-relative: $45,000 sinks a small firm's statements and rounds to zero at Apple. Percent-of-base, never absolute dollars."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Misstatement $45,000, net income $900,000. Percent of net income = ?",
+      "answerExpr": "5",
+      "distractors": [
+        {
+          "expr": "0.5",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Decimal slip \u2014 45,000 \u00f7 900,000 = 0.05 = 5%, right at the classic materiality line."
+        },
+        {
+          "expr": "20",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You inverted the ratio. The misstatement goes on TOP: 45 \u00f7 900 = 5%."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

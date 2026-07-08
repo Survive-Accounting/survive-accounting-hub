@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-sell-or-process",
+  "title": "Sell or Process Further",
+  "event": "Reyes Co. can sell a product at split-off for $20 per unit, or process it further at an additional cost of $5 per unit and sell it for $28. Joint costs of $6 per unit have already been incurred. Compute the incremental effect of processing further.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 23,
+    "name": "Relevant Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Joint costs are sunk \u2014 spent identically under both choices. The decision lives entirely in the incremental revenue vs incremental cost.",
+          "steps": [
+            {
+              "label": "Incremental revenue",
+              "formulaText": "28 \u2212 20",
+              "value": 8
+            },
+            {
+              "label": "Incremental cost",
+              "formulaText": "further processing",
+              "value": 5
+            },
+            {
+              "label": "Incremental income",
+              "formulaText": "8 \u2212 5 \u2192 PROCESS FURTHER",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Process further if incremental revenue > incremental processing cost. Joint (sunk) costs are ignored."
+    },
+    {
+      "kind": "watchout",
+      "body": "Subtracting the $6 joint cost from the analysis is the planted error \u2014 it was spent before the decision existed."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Split-off price $20, processed price $28, extra processing $5, joint cost $6/unit. Incremental income of processing = ?",
+      "answerExpr": "3",
+      "distractors": [
+        {
+          "expr": "-3",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "You charged the sunk $6 joint cost against the decision (8 \u2212 5 \u2212 6). It's already spent either way: +3."
+        },
+        {
+          "expr": "8",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's incremental REVENUE alone. The $5 of extra processing cost comes out: +3."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

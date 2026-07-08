@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-premium-liability",
+  "title": "Premium (Customer Incentive) Liability",
+  "event": "Hollis Co. sold 400,000 cereal boxes this year. Each premium (a bowl costing $1.50) requires 10 boxtops, and 60% of boxtops are expected to be redeemed. By year-end, 150,000 boxtops have been redeemed. Compute premium expense and the year-end premium liability.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 12,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Expense the WHOLE expected cost in the sales year (matching); the liability is what's expected but not yet redeemed.",
+          "steps": [
+            {
+              "label": "Expected redemptions",
+              "formulaText": "400,000 \u00d7 60% \u00f7 10 boxtops",
+              "value": 24000
+            },
+            {
+              "label": "Premium expense",
+              "formulaText": "24,000 premiums \u00d7 $1.50",
+              "value": 36000
+            },
+            {
+              "label": "Redeemed to date",
+              "formulaText": "150,000 \u00f7 10 \u00d7 $1.50",
+              "value": 22500
+            },
+            {
+              "label": "Year-end liability",
+              "formulaText": "36,000 \u2212 22,500",
+              "value": 13500
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Expense = total EXPECTED redemptions \u00d7 unit cost, in the year of sale. Liability = expected \u2212 already redeemed."
+    },
+    {
+      "kind": "tip",
+      "body": "Same architecture as warranties and bad debts: estimate with the sale, consume with the claims."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Expected premium cost $36,000; premiums redeemed to date cost $22,500. Year-end premium liability = ?",
+      "answerExpr": "13500",
+      "distractors": [
+        {
+          "expr": "36000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the full expected cost \u2014 22,500 of it has already been satisfied. The remaining obligation is 13,500."
+        },
+        {
+          "expr": "22500",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's what's been REDEEMED. The liability is the expected redemptions still outstanding: 13,500."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-syd-depreciation",
+  "title": "Sum-of-the-Years'-Digits",
+  "event": "Hollis Co. buys equipment for $130,000 with a $10,000 salvage value and a 5-year life. Compute depreciation for years 1 and 2 under sum-of-the-years'-digits.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 10,
+    "name": "Depreciation, Impairments, and Depletion"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "SYD front-loads with shrinking fractions: remaining life over the digit sum, applied to depreciable cost.",
+          "steps": [
+            {
+              "label": "Digit sum",
+              "formulaText": "5 + 4 + 3 + 2 + 1",
+              "value": 15
+            },
+            {
+              "label": "Depreciable cost",
+              "formulaText": "130,000 \u2212 10,000",
+              "value": 120000
+            },
+            {
+              "label": "Year 1",
+              "formulaText": "120,000 \u00d7 5/15",
+              "value": 40000
+            },
+            {
+              "label": "Year 2",
+              "formulaText": "120,000 \u00d7 4/15",
+              "value": 32000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "SYD = (cost \u2212 salvage) \u00d7 remaining life \u00f7 [n(n+1)/2]. The numerator counts DOWN each year."
+    },
+    {
+      "kind": "tip",
+      "body": "SYD vs DDB, the two accelerated methods: SYD subtracts salvage up front and uses fractions; DDB ignores salvage in the formula and uses book value."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Cost $130,000, salvage $10,000, 5-year life. Year-1 SYD depreciation = ?",
+      "answerExpr": "40000",
+      "distractors": [
+        {
+          "expr": "43333",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You applied 5/15 to the FULL 130,000 cost. SYD uses DEPRECIABLE cost (120,000): 40,000."
+        },
+        {
+          "expr": "24000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's straight-line (120,000 \u00f7 5). SYD front-loads year 1 with the 5/15 fraction: 40,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

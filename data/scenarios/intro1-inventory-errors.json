@@ -1,0 +1,116 @@
+{
+  "slug": "intro1-inventory-errors",
+  "title": "Inventory Errors & Their Ripple",
+  "event": "Reyes Co. miscounted ending inventory this year by $4,000. Determine the effect on this year's cost of goods sold and net income, and on next year.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 5,
+    "name": "FIFO/LIFO"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "direction",
+      "label": "Ending inventory was",
+      "options": [
+        {
+          "value": "over",
+          "label": "Overstated by $4,000"
+        },
+        {
+          "value": "under",
+          "label": "Understated by $4,000"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "direction": "over"
+      },
+      "computationPaths": [
+        {
+          "narration": "COGS = Goods available \u2212 ending inventory. Inflate the ending count and COGS shrinks, so income inflates. Next year inherits the error in reverse \u2014 it self-corrects (counterbalances) over two years.",
+          "steps": [
+            {
+              "label": "This year's COGS",
+              "formulaText": "understated by 4,000",
+              "value": -4000
+            },
+            {
+              "label": "This year's net income",
+              "formulaText": "overstated by 4,000",
+              "value": 4000
+            },
+            {
+              "label": "Next year's net income",
+              "formulaText": "understated by 4,000 (counterbalances)",
+              "value": -4000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "direction": "under"
+      },
+      "computationPaths": [
+        {
+          "narration": "Understate the ending count and COGS inflates, so income deflates \u2014 then next year flips it back.",
+          "steps": [
+            {
+              "label": "This year's COGS",
+              "formulaText": "overstated by 4,000",
+              "value": 4000
+            },
+            {
+              "label": "This year's net income",
+              "formulaText": "understated by 4,000",
+              "value": -4000
+            },
+            {
+              "label": "Next year's net income",
+              "formulaText": "overstated by 4,000 (counterbalances)",
+              "value": 4000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "COGS = Beginning inventory + Purchases \u2212 Ending inventory. Ending inventory and COGS always move in OPPOSITE directions."
+    },
+    {
+      "kind": "tip",
+      "body": "This year's ending inventory is next year's beginning \u2014 that's why the error flips sign and washes out over two years."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Ending inventory overstated by $4,000. This year's net income is ______ by ?",
+      "answerExpr": "4000",
+      "distractors": [
+        {
+          "expr": "-4000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You flipped the direction. Overstated ending inventory \u2192 understated COGS \u2192 OVERSTATED income by 4,000."
+        },
+        {
+          "expr": "8000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "The error doesn't double within one year \u2014 it's 4,000 this year, reversing 4,000 next year."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

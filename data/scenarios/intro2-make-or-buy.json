@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-make-or-buy",
+  "title": "Make or Buy",
+  "event": "Reyes Co. makes a part for $16 per unit: direct materials $4, direct labor $3, variable overhead $2, and $7 of allocated fixed overhead of which only $1 is avoidable. A supplier offers the part for $11. Compute the relevant cost to make and determine the decision.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 23,
+    "name": "Relevant Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Only costs that DISAPPEAR if you buy are relevant. The unavoidable $6 of fixed overhead stays either way \u2014 it can't vote.",
+          "steps": [
+            {
+              "label": "Relevant cost to make",
+              "formulaText": "4 + 3 + 2 + 1 avoidable FOH",
+              "value": 10
+            },
+            {
+              "label": "Cost to buy",
+              "formulaText": "supplier price",
+              "value": 11
+            },
+            {
+              "label": "Decision",
+              "formulaText": "10 < 11 \u2192 MAKE (save $1/unit)",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Relevant make cost = variable costs + AVOIDABLE fixed costs. Compare to purchase price."
+    },
+    {
+      "kind": "tip",
+      "body": "The $16 'full cost' says buy; the $10 relevant cost says make. Allocated-but-unavoidable overhead flips decisions when handled wrong."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "DM $4, DL $3, VOH $2, avoidable FOH $1, unavoidable FOH $6. Relevant cost to make = ?",
+      "answerExpr": "10",
+      "distractors": [
+        {
+          "expr": "16",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's FULL cost including the unavoidable $6 \u2014 which continues whether you make or buy. Relevant cost is 10."
+        },
+        {
+          "expr": "9",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You dropped the avoidable $1 of fixed overhead. Costs that disappear if you buy ARE relevant: 10."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

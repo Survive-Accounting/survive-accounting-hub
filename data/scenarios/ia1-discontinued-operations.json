@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-discontinued-operations",
+  "title": "Discontinued Operations \u2014 Net of Tax",
+  "event": "Ingle Co. reports income from continuing operations of $240,000 (after tax). Its discontinued segment produced a pretax operating loss of $60,000 and a pretax loss on disposal of $40,000. The tax rate is 25%. Compute the discontinued operations amount reported and net income.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 3,
+    "name": "The Income Statement"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Discontinued operations get their own net-of-tax line below continuing operations \u2014 intraperiod tax allocation keeps each section carrying its own tax.",
+          "steps": [
+            {
+              "label": "Combined pretax loss",
+              "formulaText": "60,000 + 40,000",
+              "value": 100000
+            },
+            {
+              "label": "Tax savings at 25%",
+              "formulaText": "100,000 \u00d7 25%",
+              "value": 25000
+            },
+            {
+              "label": "Discontinued ops, net of tax",
+              "formulaText": "\u2212(100,000 \u2212 25,000)",
+              "value": -75000
+            },
+            {
+              "label": "Net income",
+              "formulaText": "240,000 \u2212 75,000",
+              "value": 165000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Discontinued ops = (operating results \u00b1 disposal gain/loss) \u00d7 (1 \u2212 tax rate), shown as ONE net-of-tax line."
+    },
+    {
+      "kind": "watchout",
+      "body": "A loss brings a tax SAVING \u2014 the reported loss is smaller than pretax. Showing the gross 100,000 is the classic error."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Pretax discontinued losses total $100,000, tax rate 25%. Amount reported for discontinued operations = ?",
+      "answerExpr": "-75000",
+      "distractors": [
+        {
+          "expr": "-100000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "That's pretax. Discontinued operations are reported NET of tax: 100,000 \u00d7 75% = 75,000 loss."
+        },
+        {
+          "expr": "-25000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the tax effect alone. The reported line is the loss AFTER that saving: 75,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

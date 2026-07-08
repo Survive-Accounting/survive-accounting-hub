@@ -1,0 +1,62 @@
+{
+  "slug": "intro1-current-ratio",
+  "title": "Classified Balance Sheet: Current Ratio",
+  "event": "Reyes Co.'s classified balance sheet shows current assets of $90,000 and current liabilities of $60,000. Compute the current ratio.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The current ratio tests short-term debt-paying ability: current assets available per dollar of current liabilities due.",
+          "steps": [
+            {
+              "label": "Current ratio",
+              "formulaText": "90,000 \u00f7 60,000",
+              "value": 1.5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Current ratio = Current assets \u00f7 Current liabilities"
+    },
+    {
+      "kind": "tip",
+      "body": "Current = converts to cash or comes due within one year (or the operating cycle, if longer)."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Current assets $90,000, current liabilities $60,000. Current ratio = ?",
+      "answerExpr": "1.5",
+      "distractors": [
+        {
+          "expr": "0.67",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You inverted it \u2014 liabilities over assets. Assets go on TOP: 90 \u00f7 60 = 1.5."
+        },
+        {
+          "expr": "30000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's working capital (CA \u2212 CL), a dollar amount. The current RATIO divides: 1.5."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

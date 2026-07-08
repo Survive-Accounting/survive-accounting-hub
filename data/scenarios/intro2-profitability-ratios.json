@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-profitability-ratios",
+  "title": "Profitability: Margin \u00d7 Turnover = ROA",
+  "event": "Ortiz Co. reports net income of $45,000 on net sales of $500,000. Average total assets were $400,000. Compute profit margin, total asset turnover, and return on assets.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 13,
+    "name": "Financial Statement Analysis"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "ROA decomposes: how much of each sales dollar you keep (margin) times how hard each asset dollar works (turnover).",
+          "steps": [
+            {
+              "label": "Profit margin",
+              "formulaText": "45,000 \u00f7 500,000",
+              "value": 9
+            },
+            {
+              "label": "Total asset turnover",
+              "formulaText": "500,000 \u00f7 400,000",
+              "value": 1.25
+            },
+            {
+              "label": "Return on assets",
+              "formulaText": "9% \u00d7 1.25",
+              "value": 11.25
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "ROA = Profit margin \u00d7 Asset turnover = (NI \u00f7 Sales) \u00d7 (Sales \u00f7 Avg assets)."
+    },
+    {
+      "kind": "tip",
+      "body": "Sales cancels in the middle \u2014 so ROA is also just NI \u00f7 average assets. Two roads, same answer: use one to check the other."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "NI $45,000, net sales $500,000. Profit margin = ? (%)",
+      "answerExpr": "9",
+      "distractors": [
+        {
+          "expr": "11.25",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "That's ROA \u2014 income against ASSETS. Margin divides by SALES: 45 \u00f7 500 = 9%."
+        },
+        {
+          "expr": "1.25",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's asset turnover, a times-multiple, not a percent of sales."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

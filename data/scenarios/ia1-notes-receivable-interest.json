@@ -1,0 +1,82 @@
+{
+  "slug": "ia1-notes-receivable-interest",
+  "title": "Notes Receivable \u2014 Interest Accrual",
+  "event": "On October 1, Reyes Co. accepts a $20,000, 6%, nine-month note from a customer. Prepare the December 31 adjusting entry to accrue interest.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 6,
+    "name": "Cash & Receivables"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "20,000 \u00d7 6% \u00d7 3/12",
+          "lines": [
+            {
+              "account": "Interest Receivable",
+              "side": "debit",
+              "label": "principal \u00d7 rate \u00d7 time",
+              "amount": 300,
+              "why": "Three months (Oct\u2013Dec) of interest have been earned by year-end.",
+              "trap": "The fraction uses time ELAPSED (3 months), not the note's 9-month term."
+            },
+            {
+              "account": "Interest Revenue",
+              "side": "credit",
+              "label": "earned by time",
+              "amount": 300,
+              "why": "Interest is earned by the calendar, not by collection.",
+              "trap": "The stated 6% is ANNUAL \u2014 always prorate by months outstanding over 12."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Interest = Principal \u00d7 annual rate \u00d7 time outstanding \u00f7 12."
+    },
+    {
+      "kind": "tip",
+      "body": "At maturity next year, the collection entry splits interest: 300 to the receivable already accrued, the rest to next year's revenue."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$20,000 note, 6%, dated Oct 1. Interest accrued at Dec 31 = ?",
+      "answerExpr": "300",
+      "distractors": [
+        {
+          "expr": "1200",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's a FULL year of interest. Only 3 months have run: 1,200 \u00d7 3/12 = 300."
+        },
+        {
+          "expr": "900",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's the full 9-month TERM. Accrue only the time elapsed by year-end: 3 months = 300."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Interest Receivable",
+      "Interest Revenue",
+      "Notes Receivable",
+      "Cash"
+    ],
+    "scaffold": "Principal \u00d7 rate \u00d7 elapsed months \u00f7 12. The note's term is a distractor, not an input."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "slug": "intro1-shrinkage",
+  "title": "Inventory Shrinkage Adjustment",
+  "event": "Reyes Co.'s perpetual records show Merchandise Inventory of $21,000 at year-end, but a physical count finds $20,250 on hand. Prepare the adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 4,
+    "name": "Merchandising"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Records \u2212 count = 750 shrinkage",
+          "lines": [
+            {
+              "account": "Cost of Goods Sold",
+              "side": "debit",
+              "label": "21,000 \u2212 20,250",
+              "amount": 750,
+              "why": "Lost, damaged, or stolen goods become part of COGS \u2014 the standard home for shrinkage.",
+              "trap": "Not a separate 'theft loss' line for normal amounts \u2014 shrinkage folds into COGS."
+            },
+            {
+              "account": "Merchandise Inventory",
+              "side": "credit",
+              "label": "down to count",
+              "amount": 750,
+              "why": "Brings the perpetual record down to what physically exists.",
+              "trap": "The COUNT wins. Perpetual records are a running estimate; the count is reality."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Perpetual systems still require a physical count \u2014 shrinkage is why. Records tell you what SHOULD be there; the count tells you what IS."
+    },
+    {
+      "kind": "watchout",
+      "body": "Adjust BY the difference (750), landing the account AT the counted 20,250 \u2014 same by/to pattern as supplies."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Records show $21,000, count shows $20,250. Shrinkage adjustment amount = ?",
+      "answerExpr": "750",
+      "distractors": [
+        {
+          "expr": "20250",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the counted balance the account should land ON. The entry records only the 750 difference."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "The count disagrees with the records, so an adjustment is required \u2014 the count always wins."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cost of Goods Sold",
+      "Merchandise Inventory",
+      "Loss from Theft",
+      "Cash"
+    ],
+    "scaffold": "Records minus count = the entry amount. Debit COGS, credit Inventory."
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-accounting-rate-of-return",
+  "title": "Accounting Rate of Return",
+  "event": "Reyes Co.'s proposed $240,000 machine (no salvage) promises annual net income of $21,000. Compute the accounting rate of return.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 24,
+    "name": "Capital Budgeting"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "ARR is the odd one in the chapter: it runs on NET INCOME and AVERAGE book investment, not cash.",
+          "steps": [
+            {
+              "label": "Average investment",
+              "formulaText": "(240,000 + 0) \u00f7 2",
+              "value": 120000
+            },
+            {
+              "label": "Accounting rate of return",
+              "formulaText": "21,000 \u00f7 120,000",
+              "value": 17.5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "ARR = annual net INCOME \u00f7 average investment. Average investment = (cost + salvage) \u00f7 2."
+    },
+    {
+      "kind": "watchout",
+      "body": "Two traps in one ratio: income (not cash flow) on top, AVERAGE (not full cost) on the bottom."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Annual net income $21,000, cost $240,000, no salvage. ARR = ? (%)",
+      "answerExpr": "17.5",
+      "distractors": [
+        {
+          "expr": "8.75",
+          "misconceptionId": "prior_period_expense",
+          "feedback": "You divided by the FULL 240,000. ARR uses AVERAGE investment: (240,000 + 0) \u00f7 2 = 120,000 \u2192 17.5%."
+        },
+        {
+          "expr": "25",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You used cash flow instead of net income on top. ARR is the accounting measure: income \u00f7 average investment."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

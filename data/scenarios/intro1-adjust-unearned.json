@@ -1,0 +1,87 @@
+{
+  "slug": "intro1-adjust-unearned",
+  "title": "Adjusting: Unearned Revenue Earned",
+  "event": "On November 1, Ortiz Co. received $6,000 for six months of services and credited Unearned Revenue. Prepare the December 31 adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "2 of 6 months earned",
+          "lines": [
+            {
+              "account": "Unearned Revenue",
+              "side": "debit",
+              "label": "6,000 \u00d7 2/6",
+              "amount": 2000,
+              "why": "Two months of the obligation have been worked off \u2014 the liability shrinks.",
+              "trap": "Debiting a liability feels backwards to students. You're REDUCING what you owe."
+            },
+            {
+              "account": "Service Revenue",
+              "side": "credit",
+              "label": "Nov + Dec earned",
+              "amount": 2000,
+              "why": "Nov and Dec's work is now earned: $1,000/month \u00d7 2.",
+              "trap": "Recognize only what's EARNED \u2014 the remaining $4,000 stays parked as a liability."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "The mirror image of the prepaid adjustment: liability converts to revenue as work happens, exactly as prepaid converts to expense."
+    },
+    {
+      "kind": "watchout",
+      "body": "Two months (Nov, Dec) \u2014 not one, not six. The fraction is where the points are lost."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$6,000 received Nov 1 for 6 months. Revenue earned by Dec 31 = ?",
+      "answerExpr": "2000",
+      "distractors": [
+        {
+          "expr": "6000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "Only 2 of the 6 months are done. Recognizing it all overstates revenue by 4,000."
+        },
+        {
+          "expr": "4000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "That's the part still UNEARNED (4 remaining months). The adjustment records the 2 months earned."
+        },
+        {
+          "expr": "1000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's one month. November AND December have both passed."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Unearned Revenue",
+      "Service Revenue",
+      "Cash",
+      "Accounts Receivable"
+    ],
+    "scaffold": "Months earned \u00f7 months promised \u00d7 cash received. Debit the liability down, credit revenue up."
+  }
+}

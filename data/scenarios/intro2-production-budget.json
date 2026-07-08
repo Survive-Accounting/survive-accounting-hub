@@ -1,0 +1,62 @@
+{
+  "slug": "intro2-production-budget",
+  "title": "Production Budget",
+  "event": "Reyes Co. budgets sales of 24,000 units. It wants ending finished goods of 3,000 units and begins the period with 2,000 units. Compute required production.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 20,
+    "name": "Master Budgets"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Produce enough to cover sales AND the inventory build \u2014 minus what's already on the shelf.",
+          "steps": [
+            {
+              "label": "Required production",
+              "formulaText": "24,000 + 3,000 \u2212 2,000",
+              "value": 25000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Production = budgeted sales + desired ENDING inventory \u2212 BEGINNING inventory."
+    },
+    {
+      "kind": "tip",
+      "body": "Signs discipline: ending inventory ADDS (you must make it), beginning SUBTRACTS (it's already made). Flipping them is the classic miss."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Sales 24,000 \u00b7 desired ending FG 3,000 \u00b7 beginning FG 2,000. Units to produce = ?",
+      "answerExpr": "25000",
+      "distractors": [
+        {
+          "expr": "23000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Inventory signs flipped. ADD the ending target, SUBTRACT the beginning stock: 25,000."
+        },
+        {
+          "expr": "24000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That ignores inventory entirely \u2014 the 1,000-unit build must also be produced."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

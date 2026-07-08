@@ -1,0 +1,82 @@
+{
+  "slug": "ia1-lcnrv",
+  "title": "Lower of Cost or Net Realizable Value",
+  "event": "Hollis Co.'s inventory cost is $65,000. Estimated selling price is $70,000 and estimated costs to complete and sell are $8,000. Prepare the required entry (loss method).",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 8,
+    "name": "Inventories, Additional Issues"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "NRV 62,000 vs cost 65,000 \u2192 write down 3,000",
+          "lines": [
+            {
+              "account": "Loss on Inventory Write-Down",
+              "side": "debit",
+              "label": "65,000 \u2212 62,000",
+              "amount": 3000,
+              "why": "The loss method names the decline on its own line rather than burying it in COGS.",
+              "trap": "NRV = selling price MINUS completion/selling costs (70,000 \u2212 8,000) \u2014 skipping the subtraction misses the write-down entirely."
+            },
+            {
+              "account": "Inventory",
+              "side": "credit",
+              "label": "carried at NRV",
+              "amount": 3000,
+              "why": "Inventory lands at 62,000, the lower figure.",
+              "trap": "Credit only the DECLINE; an allowance account is the common alternative credit."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "NRV = estimated selling price \u2212 costs to complete and sell. Report the LOWER of cost or NRV."
+    },
+    {
+      "kind": "tip",
+      "body": "COGS method buries the loss in cost of goods sold; loss method displays it separately. Same balance sheet either way."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Cost $65,000, selling price $70,000, costs to sell $8,000. Write-down = ?",
+      "answerExpr": "3000",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You compared cost to the 70,000 selling price. NRV nets the 8,000 selling costs first: 62,000 < 65,000 \u2192 write down 3,000."
+        },
+        {
+          "expr": "5000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "That's selling price minus cost. The write-down is cost minus NRV: 65,000 \u2212 62,000 = 3,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Loss on Inventory Write-Down",
+      "Inventory",
+      "Cost of Goods Sold",
+      "Allowance to Reduce Inventory to NRV"
+    ],
+    "scaffold": "Compute NRV first (price \u2212 costs to sell), then write down only the gap below cost."
+  }
+}

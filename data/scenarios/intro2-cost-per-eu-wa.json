@@ -1,0 +1,77 @@
+{
+  "slug": "intro2-cost-per-eu-wa",
+  "title": "Cost per Equivalent Unit & Assignment (WA)",
+  "event": "Continuing Reyes Co.'s Mixing Department: materials costs are $12,000 (beginning WIP) plus $88,000 added; conversion costs are $8,600 plus $57,400 added. Equivalent units are 50,000 for materials and 44,000 for conversion; ending WIP is 10,000 units (100% materials, 40% conversion). Compute cost per equivalent unit and the cost of ending WIP.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 16,
+    "name": "Process Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Weighted average pools beginning-WIP costs with current costs, divides by EU, then assigns: completed units take full cost, ending WIP takes only the work done so far.",
+          "steps": [
+            {
+              "label": "Materials cost/EU",
+              "formulaText": "(12,000 + 88,000) \u00f7 50,000",
+              "value": 2.0
+            },
+            {
+              "label": "Conversion cost/EU",
+              "formulaText": "(8,600 + 57,400) \u00f7 44,000",
+              "value": 1.5
+            },
+            {
+              "label": "Ending WIP cost",
+              "formulaText": "10,000 \u00d7 $2 + 4,000 EU \u00d7 $1.50",
+              "value": 26000
+            },
+            {
+              "label": "Completed & transferred",
+              "formulaText": "40,000 \u00d7 $3.50 (check: 26,000 + 140,000 = 166,000 total)",
+              "value": 140000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "WA cost/EU = (beginning WIP cost + current cost) \u00f7 WA equivalent units \u2014 per cost category."
+    },
+    {
+      "kind": "watchout",
+      "body": "Ending WIP uses EQUIVALENT units (4,000 for conversion), never physical units. Assigned costs must sum back to total costs \u2014 always run the check."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the rates above, cost of ending WIP = ?",
+      "answerExpr": "26000",
+      "distractors": [
+        {
+          "expr": "35000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You costed ending WIP as fully complete (10,000 \u00d7 $3.50). Conversion is only 40% done: 20,000 + 6,000 = 26,000."
+        },
+        {
+          "expr": "20000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Materials only. Ending WIP also carries 4,000 equivalent units of conversion at $1.50."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

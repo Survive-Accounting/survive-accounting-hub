@@ -1,0 +1,160 @@
+{
+  "slug": "intro1-sell-equipment",
+  "title": "Selling Equipment \u2014 Gain or Loss",
+  "event": "Reyes Co. sells equipment that cost $42,000 and has accumulated depreciation of $30,000 (book value $12,000). Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 8,
+    "name": "Long Term Assets"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "proceeds",
+      "label": "Sale price",
+      "options": [
+        {
+          "value": "gain",
+          "label": "$15,000 (above book value)"
+        },
+        {
+          "value": "loss",
+          "label": "$9,500 (below book value)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "proceeds": "gain"
+      },
+      "entries": [
+        {
+          "label": "15,000 proceeds vs 12,000 BV \u2192 3,000 gain",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "proceeds",
+              "amount": 15000,
+              "why": "What the buyer paid.",
+              "trap": "Compare proceeds to BOOK VALUE, not to original cost \u2014 cost is history."
+            },
+            {
+              "account": "Accumulated Depreciation\u2014Equipment",
+              "side": "debit",
+              "label": "wiped clean",
+              "amount": 30000,
+              "why": "The contra-asset dies with the asset \u2014 debit it away.",
+              "trap": "Forgetting this line is the #1 disposal error; the entry won't balance without it."
+            },
+            {
+              "account": "Equipment",
+              "side": "credit",
+              "label": "original cost off",
+              "amount": 42000,
+              "why": "The asset leaves at its ORIGINAL cost.",
+              "trap": "Credit full cost \u2014 never the 12,000 book value; BV is a computed number, not an account."
+            },
+            {
+              "account": "Gain on Sale of Equipment",
+              "side": "credit",
+              "label": "15,000 \u2212 12,000",
+              "amount": 3000,
+              "why": "Proceeds beat book value by 3,000.",
+              "trap": "The gain is vs book value. Comparing to the 42,000 cost would show a phantom 27,000 loss."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "proceeds": "loss"
+      },
+      "entries": [
+        {
+          "label": "9,500 proceeds vs 12,000 BV \u2192 2,500 loss",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "proceeds",
+              "amount": 9500,
+              "why": "What the buyer paid.",
+              "trap": "Below book value \u2014 the debit side needs a loss to balance."
+            },
+            {
+              "account": "Accumulated Depreciation\u2014Equipment",
+              "side": "debit",
+              "label": "wiped clean",
+              "amount": 30000,
+              "why": "Contra-asset removed with the asset.",
+              "trap": "Same line, gain or loss \u2014 accumulated depreciation always clears at disposal."
+            },
+            {
+              "account": "Loss on Sale of Equipment",
+              "side": "debit",
+              "label": "12,000 \u2212 9,500",
+              "amount": 2500,
+              "why": "Book value exceeded proceeds by 2,500.",
+              "trap": "The loss plugs the debit side \u2014 if your plug lands on the credit side, you've got a gain."
+            },
+            {
+              "account": "Equipment",
+              "side": "credit",
+              "label": "original cost off",
+              "amount": 42000,
+              "why": "Asset off at original cost.",
+              "trap": "Cost and accumulated depreciation BOTH leave \u2014 book value exits in two pieces."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Gain/(loss) = proceeds \u2212 book value. Book value = cost \u2212 accumulated depreciation."
+    },
+    {
+      "kind": "tip",
+      "body": "If the sale happens mid-year, update depreciation TO THE SALE DATE first \u2014 then compute book value."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Cost $42,000, accumulated depreciation $30,000, sold for $15,000. Gain = ?",
+      "answerExpr": "3000",
+      "distractors": [
+        {
+          "expr": "27000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You compared proceeds to original COST. Gains measure against BOOK VALUE: 15,000 \u2212 12,000 = 3,000."
+        },
+        {
+          "expr": "15000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's the cash received. The gain is only the excess over the 12,000 book value."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Accumulated Depreciation\u2014Equipment",
+      "Equipment",
+      "Gain on Sale of Equipment",
+      "Loss on Sale of Equipment"
+    ],
+    "scaffold": "Four lines every time: cash in, accumulated depreciation out, asset out at cost, gain/loss plugs."
+  }
+}

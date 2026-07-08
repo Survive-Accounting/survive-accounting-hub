@@ -1,0 +1,99 @@
+{
+  "slug": "intro2-process-cost-entries",
+  "title": "Process Costing \u2014 Cost Flow Entries",
+  "event": "In July, the Cutting Department transferred goods costing $140,000 to the Assembly Department, and Assembly completed goods costing $260,000. Prepare the transfer entries.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 16,
+    "name": "Process Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Department-to-department transfer",
+          "lines": [
+            {
+              "account": "Work in Process\u2014Assembly",
+              "side": "debit",
+              "label": "transferred-in cost",
+              "amount": 140000,
+              "why": "Costs follow the product \u2014 Assembly's WIP receives Cutting's finished work as 'transferred-in' cost.",
+              "trap": "Transferred-in is treated like a third cost category downstream, 100% complete on arrival."
+            },
+            {
+              "account": "Work in Process\u2014Cutting",
+              "side": "credit",
+              "label": "work leaves Cutting",
+              "amount": 140000,
+              "why": "Cutting's WIP releases the cost of what it finished.",
+              "trap": "WIP to WIP \u2014 not to Finished Goods; the product isn't done, it just changed rooms."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Completion out of the final department",
+          "lines": [
+            {
+              "account": "Finished Goods Inventory",
+              "side": "debit",
+              "label": "done goods",
+              "amount": 260000,
+              "why": "Only the FINAL department transfers to Finished Goods.",
+              "trap": "Intermediate departments never touch Finished Goods \u2014 a wiring error exams test constantly."
+            },
+            {
+              "account": "Work in Process\u2014Assembly",
+              "side": "credit",
+              "label": "floor cleared",
+              "amount": 260000,
+              "why": "Assembly releases the cost of completed production (its own costs plus transferred-in).",
+              "trap": "The 260,000 includes the 140,000 that arrived from Cutting \u2014 costs accumulate as they travel."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "One WIP account PER department is the structural difference from job order costing. Costs cascade: Dept A \u2192 Dept B \u2192 Finished Goods \u2192 COGS."
+    },
+    {
+      "kind": "watchout",
+      "body": "Each transfer is a credit to the sender's WIP and a debit to the receiver \u2014 same pattern at every stage."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Total credited to Work in Process\u2014Assembly when goods are completed = ?",
+      "answerExpr": "260000",
+      "distractors": [
+        {
+          "expr": "140000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's what Assembly RECEIVED from Cutting. What leaves for Finished Goods includes Assembly's own added costs: 260,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Work in Process\u2014Assembly",
+      "Work in Process\u2014Cutting",
+      "Finished Goods Inventory",
+      "Cost of Goods Sold",
+      "Raw Materials Inventory"
+    ],
+    "scaffold": "Costs move with the product: credit the room it left, debit the room it entered."
+  }
+}

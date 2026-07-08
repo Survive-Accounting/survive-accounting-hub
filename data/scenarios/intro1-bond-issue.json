@@ -1,0 +1,144 @@
+{
+  "slug": "intro1-bond-issue",
+  "title": "Issuing Bonds \u2014 Discount vs Premium",
+  "event": "Reyes Co. issues $500,000 of 8% bonds, interest payable semiannually, maturing in 5 years. Prepare the issuance entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 10,
+    "name": "Long Term Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "market",
+      "label": "Market rate at issuance",
+      "options": [
+        {
+          "value": "discount",
+          "label": "10% \u2014 bonds sell at a discount ($461,391)"
+        },
+        {
+          "value": "premium",
+          "label": "6% \u2014 bonds sell at a premium ($542,651)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "market": "discount"
+      },
+      "entries": [
+        {
+          "label": "Stated 8% < market 10% \u2192 priced below face",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "PV of all payments at 5% semi",
+              "amount": 461391,
+              "why": "Buyers pay only what the 8% coupons are worth in a 10% world.",
+              "trap": "Price = PV of face + PV of coupons at the MARKET rate \u2014 the stated rate only sets the coupon."
+            },
+            {
+              "account": "Discount on Bonds Payable",
+              "side": "debit",
+              "label": "500,000 \u2212 461,391",
+              "amount": 38609,
+              "why": "A contra-liability: extra interest cost to be recognized over the life.",
+              "trap": "The discount IS deferred interest \u2014 it will flow into interest expense via amortization."
+            },
+            {
+              "account": "Bonds Payable",
+              "side": "credit",
+              "label": "face",
+              "amount": 500000,
+              "why": "The liability is recorded at face \u2014 carrying value = face \u2212 discount.",
+              "trap": "Face on this line always; the discount line carries the pricing gap."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "market": "premium"
+      },
+      "entries": [
+        {
+          "label": "Stated 8% > market 6% \u2192 priced above face",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "PV at 3% semi",
+              "amount": 542651,
+              "why": "Buyers pay extra for above-market coupons.",
+              "trap": "Direction check: generous coupon \u2192 premium; stingy coupon \u2192 discount. Flip it and everything downstream flips."
+            },
+            {
+              "account": "Premium on Bonds Payable",
+              "side": "credit",
+              "label": "542,651 \u2212 500,000",
+              "amount": 42651,
+              "why": "An adjunct liability: reduces interest expense over the life.",
+              "trap": "Premium amortization makes expense LESS than cash paid \u2014 the mirror image of a discount."
+            },
+            {
+              "account": "Bonds Payable",
+              "side": "credit",
+              "label": "face",
+              "amount": 500000,
+              "why": "Face value, as always.",
+              "trap": "Carrying value = face + premium = 542,651 on day one."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Stated < market \u2192 discount. Stated > market \u2192 premium. The market rate prices the bond; the stated rate only writes the coupon checks."
+    },
+    {
+      "kind": "formula",
+      "body": "Issue price = PV(face) + PV(coupon annuity), both at the market rate per PERIOD (semiannual: rate \u00f7 2, periods \u00d7 2)."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$500,000 face, 8% stated, 10% market, 5 years semiannual. Issue price = ?",
+      "answerExpr": "461391",
+      "distractors": [
+        {
+          "expr": "500000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "Face assumes the rates match. With market above stated, buyers discount the price to 461,391."
+        },
+        {
+          "expr": "542651",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "That's the PREMIUM price (6% market). When market EXCEEDS stated, the bond sells BELOW face."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Discount on Bonds Payable",
+      "Premium on Bonds Payable",
+      "Bonds Payable",
+      "Interest Expense"
+    ],
+    "scaffold": "Cash = price. Bonds Payable = face. The gap goes to Discount (debit) or Premium (credit)."
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "slug": "intro1-earn-revenue",
+  "title": "Earning Service Revenue \u2014 Cash vs On Account",
+  "event": "Tran Consulting completes a $2,400 consulting job for a client. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 2,
+    "name": "Journalizing Transactions"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "collection",
+      "label": "Client pays",
+      "options": [
+        {
+          "value": "cash",
+          "label": "Immediately in cash"
+        },
+        {
+          "value": "account",
+          "label": "Later (on account)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "collection": "cash"
+      },
+      "entries": [
+        {
+          "label": "Earn it and collect it same day",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "collected now",
+              "amount": 2400,
+              "why": "Payment received on the spot.",
+              "trap": "The easy case \u2014 but notice the credit is identical to the on-account case."
+            },
+            {
+              "account": "Service Revenue",
+              "side": "credit",
+              "label": "work performed",
+              "amount": 2400,
+              "why": "The work is DONE \u2014 that's what earns the revenue.",
+              "trap": "Revenue keys off the WORK, not the cash. The next variant proves it."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "collection": "account"
+      },
+      "entries": [
+        {
+          "label": "Earned now, collected later",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "claim on client",
+              "amount": 2400,
+              "why": "The client's promise to pay is an asset.",
+              "trap": "Revenue does NOT wait for the cash. Done work = earned revenue, full stop."
+            },
+            {
+              "account": "Service Revenue",
+              "side": "credit",
+              "label": "work performed",
+              "amount": 2400,
+              "why": "Same credit as the cash case \u2014 earning is about the WORK, not the payment.",
+              "trap": "If you credited Unearned Revenue here, you flipped the timing: unearned is for cash BEFORE work."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Revenue is recognized when EARNED (work performed), not when cash shows up. Timing only changes the debit: Cash vs Accounts Receivable."
+    },
+    {
+      "kind": "watchout",
+      "body": "Cash before work \u2192 Unearned Revenue. Work before cash \u2192 Accounts Receivable. Map the timing before touching accounts."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Tran finishes the $2,400 job but won't be paid for 30 days. Revenue recognized TODAY = ?",
+      "answerExpr": "2400",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Accrual accounting doesn't wait for cash. The work is complete, so all $2,400 is earned today \u2014 the receivable holds the claim."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Accounts Receivable",
+      "Service Revenue",
+      "Unearned Revenue"
+    ],
+    "scaffold": "Credit is always Service Revenue once the work is done. The debit just tracks HOW you'll be paid."
+  }
+}

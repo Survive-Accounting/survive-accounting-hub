@@ -1,0 +1,72 @@
+{
+  "slug": "ia1-goods-included",
+  "title": "Whose Inventory Is It? Transit & Consignment",
+  "event": "Hollis Co.'s physical count totals $200,000, which includes $18,000 of goods held on consignment FROM another company. Not counted: a $15,000 purchase in transit shipped FOB shipping point, and $22,000 of Hollis goods out on consignment at a dealer. Compute correct ending inventory.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 7,
+    "name": "Inventories, Cost Approach"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Ownership, not location, decides inventory. FOB shipping point transfers title at the dock; consigned goods belong to the consignor wherever they sit.",
+          "steps": [
+            {
+              "label": "Remove consigned-in goods",
+              "formulaText": "200,000 \u2212 18,000",
+              "value": 182000
+            },
+            {
+              "label": "Add FOB shipping point purchase in transit",
+              "formulaText": "+15,000",
+              "value": 197000
+            },
+            {
+              "label": "Add goods out on consignment",
+              "formulaText": "+22,000",
+              "value": 219000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "FOB shipping point \u2192 buyer owns in transit. FOB destination \u2192 seller owns until arrival. Consigned goods \u2192 always the CONSIGNOR's."
+    },
+    {
+      "kind": "tip",
+      "body": "Work every item with one question: who holds TITLE at midnight on the balance sheet date?"
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Count $200,000; consigned-in $18,000 included; FOB shipping point purchase in transit $15,000; goods out on consignment $22,000. Correct inventory = ?",
+      "answerExpr": "219000",
+      "distractors": [
+        {
+          "expr": "200000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the raw count \u2014 location, not ownership. Three title adjustments move it to 219,000."
+        },
+        {
+          "expr": "237000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You added the transit and consigned-out goods but forgot to REMOVE the 18,000 held for others: 219,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

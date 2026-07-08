@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-corrected-balance-sheet",
+  "title": "Correcting a Misprepared Balance Sheet",
+  "event": "Ingle Co.'s draft balance sheet reports total assets of $500,000, but the figure includes $20,000 of treasury stock listed among assets, and the draft omits $15,000 of declared but unpaid dividends from liabilities. Compute corrected total assets and identify the liability fix.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 4,
+    "name": "The Balance Sheet"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Treasury stock is the company's own shares \u2014 you cannot own a piece of yourself as an asset. It's contra-equity. Declared dividends are a real, legal liability.",
+          "steps": [
+            {
+              "label": "Corrected total assets",
+              "formulaText": "500,000 \u2212 20,000 treasury stock",
+              "value": 480000
+            },
+            {
+              "label": "Liabilities fix",
+              "formulaText": "add Dividends Payable",
+              "value": 15000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "watchout",
+      "body": "Treasury stock is NEVER an asset \u2014 it reduces stockholders' equity. The single most common balance-sheet correction on exams."
+    },
+    {
+      "kind": "tip",
+      "body": "Declared dividends become a liability at DECLARATION, not at payment."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Draft assets $500,000 including $20,000 of treasury stock. Corrected total assets = ?",
+      "answerExpr": "480000",
+      "distractors": [
+        {
+          "expr": "500000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "Treasury stock must come OUT of assets \u2014 it's contra-equity: 480,000."
+        },
+        {
+          "expr": "465000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You also removed the dividends payable from ASSETS. That error lives on the liability side \u2014 it doesn't touch assets."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

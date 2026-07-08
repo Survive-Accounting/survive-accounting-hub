@@ -1,0 +1,99 @@
+{
+  "slug": "intro1-bond-retirement",
+  "title": "Retiring Bonds Before Maturity",
+  "event": "Reyes Co. calls bonds with a face value of $500,000 and an unamortized discount of $20,000 (carrying value $480,000), paying the call price of 102 ($510,000). Prepare the retirement entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 10,
+    "name": "Long Term Liabilities"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Pay 510,000 to erase a 480,000 carrying value \u2192 30,000 loss",
+          "lines": [
+            {
+              "account": "Bonds Payable",
+              "side": "debit",
+              "label": "face off",
+              "amount": 500000,
+              "why": "The face liability leaves the books.",
+              "trap": "Face on this line \u2014 the discount has its own line to clear."
+            },
+            {
+              "account": "Loss on Bond Retirement",
+              "side": "debit",
+              "label": "510,000 \u2212 480,000",
+              "amount": 30000,
+              "why": "Paid 30,000 more than the debt's carrying value to escape it.",
+              "trap": "Measure against CARRYING VALUE (480,000), never face \u2014 comparing to face fakes a 10,000 loss."
+            },
+            {
+              "account": "Discount on Bonds Payable",
+              "side": "credit",
+              "label": "contra cleared",
+              "amount": 20000,
+              "why": "The unamortized discount dies with the bonds.",
+              "trap": "Forgetting this line leaves a phantom contra-account attached to retired debt."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "call price 102",
+              "amount": 510000,
+              "why": "102% of face buys the bonds back.",
+              "trap": "Call prices quote as a percent of FACE: 1.02 \u00d7 500,000."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Gain/(loss) on retirement = carrying value \u2212 cash paid. CV = face \u2212 unamortized discount (or + premium)."
+    },
+    {
+      "kind": "tip",
+      "body": "Paying less than carrying value produces a GAIN \u2014 companies sometimes retire early precisely to capture it when rates move."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Carrying value $480,000, called at 102 ($510,000). Loss on retirement = ?",
+      "answerExpr": "30000",
+      "distractors": [
+        {
+          "expr": "10000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You compared the 510,000 paid to FACE. The debt's book value is 480,000 \u2014 the loss is 30,000."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Early retirement at a price different from carrying value ALWAYS produces a recognized gain or loss."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Bonds Payable",
+      "Loss on Bond Retirement",
+      "Discount on Bonds Payable",
+      "Cash",
+      "Gain on Bond Retirement"
+    ],
+    "scaffold": "Face off, discount/premium off, cash out at the call price \u2014 the gain or loss is the plug vs carrying value."
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "slug": "intro1-small-stock-dividend",
+  "title": "Small Stock Dividend",
+  "event": "Reyes Co. declares a 5% stock dividend on its 100,000 outstanding shares of $1 par stock when the market price is $12 per share. Prepare the declaration entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 11,
+    "name": "Equity"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "5,000 new shares capitalized at MARKET",
+          "lines": [
+            {
+              "account": "Retained Earnings",
+              "side": "debit",
+              "label": "5,000 shares \u00d7 $12 market",
+              "amount": 60000,
+              "why": "Small stock dividends (< 20\u201325%) capitalize retained earnings at MARKET value.",
+              "trap": "Market for small dividends, PAR for large ones \u2014 the size of the dividend picks the price."
+            },
+            {
+              "account": "Common Stock Dividend Distributable",
+              "side": "credit",
+              "label": "5,000 \u00d7 $1 par",
+              "amount": 5000,
+              "why": "Par value of the shares to be issued \u2014 an EQUITY account, not a liability.",
+              "trap": "'Distributable,' not 'Payable' \u2014 no assets will ever leave, so it's not debt."
+            },
+            {
+              "account": "Paid-In Capital in Excess of Par",
+              "side": "credit",
+              "label": "5,000 \u00d7 $11",
+              "amount": 55000,
+              "why": "The excess of market over par lands in PIC, as with any issuance.",
+              "trap": "Total equity is UNCHANGED \u2014 the entry just shuffles amounts between equity accounts."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "A stock dividend moves equity between its own pockets: RE down, contributed capital up, total equity identical. Shareholders' percentage ownership is also unchanged."
+    },
+    {
+      "kind": "watchout",
+      "body": "Small (< 20\u201325%) \u2192 market value. Large \u2192 par value. Stock SPLITS get no entry at all \u2014 only a memo."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "5% stock dividend, 100,000 shares outstanding, $1 par, $12 market. Retained earnings debited = ?",
+      "answerExpr": "60000",
+      "distractors": [
+        {
+          "expr": "5000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's par value \u2014 the LARGE-dividend treatment. Small dividends capitalize at MARKET: 5,000 \u00d7 $12."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's a stock SPLIT. A stock dividend requires an entry \u2014 RE is capitalized at market for small dividends."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Retained Earnings",
+      "Common Stock Dividend Distributable",
+      "Paid-In Capital in Excess of Par",
+      "Dividends Payable",
+      "Cash"
+    ],
+    "scaffold": "Debit RE at market; credit par to Distributable; PIC takes the spread. Nothing here is a liability."
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "slug": "intro1-depreciation-methods",
+  "title": "Depreciation: SL vs Units vs DDB",
+  "event": "Reyes Co. buys a machine for $100,000 with a $10,000 salvage value, a 5-year life, and expected output of 45,000 units. In year 1 it produces 12,000 units. Compute year-1 depreciation under the assumed method.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 8,
+    "name": "Long Term Assets"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "method",
+      "label": "Method",
+      "options": [
+        {
+          "value": "sl",
+          "label": "Straight-line"
+        },
+        {
+          "value": "units",
+          "label": "Units-of-production"
+        },
+        {
+          "value": "ddb",
+          "label": "Double-declining balance"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "method": "sl"
+      },
+      "computationPaths": [
+        {
+          "narration": "Straight-line spreads depreciable cost evenly across the life.",
+          "steps": [
+            {
+              "label": "Depreciable cost",
+              "formulaText": "100,000 \u2212 10,000",
+              "value": 90000
+            },
+            {
+              "label": "Year-1 depreciation",
+              "formulaText": "90,000 \u00f7 5",
+              "value": 18000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "units"
+      },
+      "computationPaths": [
+        {
+          "narration": "Units-of-production ties the expense to actual output.",
+          "steps": [
+            {
+              "label": "Rate per unit",
+              "formulaText": "90,000 \u00f7 45,000 units",
+              "value": 2
+            },
+            {
+              "label": "Year-1 depreciation",
+              "formulaText": "12,000 \u00d7 $2",
+              "value": 24000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "ddb"
+      },
+      "computationPaths": [
+        {
+          "narration": "DDB doubles the straight-line rate and applies it to BOOK VALUE \u2014 salvage is ignored in the formula but floors the ending book value.",
+          "steps": [
+            {
+              "label": "DDB rate",
+              "formulaText": "2 \u00d7 (1 \u00f7 5)",
+              "value": 40
+            },
+            {
+              "label": "Year-1 depreciation",
+              "formulaText": "40% \u00d7 100,000 book value",
+              "value": 40000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "SL = (cost \u2212 salvage) \u00f7 life. Units = (cost \u2212 salvage) \u00f7 total units \u00d7 units produced. DDB = (2 \u00f7 life) \u00d7 beginning BOOK VALUE."
+    },
+    {
+      "kind": "watchout",
+      "body": "DDB is the odd one out twice: it IGNORES salvage in the calculation and uses full cost (book value), not depreciable cost \u2014 but never depreciate below salvage."
+    },
+    {
+      "kind": "tip",
+      "body": "All methods reach the same total depreciation over the life \u2014 they only argue about the timing."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Cost $100,000, salvage $10,000, 5-year life. Year-1 DOUBLE-DECLINING depreciation = ?",
+      "answerExpr": "40000",
+      "distractors": [
+        {
+          "expr": "36000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You applied 40% to depreciable cost (90,000). DDB uses full BOOK VALUE in the formula: 40% \u00d7 100,000."
+        },
+        {
+          "expr": "18000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's straight-line. DDB front-loads: double the SL rate on book value = 40,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

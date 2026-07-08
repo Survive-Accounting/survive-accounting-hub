@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-margin-of-safety",
+  "title": "Margin of Safety",
+  "event": "Reyes Co. expects sales of $400,000; its break-even point is $300,000 of sales. Compute the margin of safety in dollars and as a percent.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 18,
+    "name": "Cost Volume Profit"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Margin of safety measures the cushion: how far sales can fall before losses begin.",
+          "steps": [
+            {
+              "label": "MoS dollars",
+              "formulaText": "400,000 \u2212 300,000",
+              "value": 100000
+            },
+            {
+              "label": "MoS percent",
+              "formulaText": "100,000 \u00f7 400,000",
+              "value": 25
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "MoS = expected sales \u2212 break-even sales. MoS % = MoS \u00f7 EXPECTED sales."
+    },
+    {
+      "kind": "tip",
+      "body": "The percent divides by EXPECTED sales, not break-even sales \u2014 a 25% margin means sales can drop a quarter before red ink."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Expected sales $400,000, break-even $300,000. Margin of safety percent = ?",
+      "answerExpr": "25",
+      "distractors": [
+        {
+          "expr": "33.3",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You divided by BREAK-EVEN sales. The base is EXPECTED sales: 100 \u00f7 400 = 25%."
+        },
+        {
+          "expr": "75",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "That's break-even as a % of sales. The margin of SAFETY is the cushion above it: 25%."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,119 @@
+{
+  "slug": "ia1-write-off-recovery",
+  "title": "Write-Off and Recovery",
+  "event": "Ortiz Co. writes off a $1,500 account deemed uncollectible. Two months later, the customer unexpectedly pays in full. Prepare all entries.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 6,
+    "name": "Cash & Receivables"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Write off the account",
+          "lines": [
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "debit",
+              "label": "cushion used",
+              "amount": 1500,
+              "why": "The write-off consumes allowance that was expensed in advance.",
+              "trap": "NO Bad Debt Expense here \u2014 the expense already happened when the estimate was recorded."
+            },
+            {
+              "account": "Accounts Receivable",
+              "side": "credit",
+              "label": "specific account removed",
+              "amount": 1500,
+              "why": "The specific customer's balance comes off the books.",
+              "trap": "Net realizable value is UNCHANGED \u2014 both AR and the allowance drop by 1,500."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Reinstate on recovery",
+          "lines": [
+            {
+              "account": "Accounts Receivable",
+              "side": "debit",
+              "label": "claim revived",
+              "amount": 1500,
+              "why": "Put the account back \u2014 it turned out to be collectible after all.",
+              "trap": "Reinstate BEFORE recording the cash; the customer's credit history should show the recovery."
+            },
+            {
+              "account": "Allowance for Doubtful Accounts",
+              "side": "credit",
+              "label": "cushion restored",
+              "amount": 1500,
+              "why": "The allowance gets its 1,500 back.",
+              "trap": "Not revenue, not a gain \u2014 just the estimate un-consuming itself."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 Collect",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "payment received",
+              "amount": 1500,
+              "why": "The money arrives.",
+              "trap": "Ordinary collection mechanics from here."
+            },
+            {
+              "account": "Accounts Receivable",
+              "side": "credit",
+              "label": "claim settled",
+              "amount": 1500,
+              "why": "The reinstated receivable clears.",
+              "trap": "Total income effect across all three entries: zero. Everything ran through balance-sheet accounts."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Under the allowance method, neither write-offs nor recoveries touch income \u2014 the expense lives entirely in the year-end estimate."
+    },
+    {
+      "kind": "watchout",
+      "body": "Write-offs leave net realizable value unchanged: AR and the allowance fall together."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Bad debt EXPENSE recorded at the moment of the $1,500 write-off = ?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "1500",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "The expense was estimated in advance \u2014 the write-off just spends allowance that already exists."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Allowance for Doubtful Accounts",
+      "Accounts Receivable",
+      "Cash",
+      "Bad Debt Expense"
+    ],
+    "scaffold": "Write-off: allowance vs AR. Recovery: reverse it, then collect normally. Income never moves."
+  }
+}

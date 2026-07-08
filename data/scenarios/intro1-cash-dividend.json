@@ -1,0 +1,98 @@
+{
+  "slug": "intro1-cash-dividend",
+  "title": "Cash Dividends \u2014 Three Dates",
+  "event": "Reyes Co. declares a $20,000 cash dividend on March 1 (declaration date), payable April 10 to stockholders of record on March 20. Prepare all required entries.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 11,
+    "name": "Equity"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Mar 1, declaration: liability is born",
+          "lines": [
+            {
+              "account": "Retained Earnings",
+              "side": "debit",
+              "label": "distribution declared",
+              "amount": 20000,
+              "why": "Declaration legally commits the company \u2014 RE takes the hit now.",
+              "trap": "Not an expense \u2014 dividends are a DISTRIBUTION of income, so they never touch the income statement."
+            },
+            {
+              "account": "Dividends Payable",
+              "side": "credit",
+              "label": "owed to holders",
+              "amount": 20000,
+              "why": "A genuine current liability from declaration until payment.",
+              "trap": "The record date (Mar 20) gets NO entry \u2014 it only determines who receives the checks."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Apr 10, payment: liability settled",
+          "lines": [
+            {
+              "account": "Dividends Payable",
+              "side": "debit",
+              "label": "obligation cleared",
+              "amount": 20000,
+              "why": "The declared liability is paid off.",
+              "trap": "RE was already reduced at declaration \u2014 touching it again double-counts."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "checks out",
+              "amount": 20000,
+              "why": "The distribution leaves the building.",
+              "trap": "Payment is a pure liability settlement \u2014 equity moved back on March 1."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Declare \u2192 entry. Record \u2192 NO entry. Pay \u2192 entry. Two entries, three dates."
+    },
+    {
+      "kind": "watchout",
+      "body": "Equity falls at DECLARATION, not payment \u2014 and dividends require sufficient retained earnings and cash, two separate constraints."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "What entry is recorded on the March 20 DATE OF RECORD?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "20000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "The record date only fixes WHO gets paid \u2014 no accounts change. Entries happen at declaration and payment only."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Retained Earnings",
+      "Dividends Payable",
+      "Cash",
+      "Dividend Expense"
+    ],
+    "scaffold": "Two entries bracket the record date. And the decoy: 'Dividend Expense' does not exist."
+  }
+}

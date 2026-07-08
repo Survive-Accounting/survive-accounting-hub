@@ -1,0 +1,155 @@
+{
+  "slug": "ia1-closing-process",
+  "title": "Closing at Intermediate Depth",
+  "event": "At year-end, Ingle Co. shows Service Revenue of $210,000, Operating Expenses of $140,000, Interest Expense of $24,000, and Dividends of $20,000. Prepare the closing entries and compute the net change in Retained Earnings.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 2,
+    "name": "The Accounting System"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Close revenues",
+          "lines": [
+            {
+              "account": "Service Revenue",
+              "side": "debit",
+              "label": "zeroed",
+              "amount": 210000,
+              "why": "Empty the revenue account against its credit balance.",
+              "trap": "Temporary accounts restart at zero \u2014 that's the whole point of closing."
+            },
+            {
+              "account": "Income Summary",
+              "side": "credit",
+              "label": "revenues in",
+              "amount": 210000,
+              "why": "Revenues pool in the summary.",
+              "trap": "Income Summary never appears on any statement \u2014 it lives only inside the closing process."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Close expenses",
+          "lines": [
+            {
+              "account": "Income Summary",
+              "side": "debit",
+              "label": "140,000 + 24,000",
+              "amount": 164000,
+              "why": "All expenses gather in one debit.",
+              "trap": "One combined entry \u2014 line-by-line closings burn exam time."
+            },
+            {
+              "account": "Operating Expenses",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 140000,
+              "why": "Emptied for the new year.",
+              "trap": "Credits to expenses happen exactly once a year \u2014 here."
+            },
+            {
+              "account": "Interest Expense",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 24000,
+              "why": "Emptied for the new year.",
+              "trap": "Every expense account gets its own credit line in the combined entry."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 Close Income Summary: 210,000 \u2212 164,000",
+          "lines": [
+            {
+              "account": "Income Summary",
+              "side": "debit",
+              "label": "net income out",
+              "amount": 46000,
+              "why": "The 46,000 credit balance is the year's net income, transferred out.",
+              "trap": "If the summary's balance doesn't equal the income statement's bottom line, something upstream broke."
+            },
+            {
+              "account": "Retained Earnings",
+              "side": "credit",
+              "label": "income banked",
+              "amount": 46000,
+              "why": "Income becomes permanent equity.",
+              "trap": "Direction flips in a loss year \u2014 RE would take the debit."
+            }
+          ]
+        },
+        {
+          "label": "4 \u2014 Close Dividends",
+          "lines": [
+            {
+              "account": "Retained Earnings",
+              "side": "debit",
+              "label": "dividends out",
+              "amount": 20000,
+              "why": "Dividends reduce retained earnings directly.",
+              "trap": "Dividends never pass through Income Summary \u2014 they are a distribution, not an expense."
+            },
+            {
+              "account": "Dividends",
+              "side": "credit",
+              "label": "zeroed",
+              "amount": 20000,
+              "why": "Emptied for the new year.",
+              "trap": "Net RE change = 46,000 in \u2212 20,000 out = +26,000. Verify it against the RE statement."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "REID order: Revenues, Expenses, Income Summary, Dividends."
+    },
+    {
+      "kind": "tip",
+      "body": "Net change in RE = net income \u2212 dividends. The closing entries just execute that arithmetic through the ledger."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Revenue $210,000, expenses $164,000, dividends $20,000. Net CHANGE in Retained Earnings = ?",
+      "answerExpr": "26000",
+      "distractors": [
+        {
+          "expr": "46000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's net income before dividends. The 20,000 distribution also hits RE: net +26,000."
+        },
+        {
+          "expr": "66000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You added the dividends. They REDUCE retained earnings: 46,000 \u2212 20,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Service Revenue",
+      "Income Summary",
+      "Operating Expenses",
+      "Interest Expense",
+      "Retained Earnings",
+      "Dividends"
+    ],
+    "scaffold": "Four entries, REID order. Entry 3 carries income; entry 4 carries the distribution \u2014 they never mix."
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-interest-capitalization",
+  "title": "Capitalizing Interest on Self-Constructed Assets",
+  "event": "Hollis Co. self-constructs a building with weighted-average accumulated expenditures of $400,000. It has a $300,000 specific construction loan at 10% and other general debt at 12%. Actual total interest incurred was $60,000. Compute the interest to capitalize.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 9,
+    "name": "Property, Plant, and Equipment"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Avoidable interest: the specific loan covers expenditures first at its rate; the overflow uses the general-debt rate. Capitalize the LESSER of avoidable and actual.",
+          "steps": [
+            {
+              "label": "Specific borrowing layer",
+              "formulaText": "300,000 \u00d7 10%",
+              "value": 30000
+            },
+            {
+              "label": "Excess expenditures layer",
+              "formulaText": "(400,000 \u2212 300,000) \u00d7 12%",
+              "value": 12000
+            },
+            {
+              "label": "Avoidable interest",
+              "formulaText": "30,000 + 12,000",
+              "value": 42000
+            },
+            {
+              "label": "Capitalize",
+              "formulaText": "lesser of 42,000 avoidable and 60,000 actual",
+              "value": 42000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Avoidable interest = specific loan \u00d7 its rate + (WAAE \u2212 specific loan) \u00d7 weighted-average rate on other debt. Capitalize min(avoidable, actual)."
+    },
+    {
+      "kind": "tip",
+      "body": "Weighted-average ACCUMULATED expenditures \u2014 money spent early accrues more interest than December's spending. The weighting is often the sub-computation."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "WAAE $400,000; specific loan $300,000 at 10%; other debt 12%; actual interest $60,000. Interest capitalized = ?",
+      "answerExpr": "42000",
+      "distractors": [
+        {
+          "expr": "60000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's ACTUAL interest. Capitalization is capped at the AVOIDABLE amount tied to construction: 42,000."
+        },
+        {
+          "expr": "40000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You applied 10% to all 400,000. The specific loan only covers 300,000 \u2014 the 100,000 overflow uses the 12% general rate."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

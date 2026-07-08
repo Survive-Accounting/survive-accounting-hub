@@ -1,0 +1,178 @@
+{
+  "slug": "ia1-gross-vs-net-purchases",
+  "title": "Purchase Discounts \u2014 Gross vs Net Method",
+  "event": "Hollis Co. buys $10,000 of inventory on terms 2/10, n/30 and pays AFTER the discount window closes. Prepare the purchase and payment entries.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 7,
+    "name": "Inventories, Cost Approach"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [
+    {
+      "key": "method",
+      "label": "Recording method",
+      "options": [
+        {
+          "value": "gross",
+          "label": "Gross method (record at $10,000)"
+        },
+        {
+          "value": "net",
+          "label": "Net method (record at $9,800)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "method": "gross"
+      },
+      "entries": [
+        {
+          "label": "Buy at gross",
+          "lines": [
+            {
+              "account": "Inventory",
+              "side": "debit",
+              "label": "invoice at face",
+              "amount": 10000,
+              "why": "Gross method records the full invoice and reacts only if the discount is taken.",
+              "trap": "Simple, but it HIDES the cost of missed discounts inside inventory."
+            },
+            {
+              "account": "Accounts Payable",
+              "side": "credit",
+              "label": "full invoice",
+              "amount": 10000,
+              "why": "Full obligation on the books.",
+              "trap": "Nothing about the terms is recorded yet under gross."
+            }
+          ]
+        },
+        {
+          "label": "Pay late \u2014 no news, says gross",
+          "lines": [
+            {
+              "account": "Accounts Payable",
+              "side": "debit",
+              "label": "settled",
+              "amount": 10000,
+              "why": "The obligation clears at face.",
+              "trap": "The missed 200 vanishes silently into inventory cost \u2014 that's the gross method's blindness."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "full price",
+              "amount": 10000,
+              "why": "Paid in full after day 10.",
+              "trap": "No expense, no signal \u2014 management never sees the inefficiency."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "net"
+      },
+      "entries": [
+        {
+          "label": "Buy at net: 10,000 \u00d7 98%",
+          "lines": [
+            {
+              "account": "Inventory",
+              "side": "debit",
+              "label": "invoice net of discount",
+              "amount": 9800,
+              "why": "Net method assumes discounts WILL be taken \u2014 the true cash price is the real cost.",
+              "trap": "Theoretically superior: inventory carries the price an efficient payer would pay."
+            },
+            {
+              "account": "Accounts Payable",
+              "side": "credit",
+              "label": "net obligation",
+              "amount": 9800,
+              "why": "Obligation at the net amount.",
+              "trap": "If paid within the window, payment is a clean 9,800 \u2014 no adjustment."
+            }
+          ]
+        },
+        {
+          "label": "Pay late \u2014 the miss gets a name",
+          "lines": [
+            {
+              "account": "Accounts Payable",
+              "side": "debit",
+              "label": "net obligation cleared",
+              "amount": 9800,
+              "why": "The recorded payable clears.",
+              "trap": "The extra 200 paid is NOT more inventory cost \u2014 the goods didn't get more valuable."
+            },
+            {
+              "account": "Purchase Discounts Lost",
+              "side": "debit",
+              "label": "financing penalty exposed",
+              "amount": 200,
+              "why": "The missed discount surfaces as a financing expense management can see and fix.",
+              "trap": "An expense/other-item line \u2014 the net method's whole advantage is making this visible."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "full invoice",
+              "amount": 10000,
+              "why": "Full price paid after the window.",
+              "trap": "2% for 20 days \u2248 36% annualized \u2014 Purchase Discounts Lost is an expensive line to grow."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Gross buries missed discounts in inventory; net exposes them as Purchase Discounts Lost. Same cash, different visibility."
+    },
+    {
+      "kind": "watchout",
+      "body": "Under net, paying LATE is the event that triggers an extra line \u2014 paying on time is the quiet case. Gross is the reverse."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Net method, $10,000 invoice at 2/10 n/30, paid on day 25. Purchase Discounts Lost = ?",
+      "answerExpr": "200",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Day 25 is past the window. Under net, the missed 2% must surface as Purchase Discounts Lost: 200."
+        },
+        {
+          "expr": "9800",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the recorded payable. The LOST DISCOUNT is just the 2% penalty: 200."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Inventory",
+      "Accounts Payable",
+      "Cash",
+      "Purchase Discounts Lost",
+      "Purchase Discounts"
+    ],
+    "scaffold": "Gross records face and stays silent; net records the cash price and names the penalty when you're late."
+  }
+}

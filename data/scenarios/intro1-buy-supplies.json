@@ -1,0 +1,122 @@
+{
+  "slug": "intro1-buy-supplies",
+  "title": "Buying Supplies \u2014 Cash vs On Account",
+  "event": "Reyes Co. purchases $600 of office supplies. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 1,
+    "name": "Accounting in Business"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "payment",
+      "label": "Paid",
+      "options": [
+        {
+          "value": "cash",
+          "label": "Cash at purchase"
+        },
+        {
+          "value": "account",
+          "label": "On account (pay later)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "payment": "cash"
+      },
+      "entries": [
+        {
+          "label": "Asset swap \u2014 cash for supplies",
+          "lines": [
+            {
+              "account": "Supplies",
+              "side": "debit",
+              "label": "asset at cost",
+              "amount": 600,
+              "why": "Supplies are an ASSET when bought \u2014 they become expense as they're used.",
+              "trap": "Not Supplies Expense yet. Expensing happens at the adjusting entry when usage is counted."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "paid now",
+              "amount": 600,
+              "why": "Paid at purchase \u2014 one asset traded for another; total assets unchanged.",
+              "trap": "An asset-for-asset swap changes NOTHING on the equation's right side \u2014 no liability, no equity effect."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "payment": "account"
+      },
+      "entries": [
+        {
+          "label": "Asset now, obligation later",
+          "lines": [
+            {
+              "account": "Supplies",
+              "side": "debit",
+              "label": "asset at cost",
+              "amount": 600,
+              "why": "Same asset either way \u2014 how you pay doesn't change what you got.",
+              "trap": "The debit side answers 'what did we get,' never 'how did we pay.'"
+            },
+            {
+              "account": "Accounts Payable",
+              "side": "credit",
+              "label": "promise to pay",
+              "amount": 600,
+              "why": "A liability until the bill is paid.",
+              "trap": "Buying on account creates a PAYABLE \u2014 no cash line appears in this entry at all."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "The debit answers 'what did we get?' The credit answers 'how did we pay (or promise to pay)?'"
+    },
+    {
+      "kind": "watchout",
+      "body": "Supplies at purchase = asset. Supplies Expense waits for the year-end count."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Reyes buys $600 of supplies on account. How much cash leaves in this entry?",
+      "answerExpr": "0",
+      "distractors": [
+        {
+          "expr": "600",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "'On account' means pay LATER \u2014 the credit goes to Accounts Payable, and cash moves only when the bill is paid."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Supplies",
+      "Cash",
+      "Accounts Payable",
+      "Supplies Expense"
+    ],
+    "scaffold": "Debit what you received (Supplies). Then: paid now \u2192 Cash; pay later \u2192 Accounts Payable."
+  }
+}

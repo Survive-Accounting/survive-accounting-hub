@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-common-size-trend",
+  "title": "Common-Size & Trend Percents",
+  "event": "Reyes Co.'s sales were $200,000 in the base year and $250,000 in the current year. Current-year cost of goods sold is $150,000. Compute the sales trend percent and the common-size percent for COGS.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 13,
+    "name": "Financial Statement Analysis"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Trend percents compare a line to its own BASE-YEAR value; common-size compares a line to the SAME year's anchor (sales).",
+          "steps": [
+            {
+              "label": "Sales trend percent",
+              "formulaText": "250,000 \u00f7 200,000",
+              "value": 125
+            },
+            {
+              "label": "Common-size COGS",
+              "formulaText": "150,000 \u00f7 250,000",
+              "value": 60
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Trend % = current \u00f7 base \u00d7 100. Common-size % = line item \u00f7 that year's net sales (or total assets)."
+    },
+    {
+      "kind": "watchout",
+      "body": "Trend of 125% means sales are 25% ABOVE base \u2014 read it as a level, not a change."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Base-year sales $200,000, current $250,000. Trend percent = ?",
+      "answerExpr": "125",
+      "distractors": [
+        {
+          "expr": "25",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the CHANGE. Trend percents express the current level as a % of base: 250 \u00f7 200 = 125%."
+        },
+        {
+          "expr": "80",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You inverted the fraction \u2014 base over current. Current year goes on top."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

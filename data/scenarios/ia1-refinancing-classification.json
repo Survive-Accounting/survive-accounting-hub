@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-refinancing-classification",
+  "title": "Short-Term Debt Expected to Be Refinanced",
+  "event": "Hollis Co. has a $400,000 note due next March. Before the financial statements are issued, it completes a long-term refinancing of $300,000 of the note. Compute the amounts classified as current and noncurrent.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 12,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Reclassify to noncurrent only what is BOTH intended to be refinanced AND demonstrated \u2014 by actual refinancing or a firm agreement \u2014 before the statements are issued.",
+          "steps": [
+            {
+              "label": "Noncurrent",
+              "formulaText": "refinancing demonstrated",
+              "value": 300000
+            },
+            {
+              "label": "Current",
+              "formulaText": "the undemonstrated remainder",
+              "value": 100000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Noncurrent reclassification = min(amount intended, amount demonstrated by refinancing/agreement before issuance)."
+    },
+    {
+      "kind": "tip",
+      "body": "Both prongs required: intent alone leaves the debt current; ability is proven by post-year-end refinancing or a noncancelable agreement."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "$400,000 note due in March; $300,000 refinanced long-term before statement issuance. Amount reported CURRENT = ?",
+      "answerExpr": "100000",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Only the demonstrated 300,000 escapes current classification \u2014 the remaining 100,000 stays current."
+        },
+        {
+          "expr": "400000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "The completed 300,000 refinancing DOES reclassify \u2014 GAAP looks through to the demonstrated ability: only 100,000 stays current."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-cash-budget",
+  "title": "Cash Budget with Borrowing",
+  "event": "Reyes Co. begins July with $20,000 cash, expects receipts of $190,000 and disbursements of $185,000, and must maintain a $30,000 minimum cash balance. Compute the required borrowing.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 20,
+    "name": "Master Budgets"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Run the cash to its preliminary ending balance, then compare against the floor \u2014 the shortfall is the loan.",
+          "steps": [
+            {
+              "label": "Preliminary balance",
+              "formulaText": "20,000 + 190,000 \u2212 185,000",
+              "value": 25000
+            },
+            {
+              "label": "Required borrowing",
+              "formulaText": "30,000 minimum \u2212 25,000",
+              "value": 5000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Preliminary balance = beginning + receipts \u2212 disbursements. Borrow enough to reach the minimum; repay when above it."
+    },
+    {
+      "kind": "tip",
+      "body": "A positive preliminary balance can still force borrowing \u2014 the test is against the MINIMUM, not against zero."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Preliminary cash balance $25,000, required minimum $30,000. Borrowing needed = ?",
+      "answerExpr": "5000",
+      "distractors": [
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Positive isn't enough \u2014 the floor is 30,000. Five thousand short means a 5,000 loan."
+        },
+        {
+          "expr": "30000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the minimum itself. Borrow only the GAP between the floor and the 25,000 on hand."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-residual-income",
+  "title": "Residual Income",
+  "event": "Reyes Co.'s East Division earned $45,000 on average invested assets of $300,000. The company's hurdle rate is 10%. Compute residual income.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 22,
+    "name": "Performance Measures"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Residual income asks: how much did the division earn ABOVE the minimum the capital demands?",
+          "steps": [
+            {
+              "label": "Required return",
+              "formulaText": "300,000 \u00d7 10%",
+              "value": 30000
+            },
+            {
+              "label": "Residual income",
+              "formulaText": "45,000 \u2212 30,000",
+              "value": 15000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Residual income = divisional income \u2212 (invested assets \u00d7 hurdle rate)."
+    },
+    {
+      "kind": "tip",
+      "body": "RI fixes ROI's blind spot: a 15%-ROI division rejects a 12% project even when 12% beats the 10% hurdle. RI says take it."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Income $45,000, assets $300,000, hurdle 10%. Residual income = ?",
+      "answerExpr": "15000",
+      "distractors": [
+        {
+          "expr": "45000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's raw income \u2014 the capital charge hasn't been deducted. RI nets out the required 30,000: 15,000."
+        },
+        {
+          "expr": "30000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the REQUIRED return itself. Residual income is the excess ABOVE it: 15,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

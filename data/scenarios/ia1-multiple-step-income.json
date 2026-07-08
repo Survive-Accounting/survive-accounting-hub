@@ -1,0 +1,77 @@
+{
+  "slug": "ia1-multiple-step-income",
+  "title": "Multiple-Step Income Statement",
+  "event": "Ortiz Co. reports net sales of $800,000, cost of goods sold of $480,000, selling expenses of $90,000, administrative expenses of $70,000, interest expense of $12,000, and an $8,000 gain on sale of equipment. The tax rate is 25%. Compute gross profit, operating income, and net income.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 3,
+    "name": "The Income Statement"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The multiple-step format tells a story in tiers: trading margin, then the cost of running the operation, then items outside the core business, then tax.",
+          "steps": [
+            {
+              "label": "Gross profit",
+              "formulaText": "800,000 \u2212 480,000",
+              "value": 320000
+            },
+            {
+              "label": "Operating income",
+              "formulaText": "320,000 \u2212 90,000 \u2212 70,000",
+              "value": 160000
+            },
+            {
+              "label": "Pretax income",
+              "formulaText": "160,000 \u2212 12,000 interest + 8,000 gain",
+              "value": 156000
+            },
+            {
+              "label": "Net income",
+              "formulaText": "156,000 \u00d7 (1 \u2212 25%)",
+              "value": 117000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Sales \u2212 COGS = Gross profit \u2192 \u2212 operating expenses = Operating income \u2192 \u00b1 other items = Pretax \u2192 \u2212 tax = Net income."
+    },
+    {
+      "kind": "tip",
+      "body": "Interest and gains/losses sit BELOW operating income \u2014 they describe financing and disposals, not operations."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the facts above, OPERATING income = ?",
+      "answerExpr": "160000",
+      "distractors": [
+        {
+          "expr": "156000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You pulled the interest and gain into operations. Those are non-operating \u2014 operating income stops at 160,000."
+        },
+        {
+          "expr": "320000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "That's gross profit. Operating income also absorbs selling and administrative expenses."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

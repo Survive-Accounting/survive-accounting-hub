@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-cash-collections",
+  "title": "Schedule of Cash Collections",
+  "event": "Reyes Co. collects 60% of sales in the month of sale and 40% in the following month. Sales were $100,000 in May and $120,000 in June. Compute June cash collections.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 20,
+    "name": "Master Budgets"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Each month's cash is a blend: this month's fast collections plus last month's stragglers.",
+          "steps": [
+            {
+              "label": "From June sales",
+              "formulaText": "120,000 \u00d7 60%",
+              "value": 72000
+            },
+            {
+              "label": "From May sales",
+              "formulaText": "100,000 \u00d7 40%",
+              "value": 40000
+            },
+            {
+              "label": "June collections",
+              "formulaText": "72,000 + 40,000",
+              "value": 112000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Month's collections = current sales \u00d7 current-month % + prior sales \u00d7 following-month %."
+    },
+    {
+      "kind": "watchout",
+      "body": "Collections \u2260 sales. June SOLD 120,000 but COLLECTS 112,000 \u2014 the timing lag is the entire lesson."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "60% collected in month of sale, 40% next month. May sales $100,000, June sales $120,000. JUNE collections = ?",
+      "answerExpr": "112000",
+      "distractors": [
+        {
+          "expr": "120000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's June's SALES. Collections mix 60% of June with 40% of May: 112,000."
+        },
+        {
+          "expr": "108000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Percentages crossed (40% of June + 60% of May). The month of sale gets the 60%: 72,000 + 40,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,82 @@
+{
+  "slug": "intro2-variable-costing-income",
+  "title": "Contribution-Format Income Statement",
+  "event": "Reyes Co. sold 8,000 units at $30. Variable costs are $12 per unit to produce and $3 per unit to sell. Fixed overhead is $60,000 and fixed selling and administrative costs are $20,000. Compute net income under variable costing.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 19,
+    "name": "Variable Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The contribution format sorts by BEHAVIOR (variable vs fixed), not by function \u2014 that's what makes it useful for CVP decisions.",
+          "steps": [
+            {
+              "label": "Sales",
+              "formulaText": "8,000 \u00d7 $30",
+              "value": 240000
+            },
+            {
+              "label": "Variable costs",
+              "formulaText": "8,000 \u00d7 ($12 + $3)",
+              "value": 120000
+            },
+            {
+              "label": "Contribution margin",
+              "formulaText": "240,000 \u2212 120,000",
+              "value": 120000
+            },
+            {
+              "label": "Fixed costs",
+              "formulaText": "60,000 + 20,000",
+              "value": 80000
+            },
+            {
+              "label": "Net income",
+              "formulaText": "120,000 \u2212 80,000",
+              "value": 40000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Sales \u2212 ALL variable costs (production + selling) = CM; CM \u2212 ALL fixed costs = income."
+    },
+    {
+      "kind": "watchout",
+      "body": "Variable SELLING costs belong in the variable block even though they're not product costs \u2014 behavior, not function, sorts the statement."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the facts above, variable-costing net income = ?",
+      "answerExpr": "40000",
+      "distractors": [
+        {
+          "expr": "64000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You skipped the variable selling costs (8,000 \u00d7 $3). ALL variable costs come out before CM."
+        },
+        {
+          "expr": "60000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You expensed only the fixed overhead. Fixed S&A (20,000) is also a period cost: income = 40,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

@@ -1,0 +1,121 @@
+{
+  "slug": "intro2-job-cost-flow",
+  "title": "Job Cost Flow \u2014 Charging WIP",
+  "event": "During March, Reyes Co. used $10,000 of direct materials, incurred $8,000 of direct labor, and applied overhead at $8 per direct labor hour on 800 hours. Prepare the entries charging these costs to production.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 15,
+    "name": "Job Order Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "1 \u2014 Direct materials to jobs",
+          "lines": [
+            {
+              "account": "Work in Process Inventory",
+              "side": "debit",
+              "label": "materials requisitioned",
+              "amount": 10000,
+              "why": "Direct materials trace straight to specific jobs, so they go straight to WIP.",
+              "trap": "INDIRECT materials would debit Factory Overhead instead \u2014 the requisition slip decides."
+            },
+            {
+              "account": "Raw Materials Inventory",
+              "side": "credit",
+              "label": "off the shelf",
+              "amount": 10000,
+              "why": "Materials leave the storeroom.",
+              "trap": "Credit the inventory account, not an expense \u2014 nothing has sold yet."
+            }
+          ]
+        },
+        {
+          "label": "2 \u2014 Direct labor to jobs",
+          "lines": [
+            {
+              "account": "Work in Process Inventory",
+              "side": "debit",
+              "label": "time tickets",
+              "amount": 8000,
+              "why": "Direct labor traces to jobs via time tickets.",
+              "trap": "Indirect labor (supervisors, maintenance) goes to Factory Overhead, not WIP."
+            },
+            {
+              "account": "Factory Wages Payable",
+              "side": "credit",
+              "label": "wages owed",
+              "amount": 8000,
+              "why": "The obligation to the workers.",
+              "trap": "Labor cost is a payable when incurred \u2014 cash comes at payday."
+            }
+          ]
+        },
+        {
+          "label": "3 \u2014 Apply overhead: 800 DLH \u00d7 $8",
+          "lines": [
+            {
+              "account": "Work in Process Inventory",
+              "side": "debit",
+              "label": "applied OH",
+              "amount": 6400,
+              "why": "Overhead can't be traced, so it rides into WIP on the predetermined rate.",
+              "trap": "APPLIED overhead, not actual. Actual overhead collects on the other side of the Factory Overhead account."
+            },
+            {
+              "account": "Factory Overhead",
+              "side": "credit",
+              "label": "applied out",
+              "amount": 6400,
+              "why": "The credit side of Factory Overhead tracks what's been applied to jobs.",
+              "trap": "Debits to this account are ACTUAL costs; credits are APPLIED \u2014 the gap at year-end is over/underapplied."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "WIP collects exactly three things: direct materials, direct labor, applied overhead. Everything indirect detours through Factory Overhead."
+    },
+    {
+      "kind": "watchout",
+      "body": "Factory Overhead is a clearing account: actual in (debits), applied out (credits). It should never appear on the balance sheet."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "DM $10,000, DL $8,000, applied OH $6,400. Total charged to WIP in March = ?",
+      "answerExpr": "24400",
+      "distractors": [
+        {
+          "expr": "18000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You left out applied overhead. WIP carries all THREE product costs \u2014 overhead rides in on the predetermined rate."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": true,
+  "build": {
+    "accountBank": [
+      "Work in Process Inventory",
+      "Raw Materials Inventory",
+      "Factory Wages Payable",
+      "Factory Overhead",
+      "Finished Goods Inventory",
+      "Cost of Goods Sold"
+    ],
+    "scaffold": "Three debits to WIP: materials, labor, applied OH. The credits name where each came from."
+  }
+}

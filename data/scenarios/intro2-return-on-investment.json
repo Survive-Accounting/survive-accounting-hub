@@ -1,0 +1,77 @@
+{
+  "slug": "intro2-return-on-investment",
+  "title": "Return on Investment",
+  "event": "Reyes Co.'s East Division earned income of $45,000 on average invested assets of $300,000, with sales of $360,000. Compute ROI, profit margin, and investment turnover.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 22,
+    "name": "Performance Measures"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "ROI decomposes into two levers: how much of each sales dollar survives (margin) and how hard each asset dollar works (turnover).",
+          "steps": [
+            {
+              "label": "ROI",
+              "formulaText": "45,000 \u00f7 300,000",
+              "value": 15
+            },
+            {
+              "label": "Profit margin",
+              "formulaText": "45,000 \u00f7 360,000",
+              "value": 12.5
+            },
+            {
+              "label": "Investment turnover",
+              "formulaText": "360,000 \u00f7 300,000",
+              "value": 1.2
+            },
+            {
+              "label": "Check",
+              "formulaText": "12.5% \u00d7 1.2",
+              "value": 15
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "ROI = income \u00f7 average invested assets = profit margin \u00d7 investment turnover."
+    },
+    {
+      "kind": "tip",
+      "body": "Two divisions can hit the same ROI by opposite routes \u2014 high margin/low turnover (jewelry) vs low margin/high turnover (groceries)."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Income $45,000, average invested assets $300,000. ROI = ? (%)",
+      "answerExpr": "15",
+      "distractors": [
+        {
+          "expr": "12.5",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "That's profit MARGIN (income \u00f7 sales). ROI divides by invested ASSETS: 15%."
+        },
+        {
+          "expr": "120",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's investment turnover in percent terms. ROI is income over assets: 15%."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

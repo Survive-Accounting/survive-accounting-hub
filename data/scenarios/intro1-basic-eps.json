@@ -1,0 +1,67 @@
+{
+  "slug": "intro1-basic-eps",
+  "title": "Basic Earnings Per Share",
+  "event": "Reyes Co. reports net income of $84,000, declares $4,000 of preferred dividends, and has 40,000 weighted-average common shares outstanding. Compute basic earnings per share.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 11,
+    "name": "Equity"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "EPS belongs to the COMMON shareholder \u2014 so the preferred claim comes off the top before dividing.",
+          "steps": [
+            {
+              "label": "Income available to common",
+              "formulaText": "84,000 \u2212 4,000",
+              "value": 80000
+            },
+            {
+              "label": "Basic EPS",
+              "formulaText": "80,000 \u00f7 40,000 shares",
+              "value": 2.0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Basic EPS = (Net income \u2212 preferred dividends) \u00f7 weighted-average common shares outstanding."
+    },
+    {
+      "kind": "tip",
+      "body": "Weighted-average shares, not year-end shares \u2014 mid-year issuances count only for the months they existed."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "NI $84,000, preferred dividends $4,000, weighted-average shares 40,000. Basic EPS = ?",
+      "answerExpr": "2.0",
+      "distractors": [
+        {
+          "expr": "2.1",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You skipped the preferred dividends. EPS measures the COMMON shareholders' slice: (84,000 \u2212 4,000) \u00f7 40,000."
+        },
+        {
+          "expr": "2.2",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You ADDED the preferred dividends. They're a claim ahead of common \u2014 subtract: 80,000 \u00f7 40,000 = 2.00."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

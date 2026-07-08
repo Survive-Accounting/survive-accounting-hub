@@ -1,0 +1,72 @@
+{
+  "slug": "intro1-gross-profit-method",
+  "title": "Estimating Inventory: Gross Profit Method",
+  "event": "A flood destroys Ortiz Co.'s warehouse. Records show beginning inventory of $50,000, purchases of $110,000, and net sales of $150,000. The company's gross profit ratio is 30%. Compute the estimated ending inventory destroyed.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 5,
+    "name": "FIFO/LIFO"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Work the COGS equation backwards: estimate COGS from the sales and the GP ratio, then subtract from goods available.",
+          "steps": [
+            {
+              "label": "Goods available",
+              "formulaText": "50,000 + 110,000",
+              "value": 160000
+            },
+            {
+              "label": "Estimated COGS",
+              "formulaText": "150,000 \u00d7 (1 \u2212 30%)",
+              "value": 105000
+            },
+            {
+              "label": "Estimated ending inventory",
+              "formulaText": "160,000 \u2212 105,000",
+              "value": 55000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Estimated COGS = Net sales \u00d7 (1 \u2212 GP ratio). Estimated EI = Goods available \u2212 Estimated COGS."
+    },
+    {
+      "kind": "tip",
+      "body": "The GP ratio is a percentage of SALES \u2014 so the cost side of sales is (1 \u2212 ratio), not the ratio itself."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "GAFS $160,000, net sales $150,000, GP ratio 30%. Estimated ending inventory = ?",
+      "answerExpr": "55000",
+      "distractors": [
+        {
+          "expr": "45000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the estimated GROSS PROFIT (150,000 \u00d7 30%). COGS is the other 70%: 105,000, leaving 55,000 of inventory."
+        },
+        {
+          "expr": "10000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You subtracted full sales from goods available \u2014 sales are at RETAIL. Convert to cost first: 150,000 \u00d7 70% = 105,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

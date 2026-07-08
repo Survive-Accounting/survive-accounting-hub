@@ -1,0 +1,62 @@
+{
+  "slug": "intro1-accounting-equation",
+  "title": "The Accounting Equation",
+  "event": "Reyes Co. reports total assets of $250,000 and total liabilities of $90,000. Compute total equity.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 1,
+    "name": "Accounting in Business"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "The equation never breaks: Assets = Liabilities + Equity. Solve for whichever piece is missing.",
+          "steps": [
+            {
+              "label": "Equity",
+              "formulaText": "250,000 \u2212 90,000",
+              "value": 160000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Assets = Liabilities + Equity \u2014 every transaction keeps this balanced."
+    },
+    {
+      "kind": "tip",
+      "body": "Two of the three are always given. Rearrange: Equity = Assets \u2212 Liabilities; Liabilities = Assets \u2212 Equity."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Assets $250,000, liabilities $90,000. Equity = ?",
+      "answerExpr": "160000",
+      "distractors": [
+        {
+          "expr": "340000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You added instead of subtracting. Equity is what's LEFT of assets after creditors' claims: 250,000 \u2212 90,000."
+        },
+        {
+          "expr": "90000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the liabilities. Equity is the residual: assets minus liabilities = 160,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

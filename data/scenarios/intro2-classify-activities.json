@@ -1,0 +1,77 @@
+{
+  "slug": "intro2-classify-activities",
+  "title": "Classifying Cash Flows: O / I / F",
+  "event": "During the year, Reyes Co. issued common stock for $50,000, purchased equipment for $30,000, paid dividends of $10,000, and collected $90,000 from customers. Compute net cash from financing activities and classify each item.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 12,
+    "name": "Cash Flow Statements"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Operating = day-to-day earnings engine. Investing = long-term assets. Financing = deals with owners and lenders.",
+          "steps": [
+            {
+              "label": "Stock issuance \u2192 Financing",
+              "formulaText": "+50,000",
+              "value": 50000
+            },
+            {
+              "label": "Dividends paid \u2192 Financing",
+              "formulaText": "\u221210,000",
+              "value": 40000
+            },
+            {
+              "label": "Equipment \u2192 Investing (not financing)",
+              "formulaText": "\u221230,000 lives elsewhere",
+              "value": 40000
+            },
+            {
+              "label": "Customer collections \u2192 Operating",
+              "formulaText": "90,000 lives elsewhere",
+              "value": 40000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Financing = who FUNDS you (stock, dividends, borrowings, repayments). Investing = what you BUY to operate long-term. Operating = everything the income statement is made of."
+    },
+    {
+      "kind": "tip",
+      "body": "Dividends PAID are financing; interest paid is operating under GAAP \u2014 a favorite exam distinction."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Stock issued $50,000, equipment bought $30,000, dividends paid $10,000. Net FINANCING cash flow = ?",
+      "answerExpr": "40000",
+      "distractors": [
+        {
+          "expr": "60000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Dividends are an OUTFLOW of financing: 50,000 \u2212 10,000 = 40,000."
+        },
+        {
+          "expr": "10000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "You pulled the equipment purchase into financing. Buying long-term assets is INVESTING: financing is 50,000 \u2212 10,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

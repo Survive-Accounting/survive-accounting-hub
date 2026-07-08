@@ -1,0 +1,82 @@
+{
+  "slug": "ia1-impairment",
+  "title": "Impairment \u2014 Two-Step Test",
+  "event": "Hollis Co.'s equipment has a carrying value of $600,000. Expected future undiscounted net cash flows are $580,000, and the equipment's fair value is $520,000. Prepare the required entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 10,
+    "name": "Depreciation, Impairments, and Depletion"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Test with undiscounted CF, measure with FV: loss 80,000",
+          "lines": [
+            {
+              "account": "Loss on Impairment",
+              "side": "debit",
+              "label": "600,000 CV \u2212 520,000 FV",
+              "amount": 80000,
+              "why": "Step 1 (recoverability): undiscounted 580,000 < carrying 600,000 \u2192 impaired. Step 2 (measurement): write down to FAIR VALUE.",
+              "trap": "Two different yardsticks on purpose \u2014 test with undiscounted cash flows, MEASURE with fair value. Mixing them (a 20,000 loss) is the planted exam error."
+            },
+            {
+              "account": "Accumulated Depreciation\u2014Equipment",
+              "side": "credit",
+              "label": "carrying value reduced",
+              "amount": 80000,
+              "why": "The write-down runs through the contra-asset; carrying value becomes 520,000.",
+              "trap": "The 520,000 is the new depreciable base going forward \u2014 and held-for-use impairments are NEVER restored."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Step 1: impaired if undiscounted future cash flows < carrying value. Step 2: loss = carrying value \u2212 FAIR value."
+    },
+    {
+      "kind": "watchout",
+      "body": "If undiscounted flows had been 620,000, NO loss \u2014 even with FV at 520,000. Failing step 1 ends the analysis."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "CV $600,000, undiscounted CF $580,000, FV $520,000. Impairment loss = ?",
+      "answerExpr": "80000",
+      "distractors": [
+        {
+          "expr": "20000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "You measured against the undiscounted 580,000. That figure only TESTS; the loss measures against FAIR VALUE: 600,000 \u2212 520,000 = 80,000."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Step 1 fails recoverability (580 < 600), so a loss IS required \u2014 measured to fair value: 80,000."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Loss on Impairment",
+      "Accumulated Depreciation\u2014Equipment",
+      "Equipment",
+      "Fair Value Adjustment"
+    ],
+    "scaffold": "Two steps, two yardsticks: undiscounted flows decide IF, fair value decides HOW MUCH."
+  }
+}

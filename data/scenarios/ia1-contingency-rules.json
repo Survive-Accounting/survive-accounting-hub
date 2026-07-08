@@ -1,0 +1,72 @@
+{
+  "slug": "ia1-contingency-rules",
+  "title": "Loss Contingencies \u2014 Accrue, Disclose, or Ignore",
+  "event": "Hollis Co. faces a lawsuit its attorneys call PROBABLE to lose, with damages reasonably estimated between $500,000 and $700,000 and no best estimate within the range. Compute the amount accrued under U.S. GAAP.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 12,
+    "name": "Current Liabilities"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "GAAP's grid: probable + estimable \u2192 accrue; reasonably possible \u2192 disclose; remote \u2192 nothing. Within a range with no better point, GAAP accrues the MINIMUM and discloses the rest.",
+          "steps": [
+            {
+              "label": "Accrued",
+              "formulaText": "minimum of the range",
+              "value": 500000
+            },
+            {
+              "label": "Disclosed",
+              "formulaText": "exposure up to 700,000",
+              "value": 700000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Probable + estimable = ACCRUE. Reasonably possible = DISCLOSE. Remote = SILENCE. Range with no best point: GAAP takes the minimum (IFRS takes the midpoint)."
+    },
+    {
+      "kind": "watchout",
+      "body": "GAIN contingencies are never accrued \u2014 conservatism runs one direction. Disclose cautiously at most."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Probable loss, range $500,000\u2013$700,000, no best estimate. GAAP accrual = ?",
+      "answerExpr": "500000",
+      "distractors": [
+        {
+          "expr": "600000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "The midpoint is the IFRS answer. U.S. GAAP accrues the MINIMUM of the range: 500,000."
+        },
+        {
+          "expr": "700000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "The maximum is disclosed, not accrued. GAAP books the low end: 500,000."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Probable AND estimable means accrual is REQUIRED \u2014 disclosure alone is the reasonably-possible treatment."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

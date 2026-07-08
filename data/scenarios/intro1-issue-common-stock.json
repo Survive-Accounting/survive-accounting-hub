@@ -1,0 +1,90 @@
+{
+  "slug": "intro1-issue-common-stock",
+  "title": "Issuing Common Stock Above Par",
+  "event": "Reyes Co. issues 10,000 shares of $1 par common stock for $15 per share cash. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 11,
+    "name": "Equity"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "150,000 in; par and premium split the credit",
+          "lines": [
+            {
+              "account": "Cash",
+              "side": "debit",
+              "label": "10,000 \u00d7 $15",
+              "amount": 150000,
+              "why": "Full issue proceeds.",
+              "trap": "Market price drives the cash \u2014 par is a legal label, not a price."
+            },
+            {
+              "account": "Common Stock",
+              "side": "credit",
+              "label": "10,000 \u00d7 $1 par",
+              "amount": 10000,
+              "why": "The stock account holds ONLY par value.",
+              "trap": "Crediting the full 150,000 here is the classic error \u2014 par caps this line."
+            },
+            {
+              "account": "Paid-In Capital in Excess of Par",
+              "side": "credit",
+              "label": "10,000 \u00d7 $14",
+              "amount": 140000,
+              "why": "Everything above par lands in additional paid-in capital.",
+              "trap": "Both credits are contributed capital \u2014 neither is revenue, ever."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Common Stock = shares \u00d7 par. PIC in Excess = shares \u00d7 (issue price \u2212 par)."
+    },
+    {
+      "kind": "tip",
+      "body": "Issuing stock is never revenue and never a gain \u2014 a company cannot profit from dealing in its own shares."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "10,000 shares, $1 par, issued at $15. Amount credited to COMMON STOCK = ?",
+      "answerExpr": "10000",
+      "distractors": [
+        {
+          "expr": "150000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's total proceeds. The Common Stock account takes only PAR (10,000); the rest is PIC in excess."
+        },
+        {
+          "expr": "140000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You swapped the lines \u2014 140,000 is the EXCESS over par; Common Stock gets the 10,000 par."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cash",
+      "Common Stock",
+      "Paid-In Capital in Excess of Par",
+      "Gain on Stock Issuance"
+    ],
+    "scaffold": "Cash at market, Common Stock at par, PIC catches the difference. The decoy account should never tempt you."
+  }
+}

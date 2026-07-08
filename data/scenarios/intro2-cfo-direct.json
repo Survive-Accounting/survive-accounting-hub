@@ -1,0 +1,72 @@
+{
+  "slug": "intro2-cfo-direct",
+  "title": "Operating Cash Flows \u2014 Direct Method",
+  "event": "Ortiz Co. reports sales of $300,000 and cost of goods sold of $180,000. During the year accounts receivable increased $12,000, inventory increased $6,000, and accounts payable increased $9,000. Compute cash received from customers and cash paid to suppliers (direct method).",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 12,
+    "name": "Cash Flow Statements"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Direct method converts each income-statement line to its cash twin. Receivable growth means some sales weren't collected; payable growth means some purchases weren't paid.",
+          "steps": [
+            {
+              "label": "Cash from customers",
+              "formulaText": "300,000 \u2212 12,000 AR increase",
+              "value": 288000
+            },
+            {
+              "label": "Purchases",
+              "formulaText": "180,000 COGS + 6,000 inventory increase",
+              "value": 186000
+            },
+            {
+              "label": "Cash paid to suppliers",
+              "formulaText": "186,000 \u2212 9,000 AP increase",
+              "value": 177000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Cash from customers = Sales \u2212 AR increase (+ AR decrease). Cash to suppliers = COGS + Inventory increase \u2212 AP increase."
+    },
+    {
+      "kind": "tip",
+      "body": "Two hops for suppliers: COGS \u2192 purchases (inventory change), purchases \u2192 cash (payable change). Skipping a hop is the standard error."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Sales $300,000, AR increased $12,000. Cash received from customers = ?",
+      "answerExpr": "288000",
+      "distractors": [
+        {
+          "expr": "312000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You added the AR increase. Growing receivables mean sales OUTRAN collections: 300,000 \u2212 12,000."
+        },
+        {
+          "expr": "300000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "That's accrual sales. The direct method wants CASH collected \u2014 adjust for the receivable change."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

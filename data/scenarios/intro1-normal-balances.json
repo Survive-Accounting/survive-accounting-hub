@@ -1,0 +1,71 @@
+{
+  "slug": "intro1-normal-balances",
+  "title": "Debits, Credits & Normal Balances",
+  "event": "Reyes Co.'s Cash T-account shows total debits of $9,000 and total credits of $6,500. Determine the ending balance and its side.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 2,
+    "name": "Journalizing Transactions"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Assets, Expenses, Dividends grow with DEBITS. Liabilities, Equity, Revenues grow with CREDITS. Cash is an asset \u2014 its balance sits on the debit side.",
+          "steps": [
+            {
+              "label": "Balance",
+              "formulaText": "9,000 debits \u2212 6,500 credits",
+              "value": 2500
+            },
+            {
+              "label": "Side",
+              "formulaText": "Asset \u2192 debit balance",
+              "value": 2500
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "DEAD CLIC: Debits increase Expenses, Assets, Dividends \u00b7 Credits increase Liabilities, Income (revenue), Capital (equity)."
+    },
+    {
+      "kind": "tip",
+      "body": "'Normal balance' = the side that increases the account, and where its balance almost always lands."
+    },
+    {
+      "kind": "watchout",
+      "body": "Debit \u2260 bad, credit \u2260 good. They're just left and right. Revenue is a credit and it's the best news on the page."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Cash T-account: debits $9,000, credits $6,500. Ending balance = ?",
+      "answerExpr": "2500",
+      "distractors": [
+        {
+          "expr": "15500",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "You added both sides. Debits and credits OFFSET within an account: 9,000 \u2212 6,500 = 2,500 debit balance."
+        },
+        {
+          "expr": "6500",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's just the credit total. Net the two sides against each other."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

@@ -1,0 +1,82 @@
+{
+  "slug": "ia1-patent-amortization",
+  "title": "Patent Amortization",
+  "event": "Hollis Co. purchases a patent for $480,000. Its remaining legal life is 20 years, but Hollis expects the technology to be useful for only 8 years. Prepare the annual amortization entry.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 11,
+    "name": "Intangible Assets"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "480,000 over the SHORTER life: 8 years",
+          "lines": [
+            {
+              "account": "Amortization Expense",
+              "side": "debit",
+              "label": "480,000 \u00f7 8",
+              "amount": 60000,
+              "why": "Amortize over the SHORTER of legal life and useful life \u2014 the economics beat the paperwork.",
+              "trap": "20-year legal life is the distractor: usefulness runs out first, so 8 years governs."
+            },
+            {
+              "account": "Patents",
+              "side": "credit",
+              "label": "asset reduced directly",
+              "amount": 60000,
+              "why": "Intangibles are typically credited directly, no accumulated account.",
+              "trap": "A successful legal DEFENSE cost is capitalized into the patent; an unsuccessful one is expensed \u2014 and may signal impairment."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Amortization = cost \u00f7 shorter of legal life or useful life. Straight-line, usually no salvage."
+    },
+    {
+      "kind": "tip",
+      "body": "Limited-life intangibles amortize; INDEFINITE-life intangibles (goodwill, most trademarks) don't \u2014 they get impairment tests instead."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Patent $480,000, legal life 20 years, useful life 8 years. Annual amortization = ?",
+      "answerExpr": "60000",
+      "distractors": [
+        {
+          "expr": "24000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You used the 20-year LEGAL life. Useful life is shorter and governs: 480,000 \u00f7 8 = 60,000."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "No-amortization is the INDEFINITE-life treatment (goodwill). Patents have limited lives \u2014 amortize over 8 years."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Amortization Expense",
+      "Patents",
+      "Accumulated Amortization",
+      "Research and Development Expense"
+    ],
+    "scaffold": "Shorter life wins. Debit the expense, credit the patent directly."
+  }
+}

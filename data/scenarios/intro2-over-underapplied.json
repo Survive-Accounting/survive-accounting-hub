@@ -1,0 +1,127 @@
+{
+  "slug": "intro2-over-underapplied",
+  "title": "Closing Over/Underapplied Overhead",
+  "event": "At year-end, Reyes Co.'s Factory Overhead account shows actual overhead and applied overhead that differ by $7,000. Prepare the entry to close the difference to Cost of Goods Sold.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 15,
+    "name": "Job Order Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [
+    {
+      "key": "direction",
+      "label": "Overhead was",
+      "options": [
+        {
+          "value": "under",
+          "label": "Underapplied (actual $205,000 > applied $198,000)"
+        },
+        {
+          "value": "over",
+          "label": "Overapplied (applied $205,000 > actual $198,000)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "direction": "under"
+      },
+      "entries": [
+        {
+          "label": "Applied too little \u2014 jobs were undercosted",
+          "lines": [
+            {
+              "account": "Cost of Goods Sold",
+              "side": "debit",
+              "label": "catch-up",
+              "amount": 7000,
+              "why": "Jobs absorbed 7,000 less than reality \u2014 COGS takes the catch-up charge.",
+              "trap": "Underapplied INCREASES COGS. The word 'under' describes the applying, not the fix."
+            },
+            {
+              "account": "Factory Overhead",
+              "side": "credit",
+              "label": "account zeroed",
+              "amount": 7000,
+              "why": "Clears the debit balance left in the clearing account.",
+              "trap": "After closing, Factory Overhead is exactly zero \u2014 it never survives to the statements."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "direction": "over"
+      },
+      "entries": [
+        {
+          "label": "Applied too much \u2014 jobs were overcosted",
+          "lines": [
+            {
+              "account": "Factory Overhead",
+              "side": "debit",
+              "label": "account zeroed",
+              "amount": 7000,
+              "why": "Clears the credit balance \u2014 more was applied than actually incurred.",
+              "trap": "A credit balance in the clearing account means OVERapplied."
+            },
+            {
+              "account": "Cost of Goods Sold",
+              "side": "credit",
+              "label": "give-back",
+              "amount": 7000,
+              "why": "Jobs carried 7,000 of overhead that never happened \u2014 COGS gets the refund.",
+              "trap": "Overapplied DECREASES COGS. Direction errors here flip net income by double the amount."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "Underapplied \u2192 COGS Up. Overapplied \u2192 COGS dOwn."
+    },
+    {
+      "kind": "tip",
+      "body": "Balance check: whichever side of Factory Overhead is bigger tells you the direction \u2014 leftover debits = underapplied."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Actual overhead $205,000, applied $198,000. Effect of the closing entry on COGS = ?",
+      "answerExpr": "7000",
+      "distractors": [
+        {
+          "expr": "-7000",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "Direction flipped. Actual exceeded applied, so jobs were UNDERcosted \u2014 COGS must go UP 7,000."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "The clearing account can't keep a balance \u2014 the 7,000 gap must close to COGS (or be prorated)."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cost of Goods Sold",
+      "Factory Overhead",
+      "Work in Process Inventory",
+      "Cash"
+    ],
+    "scaffold": "Find which side of Factory Overhead is heavier, zero it, and send the difference to COGS."
+  }
+}

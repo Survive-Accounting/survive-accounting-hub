@@ -1,0 +1,67 @@
+{
+  "slug": "intro2-equivalent-units-wa",
+  "title": "Equivalent Units \u2014 Weighted Average",
+  "event": "Reyes Co.'s Mixing Department completed and transferred 40,000 units in June. Ending work in process is 10,000 units, 100% complete for materials and 40% complete for conversion. Compute equivalent units for materials and conversion (weighted average).",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 16,
+    "name": "Process Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Equivalent units translate partially finished physical units into whole-unit terms \u2014 separately for materials and conversion, because they enter production at different times.",
+          "steps": [
+            {
+              "label": "EU \u2014 materials",
+              "formulaText": "40,000 + 10,000 \u00d7 100%",
+              "value": 50000
+            },
+            {
+              "label": "EU \u2014 conversion",
+              "formulaText": "40,000 + 10,000 \u00d7 40%",
+              "value": 44000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "WA equivalent units = units completed + (ending WIP \u00d7 % complete). Compute materials and conversion SEPARATELY."
+    },
+    {
+      "kind": "tip",
+      "body": "Materials often enter at the start (100% in ending WIP) while conversion accrues gradually \u2014 that's why the two EU figures differ."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Completed 40,000; ending WIP 10,000 at 40% conversion. Equivalent units for CONVERSION = ?",
+      "answerExpr": "44000",
+      "distractors": [
+        {
+          "expr": "50000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the MATERIALS figure. Conversion is only 40% done in ending WIP: 40,000 + 4,000 = 44,000."
+        },
+        {
+          "expr": "40000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You ignored ending WIP entirely \u2014 its 40%-done units represent 4,000 equivalent units of work performed."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

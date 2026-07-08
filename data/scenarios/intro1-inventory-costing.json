@@ -1,0 +1,156 @@
+{
+  "slug": "intro1-inventory-costing",
+  "title": "Inventory Costing: FIFO vs LIFO vs Weighted Average",
+  "event": "Reyes Co. has beginning inventory of 10 units @ $10, then purchases 20 units @ $12 and 10 units @ $14 (goods available: 40 units, $480). It sells 25 units. Compute cost of goods sold and ending inventory under the assumed method (periodic).",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 5,
+    "name": "FIFO/LIFO"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [
+    {
+      "key": "method",
+      "label": "Costing method",
+      "options": [
+        {
+          "value": "fifo",
+          "label": "FIFO (oldest costs out first)"
+        },
+        {
+          "value": "lifo",
+          "label": "LIFO (newest costs out first)"
+        },
+        {
+          "value": "wavg",
+          "label": "Weighted average"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "method": "fifo"
+      },
+      "computationPaths": [
+        {
+          "narration": "FIFO sells the OLDEST layers first \u2014 so ending inventory holds the newest costs. With rising prices: lowest COGS, highest income.",
+          "steps": [
+            {
+              "label": "COGS (oldest 25)",
+              "formulaText": "10 @ $10 + 15 @ $12",
+              "value": 280
+            },
+            {
+              "label": "Ending inventory (newest 15)",
+              "formulaText": "5 @ $12 + 10 @ $14",
+              "value": 200
+            },
+            {
+              "label": "Check",
+              "formulaText": "280 + 200 = 480 goods available",
+              "value": 480
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "lifo"
+      },
+      "computationPaths": [
+        {
+          "narration": "LIFO sells the NEWEST layers first \u2014 ending inventory keeps the oldest costs. With rising prices: highest COGS, lowest income (and lowest taxes).",
+          "steps": [
+            {
+              "label": "COGS (newest 25)",
+              "formulaText": "10 @ $14 + 15 @ $12",
+              "value": 320
+            },
+            {
+              "label": "Ending inventory (oldest 15)",
+              "formulaText": "10 @ $10 + 5 @ $12",
+              "value": 160
+            },
+            {
+              "label": "Check",
+              "formulaText": "320 + 160 = 480 goods available",
+              "value": 480
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "wavg"
+      },
+      "computationPaths": [
+        {
+          "narration": "Weighted average blends every unit into one cost, then applies it to both sold and unsold units.",
+          "steps": [
+            {
+              "label": "Average cost per unit",
+              "formulaText": "480 \u00f7 40 units",
+              "value": 12
+            },
+            {
+              "label": "COGS",
+              "formulaText": "25 \u00d7 $12",
+              "value": 300
+            },
+            {
+              "label": "Ending inventory",
+              "formulaText": "15 \u00d7 $12",
+              "value": 180
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "mnemonic",
+      "body": "FIFO = First-In, First-Out \u2192 OLD costs to COGS, NEW costs stay in inventory. LIFO flips it."
+    },
+    {
+      "kind": "tip",
+      "body": "COGS + Ending inventory ALWAYS = goods available. Check every answer against it \u2014 here, everything sums to $480."
+    },
+    {
+      "kind": "watchout",
+      "body": "Rising prices: FIFO \u2192 lower COGS, higher income. LIFO \u2192 higher COGS, lower income, lower taxes. Exams test the DIRECTION as much as the math."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the data above, FIFO cost of goods sold = ?",
+      "answerExpr": "280",
+      "distractors": [
+        {
+          "expr": "320",
+          "misconceptionId": "premium_discount_direction_flip",
+          "feedback": "That's LIFO \u2014 you sold the newest layers first. FIFO sends the OLDEST costs to COGS: 10 @ $10 + 15 @ $12 = 280."
+        },
+        {
+          "expr": "300",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "That's weighted average (25 \u00d7 $12). FIFO uses actual layers, oldest first."
+        },
+        {
+          "expr": "200",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's FIFO's ENDING INVENTORY. The question asked for COGS \u2014 the other half of the $480."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": true,
+  "isSequence": false
+}

@@ -1,0 +1,106 @@
+{
+  "slug": "intro2-unit-cost-two-methods",
+  "title": "Unit Cost: Absorption vs Variable Costing",
+  "event": "Reyes Co.'s product costs per unit: direct materials $6, direct labor $4, variable overhead $2. Fixed overhead is $60,000 for 10,000 units produced. Compute the unit product cost under the assumed method.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 19,
+    "name": "Variable Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [
+    {
+      "key": "method",
+      "label": "Costing method",
+      "options": [
+        {
+          "value": "absorption",
+          "label": "Absorption (GAAP)"
+        },
+        {
+          "value": "variable",
+          "label": "Variable (internal)"
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "conditions": {
+        "method": "absorption"
+      },
+      "computationPaths": [
+        {
+          "narration": "Absorption costing treats fixed overhead as a product cost \u2014 every unit carries its $6 share.",
+          "steps": [
+            {
+              "label": "Fixed OH per unit",
+              "formulaText": "60,000 \u00f7 10,000",
+              "value": 6
+            },
+            {
+              "label": "Absorption unit cost",
+              "formulaText": "6 + 4 + 2 + 6",
+              "value": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "conditions": {
+        "method": "variable"
+      },
+      "computationPaths": [
+        {
+          "narration": "Variable costing sends fixed overhead straight to the period \u2014 units carry only what varies with production.",
+          "steps": [
+            {
+              "label": "Variable unit cost",
+              "formulaText": "6 + 4 + 2",
+              "value": 12
+            },
+            {
+              "label": "Fixed OH",
+              "formulaText": "60,000 expensed as a lump \u2014 none attaches to units",
+              "value": 60000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Absorption unit cost = DM + DL + VOH + (fixed OH \u00f7 units PRODUCED). Variable unit cost = DM + DL + VOH only."
+    },
+    {
+      "kind": "watchout",
+      "body": "The entire dispute is one item: fixed overhead. Product cost (absorption) vs period cost (variable)."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "DM $6, DL $4, VOH $2, fixed OH $60,000 \u00f7 10,000 units. ABSORPTION unit cost = ?",
+      "answerExpr": "18",
+      "distractors": [
+        {
+          "expr": "12",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's VARIABLE costing. Absorption adds the $6 fixed-OH share: 18."
+        },
+        {
+          "expr": "24",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "You doubled the fixed OH or added selling costs. Product cost stops at DM + DL + VOH + fixed OH: 18."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

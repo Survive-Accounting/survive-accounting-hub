@@ -1,0 +1,82 @@
+{
+  "slug": "intro1-adjust-supplies",
+  "title": "Adjusting: Supplies Used",
+  "event": "Reyes Co. purchased $2,500 of supplies during the year (debited to Supplies). A year-end count shows $900 of supplies still on hand. Prepare the adjusting entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 3,
+    "name": "Adjusting Entries"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Used = available \u2212 on hand",
+          "lines": [
+            {
+              "account": "Supplies Expense",
+              "side": "debit",
+              "label": "2,500 \u2212 900",
+              "amount": 1600,
+              "why": "What's GONE is the expense.",
+              "trap": "The count gives you what's LEFT \u2014 you must back into what was used. Students credit the 900 constantly."
+            },
+            {
+              "account": "Supplies",
+              "side": "credit",
+              "label": "down to counted balance",
+              "amount": 1600,
+              "why": "Brings the asset down to the $900 the count actually found.",
+              "trap": "Adjust BY the used amount so the balance lands AT the counted amount \u2014 two different numbers."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Supplies used = available \u2212 ending count. Adjust BY the used amount, TO the counted amount."
+    },
+    {
+      "kind": "tip",
+      "body": "Same pattern as prepaid insurance \u2014 the count replaces the calendar as the measuring stick."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Supplies available $2,500, count shows $900 on hand. Supplies expense = ?",
+      "answerExpr": "1600",
+      "distractors": [
+        {
+          "expr": "900",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the ending balance, not the expense. The expense is what disappeared: 2,500 \u2212 900 = 1,600."
+        },
+        {
+          "expr": "2500",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You expensed everything bought. $900 is still sitting on the shelf as an asset."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Supplies Expense",
+      "Supplies",
+      "Cash",
+      "Accounts Payable"
+    ],
+    "scaffold": "Available minus counted = used. The entry amount is the USED figure."
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "slug": "intro2-abc-allocation",
+  "title": "ABC Allocation \u2014 Two Activity Pools",
+  "event": "Ortiz Co. uses ABC with two pools: setups ($120,000 budgeted, 300 setups) and machining ($240,000 budgeted, 12,000 machine hours). Product A requires 40 setups and 1,500 machine hours. Compute the overhead allocated to Product A.",
+  "chapter": {
+    "courseFamily": "intro_2",
+    "courseSlug": "intro-accounting-2",
+    "number": 17,
+    "name": "Activity Based Costing"
+  },
+  "courseFamilies": [
+    "intro_2"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Each activity gets its own rate driven by its own cause \u2014 then products pay for exactly the activities they consume.",
+          "steps": [
+            {
+              "label": "Setup rate",
+              "formulaText": "120,000 \u00f7 300",
+              "value": 400
+            },
+            {
+              "label": "Machining rate",
+              "formulaText": "240,000 \u00f7 12,000",
+              "value": 20
+            },
+            {
+              "label": "Setups to A",
+              "formulaText": "40 \u00d7 $400",
+              "value": 16000
+            },
+            {
+              "label": "Machining to A",
+              "formulaText": "1,500 \u00d7 $20",
+              "value": 30000
+            },
+            {
+              "label": "Total ABC overhead to A",
+              "formulaText": "16,000 + 30,000",
+              "value": 46000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Per pool: rate = pool cost \u00f7 pool driver. Product's OH = \u03a3 (rate \u00d7 product's usage of each driver)."
+    },
+    {
+      "kind": "tip",
+      "body": "Low-volume products that demand many setups get hammered under ABC \u2014 that's the method revealing cost reality, not a math error."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Using the pool rates above, total overhead allocated to Product A = ?",
+      "answerExpr": "46000",
+      "distractors": [
+        {
+          "expr": "30000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Machining only \u2014 Product A also consumed 40 setups at $400 each. Every pool allocates."
+        },
+        {
+          "expr": "16000",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "Setups only. Add the machining pool: 1,500 MH \u00d7 $20 = 30,000 more."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

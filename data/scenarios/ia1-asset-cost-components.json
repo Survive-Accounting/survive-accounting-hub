@@ -1,0 +1,67 @@
+{
+  "slug": "ia1-asset-cost-components",
+  "title": "What Goes Into an Asset's Cost",
+  "event": "Hollis Co. buys a machine: invoice price $80,000, freight-in $2,000, installation $3,000, and test runs $1,500. During unloading, a worker damaged a panel costing $1,200 to repair. Compute the machine's capitalized cost.",
+  "chapter": {
+    "courseFamily": "intermediate_1",
+    "courseSlug": "intermediate-accounting-1",
+    "number": 9,
+    "name": "Property, Plant, and Equipment"
+  },
+  "courseFamilies": [
+    "intermediate_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "computationPaths": [
+        {
+          "narration": "Capitalize every cost NECESSARY to get the asset to its location and condition for use. Accidents aren't necessary \u2014 they're expenses.",
+          "steps": [
+            {
+              "label": "Capitalized cost",
+              "formulaText": "80,000 + 2,000 + 3,000 + 1,500",
+              "value": 86500
+            },
+            {
+              "label": "Damage repair",
+              "formulaText": "expensed \u2014 avoidable, not necessary",
+              "value": 1200
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Asset cost = purchase price + all costs necessary to bring it to intended location and condition (freight, installation, testing, nonrefundable taxes)."
+    },
+    {
+      "kind": "watchout",
+      "body": "The necessity test kills the tempting items: repair of damage, training costs, and insurance AFTER the in-service date are all expenses."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Invoice $80,000, freight $2,000, installation $3,000, testing $1,500, accident repair $1,200. Capitalized cost = ?",
+      "answerExpr": "86500",
+      "distractors": [
+        {
+          "expr": "87700",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "You capitalized the accident repair. Damage isn't NECESSARY to ready the asset \u2014 it's an expense: 86,500."
+        },
+        {
+          "expr": "80000",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "Invoice price alone. Freight, installation, and testing are all part of getting the machine ready: 86,500."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false
+}

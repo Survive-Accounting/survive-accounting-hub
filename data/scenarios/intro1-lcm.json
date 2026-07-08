@@ -1,0 +1,82 @@
+{
+  "slug": "intro1-lcm",
+  "title": "Lower of Cost or Market (NRV)",
+  "event": "At year-end, Reyes Co.'s inventory has a cost of $5,000 but a net realizable value of $4,600. Prepare the required entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 5,
+    "name": "FIFO/LIFO"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Write down to the lower figure",
+          "lines": [
+            {
+              "account": "Cost of Goods Sold",
+              "side": "debit",
+              "label": "5,000 \u2212 4,600",
+              "amount": 400,
+              "why": "The $400 decline in value is recognized NOW, in the period the value dropped.",
+              "trap": "Conservatism runs one way: write DOWN to market, never UP above cost."
+            },
+            {
+              "account": "Merchandise Inventory",
+              "side": "credit",
+              "label": "carried at NRV",
+              "amount": 400,
+              "why": "Inventory now carries at $4,600 \u2014 the lower of the two.",
+              "trap": "Credit only the DECLINE, not the whole inventory balance."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "tip",
+      "body": "Compare cost to NRV and report the LOWER. Losses are recognized when value drops; gains wait until the goods actually sell."
+    },
+    {
+      "kind": "watchout",
+      "body": "If NRV had been $5,300, the entry is NOTHING \u2014 inventory never gets written up above cost."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Cost $5,000, NRV $4,600. Write-down amount = ?",
+      "answerExpr": "400",
+      "distractors": [
+        {
+          "expr": "4600",
+          "misconceptionId": "face_vs_cv_on_retirement",
+          "feedback": "That's the new carrying value. The ENTRY records only the decline: 5,000 \u2212 4,600 = 400."
+        },
+        {
+          "expr": "0",
+          "misconceptionId": "accrual_fraction_missed",
+          "feedback": "You can't wait for the sale \u2014 the loss is recognized in the period the value fell."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Cost of Goods Sold",
+      "Merchandise Inventory",
+      "Loss on Inventory",
+      "Sales Revenue"
+    ],
+    "scaffold": "One small entry: debit COGS (or a loss account), credit Inventory, for the DIFFERENCE only."
+  }
+}

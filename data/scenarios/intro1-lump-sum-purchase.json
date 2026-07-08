@@ -1,0 +1,90 @@
+{
+  "slug": "intro1-lump-sum-purchase",
+  "title": "Lump-Sum (Basket) Purchase",
+  "event": "Reyes Co. pays $400,000 cash for land and a building. Appraisals value the land at $180,000 and the building at $270,000. Prepare the entry.",
+  "chapter": {
+    "courseFamily": "intro_1",
+    "courseSlug": "intro-accounting-1",
+    "number": 8,
+    "name": "Long Term Assets"
+  },
+  "courseFamilies": [
+    "intro_1"
+  ],
+  "axes": [],
+  "variants": [
+    {
+      "conditions": {},
+      "entries": [
+        {
+          "label": "Allocate 400,000 by relative appraisal (180/450 \u00b7 270/450)",
+          "lines": [
+            {
+              "account": "Land",
+              "side": "debit",
+              "label": "400,000 \u00d7 40%",
+              "amount": 160000,
+              "why": "Land takes its share of the PRICE PAID: 180/450 of appraisal weight.",
+              "trap": "Allocate the price paid, never the raw appraisals \u2014 you didn't pay 450,000."
+            },
+            {
+              "account": "Building",
+              "side": "debit",
+              "label": "400,000 \u00d7 60%",
+              "amount": 240000,
+              "why": "Building takes 270/450 of the actual cost.",
+              "trap": "The split matters forever: buildings depreciate, land doesn't."
+            },
+            {
+              "account": "Cash",
+              "side": "credit",
+              "label": "total paid",
+              "amount": 400000,
+              "why": "One check, two assets.",
+              "trap": "Total debits must equal what was actually paid \u2014 400,000, not the 450,000 appraisal sum."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "memorize": [
+    {
+      "kind": "formula",
+      "body": "Each asset's cost = total price \u00d7 (its appraisal \u00f7 total appraisal)."
+    },
+    {
+      "kind": "watchout",
+      "body": "Recording the raw appraisals books 50,000 of assets that were never bought \u2014 the classic basket-purchase error."
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "Price $400,000; appraisals: land $180,000, building $270,000. Cost assigned to LAND = ?",
+      "answerExpr": "160000",
+      "distractors": [
+        {
+          "expr": "180000",
+          "misconceptionId": "market_rate_on_face",
+          "feedback": "That's the appraisal. Allocate the 400,000 actually PAID: 400,000 \u00d7 40% = 160,000."
+        },
+        {
+          "expr": "200000",
+          "misconceptionId": "stated_rate_on_cv",
+          "feedback": "A 50/50 split ignores the appraisals. The ratio is 180:270, i.e., 40%:60%."
+        }
+      ]
+    }
+  ],
+  "hasMemorizationGrid": false,
+  "isSequence": false,
+  "build": {
+    "accountBank": [
+      "Land",
+      "Building",
+      "Cash",
+      "Land Improvements"
+    ],
+    "scaffold": "Percent each asset's appraisal of the total, then apply those percents to the price PAID."
+  }
+}
