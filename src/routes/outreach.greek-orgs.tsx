@@ -888,6 +888,7 @@ function PersonRow({
 
 // ---- Editors / admin forms (add + CSV gated behind ?admin=1) -----------------
 function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void }) {
+  const [status, setStatus] = useState(ch.status);
   const [chapterDesignation, setChapterDesignation] = useState(ch.chapter_designation ?? "");
   const [council, setCouncil] = useState(ch.council ?? "");
   const [letters, setLetters] = useState(ch.letters ?? "");
@@ -903,6 +904,7 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
     setSaving(true);
     try {
       await updateGreekChapter(ch.id, {
+        status,
         chapter_designation: chapterDesignation.trim() || null,
         council: council || null,
         letters: letters.trim() || null,
@@ -932,6 +934,20 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
 
   return (
     <div className="mt-2 grid gap-2 rounded-md border border-dashed border-primary/40 p-3 sm:grid-cols-2">
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Status
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className={`mt-0.5 w-full capitalize ${inputCls}`}
+        >
+          {GREEK_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="text-[11px] font-medium text-muted-foreground">
         Chapter designation
         <Input
