@@ -1,3 +1,4 @@
+// GreekIntel — Chapters / Leads / People tabs + ProPublica enrichment + signals.
 // /outreach/greek-orgs — Greek org registry v2. Per-campus chapters
 // (campus_greek_chapters) linked to the national catalog (greek_orgs), plus
 // ProPublica 990 enrichment: per-org filings (financials) and officers/advisors
