@@ -24,6 +24,7 @@ import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
+import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
@@ -130,6 +131,11 @@ const TSlugRoute = TSlugRouteImport.update({
   id: '/t/$slug',
   path: '/t/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OutreachVideoArchiveRoute = OutreachVideoArchiveRouteImport.update({
+  id: '/video-archive',
+  path: '/video-archive',
+  getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
   id: '/students',
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
@@ -375,6 +382,7 @@ export interface FileRoutesByTo {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
@@ -424,6 +432,7 @@ export interface FileRoutesById {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
@@ -474,6 +483,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/outreach/video-archive'
     | '/t/$slug'
     | '/outreach/'
     | '/api/cron/backup'
@@ -521,6 +531,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/outreach/video-archive'
     | '/t/$slug'
     | '/outreach'
     | '/api/cron/backup'
@@ -569,6 +580,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/outreach/video-archive'
     | '/t/$slug'
     | '/outreach/'
     | '/api/cron/backup'
@@ -711,6 +723,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/t/$slug'
       preLoaderRoute: typeof TSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/outreach/video-archive': {
+      id: '/outreach/video-archive'
+      path: '/video-archive'
+      fullPath: '/outreach/video-archive'
+      preLoaderRoute: typeof OutreachVideoArchiveRouteImport
+      parentRoute: typeof OutreachRoute
     }
     '/outreach/students': {
       id: '/outreach/students'
@@ -976,6 +995,7 @@ interface OutreachRouteChildren {
   OutreachRedditRoute: typeof OutreachRedditRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
+  OutreachVideoArchiveRoute: typeof OutreachVideoArchiveRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
   OutreachGreekOrgsPeopleQueueRoute: typeof OutreachGreekOrgsPeopleQueueRoute
   OutreachGreekOrgsQueueRoute: typeof OutreachGreekOrgsQueueRoute
@@ -1002,6 +1022,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachRedditRoute: OutreachRedditRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
+  OutreachVideoArchiveRoute: OutreachVideoArchiveRoute,
   OutreachIndexRoute: OutreachIndexRoute,
   OutreachGreekOrgsPeopleQueueRoute: OutreachGreekOrgsPeopleQueueRoute,
   OutreachGreekOrgsQueueRoute: OutreachGreekOrgsQueueRoute,
