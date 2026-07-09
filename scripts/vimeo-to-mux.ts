@@ -61,15 +61,16 @@ async function main() {
   const videos = await listAllVideos();
   console.log(`Found ${videos.length} Vimeo videos.${Number.isFinite(limit) ? ` Processing up to ${limit}.` : ""}`);
 
+  // Whole-archive totals for the cost estimate (independent of --limit).
+  const totalArchiveDurationSec = videos.reduce((a, v) => a + (v.duration ?? 0), 0);
+
   let processed = 0;
   let created = 0;
   let withTranscript = 0;
-  let totalDurationSec = 0;
   const targets = Number.isFinite(limit) ? videos.slice(0, limit) : videos;
 
   for (const v of targets) {
     const id = vimeoIdFromUri(v.uri);
-    totalDurationSec += v.duration ?? 0;
     processed++;
 
     // Skip if already imported.
@@ -143,14 +144,14 @@ async function main() {
     await sleep(1000); // throttle both APIs
   }
 
-  const totalMin = totalDurationSec / 60;
+  const totalMin = totalArchiveDurationSec / 60;
   const monthlyCost = totalMin * STORAGE_RATE;
   console.log("\n=== SUMMARY ===");
   console.log(`Vimeo videos total:      ${videos.length}`);
   console.log(`Processed this run:      ${processed}`);
   console.log(`Rows created:            ${created}${dryRun ? " (dry-run: 0)" : ""}`);
   console.log(`With transcript:         ${withTranscript}`);
-  console.log(`Total duration:          ${totalMin.toFixed(1)} min (${(totalMin / 60).toFixed(1)} hr) over ${processed} videos`);
+  console.log(`Whole-archive duration:  ${totalMin.toFixed(1)} min (${(totalMin / 60).toFixed(1)} hr) over ${videos.length} videos`);
   console.log(`Est. Mux storage cost:   $${monthlyCost.toFixed(2)}/mo  (@ $${STORAGE_RATE}/min/mo — adjust MUX_STORAGE_RATE_PER_MIN_MONTH)`);
   console.log("Note: storage only; Mux encoding is one-time and delivery is billed per minute streamed.");
 }
