@@ -38,6 +38,7 @@ import {
   FIRM_SOURCES,
   GREEK_STATUSES,
   importChapterGpaTsv,
+  importCharteredYears,
   importGreekChaptersCsv,
   listAllFilings,
   listChapterFilings,
@@ -64,7 +65,7 @@ import {
 import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
 import { parseOfficers } from "@/lib/greek-officers";
 import { deriveNameFromDomain, INDUSTRIES, industryLabel } from "@/lib/greek-vendors";
-import { computeOrgSignals, SIGNALS, signalLabel, type SignalKey } from "@/lib/greek-signals";
+import { computeChapterSignals, SIGNALS, signalLabel, type SignalKey } from "@/lib/greek-signals";
 import { ADMIN_PASSCODE } from "@/components/AdminGate";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { CampusCombobox } from "@/components/outreach/CampusCombobox";
@@ -126,12 +127,14 @@ function GreekOrgs() {
   const campusById = useMemo(() => new Map(campuses.map((c) => [c.id, c])), [campuses]);
   const catalogById = useMemo(() => new Map(catalog.map((o) => [o.id, o])), [catalog]);
 
-  // Per-org signals from all filings + GPA terms.
-  const signalsByOrg = useMemo(() => {
+  // Per-CHAPTER signals: that chapter's filings + physical/founding fields + its
+  // org's GPA terms (GPA is tracked per national org). Each registry row is a
+  // chapter, so signals are computed at the chapter grain.
+  const signalsByChapter = useMemo(() => {
     const fBy = new Map<string, any[]>();
     for (const f of allFilingsQuery.data ?? []) {
-      if (!f.org_id) continue;
-      (fBy.get(f.org_id) ?? fBy.set(f.org_id, []).get(f.org_id)!).push(f);
+      if (!f.chapter_id) continue;
+      (fBy.get(f.chapter_id) ?? fBy.set(f.chapter_id, []).get(f.chapter_id)!).push(f);
     }
     const gBy = new Map<string, any[]>();
     for (const g of gpaQuery.data ?? []) {
@@ -139,12 +142,30 @@ function GreekOrgs() {
       (gBy.get(g.greek_org_id) ?? gBy.set(g.greek_org_id, []).get(g.greek_org_id)!).push(g);
     }
     const m = new Map<string, SignalKey[]>();
-    for (const id of new Set([...fBy.keys(), ...gBy.keys()])) {
-      const sig = computeOrgSignals(fBy.get(id) ?? [], gBy.get(id) ?? []);
-      if (sig.length) m.set(id, sig);
+    for (const ch of chapters) {
+      const sig = computeChapterSignals(
+        fBy.get(ch.id) ?? [],
+        gBy.get(ch.greek_org_id ?? "") ?? [],
+        { chartered_year: ch.chartered_year, is_founding_chapter: ch.is_founding_chapter },
+      );
+      if (sig.length) m.set(ch.id, sig);
     }
     return m;
-  }, [allFilingsQuery.data, gpaQuery.data]);
+  }, [chapters, allFilingsQuery.data, gpaQuery.data]);
+
+  // Org-level roll-up (union of a national org's chapters' signals) for the Leads
+  // tab, which ranks orgs rather than individual chapters.
+  const signalsByOrg = useMemo(() => {
+    const sets = new Map<string, Set<SignalKey>>();
+    for (const ch of chapters) {
+      const sig = ch.greek_org_id ? signalsByChapter.get(ch.id) : undefined;
+      if (!sig || !ch.greek_org_id) continue;
+      const set =
+        sets.get(ch.greek_org_id) ?? sets.set(ch.greek_org_id, new Set()).get(ch.greek_org_id)!;
+      sig.forEach((s) => set.add(s));
+    }
+    return new Map([...sets].map(([k, v]) => [k, [...v]] as [string, SignalKey[]]));
+  }, [chapters, signalsByChapter]);
 
   const refetchAll = () => {
     chaptersQuery.refetch();
@@ -205,7 +226,7 @@ function GreekOrgs() {
           campusById={campusById}
           chapters={chapters}
           filings={allFilingsQuery.data ?? []}
-          signalsByOrg={signalsByOrg}
+          signalsByChapter={signalsByChapter}
           loading={chaptersQuery.isLoading}
           refetchChapters={refetchAll}
           refetchCampuses={() => campusesQuery.refetch()}
@@ -611,7 +632,7 @@ function ChaptersTab({
   campusById,
   chapters,
   filings,
-  signalsByOrg,
+  signalsByChapter,
   loading,
   refetchChapters,
   refetchCampuses,
@@ -624,7 +645,7 @@ function ChaptersTab({
   campusById: Map<string, GreekCampus>;
   chapters: GreekChapter[];
   filings: Pick<GreekFiling, "chapter_id" | "tax_year" | "revenue">[];
-  signalsByOrg: Map<string, SignalKey[]>;
+  signalsByChapter: Map<string, SignalKey[]>;
   loading: boolean;
   refetchChapters: () => void;
   refetchCampuses: () => void;
@@ -671,9 +692,7 @@ function ChaptersTab({
             (!campusId || ch.campus_id === campusId) &&
             (!council || ch.council === council) &&
             (!status || ch.status === status) &&
-            (!signal ||
-              (ch.greek_org_id != null &&
-                (signalsByOrg.get(ch.greek_org_id) ?? []).includes(signal))),
+            (!signal || (signalsByChapter.get(ch.id) ?? []).includes(signal)),
         )
         .sort(
           (a, b) =>
@@ -681,7 +700,7 @@ function ChaptersTab({
               campusById.get(b.campus_id ?? "")?.name ?? "",
             ) || a.national_org.localeCompare(b.national_org),
         ),
-    [chapters, campusId, council, status, signal, campusById, signalsByOrg],
+    [chapters, campusId, council, status, signal, campusById, signalsByChapter],
   );
 
   return (
@@ -733,6 +752,7 @@ function ChaptersTab({
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2">
         <GpaImport onDone={refetchChapters} />
+        <CharteredImport catalog={catalog} onDone={refetchChapters} />
         {isAdmin && <CsvImport onDone={refetchChapters} />}
       </div>
       {isAdmin && (
@@ -770,7 +790,7 @@ function ChaptersTab({
             <tbody>
               {filtered.map((ch) => {
                 const rev = revByChapter.get(ch.id);
-                const sig = ch.greek_org_id ? (signalsByOrg.get(ch.greek_org_id) ?? []) : [];
+                const sig = signalsByChapter.get(ch.id) ?? [];
                 return (
                   <tr
                     key={ch.id}
@@ -850,7 +870,7 @@ function ChaptersTab({
               ch={ch}
               campus={campusById.get(ch.campus_id ?? "") ?? null}
               org={ch.greek_org_id ? (catalogById.get(ch.greek_org_id) ?? null) : null}
-              signals={ch.greek_org_id ? (signalsByOrg.get(ch.greek_org_id) ?? []) : []}
+              signals={signalsByChapter.get(ch.id) ?? []}
               onChanged={() => {
                 refetchChapters();
                 refetchCatalog();
@@ -1561,7 +1581,23 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
   const [houseCorp, setHouseCorp] = useState(ch.house_corp_name ?? "");
   const [corp990, setCorp990] = useState(ch.house_corp_990_url ?? "");
   const [notes, setNotes] = useState(ch.notes ?? "");
+  // Physical plant + founding.
+  const [charteredYear, setCharteredYear] = useState(
+    ch.chartered_year != null ? String(ch.chartered_year) : "",
+  );
+  const [isFounding, setIsFounding] = useState(ch.is_founding_chapter);
+  const [yearBuilt, setYearBuilt] = useState(ch.year_built != null ? String(ch.year_built) : "");
+  const [sqft, setSqft] = useState(ch.square_footage != null ? String(ch.square_footage) : "");
+  const [parcelLand, setParcelLand] = useState(
+    ch.parcel_value_land != null ? String(ch.parcel_value_land) : "",
+  );
+  const [parcelBldg, setParcelBldg] = useState(
+    ch.parcel_value_building != null ? String(ch.parcel_value_building) : "",
+  );
+  const [assessorUrl, setAssessorUrl] = useState(ch.county_assessor_url ?? "");
   const [saving, setSaving] = useState(false);
+
+  const intOrNull = (s: string) => (s.trim() ? Number(s.replace(/[^\d]/g, "")) || null : null);
 
   async function save() {
     setSaving(true);
@@ -1575,6 +1611,13 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
         house_corp_name: houseCorp.trim() || null,
         house_corp_990_url: corp990.trim() || null,
         notes: notes.trim() || null,
+        chartered_year: intOrNull(charteredYear),
+        is_founding_chapter: isFounding,
+        year_built: intOrNull(yearBuilt),
+        square_footage: intOrNull(sqft),
+        parcel_value_land: intOrNull(parcelLand),
+        parcel_value_building: intOrNull(parcelBldg),
+        county_assessor_url: assessorUrl.trim() || null,
       });
       toast.success("Saved.");
       onSaved();
@@ -1663,6 +1706,69 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
         <Input
           value={corp990}
           onChange={(e) => setCorp990(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      {/* Physical plant + founding (per-campus house / per-campus charter). */}
+      <div className="mt-1 border-t border-border/60 pt-2 text-[10px] font-semibold uppercase text-muted-foreground sm:col-span-2">
+        Physical plant &amp; founding
+      </div>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Chartered year
+        <Input
+          value={charteredYear}
+          onChange={(e) => setCharteredYear(e.target.value)}
+          placeholder="e.g. 1874"
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="flex items-center gap-2 self-end pb-2 text-[11px] font-medium text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={isFounding}
+          onChange={(e) => setIsFounding(e.target.checked)}
+        />
+        Founding chapter of this org
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Year built
+        <Input
+          value={yearBuilt}
+          onChange={(e) => setYearBuilt(e.target.value)}
+          placeholder="original construction"
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Square footage
+        <Input
+          value={sqft}
+          onChange={(e) => setSqft(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Parcel value — land ($)
+        <Input
+          value={parcelLand}
+          onChange={(e) => setParcelLand(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Parcel value — building ($)
+        <Input
+          value={parcelBldg}
+          onChange={(e) => setParcelBldg(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground sm:col-span-2">
+        County assessor URL
+        <Input
+          value={assessorUrl}
+          onChange={(e) => setAssessorUrl(e.target.value)}
+          placeholder="https://…"
           className="mt-0.5 h-9 text-sm"
         />
       </label>
@@ -2169,6 +2275,89 @@ function GpaImport({ onDone }: { onDone: () => void }) {
           {unmatched.length > 0 && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-800">
               Unmatched (pair manually): {unmatched.map((u) => u.org).join(", ")}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Wikipedia chartered-year backfill (per national org) --------------------
+function CharteredImport({ catalog, onDone }: { catalog: GreekOrgCatalog[]; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [org, setOrg] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [unmatched, setUnmatched] = useState<{ text: string; year: number }[]>([]);
+
+  async function run() {
+    if (!org.trim()) return toast.error("Pick the national org this list is for.");
+    if (!text.trim()) return toast.error("Paste the Wikipedia chapter table.");
+    setBusy(true);
+    setUnmatched([]);
+    try {
+      const r = await importCharteredYears(text, org.trim());
+      setUnmatched(r.unmatched);
+      toast.success(
+        `Set chartered year on ${r.updated} chapters; ${r.unmatched.length} unmatched.`,
+      );
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Import failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-sm font-semibold"
+      >
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        <Upload className="h-4 w-4" /> Chartered years (Wikipedia)
+      </button>
+      {open && (
+        <div className="mt-2 grid gap-2">
+          <Input
+            value={org}
+            onChange={(e) => setOrg(e.target.value)}
+            placeholder="National org (e.g. Kappa Kappa Gamma)"
+            list="greek-catalog"
+            className="text-sm"
+          />
+          <datalist id="greek-catalog">
+            {catalog.map((o) => (
+              <option key={o.id} value={o.name} />
+            ))}
+          </datalist>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Paste the chapter table from the org's Wikipedia 'list of chapters' page. Each row's charter year (first 1830–present year) is matched to a campus by name."
+            className="min-h-[80px] font-mono text-[11px]"
+          />
+          <Button size="sm" onClick={run} disabled={busy}>
+            {busy ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-1 h-4 w-4" />
+            )}
+            Backfill chartered years
+          </Button>
+          {unmatched.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-800">
+              {unmatched.length} rows had a year but no confident campus match (pair manually):
+              <ul className="mt-1 list-disc pl-4">
+                {unmatched.slice(0, 12).map((u, i) => (
+                  <li key={i}>
+                    {u.year} — {u.text}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

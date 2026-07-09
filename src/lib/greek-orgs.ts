@@ -36,6 +36,14 @@ export interface GreekChapter {
   propublica_url: string | null;
   enrichment_status: string;
   enrichment_note: string | null;
+  // Physical plant + founding (per-campus house / per-campus charter).
+  chartered_year: number | null;
+  is_founding_chapter: boolean;
+  year_built: number | null;
+  square_footage: number | null;
+  parcel_value_land: number | null;
+  parcel_value_building: number | null;
+  county_assessor_url: string | null;
 }
 
 export const COUNCILS = ["ifc", "panhellenic", "nphc", "mgc", "other"] as const;
@@ -268,7 +276,7 @@ export async function resetChapterEnrichment(chapterId: string): Promise<void> {
 }
 
 const CHAPTER_COLS =
-  "id, campus_id, greek_org_id, chapter_designation, council, council_raw, letters, status, house_corp_name, house_corp_990_url, advisor_name, advisor_notes, chapter_size, notes, created_at, ein, propublica_url, enrichment_status, enrichment_note";
+  "id, campus_id, greek_org_id, chapter_designation, council, council_raw, letters, status, house_corp_name, house_corp_990_url, advisor_name, advisor_notes, chapter_size, notes, created_at, ein, propublica_url, enrichment_status, enrichment_note, chartered_year, is_founding_chapter, year_built, square_footage, parcel_value_land, parcel_value_building, county_assessor_url";
 
 /** All chapters, with the national org name resolved from the catalog client-side. */
 export async function listGreekChapters(): Promise<GreekChapter[]> {
@@ -304,6 +312,13 @@ export async function listGreekChapters(): Promise<GreekChapter[]> {
     propublica_url: r.propublica_url ?? null,
     enrichment_status: r.enrichment_status ?? "pending",
     enrichment_note: r.enrichment_note ?? null,
+    chartered_year: r.chartered_year ?? null,
+    is_founding_chapter: r.is_founding_chapter ?? false,
+    year_built: r.year_built ?? null,
+    square_footage: r.square_footage ?? null,
+    parcel_value_land: r.parcel_value_land ?? null,
+    parcel_value_building: r.parcel_value_building ?? null,
+    county_assessor_url: r.county_assessor_url ?? null,
   }));
 }
 
@@ -356,6 +371,14 @@ export async function updateGreekChapter(
     advisor_notes?: string | null;
     member_count_estimate?: number | null;
     notes?: string | null;
+    // Physical plant + founding.
+    chartered_year?: number | null;
+    is_founding_chapter?: boolean;
+    year_built?: number | null;
+    square_footage?: number | null;
+    parcel_value_land?: number | null;
+    parcel_value_building?: number | null;
+    county_assessor_url?: string | null;
   },
 ): Promise<void> {
   const { member_count_estimate, ...rest } = patch;
@@ -483,6 +506,8 @@ export interface GreekFiling {
   interest_expense: number | null;
   grants_paid: number | null;
   land_buildings_gross: number | null;
+  buildings_gross: number | null;
+  equipment_gross: number | null;
   accum_depreciation: number | null;
   mortgages_payable: number | null;
   fundraiser_firm: string | null;
@@ -492,7 +517,9 @@ export interface GreekFiling {
   preparer_phone: string | null;
 }
 
-/** Editable itemized fields on a filing (the "from the PDF" drawer). */
+/** Editable itemized fields on a filing (the "from the PDF" drawer). Schedule D
+ *  Part VI (land/buildings/equipment/depreciation) is manual — the ProPublica API
+ *  exposes only mortgages (secrdmrtgsend), which the enrich fn already pulls. */
 export const FILING_ITEM_FIELDS = [
   "contributions",
   "salaries",
@@ -503,6 +530,8 @@ export const FILING_ITEM_FIELDS = [
   "insurance_expense",
   "interest_expense",
   "land_buildings_gross",
+  "buildings_gross",
+  "equipment_gross",
   "accum_depreciation",
   "mortgages_payable",
   "fundraiser_fee",
@@ -650,9 +679,9 @@ export async function accumulateOfficers(
   return { inserted, updated };
 }
 
-// --- Cross-registry filings (per-chapter rev chips + per-org signal engine) -----
+// --- Cross-registry filings (per-chapter rev chips + per-chapter signal engine) --
 const SIGNAL_FILING_COLS =
-  "id, org_id, chapter_id, tax_year, revenue, contributions, grants_paid, accum_depreciation, land_buildings_gross, fundraiser_firm, employees_count";
+  "id, org_id, chapter_id, tax_year, revenue, contributions, grants_paid, accum_depreciation, land_buildings_gross, buildings_gross, mortgages_payable, fundraiser_firm, employees_count";
 
 export async function listAllFilings(): Promise<
   Pick<
@@ -666,6 +695,8 @@ export async function listAllFilings(): Promise<
     | "grants_paid"
     | "accum_depreciation"
     | "land_buildings_gross"
+    | "buildings_gross"
+    | "mortgages_payable"
     | "fundraiser_firm"
     | "employees_count"
   >[]
@@ -758,6 +789,82 @@ export function matchOrgName(name: string, catalog: { id: string; name: string }
     if (score >= 0.6 && (!best || score > best.score)) best = { id: o.id, score };
   }
   return best?.id ?? null;
+}
+
+// --- Wikipedia chartered-year backfill (per national org) ----------------------
+export interface CharteredImportResult {
+  updated: number;
+  unmatched: { text: string; year: number }[];
+}
+
+/** Extract a plausible charter/founding year (1830–this year) from a table row. */
+function firstYear(line: string): number | null {
+  const nowY = new Date().getFullYear();
+  for (const m of line.matchAll(/\b(1[89]\d\d|20\d\d)\b/g)) {
+    const y = Number(m[1]);
+    if (y >= 1830 && y <= nowY) return y;
+  }
+  return null;
+}
+
+/** Backfill chartered_year onto a national org's chapters from a pasted Wikipedia
+ *  "list of chapters" table (TSV or the raw copied text). Each row's year is the
+ *  first 1830–present 4-digit number; the campus is fuzzy-matched (best Jaccard ≥
+ *  0.6 across the row's cells) against ONLY this org's chapters, so it can't stray
+ *  to another org. Rows with a year but no confident campus are returned for
+ *  manual pairing. Idempotent — re-pasting overwrites with the same value. */
+export async function importCharteredYears(
+  text: string,
+  nationalOrg: string,
+): Promise<CharteredImportResult> {
+  const catalog = await fetchGreekCatalog();
+  const orgId = matchOrgName(nationalOrg, catalog);
+  if (!orgId) throw new Error(`Unknown national org "${nationalOrg}".`);
+
+  const { data: chRows } = await (supabase.from("campus_greek_chapters" as never) as any)
+    .select("id, campus_id")
+    .eq("greek_org_id", orgId)
+    .is("archived_at", null);
+  const campusIds = [...new Set(((chRows ?? []) as any[]).map((c) => c.campus_id).filter(Boolean))];
+  const { data: campRows } = await (supabase.from("campuses" as never) as any)
+    .select("id, name")
+    .in("id", campusIds.length ? campusIds : ["00000000-0000-0000-0000-000000000000"]);
+  const campNameById = new Map(((campRows ?? []) as any[]).map((c) => [c.id, c.name as string]));
+  const orgChapters = ((chRows ?? []) as any[])
+    .map((c) => ({ chapterId: c.id as string, campusName: campNameById.get(c.campus_id) ?? "" }))
+    .filter((c) => c.campusName);
+
+  const result: CharteredImportResult = { updated: 0, unmatched: [] };
+  const seen = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const year = firstYear(trimmed);
+    if (year == null) continue; // header / status-only row
+    const cells = trimmed
+      .split(/\t|\s{2,}/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    let best: { chapterId: string; score: number } | null = null;
+    for (const cell of cells) {
+      for (const oc of orgChapters) {
+        const s = jaccard(cell, oc.campusName);
+        if (s >= 0.6 && (!best || s > best.score)) best = { chapterId: oc.chapterId, score: s };
+      }
+    }
+    if (!best) {
+      result.unmatched.push({ text: trimmed.slice(0, 80), year });
+      continue;
+    }
+    if (seen.has(best.chapterId)) continue; // first confident year wins per chapter
+    seen.add(best.chapterId);
+    const { error } = await (supabase.from("campus_greek_chapters" as never) as any)
+      .update({ chartered_year: year })
+      .eq("id", best.chapterId);
+    if (error) throw new Error(error.message);
+    result.updated++;
+  }
+  return result;
 }
 
 export interface GpaImportResult {

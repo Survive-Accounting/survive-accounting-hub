@@ -106,8 +106,14 @@ const councilFor = (org) =>
       ? "ifc"
       : null;
 
-// Upsert chapters.
-let up = 0;
+// Upsert chapters — idempotent on (campus_id, greek_org_id). The DO UPDATE only
+// fires when designation/letters/council actually differ (WHERE ... is distinct
+// from), and the xmax system column distinguishes a fresh INSERT (xmax = 0) from
+// an UPDATE. `attempted` counts resolved input rows; unchanged = attempted − the
+// rows the statement touched. Re-running any CSV never duplicates.
+let inserted = 0;
+let updated = 0;
+let attempted = 0;
 for (const batch of Array.from({ length: Math.ceil(rows.length / 150) }, (_, i) =>
   rows.slice(i * 150, i * 150 + 150),
 )) {
@@ -117,19 +123,36 @@ for (const batch of Array.from({ length: Math.ceil(rows.length / 150) }, (_, i) 
         `(${esc(byName.get(r.campus_name))}, ${esc(r.national_org)}, ${esc(r.chapter_designation)}, ${esc(r.letters)}, ${esc(councilFor(r.national_org))})`,
     )
     .join(",");
-  await sql(`
+  const res = await sql(`
     with seed(campus_id, org, designation, letters, council) as (values ${vals}),
     resolved as (
       select s.campus_id::uuid, g.id as greek_org_id, nullif(s.designation,'') d, nullif(s.letters,'') l, s.council
       from seed s join public.greek_orgs g on lower(g.name)=lower(s.org)
       where s.campus_id is not null
+    ),
+    ups as (
+      insert into public.campus_greek_chapters (campus_id, greek_org_id, chapter_designation, letters, council, status)
+      select campus_id, greek_org_id, d, l, council, 'identified' from resolved
+      on conflict (campus_id, greek_org_id) do update
+        set chapter_designation = excluded.chapter_designation,
+            letters             = excluded.letters,
+            council             = excluded.council
+        where (campus_greek_chapters.chapter_designation, campus_greek_chapters.letters, campus_greek_chapters.council)
+              is distinct from (excluded.chapter_designation, excluded.letters, excluded.council)
+      returning (xmax = 0) as was_insert
     )
-    insert into public.campus_greek_chapters (campus_id, greek_org_id, chapter_designation, letters, council, status)
-    select campus_id, greek_org_id, d, l, council, 'identified' from resolved
-    on conflict (campus_id, greek_org_id) do update set chapter_designation=excluded.chapter_designation, letters=excluded.letters;`);
-  up += batch.length;
+    select
+      (select count(*) from resolved) as attempted,
+      count(*) filter (where was_insert)     as inserted,
+      count(*) filter (where not was_insert) as updated
+    from ups;`);
+  const row = res[0] ?? {};
+  attempted += Number(row.attempted ?? 0);
+  inserted += Number(row.inserted ?? 0);
+  updated += Number(row.updated ?? 0);
 }
-console.log(`Upserted ${up} chapter rows.`);
+const unchanged = attempted - inserted - updated;
+console.log(`Chapters: ${inserted} inserted, ${updated} updated, ${unchanged} unchanged.`);
 console.log(
   "research-only campus count:",
   JSON.stringify(await sql(`select count(*) from public.campuses where is_research_only;`)),
