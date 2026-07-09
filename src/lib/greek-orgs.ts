@@ -3,6 +3,7 @@
 // per-campus `campus_greek_chapters`. Anon Supabase client (AdminGate'd UI),
 // mirroring the reddit/parent-groups pattern.
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeFirmName } from "@/lib/greek-vendors";
 
 export interface GreekCampus {
   id: string;
@@ -30,6 +31,19 @@ export interface GreekChapter {
   member_count_estimate: number | null; // stored in chapter_size
   notes: string | null;
   created_at: string | null;
+  // Per-chapter enrichment (each campus's house corp is its own nonprofit).
+  ein: string | null;
+  propublica_url: string | null;
+  enrichment_status: string;
+  enrichment_note: string | null;
+  // Physical plant + founding (per-campus house / per-campus charter).
+  chartered_year: number | null;
+  is_founding_chapter: boolean;
+  year_built: number | null;
+  square_footage: number | null;
+  parcel_value_land: number | null;
+  parcel_value_building: number | null;
+  county_assessor_url: string | null;
 }
 
 export const COUNCILS = ["ifc", "panhellenic", "nphc", "mgc", "other"] as const;
@@ -58,21 +72,6 @@ const COUNCIL_LABEL: Record<string, string> = {
 export const councilLabel = (c: string | null) => (c ? (COUNCIL_LABEL[c] ?? c) : "—");
 
 // --- Research link helpers (links only) ---------------------------------------
-const STATE_NAME: Record<string, string> = {
-  AL: "Alabama",
-  AR: "Arkansas",
-  FL: "Florida",
-  GA: "Georgia",
-  KY: "Kentucky",
-  LA: "Louisiana",
-  MS: "Mississippi",
-  MO: "Missouri",
-  OK: "Oklahoma",
-  SC: "South Carolina",
-  TN: "Tennessee",
-  TX: "Texas",
-};
-export const stateName = (s: string | null) => (s ? (STATE_NAME[s] ?? s) : "");
 
 /** ProPublica nonprofit search. With a chapter designation: "{org} {designation}";
  *  otherwise fall back to "{org} {campus city}". */
@@ -87,28 +86,95 @@ export function proPublicaUrl(
   return `https://projects.propublica.org/nonprofits/search?q=${encodeURIComponent(q)}`;
 }
 
-export function linkedInAdvisorUrl(nationalOrg: string, campusName: string): string {
-  const kw = `"chapter advisor" ${nationalOrg} ${campusName}`;
-  return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(kw)}`;
+export interface SearchVariant {
+  label: string;
+  url: string;
 }
 
-// State Secretary-of-State business search. Direct entry where known (link-only —
-// these sites don't take a simple GET query param); otherwise a Google fallback so
-// the link always works. Fill in more direct URLs over time.
-const SOS_DIRECT: Record<string, string> = {
-  MS: "https://corp.sos.ms.gov/corp/portal/c/page/corpBusinessIdSearch",
+/** "-" or blank chapter designations are placeholders, not real data. */
+const cleanDesignation = (d: string | null): string => {
+  const t = (d ?? "").trim();
+  return t && t !== "-" ? t : "";
 };
-export function sosSearchUrl(state: string | null): string {
-  if (state && SOS_DIRECT[state]) return SOS_DIRECT[state];
-  const q = `${stateName(state)} secretary of state business entity search`;
-  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+
+/** The queue's "Find on ProPublica" dropdown: 7 prebuilt search variants, ordered
+ *  by hit-rate (each labeled with its actual query so the VA learns the pattern —
+ *  which one hits tells you why). Missing city (research-only campuses store no
+ *  city) falls back to state; missing designation just drops that token instead
+ *  of hiding the variant, so the shape stays consistent across orgs. */
+export function proPublicaSearchVariants(
+  nationalOrg: string,
+  chapterDesignation: string | null,
+  state: string | null,
+  city: string | null,
+): SearchVariant[] {
+  const designation = cleanDesignation(chapterDesignation);
+  const st = (state ?? "").trim();
+  const cityOrState = (city ?? "").trim() || st;
+  const join = (...parts: string[]) => parts.filter(Boolean).join(" ").trim();
+  const pp = (q: string) =>
+    `https://projects.propublica.org/nonprofits/search?q=${encodeURIComponent(q)}`;
+
+  const q1 = join(nationalOrg, designation, st);
+  const q2 = join(nationalOrg, cityOrState);
+  const q3 = join(nationalOrg, "house corporation", st);
+  const q4 = join(nationalOrg, designation);
+  const q5 = join(nationalOrg, "house association", cityOrState);
+  const irsQuery = join(nationalOrg, designation, st);
+  const googleQuery = join(nationalOrg, designation, st, "990 site:projects.propublica.org");
+
+  return [
+    { label: `"${q1}"`, url: pp(q1) },
+    { label: `"${q2}"`, url: pp(q2) },
+    { label: `"${q3}"`, url: pp(q3) },
+    { label: `"${q4}"`, url: pp(q4) },
+    { label: `"${q5}"`, url: pp(q5) },
+    {
+      label: "IRS EO search (catches revoked/inactive)",
+      url: `https://apps.irs.gov/app/eos/allSearch.do?dispatchMethod=searchAll&names=${encodeURIComponent(irsQuery)}&city=&state=${encodeURIComponent(st)}&country=US`,
+    },
+    {
+      label: "Google fallback (990 + ProPublica)",
+      url: `https://www.google.com/search?q=${encodeURIComponent(googleQuery)}`,
+    },
+  ];
+}
+
+/** Pull a 9-digit EIN out of a pasted ProPublica org/full-render URL, so pasting a
+ *  URL prefills just the EIN (still editable) instead of leaving the raw URL in
+ *  the field. Falls through to the raw text when there's no match — plain EINs
+ *  (dashed or not) pass through untouched for the server-side extractor to parse. */
+export function einFromPastedUrl(raw: string): string {
+  const m = raw.match(/organizations\/(\d{9})/);
+  return m ? m[1] : raw;
 }
 
 // --- Data access --------------------------------------------------------------
+// Supabase/PostgREST hard-caps a single response at 1000 rows (db-max-rows), and
+// the registry now has >1100 chapters. Paginate anything that can exceed 1000.
+// `build(from, to)` must return a query with .range(from, to) applied.
+const PAGE_SIZE = 1000;
+async function selectAllPaged<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await build(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error((error as { message?: string })?.message ?? "query failed");
+    const chunk = data ?? [];
+    out.push(...chunk);
+    if (chunk.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
+// SEC roster + research-only campuses (nationwide KKG/ATO imports). Research-only
+// stays out of student-facing pickers/ProfIntel/orders — those use their own
+// fetches — but the registry/queues must see it.
 export async function fetchGreekCampuses(): Promise<GreekCampus[]> {
   const { data, error } = await (supabase.from("campuses" as never) as any)
     .select("id, name, state, city, fsl_url")
-    .eq("active_roster", "sec")
+    .or("active_roster.eq.sec,is_research_only.eq.true")
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []) as GreekCampus[];
@@ -127,32 +193,105 @@ export interface GreekOrgCatalog {
   ein: string | null;
   address: string | null;
   propublica_url: string | null;
+  enrichment_status: string;
+  enrichment_note: string | null;
+  // Vendor-list research (per national org — greek_orgs IS the national catalog).
+  domain: string | null;
+  housing_entity: string | null;
+  vendor_status: string;
+  vendor_notes: string | null;
 }
+
+export const ORG_ENRICH_STATUSES = ["pending", "enriched", "no_filing_found"] as const;
+export const VENDOR_STATUSES = ["pending", "lists_found", "none_found", "portal_gated"] as const;
 
 /** National catalog with enrichment fields, for the picker + org-level rendering. */
 export async function fetchGreekCatalog(): Promise<GreekOrgCatalog[]> {
   const { data, error } = await (supabase.from("greek_orgs" as never) as any)
-    .select("id, name, ein, address, propublica_url")
+    .select(
+      "id, name, ein, address, propublica_url, enrichment_status, enrichment_note, domain, housing_entity, vendor_status, vendor_notes",
+    )
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []) as GreekOrgCatalog[];
+  return (data ?? []).map((o: any) => ({
+    ...o,
+    enrichment_status: o.enrichment_status ?? "pending",
+    vendor_status: o.vendor_status ?? "pending",
+  })) as GreekOrgCatalog[];
+}
+
+/** Vendor-queue org fields (domain / housing entity / status / notes). */
+export async function updateGreekOrgVendor(
+  orgId: string,
+  patch: Partial<
+    Pick<GreekOrgCatalog, "domain" | "housing_entity" | "vendor_status" | "vendor_notes">
+  >,
+): Promise<void> {
+  const { error } = await (supabase.from("greek_orgs" as never) as any)
+    .update(patch)
+    .eq("id", orgId);
+  if (error) throw new Error(error.message);
+}
+
+/** Set one chapter's enrichment status (pending → enriched | no_filing_found). */
+export async function setChapterEnrichment(
+  chapterId: string,
+  status: string,
+  note?: string | null,
+): Promise<void> {
+  const patch: Record<string, unknown> = { enrichment_status: status };
+  if (note !== undefined) patch.enrichment_note = note || null;
+  const { error } = await (supabase.from("campus_greek_chapters" as never) as any)
+    .update(patch)
+    .eq("id", chapterId);
+  if (error) throw new Error(error.message);
+}
+
+/** Wipe ONE chapter's enrichment data back to a fresh "pending" state — its 990
+ *  filings, its officer/tenure records, and the ein/address/propublica_url on the
+ *  chapter row. Scoped to this campus's house corp only; sibling chapters of the
+ *  same national org are untouched. Leaves the chapter's own registry fields
+ *  (status/house corp/advisor/notes) alone. */
+export async function resetChapterEnrichment(chapterId: string): Promise<void> {
+  const { error: filingsErr } = await (supabase.from("greek_org_filings" as never) as any)
+    .delete()
+    .eq("chapter_id", chapterId);
+  if (filingsErr) throw new Error(filingsErr.message);
+
+  const { error: peopleErr } = await (supabase.from("greek_org_people" as never) as any)
+    .delete()
+    .eq("chapter_id", chapterId);
+  if (peopleErr) throw new Error(peopleErr.message);
+
+  const { error: chapterErr } = await (supabase.from("campus_greek_chapters" as never) as any)
+    .update({
+      ein: null,
+      address: null,
+      propublica_url: null,
+      enrichment_status: "pending",
+      enrichment_note: null,
+    })
+    .eq("id", chapterId);
+  if (chapterErr) throw new Error(chapterErr.message);
 }
 
 const CHAPTER_COLS =
-  "id, campus_id, greek_org_id, chapter_designation, council, council_raw, letters, status, house_corp_name, house_corp_990_url, advisor_name, advisor_notes, chapter_size, notes, created_at";
+  "id, campus_id, greek_org_id, chapter_designation, council, council_raw, letters, status, house_corp_name, house_corp_990_url, advisor_name, advisor_notes, chapter_size, notes, created_at, ein, propublica_url, enrichment_status, enrichment_note, chartered_year, is_founding_chapter, year_built, square_footage, parcel_value_land, parcel_value_building, county_assessor_url";
 
 /** All chapters, with the national org name resolved from the catalog client-side. */
 export async function listGreekChapters(): Promise<GreekChapter[]> {
-  const [{ data, error }, catalog] = await Promise.all([
-    (supabase.from("campus_greek_chapters" as never) as any)
-      .select(CHAPTER_COLS)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
+  const [data, catalog] = await Promise.all([
+    selectAllPaged<any>((from, to) =>
+      (supabase.from("campus_greek_chapters" as never) as any)
+        .select(CHAPTER_COLS)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    ),
     fetchGreekCatalog(),
   ]);
-  if (error) throw new Error(error.message);
   const nameById = new Map(catalog.map((o) => [o.id, o.name]));
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data as any[]).map((r) => ({
     id: r.id,
     campus_id: r.campus_id,
     greek_org_id: r.greek_org_id,
@@ -169,6 +308,17 @@ export async function listGreekChapters(): Promise<GreekChapter[]> {
     member_count_estimate: r.chapter_size,
     notes: r.notes,
     created_at: r.created_at,
+    ein: r.ein ?? null,
+    propublica_url: r.propublica_url ?? null,
+    enrichment_status: r.enrichment_status ?? "pending",
+    enrichment_note: r.enrichment_note ?? null,
+    chartered_year: r.chartered_year ?? null,
+    is_founding_chapter: r.is_founding_chapter ?? false,
+    year_built: r.year_built ?? null,
+    square_footage: r.square_footage ?? null,
+    parcel_value_land: r.parcel_value_land ?? null,
+    parcel_value_building: r.parcel_value_building ?? null,
+    county_assessor_url: r.county_assessor_url ?? null,
   }));
 }
 
@@ -221,6 +371,14 @@ export async function updateGreekChapter(
     advisor_notes?: string | null;
     member_count_estimate?: number | null;
     notes?: string | null;
+    // Physical plant + founding.
+    chartered_year?: number | null;
+    is_founding_chapter?: boolean;
+    year_built?: number | null;
+    square_footage?: number | null;
+    parcel_value_land?: number | null;
+    parcel_value_building?: number | null;
+    county_assessor_url?: string | null;
   },
 ): Promise<void> {
   const { member_count_estimate, ...rest } = patch;
@@ -328,6 +486,7 @@ export async function importGreekChaptersCsv(text: string): Promise<CsvImportRes
 export interface GreekFiling {
   id: string;
   org_id: string;
+  chapter_id: string | null;
   tax_year: number | null;
   revenue: number | null;
   expenses: number | null;
@@ -347,14 +506,20 @@ export interface GreekFiling {
   interest_expense: number | null;
   grants_paid: number | null;
   land_buildings_gross: number | null;
+  buildings_gross: number | null;
+  equipment_gross: number | null;
   accum_depreciation: number | null;
   mortgages_payable: number | null;
   fundraiser_firm: string | null;
   fundraiser_fee: number | null;
   preparer_firm: string | null;
+  preparer_address: string | null;
+  preparer_phone: string | null;
 }
 
-/** Editable itemized fields on a filing (the "from the PDF" drawer). */
+/** Editable itemized fields on a filing (the "from the PDF" drawer). Schedule D
+ *  Part VI (land/buildings/equipment/depreciation) is manual — the ProPublica API
+ *  exposes only mortgages (secrdmrtgsend), which the enrich fn already pulls. */
 export const FILING_ITEM_FIELDS = [
   "contributions",
   "salaries",
@@ -365,6 +530,8 @@ export const FILING_ITEM_FIELDS = [
   "insurance_expense",
   "interest_expense",
   "land_buildings_gross",
+  "buildings_gross",
+  "equipment_gross",
   "accum_depreciation",
   "mortgages_payable",
   "fundraiser_fee",
@@ -377,10 +544,11 @@ export async function updateGreekFiling(id: string, patch: Record<string, unknow
   if (error) throw new Error(error.message);
 }
 
-export async function listGreekFilings(orgId: string): Promise<GreekFiling[]> {
+/** Filings for one chapter (per-campus house corp). */
+export async function listChapterFilings(chapterId: string): Promise<GreekFiling[]> {
   const { data, error } = await (supabase.from("greek_org_filings" as never) as any)
     .select("*")
-    .eq("org_id", orgId)
+    .eq("chapter_id", chapterId)
     .order("tax_year", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as GreekFiling[];
@@ -390,6 +558,7 @@ export async function listGreekFilings(orgId: string): Promise<GreekFiling[]> {
 export interface GreekPerson {
   id: string;
   org_id: string;
+  chapter_id: string | null;
   person_name: string;
   titles: string[] | null;
   years: number[] | null;
@@ -402,19 +571,40 @@ export interface GreekPerson {
   linkedin_url: string | null;
   notes: string | null;
   source: string;
+  employer: string | null;
+  role_now: string | null;
+  alma_mater: string | null;
+  business_url: string | null;
+  enrichment_status: string;
 }
 
+export const PERSON_ENRICH_STATUSES = ["pending", "enriched", "not_found"] as const;
+
 export async function listGreekPeople(): Promise<GreekPerson[]> {
-  const { data, error } = await (supabase.from("greek_org_people" as never) as any)
-    .select("*")
-    .order("years_count", { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as GreekPerson[];
+  return selectAllPaged<GreekPerson>((from, to) =>
+    (supabase.from("greek_org_people" as never) as any)
+      .select("*")
+      .order("years_count", { ascending: false })
+      .range(from, to),
+  );
 }
 
 export async function updateGreekPerson(
   id: string,
-  patch: Partial<Pick<GreekPerson, "email" | "phone" | "linkedin_url" | "notes">>,
+  patch: Partial<
+    Pick<
+      GreekPerson,
+      | "email"
+      | "phone"
+      | "linkedin_url"
+      | "notes"
+      | "employer"
+      | "role_now"
+      | "alma_mater"
+      | "business_url"
+      | "enrichment_status"
+    >
+  >,
 ): Promise<void> {
   const { error } = await (supabase.from("greek_org_people" as never) as any)
     .update({ ...patch, updated_at: new Date().toISOString() })
@@ -422,19 +612,22 @@ export async function updateGreekPerson(
   if (error) throw new Error(error.message);
 }
 
-/** Accumulate parsed officers into greek_org_people for a given tax year. Upserts
- *  by (org_id, person_name): unions titles + the year-set, recomputes first/last/
- *  count, and flags is_current when the person appears in the org's latest filing
- *  year. Idempotent — re-pasting the same year doesn't inflate years_count. */
+/** Accumulate parsed officers into greek_org_people for a given tax year, scoped
+ *  to a CHAPTER (per-campus house corp board). Upserts by (chapter_id,
+ *  person_name): unions titles + the year-set, recomputes first/last/count, flags
+ *  is_current when the person appears in the chapter's latest filing year. org_id
+ *  is still stored (from the chapter) for the org-scoped people/leads rollups.
+ *  Idempotent — re-pasting the same year doesn't inflate years_count. */
 export async function accumulateOfficers(
-  orgId: string,
+  chapterId: string,
+  orgId: string | null,
   officers: { name: string; title: string }[],
   taxYear: number,
 ): Promise<{ inserted: number; updated: number }> {
-  // Latest filing year for "is_current".
+  // Latest filing year for this chapter drives "is_current".
   const { data: fy } = await (supabase.from("greek_org_filings" as never) as any)
     .select("tax_year")
-    .eq("org_id", orgId)
+    .eq("chapter_id", chapterId)
     .order("tax_year", { ascending: false })
     .limit(1);
   const latestYear = (fy?.[0]?.tax_year as number | undefined) ?? taxYear;
@@ -452,13 +645,14 @@ export async function accumulateOfficers(
   for (const [name, titleSet] of byName) {
     const { data: existing } = await (supabase.from("greek_org_people" as never) as any)
       .select("id, titles, years")
-      .eq("org_id", orgId)
+      .eq("chapter_id", chapterId)
       .eq("person_name", name)
       .maybeSingle();
 
     const titles = [...new Set([...(existing?.titles ?? []), ...titleSet])];
     const years = [...new Set([...(existing?.years ?? []), taxYear])].sort((a, b) => a - b);
     const row = {
+      chapter_id: chapterId,
       org_id: orgId,
       person_name: name,
       titles,
@@ -485,30 +679,31 @@ export async function accumulateOfficers(
   return { inserted, updated };
 }
 
-// --- Cross-org filings (for signal computation across the whole registry) ------
+// --- Cross-registry filings (per-chapter rev chips + per-chapter signal engine) --
 const SIGNAL_FILING_COLS =
-  "id, org_id, tax_year, revenue, contributions, grants_paid, accum_depreciation, land_buildings_gross, fundraiser_firm, employees_count";
+  "id, org_id, chapter_id, tax_year, revenue, contributions, grants_paid, accum_depreciation, land_buildings_gross, buildings_gross, mortgages_payable, fundraiser_firm, employees_count";
 
 export async function listAllFilings(): Promise<
   Pick<
     GreekFiling,
     | "id"
     | "org_id"
+    | "chapter_id"
     | "tax_year"
     | "revenue"
     | "contributions"
     | "grants_paid"
     | "accum_depreciation"
     | "land_buildings_gross"
+    | "buildings_gross"
+    | "mortgages_payable"
     | "fundraiser_firm"
     | "employees_count"
   >[]
 > {
-  const { data, error } = await (supabase.from("greek_org_filings" as never) as any).select(
-    SIGNAL_FILING_COLS,
-  );
-  if (error) throw new Error(error.message);
-  return (data ?? []) as any;
+  return selectAllPaged<any>((from, to) =>
+    (supabase.from("greek_org_filings" as never) as any).select(SIGNAL_FILING_COLS).range(from, to),
+  ) as any;
 }
 
 // --- Campus context -----------------------------------------------------------
@@ -596,6 +791,82 @@ export function matchOrgName(name: string, catalog: { id: string; name: string }
   return best?.id ?? null;
 }
 
+// --- Wikipedia chartered-year backfill (per national org) ----------------------
+export interface CharteredImportResult {
+  updated: number;
+  unmatched: { text: string; year: number }[];
+}
+
+/** Extract a plausible charter/founding year (1830–this year) from a table row. */
+function firstYear(line: string): number | null {
+  const nowY = new Date().getFullYear();
+  for (const m of line.matchAll(/\b(1[89]\d\d|20\d\d)\b/g)) {
+    const y = Number(m[1]);
+    if (y >= 1830 && y <= nowY) return y;
+  }
+  return null;
+}
+
+/** Backfill chartered_year onto a national org's chapters from a pasted Wikipedia
+ *  "list of chapters" table (TSV or the raw copied text). Each row's year is the
+ *  first 1830–present 4-digit number; the campus is fuzzy-matched (best Jaccard ≥
+ *  0.6 across the row's cells) against ONLY this org's chapters, so it can't stray
+ *  to another org. Rows with a year but no confident campus are returned for
+ *  manual pairing. Idempotent — re-pasting overwrites with the same value. */
+export async function importCharteredYears(
+  text: string,
+  nationalOrg: string,
+): Promise<CharteredImportResult> {
+  const catalog = await fetchGreekCatalog();
+  const orgId = matchOrgName(nationalOrg, catalog);
+  if (!orgId) throw new Error(`Unknown national org "${nationalOrg}".`);
+
+  const { data: chRows } = await (supabase.from("campus_greek_chapters" as never) as any)
+    .select("id, campus_id")
+    .eq("greek_org_id", orgId)
+    .is("archived_at", null);
+  const campusIds = [...new Set(((chRows ?? []) as any[]).map((c) => c.campus_id).filter(Boolean))];
+  const { data: campRows } = await (supabase.from("campuses" as never) as any)
+    .select("id, name")
+    .in("id", campusIds.length ? campusIds : ["00000000-0000-0000-0000-000000000000"]);
+  const campNameById = new Map(((campRows ?? []) as any[]).map((c) => [c.id, c.name as string]));
+  const orgChapters = ((chRows ?? []) as any[])
+    .map((c) => ({ chapterId: c.id as string, campusName: campNameById.get(c.campus_id) ?? "" }))
+    .filter((c) => c.campusName);
+
+  const result: CharteredImportResult = { updated: 0, unmatched: [] };
+  const seen = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const year = firstYear(trimmed);
+    if (year == null) continue; // header / status-only row
+    const cells = trimmed
+      .split(/\t|\s{2,}/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    let best: { chapterId: string; score: number } | null = null;
+    for (const cell of cells) {
+      for (const oc of orgChapters) {
+        const s = jaccard(cell, oc.campusName);
+        if (s >= 0.6 && (!best || s > best.score)) best = { chapterId: oc.chapterId, score: s };
+      }
+    }
+    if (!best) {
+      result.unmatched.push({ text: trimmed.slice(0, 80), year });
+      continue;
+    }
+    if (seen.has(best.chapterId)) continue; // first confident year wins per chapter
+    seen.add(best.chapterId);
+    const { error } = await (supabase.from("campus_greek_chapters" as never) as any)
+      .update({ chartered_year: year })
+      .eq("id", best.chapterId);
+    if (error) throw new Error(error.message);
+    result.updated++;
+  }
+  return result;
+}
+
 export interface GpaImportResult {
   imported: number;
   unmatched: { org: string; gpa: number | null }[];
@@ -641,4 +912,274 @@ export async function importChapterGpaTsv(
     result.imported++;
   }
   return result;
+}
+
+// --- Person queue helper ------------------------------------------------------
+export async function setPersonEnrichment(id: string, status: string): Promise<void> {
+  const { error } = await (supabase.from("greek_org_people" as never) as any)
+    .update({ enrichment_status: status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// --- Vendor lists (captured per national org; PDFs in storage) -----------------
+export const VENDOR_LIST_TYPES = [
+  "approved_vendors",
+  "preferred_partners",
+  "exhibitors",
+  "lenders",
+  "other",
+] as const;
+
+export interface VendorList {
+  id: string;
+  national_org: string;
+  list_type: string;
+  url: string | null;
+  pdf_storage_path: string | null;
+  found_at: string;
+  notes: string | null;
+}
+
+export async function listVendorLists(nationalOrg?: string): Promise<VendorList[]> {
+  let q = (supabase.from("vendor_lists" as never) as any).select("*");
+  if (nationalOrg) q = q.eq("national_org", nationalOrg);
+  const { data, error } = await q.order("found_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as VendorList[];
+}
+
+export async function addVendorList(input: {
+  national_org: string;
+  list_type: string;
+  url?: string | null;
+  pdf_storage_path?: string | null;
+  notes?: string | null;
+}): Promise<void> {
+  const { error } = await (supabase.from("vendor_lists" as never) as any).insert({
+    national_org: input.national_org,
+    list_type: input.list_type,
+    url: input.url || null,
+    pdf_storage_path: input.pdf_storage_path || null,
+    notes: input.notes || null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Upload a captured vendor-list PDF to the public `vendor-lists` bucket.
+ *  Timestamped path (anon has insert-only, no overwrite). Returns the path. */
+export async function uploadVendorPdf(nationalOrg: string, file: File): Promise<string> {
+  const slug = nationalOrg
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const path = `${slug}/${Date.now()}_${file.name.replace(/[^\w.-]+/g, "_")}`;
+  const { error } = await supabase.storage
+    .from("vendor-lists")
+    .upload(path, file, { contentType: file.type || "application/pdf" });
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+export function vendorPdfPublicUrl(path: string): string {
+  return supabase.storage.from("vendor-lists").getPublicUrl(path).data.publicUrl;
+}
+
+// --- Firms rollup (990 filings + vendor-list/manual leads; cross-referenced) ---
+export const FIRM_SOURCES = [
+  "990_preparer",
+  "990_fundraiser",
+  "990_contractor",
+  "national_vendor_list",
+  "manual",
+] as const;
+
+export interface FirmLead {
+  firm_name: string;
+  status: string;
+  notes: string | null;
+  source: string;
+  vendor_list_org: string | null;
+  vendor_list_url: string | null;
+  category: string | null;
+  industry: string | null;
+  website_url: string | null;
+  phone: string | null;
+}
+
+export interface FirmRow {
+  firm_name: string;
+  roles: string[]; // preparer | fundraiser (from 990s)
+  sources: string[]; // FIRM_SOURCES values present for this firm
+  phone: string | null;
+  address: string | null;
+  website_url: string | null;
+  industry: string | null;
+  category: string | null;
+  vendor_list_org: string | null;
+  vendor_list_url: string | null;
+  org_ids: string[];
+  seen_in_990s: number; // cross-ref: normalized-name matches across filings
+  status: string;
+  notes: string | null;
+}
+
+export async function listFirmLeads(): Promise<FirmLead[]> {
+  const { data } = await (supabase.from("greek_firm_leads" as never) as any).select(
+    "firm_name, status, notes, source, vendor_list_org, vendor_list_url, category, industry, website_url, phone",
+  );
+  return (data ?? []) as FirmLead[];
+}
+
+export async function upsertFirmLead(
+  firmName: string,
+  patch: Partial<Omit<FirmLead, "firm_name">>,
+): Promise<void> {
+  const { error } = await (supabase.from("greek_firm_leads" as never) as any).upsert(
+    { firm_name: firmName, ...patch, updated_at: new Date().toISOString() },
+    { onConflict: "firm_name" },
+  );
+  if (error) throw new Error(error.message);
+}
+
+/** Batch-insert vendor-list firms (source='national_vendor_list'). Upserts by
+ *  firm_name so re-confirming a list is idempotent and a name that already
+ *  exists (e.g. a 990 preparer) gains the vendor fields without losing its
+ *  lead status/notes. */
+export async function upsertVendorFirms(
+  firms: {
+    name: string;
+    website: string | null;
+    phone: string | null;
+    category: string | null;
+    industry: string | null;
+  }[],
+  vendorListOrg: string,
+  vendorListUrl: string | null,
+): Promise<number> {
+  let n = 0;
+  for (const f of firms) {
+    if (!f.name.trim()) continue;
+    await upsertFirmLead(f.name.trim(), {
+      source: "national_vendor_list",
+      vendor_list_org: vendorListOrg,
+      vendor_list_url: vendorListUrl,
+      category: f.category,
+      industry: f.industry,
+      website_url: f.website,
+      phone: f.phone,
+    });
+    n++;
+  }
+  return n;
+}
+
+/** Roll up firms from BOTH sources: distinct preparer/fundraiser firms across
+ *  all 990 filings, plus vendor-list/manual rows from greek_firm_leads. Keyed by
+ *  normalized name so the same firm converges; `seen_in_990s` counts filing
+ *  matches (preparer + fundraiser fields) — the cross-reference column. */
+export async function fetchFirmRollup(): Promise<FirmRow[]> {
+  const [{ data: filings }, leads] = await Promise.all([
+    (supabase.from("greek_org_filings" as never) as any).select(
+      "org_id, preparer_firm, preparer_phone, preparer_address, fundraiser_firm",
+    ),
+    listFirmLeads(),
+  ]);
+
+  interface Acc {
+    firm_name: string;
+    roles: Set<string>;
+    sources: Set<string>;
+    phone: string | null;
+    address: string | null;
+    website_url: string | null;
+    industry: string | null;
+    category: string | null;
+    vendor_list_org: string | null;
+    vendor_list_url: string | null;
+    orgs: Set<string>;
+    seen_in_990s: number;
+    status: string;
+    notes: string | null;
+  }
+  const acc = new Map<string, Acc>();
+  const get = (name: string): Acc => {
+    const key = normalizeFirmName(name);
+    let e = acc.get(key);
+    if (!e) {
+      e = {
+        firm_name: name,
+        roles: new Set(),
+        sources: new Set(),
+        phone: null,
+        address: null,
+        website_url: null,
+        industry: null,
+        category: null,
+        vendor_list_org: null,
+        vendor_list_url: null,
+        orgs: new Set(),
+        seen_in_990s: 0,
+        status: "new",
+        notes: null,
+      };
+      acc.set(key, e);
+    }
+    return e;
+  };
+
+  for (const f of (filings ?? []) as any[]) {
+    for (const [field, role] of [
+      ["preparer_firm", "preparer"],
+      ["fundraiser_firm", "fundraiser"],
+    ] as const) {
+      const n = (f[field] ?? "").trim();
+      if (!n) continue;
+      const e = get(n);
+      e.roles.add(role);
+      e.sources.add(`990_${role}`);
+      e.seen_in_990s++;
+      if (f.org_id) e.orgs.add(f.org_id);
+      if (role === "preparer") {
+        if (f.preparer_phone && !e.phone) e.phone = f.preparer_phone;
+        if (f.preparer_address && !e.address) e.address = f.preparer_address;
+      }
+    }
+  }
+  for (const l of leads) {
+    const e = get(l.firm_name);
+    e.sources.add(l.source ?? "manual");
+    e.status = l.status ?? "new";
+    e.notes = l.notes ?? null;
+    if (l.phone && !e.phone) e.phone = l.phone;
+    if (l.website_url) e.website_url = l.website_url;
+    if (l.industry) e.industry = l.industry;
+    if (l.category) e.category = l.category;
+    if (l.vendor_list_org) e.vendor_list_org = l.vendor_list_org;
+    if (l.vendor_list_url) e.vendor_list_url = l.vendor_list_url;
+  }
+
+  return [...acc.values()]
+    .map((e) => ({
+      firm_name: e.firm_name,
+      roles: [...e.roles],
+      sources: [...e.sources],
+      phone: e.phone,
+      address: e.address,
+      website_url: e.website_url,
+      industry: e.industry,
+      category: e.category,
+      vendor_list_org: e.vendor_list_org,
+      vendor_list_url: e.vendor_list_url,
+      org_ids: [...e.orgs],
+      seen_in_990s: e.seen_in_990s,
+      status: e.status,
+      notes: e.notes,
+    }))
+    .sort(
+      (a, b) =>
+        b.seen_in_990s - a.seen_in_990s ||
+        b.org_ids.length - a.org_ids.length ||
+        a.firm_name.localeCompare(b.firm_name),
+    );
 }

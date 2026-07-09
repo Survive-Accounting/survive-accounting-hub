@@ -4,8 +4,8 @@
 // ProPublica 990 enrichment: per-org filings (financials) and officers/advisors
 // tenure — THE LEADS. Registry only; no outreach. Add-chapter + CSV import are
 // gated behind ?admin=1. Reuses the shared CampusCombobox + FilterPill.
-import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Sparkles,
   Trash2,
   Upload,
@@ -30,27 +31,31 @@ import {
   councilLabel,
   deleteGreekChapter,
   fetchCampusContext,
+  fetchFirmRollup,
   fetchGreekCampuses,
   fetchGreekCatalog,
   FILING_ITEM_FIELDS,
+  FIRM_SOURCES,
   GREEK_STATUSES,
   importChapterGpaTsv,
+  importCharteredYears,
   importGreekChaptersCsv,
-  linkedInAdvisorUrl,
   listAllFilings,
+  listChapterFilings,
   listChapterGpa,
   listGreekChapters,
-  listGreekFilings,
   listGreekPeople,
   nextGreekStatus,
   proPublicaUrl,
-  sosSearchUrl,
+  resetChapterEnrichment,
   updateCampusFslUrl,
   updateGreekChapter,
   updateGreekFiling,
   updateGreekPerson,
   upsertCampusContext,
+  upsertFirmLead,
   type CampusContext,
+  type FirmRow,
   type GreekCampus,
   type GreekChapter,
   type GreekFiling,
@@ -59,13 +64,26 @@ import {
 } from "@/lib/greek-orgs";
 import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
 import { parseOfficers } from "@/lib/greek-officers";
-import { computeOrgSignals, SIGNALS, signalLabel, type SignalKey } from "@/lib/greek-signals";
+import { deriveNameFromDomain, INDUSTRIES, industryLabel } from "@/lib/greek-vendors";
+import { computeChapterSignals, SIGNALS, signalLabel, type SignalKey } from "@/lib/greek-signals";
+import { ADMIN_PASSCODE } from "@/components/AdminGate";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { CampusCombobox } from "@/components/outreach/CampusCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/outreach/greek-orgs")({
   validateSearch: (s: Record<string, unknown>): { admin?: number } => ({
@@ -95,7 +113,7 @@ const fmtMoney = (n: number | null) =>
 function GreekOrgs() {
   const { admin } = Route.useSearch();
   const isAdmin = admin === 1;
-  const [tab, setTab] = useState<"chapters" | "people" | "leads">("chapters");
+  const [tab, setTab] = useState<"chapters" | "people" | "leads" | "firms">("chapters");
 
   const campusesQuery = useQuery({ queryKey: ["greek-campuses"], queryFn: fetchGreekCampuses });
   const catalogQuery = useQuery({ queryKey: ["greek-catalog"], queryFn: fetchGreekCatalog });
@@ -109,12 +127,14 @@ function GreekOrgs() {
   const campusById = useMemo(() => new Map(campuses.map((c) => [c.id, c])), [campuses]);
   const catalogById = useMemo(() => new Map(catalog.map((o) => [o.id, o])), [catalog]);
 
-  // Per-org signals from all filings + GPA terms.
-  const signalsByOrg = useMemo(() => {
+  // Per-CHAPTER signals: that chapter's filings + physical/founding fields + its
+  // org's GPA terms (GPA is tracked per national org). Each registry row is a
+  // chapter, so signals are computed at the chapter grain.
+  const signalsByChapter = useMemo(() => {
     const fBy = new Map<string, any[]>();
     for (const f of allFilingsQuery.data ?? []) {
-      if (!f.org_id) continue;
-      (fBy.get(f.org_id) ?? fBy.set(f.org_id, []).get(f.org_id)!).push(f);
+      if (!f.chapter_id) continue;
+      (fBy.get(f.chapter_id) ?? fBy.set(f.chapter_id, []).get(f.chapter_id)!).push(f);
     }
     const gBy = new Map<string, any[]>();
     for (const g of gpaQuery.data ?? []) {
@@ -122,12 +142,30 @@ function GreekOrgs() {
       (gBy.get(g.greek_org_id) ?? gBy.set(g.greek_org_id, []).get(g.greek_org_id)!).push(g);
     }
     const m = new Map<string, SignalKey[]>();
-    for (const id of new Set([...fBy.keys(), ...gBy.keys()])) {
-      const sig = computeOrgSignals(fBy.get(id) ?? [], gBy.get(id) ?? []);
-      if (sig.length) m.set(id, sig);
+    for (const ch of chapters) {
+      const sig = computeChapterSignals(
+        fBy.get(ch.id) ?? [],
+        gBy.get(ch.greek_org_id ?? "") ?? [],
+        { chartered_year: ch.chartered_year, is_founding_chapter: ch.is_founding_chapter },
+      );
+      if (sig.length) m.set(ch.id, sig);
     }
     return m;
-  }, [allFilingsQuery.data, gpaQuery.data]);
+  }, [chapters, allFilingsQuery.data, gpaQuery.data]);
+
+  // Org-level roll-up (union of a national org's chapters' signals) for the Leads
+  // tab, which ranks orgs rather than individual chapters.
+  const signalsByOrg = useMemo(() => {
+    const sets = new Map<string, Set<SignalKey>>();
+    for (const ch of chapters) {
+      const sig = ch.greek_org_id ? signalsByChapter.get(ch.id) : undefined;
+      if (!sig || !ch.greek_org_id) continue;
+      const set =
+        sets.get(ch.greek_org_id) ?? sets.set(ch.greek_org_id, new Set()).get(ch.greek_org_id)!;
+      sig.forEach((s) => set.add(s));
+    }
+    return new Map([...sets].map(([k, v]) => [k, [...v]] as [string, SignalKey[]]));
+  }, [chapters, signalsByChapter]);
 
   const refetchAll = () => {
     chaptersQuery.refetch();
@@ -146,7 +184,7 @@ function GreekOrgs() {
           GreekIntel
         </Badge>
       </div>
-      <div className="mb-4 flex gap-1.5">
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
         <FilterPill active={tab === "chapters"} onClick={() => setTab("chapters")}>
           Chapters
         </FilterPill>
@@ -156,6 +194,27 @@ function GreekOrgs() {
         <FilterPill active={tab === "people"} onClick={() => setTab("people")}>
           People
         </FilterPill>
+        <FilterPill active={tab === "firms"} onClick={() => setTab("firms")}>
+          Firms
+        </FilterPill>
+        <Link
+          to="/outreach/greek-orgs/queue"
+          className="ml-2 inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+        >
+          Enrichment queue →
+        </Link>
+        <Link
+          to="/outreach/greek-orgs/people-queue"
+          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+        >
+          People queue →
+        </Link>
+        <Link
+          to="/outreach/greek-orgs/vendor-queue"
+          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+        >
+          Vendor queue →
+        </Link>
       </div>
 
       {tab === "chapters" && (
@@ -166,7 +225,8 @@ function GreekOrgs() {
           catalogById={catalogById}
           campusById={campusById}
           chapters={chapters}
-          signalsByOrg={signalsByOrg}
+          filings={allFilingsQuery.data ?? []}
+          signalsByChapter={signalsByChapter}
           loading={chaptersQuery.isLoading}
           refetchChapters={refetchAll}
           refetchCampuses={() => campusesQuery.refetch()}
@@ -185,6 +245,381 @@ function GreekOrgs() {
       {tab === "people" && (
         <PeopleTab campuses={campuses} chapters={chapters} catalogById={catalogById} />
       )}
+      {tab === "firms" && <FirmsTab catalogById={catalogById} />}
+    </div>
+  );
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  "990_preparer": "990 preparer",
+  "990_fundraiser": "990 fundraiser",
+  "990_contractor": "990 contractor",
+  national_vendor_list: "vendor list",
+  manual: "manual",
+};
+
+function FirmsTab({ catalogById }: { catalogById: Map<string, GreekOrgCatalog> }) {
+  const firmsQuery = useQuery({ queryKey: ["greek-firms"], queryFn: fetchFirmRollup });
+  const firms = useMemo(() => firmsQuery.data ?? [], [firmsQuery.data]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [source, setSource] = useState<string | null>(null);
+  const [industry, setIndustry] = useState<string>("");
+
+  const filtered = useMemo(
+    () =>
+      firms.filter(
+        (f) => (!source || f.sources.includes(source)) && (!industry || f.industry === industry),
+      ),
+    [firms, source, industry],
+  );
+
+  async function saveLead(name: string, patch: Parameters<typeof upsertFirmLead>[1]) {
+    try {
+      await upsertFirmLead(name, patch);
+      firmsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save.");
+    }
+  }
+
+  return (
+    <>
+      <FirmQuickAdd onAdded={() => firmsQuery.refetch()} />
+
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-muted-foreground">Source:</span>
+        <FilterPill active={!source} onClick={() => setSource(null)}>
+          All
+        </FilterPill>
+        {FIRM_SOURCES.map((s) => (
+          <FilterPill key={s} active={source === s} onClick={() => setSource(s)}>
+            {SOURCE_LABEL[s]}
+          </FilterPill>
+        ))}
+        <span className="ml-2 text-[11px] text-muted-foreground">Industry:</span>
+        <select
+          value={industry}
+          onChange={(e) => setIndustry(e.target.value)}
+          className="h-7 rounded-md border border-input bg-background px-1.5 text-[11px]"
+        >
+          <option value="">all</option>
+          {INDUSTRIES.map((i) => (
+            <option key={i} value={i}>
+              {industryLabel(i)}
+            </option>
+          ))}
+        </select>
+        <span className="ml-2 text-[11px] text-muted-foreground">
+          {filtered.length} of {firms.length} firms
+        </span>
+      </div>
+
+      {firmsQuery.isLoading ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+          No firms match. 990 preparers/fundraisers roll up from filings; vendor-list firms come
+          from the vendor queue.
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map((f) => (
+            <FirmRowCard
+              key={f.firm_name}
+              f={f}
+              catalogById={catalogById}
+              expanded={open === f.firm_name}
+              onToggle={() => setOpen((v) => (v === f.firm_name ? null : f.firm_name))}
+              onSave={(patch) => saveLead(f.firm_name, patch)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** One-line manual firm quick-add: website URL → derived (editable) name →
+ *  industry → note. Doubles as King's vendor-list logger via the source select
+ *  (org + list URL fields appear for source=vendor list). */
+function FirmQuickAdd({ onAdded }: { onAdded: () => void }) {
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  const [industry, setIndustry] = useState("");
+  const [source, setSource] = useState<string>("manual");
+  const [vendorOrg, setVendorOrg] = useState("");
+  const [vendorUrl, setVendorUrl] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function onUrl(v: string) {
+    setUrl(v);
+    if (!nameTouched && v.trim()) setName(deriveNameFromDomain(v));
+  }
+
+  async function add() {
+    if (!name.trim()) return toast.error("Firm name required (paste a website URL to derive it).");
+    setBusy(true);
+    try {
+      await upsertFirmLead(name.trim(), {
+        source,
+        website_url: url.trim() || null,
+        industry: industry || null,
+        phone: phone.trim() || null,
+        notes: note.trim() || null,
+        vendor_list_org: source === "national_vendor_list" ? vendorOrg.trim() || null : null,
+        vendor_list_url: source === "national_vendor_list" ? vendorUrl.trim() || null : null,
+      });
+      toast.success(`Added ${name.trim()}.`);
+      setUrl("");
+      setName("");
+      setNameTouched(false);
+      setPhone("");
+      setNote("");
+      onAdded();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mb-3 rounded-lg border border-border p-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input
+          value={url}
+          onChange={(e) => onUrl(e.target.value)}
+          placeholder="website URL (holmesmurphy.com)"
+          className="h-8 w-56 text-xs"
+        />
+        <Input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameTouched(true);
+          }}
+          placeholder="firm name"
+          className="h-8 w-44 text-xs"
+        />
+        <select
+          value={industry}
+          onChange={(e) => setIndustry(e.target.value)}
+          className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
+        >
+          <option value="">industry…</option>
+          {INDUSTRIES.map((i) => (
+            <option key={i} value={i}>
+              {industryLabel(i)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          className="h-8 rounded-md border border-input bg-background px-1.5 text-xs"
+        >
+          {FIRM_SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {SOURCE_LABEL[s]}
+            </option>
+          ))}
+        </select>
+        {source === "national_vendor_list" && (
+          <>
+            <Input
+              value={vendorOrg}
+              onChange={(e) => setVendorOrg(e.target.value)}
+              placeholder="national org"
+              className="h-8 w-36 text-xs"
+            />
+            <Input
+              value={vendorUrl}
+              onChange={(e) => setVendorUrl(e.target.value)}
+              placeholder="list URL"
+              className="h-8 w-40 text-xs"
+            />
+          </>
+        )}
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="phone"
+          className="h-8 w-28 text-xs"
+        />
+        <Input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="note (optional)"
+          className="h-8 w-36 text-xs"
+        />
+        <Button size="sm" className="h-8" disabled={busy} onClick={add}>
+          {busy ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="mr-1 h-3.5 w-3.5" />
+          )}
+          Add firm
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function FirmRowCard({
+  f,
+  catalogById,
+  expanded,
+  onToggle,
+  onSave,
+}: {
+  f: FirmRow;
+  catalogById: Map<string, GreekOrgCatalog>;
+  expanded: boolean;
+  onToggle: () => void;
+  onSave: (patch: Parameters<typeof upsertFirmLead>[1]) => void;
+}) {
+  const [notes, setNotes] = useState(f.notes ?? "");
+  const [website, setWebsite] = useState(f.website_url ?? "");
+  // A status/notes edit on a lead-less 990 firm creates its row — carry the
+  // right source so the chip doesn't degrade to "manual".
+  const primarySource =
+    f.sources.find((s) => s === "national_vendor_list") ??
+    f.sources.find((s) => s.startsWith("990_")) ??
+    "manual";
+
+  return (
+    <div className="rounded-lg border border-border bg-card/60 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <button type="button" onClick={onToggle} className="font-semibold hover:underline">
+          {f.firm_name}
+        </button>
+        {f.sources.map((s) => (
+          <Badge
+            key={s}
+            variant="outline"
+            className={`text-[10px] ${s === "national_vendor_list" ? "border-violet-300 bg-violet-50 text-violet-700" : ""}`}
+          >
+            {SOURCE_LABEL[s] ?? s}
+          </Badge>
+        ))}
+        {f.industry && (
+          <Badge variant="secondary" className="text-[10px]">
+            {industryLabel(f.industry)}
+          </Badge>
+        )}
+        {/* The money column: this vendor/manual firm also shows up in N 990s. */}
+        <Badge
+          className={`text-[10px] ${f.seen_in_990s > 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}
+          title="Cross-reference: filings whose preparer/fundraiser matches this firm (normalized name)"
+        >
+          seen in {f.seen_in_990s} 990{f.seen_in_990s === 1 ? "" : "s"}
+        </Badge>
+        {f.org_ids.length > 0 && (
+          <Badge variant="secondary" className="text-[10px]">
+            {f.org_ids.length} org{f.org_ids.length === 1 ? "" : "s"}
+          </Badge>
+        )}
+        {f.phone && <span className="text-muted-foreground">{f.phone}</span>}
+        {f.website_url && (
+          <a
+            href={f.website_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 text-primary underline"
+          >
+            site <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+        <select
+          value={f.status}
+          onChange={(e) => onSave({ status: e.target.value, source: primarySource })}
+          className={`ml-auto h-7 rounded-md border border-input bg-background px-1.5 text-[11px]`}
+        >
+          {["new", "contacted", "meeting", "client", "passed"].map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      {(f.address || f.vendor_list_org) && (
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+          {f.address && <span>{f.address}</span>}
+          {f.vendor_list_org && (
+            <span>
+              via {f.vendor_list_org}
+              {f.vendor_list_url && (
+                <>
+                  {" "}
+                  <a
+                    href={f.vendor_list_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline"
+                  >
+                    list
+                  </a>
+                </>
+              )}
+              {f.category ? ` · ${f.category}` : ""}
+            </span>
+          )}
+        </div>
+      )}
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          {f.org_ids.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {f.org_ids.map((id) => (
+                <span
+                  key={id}
+                  className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px]"
+                >
+                  {catalogById.get(id)?.name ?? id}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Input
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              onBlur={() =>
+                website !== (f.website_url ?? "") &&
+                onSave({ website_url: website || null, source: primarySource })
+              }
+              placeholder="website URL"
+              className="h-7 w-64 text-[11px]"
+            />
+            <select
+              value={f.industry ?? ""}
+              onChange={(e) => onSave({ industry: e.target.value || null, source: primarySource })}
+              className="h-7 rounded-md border border-input bg-background px-1.5 text-[11px]"
+            >
+              <option value="">industry…</option>
+              {INDUSTRIES.map((i) => (
+                <option key={i} value={i}>
+                  {industryLabel(i)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={() =>
+              notes !== (f.notes ?? "") && onSave({ notes: notes || null, source: primarySource })
+            }
+            placeholder="Lead notes…"
+            className="min-h-[44px] text-[11px]"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -196,7 +631,8 @@ function ChaptersTab({
   catalogById,
   campusById,
   chapters,
-  signalsByOrg,
+  filings,
+  signalsByChapter,
   loading,
   refetchChapters,
   refetchCampuses,
@@ -208,7 +644,8 @@ function ChaptersTab({
   catalogById: Map<string, GreekOrgCatalog>;
   campusById: Map<string, GreekCampus>;
   chapters: GreekChapter[];
-  signalsByOrg: Map<string, SignalKey[]>;
+  filings: Pick<GreekFiling, "chapter_id" | "tax_year" | "revenue">[];
+  signalsByChapter: Map<string, SignalKey[]>;
   loading: boolean;
   refetchChapters: () => void;
   refetchCampuses: () => void;
@@ -218,7 +655,34 @@ function ChaptersTab({
   const [council, setCouncil] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [signal, setSignal] = useState<SignalKey | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null); // drawer
   const selectedCampus = campusId ? (campusById.get(campusId) ?? null) : null;
+
+  // Latest revenue + YoY per org for the dense-row chips.
+  // Latest revenue + YoY per CHAPTER (each campus's house corp files its own 990).
+  const revByChapter = useMemo(() => {
+    const byChapter = new Map<string, { year: number; revenue: number | null }[]>();
+    for (const f of filings) {
+      if (!f.chapter_id || f.tax_year == null) continue;
+      (byChapter.get(f.chapter_id) ?? byChapter.set(f.chapter_id, []).get(f.chapter_id)!).push({
+        year: f.tax_year,
+        revenue: f.revenue,
+      });
+    }
+    const m = new Map<string, { year: number; revenue: number | null; yoy: number | null }>();
+    for (const [chapterId, rows] of byChapter) {
+      const withRev = rows.filter((r) => r.revenue != null).sort((a, b) => a.year - b.year);
+      const latest = withRev[withRev.length - 1];
+      if (!latest) continue;
+      const prev = withRev[withRev.length - 2];
+      const yoy =
+        prev?.revenue != null && prev.revenue !== 0 && latest.revenue != null
+          ? Math.round(((latest.revenue - prev.revenue) / Math.abs(prev.revenue)) * 100)
+          : null;
+      m.set(chapterId, { year: latest.year, revenue: latest.revenue, yoy });
+    }
+    return m;
+  }, [filings]);
 
   const filtered = useMemo(
     () =>
@@ -228,9 +692,7 @@ function ChaptersTab({
             (!campusId || ch.campus_id === campusId) &&
             (!council || ch.council === council) &&
             (!status || ch.status === status) &&
-            (!signal ||
-              (ch.greek_org_id != null &&
-                (signalsByOrg.get(ch.greek_org_id) ?? []).includes(signal))),
+            (!signal || (signalsByChapter.get(ch.id) ?? []).includes(signal)),
         )
         .sort(
           (a, b) =>
@@ -238,7 +700,7 @@ function ChaptersTab({
               campusById.get(b.campus_id ?? "")?.name ?? "",
             ) || a.national_org.localeCompare(b.national_org),
         ),
-    [chapters, campusId, council, status, signal, campusById, signalsByOrg],
+    [chapters, campusId, council, status, signal, campusById, signalsByChapter],
   );
 
   return (
@@ -290,6 +752,7 @@ function ChaptersTab({
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2">
         <GpaImport onDone={refetchChapters} />
+        <CharteredImport catalog={catalog} onDone={refetchChapters} />
         {isAdmin && <CsvImport onDone={refetchChapters} />}
       </div>
       {isAdmin && (
@@ -303,31 +766,119 @@ function ChaptersTab({
         </div>
       )}
 
-      <div className="space-y-2">
-        {loading ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
-            No chapters match this filter.
-          </div>
-        ) : (
-          filtered.map((ch) => (
-            <ChapterCard
-              key={ch.id}
+      {loading ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
+          No chapters match this filter.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground">
+              <tr>
+                <th className="px-2 py-1.5 text-left">Org</th>
+                <th className="px-2 py-1.5 text-left">Campus</th>
+                <th className="px-2 py-1.5 text-left">Status</th>
+                <th className="px-2 py-1.5 text-right">Latest rev</th>
+                <th className="px-2 py-1.5 text-right">YoY</th>
+                <th className="px-2 py-1.5 text-left">Signals</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((ch) => {
+                const rev = revByChapter.get(ch.id);
+                const sig = signalsByChapter.get(ch.id) ?? [];
+                return (
+                  <tr
+                    key={ch.id}
+                    onClick={() => setOpenId(ch.id)}
+                    className="cursor-pointer border-t border-border/60 hover:bg-muted/30"
+                  >
+                    <td className="px-2 py-1.5">
+                      <span className="font-semibold">
+                        {ch.letters ? `${ch.letters} · ` : ""}
+                        {ch.national_org}
+                      </span>
+                      {ch.chapter_designation && (
+                        <span className="ml-1 text-muted-foreground">
+                          ({ch.chapter_designation})
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-muted-foreground">
+                      {campusById.get(ch.campus_id ?? "")?.name ?? "—"}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await updateGreekChapter(ch.id, { status: nextGreekStatus(ch.status) });
+                            refetchChapters();
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to update.");
+                          }
+                        }}
+                        title="Click to cycle status"
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLE[ch.status] ?? STATUS_STYLE.identified}`}
+                      >
+                        {ch.status}
+                      </button>
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {rev ? (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">
+                          {rev.year} {fmtMoney(rev.revenue)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {rev?.yoy != null ? (
+                        <span
+                          className={`rounded border px-1.5 py-0.5 text-[10px] ${rev.yoy >= 0 ? "border-emerald-200 text-emerald-700" : "border-red-200 text-red-600"}`}
+                        >
+                          {rev.yoy >= 0 ? "+" : ""}
+                          {rev.yoy}%
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <SignalChips signals={sig} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {openId != null &&
+        (() => {
+          const ch = filtered.find((c) => c.id === openId) ?? chapters.find((c) => c.id === openId);
+          if (!ch) return null;
+          return (
+            <ChapterDrawer
               ch={ch}
               campus={campusById.get(ch.campus_id ?? "") ?? null}
               org={ch.greek_org_id ? (catalogById.get(ch.greek_org_id) ?? null) : null}
-              signals={ch.greek_org_id ? (signalsByOrg.get(ch.greek_org_id) ?? []) : []}
+              signals={signalsByChapter.get(ch.id) ?? []}
               onChanged={() => {
                 refetchChapters();
                 refetchCatalog();
               }}
+              onClose={() => setOpenId(null)}
             />
-          ))
-        )}
-      </div>
+          );
+        })()}
     </>
   );
 }
@@ -349,21 +900,30 @@ function SignalChips({ signals }: { signals: SignalKey[] }) {
   );
 }
 
-function ChapterCard({
+// Click-open drawer: everything the old always-expanded card held (research
+// links, filings/enrich, officers paste, edit fields) lives here now.
+function ChapterDrawer({
   ch,
   campus,
   org,
   signals,
   onChanged,
+  onClose,
 }: {
   ch: GreekChapter;
   campus: GreekCampus | null;
   org: GreekOrgCatalog | null;
   signals: SignalKey[];
   onChanged: () => void;
+  onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [showEnrich, setShowEnrich] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function patch(p: Parameters<typeof updateGreekChapter>[1]) {
     try {
@@ -379,93 +939,205 @@ function ChapterCard({
       label: "990s (ProPublica)",
       url: proPublicaUrl(ch.national_org, ch.chapter_designation, campus?.city ?? null),
     },
-    { label: "Advisor (LinkedIn)", url: linkedInAdvisorUrl(ch.national_org, campus?.name ?? "") },
-    { label: "SOS search", url: sosSearchUrl(campus?.state ?? null) },
   ];
   if (campus?.fsl_url) links.push({ label: "FSL directory", url: campus.fsl_url });
 
   return (
-    <div className="rounded-lg border border-border bg-card/60 p-3 text-xs">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-semibold">
-              {ch.letters ? `${ch.letters} · ` : ""}
-              {ch.national_org}
-            </span>
-            {ch.chapter_designation && (
-              <span className="text-muted-foreground">({ch.chapter_designation})</span>
-            )}
-            <Badge variant="outline" className="text-[10px] uppercase">
-              {councilLabel(ch.council)}
-            </Badge>
-            <span className="text-muted-foreground">{campus?.name ?? "—"}</span>
-            {org?.ein && <span className="text-emerald-700">EIN {org.ein}</span>}
-          </div>
-          {signals.length > 0 && (
-            <div className="mt-1">
-              <SignalChips signals={signals} />
-            </div>
-          )}
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {links.map((l) => (
-              <a
-                key={l.label}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] hover:bg-muted"
-              >
-                {l.label}
-                <ExternalLink className="h-3 w-3 text-muted-foreground" />
-              </a>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowEnrich((v) => !v)}
-              className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/5 px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/10"
-            >
-              {showEnrich ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronRight className="h-3 w-3" />
+    <div className="fixed inset-0 z-50 bg-black/30" onClick={onClose}>
+      <div
+        className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto border-l border-border bg-background p-4 text-xs shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-sm font-bold">
+                {ch.letters ? `${ch.letters} · ` : ""}
+                {ch.national_org}
+              </span>
+              {ch.chapter_designation && (
+                <span className="text-muted-foreground">({ch.chapter_designation})</span>
               )}
-              <Sparkles className="h-3 w-3" /> Enrich / filings
-            </button>
+              <Badge variant="outline" className="text-[10px] uppercase">
+                {councilLabel(ch.council)}
+              </Badge>
+              <span className="text-muted-foreground">{campus?.name ?? "—"}</span>
+              {ch.ein && <span className="text-emerald-700">EIN {ch.ein}</span>}
+            </div>
+            {signals.length > 0 && (
+              <div className="mt-1">
+                <SignalChips signals={signals} />
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
           <button
             type="button"
             onClick={() => patch({ status: nextGreekStatus(ch.status) })}
             title="Click to cycle status"
-            className={`rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLE[ch.status] ?? STATUS_STYLE.identified}`}
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLE[ch.status] ?? STATUS_STYLE.identified}`}
           >
             {ch.status}
           </button>
           <button
             type="button"
-            onClick={() => setEditing((v) => !v)}
-            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+            onClick={onClose}
+            title="Close (Esc)"
+            className="shrink-0 rounded border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
           >
-            <Pencil className="h-3 w-3" /> Edit
+            ✕
           </button>
         </div>
-      </div>
 
-      {showEnrich && ch.greek_org_id && (
-        <EnrichBlock orgId={ch.greek_org_id} org={org} onEnriched={onChanged} />
-      )}
-      {editing && (
-        <ChapterEditor
-          ch={ch}
-          onSaved={() => {
-            setEditing(false);
-            onChanged();
-          }}
-        />
-      )}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {links.map((l) => (
+            <a
+              key={l.label}
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] hover:bg-muted"
+            >
+              {l.label}
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </a>
+          ))}
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
+          >
+            <Pencil className="h-3 w-3" /> Edit fields
+          </button>
+          <ResetChapterButton
+            chapterId={ch.id}
+            label={`${ch.national_org}${campus ? ` @ ${campus.name}` : ""}`}
+            onReset={onChanged}
+          />
+        </div>
+
+        {editing && (
+          <ChapterEditor
+            ch={ch}
+            onSaved={() => {
+              setEditing(false);
+              onChanged();
+            }}
+          />
+        )}
+
+        {ch.greek_org_id ? (
+          <EnrichBlock
+            chapterId={ch.id}
+            orgId={ch.greek_org_id}
+            chapterEin={ch.ein}
+            chapterPropublicaUrl={ch.propublica_url}
+            onEnriched={onChanged}
+          />
+        ) : (
+          <div className="mt-2 text-muted-foreground">No national org linked.</div>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** "Start it over": wipes ONE chapter's enrichment data (its filings, officers,
+ *  EIN/ProPublica URL) back to pending. Gated behind re-entering the admin
+ *  passcode — a second friction point so a stray click can't nuke real work.
+ *  One chapter at a time; there's no bulk variant. */
+function ResetChapterButton({
+  chapterId,
+  label,
+  onReset,
+}: {
+  chapterId: string;
+  label: string;
+  onReset: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function confirmReset() {
+    if (password !== ADMIN_PASSCODE) {
+      toast.error("Wrong passcode.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await resetChapterEnrichment(chapterId);
+      toast.success(`${label}: enrichment data reset.`);
+      setPassword("");
+      setOpen(false);
+      onReset();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Reset failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setPassword("");
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-700 hover:bg-red-100"
+        >
+          <RotateCcw className="h-3 w-3" /> Reset enrichment
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reset this chapter's enrichment data?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-left">
+              <p>
+                This deletes every 990 filing and officer/tenure record for <strong>{label}</strong>
+                , and clears its EIN, address, and ProPublica URL back to pending — as if it had
+                never been enriched.
+              </p>
+              <p>
+                Scoped to this one chapter (this campus's house corp) — sibling chapters of the same
+                national org are untouched, and so are the chapter's own fields (status, house corp,
+                advisor, notes).
+              </p>
+              <label className="block pt-1 text-xs font-medium text-foreground">
+                Admin passcode to confirm
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && confirmReset()}
+                  className="mt-1 h-9"
+                  autoFocus
+                />
+              </label>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              confirmReset();
+            }}
+            disabled={busy || !password}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+            Reset it
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -493,21 +1165,25 @@ function Sparkline({ values }: { values: number[] }) {
 }
 
 function EnrichBlock({
+  chapterId,
   orgId,
-  org,
+  chapterEin,
+  chapterPropublicaUrl,
   onEnriched,
 }: {
+  chapterId: string;
   orgId: string;
-  org: GreekOrgCatalog | null;
+  chapterEin: string | null;
+  chapterPropublicaUrl: string | null;
   onEnriched: () => void;
 }) {
   const enrich = useServerFn(enrichGreekOrgFilings);
   const filingsQuery = useQuery({
-    queryKey: ["greek-filings", orgId],
-    queryFn: () => listGreekFilings(orgId),
+    queryKey: ["chapter-filings", chapterId],
+    queryFn: () => listChapterFilings(chapterId),
   });
   const filings = filingsQuery.data ?? [];
-  const [ein, setEin] = useState(org?.ein ?? "");
+  const [ein, setEin] = useState(chapterEin ?? "");
   const [busy, setBusy] = useState(false);
   const [openFiling, setOpenFiling] = useState<string | null>(null);
 
@@ -515,7 +1191,7 @@ function EnrichBlock({
     if (!ein.trim()) return toast.error("Paste an EIN or ProPublica URL.");
     setBusy(true);
     try {
-      const r = (await enrich({ data: { orgId, einOrUrl: ein.trim() } })) as
+      const r = (await enrich({ data: { chapterId, einOrUrl: ein.trim() } })) as
         | { ok: false; error: string }
         | { ok: true; filings: number; years: number[] };
       if (!r.ok) toast.error(r.error);
@@ -558,9 +1234,9 @@ function EnrichBlock({
           )}
           Enrich filings
         </Button>
-        {org?.propublica_url && (
+        {chapterPropublicaUrl && (
           <a
-            href={org.propublica_url}
+            href={chapterPropublicaUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-[11px] text-primary underline"
@@ -669,7 +1345,12 @@ function EnrichBlock({
             </table>
           </div>
 
-          <OfficersPaste orgId={orgId} defaultYear={latest?.tax_year ?? null} onDone={onEnriched} />
+          <OfficersPaste
+            chapterId={chapterId}
+            orgId={orgId}
+            defaultYear={latest?.tax_year ?? null}
+            onDone={onEnriched}
+          />
         </>
       )}
     </div>
@@ -677,10 +1358,12 @@ function EnrichBlock({
 }
 
 function OfficersPaste({
+  chapterId,
   orgId,
   defaultYear,
   onDone,
 }: {
+  chapterId: string;
   orgId: string;
   defaultYear: number | null;
   onDone: () => void;
@@ -696,7 +1379,7 @@ function OfficersPaste({
     if (officers.length === 0) return toast.error("No (name, title) pairs found in that paste.");
     setBusy(true);
     try {
-      const r = await accumulateOfficers(orgId, officers, y);
+      const r = await accumulateOfficers(chapterId, orgId, officers, y);
       toast.success(`${officers.length} officers: ${r.inserted} new, ${r.updated} updated.`);
       setText("");
       onDone();
@@ -898,7 +1581,23 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
   const [houseCorp, setHouseCorp] = useState(ch.house_corp_name ?? "");
   const [corp990, setCorp990] = useState(ch.house_corp_990_url ?? "");
   const [notes, setNotes] = useState(ch.notes ?? "");
+  // Physical plant + founding.
+  const [charteredYear, setCharteredYear] = useState(
+    ch.chartered_year != null ? String(ch.chartered_year) : "",
+  );
+  const [isFounding, setIsFounding] = useState(ch.is_founding_chapter);
+  const [yearBuilt, setYearBuilt] = useState(ch.year_built != null ? String(ch.year_built) : "");
+  const [sqft, setSqft] = useState(ch.square_footage != null ? String(ch.square_footage) : "");
+  const [parcelLand, setParcelLand] = useState(
+    ch.parcel_value_land != null ? String(ch.parcel_value_land) : "",
+  );
+  const [parcelBldg, setParcelBldg] = useState(
+    ch.parcel_value_building != null ? String(ch.parcel_value_building) : "",
+  );
+  const [assessorUrl, setAssessorUrl] = useState(ch.county_assessor_url ?? "");
   const [saving, setSaving] = useState(false);
+
+  const intOrNull = (s: string) => (s.trim() ? Number(s.replace(/[^\d]/g, "")) || null : null);
 
   async function save() {
     setSaving(true);
@@ -912,6 +1611,13 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
         house_corp_name: houseCorp.trim() || null,
         house_corp_990_url: corp990.trim() || null,
         notes: notes.trim() || null,
+        chartered_year: intOrNull(charteredYear),
+        is_founding_chapter: isFounding,
+        year_built: intOrNull(yearBuilt),
+        square_footage: intOrNull(sqft),
+        parcel_value_land: intOrNull(parcelLand),
+        parcel_value_building: intOrNull(parcelBldg),
+        county_assessor_url: assessorUrl.trim() || null,
       });
       toast.success("Saved.");
       onSaved();
@@ -1000,6 +1706,69 @@ function ChapterEditor({ ch, onSaved }: { ch: GreekChapter; onSaved: () => void 
         <Input
           value={corp990}
           onChange={(e) => setCorp990(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      {/* Physical plant + founding (per-campus house / per-campus charter). */}
+      <div className="mt-1 border-t border-border/60 pt-2 text-[10px] font-semibold uppercase text-muted-foreground sm:col-span-2">
+        Physical plant &amp; founding
+      </div>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Chartered year
+        <Input
+          value={charteredYear}
+          onChange={(e) => setCharteredYear(e.target.value)}
+          placeholder="e.g. 1874"
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="flex items-center gap-2 self-end pb-2 text-[11px] font-medium text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={isFounding}
+          onChange={(e) => setIsFounding(e.target.checked)}
+        />
+        Founding chapter of this org
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Year built
+        <Input
+          value={yearBuilt}
+          onChange={(e) => setYearBuilt(e.target.value)}
+          placeholder="original construction"
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Square footage
+        <Input
+          value={sqft}
+          onChange={(e) => setSqft(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Parcel value — land ($)
+        <Input
+          value={parcelLand}
+          onChange={(e) => setParcelLand(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground">
+        Parcel value — building ($)
+        <Input
+          value={parcelBldg}
+          onChange={(e) => setParcelBldg(e.target.value)}
+          className="mt-0.5 h-9 text-sm"
+        />
+      </label>
+      <label className="text-[11px] font-medium text-muted-foreground sm:col-span-2">
+        County assessor URL
+        <Input
+          value={assessorUrl}
+          onChange={(e) => setAssessorUrl(e.target.value)}
+          placeholder="https://…"
           className="mt-0.5 h-9 text-sm"
         />
       </label>
@@ -1506,6 +2275,89 @@ function GpaImport({ onDone }: { onDone: () => void }) {
           {unmatched.length > 0 && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-800">
               Unmatched (pair manually): {unmatched.map((u) => u.org).join(", ")}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Wikipedia chartered-year backfill (per national org) --------------------
+function CharteredImport({ catalog, onDone }: { catalog: GreekOrgCatalog[]; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [org, setOrg] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [unmatched, setUnmatched] = useState<{ text: string; year: number }[]>([]);
+
+  async function run() {
+    if (!org.trim()) return toast.error("Pick the national org this list is for.");
+    if (!text.trim()) return toast.error("Paste the Wikipedia chapter table.");
+    setBusy(true);
+    setUnmatched([]);
+    try {
+      const r = await importCharteredYears(text, org.trim());
+      setUnmatched(r.unmatched);
+      toast.success(
+        `Set chartered year on ${r.updated} chapters; ${r.unmatched.length} unmatched.`,
+      );
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Import failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-sm font-semibold"
+      >
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        <Upload className="h-4 w-4" /> Chartered years (Wikipedia)
+      </button>
+      {open && (
+        <div className="mt-2 grid gap-2">
+          <Input
+            value={org}
+            onChange={(e) => setOrg(e.target.value)}
+            placeholder="National org (e.g. Kappa Kappa Gamma)"
+            list="greek-catalog"
+            className="text-sm"
+          />
+          <datalist id="greek-catalog">
+            {catalog.map((o) => (
+              <option key={o.id} value={o.name} />
+            ))}
+          </datalist>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Paste the chapter table from the org's Wikipedia 'list of chapters' page. Each row's charter year (first 1830–present year) is matched to a campus by name."
+            className="min-h-[80px] font-mono text-[11px]"
+          />
+          <Button size="sm" onClick={run} disabled={busy}>
+            {busy ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-1 h-4 w-4" />
+            )}
+            Backfill chartered years
+          </Button>
+          {unmatched.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-800">
+              {unmatched.length} rows had a year but no confident campus match (pair manually):
+              <ul className="mt-1 list-disc pl-4">
+                {unmatched.slice(0, 12).map((u, i) => (
+                  <li key={i}>
+                    {u.year} — {u.text}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
