@@ -280,3 +280,24 @@ test("extractPreparer is null-safe on non-matching text", () => {
     address: null,
   });
 });
+
+// Some /full renders glue the labels to the preceding token AND to their own
+// value ("…P00639065Firm's name THE KALOS GROUP LLC", "…26-1257309Firm's
+// addressPO BOX 3117"), which the old line-anchored parser missed (phone only).
+const GLUED_PREPARER = `Paid Preparer Use OnlyPrint/Type preparer's name
+Preparer's signature
+Date
+2024-11-07Check if
+self-employedPTIN
+P00639065Firm's name THE KALOS GROUP LLC
+ Firm's EIN 26-1257309Firm's addressPO BOX 3117
+
+TUSCALOOSA, AL354033117
+Phone no. (659) 734-2900May the IRS discuss this return with the preparer shown above?`;
+
+test("extractPreparer handles labels+values glued mid-line", () => {
+  const p = extractPreparer(GLUED_PREPARER);
+  expect(p.firm).toBe("THE KALOS GROUP LLC");
+  expect(p.phone).toBe("(659) 734-2900");
+  expect(p.address).toBe("PO BOX 3117, TUSCALOOSA, AL354033117");
+});

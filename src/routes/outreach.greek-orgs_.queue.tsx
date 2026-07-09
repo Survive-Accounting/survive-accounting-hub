@@ -705,22 +705,46 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
           placeholder="Paste the /full render page here (Ctrl+A, Ctrl+C) — or type the Part VII block for scanned filings"
           className="mt-1 min-h-[70px] text-[11px]"
         />
-        {officersText.trim() && (
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">
-              Parsed {parseOfficers(officersText).length} officer(s).
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[11px]"
-              disabled={busy}
-              onClick={saveOfficersPaste}
-            >
-              Save officers for {officerYear || "…"}
-            </Button>
-          </div>
-        )}
+        {officersText.trim() &&
+          (() => {
+            const parsed = parseOfficers(officersText);
+            return (
+              <div className="mt-1.5 rounded-md border border-border bg-background/60 p-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    Review {parsed.length} officer{parsed.length === 1 ? "" : "s"} — then Save, or
+                    Confirm/Skip below
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 shrink-0 px-2 text-[11px]"
+                    disabled={busy || parsed.length === 0}
+                    onClick={saveOfficersPaste}
+                  >
+                    Save officers for {officerYear || "…"}
+                  </Button>
+                </div>
+                {parsed.length > 0 ? (
+                  <ul className="max-h-44 space-y-0.5 overflow-y-auto pr-1 text-[11px]">
+                    {parsed.map((o, i) => (
+                      <li key={i} className="flex items-baseline gap-1.5">
+                        <span className="w-4 shrink-0 text-right text-[10px] text-muted-foreground">
+                          {i + 1}
+                        </span>
+                        <span className="font-medium">{o.name}</span>
+                        <span className="text-muted-foreground">— {o.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">
+                    No (name, title) pairs recognized yet — check the paste.
+                  </span>
+                )}
+              </div>
+            );
+          })()}
       </div>
 
       {/* STEP 3 */}
