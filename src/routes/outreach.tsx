@@ -13,6 +13,7 @@ import { Toaster } from "sonner";
 import {
   ChevronDown,
   ClipboardList,
+  Database,
   GraduationCap,
   LayoutTemplate,
   Megaphone,
@@ -124,6 +125,15 @@ const GREEK_SECTION: Section = {
   subtabs: [{ label: "Registry", to: "/outreach/greek-orgs" }],
 };
 
+// Backups — nightly R2 backup status + manual run. Core ops, shown in both modes.
+const BACKUPS_SECTION: Section = {
+  key: "backups",
+  label: "Backups",
+  icon: Database,
+  owns: (p) => p.startsWith("/outreach/backups"),
+  subtabs: [{ label: "Nightly backups", to: "/outreach/backups" }],
+};
+
 // V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
 // (Includes the Requests/orders admin added on main — a V1 surface hidden in V2.)
 const V1_SECTIONS: Section[] = [
@@ -215,6 +225,7 @@ function OutreachShell() {
           REDDIT_SECTION,
           PARENT_GROUPS_SECTION,
           GREEK_SECTION,
+          BACKUPS_SECTION,
         ]
       : [
           PROFINTEL_SECTION,
@@ -223,6 +234,7 @@ function OutreachShell() {
           PARENT_GROUPS_SECTION,
           GREEK_SECTION,
           ...V1_SECTIONS,
+          BACKUPS_SECTION,
         ];
   const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));

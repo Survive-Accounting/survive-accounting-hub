@@ -39,6 +39,7 @@ import { Route as OutreachGreekOrgsRouteImport } from './routes/outreach.greek-o
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
+import { Route as OutreachBackupsRouteImport } from './routes/outreach.backups'
 import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.active-roster'
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
@@ -49,6 +50,7 @@ import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreac
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
+import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -203,6 +205,11 @@ const OutreachCampaignMetricsRoute = OutreachCampaignMetricsRouteImport.update({
   path: '/campaign-metrics',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachBackupsRoute = OutreachBackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachActiveRosterRoute = OutreachActiveRosterRouteImport.update({
   id: '/active-roster',
   path: '/active-roster',
@@ -255,6 +262,11 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
+const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
+  id: '/api/cron/backup',
+  path: '/api/cron/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -274,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
+  '/outreach/backups': typeof OutreachBackupsRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
@@ -291,6 +304,7 @@ export interface FileRoutesByFullPath {
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
+  '/api/cron/backup': typeof ApiCronBackupRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -315,6 +329,7 @@ export interface FileRoutesByTo {
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
+  '/outreach/backups': typeof OutreachBackupsRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
@@ -332,6 +347,7 @@ export interface FileRoutesByTo {
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
+  '/api/cron/backup': typeof ApiCronBackupRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -358,6 +374,7 @@ export interface FileRoutesById {
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
+  '/outreach/backups': typeof OutreachBackupsRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
@@ -375,6 +392,7 @@ export interface FileRoutesById {
   '/outreach/students': typeof OutreachStudentsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
+  '/api/cron/backup': typeof ApiCronBackupRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -402,6 +420,7 @@ export interface FileRouteTypes {
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
+    | '/outreach/backups'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
@@ -419,6 +438,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/t/$slug'
     | '/outreach/'
+    | '/api/cron/backup'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -443,6 +463,7 @@ export interface FileRouteTypes {
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
+    | '/outreach/backups'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
@@ -460,6 +481,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/t/$slug'
     | '/outreach'
+    | '/api/cron/backup'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -485,6 +507,7 @@ export interface FileRouteTypes {
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
+    | '/outreach/backups'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
@@ -502,6 +525,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/t/$slug'
     | '/outreach/'
+    | '/api/cron/backup'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -526,6 +550,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   OShortRefRoute: typeof OShortRefRoute
   TSlugRoute: typeof TSlugRoute
+  ApiCronBackupRoute: typeof ApiCronBackupRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
 }
 
@@ -741,6 +766,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachCampaignMetricsRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/backups': {
+      id: '/outreach/backups'
+      path: '/backups'
+      fullPath: '/outreach/backups'
+      preLoaderRoute: typeof OutreachBackupsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/active-roster': {
       id: '/outreach/active-roster'
       path: '/active-roster'
@@ -811,6 +843,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
     }
+    '/api/cron/backup': {
+      id: '/api/cron/backup'
+      path: '/api/cron/backup'
+      fullPath: '/api/cron/backup'
+      preLoaderRoute: typeof ApiCronBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -842,6 +881,7 @@ const OrderRouteWithChildren = OrderRoute._addFileChildren(OrderRouteChildren)
 
 interface OutreachRouteChildren {
   OutreachActiveRosterRoute: typeof OutreachActiveRosterRoute
+  OutreachBackupsRoute: typeof OutreachBackupsRoute
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
@@ -864,6 +904,7 @@ interface OutreachRouteChildren {
 
 const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachActiveRosterRoute: OutreachActiveRosterRoute,
+  OutreachBackupsRoute: OutreachBackupsRoute,
   OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,
@@ -904,6 +945,7 @@ const rootRouteChildren: RootRouteChildren = {
   WelcomeRoute: WelcomeRoute,
   OShortRefRoute: OShortRefRoute,
   TSlugRoute: TSlugRoute,
+  ApiCronBackupRoute: ApiCronBackupRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
 }
 export const routeTree = rootRouteImport
