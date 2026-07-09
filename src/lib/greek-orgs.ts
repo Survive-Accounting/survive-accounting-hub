@@ -31,6 +31,11 @@ export interface GreekChapter {
   member_count_estimate: number | null; // stored in chapter_size
   notes: string | null;
   created_at: string | null;
+  // Per-chapter enrichment (each campus's house corp is its own nonprofit).
+  ein: string | null;
+  propublica_url: string | null;
+  enrichment_status: string;
+  enrichment_note: string | null;
 }
 
 export const COUNCILS = ["ifc", "panhellenic", "nphc", "mgc", "other"] as const;
@@ -137,6 +142,24 @@ export function einFromPastedUrl(raw: string): string {
 }
 
 // --- Data access --------------------------------------------------------------
+// Supabase/PostgREST hard-caps a single response at 1000 rows (db-max-rows), and
+// the registry now has >1100 chapters. Paginate anything that can exceed 1000.
+// `build(from, to)` must return a query with .range(from, to) applied.
+const PAGE_SIZE = 1000;
+async function selectAllPaged<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await build(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error((error as { message?: string })?.message ?? "query failed");
+    const chunk = data ?? [];
+    out.push(...chunk);
+    if (chunk.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
 // SEC roster + research-only campuses (nationwide KKG/ATO imports). Research-only
 // stays out of student-facing pickers/ProfIntel/orders — those use their own
 // fetches — but the registry/queues must see it.
@@ -202,38 +225,37 @@ export async function updateGreekOrgVendor(
   if (error) throw new Error(error.message);
 }
 
-/** Set an org's queue enrichment status (pending → enriched | no_filing_found). */
-export async function setOrgEnrichment(
-  orgId: string,
+/** Set one chapter's enrichment status (pending → enriched | no_filing_found). */
+export async function setChapterEnrichment(
+  chapterId: string,
   status: string,
   note?: string | null,
 ): Promise<void> {
   const patch: Record<string, unknown> = { enrichment_status: status };
   if (note !== undefined) patch.enrichment_note = note || null;
-  const { error } = await (supabase.from("greek_orgs" as never) as any)
+  const { error } = await (supabase.from("campus_greek_chapters" as never) as any)
     .update(patch)
-    .eq("id", orgId);
+    .eq("id", chapterId);
   if (error) throw new Error(error.message);
 }
 
-/** Wipe one org's enrichment data back to a fresh "pending" state — every 990
- *  filing, every officer/tenure record, and the ein/address/propublica_url on
- *  the catalog row. NOTE: greek_orgs is the shared national catalog, not a
- *  per-campus row — this clears the org for ALL of its chapters, not just the
- *  one the reset was triggered from. Does not touch the chapter's own fields
- *  (status/house corp/advisor/notes) or vendor-queue data (domain/vendor_*). */
-export async function resetGreekOrgEnrichment(orgId: string): Promise<void> {
+/** Wipe ONE chapter's enrichment data back to a fresh "pending" state — its 990
+ *  filings, its officer/tenure records, and the ein/address/propublica_url on the
+ *  chapter row. Scoped to this campus's house corp only; sibling chapters of the
+ *  same national org are untouched. Leaves the chapter's own registry fields
+ *  (status/house corp/advisor/notes) alone. */
+export async function resetChapterEnrichment(chapterId: string): Promise<void> {
   const { error: filingsErr } = await (supabase.from("greek_org_filings" as never) as any)
     .delete()
-    .eq("org_id", orgId);
+    .eq("chapter_id", chapterId);
   if (filingsErr) throw new Error(filingsErr.message);
 
   const { error: peopleErr } = await (supabase.from("greek_org_people" as never) as any)
     .delete()
-    .eq("org_id", orgId);
+    .eq("chapter_id", chapterId);
   if (peopleErr) throw new Error(peopleErr.message);
 
-  const { error: orgErr } = await (supabase.from("greek_orgs" as never) as any)
+  const { error: chapterErr } = await (supabase.from("campus_greek_chapters" as never) as any)
     .update({
       ein: null,
       address: null,
@@ -241,25 +263,27 @@ export async function resetGreekOrgEnrichment(orgId: string): Promise<void> {
       enrichment_status: "pending",
       enrichment_note: null,
     })
-    .eq("id", orgId);
-  if (orgErr) throw new Error(orgErr.message);
+    .eq("id", chapterId);
+  if (chapterErr) throw new Error(chapterErr.message);
 }
 
 const CHAPTER_COLS =
-  "id, campus_id, greek_org_id, chapter_designation, council, council_raw, letters, status, house_corp_name, house_corp_990_url, advisor_name, advisor_notes, chapter_size, notes, created_at";
+  "id, campus_id, greek_org_id, chapter_designation, council, council_raw, letters, status, house_corp_name, house_corp_990_url, advisor_name, advisor_notes, chapter_size, notes, created_at, ein, propublica_url, enrichment_status, enrichment_note";
 
 /** All chapters, with the national org name resolved from the catalog client-side. */
 export async function listGreekChapters(): Promise<GreekChapter[]> {
-  const [{ data, error }, catalog] = await Promise.all([
-    (supabase.from("campus_greek_chapters" as never) as any)
-      .select(CHAPTER_COLS)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
+  const [data, catalog] = await Promise.all([
+    selectAllPaged<any>((from, to) =>
+      (supabase.from("campus_greek_chapters" as never) as any)
+        .select(CHAPTER_COLS)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    ),
     fetchGreekCatalog(),
   ]);
-  if (error) throw new Error(error.message);
   const nameById = new Map(catalog.map((o) => [o.id, o.name]));
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data as any[]).map((r) => ({
     id: r.id,
     campus_id: r.campus_id,
     greek_org_id: r.greek_org_id,
@@ -276,6 +300,10 @@ export async function listGreekChapters(): Promise<GreekChapter[]> {
     member_count_estimate: r.chapter_size,
     notes: r.notes,
     created_at: r.created_at,
+    ein: r.ein ?? null,
+    propublica_url: r.propublica_url ?? null,
+    enrichment_status: r.enrichment_status ?? "pending",
+    enrichment_note: r.enrichment_note ?? null,
   }));
 }
 
@@ -435,6 +463,7 @@ export async function importGreekChaptersCsv(text: string): Promise<CsvImportRes
 export interface GreekFiling {
   id: string;
   org_id: string;
+  chapter_id: string | null;
   tax_year: number | null;
   revenue: number | null;
   expenses: number | null;
@@ -486,10 +515,11 @@ export async function updateGreekFiling(id: string, patch: Record<string, unknow
   if (error) throw new Error(error.message);
 }
 
-export async function listGreekFilings(orgId: string): Promise<GreekFiling[]> {
+/** Filings for one chapter (per-campus house corp). */
+export async function listChapterFilings(chapterId: string): Promise<GreekFiling[]> {
   const { data, error } = await (supabase.from("greek_org_filings" as never) as any)
     .select("*")
-    .eq("org_id", orgId)
+    .eq("chapter_id", chapterId)
     .order("tax_year", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as GreekFiling[];
@@ -499,6 +529,7 @@ export async function listGreekFilings(orgId: string): Promise<GreekFiling[]> {
 export interface GreekPerson {
   id: string;
   org_id: string;
+  chapter_id: string | null;
   person_name: string;
   titles: string[] | null;
   years: number[] | null;
@@ -521,11 +552,12 @@ export interface GreekPerson {
 export const PERSON_ENRICH_STATUSES = ["pending", "enriched", "not_found"] as const;
 
 export async function listGreekPeople(): Promise<GreekPerson[]> {
-  const { data, error } = await (supabase.from("greek_org_people" as never) as any)
-    .select("*")
-    .order("years_count", { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as GreekPerson[];
+  return selectAllPaged<GreekPerson>((from, to) =>
+    (supabase.from("greek_org_people" as never) as any)
+      .select("*")
+      .order("years_count", { ascending: false })
+      .range(from, to),
+  );
 }
 
 export async function updateGreekPerson(
@@ -551,19 +583,22 @@ export async function updateGreekPerson(
   if (error) throw new Error(error.message);
 }
 
-/** Accumulate parsed officers into greek_org_people for a given tax year. Upserts
- *  by (org_id, person_name): unions titles + the year-set, recomputes first/last/
- *  count, and flags is_current when the person appears in the org's latest filing
- *  year. Idempotent — re-pasting the same year doesn't inflate years_count. */
+/** Accumulate parsed officers into greek_org_people for a given tax year, scoped
+ *  to a CHAPTER (per-campus house corp board). Upserts by (chapter_id,
+ *  person_name): unions titles + the year-set, recomputes first/last/count, flags
+ *  is_current when the person appears in the chapter's latest filing year. org_id
+ *  is still stored (from the chapter) for the org-scoped people/leads rollups.
+ *  Idempotent — re-pasting the same year doesn't inflate years_count. */
 export async function accumulateOfficers(
-  orgId: string,
+  chapterId: string,
+  orgId: string | null,
   officers: { name: string; title: string }[],
   taxYear: number,
 ): Promise<{ inserted: number; updated: number }> {
-  // Latest filing year for "is_current".
+  // Latest filing year for this chapter drives "is_current".
   const { data: fy } = await (supabase.from("greek_org_filings" as never) as any)
     .select("tax_year")
-    .eq("org_id", orgId)
+    .eq("chapter_id", chapterId)
     .order("tax_year", { ascending: false })
     .limit(1);
   const latestYear = (fy?.[0]?.tax_year as number | undefined) ?? taxYear;
@@ -581,13 +616,14 @@ export async function accumulateOfficers(
   for (const [name, titleSet] of byName) {
     const { data: existing } = await (supabase.from("greek_org_people" as never) as any)
       .select("id, titles, years")
-      .eq("org_id", orgId)
+      .eq("chapter_id", chapterId)
       .eq("person_name", name)
       .maybeSingle();
 
     const titles = [...new Set([...(existing?.titles ?? []), ...titleSet])];
     const years = [...new Set([...(existing?.years ?? []), taxYear])].sort((a, b) => a - b);
     const row = {
+      chapter_id: chapterId,
       org_id: orgId,
       person_name: name,
       titles,
@@ -614,15 +650,16 @@ export async function accumulateOfficers(
   return { inserted, updated };
 }
 
-// --- Cross-org filings (for signal computation across the whole registry) ------
+// --- Cross-registry filings (per-chapter rev chips + per-org signal engine) -----
 const SIGNAL_FILING_COLS =
-  "id, org_id, tax_year, revenue, contributions, grants_paid, accum_depreciation, land_buildings_gross, fundraiser_firm, employees_count";
+  "id, org_id, chapter_id, tax_year, revenue, contributions, grants_paid, accum_depreciation, land_buildings_gross, fundraiser_firm, employees_count";
 
 export async function listAllFilings(): Promise<
   Pick<
     GreekFiling,
     | "id"
     | "org_id"
+    | "chapter_id"
     | "tax_year"
     | "revenue"
     | "contributions"
@@ -633,11 +670,9 @@ export async function listAllFilings(): Promise<
     | "employees_count"
   >[]
 > {
-  const { data, error } = await (supabase.from("greek_org_filings" as never) as any).select(
-    SIGNAL_FILING_COLS,
-  );
-  if (error) throw new Error(error.message);
-  return (data ?? []) as any;
+  return selectAllPaged<any>((from, to) =>
+    (supabase.from("greek_org_filings" as never) as any).select(SIGNAL_FILING_COLS).range(from, to),
+  ) as any;
 }
 
 // --- Campus context -----------------------------------------------------------

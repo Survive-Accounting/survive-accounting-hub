@@ -1,9 +1,9 @@
-// Import nationwide KKG/ATO chapters (data/kkg_ato_nationwide_seed.csv).
+// Import nationwide Greek chapters from a seed CSV.
 // Headers: campus_name, state, national_org, chapter_designation, letters.
 // Matches campuses by NAME; MISSING campuses are created research-only
 // (is_research_only=true, active_roster null → excluded from student pickers /
 // ProfIntel / orders). Resolves/creates national orgs; upserts chapter rows.
-// Usage: PROF_INTEL_PAT=… bun scripts/seed-nationwide-greek.mjs
+// Usage: PROF_INTEL_PAT=… bun scripts/seed-nationwide-greek.mjs [csv-path]
 import { readFileSync } from "fs";
 
 const ref = process.env.SUPABASE_PROJECT_ID ?? "unvxagsledbsdoremqeb";
@@ -12,7 +12,7 @@ if (!pat) {
   console.error("Set PROF_INTEL_PAT.");
   process.exit(1);
 }
-const CSV = "data/kkg_ato_nationwide_seed.csv";
+const CSV = process.argv[2] || "data/kkg_ato_nationwide_seed.csv";
 
 async function sql(query) {
   const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
@@ -97,9 +97,14 @@ await sql(
   `insert into public.greek_orgs (name) select v.name from (values ${values}) v(name) where not exists (select 1 from public.greek_orgs g where lower(g.name)=lower(v.name));`,
 );
 
-// Council by national org (KKG sorority = Panhellenic, ATO fraternity = IFC).
+// Council by national org (KKG sorority = Panhellenic; ATO / Phi Kappa Psi /
+// Phi Kappa Tau fraternities = IFC).
 const councilFor = (org) =>
-  /alpha tau omega/i.test(org) ? "ifc" : /kappa kappa gamma/i.test(org) ? "panhellenic" : null;
+  /kappa kappa gamma/i.test(org)
+    ? "panhellenic"
+    : /alpha tau omega|phi kappa psi|phi kappa tau/i.test(org)
+      ? "ifc"
+      : null;
 
 // Upsert chapters.
 let up = 0;

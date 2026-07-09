@@ -1,11 +1,13 @@
 // Greek org enrichment — server-side ProPublica Nonprofit Explorer fetch. ONE API
-// call per EIN, cached in greek_org_propublica_cache so re-enriching is free. Pulls
-// the org's name/address + per-year 990 financials into greek_org_filings.
+// call per EIN, cached in greek_org_propublica_cache so re-enriching is free.
+// Enrichment is per CHAPTER (each campus's house corp is its own nonprofit); the
+// EIN/address/990s land on the campus_greek_chapters row + greek_org_filings keyed
+// by chapter_id. org_id is still populated (from the chapter) for org rollups.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const schema = z.object({
-  orgId: z.string().uuid(),
+  chapterId: z.string().uuid(),
   einOrUrl: z.string().min(2),
 });
 
@@ -60,8 +62,15 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const cache = () => supabaseAdmin.from("greek_org_propublica_cache" as never) as any;
-    const orgs = () => supabaseAdmin.from("greek_orgs" as never) as any;
+    const chapters = () => supabaseAdmin.from("campus_greek_chapters" as never) as any;
     const filings = () => supabaseAdmin.from("greek_org_filings" as never) as any;
+
+    // org_id (for org-scoped rollups) comes from the chapter, not user input.
+    const { data: chapterRow } = await chapters()
+      .select("greek_org_id")
+      .eq("id", data.chapterId)
+      .maybeSingle();
+    const orgId = chapterRow?.greek_org_id ?? null;
 
     // Cache first — one call per EIN.
     let payload: any = null;
@@ -91,21 +100,20 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
     const org = payload?.organization ?? {};
     const address =
       [org.address, org.city, org.state, org.zipcode].filter(Boolean).join(", ") || null;
-    // NEVER overwrite the org name: greek_orgs rows are NATIONAL catalog entries
-    // shared by every chapter row; the EIN entered here is usually one chapter's
-    // house corp, and copying ProPublica's filer name renamed the whole org
-    // ("Alpha Delta Pi" → "Delta Sigma Chapter Of … House Corporation").
-    await orgs()
+    // Enrichment identity lives on the CHAPTER (per-campus house corp), never the
+    // shared national org row — writing it here is safe and can't clobber siblings.
+    await chapters()
       .update({
         ein,
         address,
         propublica_url: `https://projects.propublica.org/nonprofits/organizations/${ein}`,
       })
-      .eq("id", data.orgId);
+      .eq("id", data.chapterId);
 
     const objectIds = await fetchObjectIds(ein);
     const rows = (payload?.filings_with_data ?? []).map((f: any) => ({
-      org_id: data.orgId,
+      chapter_id: data.chapterId,
+      org_id: orgId,
       tax_year: num(f.tax_prd_yr),
       revenue: num(f.totrevenue),
       expenses: num(f.totfuncexpns),
@@ -128,7 +136,8 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
     for (const [year, oid] of objectIds) {
       if (apiYears.has(year)) continue;
       withYear.push({
-        org_id: data.orgId,
+        chapter_id: data.chapterId,
+        org_id: orgId,
         tax_year: year,
         revenue: null,
         expenses: null,
@@ -144,7 +153,7 @@ export const enrichGreekOrgFilings = createServerFn({ method: "POST" })
       });
     }
     if (withYear.length) {
-      const { error } = await filings().upsert(withYear, { onConflict: "org_id,tax_year" });
+      const { error } = await filings().upsert(withYear, { onConflict: "chapter_id,tax_year" });
       if (error) return { ok: false, error: error.message };
     }
 

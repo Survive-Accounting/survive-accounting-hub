@@ -40,13 +40,13 @@ import {
   importChapterGpaTsv,
   importGreekChaptersCsv,
   listAllFilings,
+  listChapterFilings,
   listChapterGpa,
   listGreekChapters,
-  listGreekFilings,
   listGreekPeople,
   nextGreekStatus,
   proPublicaUrl,
-  resetGreekOrgEnrichment,
+  resetChapterEnrichment,
   updateCampusFslUrl,
   updateGreekChapter,
   updateGreekFiling,
@@ -623,7 +623,7 @@ function ChaptersTab({
   catalogById: Map<string, GreekOrgCatalog>;
   campusById: Map<string, GreekCampus>;
   chapters: GreekChapter[];
-  filings: Pick<GreekFiling, "org_id" | "tax_year" | "revenue">[];
+  filings: Pick<GreekFiling, "chapter_id" | "tax_year" | "revenue">[];
   signalsByOrg: Map<string, SignalKey[]>;
   loading: boolean;
   refetchChapters: () => void;
@@ -638,17 +638,18 @@ function ChaptersTab({
   const selectedCampus = campusId ? (campusById.get(campusId) ?? null) : null;
 
   // Latest revenue + YoY per org for the dense-row chips.
-  const revByOrg = useMemo(() => {
-    const byOrg = new Map<string, { year: number; revenue: number | null }[]>();
+  // Latest revenue + YoY per CHAPTER (each campus's house corp files its own 990).
+  const revByChapter = useMemo(() => {
+    const byChapter = new Map<string, { year: number; revenue: number | null }[]>();
     for (const f of filings) {
-      if (!f.org_id || f.tax_year == null) continue;
-      (byOrg.get(f.org_id) ?? byOrg.set(f.org_id, []).get(f.org_id)!).push({
+      if (!f.chapter_id || f.tax_year == null) continue;
+      (byChapter.get(f.chapter_id) ?? byChapter.set(f.chapter_id, []).get(f.chapter_id)!).push({
         year: f.tax_year,
         revenue: f.revenue,
       });
     }
     const m = new Map<string, { year: number; revenue: number | null; yoy: number | null }>();
-    for (const [orgId, rows] of byOrg) {
+    for (const [chapterId, rows] of byChapter) {
       const withRev = rows.filter((r) => r.revenue != null).sort((a, b) => a.year - b.year);
       const latest = withRev[withRev.length - 1];
       if (!latest) continue;
@@ -657,7 +658,7 @@ function ChaptersTab({
         prev?.revenue != null && prev.revenue !== 0 && latest.revenue != null
           ? Math.round(((latest.revenue - prev.revenue) / Math.abs(prev.revenue)) * 100)
           : null;
-      m.set(orgId, { year: latest.year, revenue: latest.revenue, yoy });
+      m.set(chapterId, { year: latest.year, revenue: latest.revenue, yoy });
     }
     return m;
   }, [filings]);
@@ -768,7 +769,7 @@ function ChaptersTab({
             </thead>
             <tbody>
               {filtered.map((ch) => {
-                const rev = ch.greek_org_id ? revByOrg.get(ch.greek_org_id) : undefined;
+                const rev = revByChapter.get(ch.id);
                 const sig = ch.greek_org_id ? (signalsByOrg.get(ch.greek_org_id) ?? []) : [];
                 return (
                   <tr
@@ -941,7 +942,7 @@ function ChapterDrawer({
                 {councilLabel(ch.council)}
               </Badge>
               <span className="text-muted-foreground">{campus?.name ?? "—"}</span>
-              {org?.ein && <span className="text-emerald-700">EIN {org.ein}</span>}
+              {ch.ein && <span className="text-emerald-700">EIN {ch.ein}</span>}
             </div>
             {signals.length > 0 && (
               <div className="mt-1">
@@ -987,9 +988,11 @@ function ChapterDrawer({
           >
             <Pencil className="h-3 w-3" /> Edit fields
           </button>
-          {ch.greek_org_id && (
-            <ResetOrgButton orgId={ch.greek_org_id} orgName={ch.national_org} onReset={onChanged} />
-          )}
+          <ResetChapterButton
+            chapterId={ch.id}
+            label={`${ch.national_org}${campus ? ` @ ${campus.name}` : ""}`}
+            onReset={onChanged}
+          />
         </div>
 
         {editing && (
@@ -1003,7 +1006,13 @@ function ChapterDrawer({
         )}
 
         {ch.greek_org_id ? (
-          <EnrichBlock orgId={ch.greek_org_id} org={org} onEnriched={onChanged} />
+          <EnrichBlock
+            chapterId={ch.id}
+            orgId={ch.greek_org_id}
+            chapterEin={ch.ein}
+            chapterPropublicaUrl={ch.propublica_url}
+            onEnriched={onChanged}
+          />
         ) : (
           <div className="mt-2 text-muted-foreground">No national org linked.</div>
         )}
@@ -1012,17 +1021,17 @@ function ChapterDrawer({
   );
 }
 
-/** "Start it over": wipes one org's enrichment data (filings, officers, EIN/
- *  ProPublica URL) back to pending. Gated behind re-entering the admin
+/** "Start it over": wipes ONE chapter's enrichment data (its filings, officers,
+ *  EIN/ProPublica URL) back to pending. Gated behind re-entering the admin
  *  passcode — a second friction point so a stray click can't nuke real work.
- *  One org at a time; there's no bulk variant. */
-function ResetOrgButton({
-  orgId,
-  orgName,
+ *  One chapter at a time; there's no bulk variant. */
+function ResetChapterButton({
+  chapterId,
+  label,
   onReset,
 }: {
-  orgId: string;
-  orgName: string;
+  chapterId: string;
+  label: string;
   onReset: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -1036,8 +1045,8 @@ function ResetOrgButton({
     }
     setBusy(true);
     try {
-      await resetGreekOrgEnrichment(orgId);
-      toast.success(`${orgName}: enrichment data reset.`);
+      await resetChapterEnrichment(chapterId);
+      toast.success(`${label}: enrichment data reset.`);
       setPassword("");
       setOpen(false);
       onReset();
@@ -1066,19 +1075,19 @@ function ResetOrgButton({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Reset {orgName}'s enrichment data?</AlertDialogTitle>
+          <AlertDialogTitle>Reset this chapter's enrichment data?</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-left">
               <p>
-                This deletes every 990 filing and officer/tenure record for{" "}
-                <strong>{orgName}</strong>, and clears its EIN, address, and ProPublica URL back to
-                pending — as if it had never been enriched.
+                This deletes every 990 filing and officer/tenure record for <strong>{label}</strong>
+                , and clears its EIN, address, and ProPublica URL back to pending — as if it had
+                never been enriched.
               </p>
-              <p className="font-medium text-foreground">
-                {orgName} is the national organization, shared across every chapter that uses it —
-                this resets it everywhere, not just this campus.
+              <p>
+                Scoped to this one chapter (this campus's house corp) — sibling chapters of the same
+                national org are untouched, and so are the chapter's own fields (status, house corp,
+                advisor, notes).
               </p>
-              <p>Chapter fields (status, house corp, advisor, notes) are not affected.</p>
               <label className="block pt-1 text-xs font-medium text-foreground">
                 Admin passcode to confirm
                 <Input
@@ -1136,21 +1145,25 @@ function Sparkline({ values }: { values: number[] }) {
 }
 
 function EnrichBlock({
+  chapterId,
   orgId,
-  org,
+  chapterEin,
+  chapterPropublicaUrl,
   onEnriched,
 }: {
+  chapterId: string;
   orgId: string;
-  org: GreekOrgCatalog | null;
+  chapterEin: string | null;
+  chapterPropublicaUrl: string | null;
   onEnriched: () => void;
 }) {
   const enrich = useServerFn(enrichGreekOrgFilings);
   const filingsQuery = useQuery({
-    queryKey: ["greek-filings", orgId],
-    queryFn: () => listGreekFilings(orgId),
+    queryKey: ["chapter-filings", chapterId],
+    queryFn: () => listChapterFilings(chapterId),
   });
   const filings = filingsQuery.data ?? [];
-  const [ein, setEin] = useState(org?.ein ?? "");
+  const [ein, setEin] = useState(chapterEin ?? "");
   const [busy, setBusy] = useState(false);
   const [openFiling, setOpenFiling] = useState<string | null>(null);
 
@@ -1158,7 +1171,7 @@ function EnrichBlock({
     if (!ein.trim()) return toast.error("Paste an EIN or ProPublica URL.");
     setBusy(true);
     try {
-      const r = (await enrich({ data: { orgId, einOrUrl: ein.trim() } })) as
+      const r = (await enrich({ data: { chapterId, einOrUrl: ein.trim() } })) as
         | { ok: false; error: string }
         | { ok: true; filings: number; years: number[] };
       if (!r.ok) toast.error(r.error);
@@ -1201,9 +1214,9 @@ function EnrichBlock({
           )}
           Enrich filings
         </Button>
-        {org?.propublica_url && (
+        {chapterPropublicaUrl && (
           <a
-            href={org.propublica_url}
+            href={chapterPropublicaUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-[11px] text-primary underline"
@@ -1312,7 +1325,12 @@ function EnrichBlock({
             </table>
           </div>
 
-          <OfficersPaste orgId={orgId} defaultYear={latest?.tax_year ?? null} onDone={onEnriched} />
+          <OfficersPaste
+            chapterId={chapterId}
+            orgId={orgId}
+            defaultYear={latest?.tax_year ?? null}
+            onDone={onEnriched}
+          />
         </>
       )}
     </div>
@@ -1320,10 +1338,12 @@ function EnrichBlock({
 }
 
 function OfficersPaste({
+  chapterId,
   orgId,
   defaultYear,
   onDone,
 }: {
+  chapterId: string;
   orgId: string;
   defaultYear: number | null;
   onDone: () => void;
@@ -1339,7 +1359,7 @@ function OfficersPaste({
     if (officers.length === 0) return toast.error("No (name, title) pairs found in that paste.");
     setBusy(true);
     try {
-      const r = await accumulateOfficers(orgId, officers, y);
+      const r = await accumulateOfficers(chapterId, orgId, officers, y);
       toast.success(`${officers.length} officers: ${r.inserted} new, ${r.updated} updated.`);
       setText("");
       onDone();
