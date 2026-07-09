@@ -50,6 +50,7 @@ import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreac
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
+import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 
 const WelcomeRoute = WelcomeRouteImport.update({
@@ -262,6 +263,11 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
+const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
+  id: '/api/cron/weekly-digest',
+  path: '/api/cron/weekly-digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   id: '/api/cron/backup',
   path: '/api/cron/backup',
@@ -305,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByTo {
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -393,6 +401,7 @@ export interface FileRoutesById {
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -439,6 +448,7 @@ export interface FileRouteTypes {
     | '/t/$slug'
     | '/outreach/'
     | '/api/cron/backup'
+    | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -482,6 +492,7 @@ export interface FileRouteTypes {
     | '/t/$slug'
     | '/outreach'
     | '/api/cron/backup'
+    | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -526,6 +537,7 @@ export interface FileRouteTypes {
     | '/t/$slug'
     | '/outreach/'
     | '/api/cron/backup'
+    | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -551,6 +563,7 @@ export interface RootRouteChildren {
   OShortRefRoute: typeof OShortRefRoute
   TSlugRoute: typeof TSlugRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
+  ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
 }
 
@@ -843,6 +856,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
     }
+    '/api/cron/weekly-digest': {
+      id: '/api/cron/weekly-digest'
+      path: '/api/cron/weekly-digest'
+      fullPath: '/api/cron/weekly-digest'
+      preLoaderRoute: typeof ApiCronWeeklyDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/backup': {
       id: '/api/cron/backup'
       path: '/api/cron/backup'
@@ -946,6 +966,7 @@ const rootRouteChildren: RootRouteChildren = {
   OShortRefRoute: OShortRefRoute,
   TSlugRoute: TSlugRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
+  ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
 }
 export const routeTree = rootRouteImport
