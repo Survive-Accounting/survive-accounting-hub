@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as StudyRouteImport } from './routes/study'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
@@ -38,6 +39,7 @@ import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.c
 import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.active-roster'
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
+import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
@@ -59,6 +61,11 @@ const ThankyouRoute = ThankyouRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudyRoute = StudyRouteImport.update({
+  id: '/study',
+  path: '/study',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StartRoute = StartRouteImport.update({
@@ -193,6 +200,11 @@ const OShortRefRoute = OShortRefRouteImport.update({
   path: '/o/$shortRef',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JeSplatRoute = JeSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => JeRoute,
+} as any)
 const CeqCreateRoute = CeqCreateRouteImport.update({
   id: '/create',
   path: '/create',
@@ -235,17 +247,19 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
-  '/je': typeof JeRoute
+  '/je': typeof JeRouteWithChildren
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
+  '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
@@ -273,16 +287,18 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
-  '/je': typeof JeRoute
+  '/je': typeof JeRouteWithChildren
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
+  '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
@@ -311,17 +327,19 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
-  '/je': typeof JeRoute
+  '/je': typeof JeRouteWithChildren
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/start': typeof StartRoute
+  '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
@@ -358,10 +376,12 @@ export interface FileRouteTypes {
     | '/preview'
     | '/privacy'
     | '/start'
+    | '/study'
     | '/terms'
     | '/thankyou'
     | '/welcome'
     | '/ceq/create'
+    | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
@@ -395,10 +415,12 @@ export interface FileRouteTypes {
     | '/preview'
     | '/privacy'
     | '/start'
+    | '/study'
     | '/terms'
     | '/thankyou'
     | '/welcome'
     | '/ceq/create'
+    | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
@@ -433,10 +455,12 @@ export interface FileRouteTypes {
     | '/preview'
     | '/privacy'
     | '/start'
+    | '/study'
     | '/terms'
     | '/thankyou'
     | '/welcome'
     | '/ceq/create'
+    | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
@@ -465,13 +489,14 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeyondRoute: typeof BeyondRoute
   CeqRoute: typeof CeqRouteWithChildren
-  JeRoute: typeof JeRoute
+  JeRoute: typeof JeRouteWithChildren
   OnboardRoute: typeof OnboardRoute
   OrderRoute: typeof OrderRouteWithChildren
   OutreachRoute: typeof OutreachRouteWithChildren
   PreviewRoute: typeof PreviewRoute
   PrivacyRoute: typeof PrivacyRoute
   StartRoute: typeof StartRoute
+  StudyRoute: typeof StudyRoute
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
   WelcomeRoute: typeof WelcomeRoute
@@ -501,6 +526,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/study': {
+      id: '/study'
+      path: '/study'
+      fullPath: '/study'
+      preLoaderRoute: typeof StudyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/start': {
@@ -685,6 +717,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OShortRefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/je/$': {
+      id: '/je/$'
+      path: '/$'
+      fullPath: '/je/$'
+      preLoaderRoute: typeof JeSplatRouteImport
+      parentRoute: typeof JeRoute
+    }
     '/ceq/create': {
       id: '/ceq/create'
       path: '/create'
@@ -753,6 +792,16 @@ const CeqRouteChildren: CeqRouteChildren = {
 
 const CeqRouteWithChildren = CeqRoute._addFileChildren(CeqRouteChildren)
 
+interface JeRouteChildren {
+  JeSplatRoute: typeof JeSplatRoute
+}
+
+const JeRouteChildren: JeRouteChildren = {
+  JeSplatRoute: JeSplatRoute,
+}
+
+const JeRouteWithChildren = JeRoute._addFileChildren(JeRouteChildren)
+
 interface OrderRouteChildren {
   OrderShortRefRoute: typeof OrderShortRefRoute
 }
@@ -807,13 +856,14 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
   CeqRoute: CeqRouteWithChildren,
-  JeRoute: JeRoute,
+  JeRoute: JeRouteWithChildren,
   OnboardRoute: OnboardRoute,
   OrderRoute: OrderRouteWithChildren,
   OutreachRoute: OutreachRouteWithChildren,
   PreviewRoute: PreviewRoute,
   PrivacyRoute: PrivacyRoute,
   StartRoute: StartRoute,
+  StudyRoute: StudyRoute,
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
   WelcomeRoute: WelcomeRoute,

@@ -178,7 +178,7 @@ export function ChapterGrid({
       </div>
 
       <div className="je-grid-print-footer mt-2 text-[10px] text-muted-foreground">
-        {courseLabel} · {chapterLabel} · surviveaccounting.com/je
+        {courseLabel} · {chapterLabel} · surviveaccounting.com/study
       </div>
     </div>
   );
