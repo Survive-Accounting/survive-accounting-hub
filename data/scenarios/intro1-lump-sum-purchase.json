@@ -28,7 +28,7 @@
               "trap": "Allocate the price paid, never the raw appraisals \u2014 you didn't pay 450,000."
             },
             {
-              "account": "Building",
+              "account": "Buildings",
               "side": "debit",
               "label": "400,000 \u00d7 60%",
               "amount": 240000,
@@ -81,7 +81,7 @@
   "build": {
     "accountBank": [
       "Land",
-      "Building",
+      "Buildings",
       "Cash",
       "Land Improvements"
     ],

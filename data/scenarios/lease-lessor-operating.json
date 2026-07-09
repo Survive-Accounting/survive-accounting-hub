@@ -45,7 +45,7 @@
                 "trap": "No receivable, no derecognition — that's the whole point of an operating lease for the lessor."
               },
               {
-                "account": "Accumulated Depreciation—Building",
+                "account": "Accumulated Depreciation—Buildings",
                 "side": "credit",
                 "amount": 30000,
                 "why": "Normal contra-asset credit."
@@ -79,9 +79,9 @@
         "Cash",
         "Lease Revenue",
         "Depreciation Expense",
-        "Accumulated Depreciation—Building",
+        "Accumulated Depreciation—Buildings",
         "Lease Receivable",
-        "Building"
+        "Buildings"
       ],
       "scaffold": "Two everyday entries: rent receipt and depreciation. If you're derecognizing the building, you've classified the lease wrong."
     },
