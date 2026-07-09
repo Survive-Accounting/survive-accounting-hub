@@ -181,6 +181,28 @@ function Queue() {
     }
   }
 
+  // Free navigation within the batch (no save) — Prev/Next + jump-to.
+  const goTo = (i: number) => setIdx(Math.max(0, Math.min(queue.length - 1, i)));
+
+  // ← / → arrow keys navigate the deck (ignored while typing in a field).
+  useEffect(() => {
+    if (!started) return;
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"))
+        return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setIdx((i) => Math.max(0, i - 1));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setIdx((i) => Math.min(queue.length - 1, i + 1));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [started, queue.length]);
+
   if (!started) {
     const selectionLabel = activeGroup
       ? activeGroup.label
@@ -285,14 +307,52 @@ function Queue() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
-      {/* progress */}
-      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+      {/* nav */}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <button type="button" onClick={() => setStarted(false)} className="text-primary underline">
           ← batches
         </button>
         <span>
           {activeGroup?.label ?? campusById.get(campusId ?? "")?.name} · {idx + 1} of {queue.length}
         </span>
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-[11px]"
+          disabled={idx === 0}
+          onClick={() => goTo(idx - 1)}
+          title="Previous (←)"
+        >
+          ← Prev
+        </Button>
+        <select
+          value={idx}
+          onChange={(e) => goTo(Number(e.target.value))}
+          title="Jump to a chapter in this batch"
+          className="h-7 max-w-[320px] flex-1 truncate rounded-md border border-input bg-background px-1.5 text-[11px]"
+        >
+          {queue.map((q, i) => (
+            <option key={q.chapterId} value={i}>
+              {i + 1}. {q.chapter.letters ? `${q.chapter.letters} ` : ""}
+              {q.orgName}
+              {q.chapter.chapter_designation ? ` (${q.chapter.chapter_designation})` : ""} ·{" "}
+              {q.campus?.name ?? "—"}
+              {q.status === "enriched" ? " ✓" : ""}
+            </option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-[11px]"
+          disabled={idx >= queue.length - 1}
+          onClick={() => goTo(idx + 1)}
+          title="Next (→)"
+        >
+          Next →
+        </Button>
       </div>
       <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div

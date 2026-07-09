@@ -99,8 +99,10 @@ const cleanDesignation = (d: string | null): string => {
 
 /** The queue's "Find on ProPublica" dropdown: 7 prebuilt search variants, ordered
  *  by hit-rate (each labeled with its actual query so the VA learns the pattern —
- *  which one hits tells you why). Missing city (research-only campuses store no
- *  city) falls back to state; missing designation just drops that token instead
+ *  which one hits tells you why). #1 is bare "{org} {designation}" — the chapter
+ *  name + designation, which lands the house corp most often; the state-qualified
+ *  and city/house-corp variants follow. Missing city (research-only campuses store
+ *  no city) falls back to state; missing designation just drops that token instead
  *  of hiding the variant, so the shape stays consistent across orgs. */
 export function proPublicaSearchVariants(
   nationalOrg: string,
@@ -115,23 +117,22 @@ export function proPublicaSearchVariants(
   const pp = (q: string) =>
     `https://projects.propublica.org/nonprofits/search?q=${encodeURIComponent(q)}`;
 
-  const q1 = join(nationalOrg, designation, st);
-  const q2 = join(nationalOrg, cityOrState);
-  const q3 = join(nationalOrg, "house corporation", st);
-  const q4 = join(nationalOrg, designation);
-  const q5 = join(nationalOrg, "house association", cityOrState);
-  const irsQuery = join(nationalOrg, designation, st);
+  const nameDesignation = join(nationalOrg, designation); // most-common hit → first
+  const withState = join(nationalOrg, designation, st);
+  const byCity = join(nationalOrg, cityOrState);
+  const houseCorp = join(nationalOrg, "house corporation", st);
+  const houseAssoc = join(nationalOrg, "house association", cityOrState);
   const googleQuery = join(nationalOrg, designation, st, "990 site:projects.propublica.org");
 
   return [
-    { label: `"${q1}"`, url: pp(q1) },
-    { label: `"${q2}"`, url: pp(q2) },
-    { label: `"${q3}"`, url: pp(q3) },
-    { label: `"${q4}"`, url: pp(q4) },
-    { label: `"${q5}"`, url: pp(q5) },
+    { label: `"${nameDesignation}"`, url: pp(nameDesignation) },
+    { label: `"${withState}"`, url: pp(withState) },
+    { label: `"${byCity}"`, url: pp(byCity) },
+    { label: `"${houseCorp}"`, url: pp(houseCorp) },
+    { label: `"${houseAssoc}"`, url: pp(houseAssoc) },
     {
       label: "IRS EO search (catches revoked/inactive)",
-      url: `https://apps.irs.gov/app/eos/allSearch.do?dispatchMethod=searchAll&names=${encodeURIComponent(irsQuery)}&city=&state=${encodeURIComponent(st)}&country=US`,
+      url: `https://apps.irs.gov/app/eos/allSearch.do?dispatchMethod=searchAll&names=${encodeURIComponent(withState)}&city=&state=${encodeURIComponent(st)}&country=US`,
     },
     {
       label: "Google fallback (990 + ProPublica)",
