@@ -36,7 +36,7 @@
               "trap": "'Distributable,' not 'Payable' \u2014 no assets will ever leave, so it's not debt."
             },
             {
-              "account": "Paid-In Capital in Excess of Par",
+              "account": "Paid-in Capital in Excess of Par",
               "side": "credit",
               "label": "5,000 \u00d7 $11",
               "amount": 55000,
@@ -82,7 +82,7 @@
     "accountBank": [
       "Retained Earnings",
       "Common Stock Dividend Distributable",
-      "Paid-In Capital in Excess of Par",
+      "Paid-in Capital in Excess of Par",
       "Dividends Payable",
       "Cash"
     ],

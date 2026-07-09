@@ -61,7 +61,7 @@ import {
 } from "@/components/je/explore";
 import { BuildMode } from "@/components/je/build-mode";
 import { PresentMode } from "@/components/je/present-mode";
-import { Hub, MemorizeDeck, PracticeMix } from "@/components/je/hub";
+import { buildDocQuestions, Hub, InlineQuestions, MemorizeDeck, PracticeMix } from "@/components/je/hub";
 import { ChapterGrid } from "@/components/je/chapter-grid";
 
 // Accounts that make an entry a "periodic interest payment" (schedule-driven → row-click drives it).
@@ -106,7 +106,8 @@ function defaultConditions(doc: ScenarioDoc): Record<string, string> {
 }
 
 function JePrototype() {
-  const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, retry: 1 });
+  // staleTime keeps tab-switches/remounts from refetching the whole ~600KB library.
+  const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, retry: 1, staleTime: 300_000 });
   const coaQuery = useQuery({ queryKey: ["je-coa"], queryFn: fetchAccountMeta, retry: 1, staleTime: 300_000 });
   const principlesQuery = useQuery({ queryKey: ["je-principles"], queryFn: fetchPrinciples, retry: 1, staleTime: 300_000 });
 
@@ -222,6 +223,16 @@ function JePrototype() {
   }, [activeScenario?.slug]);
 
   const doc = activeScenario?.doc ?? null;
+
+  // Per-scenario practice questions for the Explore view (resolvable ones only —
+  // literal-arithmetic for paramless docs, schedule-backed for bond docs).
+  const inlineQuestions = useMemo(
+    () =>
+      activeScenario && doc
+        ? buildDocQuestions({ slug: activeScenario.slug, title: activeScenario.title, doc })
+        : [],
+    [activeScenario, doc],
+  );
 
   // Explore | Build | Present mode. Build needs a build.accountBank; Present is admin-only
   // (students never enter it — a non-admin ?mode=present resolves to Explore). URL-driven.
@@ -447,10 +458,17 @@ function JePrototype() {
                       setSelectedSlug(null);
                     }}
                     className={cn(
-                      "rounded-md px-2.5 py-1 text-xs font-semibold transition",
+                      "rounded-md px-2.5 py-1 text-xs font-semibold transition-all",
                       active ? "text-white" : "text-muted-foreground hover:text-foreground",
                     )}
-                    style={active ? { backgroundColor: NAVY } : undefined}
+                    style={
+                      active
+                        ? {
+                            background: `linear-gradient(180deg, #1E2F55 0%, ${NAVY} 100%)`,
+                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 4px rgba(20,33,61,0.30)",
+                          }
+                        : undefined
+                    }
                   >
                     {c.code ?? c.course_name ?? "Course"}
                   </button>
@@ -494,7 +512,8 @@ function JePrototype() {
         <div className="mt-5 flex gap-4">
           {isSequence && <SequenceSidebar entries={entries} group={doc?.sequenceGroup} />}
 
-          <div className="min-w-0 flex-1">
+          {/* keyed by view+chapter so switching surfaces gets a soft entrance */}
+          <div key={`${view}:${activeChapter?.id ?? ""}`} className="min-w-0 flex-1 animate-in fade-in slide-in-from-bottom-1 duration-300">
             {/* Hub (study path) / deck / practice / scenario views */}
             {scenarios.length === 0 ? (
               <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
@@ -1237,11 +1256,9 @@ function JePrototype() {
                     />
                   )}
 
-                  {mode === "explore" && (
-                    <Panel title="Practice exam questions" subtitle={`For ${chapterLabel(activeChapter)}`}>
-                      <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                        Practice exam questions for this chapter — coming. They'll be worked right here in the JE tool.
-                      </div>
+                  {mode === "explore" && inlineQuestions.length > 0 && (
+                    <Panel title="Check yourself" subtitle="Quick questions on this scenario">
+                      <InlineQuestions key={activeScenario?.slug ?? "none"} questions={inlineQuestions} />
                     </Panel>
                   )}
                 </div>
@@ -1284,7 +1301,12 @@ function Panel({
 }) {
   return (
     <section
-      className={cn("rounded-xl bg-card", emphasis ? "border-2 shadow-sm" : "border border-border")}
+      className={cn(
+        "rounded-xl bg-card",
+        emphasis
+          ? "border-2 shadow-[0_2px_12px_rgba(20,33,61,0.10)]"
+          : "border border-border shadow-[0_1px_2px_rgba(20,33,61,0.05),0_2px_8px_rgba(20,33,61,0.04)]",
+      )}
       style={emphasis ? { borderColor: NAVY } : undefined}
     >
       <header className="flex items-start gap-2 px-3 py-2">

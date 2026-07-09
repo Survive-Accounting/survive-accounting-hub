@@ -1,19 +1,31 @@
 // Chapter hub — the guided study path — plus the chapter Memorize deck and generated
 // Practice mix. All read the same scenarios the /je route already loaded; progress comes
 // from Prompt 3's localStorage (readProgress). Practice reuses resolveSlot for answers.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowLeft, GraduationCap, Grid3x3, Layers, PlayCircle, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { fmtUSD } from "@/lib/je/amortization";
+import { fmtUSD, type AmortSchedule, type BondParams } from "@/lib/je/amortization";
 import { buildExplore, formatEvent } from "@/lib/je/explore";
 import { resolveSlot } from "@/lib/je/slot-resolver";
 import { misconceptionFeedback } from "@/lib/je/misconceptions";
 import { readProgress } from "@/lib/je/build-progress";
-import type { MemorizeItem, ScenarioDoc } from "@/lib/je-engine";
+import { resolveVariant, type MemorizeItem, type ScenarioDoc } from "@/lib/je-engine";
 
 const NAVY = "#14213D";
 const RED = "#CE1126";
+const GOLD = "#FCA311";
+
+// Brand button treatments — same gradient/lift language as the marketing pages, scaled down.
+const NAVY_BTN_STYLE: CSSProperties = {
+  background: `linear-gradient(180deg, #1E2F55 0%, ${NAVY} 100%)`,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 2px 8px rgba(20,33,61,0.28)",
+};
+const RED_BTN_STYLE: CSSProperties = {
+  background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.18), 0 2px 8px rgba(206,17,38,0.30)",
+};
+const LIFT = "transition-all hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0";
 
 export interface HubScenario {
   slug: string;
@@ -25,6 +37,17 @@ function defaultConditions(doc: ScenarioDoc): Record<string, string> {
   const c: Record<string, string> = {};
   for (const a of doc.axes) c[a.key] = a.options[0]?.value ?? "";
   return c;
+}
+
+/** Every axis combination, defaults first — the question resolver retries across these. */
+function axisCombos(doc: ScenarioDoc): Record<string, string>[] {
+  let combos: Record<string, string>[] = [{}];
+  for (const a of doc.axes) {
+    const next: Record<string, string>[] = [];
+    for (const combo of combos) for (const o of a.options) next.push({ ...combo, [a.key]: o.value });
+    combos = next;
+  }
+  return combos;
 }
 
 type Status = "done" | "partial" | "none";
@@ -93,8 +116,11 @@ export function Hub({
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="rounded-xl border-2 bg-card p-4" style={{ borderColor: NAVY }}>
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{courseLabel}</div>
+      <div className="rounded-xl border-2 bg-card p-4 shadow-[0_2px_12px_rgba(20,33,61,0.10)]" style={{ borderColor: NAVY }}>
+        <div className="flex items-center gap-2">
+          <span className="h-px w-8 shrink-0" style={{ background: RED }} aria-hidden />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{courseLabel}</span>
+        </div>
         <h1 className="text-xl font-bold" style={{ color: NAVY }}>{chapterLabel}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           <span className="font-semibold text-foreground">{builtCount} of {scenarios.length} built</span> · start at the top, build each one before moving on.
@@ -103,7 +129,7 @@ export function Hub({
           <button onClick={onDeck} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold hover:border-foreground">
             <Layers className="h-3.5 w-3.5" /> Memorize deck ({memorizeCount})
           </button>
-          <button onClick={onPractice} disabled={questionCount === 0} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40" style={{ backgroundColor: NAVY }}>
+          <button onClick={onPractice} disabled={questionCount === 0} className={cn("inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40", LIFT)} style={NAVY_BTN_STYLE}>
             <GraduationCap className="h-3.5 w-3.5" /> Practice mix
           </button>
           <button onClick={onGrid} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold hover:border-foreground">
@@ -120,7 +146,14 @@ export function Hub({
               {g.rows.map(({ s, built, total, status }) => {
                 const isNext = s.slug === firstIncomplete;
                 return (
-                  <div key={s.slug} className={cn("flex flex-wrap items-center gap-2 rounded-lg border p-2.5", isNext ? "bg-amber-50/40 dark:bg-amber-950/10" : "border-border")} style={isNext ? { borderColor: NAVY } : undefined}>
+                  <div
+                    key={s.slug}
+                    className={cn(
+                      "flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2.5 transition-all hover:-translate-y-px hover:shadow-[0_2px_10px_rgba(20,33,61,0.08)]",
+                      isNext ? "bg-amber-50/40 shadow-[0_1px_6px_rgba(20,33,61,0.08)] dark:bg-amber-950/10" : "border-border",
+                    )}
+                    style={isNext ? { borderColor: NAVY } : undefined}
+                  >
                     <StatusIcon status={status} />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium">{s.title}</div>
@@ -134,8 +167,8 @@ export function Hub({
                     <button onClick={() => onOpen(s.slug, "explore")} className="rounded border border-border px-2 py-1 text-[11px] font-medium hover:border-foreground">Explore</button>
                     <button
                       onClick={() => onOpen(s.slug, "build")}
-                      className={cn("rounded px-2 py-1 text-[11px] font-semibold", isNext ? "text-white" : "border border-border hover:border-foreground")}
-                      style={isNext ? { backgroundColor: RED } : undefined}
+                      className={cn("rounded px-2 py-1 text-[11px] font-semibold", isNext ? cn("text-white", LIFT) : "border border-border transition-colors hover:border-foreground")}
+                      style={isNext ? RED_BTN_STYLE : undefined}
                     >
                       {isNext ? "Build next" : "Build"}
                     </button>
@@ -194,15 +227,15 @@ export function MemorizeDeck({
         <p className="text-sm italic text-muted-foreground">No memorize items in this chapter yet.</p>
       ) : flip ? (
         <div>
-          <div className="rounded-xl border-2 bg-card p-6 text-center" style={{ borderColor: NAVY }}>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{KIND_LABEL[card.item.kind]}</div>
+          <div key={idx} className="animate-in fade-in zoom-in-95 rounded-xl border-2 bg-card p-6 text-center shadow-[0_2px_12px_rgba(20,33,61,0.10)] duration-200" style={{ borderColor: NAVY }}>
+            <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: GOLD }}>{KIND_LABEL[card.item.kind]}</div>
             <p className="mt-2 text-base text-foreground/90">{card.item.body}</p>
             <button onClick={() => onOpenScenario(card.slug)} className="mt-3 text-[11px] text-muted-foreground underline hover:text-foreground">from: {card.title}</button>
           </div>
           <div className="mt-2 flex items-center justify-center gap-3 text-sm">
-            <button onClick={() => setIdx((i) => (i - 1 + cards.length) % cards.length)} className="rounded border border-border px-3 py-1 hover:border-foreground">← prev</button>
+            <button onClick={() => setIdx((i) => (i - 1 + cards.length) % cards.length)} className="rounded border border-border px-3 py-1 transition-colors hover:border-foreground">← prev</button>
             <span className="text-xs text-muted-foreground">{idx + 1} / {cards.length}</span>
-            <button onClick={() => setIdx((i) => (i + 1) % cards.length)} className="rounded px-3 py-1 font-semibold text-white" style={{ backgroundColor: NAVY }}>next card →</button>
+            <button onClick={() => setIdx((i) => (i + 1) % cards.length)} className={cn("rounded px-3 py-1 font-semibold text-white", LIFT)} style={NAVY_BTN_STYLE}>next card →</button>
           </div>
         </div>
       ) : (
@@ -235,47 +268,149 @@ interface PracticeQ {
   title: string;
   variantId?: string;
   prompt: string;
+  /** The scenario's event text — shown when the prompt references "the data above" etc.
+   *  (in the mix the question is torn from the scenario, so the "above" must come along). */
+  context?: string;
   options: PracticeOption[];
+  /** Format as dollars vs a plain number (ratios, EPS, units, percentages). */
+  usd: boolean;
 }
 
-function buildSession(scenarios: HubScenario[]): PracticeQ[] {
-  const qs: PracticeQ[] = [];
-  for (const s of scenarios) {
-    const doc = s.doc;
-    if (!doc.questions?.length) continue;
-    if (!doc.params) continue; // needs a schedule to resolve slot exprs
-    let ex;
-    try {
-      ex = buildExplore(doc, defaultConditions(doc), doc.params.defaultSeed ?? 1, false);
-    } catch {
+const NEEDS_CONTEXT_RE = /above|these facts|the data|the following|the items|the facts/i;
+
+/** Non-dollar answers: any decimal option, or a prompt that names a non-dollar unit. */
+const PLAIN_UNIT_RE = /ratio|turnover|eps|per share|units|percent|%|times\b|rate of return|margin(?! of safety in dollars)/i;
+
+export function formatAnswer(value: number, usd: boolean): string {
+  if (usd) return value < 0 ? `−$${fmtUSD(Math.abs(value))}` : `$${fmtUSD(value)}`;
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+/**
+ * Resolve one doc's questions into option sets. Works for BOTH bond docs (schedule-backed
+ * slot refs) and paramless docs (literal arithmetic — resolveSlot with a null schedule).
+ * Unresolvable questions (a ref with no schedule, options that collapse) are skipped.
+ */
+export function buildDocQuestions(s: HubScenario): PracticeQ[] {
+  const doc = s.doc;
+  if (!doc.questions?.length) return [];
+
+  // Candidate condition sets, defaults first. Bond docs get every axis combo: a question
+  // authored about a specific condition ("issued at a discount…") can COLLAPSE under the
+  // default combo (at par, cash == expense == every distractor) — retrying under the other
+  // combos resolves it with the numbers it was written about. Paramless docs are literal —
+  // one attempt is enough.
+  const defaults = defaultConditions(doc);
+  const conditionSets = doc.params
+    ? [defaults, ...axisCombos(doc).filter((c) => JSON.stringify(c) !== JSON.stringify(defaults))]
+    : [defaults];
+
+  const contexts: { schedule: AmortSchedule | null; effectiveParams?: BondParams; variantId?: string }[] = [];
+  for (const conditions of conditionSets) {
+    if (!doc.params) {
+      contexts.push({ schedule: null, variantId: doc.variants[0]?.id });
       continue;
     }
-    if (!ex) continue;
-    for (const q of doc.questions) {
+    try {
+      const ex = buildExplore(doc, conditions, doc.params.defaultSeed ?? 1, false);
+      if (ex) {
+        const variant = resolveVariant(doc, conditions);
+        contexts.push({ schedule: ex.schedule, effectiveParams: ex.effectiveParams, variantId: variant?.id ?? doc.variants[0]?.id });
+      }
+    } catch {
+      /* this combo can't build a schedule — try the next */
+    }
+  }
+  if (contexts.length === 0) return [];
+
+  const qs: PracticeQ[] = [];
+  for (const q of doc.questions) {
+    for (const ctx of contexts) {
       try {
-        const answer = resolveSlot(q.answerExpr, ex.schedule).value;
+        const answer = resolveSlot(q.answerExpr, ctx.schedule).value;
         const seen = new Set<number>([answer]);
         const options: PracticeOption[] = [{ value: answer, correct: true }];
         for (const d of q.distractors) {
-          const v = resolveSlot(d.expr, ex.schedule).value;
+          const v = resolveSlot(d.expr, ctx.schedule).value;
           if (seen.has(v)) continue; // skip distractors that collide with the answer/another
           seen.add(v);
           options.push({ value: v, correct: false, misconceptionId: d.misconceptionId, feedback: d.feedback });
         }
-        if (options.length < 2) continue;
+        if (options.length < 2) continue; // collapsed under this combo → try the next
+        // Dollar formatting when the ANSWER is whole dollars and the prompt names no other
+        // unit. (Distractors with float cents still render clean — fmtUSD rounds on display.)
+        const usd = Number.isInteger(answer) && !PLAIN_UNIT_RE.test(q.prompt);
         qs.push({
           slug: s.slug,
           title: s.title,
-          variantId: doc.variants[0]?.id,
-          prompt: formatEvent(q.prompt, ex.effectiveParams),
+          variantId: ctx.variantId,
+          prompt: formatEvent(q.prompt, ctx.effectiveParams),
+          context: NEEDS_CONTEXT_RE.test(q.prompt) ? formatEvent(doc.event, ctx.effectiveParams) : undefined,
           options: shuffle(options),
+          usd,
         });
+        break; // resolved — stop trying combos for this question
       } catch {
-        /* skip unresolvable question */
+        break; // unresolvable expr (not a collapse) — other combos won't fix a bad ref
       }
     }
   }
-  return shuffle(qs);
+  return qs;
+}
+
+function buildSession(scenarios: HubScenario[]): PracticeQ[] {
+  return shuffle(scenarios.flatMap(buildDocQuestions));
+}
+
+/**
+ * Compact per-scenario question block for the Explore view (replaces the old "coming"
+ * placeholder). Pass prebuilt questions (buildDocQuestions) so the caller can hide the
+ * surrounding panel when a doc has none that resolve. Keyed state — remount per scenario.
+ */
+export function InlineQuestions({ questions }: { questions: PracticeQ[] }) {
+  const [picked, setPicked] = useState<Record<number, number>>({});
+  if (questions.length === 0) return null;
+  return (
+    <div className="space-y-4">
+      {questions.map((q, qi) => {
+        const p = picked[qi];
+        const reveal = p != null;
+        const chosen = reveal ? q.options[p] : null;
+        return (
+          <div key={qi}>
+            <p className="text-sm text-foreground/90">{q.prompt}</p>
+            <div className="mt-2 space-y-1.5">
+              {q.options.map((o, i) => {
+                const isChosen = p === i;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => { if (!reveal) setPicked((prev) => ({ ...prev, [qi]: i })); }}
+                    disabled={reveal}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-all",
+                      !reveal && "border-border hover:-translate-y-px hover:border-foreground hover:shadow-[0_1px_6px_rgba(20,33,61,0.08)] active:translate-y-0",
+                      reveal && o.correct && "animate-in zoom-in-[0.98] border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300 duration-200 dark:bg-emerald-950/20 dark:ring-emerald-800",
+                      reveal && isChosen && !o.correct && "border-rose-400 bg-rose-50 dark:bg-rose-950/20",
+                      reveal && !o.correct && !isChosen && "border-border opacity-60",
+                    )}
+                  >
+                    <span className="tabular-nums font-medium">{formatAnswer(o.value, q.usd)}</span>
+                    {reveal && o.correct && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">✓ correct</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {chosen && !chosen.correct && (
+              <div className="mt-2 rounded-md border border-rose-300 bg-rose-50 p-2 text-[13px] text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200">
+                {chosen.misconceptionId ? misconceptionFeedback(chosen.misconceptionId as never, chosen.feedback) : chosen.feedback ?? "Not quite."}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function PracticeMix({
@@ -353,13 +488,13 @@ export function PracticeMix({
     return (
       <div className="mx-auto max-w-3xl">
         {header}
-        <div className="rounded-xl border-2 bg-card p-6 text-center" style={{ borderColor: NAVY }}>
-          <div className="text-3xl font-bold" style={{ color: NAVY }}>{correctCount} / {session.length}</div>
+        <div className="animate-in fade-in zoom-in-95 rounded-xl border-2 bg-card p-6 text-center shadow-[0_2px_12px_rgba(20,33,61,0.10)] duration-300" style={{ borderColor: NAVY }}>
+          <div className="text-3xl font-bold" style={{ color: pct === 100 ? GOLD : NAVY }}>{correctCount} / {session.length}</div>
           <div className="text-sm text-muted-foreground">{pct}% correct</div>
           <div className="mt-4 flex justify-center gap-2">
-            <button onClick={() => start(shuffle(buildSession(scenarios)))} className="rounded-md px-3 py-1.5 text-sm font-semibold text-white" style={{ backgroundColor: NAVY }}>New mix</button>
+            <button onClick={() => start(shuffle(buildSession(scenarios)))} className={cn("rounded-md px-3 py-1.5 text-sm font-semibold text-white", LIFT)} style={NAVY_BTN_STYLE}>New mix</button>
             {missed.length > 0 && (
-              <button onClick={() => start(shuffle(missed))} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm font-semibold hover:border-foreground">
+              <button onClick={() => start(shuffle(missed))} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm font-semibold transition-colors hover:border-foreground">
                 <RotateCcw className="h-3.5 w-3.5" /> Retry missed ({missed.length})
               </button>
             )}
@@ -371,15 +506,25 @@ export function PracticeMix({
 
   if (!q) return <div className="mx-auto max-w-3xl">{header}<p className="text-sm italic text-muted-foreground">Loading…</p></div>;
   const chosen = picked != null ? q.options[picked] : null;
+  const progressPct = Math.round(((idx + (picked != null ? 1 : 0)) / session.length) * 100);
 
   return (
     <div className="mx-auto max-w-3xl">
       {header}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_2px_rgba(20,33,61,0.05),0_2px_8px_rgba(20,33,61,0.04)]">
         <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground">
           <span>Question {idx + 1} of {session.length}</span>
           <span>{q.title}</span>
         </div>
+        <div className="mb-3 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${progressPct}%`, background: `linear-gradient(90deg, ${NAVY} 0%, ${GOLD} 100%)` }}
+          />
+        </div>
+        {q.context && (
+          <p className="mb-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-[12px] leading-relaxed text-muted-foreground">{q.context}</p>
+        )}
         <p className="text-sm text-foreground/90">{q.prompt}</p>
         <div className="mt-3 space-y-1.5">
           {q.options.map((o, i) => {
@@ -391,15 +536,15 @@ export function PracticeMix({
                 onClick={() => pick(i)}
                 disabled={reveal}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition",
-                  !reveal && "hover:border-foreground",
-                  reveal && o.correct && "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20",
+                  "flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-all",
+                  !reveal && "hover:-translate-y-px hover:border-foreground hover:shadow-[0_1px_6px_rgba(20,33,61,0.08)] active:translate-y-0",
+                  reveal && o.correct && "animate-in zoom-in-[0.98] border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300 duration-200 dark:bg-emerald-950/20 dark:ring-emerald-800",
                   reveal && isChosen && !o.correct && "border-rose-400 bg-rose-50 dark:bg-rose-950/20",
                   reveal && !o.correct && !isChosen && "opacity-60",
                 )}
               >
-                <span className="tabular-nums font-medium">{fmtUSD(o.value)}</span>
-                {reveal && o.correct && <span className="text-xs font-semibold text-emerald-700">✓ correct</span>}
+                <span className="tabular-nums font-medium">{formatAnswer(o.value, q.usd)}</span>
+                {reveal && o.correct && <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">✓ correct</span>}
               </button>
             );
           })}
@@ -414,7 +559,7 @@ export function PracticeMix({
 
         {picked != null && (
           <div className="mt-3 flex justify-end">
-            <button onClick={next} className="rounded-md px-3 py-1.5 text-sm font-semibold text-white" style={{ backgroundColor: NAVY }}>
+            <button onClick={next} className={cn("rounded-md px-3 py-1.5 text-sm font-semibold text-white", LIFT)} style={NAVY_BTN_STYLE}>
               {idx + 1 >= session.length ? "See score" : "Next →"}
             </button>
           </div>

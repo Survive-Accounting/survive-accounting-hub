@@ -155,13 +155,18 @@
   ],
   "questions": [
     {
-      "prompt": "Treasury shares bought at $20, reissued at $25. The $5-per-share excess is credited to ___ for 400 shares = ?",
+      "prompt": "Treasury shares bought at $20 are reissued at $25 (400 shares). How much is credited to Paid-In Capital, Treasury Stock?",
       "answerExpr": "2000",
       "distractors": [
         {
-          "expr": "2000",
+          "expr": "10000",
           "misconceptionId": "cash_vs_expense",
-          "feedback": "Right number \u2014 but make sure it went to Paid-In Capital, Treasury Stock. Booking it as a GAIN puts equity dealings into income, which GAAP forbids."
+          "feedback": "That's the FULL reissue proceeds (400 \u00d7 $25). Only the $5-per-share excess over cost goes to Paid-In Capital, Treasury Stock \u2014 the $8,000 cost portion credits Treasury Stock itself. And never book the excess as a GAIN: equity dealings stay out of income."
+        },
+        {
+          "expr": "8000",
+          "misconceptionId": "cash_vs_expense",
+          "feedback": "That's the COST portion (400 \u00d7 $20) \u2014 it credits TREASURY STOCK to remove the shares at cost. The $2,000 excess over cost is what lands in Paid-In Capital, Treasury Stock."
         }
       ]
     }

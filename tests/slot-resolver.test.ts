@@ -67,11 +67,34 @@ describe("resolveSlot — every arithmetic expr the imported docs use", () => {
     ["schedule:2:cashPayment * 3 / 6 - schedule:2:amortization * 3 / 6", Math.round(20_000 * 3 / 6 - 3_223 * 3 / 6)],
     ["schedule:2:cashPayment + schedule:2:amortization", 20_000 + 3_223],
     ["issuePrice * param:statedRateAnnual / 2", Math.round(461_391 * 0.08 / 2)],
-    ["38803 * 0.08", Math.round(38_803 * 0.08)],
+    // Pure-literal arithmetic keeps its decimals (ratio/EPS answers are authored exact);
+    // only ref-based exprs round to the schedule's whole-dollar convention.
+    ["38803 * 0.08", 3_104.24],
   ];
   for (const [expr, expected] of cases) {
     test(expr, () => expect(val(expr)).toBe(expected));
   }
+});
+
+describe("resolveSlot — null schedule (paramless docs: literal arithmetic only)", () => {
+  test("bare decimal literal keeps its decimals (ratio answers)", () => {
+    expect(resolveSlot("1.5", null).value).toBe(1.5);
+    expect(resolveSlot("0.93", null).value).toBe(0.93);
+    expect(resolveSlot("2.45", null).value).toBe(2.45);
+  });
+  test("literal arithmetic evaluates without a schedule", () => {
+    expect(resolveSlot("90000 / 60000", null).value).toBe(1.5);
+    expect(resolveSlot("120000 / 20", null).value).toBe(6_000);
+  });
+  test("distinct near-1 ratios stay distinct (no whole-dollar collapse)", () => {
+    const vals = ["0.67", "0.93", "1.07"].map((e) => resolveSlot(e, null).value);
+    expect(new Set(vals).size).toBe(3);
+  });
+  test("any ref without a schedule throws (fail-loud → caller skips the question)", () => {
+    expect(() => resolveSlot("schedule:1:interestExpense", null)).toThrow();
+    expect(() => resolveSlot("param:face * 2", null)).toThrow();
+    expect(() => resolveSlot("issuePrice", null)).toThrow();
+  });
 });
 
 describe("resolveSlot — literals, precedence, parens, unary", () => {

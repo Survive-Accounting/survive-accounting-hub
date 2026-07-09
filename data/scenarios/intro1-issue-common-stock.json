@@ -36,7 +36,7 @@
               "trap": "Crediting the full 150,000 here is the classic error \u2014 par caps this line."
             },
             {
-              "account": "Paid-In Capital in Excess of Par",
+              "account": "Paid-in Capital in Excess of Par",
               "side": "credit",
               "label": "10,000 \u00d7 $14",
               "amount": 140000,
@@ -82,7 +82,7 @@
     "accountBank": [
       "Cash",
       "Common Stock",
-      "Paid-In Capital in Excess of Par",
+      "Paid-in Capital in Excess of Par",
       "Gain on Stock Issuance"
     ],
     "scaffold": "Cash at market, Common Stock at par, PIC catches the difference. The decoy account should never tempt you."

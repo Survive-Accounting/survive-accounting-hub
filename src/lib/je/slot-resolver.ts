@@ -59,7 +59,10 @@ function tokenize(expr: string): Tok[] {
 }
 
 // ---- parser/evaluator — records the value AND the distinct plain refs it touched ----
-function evaluate(expr: string, schedule: AmortSchedule): { value: number; refs: string[] } {
+// `schedule` may be null for docs with no params block: pure-literal arithmetic still
+// evaluates (the schedule is never consulted); any ref then throws (fail-loud → caller
+// catches and skips), which is exactly the "unresolvable question" behavior we want.
+function evaluate(expr: string, schedule: AmortSchedule | null): { value: number; refs: string[] } {
   const toks = tokenize(expr);
   let pos = 0;
   const usedRefs: string[] = [];
@@ -71,7 +74,7 @@ function evaluate(expr: string, schedule: AmortSchedule): { value: number; refs:
     return tok?.t === "op" && ops.includes(tok.v);
   };
   const refValue = (ref: string): number => {
-    const hit = resolveRef(schedule, ref);
+    const hit = schedule ? resolveRef(schedule, ref) : null;
     if (!hit) throw new Error(`Unknown slot ref "${ref}" in expression "${expr}"`);
     if (!seen.has(ref)) { seen.add(ref); usedRefs.push(ref); }
     return hit.value;
@@ -145,12 +148,12 @@ function round0(n: number): number {
 }
 
 /** Substitute plain refs with fmtUSD values, keep numeric literals raw, pretty operators. */
-function substitute(expr: string, schedule: AmortSchedule): string {
+function substitute(expr: string, schedule: AmortSchedule | null): string {
   const toks = tokenize(expr);
   const parts = toks.map((tok) => {
     switch (tok.t) {
       case "num": return tok.raw;
-      case "ref": return fmtUSD(resolveRef(schedule, tok.v)?.value ?? 0);
+      case "ref": return schedule ? fmtUSD(resolveRef(schedule, tok.v)?.value ?? 0) : tok.v;
       case "op": return tok.v === "*" ? "×" : tok.v === "/" ? "÷" : tok.v === "-" ? "−" : "+";
       case "lp": return "(";
       case "rp": return ")";
@@ -171,13 +174,14 @@ function substitute(expr: string, schedule: AmortSchedule): string {
  * Resolve a slot expression to {value, derivation}. Plain refs delegate to the math core
  * (rich, chainable derivation). Arithmetic exprs get a synthesized derivation. Bare literals
  * resolve to themselves ("given"). Throws (fail-loud) on any unknown ref or malformed expr.
+ * `schedule` may be null (paramless docs): literal arithmetic resolves; any ref throws.
  */
-export function resolveSlot(expr: string, schedule: AmortSchedule): SlotResolution {
+export function resolveSlot(expr: string, schedule: AmortSchedule | null): SlotResolution {
   const trimmed = expr.trim();
 
   // Single plain ref → return the math core's own derivation so click-through can chain.
   if (PLAIN_REF.test(trimmed)) {
-    const hit = resolveRef(schedule, trimmed);
+    const hit = schedule ? resolveRef(schedule, trimmed) : null;
     if (!hit) throw new Error(`Unknown slot ref "${trimmed}"`);
     if (hit.derivation) return { value: round0(hit.value), derivation: hit.derivation };
     // params have no cell derivation — synthesize a minimal one.
@@ -193,10 +197,13 @@ export function resolveSlot(expr: string, schedule: AmortSchedule): SlotResoluti
 
   // Arithmetic (or bare literal).
   const { value, refs } = evaluate(trimmed, schedule);
-  const rounded = round0(value);
+  // Ref-based exprs round to whole dollars (the schedule's per-cell convention). PURE
+  // literal arithmetic keeps its decimals (ratios 1.5, EPS 2.45 — authored exact); round
+  // to 2dp only to kill float noise.
+  const rounded = refs.length > 0 ? round0(value) : Math.round(value * 100) / 100;
   const inputs: DerivationInput[] = refs.map((ref) => ({
     label: labelForRef(ref),
-    value: resolveRef(schedule, ref)!.value,
+    value: resolveRef(schedule!, ref)!.value,
     ref,
   }));
   const formulaText =

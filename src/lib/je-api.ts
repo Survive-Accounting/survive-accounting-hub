@@ -104,9 +104,22 @@ const UNASSIGNED_CHAPTER = "__unassigned__";
  * chapters (a chapter in a course that has scenarios, but none of its own yet) are included
  * so Lee can see where content still needs authoring. Scenarios with no chapter land under a
  * synthetic "Unassigned" course so they stay reachable (also the pre-0025 state of every row).
+ *
+ * Scenarios and the (tiny) chapters-with-course reference table load in PARALLEL — the old
+ * three-step discovery waterfall (linked chapters → sibling chapters → courses) added ~0.7s
+ * of sequential round-trips to every cold load for nothing.
  */
 export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
-  const scenarios = await fetchScenarios();
+  const [scenarios, chaptersRes] = await Promise.all([
+    fetchScenarios(),
+    supabase
+      .from("chapters")
+      .select("id,chapter_number,chapter_name,course_id,courses(id,code,course_name)")
+      .order("chapter_number", { ascending: true }),
+  ]);
+  if (chaptersRes.error) throw chaptersRes.error;
+  const allChapters = (chaptersRes.data ?? []) as any[];
+
   const flat: BrowserScenario[] = scenarios.map((s) => ({
     id: s.id,
     slug: s.slug,
@@ -115,40 +128,7 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
     chapter_id: s.chapter_id,
   }));
 
-  const linkedChapterIds = [...new Set(flat.map((s) => s.chapter_id).filter((x): x is string => !!x))];
-
-  // No chapter links yet → single Unassigned group with everything in it.
-  if (linkedChapterIds.length === 0) {
-    return { courses: [unassignedCourse(flat)], flat };
-  }
-
-  // 1) The linked chapters → discover their courses.
-  const { data: linkedChapters, error: e1 } = await supabase
-    .from("chapters")
-    .select("id,course_id")
-    .in("id", linkedChapterIds);
-  if (e1) throw e1;
-  const courseIds = [
-    ...new Set(((linkedChapters ?? []) as any[]).map((c) => c.course_id).filter((x): x is string => !!x)),
-  ];
-
-  // 2) ALL chapters for those courses (includes empty siblings), ordered.
-  const { data: allChapters, error: e2 } = courseIds.length
-    ? await supabase
-        .from("chapters")
-        .select("id,chapter_number,chapter_name,course_id")
-        .in("course_id", courseIds)
-        .order("chapter_number", { ascending: true })
-    : { data: [] as any[], error: null };
-  if (e2) throw e2;
-
-  // 3) The courses themselves.
-  const { data: courseRows, error: e3 } = courseIds.length
-    ? await supabase.from("courses").select("id,code,course_name").in("id", courseIds)
-    : { data: [] as any[], error: null };
-  if (e3) throw e3;
-
-  // Assemble: course → its chapters → scenarios that point at each chapter.
+  // scenarios per chapter
   const scenariosByChapter = new Map<string, BrowserScenario[]>();
   for (const s of flat) {
     if (!s.chapter_id) continue;
@@ -157,26 +137,35 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
     scenariosByChapter.set(s.chapter_id, list);
   }
 
-  const chaptersByCourse = new Map<string, BrowserChapter[]>();
-  for (const c of (allChapters ?? []) as any[]) {
-    const list = chaptersByCourse.get(c.course_id) ?? [];
-    list.push({
+  // Courses that have at least one chapter with scenarios; keep ALL chapters of those courses.
+  const linkedCourseIds = new Set(
+    allChapters.filter((c) => scenariosByChapter.has(c.id) && c.course_id).map((c) => c.course_id as string),
+  );
+
+  const courseById = new Map<string, BrowserCourse>();
+  for (const c of allChapters) {
+    if (!c.course_id || !linkedCourseIds.has(c.course_id)) continue;
+    let course = courseById.get(c.course_id);
+    if (!course) {
+      course = {
+        id: c.course_id,
+        code: c.courses?.code ?? null,
+        course_name: c.courses?.course_name ?? null,
+        chapters: [],
+      };
+      courseById.set(c.course_id, course);
+    }
+    course.chapters.push({
       id: c.id,
       chapter_number: c.chapter_number ?? null,
       chapter_name: c.chapter_name ?? null,
       scenarios: scenariosByChapter.get(c.id) ?? [],
     });
-    chaptersByCourse.set(c.course_id, list);
   }
 
-  const courses: BrowserCourse[] = ((courseRows ?? []) as any[])
-    .map((co) => ({
-      id: co.id,
-      code: co.code ?? null,
-      course_name: co.course_name ?? null,
-      chapters: chaptersByCourse.get(co.id) ?? [],
-    }))
-    .sort((a, b) => (a.code ?? a.course_name ?? "").localeCompare(b.code ?? b.course_name ?? ""));
+  const courses: BrowserCourse[] = [...courseById.values()].sort((a, b) =>
+    (a.code ?? a.course_name ?? "").localeCompare(b.code ?? b.course_name ?? ""),
+  );
 
   // Any scenario whose chapter_id didn't resolve to a fetched chapter → Unassigned.
   const placed = new Set<string>();
