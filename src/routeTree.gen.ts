@@ -26,6 +26,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
+import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
@@ -143,6 +144,11 @@ const TSlugRoute = TSlugRouteImport.update({
 const StudyFoundationsRoute = StudyFoundationsRouteImport.update({
   id: '/study_/foundations',
   path: '/study/foundations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudyCanvasRoute = StudyCanvasRouteImport.update({
+  id: '/study_/canvas',
+  path: '/study/canvas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
@@ -354,6 +360,7 @@ export interface FileRoutesByFullPath {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/study/canvas': typeof StudyCanvasRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -405,6 +412,7 @@ export interface FileRoutesByTo {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/study/canvas': typeof StudyCanvasRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
@@ -458,6 +466,7 @@ export interface FileRoutesById {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/study_/canvas': typeof StudyCanvasRoute
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -512,6 +521,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/study/canvas'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach/'
@@ -563,6 +573,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/study/canvas'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach'
@@ -615,6 +626,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/study_/canvas'
     | '/study_/foundations'
     | '/t/$slug'
     | '/outreach/'
@@ -648,6 +660,7 @@ export interface RootRouteChildren {
   ThankyouRoute: typeof ThankyouRoute
   WelcomeRoute: typeof WelcomeRoute
   OShortRefRoute: typeof OShortRefRoute
+  StudyCanvasRoute: typeof StudyCanvasRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
@@ -775,6 +788,13 @@ declare module '@tanstack/react-router' {
       path: '/study/foundations'
       fullPath: '/study/foundations'
       preLoaderRoute: typeof StudyFoundationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/study_/canvas': {
+      id: '/study_/canvas'
+      path: '/study/canvas'
+      fullPath: '/study/canvas'
+      preLoaderRoute: typeof StudyCanvasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach/students': {
@@ -1119,6 +1139,7 @@ const rootRouteChildren: RootRouteChildren = {
   ThankyouRoute: ThankyouRoute,
   WelcomeRoute: WelcomeRoute,
   OShortRefRoute: OShortRefRoute,
+  StudyCanvasRoute: StudyCanvasRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
