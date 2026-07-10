@@ -25,6 +25,7 @@ import { Film, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus
 import { fetchJeBrowserTree } from "@/lib/je-api";
 import { deleteScene, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
 import { NEON } from "@/components/canvas/theme";
+import { blankCard } from "@/components/canvas/templates";
 import { buildLibrary } from "@/components/canvas/library";
 import { Palette } from "@/components/canvas/Palette";
 import { JeCardNode } from "@/components/canvas/cards/JeCardNode";
@@ -201,27 +202,58 @@ function PresentCanvas() {
     [rf],
   );
 
-  // ---- spawn at viewport center ----
+  // Last known pointer position (screen coords) — quick-spawn drops cards at the cursor.
+  const lastMouse = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => { lastMouse.current = { x: e.clientX, y: e.clientY }; };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, []);
+
+  // ---- spawn at viewport center (palette) or at a screen point (quick-spawn) ----
   const spawn = useCallback(
-    (data: CardData) => {
+    (data: CardData, at?: { x: number; y: number }) => {
       const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
-      const center = rf.screenToFlowPosition({
-        x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2,
-        y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2,
-      });
+      const center = rf.screenToFlowPosition(
+        at ?? {
+          x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2,
+          y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2,
+        },
+      );
       // exclusive-select the new card so the stepper/focus hotkeys target it
       rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+      const id = cardId(data.kind);
       rf.addNodes([
         {
-          id: cardId(data.kind),
+          id,
           type: data.kind,
-          position: { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) },
+          position: at
+            ? { x: center.x, y: center.y }
+            : { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) },
           data: data as unknown as CardData & Record<string, unknown>,
           selected: true,
         },
       ]);
+      return id;
     },
     [rf],
+  );
+
+  /** Quick-spawn (J/T/N/Q/L): blank at the cursor, edit mode on, first field focused. */
+  const quickSpawn = useCallback(
+    (kind: Parameters<typeof blankCard>[0]) => {
+      const id = spawn(blankCard(kind), lastMouse.current ?? undefined);
+      // focus the first editable field once the node has mounted
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const el = document.querySelector<HTMLElement>(
+            `.react-flow__node[data-id="${id}"] input:not([placeholder="${kind}"]), .react-flow__node[data-id="${id}"] textarea`,
+          );
+          el?.focus();
+        }),
+      );
+    },
+    [spawn],
   );
 
   const addZone = useCallback(() => {
@@ -365,6 +397,16 @@ function PresentCanvas() {
         setFilm((v) => !v); // film mode: clean screen + at-rest chrome off + spotlight/ripple
       } else if (e.key === "b" || e.key === "B") {
         setCamera((v) => !v); // webcam bubble (screen-fixed filming chrome)
+      } else if (e.key === "j" || e.key === "J") {
+        quickSpawn("je");
+      } else if (e.key === "t" || e.key === "T") {
+        quickSpawn("taccount");
+      } else if (e.key === "n" || e.key === "N") {
+        quickSpawn("note");
+      } else if (e.key === "q" || e.key === "Q") {
+        quickSpawn("ceq");
+      } else if (e.key === "l" || e.key === "L") {
+        quickSpawn("list");
       } else if (e.key === "Escape") {
         setLoadOpen(false);
         rf.fitView({ duration: 500, padding: 0.15 });
@@ -401,7 +443,7 @@ function PresentCanvas() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rf, summon]);
+  }, [rf, summon, quickSpawn]);
 
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
@@ -518,7 +560,7 @@ function PresentCanvas() {
       {/* hotkey hint */}
       {chrome && (
         <div className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full px-3 py-1 text-[10.5px]" style={{ background: "rgba(0,0,0,0.45)", color: NEON.muted }}>
-          space = reveal next · h = hide all (selected card) · f = focus · dbl-click = zoom card · Esc = full view · c = clean screen
+          space = reveal / summon next · h = hide all · s = stage · f = focus · Esc = full view · c = clean · v = film · b = camera · J/T/N/Q/L = quick-spawn
         </div>
       )}
 
