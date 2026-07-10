@@ -38,16 +38,28 @@ export const listVideoArchive = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<VideoArchiveRow[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const sb = supabaseAdmin as unknown as { from: (t: string) => any };
-    let q = sb
-      .from("video_archive")
-      .select(
-        "id,source,source_video_id,title,duration_sec,status,mux_playback_id,transcript_source,transcript_text,course_family,chapter_id,scenario_slug,notes,created_at_source",
-      )
-      .order("created_at_source", { ascending: false, nullsFirst: false });
-    if (data.status) q = q.eq("status", data.status);
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-    return ((rows ?? []) as any[]).map((r) => {
+    // PostgREST caps a single response at 1000 rows (even for the service role),
+    // and the archive has >1300 videos — an unpaginated select silently dropped
+    // the newest ~300. Page through with .range() until a short page comes back.
+    const PAGE = 1000;
+    const rows: any[] = [];
+    for (let from = 0; ; from += PAGE) {
+      let q = sb
+        .from("video_archive")
+        .select(
+          "id,source,source_video_id,title,duration_sec,status,mux_playback_id,transcript_source,transcript_text,course_family,chapter_id,scenario_slug,notes,created_at_source",
+        )
+        .order("created_at_source", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true }) // stable tiebreaker so pages don't overlap
+        .range(from, from + PAGE - 1);
+      if (data.status) q = q.eq("status", data.status);
+      const { data: page, error } = await q;
+      if (error) throw new Error(error.message);
+      const chunk = (page ?? []) as any[];
+      rows.push(...chunk);
+      if (chunk.length < PAGE) break;
+    }
+    return rows.map((r) => {
       const t = (r.transcript_text as string | null) ?? null;
       return {
         id: r.id,
