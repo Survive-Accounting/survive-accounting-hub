@@ -2,7 +2,7 @@
 // then the LIBRARY (every entry / computation / memorize / question from the scenario
 // docs), searchable + filtered by course family, chapter, and card type. Fully collapsible.
 import { useMemo, useState } from "react";
-import { ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
 
 import { NEON } from "./theme";
 import { blankCard, scheduleTemplate, CARD_KIND_LABEL } from "./templates";
@@ -42,6 +42,7 @@ export function Palette({
   const [course, setCourse] = useState<string>("all");
   const [chapter, setChapter] = useState<string>("all");
   const [kind, setKind] = useState<CardKind | "all">("all");
+  const [libOpen, setLibOpen] = useState(false); // heavy section — closed by default
 
   const courses = useMemo(() => {
     const m = new Map<string, string>();
@@ -81,7 +82,7 @@ export function Palette({
 
   return (
     <aside
-      className="absolute bottom-3 left-3 top-3 z-40 flex w-72 flex-col rounded-xl"
+      className={`absolute left-3 top-3 z-40 flex w-72 flex-col rounded-xl ${libOpen ? "bottom-3" : ""}`}
       style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
     >
       <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
@@ -100,7 +101,7 @@ export function Palette({
               key={b.label}
               onClick={() => onSpawn(b.kind === "schedule" ? scheduleTemplate(b.preset ?? "generic") : blankCard(b.kind))}
               className="rounded-md px-2 py-1 text-left text-[11.5px] font-medium transition-all hover:-translate-y-px"
-              style={{ border: `1px dashed ${NEON.border}`, color: NEON.text, background: "rgba(255,45,149,0.05)" }}
+              style={{ border: `1px dashed ${NEON.border}`, color: NEON.text, background: "rgba(252,163,17,0.05)" }}
             >
               {b.label}
             </button>
@@ -108,11 +109,19 @@ export function Palette({
         </div>
       </div>
 
-      {/* LIBRARY */}
-      <div className="mt-3 flex min-h-0 flex-1 flex-col px-3 pb-3">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
+      {/* LIBRARY — collapsible; a 1,000-item list is prep clutter mid-lesson */}
+      <div className={`mt-3 flex flex-col px-3 pb-3 ${libOpen ? "min-h-0 flex-1" : ""}`}>
+        <button
+          className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+          style={{ color: NEON.cyan }}
+          onClick={() => setLibOpen((v) => !v)}
+          title={libOpen ? "Collapse library" : "Expand library"}
+        >
+          {libOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           Library <span style={{ color: NEON.muted }}>({filtered.length})</span>
-        </div>
+        </button>
+        {libOpen && (
+        <>
         <div className="mb-1.5 flex items-center gap-1 rounded-md px-2 py-1" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.3)" }}>
           <Search className="h-3.5 w-3.5 shrink-0" style={{ color: NEON.muted }} />
           <input
@@ -167,6 +176,8 @@ export function Palette({
           {filtered.length > 120 && <div className="py-1 text-center text-[10.5px]" style={{ color: NEON.muted }}>…{filtered.length - 120} more — narrow the filters</div>}
           {filtered.length === 0 && <div className="py-3 text-center text-[11px] italic" style={{ color: NEON.muted }}>No matches.</div>}
         </div>
+        </>
+        )}
       </div>
     </aside>
   );
