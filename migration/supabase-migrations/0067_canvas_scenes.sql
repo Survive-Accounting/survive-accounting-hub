@@ -1,4 +1,4 @@
--- 0066_canvas_scenes.sql
+-- 0067_canvas_scenes.sql
 -- Present Canvas (/study/canvas) scene persistence. One row per saved whiteboard layout:
 -- the full React Flow node array (cards + edit/reveal state), zones, and viewport.
 -- waypoints_json is RESERVED for the v1.1 student map — unused now.

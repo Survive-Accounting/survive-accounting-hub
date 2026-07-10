@@ -1,4 +1,4 @@
--- 0065_chart_of_accounts_repair.sql
+-- 0066_chart_of_accounts_repair.sql
 -- Clean up chart_of_accounts so it is a single, de-duplicated, correctly-typed account
 -- vocabulary (Lee reuses this list outside the JE tool). Applied to the live DB on
 -- 2026-07-09 via scripts/repair-chart-of-accounts.ts (service-role REST; Management-API

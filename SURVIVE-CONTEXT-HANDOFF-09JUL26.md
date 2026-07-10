@@ -70,9 +70,9 @@ library is **209**. Numbers below are verified, not copied.)
   scenario accounts). Engine matches accounts by canonical_name; table has NO inbound
   FKs. Keep PLURAL "Buildings"/"Accumulated Depreciation—Buildings" (engine hardcodes).
 - Migration records (manual-apply dir): je-stream records were renumbered to
-  **0062–0065** (courses.course_family / foundations course / retire accy-201 / COA
-  repair — all already applied live). **0066_canvas_scenes.sql is NOT applied** — run
-  it in the SQL editor (canvas falls back to localStorage with a red banner until then).
+  **0063–0066** (courses.course_family / foundations course / retire accy-201 / COA
+  repair — all already applied live). **0067_canvas_scenes.sql: APPLIED live 10 Jul** (was run
+  by Lee in the SQL editor; scene persistence is DB-backed).
 
 ### Orders / made-to-order funnel
 - `/order` request flow live (noindex, conversion-only), server-side inserts with
@@ -118,7 +118,7 @@ input, edit/duplicate/minimize/delete, NodeResizer, z-front, `useCardActions`),
 (T-account/Computation/CEQ/Memorize/Note/Video). Persistence:
 `src/lib/canvas.functions.ts` (server fns; JSON blobs cross the boundary as STRINGS
 because TanStack's serializable check rejects open records) +
-`migration/supabase-migrations/0066_canvas_scenes.sql`.
+`migration/supabase-migrations/0067_canvas_scenes.sql`.
 
 **The card contract**: spawn prepared (deep-cloned COPY of doc content — edits never
 write back) or blank (edit-ready); inline-edit everything; resize; duplicate (⧉);
@@ -151,7 +151,7 @@ selection. Spawning exclusive-selects the new card.
 **Scenes**: toolbar Save / Save-as / Load / New + name input; autosave every 30s once
 a scene id exists. Serialized: full node array (cards + zones + reveal/edit state) +
 viewport + bg mode. Table `canvas_scenes` (RLS deny-all; service-role server fns).
-**Until 0066 is applied**: red banner "Scene DB unavailable … 0066" + saves land in
+**If canvas_scenes is ever missing** (0067): red banner + saves land in
 localStorage (`sa-canvas-fallback-scene`) — verified round-trip: 13 cards + reveal
 state restored identically after refresh. `waypoints_json` column reserved for v1.1
 student map (unused).
@@ -181,7 +181,7 @@ arrows (RF edges are wired as `defaultEdges={[]}` — nothing renders).
   carry `amountSlotKey`, not literals) — fill by hand or use a schedule card.
 
 ## OPEN FLAGS
-1. **Apply 0066** in the SQL editor → scene persistence goes DB-backed (fallback
+1. ~~Apply 0067~~ DONE 10 Jul — scene persistence is DB-backed (fallback
    banner disappears). 30 seconds.
 2. **Merge je-engine-v2 → main** (PR link above) → /study + SEO + analytics go live;
    then enable Analytics + Speed Insights in Vercel; submit sitemap in GSC; PageSpeed
@@ -194,7 +194,7 @@ arrows (RF edges are wired as `defaultEdges={[]}` — nothing renders).
 7. 0022 migration number is duplicated on main (pre-existing, not ours).
 
 ## SEQUENCED NEXT MOVES
-1. Ship: 0066 → merge PR → enable analytics → film a first scene on /study/canvas
+1. Ship: merge PR → enable analytics → film a first scene on /study/canvas
    (real usage will surface UX nits no probe can).
 2. Canvas v1.1 — student map on `waypoints_json`: ordered card waypoints per scene,
    a "follow the path" mode for students; plus the STRETCH list in priority order:

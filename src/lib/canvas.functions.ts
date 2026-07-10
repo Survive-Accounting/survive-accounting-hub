@@ -1,15 +1,15 @@
 // Server functions for the Present Canvas (/study/canvas) — scene save/load. Writes go
 // through the SERVICE-ROLE client (canvas_scenes RLS is deny-by-default; see migration
-// 0066). No auth — this is Lee's filming playground; the route itself is unlinked.
+// 0067). No auth — this is Lee's filming playground; the route itself is unlinked.
 //
-// FAIL-LOUD CONTRACT: if canvas_scenes doesn't exist yet (0066 not applied), these throw
+// FAIL-LOUD CONTRACT: if canvas_scenes doesn't exist yet (0067 not applied), these throw
 // with a message naming the migration; the canvas shows a banner and falls back to
 // localStorage so the playground still works.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const MISSING_TABLE_HINT =
-  "canvas_scenes table missing — apply migration/supabase-migrations/0066_canvas_scenes.sql in the Supabase SQL editor";
+  "canvas_scenes table missing — apply migration/supabase-migrations/0067_canvas_scenes.sql in the Supabase SQL editor";
 
 function rethrow(error: { code?: string; message: string }): never {
   if (error.code === "42P01" || /relation .*canvas_scenes.* does not exist/i.test(error.message)) {
