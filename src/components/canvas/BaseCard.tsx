@@ -1,6 +1,6 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
-import { NodeResizer, useReactFlow } from "@xyflow/react";
+import { Handle, NodeResizer, Position, useReactFlow } from "@xyflow/react";
 import { Clapperboard, Pencil, Copy, Minus, X } from "lucide-react";
 import { NEON } from "./theme";
 import { cardId, type CardBase } from "./types";
@@ -58,6 +58,8 @@ export function BaseCard({
 }) {
   const { update, remove, toFront, duplicate, stage } = useCardActions(id);
   const title = data.title ?? "";
+  // Ctrl/Cmd+click arrow flow: first click marks this card as the pending source.
+  const arrowPending = !!(data as unknown as Record<string, unknown>)._arrowPending;
 
   if (data.minimized) {
     return (
@@ -81,11 +83,18 @@ export function BaseCard({
         height: data.h ?? undefined,
         minWidth: 220,
         background: NEON.panel,
-        border: `1px solid ${selected ? accent : NEON.borderSoft}`,
-        boxShadow: selected ? `0 0 0 1px ${accent}, 0 0 26px -6px ${accent}` : "0 8px 30px -12px rgba(0,0,0,0.8)",
+        border: `1px solid ${arrowPending ? NEON.cyan : selected ? accent : NEON.borderSoft}`,
+        boxShadow: arrowPending
+          ? `0 0 0 2px ${NEON.cyan}, 0 0 30px -4px ${NEON.cyan}`
+          : selected
+            ? `0 0 0 1px ${accent}, 0 0 26px -6px ${accent}`
+            : "0 8px 30px -12px rgba(0,0,0,0.8)",
         color: NEON.text,
       }}
     >
+      {/* invisible anchors for card-to-card arrows (edges are created programmatically) */}
+      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
       <NodeResizer
         isVisible={!!selected}
         minWidth={220}

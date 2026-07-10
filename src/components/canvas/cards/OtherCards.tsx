@@ -1,6 +1,6 @@
 // The simpler card types: T-account (live balance), Computation (step reveal),
 // CEQ (distractor feedback), Memorize (kind badge), Note (neon marker), Video (Mux).
-import type { NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
@@ -284,6 +284,7 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
   const { update, remove, toFront } = useCardActions(id);
   const editing = !!d.editMode;
   const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
+  const arrowPending = !!(data as unknown as Record<string, unknown>)._arrowPending;
 
   return (
     <div
@@ -293,12 +294,15 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
         width: d.w ?? 240,
         minHeight: d.h ?? 90,
         background: c.bg,
-        border: `1.5px solid ${c.border}`,
-        boxShadow: selected ? `0 0 0 1px ${c.ink}, 0 0 20px -6px ${c.ink}` : "none",
+        border: `1.5px solid ${arrowPending ? NEON.cyan : c.border}`,
+        boxShadow: arrowPending ? `0 0 0 2px ${NEON.cyan}, 0 0 24px -4px ${NEON.cyan}` : selected ? `0 0 0 1px ${c.ink}, 0 0 20px -6px ${c.ink}` : "none",
         color: c.ink,
         fontFamily: "'Comic Sans MS', 'Segoe Print', cursive",
       }}
     >
+      {/* invisible arrow anchors (chromeless card — BaseCard adds these for the rest) */}
+      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
       <div className="flex items-start gap-1">
         <div className="min-w-0 flex-1 text-[15px] leading-snug">
           <EditableText value={d.body} onChange={(v) => update({ body: v })} editing={editing} multiline placeholder="write…" autoFocus={!d.body} />

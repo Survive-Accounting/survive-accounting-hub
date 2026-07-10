@@ -12,6 +12,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  MarkerType,
   useNodes,
   useReactFlow,
   useStore,
@@ -185,6 +186,40 @@ function PresentCanvas() {
     }
   }, [liveNodes, rf]);
 
+  // ---- CARD-TO-CARD ARROWS: Ctrl/Cmd+click A (glows cyan as pending source), then
+  // Ctrl/Cmd+click B → neon edge A→B. Esc cancels. Click edge + Delete removes it.
+  const arrowSource = useRef<string | null>(null);
+  const clearArrowPending = useCallback(() => {
+    const src = arrowSource.current;
+    arrowSource.current = null;
+    if (src) rf.updateNodeData(src, { _arrowPending: false });
+  }, [rf]);
+  const onNodeClick = useCallback(
+    (e: React.MouseEvent, node: CardNode) => {
+      if (!(e.ctrlKey || e.metaKey) || node.type === "zone") return;
+      e.preventDefault();
+      const src = arrowSource.current;
+      if (!src) {
+        arrowSource.current = node.id;
+        rf.updateNodeData(node.id, { _arrowPending: true });
+      } else if (src !== node.id) {
+        rf.addEdges([
+          {
+            id: cardId("edge"),
+            source: src,
+            target: node.id,
+            style: { stroke: NEON.pink, strokeWidth: 2.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: NEON.pink, width: 18, height: 18 },
+          },
+        ]);
+        clearArrowPending();
+      } else {
+        clearArrowPending(); // mod+click the pending card again = cancel
+      }
+    },
+    [rf, clearArrowPending],
+  );
+
   // ---- SUMMON: bring a staged card on stage — visible, selected, everything else deselected.
   // (Un-hiding remounts the node, so the card's mount animation plays — the summon effect.)
   const summon = useCallback(
@@ -304,7 +339,16 @@ function PresentCanvas() {
     const vp = rf.getViewport();
     return {
       name: sceneName,
-      nodes_json: JSON.stringify({ nodes: rf.getNodes() }),
+      // strip the transient _arrowPending flag; edges + schema_version ride along
+      nodes_json: JSON.stringify({
+        schema_version: 1,
+        nodes: rf.getNodes().map((n) => {
+          const { _arrowPending, ...data } = n.data as Record<string, unknown>;
+          void _arrowPending;
+          return { ...n, data };
+        }),
+        edges: rf.getEdges(),
+      }),
       viewport_json: JSON.stringify(vp),
       bg,
     };
@@ -332,7 +376,7 @@ function PresentCanvas() {
 
   const applyScene = useCallback(
     (payload: { name: string; nodes_json: string; viewport_json: string; bg?: string | null }, id: string | null) => {
-      let nj: { nodes?: CardNode[] } = {};
+      let nj: { schema_version?: number; nodes?: CardNode[]; edges?: unknown[] } = {};
       let vp: Viewport | null = null;
       try {
         nj = JSON.parse(payload.nodes_json || "{}");
@@ -341,7 +385,9 @@ function PresentCanvas() {
         setDbDown(`Scene payload unreadable: ${e instanceof Error ? e.message : e}`); // fail loud
         return;
       }
+      // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       rf.setNodes((nj.nodes ?? []) as CardNode[]);
+      rf.setEdges((nj.edges ?? []) as never[]);
       setSceneName(payload.name);
       setSceneId(id);
       if (payload.bg) setBg(payload.bg as BgMode);
@@ -371,6 +417,7 @@ function PresentCanvas() {
 
   const newScene = useCallback(() => {
     rf.setNodes([]);
+    rf.setEdges([]);
     setSceneId(null);
     setSceneName("Untitled scene");
     setSavedAt(null);
@@ -409,6 +456,7 @@ function PresentCanvas() {
         quickSpawn("list");
       } else if (e.key === "Escape") {
         setLoadOpen(false);
+        clearArrowPending(); // cancel a pending arrow source
         rf.fitView({ duration: 500, padding: 0.15 });
       } else if (e.key === " ") {
         // THE SHOW KEY: selected card has hidden elements → reveal next; otherwise summon
@@ -443,7 +491,7 @@ function PresentCanvas() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rf, summon, quickSpawn]);
+  }, [rf, summon, quickSpawn, clearArrowPending]);
 
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
@@ -495,6 +543,8 @@ function PresentCanvas() {
         defaultEdges={[]}
         onNodeDragStop={onNodeDragStop}
         onNodeDoubleClick={onNodeDoubleClick}
+        onNodeClick={onNodeClick}
+        multiSelectionKeyCode="Shift" // free Ctrl/Cmd+click for the arrow gesture
         nodeTypes={nodeTypes}
         proOptions={{ hideAttribution: true }}
         minZoom={0.08}
