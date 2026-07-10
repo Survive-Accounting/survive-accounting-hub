@@ -17,7 +17,7 @@ const ORDER_COLS =
   "exam_date,exam_timeframe,subtotal_cents,rush,rush_fee_cents,total_cents," +
   "delivery_target_date,delivery_estimate_days,status,admin_notes,special_requests,attachments_json,requested_options," +
   "quote_cents,quoted_at,estimated_build_minutes,promised_delivery_date,tool_exists,triage_notes,approved_at," +
-  "interests,is_accounting_major,referral_source,referral_source_detail";
+  "interests,is_accounting_major,referral_source,referral_source_detail,syllabus_received_at";
 
 export type AdminOrderRow = {
   id: string;
@@ -66,6 +66,7 @@ export type AdminOrderRow = {
   is_accounting_major: string | null;
   referral_source: string | null;
   referral_source_detail: string | null;
+  syllabus_received_at: string | null;
   chapter_rows: number;
 };
 
@@ -148,6 +149,7 @@ function mapRow(r: Record<string, unknown>, campusName: string | null, chapterRo
     is_accounting_major: (r.is_accounting_major as string) ?? null,
     referral_source: (r.referral_source as string) ?? null,
     referral_source_detail: (r.referral_source_detail as string) ?? null,
+    syllabus_received_at: (r.syllabus_received_at as string) ?? null,
     chapter_rows: chapterRows,
   };
 }
@@ -396,4 +398,105 @@ export const advanceOrderStage = createServerFn({ method: "POST" })
     }
 
     return { ok: true, event: inserted as AdminStageEvent, email };
+  });
+
+// ── Inbound syllabus/textbook media (Twilio MMS) ─────────────────────────────
+
+/** One received image, with a short-lived signed URL for the admin to view. */
+export type OrderMediaItem = {
+  id: string;
+  url: string;
+  content_type: string | null;
+  received_at: string;
+  from_phone: string | null;
+};
+
+async function signMedia(sb: any, rows: any[]): Promise<OrderMediaItem[]> {
+  const out: OrderMediaItem[] = [];
+  for (const r of rows ?? []) {
+    const { data: signed } = await sb.storage.from("order-media").createSignedUrl(r.storage_path, 60 * 30);
+    out.push({
+      id: String(r.id),
+      url: signed?.signedUrl ?? "",
+      content_type: (r.content_type as string) ?? null,
+      received_at: String(r.received_at),
+      from_phone: (r.from_phone as string) ?? null,
+    });
+  }
+  return out;
+}
+
+/** Images matched to one order (for the detail drawer). */
+export const getOrderMedia = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ order_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<OrderMediaItem[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const sb = supabaseAdmin as any;
+    const { data: rows, error } = await sb
+      .from("order_media")
+      .select("id,storage_path,content_type,received_at,from_phone")
+      .eq("order_id", data.order_id)
+      .order("received_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return signMedia(sb, rows ?? []);
+  });
+
+/** Images from unrecognized numbers (order_id null) — the "Unmatched inbound" strip. */
+export const listUnmatchedMedia = createServerFn({ method: "GET" }).handler(async (): Promise<OrderMediaItem[]> => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const sb = supabaseAdmin as any;
+  const { data: rows, error } = await sb
+    .from("order_media")
+    .select("id,storage_path,content_type,received_at,from_phone")
+    .is("order_id", null)
+    .order("received_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error(error.message);
+  return signMedia(sb, rows ?? []);
+});
+
+// ── Phase 3: send the syllabus-request text ──────────────────────────────────
+
+export const SYLLABUS_REQUEST_TEXT =
+  "In the meantime, text me screenshots of your course schedule (the part showing exam dates) and your textbook — as many as it takes, schedules can run a couple pages. It ensures I have the right videos ready for your exact exam before Tuesday.";
+
+export const sendSyllabusRequest = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ order_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const sb = supabaseAdmin as any;
+    const { data: order, error } = await sb.from("orders").select("phone").eq("id", data.order_id).maybeSingle();
+    if (error) throw new Error(error.message);
+    const raw = (order?.phone ?? "").replace(/[^+\d]/g, "");
+    if (!raw) return { ok: false, error: "This order has no phone number to text." };
+    // Normalize to E.164 (US default) for a bare 10-/11-digit number.
+    const to = raw.startsWith("+")
+      ? raw
+      : raw.length === 10
+        ? `+1${raw}`
+        : raw.length === 11 && raw.startsWith("1")
+          ? `+${raw}`
+          : raw;
+
+    const sid = process.env.TWILIO_ACCOUNT_SID ?? "";
+    const msid = process.env.TWILIO_MESSAGING_SERVICE_SID ?? "";
+    // Prefer a scoped API key (SK…); fall back to Account SID:Auth Token.
+    const authUser = (process.env.TWILIO_API_KEY_SID ?? "") || sid;
+    const authPass = (process.env.TWILIO_API_KEY_SECRET ?? "") || (process.env.TWILIO_AUTH_TOKEN ?? "");
+    if (!sid || !msid || !authPass) return { ok: false, error: "Twilio is not configured in this environment." };
+
+    const params = new URLSearchParams({ MessagingServiceSid: msid, To: to, Body: SYLLABUS_REQUEST_TEXT });
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + Buffer.from(`${authUser}:${authPass}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      return { ok: false, error: `Twilio ${res.status}: ${t.slice(0, 150)}` };
+    }
+    return { ok: true };
   });

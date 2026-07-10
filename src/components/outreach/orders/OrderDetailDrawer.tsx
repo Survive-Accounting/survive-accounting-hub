@@ -6,15 +6,15 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink, Loader2, Paperclip, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, Paperclip, Send, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getOrder, updateOrderStatus, updateOrderAdminNotes, setAwaitingSyllabus, updateOrderTriage,
-  getOrderTimeline, advanceOrderStage,
-  type AdminOrderDetail, type AdminStageEvent,
+  getOrderTimeline, advanceOrderStage, getOrderMedia, sendSyllabusRequest,
+  type AdminOrderDetail, type AdminStageEvent, type OrderMediaItem,
 } from "@/lib/orders-admin.functions";
 
 const NAVY = "#14213D";
@@ -84,6 +84,8 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
   const notesFn = useServerFn(updateOrderAdminNotes);
   const syllabusFn = useServerFn(setAwaitingSyllabus);
   const triageFn = useServerFn(updateOrderTriage);
+  const mediaFn = useServerFn(getOrderMedia);
+  const sendReqFn = useServerFn(sendSyllabusRequest);
 
   const q = useQuery({
     queryKey: ["admin-order", shortRef],
@@ -91,6 +93,24 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
     enabled: !!shortRef,
   });
   const order = q.data as AdminOrderDetail | null | undefined;
+
+  // Received syllabus/textbook photos (Twilio MMS), signed server-side.
+  const mediaQ = useQuery({
+    queryKey: ["order-media", order?.id],
+    queryFn: () => mediaFn({ data: { order_id: order!.id } }),
+    enabled: !!order?.id,
+  });
+  const media = (mediaQ.data ?? []) as OrderMediaItem[];
+  const [sendingReq, setSendingReq] = useState(false);
+  const sendSyllabusReq = async () => {
+    if (!order) return;
+    setSendingReq(true);
+    try {
+      const r = await sendReqFn({ data: { order_id: order.id } });
+      if (r.ok) toast.success("Syllabus-request text sent");
+      else toast.error(r.error ?? "Send failed");
+    } catch (e) { toast.error((e as Error).message); } finally { setSendingReq(false); }
+  };
 
   const [notes, setNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
@@ -295,6 +315,56 @@ export function OrderDetailDrawer({ shortRef, onClose, onChanged }: {
                   )}
                 </div>
               )}
+
+              {/* syllabus/textbook photos received via Twilio MMS */}
+              <div className="rounded-2xl border p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Syllabus &amp; textbook photos
+                  </p>
+                  {order.syllabus_received_at && (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      Received {fmtDateTime(order.syllabus_received_at)}
+                    </span>
+                  )}
+                </div>
+                {mediaQ.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : media.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No photos received yet.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {media.map((m) => {
+                      const isImg = (m.content_type ?? "").startsWith("image/") && !/heic|heif/i.test(m.content_type ?? "");
+                      return isImg ? (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => window.open(m.url, "_blank", "noopener,noreferrer")}
+                          title={`from ${m.from_phone ?? "?"} · ${fmtDateTime(m.received_at)}`}
+                          className="group relative aspect-square overflow-hidden rounded-lg border"
+                        >
+                          <img src={m.url} alt="received photo" loading="lazy" className="h-full w-full object-cover transition group-hover:opacity-90" />
+                        </button>
+                      ) : (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => window.open(m.url, "_blank", "noopener,noreferrer")}
+                          title={`${m.content_type ?? "file"} · from ${m.from_phone ?? "?"}`}
+                          className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border p-2 text-center hover:bg-accent"
+                        >
+                          <Paperclip className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-[10px] text-muted-foreground">Open</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => void sendSyllabusReq()} disabled={sendingReq}>
+                  {sendingReq ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send syllabus request
+                </Button>
+              </div>
             </div>
 
             {/* RIGHT: admin controls */}

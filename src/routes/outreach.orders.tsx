@@ -8,7 +8,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, RotateCw } from "lucide-react";
 
-import { listOrders, TRIAGE_STATUSES, type AdminOrderRow } from "@/lib/orders-admin.functions";
+import { listOrders, listUnmatchedMedia, TRIAGE_STATUSES, type AdminOrderRow, type OrderMediaItem } from "@/lib/orders-admin.functions";
 import { OrderFilters, type OrderFiltersValue } from "@/components/outreach/orders/OrderFilters";
 import { OrderDetailDrawer, StatusPill } from "@/components/outreach/orders/OrderDetailDrawer";
 
@@ -38,6 +38,9 @@ function daysUntil(iso: string): number {
 
 function OrdersAdmin() {
   const listFn = useServerFn(listOrders);
+  const unmatchedFn = useServerFn(listUnmatchedMedia);
+  const unmatchedQ = useQuery({ queryKey: ["unmatched-media"], queryFn: () => unmatchedFn(), refetchInterval: 60_000 });
+  const unmatched = (unmatchedQ.data ?? []) as OrderMediaItem[];
   const [filters, setFilters] = useState<OrderFiltersValue>({ status: "all", tier: "all", campusId: "", search: "" });
   const [view, setView] = useState<"all" | "triage">("all");
   const [limit, setLimit] = useState(50);
@@ -114,6 +117,40 @@ function OrdersAdmin() {
           <RotateCw className={`h-3.5 w-3.5 ${q.isFetching ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
+
+      {unmatched.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-800">
+            Unmatched inbound photos ({unmatched.length}) — from numbers not on any order
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {unmatched.map((m) => {
+              const isImg = (m.content_type ?? "").startsWith("image/") && !/heic|heif/i.test(m.content_type ?? "");
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => window.open(m.url, "_blank", "noopener,noreferrer")}
+                  title={`${m.from_phone ?? "?"} · ${new Date(m.received_at).toLocaleString()}`}
+                  className="w-24 overflow-hidden rounded-lg border bg-white text-left"
+                >
+                  {isImg ? (
+                    <img src={m.url} alt="unmatched inbound" loading="lazy" className="h-20 w-full object-cover" />
+                  ) : (
+                    <div className="flex h-20 w-full items-center justify-center text-[10px] text-muted-foreground">Open file</div>
+                  )}
+                  <div className="px-1.5 py-1 text-[10px] leading-tight">
+                    <div className="truncate font-medium">{m.from_phone ?? "unknown"}</div>
+                    <div className="text-muted-foreground">
+                      {new Date(m.received_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {view === "all" && (
         <div className="mb-4">
