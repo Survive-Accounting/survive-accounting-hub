@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ClipboardList,
   Database,
+  Film,
   GraduationCap,
   LayoutTemplate,
   Megaphone,
@@ -132,6 +133,15 @@ const BACKUPS_SECTION: Section = {
   subtabs: [{ label: "Nightly backups", to: "/outreach/backups" }],
 };
 
+// Video archive — Vimeo→Mux migration + transcript capture. Core ops, both modes.
+const VIDEO_ARCHIVE_SECTION: Section = {
+  key: "video-archive",
+  label: "Video archive",
+  icon: Film,
+  owns: (p) => p.startsWith("/outreach/video-archive"),
+  subtabs: [{ label: "Vimeo → Mux", to: "/outreach/video-archive" }],
+};
+
 // V1 archive sections — hidden in V2, shown exactly as before in V1 mode.
 // (Includes the Requests/orders admin added on main — a V1 surface hidden in V2.)
 const V1_SECTIONS: Section[] = [
@@ -217,8 +227,8 @@ function OutreachShell() {
 
   const sections: Section[] =
     version === "v2"
-      ? [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, BACKUPS_SECTION]
-      : [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, ...V1_SECTIONS, BACKUPS_SECTION];
+      ? [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, VIDEO_ARCHIVE_SECTION, BACKUPS_SECTION]
+      : [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, ...V1_SECTIONS, VIDEO_ARCHIVE_SECTION, BACKUPS_SECTION];
   const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));
 

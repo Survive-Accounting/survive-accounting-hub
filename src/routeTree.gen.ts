@@ -27,6 +27,7 @@ import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
+import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
@@ -150,6 +151,11 @@ const StudyCanvasRoute = StudyCanvasRouteImport.update({
   id: '/study_/canvas',
   path: '/study/canvas',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OutreachVideoArchiveRoute = OutreachVideoArchiveRouteImport.update({
+  id: '/video-archive',
+  path: '/video-archive',
+  getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
   id: '/students',
@@ -360,6 +366,7 @@ export interface FileRoutesByFullPath {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
@@ -412,6 +419,7 @@ export interface FileRoutesByTo {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
@@ -466,6 +474,7 @@ export interface FileRoutesById {
   '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study_/canvas': typeof StudyCanvasRoute
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
@@ -521,6 +530,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/outreach/video-archive'
     | '/study/canvas'
     | '/study/foundations'
     | '/t/$slug'
@@ -573,6 +583,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/outreach/video-archive'
     | '/study/canvas'
     | '/study/foundations'
     | '/t/$slug'
@@ -626,6 +637,7 @@ export interface FileRouteTypes {
     | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
+    | '/outreach/video-archive'
     | '/study_/canvas'
     | '/study_/foundations'
     | '/t/$slug'
@@ -796,6 +808,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/study/canvas'
       preLoaderRoute: typeof StudyCanvasRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/outreach/video-archive': {
+      id: '/outreach/video-archive'
+      path: '/video-archive'
+      fullPath: '/outreach/video-archive'
+      preLoaderRoute: typeof OutreachVideoArchiveRouteImport
+      parentRoute: typeof OutreachRoute
     }
     '/outreach/students': {
       id: '/outreach/students'
@@ -1085,6 +1104,7 @@ interface OutreachRouteChildren {
   OutreachRedditRoute: typeof OutreachRedditRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
+  OutreachVideoArchiveRoute: typeof OutreachVideoArchiveRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
   OutreachGreekOrgsPeopleQueueRoute: typeof OutreachGreekOrgsPeopleQueueRoute
   OutreachGreekOrgsQueueRoute: typeof OutreachGreekOrgsQueueRoute
@@ -1111,6 +1131,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachRedditRoute: OutreachRedditRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
+  OutreachVideoArchiveRoute: OutreachVideoArchiveRoute,
   OutreachIndexRoute: OutreachIndexRoute,
   OutreachGreekOrgsPeopleQueueRoute: OutreachGreekOrgsPeopleQueueRoute,
   OutreachGreekOrgsQueueRoute: OutreachGreekOrgsQueueRoute,
