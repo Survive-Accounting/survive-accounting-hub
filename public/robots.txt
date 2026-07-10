@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+# Admin / internal surfaces — never index
+Disallow: /outreach/
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /onboard
+
+# Personalized short links & conversion-confirmation pages (no SEO value)
+Disallow: /o/
+Disallow: /t/
+Disallow: /order/
+Disallow: /preview
+Disallow: /thankyou
+
+Sitemap: https://surviveaccounting.com/sitemap.xml

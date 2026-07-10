@@ -56,8 +56,14 @@ export const Route = createFileRoute("/order")({
     meta: [
       { title: "Request a personalized exam prep video — Survive Accounting" },
       { name: "description", content: "Free to request. I quote before I build. You only pay once you approve and receive your exam prep video — made for your exact course." },
+      // NOTE: /order is currently noindex (pre-existing). It is therefore omitted from
+      // sitemap.xml. Flip both together if you want /order indexed.
       { name: "robots", content: "noindex" },
+      { property: "og:title", content: "Request a personalized exam prep video" },
+      { property: "og:description", content: "Free to request. I quote before I build — you only pay once you approve your video." },
+      { property: "og:url", content: "https://surviveaccounting.com/order" },
     ],
+    links: [{ rel: "canonical", href: "https://surviveaccounting.com/order" }],
   }),
   component: OrderPage,
 });

@@ -19,7 +19,10 @@ export const Route = createFileRoute("/beyond")({
         content:
           "More than passing the test: why major in accounting, the real-world stuff school skips, and how to land a Big Four interview. Coming soon.",
       },
+      { property: "og:title", content: "Beyond the Exam — Survive Accounting" },
+      { property: "og:url", content: "https://surviveaccounting.com/beyond" },
     ],
+    links: [{ rel: "canonical", href: "https://surviveaccounting.com/beyond" }],
   }),
   component: BeyondPage,
 });

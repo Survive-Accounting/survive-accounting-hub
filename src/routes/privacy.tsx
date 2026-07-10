@@ -3,7 +3,13 @@ import SiteNavbar from "@/components/landing/SiteNavbar";
 import SiteFooter from "@/components/landing/SiteFooter";
 
 export const Route = createFileRoute("/privacy")({
-  head: () => ({ meta: [{ title: "Privacy Policy — Survive Accounting" }] }),
+  head: () => ({
+    meta: [
+      { title: "Privacy Policy — Survive Accounting" },
+      { name: "description", content: "How Survive Accounting collects, uses, and protects your information." },
+    ],
+    links: [{ rel: "canonical", href: "https://surviveaccounting.com/privacy" }],
+  }),
   component: PrivacyPage,
 });
 

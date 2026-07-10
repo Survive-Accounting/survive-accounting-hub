@@ -3,7 +3,13 @@ import SiteNavbar from "@/components/landing/SiteNavbar";
 import SiteFooter from "@/components/landing/SiteFooter";
 
 export const Route = createFileRoute("/terms")({
-  head: () => ({ meta: [{ title: "Terms of Service — Survive Accounting" }] }),
+  head: () => ({
+    meta: [
+      { title: "Terms of Service — Survive Accounting" },
+      { name: "description", content: "The terms that govern your use of Survive Accounting's services." },
+    ],
+    links: [{ rel: "canonical", href: "https://surviveaccounting.com/terms" }],
+  }),
   component: TermsPage,
 });
 

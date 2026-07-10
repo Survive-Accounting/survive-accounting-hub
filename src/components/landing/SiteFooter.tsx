@@ -84,6 +84,7 @@ export default function SiteFooter(_props: SiteFooterProps = {}) {
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={faint}>Explore</p>
             <nav className="mt-3 flex flex-col gap-2">
               <a href="/order" className={linkClass} style={muted}>Get Started</a>
+              <a href="/study" className={linkClass} style={muted}>Practice tool</a>
               <a href="/#plans" className={linkClass} style={muted}>Pricing</a>
               <button onClick={() => setPressOpen(true)} className={`${linkClass} text-left`} style={muted}>Press</button>
             </nav>

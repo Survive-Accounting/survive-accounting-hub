@@ -36,11 +36,47 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Survive Accounting — Videos for accounting exam prep" },
       { property: "og:description", content: "Custom help videos for your accounting exam — made for what you're stuck on." },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://surviveaccounting.com/" },
     ],
+    links: [{ rel: "canonical", href: "https://surviveaccounting.com/" }],
   }),
   loader: () => getSiteSettings(),
   component: Home,
 });
+
+// Organization + EducationalOrganization + WebSite JSON-LD (rendered into the home DOM so
+// it SSRs for crawlers). sameAs is intentionally omitted — no confirmed Survive Accounting
+// brand social profiles yet (the footer's @grooveginger is Lee's separate music brand).
+// Add real handles here when available.
+const ORG_JSONLD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": ["Organization", "EducationalOrganization"],
+      "@id": "https://surviveaccounting.com/#org",
+      name: "Survive Accounting",
+      url: "https://surviveaccounting.com/",
+      logo: "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png",
+      description:
+        "Personalized accounting exam-prep videos and interactive journal-entry practice for Intro and Intermediate Accounting students.",
+      founder: { "@type": "Person", name: "Lee Ingram" },
+      email: "lee@surviveaccounting.com",
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://surviveaccounting.com/#website",
+      url: "https://surviveaccounting.com/",
+      name: "Survive Accounting",
+      publisher: { "@id": "https://surviveaccounting.com/#org" },
+    },
+  ],
+};
+
+function OrgJsonLd() {
+  return (
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }} />
+  );
+}
 
 function HeroCta() {
   return (
@@ -169,6 +205,7 @@ function Home() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#F8FAFC" }}>
+      <OrgJsonLd />
       <SiteNav />
       {s.hero && (
         <Hero

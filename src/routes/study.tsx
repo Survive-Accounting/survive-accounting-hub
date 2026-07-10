@@ -90,7 +90,10 @@ export const Route = createFileRoute("/study")({
           "Interactive journal-entry practice across Intro, Intermediate, and Foundations accounting.",
       },
       { property: "og:url", content: "https://surviveaccounting.com/study" },
+      { name: "twitter:title", content: "Study — Survive Accounting" },
+      { name: "twitter:description", content: "Interactive journal-entry practice across Intro, Intermediate, and Foundations accounting." },
     ],
+    links: [{ rel: "canonical", href: "https://surviveaccounting.com/study" }],
   }),
   // ?mode=build|present makes those links shareable; anything else is Explore. (present is
   // admin-gated at render time — a non-admin ?mode=present falls back to Explore.)
@@ -421,10 +424,23 @@ function JePrototype() {
   };
 
   // ---- Loading / error ----
+  // Render the page H1 + intro even while the (client-only) scenario tree loads, so the
+  // SSR markup carries exactly one H1 and a crawlable description — not just a spinner.
   if (treeQuery.isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+        <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Home</Link>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="h-5 w-1.5 rounded-full" style={{ backgroundColor: RED }} aria-hidden />
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: NAVY }}>Journal Entry Scenario Engine</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          The journal entry is the anchor. Toggle a condition — the entry, ledger, statements, and the accounting
+          equation all re-derive live. Click a line to trace it through the system.
+        </p>
+        <div className="mt-10 flex min-h-[30vh] items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
