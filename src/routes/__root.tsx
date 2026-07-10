@@ -8,6 +8,8 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -129,6 +131,10 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      {/* Vercel Web Analytics + Speed Insights — inject their client scripts on every route.
+          Both no-op unless enabled for the project in the Vercel dashboard. */}
+      <Analytics />
+      <SpeedInsights />
     </QueryClientProvider>
   );
 }
