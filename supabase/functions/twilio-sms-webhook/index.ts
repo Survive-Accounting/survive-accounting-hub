@@ -135,6 +135,122 @@ async function extract(conversationText: string, courseCodes: string[]): Promise
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Inbound media (syllabus/textbook photos). Added Jul 2026. Runs in the
+// BACKGROUND (EdgeRuntime.waitUntil) so Twilio still gets a fast reply, and is
+// fully independent of the text-conversation logic above.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Supabase Edge exposes EdgeRuntime.waitUntil for post-response background work.
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+
+const HEIC_RE = /image\/(heic|heif)/i;
+
+/** Last-10 digits of a phone, for E.164-agnostic matching against orders.phone. */
+function phoneCore(s: string): string {
+  const d = (s || "").replace(/\D/g, "");
+  return d.length > 10 ? d.slice(-10) : d;
+}
+
+/** HEIC/HEIF → JPEG via a Deno-compatible WASM converter (sharp can't run here).
+ *  Best-effort: returns null on failure so the caller stores the original. */
+async function convertHeicToJpeg(bytes: Uint8Array): Promise<Uint8Array | null> {
+  try {
+    const mod = await import("https://esm.sh/heic-convert@2.1.0");
+    const convert = (mod as any).default ?? mod;
+    const out: ArrayBuffer = await convert({ buffer: bytes, format: "JPEG", quality: 0.85 });
+    return new Uint8Array(out);
+  } catch (e) {
+    console.error("twilio-sms-webhook: HEIC conversion unavailable, storing original", (e as Error).message);
+    return null;
+  }
+}
+
+async function processInboundMedia(
+  params: URLSearchParams,
+  from: string,
+  messageSid: string | null,
+  numMedia: number,
+): Promise<void> {
+  const fromCore = phoneCore(from);
+
+  // Match against orders.phone (normalize both to last-10 digits). Low volume:
+  // fetch recent orders and compare in JS.
+  let matchedOrderId: string | null = null;
+  let alreadyStamped = false;
+  try {
+    const { data: orders } = await admin
+      .from("orders")
+      .select("id,phone,syllabus_received_at")
+      .not("phone", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    for (const o of (orders ?? []) as any[]) {
+      if (fromCore.length >= 10 && phoneCore(o.phone) === fromCore) {
+        matchedOrderId = o.id;
+        alreadyStamped = Boolean(o.syllabus_received_at);
+        break;
+      }
+    }
+  } catch (e) {
+    console.error("twilio-sms-webhook: order phone-match failed", (e as Error).message);
+  }
+
+  let storedAny = false;
+  for (let i = 0; i < numMedia; i++) {
+    const url = params.get(`MediaUrl${i}`);
+    if (!url) continue;
+    let contentType = params.get(`MediaContentType${i}`) || "application/octet-stream";
+    try {
+      // Fetch IMMEDIATELY with Twilio auth — the media URL is auth-protected.
+      const res = await fetch(url, {
+        headers: { Authorization: "Basic " + btoa(`${TWILIO_AUTH_USER}:${TWILIO_AUTH_PASS}`) },
+      });
+      if (!res.ok) throw new Error(`Twilio media fetch HTTP ${res.status}`);
+      let bytes = new Uint8Array(await res.arrayBuffer());
+
+      if (HEIC_RE.test(contentType)) {
+        const jpeg = await convertHeicToJpeg(bytes);
+        if (jpeg) { bytes = jpeg; contentType = "image/jpeg"; }
+      }
+
+      const ext = contentType.includes("jpeg") ? "jpg"
+        : contentType.includes("png") ? "png"
+        : contentType.includes("gif") ? "gif"
+        : contentType.includes("webp") ? "webp"
+        : HEIC_RE.test(contentType) ? "heic" : "bin";
+      // Deterministic path → a Twilio webhook retry upserts, never duplicates.
+      const storagePath = `inbound/${fromCore || "unknown"}/${messageSid || crypto.randomUUID()}-${i}.${ext}`;
+
+      const up = await admin.storage.from("order-media").upload(storagePath, bytes, { contentType, upsert: true });
+      if (up.error) throw new Error("storage upload: " + up.error.message);
+
+      const { error: insErr } = await admin.from("order_media").upsert(
+        { order_id: matchedOrderId, storage_path: storagePath, content_type: contentType, from_phone: from },
+        { onConflict: "storage_path" },
+      );
+      if (insErr) throw new Error("order_media insert: " + insErr.message);
+      storedAny = true;
+    } catch (e) {
+      // FAIL LOUD, never silently drop: the full payload is already in
+      // sms_inbound_raw; log + text Lee so a lost photo is visible.
+      console.error(`twilio-sms-webhook: media ${i} from ${from} failed`, (e as Error).message);
+      if (LEE_PHONE) {
+        await twilioSend("", LEE_PHONE, `Heads up: a photo from ${from} failed to save (${(e as Error).message}). It's in sms_inbound_raw.`).catch(() => {});
+      }
+    }
+  }
+
+  // Stamp the order on its first matched syllabus image.
+  if (storedAny && matchedOrderId && !alreadyStamped) {
+    try {
+      await admin.from("orders").update({ syllabus_received_at: new Date().toISOString() }).eq("id", matchedOrderId);
+    } catch (e) {
+      console.error("twilio-sms-webhook: syllabus_received_at stamp failed", (e as Error).message);
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   // Twilio posts application/x-www-form-urlencoded
   const rawBody = await req.text();
@@ -185,6 +301,19 @@ Deno.serve(async (req) => {
     await finalizeRaw("missing_from_or_to", "From or To header missing", null);
     return twiml();
   }
+
+  // ── Inbound media: process in the background so Twilio gets a fast reply.
+  // This is additive — the text-conversation logic below is untouched. A
+  // syllabus can arrive as one text with several photos, or several texts.
+  const numMedia = parseInt(params.get("NumMedia") ?? "0", 10);
+  if (Number.isFinite(numMedia) && numMedia > 0) {
+    const job = processInboundMedia(params, from, sid, numMedia).catch((e) =>
+      console.error("twilio-sms-webhook: media job crashed", e),
+    );
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(job);
+    else void job; // fallback: fire-and-forget
+  }
+
   // Load editable templates from DB (graceful fallback to baked-in copy).
   const { data: tplRows } = await admin.from("sms_templates").select("key,body");
   const tplMap = new Map<string, string>((tplRows ?? []).map((r: any) => [r.key, r.body]));
