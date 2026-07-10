@@ -176,11 +176,14 @@ function PresentCanvas() {
   const trayCards = liveNodes.filter((n) => (n.data as unknown as CardData).minimized);
   const offCanvas = (d: CardData) => !!d.minimized || !!d.staged;
   useEffect(() => {
-    if (liveNodes.some((n) => !!n.hidden !== offCanvas(n.data as unknown as CardData))) {
+    if (liveNodes.some((n) => !!n.hidden !== offCanvas(n.data as unknown as CardData) || (n.hidden && n.selected))) {
       rf.setNodes((nds) =>
         nds.map((n) => {
           const off = offCanvas(n.data as unknown as CardData);
-          return !!n.hidden !== off ? { ...n, hidden: off } : n;
+          // off-canvas cards are also DESELECTED — otherwise the show key would step the
+          // reveals of an invisible staged card instead of summoning the next one.
+          if (!!n.hidden !== off || (off && n.selected)) return { ...n, hidden: off, selected: off ? false : n.selected };
+          return n;
         }),
       );
     }
@@ -188,19 +191,25 @@ function PresentCanvas() {
 
   // ---- CARD-TO-CARD ARROWS: Ctrl/Cmd+click A (glows cyan as pending source), then
   // Ctrl/Cmd+click B → neon edge A→B. Esc cancels. Click edge + Delete removes it.
-  const arrowSource = useRef<string | null>(null);
+  // The pending source lives in NODE DATA (_arrowPending) — single source of truth, so
+  // it can't desync from a ref across remounts and stale flags self-heal.
   const clearArrowPending = useCallback(() => {
-    const src = arrowSource.current;
-    arrowSource.current = null;
-    if (src) rf.updateNodeData(src, { _arrowPending: false });
+    rf.setNodes((nds) =>
+      nds.map((n) => ((n.data as Record<string, unknown>)._arrowPending ? { ...n, data: { ...n.data, _arrowPending: false } } : n)),
+    );
   }, [rf]);
+  // React Flow 12 invokes onNodeClick TWICE per click in this tree (observed on a fresh
+  // page, single dispatched event) — dedupe on the event timestamp or the pending toggle
+  // would cancel itself instantly.
+  const lastClickStamp = useRef(0);
   const onNodeClick = useCallback(
     (e: React.MouseEvent, node: CardNode) => {
       if (!(e.ctrlKey || e.metaKey) || node.type === "zone") return;
+      if (e.timeStamp === lastClickStamp.current) return;
+      lastClickStamp.current = e.timeStamp;
       e.preventDefault();
-      const src = arrowSource.current;
+      const src = rf.getNodes().find((n) => (n.data as Record<string, unknown>)._arrowPending)?.id ?? null;
       if (!src) {
-        arrowSource.current = node.id;
         rf.updateNodeData(node.id, { _arrowPending: true });
       } else if (src !== node.id) {
         rf.addEdges([
