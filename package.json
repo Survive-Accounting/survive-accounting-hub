@@ -11,6 +11,7 @@
     "test": "bun test",
     "scenarios:import": "bun scripts/import-scenarios.ts",
     "scenarios:validate": "bun scripts/validate-scenarios.ts",
+    "sitemap:gen": "bun scripts/gen-sitemap.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

@@ -228,3 +228,144 @@ export async function fetchAccountMeta(): Promise<AccountMeta[]> {
     normal_balance: r.normal_balance === "credit" ? "credit" : "debit",
   }));
 }
+
+// ---- Public (free) tier reads for the indexable /study pages ------------------------------
+// Only the "foundations" course family is public. Everything else stays behind the
+// interactive /study tool (no per-scenario public URL). These reads are lean (no 600KB
+// library pull) so the SSR'd public pages stay fast.
+
+export const PUBLIC_COURSE_FAMILY = "foundations";
+
+export interface PublicScenarioCard {
+  slug: string;
+  title: string;
+}
+export interface PublicChapter {
+  id: string;
+  number: number | null;
+  name: string | null;
+  scenarios: PublicScenarioCard[];
+}
+export interface FoundationsIndex {
+  courseName: string;
+  chapters: PublicChapter[];
+}
+
+/** The /study/foundations landing: the foundations course, its chapters, and their scenarios. */
+export async function fetchFoundationsIndex(): Promise<FoundationsIndex | null> {
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id,course_name")
+    .eq("course_family" as never, PUBLIC_COURSE_FAMILY)
+    .maybeSingle();
+  if (!course) return null;
+  const courseId = (course as { id: string }).id;
+
+  const { data: chs } = await supabase
+    .from("chapters")
+    .select("id,chapter_number,chapter_name")
+    .eq("course_id", courseId)
+    .order("chapter_number", { ascending: true });
+  const chapters = (chs ?? []) as { id: string; chapter_number: number | null; chapter_name: string | null }[];
+  const chapterIds = chapters.map((c) => c.id);
+
+  const scRes = chapterIds.length
+    ? await (supabase.from("je_scenarios" as never) as any).select("slug,title,chapter_id").in("chapter_id", chapterIds)
+    : { data: [] as any[] };
+  const byChapter = new Map<string, PublicScenarioCard[]>();
+  for (const s of (scRes.data ?? []) as { slug: string; title: string; chapter_id: string }[]) {
+    const list = byChapter.get(s.chapter_id) ?? [];
+    list.push({ slug: s.slug, title: s.title });
+    byChapter.set(s.chapter_id, list);
+  }
+
+  return {
+    courseName: (course as { course_name: string | null }).course_name ?? "Accounting Foundations",
+    chapters: chapters.map((c) => ({
+      id: c.id,
+      number: c.chapter_number,
+      name: c.chapter_name,
+      scenarios: (byChapter.get(c.id) ?? []).sort((a, b) => a.title.localeCompare(b.title)),
+    })),
+  };
+}
+
+export interface PublicScenario {
+  slug: string;
+  title: string;
+  doc: ScenarioDoc;
+  chapter: { id: string; number: number | null; name: string | null };
+  courseName: string;
+  siblings: PublicScenarioCard[]; // up to 2 sibling scenarios in the same chapter
+}
+
+/**
+ * One public scenario by slug — but ONLY if it belongs to the public (foundations) family.
+ * Returns null for a missing slug OR a non-public scenario; the route redirects those to the
+ * interactive /study tool rather than exposing a gated teaser.
+ */
+export async function fetchPublicScenario(slug: string): Promise<PublicScenario | null> {
+  const { data: row } = await (supabase.from("je_scenarios" as never) as any)
+    .select("slug,title,doc,chapter_id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!row || !row.chapter_id) return null;
+
+  const { data: ch } = await supabase
+    .from("chapters")
+    .select("id,chapter_number,chapter_name,course_id")
+    .eq("id", row.chapter_id)
+    .maybeSingle();
+  if (!ch) return null;
+
+  // course_family isn't in the generated Supabase types yet (added by migration 0048), so
+  // the select is typed as an error — cast through unknown like the rest of this file.
+  const { data: coData } = await supabase
+    .from("courses")
+    .select("course_name,course_family")
+    .eq("id", (ch as { course_id: string }).course_id)
+    .maybeSingle();
+  const co = coData as unknown as { course_name: string | null; course_family: string | null } | null;
+  if (!co || co.course_family !== PUBLIC_COURSE_FAMILY) return null;
+
+  // Related patterns: same-chapter siblings first, then fall back to the rest of the
+  // foundations course so single-scenario chapters still surface 2 related links.
+  const { data: sameCh } = await (supabase.from("je_scenarios" as never) as any)
+    .select("slug,title")
+    .eq("chapter_id", row.chapter_id)
+    .neq("slug", slug)
+    .limit(3);
+  const siblings = ((sameCh ?? []) as { slug: string; title: string }[]).map((s) => ({ slug: s.slug, title: s.title }));
+  if (siblings.length < 2) {
+    const { data: courseChs } = await supabase
+      .from("chapters")
+      .select("id")
+      .eq("course_id", (ch as { course_id: string }).course_id);
+    const otherChIds = ((courseChs ?? []) as { id: string }[]).map((c) => c.id).filter((id) => id !== row.chapter_id);
+    if (otherChIds.length) {
+      const { data: courseSibs } = await (supabase.from("je_scenarios" as never) as any)
+        .select("slug,title")
+        .in("chapter_id", otherChIds)
+        .neq("slug", slug)
+        .limit(4);
+      for (const s of (courseSibs ?? []) as { slug: string; title: string }[]) {
+        if (siblings.length >= 2) break;
+        if (!siblings.some((x) => x.slug === s.slug)) siblings.push({ slug: s.slug, title: s.title });
+      }
+    }
+  }
+  siblings.splice(2);
+
+  return {
+    slug: row.slug,
+    title: row.title,
+    doc: row.doc as ScenarioDoc,
+    chapter: {
+      id: (ch as { id: string }).id,
+      number: (ch as { chapter_number: number | null }).chapter_number,
+      name: (ch as { chapter_name: string | null }).chapter_name,
+    },
+    courseName: co.course_name ?? "Accounting Foundations",
+    siblings,
+  };
+}

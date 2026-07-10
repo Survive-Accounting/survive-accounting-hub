@@ -25,6 +25,7 @@ import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
+import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
@@ -42,6 +43,7 @@ import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
+import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
@@ -126,6 +128,11 @@ const OutreachIndexRoute = OutreachIndexRouteImport.update({
 const TSlugRoute = TSlugRouteImport.update({
   id: '/t/$slug',
   path: '/t/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudyFoundationsRoute = StudyFoundationsRouteImport.update({
+  id: '/study_/foundations',
+  path: '/study/foundations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
@@ -215,6 +222,11 @@ const OutreachLeadfinderIndexRoute = OutreachLeadfinderIndexRouteImport.update({
   path: '/leadfinder/',
   getParentRoute: () => OutreachRoute,
 } as any)
+const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
+  id: '/study_/scenarios/$slug',
+  path: '/study/scenarios/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutreachSchoolSlugRoute = OutreachSchoolSlugRouteImport.update({
   id: '/outreach_/school/$slug',
   path: '/outreach/school/$slug',
@@ -274,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
@@ -281,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
+  '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
 }
 export interface FileRoutesByTo {
@@ -313,6 +327,7 @@ export interface FileRoutesByTo {
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
@@ -320,6 +335,7 @@ export interface FileRoutesByTo {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
+  '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
 }
 export interface FileRoutesById {
@@ -354,6 +370,7 @@ export interface FileRoutesById {
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
+  '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
@@ -361,6 +378,7 @@ export interface FileRoutesById {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
+  '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
 }
 export interface FileRouteTypes {
@@ -396,6 +414,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel-schedule'
     | '/outreach/research'
     | '/outreach/students'
+    | '/study/foundations'
     | '/t/$slug'
     | '/outreach/'
     | '/ceq/$courseSlug/$chapterSlug'
@@ -403,6 +422,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
+    | '/study/scenarios/$slug'
     | '/outreach/leadfinder/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -435,6 +455,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel-schedule'
     | '/outreach/research'
     | '/outreach/students'
+    | '/study/foundations'
     | '/t/$slug'
     | '/outreach'
     | '/ceq/$courseSlug/$chapterSlug'
@@ -442,6 +463,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
+    | '/study/scenarios/$slug'
     | '/outreach/leadfinder'
   id:
     | '__root__'
@@ -475,6 +497,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel-schedule'
     | '/outreach/research'
     | '/outreach/students'
+    | '/study_/foundations'
     | '/t/$slug'
     | '/outreach/'
     | '/ceq/$courseSlug/$chapterSlug'
@@ -482,6 +505,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
+    | '/study_/scenarios/$slug'
     | '/outreach/leadfinder/'
   fileRoutesById: FileRoutesById
 }
@@ -501,8 +525,10 @@ export interface RootRouteChildren {
   ThankyouRoute: typeof ThankyouRoute
   WelcomeRoute: typeof WelcomeRoute
   OShortRefRoute: typeof OShortRefRoute
+  StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
+  StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -617,6 +643,13 @@ declare module '@tanstack/react-router' {
       path: '/t/$slug'
       fullPath: '/t/$slug'
       preLoaderRoute: typeof TSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/study_/foundations': {
+      id: '/study_/foundations'
+      path: '/study/foundations'
+      fullPath: '/study/foundations'
+      preLoaderRoute: typeof StudyFoundationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach/students': {
@@ -737,6 +770,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/outreach/leadfinder/'
       preLoaderRoute: typeof OutreachLeadfinderIndexRouteImport
       parentRoute: typeof OutreachRoute
+    }
+    '/study_/scenarios/$slug': {
+      id: '/study_/scenarios/$slug'
+      path: '/study/scenarios/$slug'
+      fullPath: '/study/scenarios/$slug'
+      preLoaderRoute: typeof StudyScenariosSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/outreach_/school/$slug': {
       id: '/outreach_/school/$slug'
@@ -868,8 +908,10 @@ const rootRouteChildren: RootRouteChildren = {
   ThankyouRoute: ThankyouRoute,
   WelcomeRoute: WelcomeRoute,
   OShortRefRoute: OShortRefRoute,
+  StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
+  StudyScenariosSlugRoute: StudyScenariosSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
