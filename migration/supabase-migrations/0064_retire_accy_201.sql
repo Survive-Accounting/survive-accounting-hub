@@ -1,4 +1,4 @@
--- 0050_retire_accy_201.sql
+-- 0064_retire_accy_201.sql
 -- Retire the legacy ACCY 201 course — a per-campus duplicate of the canonical INTRO1
 -- row (course_family = 'intro_1', id 1111…). It carried 4 legacy je_scenarios, 11
 -- chapters, and 1 campus_courses link. This migration deletes the 4 scenarios, repoints

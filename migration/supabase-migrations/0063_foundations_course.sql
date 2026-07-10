@@ -1,7 +1,7 @@
--- 0049_foundations_course.sql
+-- 0063_foundations_course.sql
 -- Seed the Foundations course family: a campus-agnostic course (no local campus codes)
 -- plus chapters 1–7. Mirrors the canonical fixed-uuid course families (course_family key).
--- Idempotent; safe to re-run. Depends on 0048 (courses.course_family column).
+-- Idempotent; safe to re-run. Depends on 0062 (courses.course_family column).
 
 -- ---------------------------------------------------------------------------
 -- 1. Course (campus-agnostic; code left null — codes resolve per-campus elsewhere)

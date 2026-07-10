@@ -1,4 +1,4 @@
--- 0048_courses_dedupe_and_family.sql
+-- 0062_courses_dedupe_and_family.sql
 -- Course dedupe (IA2 + the trivial ones) and the course_family concept column.
 --
 -- Background: the live DB ended up with TWO course rows per course family:
