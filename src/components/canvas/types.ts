@@ -18,6 +18,10 @@ export interface CardBase {
   kind: CardKind;
   title?: string; // header label; falls back to a per-kind default
   minimized?: boolean; // collapsed to the bottom tray
+  /** Backstage: invisible on canvas, listed in the left rail, summoned in order. */
+  staged?: boolean;
+  /** Rail position (lower = earlier in the show). Set on stage; reordered in the rail. */
+  stageOrder?: number;
   editMode?: boolean; // whole-card edit affordances on
   w?: number; // resize width/height (px), applied to the shell
   h?: number;

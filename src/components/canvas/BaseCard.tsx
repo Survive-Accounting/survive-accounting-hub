@@ -1,9 +1,19 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { NodeResizer, useReactFlow } from "@xyflow/react";
-import { Pencil, Copy, Minus, X } from "lucide-react";
+import { Clapperboard, Pencil, Copy, Minus, X } from "lucide-react";
 import { NEON } from "./theme";
 import { cardId, type CardBase } from "./types";
+
+/** Next stageOrder = one past the current max (append to the end of the show). */
+export function nextStageOrder(nodes: { data: Record<string, unknown> }[]): number {
+  let max = -1;
+  for (const n of nodes) {
+    const so = (n.data as unknown as CardBase).stageOrder;
+    if (typeof so === "number" && so > max) max = so;
+  }
+  return max + 1;
+}
 
 let Z = 10;
 
@@ -17,6 +27,8 @@ export function useCardActions(id: string) {
       rf.updateNodeData(id, (node) => fn(node.data as Record<string, unknown>)),
     remove: () => rf.setNodes((nds) => nds.filter((n) => n.id !== id)),
     toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: ++Z } : n))),
+    /** Backstage: hide from canvas, append to the rail (order = end of the show). */
+    stage: () => rf.updateNodeData(id, { staged: true, stageOrder: nextStageOrder(rf.getNodes()) }),
     duplicate: () => {
       const node = rf.getNode(id);
       if (!node) return;
@@ -44,7 +56,7 @@ export function BaseCard({
   headerRight?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { update, remove, toFront, duplicate } = useCardActions(id);
+  const { update, remove, toFront, duplicate, stage } = useCardActions(id);
   const title = data.title ?? "";
 
   if (data.minimized) {
@@ -63,7 +75,7 @@ export function BaseCard({
   return (
     <div
       onPointerDownCapture={toFront}
-      className="flex flex-col rounded-xl backdrop-blur-sm"
+      className="animate-in fade-in zoom-in-95 flex flex-col rounded-xl backdrop-blur-sm duration-150"
       style={{
         width: data.w ?? undefined,
         height: data.h ?? undefined,
@@ -96,8 +108,11 @@ export function BaseCard({
           onChange={(e) => update({ title: e.target.value })}
           onPointerDown={(e) => e.stopPropagation()}
         />
-        <div className="flex items-center gap-0.5">
+        <div className="card-actions flex items-center gap-0.5">
           {headerRight}
+          <IconBtn title="Send backstage (s)" onClick={stage}>
+            <Clapperboard className="h-3 w-3" />
+          </IconBtn>
           <IconBtn title="Edit card" active={data.editMode} onClick={() => update({ editMode: !data.editMode })}><Pencil className="h-3 w-3" /></IconBtn>
           <IconBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></IconBtn>
           <IconBtn title="Minimize" onClick={() => update({ minimized: true })}><Minus className="h-3 w-3" /></IconBtn>

@@ -33,7 +33,8 @@ import {
 } from "@/components/canvas/cards/OtherCards";
 import { cardId, type BgMode, type CardData, type CardNode, type JeCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
-import { useCardActions } from "@/components/canvas/BaseCard";
+import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
+import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -152,18 +153,37 @@ function PresentCanvas() {
   const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1 });
   const library = useMemo(() => (treeQuery.data ? buildLibrary(treeQuery.data) : []), [treeQuery.data]);
 
-  // Minimized cards → hidden on canvas, listed in the bottom tray.
+  // Minimized cards → bottom tray; STAGED cards → backstage rail. Both are hidden on
+  // the canvas via the same node.hidden sync.
   const trayCards = liveNodes.filter((n) => (n.data as unknown as CardData).minimized);
+  const offCanvas = (d: CardData) => !!d.minimized || !!d.staged;
   useEffect(() => {
-    if (liveNodes.some((n) => !!n.hidden !== !!(n.data as unknown as CardData).minimized)) {
+    if (liveNodes.some((n) => !!n.hidden !== offCanvas(n.data as unknown as CardData))) {
       rf.setNodes((nds) =>
         nds.map((n) => {
-          const min = !!(n.data as unknown as CardData).minimized;
-          return !!n.hidden !== min ? { ...n, hidden: min } : n;
+          const off = offCanvas(n.data as unknown as CardData);
+          return !!n.hidden !== off ? { ...n, hidden: off } : n;
         }),
       );
     }
   }, [liveNodes, rf]);
+
+  // ---- SUMMON: bring a staged card on stage — visible, selected, everything else deselected.
+  // (Un-hiding remounts the node, so the card's mount animation plays — the summon effect.)
+  const summon = useCallback(
+    (id: string) => {
+      rf.setNodes((nds) =>
+        nds.map((n) =>
+          n.id === id
+            ? { ...n, hidden: false, selected: true, data: { ...n.data, staged: false } }
+            : n.selected
+              ? { ...n, selected: false }
+              : n,
+        ),
+      );
+    },
+    [rf],
+  );
 
   // ---- spawn at viewport center ----
   const spawn = useCallback(
@@ -328,12 +348,27 @@ function PresentCanvas() {
       } else if (e.key === "Escape") {
         setLoadOpen(false);
         rf.fitView({ duration: 500, padding: 0.15 });
-      } else if (e.key === " " ) {
-        e.preventDefault(); // don't scroll; space is the reveal trigger
+      } else if (e.key === " ") {
+        // THE SHOW KEY: selected card has hidden elements → reveal next; otherwise summon
+        // the next staged card in rail order. One key walks the whole lesson.
+        e.preventDefault();
         const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
-        if (!sel) return;
-        const patch = stepReveal(sel.data as unknown as CardData);
-        if (patch) rf.updateNodeData(sel.id, patch);
+        const patch = sel ? stepReveal(sel.data as unknown as CardData) : null;
+        if (sel && patch) {
+          rf.updateNodeData(sel.id, patch);
+        } else {
+          const next = stagedInOrder(rf.getNodes() as never)[0];
+          if (next) summon(next.id);
+        }
+      } else if (e.key === "s" || e.key === "S") {
+        // stage/unstage selected card(s)
+        const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
+        if (sel.length === 0) return;
+        let order = nextStageOrder(rf.getNodes());
+        for (const n of sel) {
+          const st = (n.data as unknown as CardData).staged;
+          rf.updateNodeData(n.id, st ? { staged: false } : { staged: true, stageOrder: order++ });
+        }
       } else if (e.key === "f" || e.key === "F") {
         const sel = rf.getNodes().find((n) => n.selected);
         if (sel) rf.fitView({ nodes: [{ id: sel.id }], duration: 500, padding: 0.35 });
@@ -346,7 +381,7 @@ function PresentCanvas() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rf]);
+  }, [rf, summon]);
 
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
@@ -406,6 +441,9 @@ function PresentCanvas() {
 
       {/* Palette */}
       {chrome && <Palette library={library} onSpawn={spawn} collapsed={paletteCollapsed} onToggle={() => setPaletteCollapsed((v) => !v)} />}
+
+      {/* Backstage rail — the show queue (hidden in clean/film mode; spacebar still summons) */}
+      {chrome && <BackstageRail onSummon={summon} />}
 
       {/* Toolbar */}
       {chrome && (
