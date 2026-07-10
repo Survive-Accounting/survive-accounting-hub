@@ -21,6 +21,8 @@ export interface StoredObject {
 
 export interface BackupStore {
   readonly kind: "r2" | "local";
+  /** Masked, non-secret description of the write target (for diagnostics). */
+  describe?(): string;
   put(key: string, body: Buffer | Uint8Array | string, contentType: string): Promise<void>;
   get(key: string): Promise<Buffer>;
   list(prefix: string): Promise<StoredObject[]>;
@@ -80,15 +82,25 @@ export class R2Store implements BackupStore {
   readonly kind = "r2" as const;
   private client: S3Client;
   private bucket: string;
+  private accountId: string;
 
   constructor(env?: R2Env) {
     const cfg = env ?? readR2Env();
     this.bucket = cfg.bucket;
+    this.accountId = cfg.accountId;
     this.client = new S3Client({
       region: "auto",
       endpoint: `https://${cfg.accountId}.r2.cloudflarestorage.com`,
       credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
     });
+  }
+
+  /** Masked host so a misconfigured R2_ACCOUNT_ID is diagnosable without leaking it. */
+  describe(): string {
+    const a = this.accountId;
+    const masked = a.length <= 8 ? a : `${a.slice(0, 4)}…${a.slice(-4)}`;
+    const dots = (a.match(/\./g) || []).length;
+    return `r2 host "${masked}.r2.cloudflarestorage.com" (accountId len=${a.length}, dots=${dots}, bucket=${this.bucket})`;
   }
 
   async put(key: string, body: Buffer | Uint8Array | string, contentType: string): Promise<void> {

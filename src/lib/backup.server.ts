@@ -62,6 +62,7 @@ export interface BackupRunResult {
   startedAt: string;
   finishedAt: string;
   storeKind: "r2" | "local";
+  storeTarget?: string;
   groups: GroupResult[];
 }
 
@@ -299,11 +300,6 @@ async function runGroup(
     const tm = message.match(/table "([^"]+)"/);
     if (tm) result.failedTable = tm[1];
     log(`[backup] ${group}: ABORTED — ${message}`);
-    await textLee(
-      `⚠️ Nightly backup FAILED — group "${group}"` +
-        (result.failedTable ? ` on table "${result.failedTable}"` : "") +
-        `: ${message.slice(0, 300)}`,
-    );
   }
   return result;
 }
@@ -338,11 +334,22 @@ export async function runBackup(opts: RunBackupOptions = {}): Promise<BackupRunR
     results.push(await runGroup(store, group, now, supabaseAdmin, bucketLabel, log));
   }
 
+  // One fail-loud SMS summarizing any failures (not one per group).
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length) {
+    const detail = failed
+      .map((r) => `${r.group}${r.failedTable ? ` (table ${r.failedTable})` : ""}`)
+      .join(", ");
+    const firstErr = failed[0].error ?? "unknown error";
+    await textLee(`⚠️ Backup FAILED — ${failed.length} group(s): ${detail}. ${firstErr.slice(0, 200)}`);
+  }
+
   return {
     ok: results.every((r) => r.ok),
     startedAt,
     finishedAt: new Date().toISOString(),
     storeKind: store.kind,
+    storeTarget: store.describe?.() ?? store.kind,
     groups: results,
   };
 }
