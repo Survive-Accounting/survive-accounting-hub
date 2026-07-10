@@ -1,5 +1,5 @@
 {
-  "buildCommand": "bun run build",
+  "buildCommand": "NODE_OPTIONS=--max-old-space-size=6144 bun run build",
   "framework": null,
   "crons": [
     {
