@@ -37,6 +37,7 @@ import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
+import { CameraBubble } from "@/components/canvas/CameraBubble";
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -144,6 +145,7 @@ function PresentCanvas() {
   const [minimap, setMinimap] = useState(true);
   const [clean, setClean] = useState(false);
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
+  const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
   // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
   const lowZoom = useStore((s) => s.transform[2] < 0.75);
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
@@ -352,6 +354,8 @@ function PresentCanvas() {
         setClean((v) => !v);
       } else if (e.key === "v" || e.key === "V") {
         setFilm((v) => !v); // film mode: clean screen + at-rest chrome off + spotlight/ripple
+      } else if (e.key === "b" || e.key === "B") {
+        setCamera((v) => !v); // webcam bubble (screen-fixed filming chrome)
       } else if (e.key === "Escape") {
         setLoadOpen(false);
         rf.fitView({ duration: 500, padding: 0.15 });
@@ -410,6 +414,9 @@ function PresentCanvas() {
           <ClickRipples />
         </>
       )}
+      {/* Camera bubble — screen-fixed; deliberately OUTSIDE chrome gating (it IS filming) */}
+      {camera && <CameraBubble onClose={() => setCamera(false)} />}
+
       {/* Type floor — prep warning, hidden while actually filming */}
       {lowZoom && !film && (
         <div
