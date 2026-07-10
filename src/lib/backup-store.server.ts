@@ -43,10 +43,19 @@ export interface R2Env {
  * error naming any missing variable (surfaces in the fail-loud SMS + logs).
  */
 export function readR2Env(env: NodeJS.ProcessEnv = process.env): R2Env {
-  const accountId = env.R2_ACCOUNT_ID;
-  const accessKeyId = env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = env.R2_SECRET_ACCESS_KEY;
-  const bucket = env.R2_BACKUP_BUCKET || BACKUP_BUCKET_DEFAULT;
+  // Be forgiving about how R2_ACCOUNT_ID was pasted. If it's a full endpoint URL
+  // (or has a scheme / trailing path), reduce it to the bare account id — a
+  // multi-dot host like "id.r2.cloudflarestorage.com.r2.cloudflarestorage.com"
+  // or a scheme prefix fails the TLS handshake (SSL alert 40), since the R2
+  // wildcard cert only covers one subdomain level.
+  const accountId = (env.R2_ACCOUNT_ID || "")
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.r2\.cloudflarestorage\.com$/i, "");
+  const accessKeyId = env.R2_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = env.R2_SECRET_ACCESS_KEY?.trim();
+  const bucket = env.R2_BACKUP_BUCKET?.trim() || BACKUP_BUCKET_DEFAULT;
 
   const missing = [
     ...(!accountId ? ["R2_ACCOUNT_ID"] : []),
