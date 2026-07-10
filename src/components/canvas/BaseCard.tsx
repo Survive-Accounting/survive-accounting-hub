@@ -2,7 +2,7 @@
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { Handle, NodeResizer, Position, useReactFlow } from "@xyflow/react";
 import { Clapperboard, Pencil, Copy, Minus, X } from "lucide-react";
-import { NEON } from "./theme";
+import { NEON, PAPER } from "./theme";
 import { cardId, type CardBase } from "./types";
 
 /** Next stageOrder = one past the current max (append to the end of the show). */
@@ -77,19 +77,20 @@ export function BaseCard({
   return (
     <div
       onPointerDownCapture={toFront}
-      className="animate-in fade-in zoom-in-95 flex flex-col rounded-xl backdrop-blur-sm duration-150"
+      className="animate-in fade-in zoom-in-95 flex flex-col overflow-hidden rounded-xl duration-150"
       style={{
         width: data.w ?? undefined,
         height: data.h ?? undefined,
         minWidth: 220,
-        background: NEON.panel,
-        border: `1px solid ${arrowPending ? NEON.cyan : selected ? accent : NEON.borderSoft}`,
+        // PAPER card: off-white "textbook flashcard" that pops off the navy table
+        background: PAPER.card,
+        border: `1px solid ${arrowPending ? NEON.cyan : selected ? accent : PAPER.cardEdge}`,
         boxShadow: arrowPending
           ? `0 0 0 2px ${NEON.cyan}, 0 0 30px -4px ${NEON.cyan}`
           : selected
-            ? `0 0 0 1px ${accent}, 0 0 26px -6px ${accent}`
-            : "0 8px 30px -12px rgba(0,0,0,0.8)",
-        color: NEON.text,
+            ? `0 0 0 1.5px ${accent}, 0 14px 34px -14px rgba(0,0,0,0.65)`
+            : "0 12px 32px -14px rgba(0,0,0,0.6)",
+        color: PAPER.ink,
       }}
     >
       {/* invisible anchors for card-to-card arrows (edges are created programmatically) */}
@@ -103,15 +104,15 @@ export function BaseCard({
         handleStyle={{ width: 8, height: 8, borderRadius: 2, background: accent, border: "none" }}
         onResize={(_, p) => update({ w: Math.round(p.width), h: Math.round(p.height) })}
       />
-      {/* Header (drag handle for the whole card) */}
+      {/* Header (drag handle for the whole card) — brand navy band */}
       <div
-        className="flex items-center gap-1 rounded-t-xl px-2 py-1"
-        style={{ borderBottom: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}
+        className="flex items-center gap-1.5 px-2 py-1"
+        style={{ background: PAPER.header }}
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} />
         <input
           className="nodrag min-w-0 flex-1 bg-transparent text-[11px] font-semibold uppercase tracking-wide outline-none"
-          style={{ color: NEON.muted }}
+          style={{ color: PAPER.headerMuted }}
           value={title}
           placeholder={(data as { kind: string }).kind}
           onChange={(e) => update({ title: e.target.value })}
@@ -140,8 +141,8 @@ export function IconBtn({ children, onClick, title, active, danger }: { children
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className="nodrag grid h-5 w-5 place-items-center rounded transition-colors"
-      style={{ color: active ? NEON.pink : NEON.muted, background: active ? "rgba(255,45,149,0.14)" : "transparent" }}
-      onMouseEnter={(e) => (e.currentTarget.style.color = danger ? NEON.red : NEON.text)}
+      style={{ color: active ? NEON.pink : NEON.muted, background: active ? "rgba(224,40,74,0.14)" : "transparent" }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = danger ? "#E0284A" : "#FCA311")}
       onMouseLeave={(e) => (e.currentTarget.style.color = active ? NEON.pink : NEON.muted)}
     >
       {children}

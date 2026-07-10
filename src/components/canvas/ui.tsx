@@ -34,7 +34,7 @@ export function EditableText({ value, onChange, editing, placeholder, className,
   if (active) {
     const commit = () => { onChange(local); setOpen(false); };
     const common = {
-      className: `nodrag nowheel w-full rounded bg-black/40 px-1.5 py-0.5 text-inherit outline-none ring-1 ring-[rgba(255,45,149,0.4)] focus:ring-[rgba(255,45,149,0.8)] ${className ?? ""}`,
+      className: `nodrag nowheel w-full rounded bg-black/5 px-1.5 py-0.5 text-inherit outline-none ring-1 ring-[rgba(20,33,61,0.30)] focus:ring-[rgba(194,24,50,0.55)] ${className ?? ""}`,
       value: local,
       placeholder,
       autoFocus: !editing,
@@ -78,7 +78,7 @@ export function EditableNumber({ value, onChange, editing, className, placeholde
     return (
       <input
         ref={ref}
-        className={`nodrag nowheel w-full rounded bg-black/40 px-1.5 py-0.5 text-right tabular-nums text-inherit outline-none ring-1 ring-[rgba(255,45,149,0.4)] focus:ring-[rgba(255,45,149,0.8)] ${className ?? ""}`}
+        className={`nodrag nowheel w-full rounded bg-black/5 px-1.5 py-0.5 text-right tabular-nums text-inherit outline-none ring-1 ring-[rgba(20,33,61,0.30)] focus:ring-[rgba(194,24,50,0.55)] ${className ?? ""}`}
         value={local}
         placeholder={placeholder}
         inputMode="decimal"

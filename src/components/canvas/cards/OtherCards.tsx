@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
-import { NEON, NOTE_COLORS } from "../theme";
+import { NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
   cardId,
   type CeqCard,
@@ -37,7 +37,7 @@ export function TAccountCardNode({ id, data, selected }: NodeProps) {
       <div className="min-w-0 flex-1">
         {list.map((e) => (
           <div key={e.id} className="flex items-center gap-1 py-0.5 text-[12.5px]">
-            <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: NEON.muted }}>
+            <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: PAPER.inkMuted }}>
               <EditableText value={e.label ?? ""} onChange={(v) => patch(e.id, { label: v })} editing={editing} placeholder="" />
             </span>
             <span className="w-16 text-right">
@@ -51,7 +51,7 @@ export function TAccountCardNode({ id, data, selected }: NodeProps) {
         {editing && (
           <button
             className="nodrag mt-0.5 inline-flex items-center gap-0.5 rounded px-1 text-[10.5px] font-semibold"
-            style={{ color: NEON.cyan }}
+            style={{ color: PAPER.navy }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => update({ [key]: [...list, { id: cardId("e"), label: "", amount: null }] })}
           >
@@ -79,16 +79,16 @@ export function TAccountCardNode({ id, data, selected }: NodeProps) {
         ) : undefined
       }
     >
-      <div className="text-center text-[13.5px] font-bold" style={{ color: NEON.text }}>
+      <div className="text-center text-[13.5px] font-bold" style={{ color: PAPER.ink }}>
         <EditableText value={d.account} onChange={(v) => update({ account: v })} editing={editing} placeholder="Account" />
       </div>
-      <div className="mx-auto mt-1 h-px w-4/5" style={{ background: NEON.cyan, boxShadow: `0 0 8px ${NEON.cyan}` }} />
+      <div className="mx-auto mt-1 h-px w-4/5" style={{ background: PAPER.navy }} />
       <div className="flex gap-2 pt-1">
         {side("debits")}
-        <div className="w-px self-stretch" style={{ background: NEON.cyan, boxShadow: `0 0 8px ${NEON.cyan}` }} />
+        <div className="w-px self-stretch" style={{ background: PAPER.navy }} />
         {side("credits")}
       </div>
-      <div className="mt-2 text-center text-[12px] font-bold tabular-nums" style={{ color: net === 0 ? NEON.muted : NEON.green }}>
+      <div className="mt-2 text-center text-[12px] font-bold tabular-nums" style={{ color: net === 0 ? PAPER.inkMuted : PAPER.green }}>
         bal {fmtNum(Math.abs(net))} {net === 0 ? "" : net > 0 ? "DR" : "CR"}
       </div>
     </BaseCard>
@@ -106,27 +106,27 @@ export function ComputationCardNode({ id, data, selected }: NodeProps) {
   return (
     <BaseCard id={id} data={d} selected={selected} accent={NEON.yellow}>
       {(d.narration || editing) && (
-        <p className="mb-1.5 text-[12px] leading-relaxed" style={{ color: NEON.muted }}>
+        <p className="mb-1.5 text-[12px] leading-relaxed" style={{ color: PAPER.inkMuted }}>
           <EditableText value={d.narration ?? ""} onChange={(v) => update({ narration: v })} editing={editing} multiline placeholder="Narration" />
         </p>
       )}
       <ol className="space-y-1">
         {d.steps.map((s, i) => (
           <li key={s.id} className="flex items-start gap-1.5 text-[12.5px]" style={{ opacity: s.hidden ? 0.18 : 1 }}>
-            <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9.5px] font-bold" style={{ border: `1px solid ${NEON.yellow}`, color: NEON.yellow }}>
+            <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9.5px] font-bold" style={{ border: `1px solid ${PAPER.gold}`, color: PAPER.gold }}>
               {i + 1}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="font-medium" style={{ color: NEON.text }}>
+              <span className="font-medium" style={{ color: PAPER.ink }}>
                 <EditableText value={s.label} onChange={(v) => patchStep(s.id, { label: v })} editing={editing} placeholder="Step" />
               </span>
               {(s.formulaText || editing) && (
-                <span className="ml-1.5 text-[11.5px]" style={{ color: NEON.muted }}>
+                <span className="ml-1.5 text-[11.5px]" style={{ color: PAPER.inkMuted }}>
                   <EditableText value={s.formulaText ?? ""} onChange={(v) => patchStep(s.id, { formulaText: v })} editing={editing} placeholder="formula" />
                 </span>
               )}
             </span>
-            <span className="w-20 text-right font-semibold tabular-nums" style={{ color: NEON.cyan }}>
+            <span className="w-20 text-right font-semibold tabular-nums" style={{ color: PAPER.navy }}>
               <EditableText value={s.value ?? ""} onChange={(v) => patchStep(s.id, { value: v })} editing={editing} placeholder="" className="text-right block" />
             </span>
             {editing && (
@@ -138,7 +138,7 @@ export function ComputationCardNode({ id, data, selected }: NodeProps) {
       {editing && (
         <button
           className="nodrag mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
-          style={{ color: NEON.cyan, border: `1px solid rgba(34,224,214,0.4)` }}
+          style={{ color: PAPER.navy, border: `1px solid rgba(20,33,61,0.35)` }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => update({ steps: [...d.steps, { id: cardId("s"), label: `Step ${d.steps.length + 1}`, formulaText: "", value: "" }] })}
         >
@@ -164,7 +164,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
 
   return (
     <BaseCard id={id} data={d} selected={selected} accent={NEON.pink}>
-      <p className="mb-2 text-[13px] leading-relaxed" style={{ color: NEON.text }}>
+      <p className="mb-2 text-[13px] leading-relaxed" style={{ color: PAPER.ink }}>
         <EditableText value={d.prompt} onChange={(v) => update({ prompt: v })} editing={editing} multiline placeholder="Prompt" />
       </p>
       <div className="space-y-1">
@@ -176,9 +176,9 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
               key={c.id}
               className="nodrag flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[12.5px] transition-colors"
               style={{
-                borderColor: showState === "right" ? NEON.green : showState === "wrong" ? NEON.red : NEON.borderSoft,
-                color: showState === "right" ? NEON.green : NEON.text,
-                background: showState === "right" ? "rgba(59,245,160,0.07)" : showState === "wrong" ? "rgba(255,92,122,0.07)" : "transparent",
+                borderColor: showState === "right" ? PAPER.green : showState === "wrong" ? PAPER.red : PAPER.line,
+                color: showState === "right" ? PAPER.green : PAPER.ink,
+                background: showState === "right" ? "rgba(30,127,79,0.07)" : showState === "wrong" ? "rgba(194,24,50,0.06)" : "transparent",
               }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => !editing && setPicked(c.id)}
@@ -190,7 +190,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 <>
                   <button
                     className="nodrag rounded px-1 text-[9.5px] font-bold"
-                    style={{ color: c.correct ? NEON.green : NEON.muted, border: `1px solid ${c.correct ? NEON.green : NEON.borderSoft}` }}
+                    style={{ color: c.correct ? PAPER.green : PAPER.inkMuted, border: `1px solid ${c.correct ? PAPER.green : PAPER.line}` }}
                     onClick={(e) => { e.stopPropagation(); update({ choices: d.choices.map((x) => ({ ...x, correct: x.id === c.id })) }); }}
                   >
                     ✓
@@ -206,7 +206,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
         <div className="mt-1.5">
           <button
             className="nodrag inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
-            style={{ color: NEON.cyan, border: `1px solid rgba(34,224,214,0.4)` }}
+            style={{ color: PAPER.navy, border: `1px solid rgba(20,33,61,0.35)` }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => update({ choices: [...d.choices, { id: cardId("ch"), text: "", feedback: "" }] })}
           >
@@ -215,21 +215,21 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
         </div>
       )}
       {chosen && !chosen.correct && (chosen.feedback || editing) && (
-        <div className="mt-1.5 rounded px-2 py-1 text-[11.5px]" style={{ background: "rgba(255,92,122,0.1)", color: NEON.red, border: "1px solid rgba(255,92,122,0.35)" }}>
+        <div className="mt-1.5 rounded px-2 py-1 text-[11.5px]" style={{ background: "rgba(194,24,50,0.06)", color: PAPER.red, border: "1px solid rgba(194,24,50,0.3)" }}>
           <EditableText value={chosen.feedback ?? ""} onChange={(v) => patchChoice(chosen.id, { feedback: v })} editing={editing} multiline placeholder="Feedback for this distractor" />
         </div>
       )}
       <div className="mt-2 flex items-center justify-between">
         <button
           className="nodrag rounded px-1.5 py-0.5 text-[11px] font-semibold"
-          style={{ color: NEON.yellow, border: "1px solid rgba(255,210,63,0.4)" }}
+          style={{ color: PAPER.gold, border: "1px solid rgba(138,90,0,0.4)" }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => update({ revealedAnswer: !d.revealedAnswer })}
         >
           {d.revealedAnswer ? "hide answer" : "reveal answer"}
         </button>
         {picked && (
-          <button className="nodrag text-[10.5px] underline" style={{ color: NEON.muted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => setPicked(null)}>
+          <button className="nodrag text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => setPicked(null)}>
             reset
           </button>
         )}
@@ -240,24 +240,24 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
 
 // ============================== MEMORIZE ==============================
 const KIND_COLOR: Record<MemorizeCard["itemKind"], string> = {
-  formula: NEON.cyan,
-  mnemonic: NEON.pinkSoft,
-  watchout: NEON.red,
-  tip: NEON.yellow,
+  formula: PAPER.navy,
+  mnemonic: PAPER.gold,
+  watchout: PAPER.red,
+  tip: PAPER.green,
 };
 
 export function MemorizeCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as MemorizeCard;
   const { update } = useCardActions(id);
   const editing = !!d.editMode;
-  const color = KIND_COLOR[d.itemKind] ?? NEON.cyan;
+  const color = KIND_COLOR[d.itemKind] ?? PAPER.navy;
 
   return (
     <BaseCard id={id} data={d} selected={selected} accent={color}>
       <div className="mb-1.5">
         {editing ? (
           <select
-            className="nodrag rounded bg-black/40 px-1 py-0.5 text-[10px] font-bold uppercase outline-none"
+            className="nodrag rounded bg-black/5 px-1 py-0.5 text-[10px] font-bold uppercase outline-none"
             style={{ color }}
             value={d.itemKind}
             onChange={(e) => update({ itemKind: e.target.value })}
@@ -270,7 +270,7 @@ export function MemorizeCardNode({ id, data, selected }: NodeProps) {
           </span>
         )}
       </div>
-      <p className="text-[13.5px] leading-relaxed" style={{ color: NEON.text }}>
+      <p className="text-[13.5px] leading-relaxed" style={{ color: PAPER.ink }}>
         <EditableText value={d.body} onChange={(v) => update({ body: v })} editing={editing} multiline placeholder="The thing to remember" />
       </p>
     </BaseCard>
@@ -295,7 +295,7 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
         minHeight: d.h ?? 90,
         background: c.bg,
         border: `1.5px solid ${arrowPending ? NEON.cyan : c.border}`,
-        boxShadow: arrowPending ? `0 0 0 2px ${NEON.cyan}, 0 0 24px -4px ${NEON.cyan}` : selected ? `0 0 0 1px ${c.ink}, 0 0 20px -6px ${c.ink}` : "none",
+        boxShadow: arrowPending ? `0 0 0 2px ${NEON.cyan}, 0 0 24px -4px ${NEON.cyan}` : selected ? `0 0 0 1px ${c.ink}, 0 12px 26px -12px rgba(0,0,0,0.55)` : "0 10px 24px -14px rgba(0,0,0,0.5)",
         color: c.ink,
         fontFamily: "'Comic Sans MS', 'Segoe Print', cursive",
       }}
@@ -334,10 +334,10 @@ export function VideoCardNode({ id, data, selected }: NodeProps) {
   return (
     <BaseCard id={id} data={d} selected={selected} accent={NEON.pinkSoft}>
       {editing || !d.playbackId ? (
-        <label className="block text-[11px]" style={{ color: NEON.muted }}>
+        <label className="block text-[11px]" style={{ color: PAPER.inkMuted }}>
           Mux playback ID
           <input
-            className="nodrag mt-0.5 w-full rounded bg-black/40 px-1.5 py-1 text-[12px] outline-none ring-1 ring-[rgba(255,45,149,0.4)]"
+            className="nodrag mt-0.5 w-full rounded bg-black/5 px-1.5 py-1 text-[12px] outline-none ring-1 ring-[rgba(20,33,61,0.30)]"
             defaultValue={d.playbackId}
             placeholder="e.g. DS00Spx1CV902MCtPj5WknGlR102V5HFkDe"
             onBlur={(e) => update({ playbackId: e.target.value.trim() })}

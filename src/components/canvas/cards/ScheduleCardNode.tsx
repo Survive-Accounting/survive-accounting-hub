@@ -10,7 +10,7 @@ import { Plus, Trash2, Eye, EyeOff, Wand2, BadgeCheck, ChevronDown, ChevronRight
 import { buildAmortSchedule } from "@/lib/je/amortization";
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableText, fmtNum, parseNum } from "../ui";
-import { NEON } from "../theme";
+import { NEON, PAPER } from "../theme";
 import type { ScheduleCard, ScheduleCell } from "../types";
 
 const cell = (v = ""): ScheduleCell => ({ v });
@@ -99,7 +99,7 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
     <BaseCard id={id} data={d} selected={selected} accent={NEON.yellow}>
       {/* Amortization param row (collapsible) */}
       {d.preset === "amortization" && d.bond && (
-        <div className="mb-2 rounded border px-2 py-1 text-[11px]" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>
+        <div className="mb-2 rounded border px-2 py-1 text-[11px]" style={{ borderColor: PAPER.line, color: PAPER.inkMuted }}>
           <button className="nodrag inline-flex items-center gap-1 font-semibold" onClick={() => setParamsOpen((o) => !o)} onPointerDown={(e) => e.stopPropagation()}>
             {paramsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} bond params
           </button>
@@ -111,7 +111,7 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
                 <label key={key} className="inline-flex items-center gap-1">
                   {label}
                   <input
-                    className="nodrag w-20 rounded bg-black/40 px-1 py-0.5 text-right tabular-nums outline-none ring-1 ring-[rgba(255,210,63,0.35)]"
+                    className="nodrag w-20 rounded bg-black/5 px-1 py-0.5 text-right tabular-nums outline-none ring-1 ring-[rgba(20,33,61,0.30)]"
                     defaultValue={String(d.bond![key])}
                     onBlur={(e) => update({ bond: { ...d.bond!, [key]: parseNum(e.target.value) ?? d.bond![key] } })}
                     onKeyDown={(e) => e.stopPropagation()}
@@ -119,7 +119,7 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
                 </label>
               ))}
               <select
-                className="nodrag rounded bg-black/40 px-1 py-0.5 outline-none ring-1 ring-[rgba(255,210,63,0.35)]"
+                className="nodrag rounded bg-black/5 px-1 py-0.5 outline-none ring-1 ring-[rgba(20,33,61,0.30)]"
                 value={d.bond.method}
                 onChange={(e) => update({ bond: { ...d.bond!, method: e.target.value as "effective" | "straight" } })}
               >
@@ -135,7 +135,7 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
         <thead>
           <tr>
             {d.headers.map((h, c) => (
-              <th key={c} className="px-1.5 py-1 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: NEON.yellow, borderBottom: `1px solid ${NEON.border}` }}>
+              <th key={c} className="px-1.5 py-1 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: PAPER.navy, borderBottom: `2px solid ${PAPER.navy}` }}>
                 <div className="flex items-center gap-1">
                   <EditableText value={h} onChange={(v) => update({ headers: d.headers.map((x, i) => (i === c ? v : x)) })} editing={editing} />
                   {editing && d.headers.length > 1 && (
@@ -154,12 +154,12 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
                 <td
                   key={c}
                   className={`px-1.5 py-0.5 ${isNum(c) ? "text-right tabular-nums" : ""}`}
-                  style={{ borderBottom: `1px solid rgba(168,146,201,0.12)`, textDecoration: cl.bad ? "underline wavy" : undefined, textDecorationColor: cl.bad ? NEON.red : undefined }}
+                  style={{ borderBottom: `1px solid ${PAPER.line}`, textDecoration: cl.bad ? "underline wavy" : undefined, textDecorationColor: cl.bad ? PAPER.red : undefined }}
                 >
                   {cl.hidden && !editing ? (
                     <span
                       className="nodrag inline-block h-3.5 w-full min-w-8 cursor-pointer rounded-sm"
-                      style={{ background: "rgba(255,210,63,0.18)", border: "1px dashed rgba(255,210,63,0.4)" }}
+                      style={{ background: "rgba(252,163,17,0.16)", border: "1px dashed rgba(138,90,0,0.45)" }}
                       title="Click to reveal"
                       onClick={(e) => { e.stopPropagation(); patchCell(r, c, { hidden: false }); }}
                     />
@@ -185,7 +185,7 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
           {(d.runningTotals || d.footerCheck) && (
             <tr>
               {d.headers.map((_, c) => (
-                <td key={c} className={`px-1.5 py-1 font-bold tabular-nums ${isNum(c) ? "text-right" : ""}`} style={{ color: NEON.cyan, borderTop: `1px solid ${NEON.border}` }}>
+                <td key={c} className={`px-1.5 py-1 font-bold tabular-nums ${isNum(c) ? "text-right" : ""}`} style={{ color: PAPER.navy, borderTop: `2px solid ${PAPER.navy}` }}>
                   {isNum(c) ? fmtNum(totals[c]) : c === 0 ? "Σ" : ""}
                 </td>
               ))}
@@ -205,11 +205,11 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
         )}
         {d.preset === "amortization" && (
           <>
-            <MiniBtn onClick={runCheck} color={NEON.green}><BadgeCheck className="h-3 w-3" /> Check</MiniBtn>
-            <MiniBtn onClick={autoFill} color={NEON.muted}><Wand2 className="h-3 w-3" /> auto-fill</MiniBtn>
+            <MiniBtn onClick={runCheck} color={PAPER.green}><BadgeCheck className="h-3 w-3" /> Check</MiniBtn>
+            <MiniBtn onClick={autoFill} color={PAPER.inkMuted}><Wand2 className="h-3 w-3" /> auto-fill</MiniBtn>
           </>
         )}
-        {checkMsg && <span className="text-[11px]" style={{ color: checkMsg.startsWith("✓") ? NEON.green : NEON.muted }}>{checkMsg}</span>}
+        {checkMsg && <span className="text-[11px]" style={{ color: checkMsg.startsWith("✓") ? PAPER.green : PAPER.inkMuted }}>{checkMsg}</span>}
       </div>
     </BaseCard>
   );
@@ -230,7 +230,7 @@ function CellEditor({ value, numeric, editing, hidden, onChange, onToggleHide }:
         title={hidden ? "Shown while editing (hidden on card)" : "Hide cell (reveal later)"}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onToggleHide(); }}
-        style={{ color: NEON.yellow }}
+        style={{ color: PAPER.gold }}
       >
         {hidden ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
       </button>
@@ -238,7 +238,7 @@ function CellEditor({ value, numeric, editing, hidden, onChange, onToggleHide }:
   );
 }
 
-function MiniBtn({ children, onClick, color = NEON.cyan }: { children: React.ReactNode; onClick: () => void; color?: string }) {
+function MiniBtn({ children, onClick, color = PAPER.navy }: { children: React.ReactNode; onClick: () => void; color?: string }) {
   return (
     <button
       className="nodrag inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
