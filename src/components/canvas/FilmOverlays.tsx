@@ -28,7 +28,7 @@ export function CursorSpotlight() {
       ref={ref}
       className="pointer-events-none fixed left-0 top-0 z-[70] h-[180px] w-[180px]"
       style={{
-        background: `radial-gradient(circle, rgba(255,45,149,0.28) 0%, rgba(255,45,149,0.10) 45%, transparent 70%)`,
+        background: `radial-gradient(circle, rgba(252,163,17,0.26) 0%, rgba(252,163,17,0.09) 45%, transparent 70%)`,
         mixBlendMode: "screen",
         transform: "translate(-200px, -200px)", // offscreen until first move
       }}

@@ -35,7 +35,7 @@ import {
   CeqCardNode, ComputationCardNode, MemorizeCardNode, NoteCardNode, TAccountCardNode, VideoCardNode,
 } from "@/components/canvas/cards/OtherCards";
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
-import { cardId, type BgMode, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
@@ -64,12 +64,12 @@ function ZoneNode({ id, data, selected }: NodeProps) {
       className="h-full w-full rounded-2xl"
       style={{
         width: d.w, height: d.h,
-        background: "rgba(255,45,149,0.045)",
-        border: `1.5px solid ${selected ? NEON.pink : "rgba(255,45,149,0.28)"}`,
-        boxShadow: selected ? `0 0 24px -8px ${NEON.pink}` : "none",
+        background: "rgba(79,163,227,0.05)",
+        border: `1.5px solid ${selected ? NEON.cyan : "rgba(79,163,227,0.30)"}`,
+        boxShadow: selected ? `0 0 24px -8px ${NEON.cyan}` : "none",
       }}
     >
-      <div className="px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.pinkSoft }}>
+      <div className="px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.cyan }}>
         <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Zone" />
         <button className="nodrag zone-actions ml-2 text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
           ✕
@@ -143,6 +143,35 @@ function hideAll(data: CardData): Partial<CardData> | null {
 }
 
 // ---------------------------------------------------------------------------
+// Background config — flat navy, dot grid, or one of the /anim loop videos with
+// adjustable opacity. Encoded into the scene's existing `bg` text column as
+// "flat" | "grid" | "video|<file>|<opacity 0-100>" so old scenes keep loading.
+const BG_VIDEOS = [
+  { file: "car intro (1).mp4", label: "Car" },
+  { file: "dream intro (1).mp4", label: "Dream" },
+  { file: "space intro (1).mp4", label: "Space" },
+] as const;
+
+interface BgConfig {
+  mode: "flat" | "grid" | "video";
+  video: string; // file inside /anim
+  opacity: number; // 0..1
+}
+const BG_DEFAULT: BgConfig = { mode: "flat", video: BG_VIDEOS[2].file, opacity: 0.16 };
+
+const encodeBg = (c: BgConfig) => (c.mode === "video" ? `video|${c.video}|${Math.round(c.opacity * 100)}` : c.mode);
+function decodeBg(s: string | null | undefined): BgConfig | null {
+  if (!s) return null;
+  if (s === "flat" || s === "grid") return { ...BG_DEFAULT, mode: s };
+  if (s.startsWith("video")) {
+    const [, video, op] = s.split("|");
+    const opacity = op ? Math.min(1, Math.max(0.02, Number(op) / 100)) : BG_DEFAULT.opacity;
+    return { mode: "video", video: video || BG_DEFAULT.video, opacity: Number.isNaN(opacity) ? BG_DEFAULT.opacity : opacity };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 const LS_KEY = "sa-canvas-fallback-scene";
 
 function PresentCanvas() {
@@ -152,7 +181,8 @@ function PresentCanvas() {
   // and clobber edits (observed: JE amounts lost). useNodes() subscribes where the shell
   // needs to react (tray, minimize sync).
   const liveNodes = useNodes();
-  const [bg, setBg] = useState<BgMode>("flat");
+  const [bgCfg, setBgCfg] = useState<BgConfig>(BG_DEFAULT);
+  const [bgOpen, setBgOpen] = useState(false); // background picker popover
   const [minimap, setMinimap] = useState(true);
   const [clean, setClean] = useState(false);
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
@@ -359,9 +389,9 @@ function PresentCanvas() {
         edges: rf.getEdges(),
       }),
       viewport_json: JSON.stringify(vp),
-      bg,
+      bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bg]);
+  }, [rf, sceneName, bgCfg]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -399,7 +429,8 @@ function PresentCanvas() {
       rf.setEdges((nj.edges ?? []) as never[]);
       setSceneName(payload.name);
       setSceneId(id);
-      if (payload.bg) setBg(payload.bg as BgMode);
+      const cfg = decodeBg(payload.bg);
+      if (cfg) setBgCfg(cfg);
       const vpFinal = vp;
       if (vpFinal && typeof vpFinal.zoom === "number") setTimeout(() => rf.setViewport(vpFinal), 0);
     },
@@ -529,17 +560,18 @@ function PresentCanvas() {
       {lowZoom && !film && (
         <div
           className="absolute bottom-12 left-1/2 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold"
-          style={{ background: "rgba(255,210,63,0.14)", border: "1px solid rgba(255,210,63,0.55)", color: NEON.yellow }}
+          style={{ background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.55)", color: NEON.yellow }}
         >
           zoom &lt; 75% — text may be illegible on camera
         </div>
       )}
-      {/* looping video background (low opacity, filming-optional) */}
-      {bg === "video" && (
+      {/* looping video background (low opacity, filming-optional); key remounts on swap */}
+      {bgCfg.mode === "video" && (
         <video
+          key={bgCfg.video}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.14 }}
-          src="/anim/space intro (1).mp4"
+          style={{ opacity: bgCfg.opacity }}
+          src={`/anim/${bgCfg.video}`}
           autoPlay
           muted
           loop
@@ -566,15 +598,15 @@ function PresentCanvas() {
         style={{ background: "transparent" }}
         fitView
       >
-        {bg === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(255,45,149,0.22)" />}
+        {bgCfg.mode === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
         {chrome && minimap && (
           <MiniMap
             position="bottom-right"
             pannable
             zoomable
             style={{ background: NEON.bg2, border: `1px solid ${NEON.borderSoft}`, borderRadius: 10 }}
-            maskColor="rgba(11,7,20,0.75)"
-            nodeColor={() => NEON.pink}
+            maskColor="rgba(11,19,34,0.75)"
+            nodeColor={() => "#FBF9F4"}
           />
         )}
       </ReactFlow>
@@ -604,12 +636,44 @@ function PresentCanvas() {
           <TB title="New (clear canvas)" onClick={newScene}><Plus className="h-3.5 w-3.5" /></TB>
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
           <TB title="Add zone" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
-          <TB
-            title={`Background: ${bg} (click to cycle)`}
-            onClick={() => setBg(bg === "flat" ? "grid" : bg === "grid" ? "video" : "flat")}
-          >
-            {bg === "video" ? <VideoIcon className="h-3.5 w-3.5" /> : <Grid3x3 className="h-3.5 w-3.5" />}
-          </TB>
+          <div className="relative">
+            <TB title="Background & animations" active={bgOpen || bgCfg.mode === "video"} onClick={() => setBgOpen((v) => !v)}>
+              {bgCfg.mode === "video" ? <VideoIcon className="h-3.5 w-3.5" /> : <Grid3x3 className="h-3.5 w-3.5" />}
+            </TB>
+            {bgOpen && (
+              <div
+                className="absolute left-1/2 top-9 z-50 w-44 -translate-x-1/2 rounded-xl p-2"
+                style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}
+              >
+                <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Background</div>
+                <BgOption label="Flat" active={bgCfg.mode === "flat"} onClick={() => { setBgCfg({ ...bgCfg, mode: "flat" }); setBgOpen(false); }} />
+                <BgOption label="Dot grid" active={bgCfg.mode === "grid"} onClick={() => { setBgCfg({ ...bgCfg, mode: "grid" }); setBgOpen(false); }} />
+                <div className="mb-1 mt-2 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Animations</div>
+                {BG_VIDEOS.map((v) => (
+                  <BgOption
+                    key={v.file}
+                    label={v.label}
+                    active={bgCfg.mode === "video" && bgCfg.video === v.file}
+                    onClick={() => setBgCfg({ ...bgCfg, mode: "video", video: v.file })}
+                  />
+                ))}
+                {bgCfg.mode === "video" && (
+                  <label className="mt-2 block px-1 text-[10px]" style={{ color: NEON.muted }}>
+                    opacity · {Math.round(bgCfg.opacity * 100)}%
+                    <input
+                      type="range"
+                      min={4}
+                      max={60}
+                      value={Math.round(bgCfg.opacity * 100)}
+                      onChange={(e) => setBgCfg({ ...bgCfg, opacity: Number(e.target.value) / 100 })}
+                      className="mt-0.5 w-full"
+                      style={{ accentColor: NEON.yellow }}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+          </div>
           <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
           <TB title="Clean screen (c)" onClick={() => setClean(true)}><Film className="h-3.5 w-3.5" /></TB>
           {savedAt && <span className="pl-1 text-[10px]" style={{ color: NEON.muted }}>saved {savedAt}</span>}
@@ -698,11 +762,26 @@ function TB({ children, onClick, title, active }: { children: React.ReactNode; o
       title={title}
       onClick={onClick}
       className="grid h-7 w-7 place-items-center rounded-md transition-colors"
-      style={{ color: active === false ? NEON.muted : NEON.text, background: active ? "rgba(255,45,149,0.15)" : "transparent", border: `1px solid transparent` }}
+      style={{ color: active === false ? NEON.muted : NEON.text, background: active ? "rgba(252,163,17,0.16)" : "transparent", border: `1px solid transparent` }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = NEON.border)}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "transparent")}
     >
       {children}
+    </button>
+  );
+}
+
+function BgOption({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      className="block w-full rounded-md px-2 py-1 text-left text-[12px] font-medium transition-colors"
+      style={{
+        color: active ? NEON.yellow : NEON.text,
+        background: active ? "rgba(252,163,17,0.14)" : "transparent",
+      }}
+      onClick={onClick}
+    >
+      {label}
     </button>
   );
 }

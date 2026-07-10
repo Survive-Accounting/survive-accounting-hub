@@ -163,10 +163,9 @@ export interface SceneDoc {
   zones: ZoneBox[];
   viewport: { x: number; y: number; zoom: number };
   waypoints?: unknown; // reserved for v1.1 student map — unused now
-  bg?: BgMode;
+  // "flat" | "grid" | "video|<file>|<opacity 0-100>" — see decodeBg in the canvas route
+  bg?: string;
 }
-
-export type BgMode = "flat" | "grid" | "video";
 
 let _seq = 0;
 export function cardId(kind: string): string {
