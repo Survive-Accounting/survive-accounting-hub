@@ -54,12 +54,12 @@ type Attachment = { name: string; path: string; size: number };
 export const Route = createFileRoute("/order")({
   head: () => ({
     meta: [
-      { title: "Request a personalized exam prep video — Survive Accounting" },
+      { title: "Exam prep built for your exact class — Survive Accounting" },
       { name: "description", content: "Free to request. I quote before I build. You only pay once you approve and receive your exam prep video — made for your exact course." },
       // NOTE: /order is currently noindex (pre-existing). It is therefore omitted from
       // sitemap.xml. Flip both together if you want /order indexed.
       { name: "robots", content: "noindex" },
-      { property: "og:title", content: "Request a personalized exam prep video" },
+      { property: "og:title", content: "Exam prep built for your exact class" },
       { property: "og:description", content: "Free to request. I quote before I build — you only pay once you approve your video." },
       { property: "og:url", content: "https://surviveaccounting.com/order" },
     ],
