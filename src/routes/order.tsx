@@ -285,16 +285,17 @@ function Intro({ onStart }: { onStart: () => void }) {
           <img src={leeHeadshot} alt="Lee Ingram" className="h-full w-full object-cover" draggable={false} />
         </span>
         <h1 className="mt-6 text-[32px] leading-[1.1] sm:text-[44px]" style={{ color: NAVY, fontFamily: SERIF, fontWeight: 400 }}>
-          Get a personalized exam prep video
+          Exam prep built for your exact class
         </h1>
         <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
-          Request your video below. Created by virtual tutor Lee Ingram.
+          Built by Lee Ingram — Ole Miss BAccy &amp; MAccy who's tutored 1,000+ accounting students
+          since 2015.
         </p>
         <div className="mt-8">
           <button type="button" onClick={onStart}
             className="inline-flex h-14 items-center justify-center rounded-2xl px-10 text-lg font-bold text-white transition hover:brightness-110 hover:-translate-y-0.5"
             style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 14px 34px rgba(206,17,38,0.30)" }}>
-            Start Request
+            Get started
           </button>
           <div className="mt-4">
             <button type="button" onClick={scrollToReviews} className="text-sm font-medium text-gray-500 underline underline-offset-2 hover:text-gray-700">
