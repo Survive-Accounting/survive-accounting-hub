@@ -42,9 +42,16 @@ const { createAssetFromUrl } = await import("../src/lib/mux.server");
 
 const argv = process.argv.slice(2);
 const dryRun = argv.includes("--dry-run");
+const countOnly = argv.includes("--count-only"); // list + filter + report, no processing
 const limitIdx = argv.indexOf("--limit");
 const limit = limitIdx >= 0 ? Number(argv[limitIdx + 1]) : Infinity;
 const STORAGE_RATE = Number(process.env.MUX_STORAGE_RATE_PER_MIN_MONTH || "0.003");
+
+// Titles from OTHER projects that bleed into this Vimeo account — NOT Survive
+// Accounting. Matched conservatively: only an explicit hit excludes a video;
+// anything ambiguous stays in (assumed relevant).
+const EXCLUDE_PATTERNS: RegExp[] = [/ent\s*381/i, /ent\s*356/i, /quick\s*books/i, /arts\s+entrepreneurship/i];
+const isExcluded = (title?: string | null) => EXCLUDE_PATTERNS.some((re) => re.test(title ?? ""));
 
 function sb() {
   const url = process.env.SUPABASE_URL;
@@ -58,10 +65,30 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function main() {
   const supabase = sb();
   console.log("Listing Vimeo videos…");
-  const videos = await listAllVideos();
-  console.log(`Found ${videos.length} Vimeo videos.${Number.isFinite(limit) ? ` Processing up to ${limit}.` : ""}`);
+  const allVideos = await listAllVideos();
 
-  // Whole-archive totals for the cost estimate (independent of --limit).
+  // Drop non-Survive-Accounting titles (other projects on this Vimeo account).
+  const excluded = allVideos.filter((v) => isExcluded(v.name));
+  const videos = allVideos.filter((v) => !isExcluded(v.name));
+  console.log(
+    `Found ${allVideos.length} Vimeo videos — ${excluded.length} excluded (other projects), ${videos.length} relevant.`,
+  );
+
+  if (countOnly) {
+    const min = videos.reduce((a, v) => a + (v.duration ?? 0), 0) / 60;
+    console.log("\n=== RECOUNT (relevant to Survive Accounting) ===");
+    console.log(`Relevant videos:        ${videos.length}`);
+    console.log(`Excluded videos:        ${excluded.length}`);
+    console.log(`Relevant duration:      ${min.toFixed(1)} min (${(min / 60).toFixed(1)} hr)`);
+    console.log(`Est. Mux storage cost:  $${(min * STORAGE_RATE).toFixed(2)}/mo  (@ $${STORAGE_RATE}/min/mo)`);
+    console.log(`\nExcluded titles (${excluded.length}):`);
+    for (const v of excluded) console.log(`  - "${v.name ?? v.uri}"`);
+    return;
+  }
+
+  console.log(`${Number.isFinite(limit) ? `Processing up to ${limit}.` : "Processing all relevant."}`);
+
+  // Whole-archive totals for the cost estimate (relevant only, independent of --limit).
   const totalArchiveDurationSec = videos.reduce((a, v) => a + (v.duration ?? 0), 0);
 
   let processed = 0;
