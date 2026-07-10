@@ -8,6 +8,10 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+// NOTE: this is a TanStack Start (React) app, NOT Next.js — use the "/react"
+// entrypoints, not "@vercel/analytics/next".
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -78,10 +82,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Survive Accounting — Videos for accounting exam prep" },
-      { name: "description", content: "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips. Free to request." },
+      {
+        name: "description",
+        content:
+          "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips. Free to request.",
+      },
       { name: "author", content: "Survive Accounting" },
       { property: "og:title", content: "Videos for accounting exam prep" },
-      { property: "og:description", content: "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips. Free to request." },
+      {
+        property: "og:description",
+        content:
+          "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips. Free to request.",
+      },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://surviveaccounting.com" },
       // Interim OG image — real Lee photo (nearly square, will be center-cropped
@@ -89,7 +101,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:image", content: "https://surviveaccounting.com/lee-stadium.webp" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Videos for accounting exam prep" },
-      { name: "twitter:description", content: "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips. Free to request." },
+      {
+        name: "twitter:description",
+        content:
+          "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips. Free to request.",
+      },
       { name: "twitter:image", content: "https://surviveaccounting.com/lee-stadium.webp" },
     ],
     links: [
@@ -116,6 +132,10 @@ function RootShell({ children }: { children: ReactNode }) {
       </head>
       <body>
         {children}
+        {/* Vercel Web Analytics (page views/visitors) + Speed Insights (real-user
+            performance). Client-only: no-op in dev, active on the Vercel deploy. */}
+        <Analytics />
+        <SpeedInsights />
         <Scripts />
       </body>
     </html>
