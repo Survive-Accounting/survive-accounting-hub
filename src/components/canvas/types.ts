@@ -11,7 +11,8 @@ export type CardKind =
   | "ceq"
   | "memorize"
   | "note"
-  | "video";
+  | "video"
+  | "list";
 
 /** Shared across every card, merged into node.data. */
 export interface CardBase {
@@ -113,6 +114,23 @@ export interface VideoCard extends CardBase {
   playbackId: string;
 }
 
+// ---- List (reveal list: 5 account types, the accounting cycle, …) ----
+export interface ListRow {
+  id: string;
+  text: string;
+  /** Optional debit/credit chip (the debit-credit-rubric video re-uses the same cards). */
+  chip?: "DR" | "CR";
+  hidden?: boolean; // stepper hide
+}
+export interface ListCard extends CardBase {
+  kind: "list";
+  /** One-word/one-line definition under the title. */
+  definition?: string;
+  rows: ListRow[];
+  /** Chips off by default; toggled per card. */
+  showChips: boolean;
+}
+
 export type CardData =
   | JeCard
   | ScheduleCard
@@ -121,7 +139,8 @@ export type CardData =
   | CeqCard
   | MemorizeCard
   | NoteCard
-  | VideoCard;
+  | VideoCard
+  | ListCard;
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 

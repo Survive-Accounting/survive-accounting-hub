@@ -12,6 +12,7 @@ import type { CardData, CardKind, SchedulePreset } from "./types";
 const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
   { kind: "je", label: "Journal Entry" },
   { kind: "taccount", label: "T-Account" },
+  { kind: "list", label: "List (reveal)" },
   { kind: "schedule", label: "Table (generic)", preset: "generic" },
   { kind: "schedule", label: "Amortization", preset: "amortization" },
   { kind: "schedule", label: "Depreciation", preset: "depreciation" },

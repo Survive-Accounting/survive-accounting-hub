@@ -30,6 +30,18 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       };
     case "video":
       return { kind: "video", playbackId: "", editMode: true };
+    case "list":
+      return {
+        kind: "list",
+        definition: "",
+        rows: [
+          { id: cardId("r"), text: "" },
+          { id: cardId("r"), text: "" },
+          { id: cardId("r"), text: "" },
+        ],
+        showChips: false,
+        editMode: true,
+      };
     case "schedule":
       return scheduleTemplate(preset ?? "generic");
     default:
@@ -101,4 +113,5 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   memorize: "Memorize",
   note: "Note",
   video: "Video",
+  list: "List",
 };

@@ -32,7 +32,8 @@ import { ScheduleCardNode } from "@/components/canvas/cards/ScheduleCardNode";
 import {
   CeqCardNode, ComputationCardNode, MemorizeCardNode, NoteCardNode, TAccountCardNode, VideoCardNode,
 } from "@/components/canvas/cards/OtherCards";
-import { cardId, type BgMode, type CardData, type CardNode, type JeCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
+import { cardId, type BgMode, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
@@ -85,6 +86,7 @@ const nodeTypes = {
   memorize: MemorizeCardNode,
   note: NoteCardNode,
   video: VideoCardNode,
+  list: ListCardNode,
   zone: ZoneNode,
 };
 
@@ -117,6 +119,12 @@ function stepReveal(data: CardData): Partial<CardData> | null {
     }
     return null;
   }
+  if (data.kind === "list") {
+    const d = data as ListCard;
+    const i = d.rows.findIndex((r) => r.hidden);
+    if (i === -1) return null;
+    return { rows: d.rows.map((r, j) => (j === i ? { ...r, hidden: false } : r)) } as Partial<CardData>;
+  }
   return null;
 }
 
@@ -124,6 +132,7 @@ function stepReveal(data: CardData): Partial<CardData> | null {
 function hideAll(data: CardData): Partial<CardData> | null {
   if (data.kind === "je") return { lines: (data as JeCard).lines.map((l) => ({ ...l, hidden: true })) } as Partial<CardData>;
   if (data.kind === "computation") return { steps: (data as ComputationCard).steps.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
+  if (data.kind === "list") return { rows: (data as ListCard).rows.map((r) => ({ ...r, hidden: true })) } as Partial<CardData>;
   if (data.kind === "schedule") {
     const d = data as ScheduleCard;
     return { rows: d.rows.map((row) => row.map((cl) => ({ ...cl, hidden: cl.v !== "" ? true : cl.hidden }))) } as Partial<CardData>;
