@@ -18,6 +18,7 @@ export const Route = createFileRoute("/outreach/orders")({
 });
 
 const TIER_SHORT: Record<string, string> = { made_to_order: "Pre-order", one_on_one: "1-on-1", free_teaser: "Free teaser", something_else: "Something else" };
+const REFERRAL_SHORT: Record<string, string> = { professor: "Professor", friend: "Friend", greek: "Greek", social: "Social", search: "Search", other: "Other" };
 const money = (c: number) => `$${Math.round((c ?? 0) / 100)}`;
 const fmtDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 function relTime(iso: string): string {
@@ -149,6 +150,7 @@ function OrdersAdmin() {
                   <td className="px-2 py-2">
                     <div className="font-medium">{[r.first_name, r.last_name].filter(Boolean).join(" ") || "—"}</div>
                     <div className="text-[11px] text-muted-foreground">{r.email}</div>
+                    {r.referral_source && <span className="mt-0.5 inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600">via {REFERRAL_SHORT[r.referral_source] ?? r.referral_source}</span>}
                   </td>
                   <td className="px-2 py-2 text-xs">{r.campus_name || r.campus_text || "—"}</td>
                   <td className="px-2 py-2 text-xs">{[r.course_code, r.course_name].filter(Boolean).join(" · ") || "—"}</td>

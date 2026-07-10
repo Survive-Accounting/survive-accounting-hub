@@ -17,6 +17,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   ArrowRightLeft,
+  CalendarClock,
   Check,
   ChevronDown,
   ChevronRight,
@@ -37,7 +38,7 @@ import {
 import { fetchCampuses } from "@/lib/outreach-api";
 import { type Campus } from "@/lib/outreach-mock";
 import { researchProgramCourses } from "@/lib/program-courses.functions";
-import { createMobilityCampus } from "@/lib/profintel.functions";
+import { createMobilityCampus, sendProfintelTestEmail } from "@/lib/profintel.functions";
 import {
   acceptIncomingMove,
   clearDrafts,
@@ -46,7 +47,8 @@ import {
   fetchActiveRosterCampusIds,
   fetchCampusCourseCodes,
   fetchProfintelV2Leads,
-  getTemplate,
+  getTemplateConfig,
+  saveTemplateConfig,
   listIncomingMoves,
   listSends,
   moveLead,
@@ -54,8 +56,8 @@ import {
   pasteImportLeads,
   renderTemplate,
   retireLead,
+  scheduleCampaignDrafts,
   saveCampusCourseCodes,
-  saveTemplate,
   updateLeadEmail,
   updateSend,
   DEFAULT_PROFINTEL_TEMPLATE,
@@ -63,7 +65,6 @@ import {
   type IncomingMove,
   type ProfIntelLead,
   type ProfIntelSend,
-  type ProfIntelTemplate,
   type ProfIntelV2Lead,
 } from "@/lib/profintel";
 import { enrichProfintelCampus } from "@/lib/rmp-scrape.functions";
@@ -213,13 +214,15 @@ function ProfIntelChoose() {
   const [importing, setImporting] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [chips, setChips] = useState<Set<string>>(new Set());
+  // Default filters ON: RMP course match ("confirmed") + recent evidence. This
+  // lands the operator straight on the highest-signal, ready-to-email leads.
+  const [chips, setChips] = useState<Set<string>>(new Set(["confirmed", "recent"]));
 
   // Reset per-campus UI state when switching campus.
   useEffect(() => {
     setSelected(new Set());
     setPaste("");
-    setChips(new Set());
+    setChips(new Set(["confirmed", "recent"]));
   }, [campusId]);
 
   const toggle = (id: string) =>
@@ -227,6 +230,18 @@ function ProfIntelChoose() {
       const next = new Set(s);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  // Select/clear only the currently-filtered targets (leaves any off-filter
+  // selections untouched).
+  const toggleSelectAllFiltered = (ids: string[]) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      const allSelected = ids.length > 0 && ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
       return next;
     });
   const toggleChip = (k: string) =>
@@ -304,6 +319,8 @@ function ProfIntelChoose() {
     );
   }, [leads, chips]);
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((l) => selected.has(l.id));
+
   async function handleCreate() {
     if (!campusId || !campus) return;
     const chosen = leads.filter((l) => selected.has(l.id));
@@ -313,14 +330,16 @@ function ProfIntelChoose() {
     }
     setCreating(true);
     try {
-      const tpl = await getTemplate();
+      const cfg = await getTemplateConfig();
       const n = await createDrafts({
         campusId,
         school: campus.school_name,
-        template: tpl,
+        template: cfg,
         leads: chosen,
       });
-      toast.success(`Created ${n} draft${n === 1 ? "" : "s"}.`);
+      const abNote =
+        cfg.abEnabled && cfg.b.subject.trim() && cfg.b.body.trim() ? " (split A/B)" : "";
+      toast.success(`Created ${n} draft${n === 1 ? "" : "s"}${abNote}.`);
       setSelected(new Set());
       await draftsQuery.refetch();
     } catch (e) {
@@ -491,14 +510,24 @@ function ProfIntelChoose() {
                   ({filtered.length} shown · {selected.size} selected)
                 </span>
               </div>
-              <Button size="sm" onClick={handleCreate} disabled={creating || selected.size === 0}>
-                {creating ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <MailPlus className="mr-1 h-4 w-4" />
-                )}
-                Create {selected.size || ""} draft{selected.size === 1 ? "" : "s"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => toggleSelectAllFiltered(filtered.map((l) => l.id))}
+                  disabled={filtered.length === 0}
+                >
+                  {allFilteredSelected ? "Clear" : `Select all (${filtered.length})`}
+                </Button>
+                <Button size="sm" onClick={handleCreate} disabled={creating || selected.size === 0}>
+                  {creating ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <MailPlus className="mr-1 h-4 w-4" />
+                  )}
+                  Create {selected.size || ""} draft{selected.size === 1 ? "" : "s"}
+                </Button>
+              </div>
             </div>
 
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -670,7 +699,59 @@ function DraftsSection({
   onChanged: () => void;
 }) {
   const pending = drafts.filter((d) => d.status === "draft" || d.status === "scheduled");
+  const unscheduled = drafts.filter((d) => d.status === "draft");
+  const scheduled = drafts.filter((d) => d.status === "scheduled" && d.scheduled_at);
   const [resetting, setResetting] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  const range =
+    scheduled.length > 0
+      ? {
+          first: scheduled.reduce(
+            (m, d) => (d.scheduled_at! < m ? d.scheduled_at! : m),
+            scheduled[0].scheduled_at!,
+          ),
+          last: scheduled.reduce(
+            (m, d) => (d.scheduled_at! > m ? d.scheduled_at! : m),
+            scheduled[0].scheduled_at!,
+          ),
+        }
+      : null;
+
+  // Schedule this campus's unscheduled drafts, highest ProfIntel score first
+  // (earliest slots), spread across the Tue–Thu 10–3 window.
+  async function scheduleCampaign() {
+    if (unscheduled.length === 0) {
+      toast.message("No unscheduled drafts to schedule.");
+      return;
+    }
+    if (
+      !confirm(
+        `Schedule ${unscheduled.length} email${unscheduled.length === 1 ? "" : "s"} — highest score first, spread Tue–Thu 10 AM–3 PM?`,
+      )
+    )
+      return;
+    setScheduling(true);
+    try {
+      const times = await scheduleCampaignDrafts(drafts);
+      const days = new Set(times.map((t) => t.slice(0, 10))).size;
+      toast.success(
+        `Scheduled ${times.length} across ${days} day${days === 1 ? "" : "s"} — top score first.`,
+      );
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to schedule.");
+    } finally {
+      setScheduling(false);
+    }
+  }
 
   async function reset() {
     if (
@@ -697,26 +778,50 @@ function DraftsSection({
         <div className="text-sm font-semibold">
           Step 3 — review, edit &amp; schedule{" "}
           <span className="text-muted-foreground">
-            ({pending.length} draft{pending.length === 1 ? "" : "s"})
+            ({pending.length} draft{pending.length === 1 ? "" : "s"}
+            {scheduled.length > 0 ? ` · ${scheduled.length} scheduled` : ""})
           </span>
         </div>
-        {pending.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={reset}
-            disabled={resetting}
-            className="h-7 text-muted-foreground hover:text-destructive"
-          >
-            {resetting ? (
-              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Trash2 className="mr-1 h-3.5 w-3.5" />
-            )}
-            Reset drafts
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {unscheduled.length > 0 && (
+            <Button size="sm" onClick={scheduleCampaign} disabled={scheduling} className="h-7">
+              {scheduling ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CalendarClock className="mr-1 h-3.5 w-3.5" />
+              )}
+              Schedule {unscheduled.length} (top score first)
+            </Button>
+          )}
+          {pending.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={reset}
+              disabled={resetting}
+              className="h-7 text-muted-foreground hover:text-destructive"
+            >
+              {resetting ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+              )}
+              Reset
+            </Button>
+          )}
+        </div>
       </div>
+      {range && (
+        <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border bg-card/60 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+          <CalendarClock className="h-3.5 w-3.5" />
+          Campaign window:{" "}
+          <span className="font-medium text-foreground">{fmtDate(range.first)}</span> →{" "}
+          <span className="font-medium text-foreground">{fmtDate(range.last)}</span>
+          {unscheduled.length > 0 && (
+            <span className="ml-1 text-amber-600">· {unscheduled.length} still unscheduled</span>
+          )}
+        </div>
+      )}
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading drafts…
@@ -926,44 +1031,88 @@ function DraftCard({ draft, onChanged }: { draft: ProfIntelSend; onChanged: () =
   );
 }
 
+// Sample professor used to render template tokens for "Send test email".
+const SAMPLE_TEST_LEAD: ProfIntelLead = {
+  id: "sample",
+  first_name: "Jane",
+  last_name: "Smith",
+  email: null,
+  is_phd: true,
+  source_url: null,
+  rmp_profile_url: null,
+  rmp_rating: 4.6,
+  rmp_num_ratings: 87,
+  rmp_course_match_json: { acct: { code: "ACCT 2101", count: 3 } },
+};
+
 function TemplateEditor() {
-  const tplQuery = useQuery({ queryKey: ["profintel-template"], queryFn: getTemplate });
+  const tplQuery = useQuery({
+    queryKey: ["profintel-template-config"],
+    queryFn: getTemplateConfig,
+  });
   const [open, setOpen] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [aSubject, setASubject] = useState("");
+  const [aBody, setABody] = useState("");
+  const [bSubject, setBSubject] = useState("");
+  const [bBody, setBBody] = useState("");
+  const [abEnabled, setAbEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [testTo, setTestTo] = useState("lee@surviveaccounting.com");
+  const [testSending, setTestSending] = useState<"A" | "B" | null>(null);
+  const sendTest = useServerFn(sendProfintelTestEmail);
 
   useEffect(() => {
     if (tplQuery.data && !loaded) {
-      setSubject(tplQuery.data.subject);
-      setBody(tplQuery.data.body);
+      setASubject(tplQuery.data.a.subject);
+      setABody(tplQuery.data.a.body);
+      setBSubject(tplQuery.data.b.subject);
+      setBBody(tplQuery.data.b.body);
+      setAbEnabled(tplQuery.data.abEnabled);
       setLoaded(true);
     }
   }, [tplQuery.data, loaded]);
 
+  async function sendTestEmail(which: "A" | "B") {
+    const tpl =
+      which === "B" ? { subject: bSubject, body: bBody } : { subject: aSubject, body: aBody };
+    if (!tpl.subject.trim() || !tpl.body.trim()) {
+      toast.error(`Variant ${which} has no subject/body to send.`);
+      return;
+    }
+    if (!testTo.trim()) {
+      toast.error("Enter a test email address.");
+      return;
+    }
+    // Render the tokens against a sample professor so the test reads like a real send.
+    const { subject, body } = renderTemplate(tpl, SAMPLE_TEST_LEAD, "Sample University");
+    setTestSending(which);
+    try {
+      await sendTest({ data: { to: testTo.trim(), subject, body } });
+      toast.success(`Test email (variant ${which}) sent to ${testTo.trim()}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send test email.");
+    } finally {
+      setTestSending(null);
+    }
+  }
+
   async function save() {
+    if (abEnabled && (!bSubject.trim() || !bBody.trim())) {
+      toast.error("Fill in variant B's subject and body, or turn A/B off.");
+      return;
+    }
     setSaving(true);
     try {
-      const tpl: ProfIntelTemplate = { subject, body };
-      await saveTemplate(tpl);
-      toast.success("Template saved. New drafts will use it.");
-      // sample preview proof to console-free path; just confirm.
-      renderTemplate(
-        tpl,
-        {
-          id: "x",
-          first_name: "Jane",
-          last_name: "Smith",
-          email: null,
-          is_phd: true,
-          source_url: null,
-          rmp_profile_url: null,
-          rmp_rating: 4.5,
-          rmp_num_ratings: 120,
-          rmp_course_match_json: { acct: { code: "ACCT 2101", count: 3 } },
-        },
-        "Sample U",
+      await saveTemplateConfig({
+        a: { subject: aSubject, body: aBody },
+        b: { subject: bSubject, body: bBody },
+        abEnabled,
+      });
+      toast.success(
+        abEnabled
+          ? "Saved. New drafts will split ~50/50 between A and B."
+          : "Template saved. New drafts will use it.",
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save template.");
@@ -971,6 +1120,15 @@ function TemplateEditor() {
       setSaving(false);
     }
   }
+
+  const tokenHelp = (
+    <p className="text-[11px] text-muted-foreground">
+      Tokens: <code>{"{recipient_name}"}</code> (Dr. Lastname for PhDs, else first name){" "}
+      <code>{"{course_prefix}"}</code> (e.g. ACCY) <code>{"{first_name}"}</code>{" "}
+      <code>{"{last_name}"}</code> <code>{"{full_name}"}</code> <code>{"{school}"}</code>{" "}
+      <code>{"{course}"}</code> <code>{"{rmp_rating}"}</code>
+    </p>
+  );
 
   return (
     <section className="rounded-xl border border-border bg-card/60">
@@ -982,7 +1140,7 @@ function TemplateEditor() {
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         Base email template
         <span className="ml-2 font-normal text-muted-foreground">
-          — edit the default used for new drafts
+          — edit the default used for new drafts{abEnabled ? " · A/B on" : ""}
         </span>
       </button>
       {open && (
@@ -993,47 +1151,130 @@ function TemplateEditor() {
             </div>
           ) : (
             <>
-              <p className="text-[11px] text-muted-foreground">
-                Tokens: <code>{"{recipient_name}"}</code> (Dr. Lastname for PhDs, else first name){" "}
-                <code>{"{course_prefix}"}</code> (e.g. ACCY) <code>{"{first_name}"}</code>{" "}
-                <code>{"{last_name}"}</code> <code>{"{full_name}"}</code> <code>{"{school}"}</code>{" "}
-                <code>{"{course}"}</code> <code>{"{rmp_rating}"}</code>
-              </p>
-              <div>
+              {tokenHelp}
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    setSubject(DEFAULT_PROFINTEL_TEMPLATE.subject);
-                    setBody(DEFAULT_PROFINTEL_TEMPLATE.body);
+                    setASubject(DEFAULT_PROFINTEL_TEMPLATE.subject);
+                    setABody(DEFAULT_PROFINTEL_TEMPLATE.body);
                   }}
                 >
-                  Load default template
+                  Load default into A
                 </Button>
-                <span className="ml-2 text-[11px] text-muted-foreground">
-                  Fills the editor with Lee's base email — review, then Save.
+                <label className="ml-2 flex cursor-pointer items-center gap-2 text-xs font-medium">
+                  <Checkbox checked={abEnabled} onCheckedChange={(v) => setAbEnabled(v === true)} />
+                  A/B test 50/50
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  {abEnabled
+                    ? "Each new batch splits randomly between A and B."
+                    : "Off — all drafts use variant A."}
                 </span>
               </div>
-              <div>
+
+              {/* Variant A */}
+              <div className="rounded-lg border border-border p-3">
+                <div className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">
+                  {abEnabled ? "Variant A" : "Template"}
+                </div>
                 <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
                   Subject
                 </label>
                 <Input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="text-sm"
+                  value={aSubject}
+                  onChange={(e) => setASubject(e.target.value)}
+                  className="mb-2 text-sm"
                 />
-              </div>
-              <div>
                 <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
                   Body
                 </label>
                 <Textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  className="min-h-[200px] text-sm"
+                  value={aBody}
+                  onChange={(e) => setABody(e.target.value)}
+                  className="min-h-[180px] text-sm"
                 />
               </div>
+
+              {/* Variant B (only when A/B is on) */}
+              {abEnabled && (
+                <div className="rounded-lg border border-dashed border-primary/40 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase text-muted-foreground">
+                    Variant B
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[11px]"
+                      onClick={() => {
+                        setBSubject(aSubject);
+                        setBBody(aBody);
+                      }}
+                    >
+                      Copy A → B
+                    </Button>
+                  </div>
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                    Subject
+                  </label>
+                  <Input
+                    value={bSubject}
+                    onChange={(e) => setBSubject(e.target.value)}
+                    className="mb-2 text-sm"
+                  />
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                    Body
+                  </label>
+                  <Textarea
+                    value={bBody}
+                    onChange={(e) => setBBody(e.target.value)}
+                    className="min-h-[180px] text-sm"
+                  />
+                </div>
+              )}
+
+              {/* Send test — preview a variant in your own inbox (sample tokens). */}
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
+                <span className="text-[11px] font-medium text-muted-foreground">Send test to</span>
+                <Input
+                  value={testTo}
+                  onChange={(e) => setTestTo(e.target.value)}
+                  className="h-8 w-[240px] text-sm"
+                  placeholder="you@example.com"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => sendTestEmail("A")}
+                  disabled={testSending !== null}
+                >
+                  {testSending === "A" ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Mail className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Send test{abEnabled ? " (A)" : ""}
+                </Button>
+                {abEnabled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sendTestEmail("B")}
+                    disabled={testSending !== null}
+                  >
+                    {testSending === "B" ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Mail className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    Send test (B)
+                  </Button>
+                )}
+                <span className="text-[11px] text-muted-foreground">
+                  Uses sample data (Dr. Jane Smith · ACCT 2101). Doesn't affect your saved template.
+                </span>
+              </div>
+
               <div className="flex justify-end">
                 <Button size="sm" onClick={save} disabled={saving}>
                   {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}

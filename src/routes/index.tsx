@@ -27,14 +27,14 @@ const RED_BTN_STYLE: React.CSSProperties = {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Survive Accounting — Videos for accounting exam prep" },
+      { title: "Survive Accounting — Survive your accounting exam" },
       {
         name: "description",
         content:
-          "Send Lee your toughest homework problems, review sheets, or exam topics. Get a custom help video with notes and exam prep tips — made for your exact course. Free to request.",
+          "Videos, interactive practice tools, and tutoring built for your exact course — by an Ole Miss accounting grad who's helped 1,000+ students since 2015. Free to request.",
       },
-      { property: "og:title", content: "Survive Accounting — Videos for accounting exam prep" },
-      { property: "og:description", content: "Custom help videos for your accounting exam — made for what you're stuck on." },
+      { property: "og:title", content: "Survive your accounting exam." },
+      { property: "og:description", content: "Videos, practice tools, and tutoring built for your exact course. Free to request." },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://surviveaccounting.com/" },
     ],
@@ -83,13 +83,13 @@ function HeroCta() {
     <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
         <a href="/order" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
-          <span style={{ fontWeight: 800 }}>Get Started</span>
+          <span style={{ fontWeight: 800 }}>Get Exam Help</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
       </div>
       <div className="flex flex-col items-center gap-1">
         <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.65)", fontFamily: "Inter, sans-serif" }}>
-          Videos made weekly · Covering Intro and Intermediate · More info below
+          New content weekly · Covering Intro and Intermediate · More info below
         </p>
       </div>
     </div>
@@ -209,8 +209,8 @@ function Home() {
       <SiteNav />
       {s.hero && (
         <Hero
-          headline="Get on-demand help from a real tutor."
-          subtext="Tell me what's stressing you most about your next accounting exam, and I'll send personalized videos back tailored to your course."
+          headline="Survive your accounting exam."
+          subtext="Videos, interactive practice tools, and tutoring — built for your exact course by an Ole Miss accounting grad who's helped 1,000+ students since 2015."
           ctaSlot={<HeroCta />}
         />
       )}
@@ -227,13 +227,13 @@ function Home() {
             How Survive Accounting works
           </p>
           <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-            Get personalized exam prep videos
+            Get exam help built for your course
           </h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
-              { n: 1, img: "/step1.png", title: "Tell me what you're stuck on", body: "Homework problem, review sheet, chapter, exam topic — whatever you've got." },
-              { n: 2, img: "/step2.png", title: "Make a gameplan", body: "I'll reply in 1 business day with what I'll make, what it costs, and how you'll benefit." },
-              { n: 3, img: "/step3.png", title: "Get ready to ace it", body: "Once you approve the gameplan, I'll make you a personalized video. First come, first served." },
+              { n: 1, img: "/step1.png", title: "Tell me about your exam", body: "Your course, professor, and what's giving you trouble." },
+              { n: 2, img: "/step2.png", title: "I reply within 1 business day", body: "A gameplan with your options and exact pricing — no obligation." },
+              { n: 3, img: "/step3.png", title: "Get what you need before test day", body: "Videos, practice tools, or a 1-on-1 session — whatever fits." },
             ].map((step) => (
               <div key={step.n} className="text-center">
                 <img src={step.img} alt="" aria-hidden="true" className="mx-auto mb-3 w-full max-w-[280px] object-contain" loading="lazy" />
@@ -262,7 +262,7 @@ function Home() {
                 Hey, I&apos;m Lee Ingram.
               </h2>
               <p className="mt-3 max-w-xl text-[17px] leading-relaxed text-gray-600 sm:text-lg">
-                I make accounting feel less stressful with custom help videos, focused exam prep, and clear explanations.
+                I make accounting feel less stressful with custom videos, practice tools, and clear explanations.
               </p>
 
               {/* Main image — mobile placement (after the deck). */}
@@ -283,12 +283,6 @@ function Home() {
                 <LeePhoto src="/lee-kid-joa-cropped.jpg" alt="Young Lee reading the Journal of Accountancy" aspect="aspect-[3/7]" />
                 <figcaption className="mt-2 text-center text-[11px] italic leading-snug text-slate-500">Reading my dad&apos;s <span className="font-medium not-italic">Journal of Accountancy</span> circa 1998.</figcaption>
               </figure>
-
-              <blockquote className="mt-9 border-l-2 pl-5" style={{ borderColor: RED }}>
-                <p className="text-[22px] leading-snug sm:text-2xl" style={{ color: NAVY, fontFamily: "'DM Serif Display', serif" }}>
-                  &ldquo;I take good care of every student who comes my way.&rdquo;
-                </p>
-              </blockquote>
 
               <div className="mt-8">
                 <a href="/order"

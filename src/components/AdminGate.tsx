@@ -6,7 +6,7 @@ import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const ADMIN_PASSCODE = "1000students";
+export const ADMIN_PASSCODE = "1000students";
 const STORAGE_KEY = "sa-admin-unlocked";
 const WHO_KEY = "sa-admin-who";
 
@@ -47,7 +47,9 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     try {
       setUnlocked(localStorage.getItem(STORAGE_KEY) === "yes");
       setWho(getAdminWho());
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setMounted(true);
   }, []);
 
@@ -57,7 +59,11 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
 
   const tryUnlock = () => {
     if (code.trim() === ADMIN_PASSCODE) {
-      try { localStorage.setItem(STORAGE_KEY, "yes"); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(STORAGE_KEY, "yes");
+      } catch {
+        /* ignore */
+      }
       setUnlocked(true);
     } else {
       setShake(true);
@@ -66,7 +72,11 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
   };
 
   const pickWho = (w: AdminWho) => {
-    try { localStorage.setItem(WHO_KEY, w); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(WHO_KEY, w);
+    } catch {
+      /* ignore */
+    }
     setWho(w);
   };
 
@@ -79,8 +89,12 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
           <h1 className="text-sm font-semibold">Who's working?</h1>
           <p className="mt-1 text-xs text-muted-foreground">Used to attribute campus claims.</p>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => pickWho("lee")}>Lee</Button>
-            <Button variant="outline" onClick={() => pickWho("king")}>King</Button>
+            <Button variant="outline" onClick={() => pickWho("lee")}>
+              Lee
+            </Button>
+            <Button variant="outline" onClick={() => pickWho("king")}>
+              King
+            </Button>
           </div>
         </div>
       </div>
@@ -89,7 +103,9 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-6">
-      <div className={`w-full max-w-xs rounded-xl border border-border bg-card p-6 text-center shadow-sm ${shake ? "animate-pulse" : ""}`}>
+      <div
+        className={`w-full max-w-xs rounded-xl border border-border bg-card p-6 text-center shadow-sm ${shake ? "animate-pulse" : ""}`}
+      >
         <Lock className="mx-auto h-6 w-6 text-muted-foreground" />
         <h1 className="mt-2 text-sm font-semibold">Team access</h1>
         <p className="mt-1 text-xs text-muted-foreground">Enter the passcode to continue.</p>
@@ -101,7 +117,9 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
           className="mt-3 h-9 text-center"
           autoFocus
         />
-        <Button onClick={tryUnlock} className="mt-2 w-full h-9">Unlock</Button>
+        <Button onClick={tryUnlock} className="mt-2 w-full h-9">
+          Unlock
+        </Button>
       </div>
     </div>
   );

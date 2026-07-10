@@ -79,15 +79,33 @@ const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "inte
 // Scope-first: the student's problem comes first.
 const STEPS = ["What you need", "Exam", "School", "Course", "Professor", "Preferred option", "Your info"] as const;
 
-type HelpType = "made_to_order" | "one_on_one" | "something_else";
-const OPTION_LABEL: Record<HelpType, string> = {
-  made_to_order: "Exam prep video",
-  one_on_one: "1-on-1 tutoring",
+// Interest multi-select (no pricing — demand-testing launch).
+type Interest = "one_on_one" | "group" | "videos_tools" | "something_else";
+const INTEREST_LABEL: Record<Interest, string> = {
+  one_on_one: "1-on-1 virtual tutoring",
+  group: "Group virtual tutoring",
+  videos_tools: "Exam prep videos + practice tools",
   something_else: "Something else",
 };
-const OPTION_PRIORITY: HelpType[] = ["made_to_order", "one_on_one", "something_else"];
-const primaryTier = (ts: HelpType[]): HelpType => OPTION_PRIORITY.find((t) => ts.includes(t)) ?? "made_to_order";
-const chosenOptionsLabel = (ts: HelpType[]): string => OPTION_PRIORITY.filter((t) => ts.includes(t)).map((t) => OPTION_LABEL[t]).join(", ") || "—";
+const INTEREST_ORDER: Interest[] = ["one_on_one", "group", "videos_tools", "something_else"];
+const interestsLabel = (ts: Interest[]): string => INTEREST_ORDER.filter((t) => ts.includes(t)).map((t) => INTEREST_LABEL[t]).join(", ") || "—";
+// A representative `tier` derived from interests, still written for the deployed
+// notify-order fn + admin (which key off `tier`).
+type TierValue = "made_to_order" | "one_on_one" | "something_else";
+const deriveTier = (ts: Interest[]): TierValue =>
+  ts.includes("videos_tools") ? "made_to_order"
+    : (ts.includes("one_on_one") || ts.includes("group")) ? "one_on_one"
+    : "something_else";
+
+const MAJOR_OPTIONS: { value: string; label: string }[] = [
+  { value: "yes", label: "Yes" }, { value: "no", label: "No" },
+  { value: "definitely_not", label: "Definitely not" }, { value: "not_sure", label: "Not sure yet" },
+];
+const REFERRAL_OPTIONS: { value: string; label: string }[] = [
+  { value: "professor", label: "Professor" }, { value: "friend", label: "Friend/classmate" },
+  { value: "greek", label: "Greek chapter" }, { value: "social", label: "Social media" },
+  { value: "search", label: "Search" }, { value: "other", label: "Other" },
+];
 
 type RequestScope = "everything_exam" | "one_chapter" | "one_or_two_topics" | "homework_explained";
 const SCOPES: { value: RequestScope; label: string }[] = [
@@ -101,8 +119,10 @@ type Draft = {
   requestScope: RequestScope | null;
   requestNotes: string;
   interestedInGroup: boolean; groupSize: string;
-  helpTypes: HelpType[];
+  interests: Interest[];
   somethingElseNote: string;
+  isAccountingMajor: string | null;
+  referralSource: string | null; referralSourceDetail: string;
   examChoice: "date" | "not_sure" | null;
   examDate: string;
   campusId: string | null; campusName: string; campusOther: boolean;
@@ -117,8 +137,10 @@ const EMPTY: Draft = {
   requestScope: null,
   requestNotes: "",
   interestedInGroup: false, groupSize: "",
-  helpTypes: ["made_to_order"],
+  interests: [],
   somethingElseNote: "",
+  isAccountingMajor: null,
+  referralSource: null, referralSourceDetail: "",
   examChoice: null, examDate: "",
   campusId: null, campusName: "", campusOther: false,
   courseFamily: null, courseCode: "", courseName: "", courseOther: false,
@@ -189,7 +211,7 @@ function stepComplete(step: number, d: Draft): boolean {
     case 2: return !!d.campusId || (d.campusOther && d.campusName.trim().length > 0);
     case 3: return d.courseFamily != null || d.courseCode.trim().length > 0 || d.courseName.trim().length > 0;
     case 4: return true; // professor optional
-    case 5: return d.helpTypes.length > 0;
+    case 5: return d.interests.length > 0;
     default: return false;
   }
 }
@@ -655,6 +677,10 @@ function CourseStep({ draft, update, ctx, onNext }: {
           {!forceOther && <button type="button" className="text-xs text-gray-600 underline" onClick={() => update("courseOther", false)}>Pick from the list instead</button>}
         </div>
       )}
+      <div className="mt-6 border-t border-gray-100 pt-5">
+        <PillGroup label="Are you an accounting major?" note="(optional)"
+          options={MAJOR_OPTIONS} value={draft.isAccountingMajor} onChange={(v) => update("isAccountingMajor", v)} />
+      </div>
       <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn></div>
     </div>
   );
@@ -715,64 +741,67 @@ function ProfessorStep({ draft, update, onNext }: {
 function HelpOptionsStep({ draft, update, onNext }: {
   draft: Draft; update: <K extends keyof Draft>(k: K, v: Draft[K]) => void; onNext: () => void;
 }) {
-  const code = draft.courseCode.trim();
-  const suffix = code ? ` for ${code}` : "";
-  const OPTIONS: { value: HelpType; title: string; lines: string[]; muted?: boolean }[] = [
-    { value: "made_to_order", title: `Get exam prep video${suffix}`, lines: ["$40 - $200+", "Priced after I review your request", "Sent in 2-5 business days"] },
-    { value: "one_on_one", title: `Get 1-on-1 tutoring${suffix}`, lines: ["$150/hr", "Meets on Zoom", "Limited slots available"] },
-    { value: "something_else", title: "Request something else", lines: ["Need help a different way?", "Share what you're looking for"], muted: true },
-  ];
-  const toggle = (v: HelpType) =>
-    update("helpTypes", draft.helpTypes.includes(v) ? draft.helpTypes.filter((x) => x !== v) : [...draft.helpTypes, v]);
+  const toggle = (v: Interest) =>
+    update("interests", draft.interests.includes(v) ? draft.interests.filter((x) => x !== v) : [...draft.interests, v]);
 
   return (
     <div>
-      <Title subtitle="Pick one or more — students often want a mix.">Choose your preferred option</Title>
-      <div className="space-y-3">
-        {OPTIONS.map((o) => {
-          const active = draft.helpTypes.includes(o.value);
+      <Title>What are you interested in? <span className="font-normal text-gray-500">(pick any)</span></Title>
+      <div className="space-y-2.5">
+        {INTEREST_ORDER.map((v) => {
+          const active = draft.interests.includes(v);
           return (
-            <div key={o.value}>
-              <button type="button" onClick={() => toggle(o.value)}
-                className={cn("flex w-full items-start justify-between gap-3 rounded-2xl border text-left transition",
-                  o.muted ? "px-4 py-3.5" : "px-5 py-5",
-                  active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+            <div key={v}>
+              <button type="button" onClick={() => toggle(v)}
+                className={cn("flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-4 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
                 style={active ? { background: NAVY } : undefined}>
-                <span>
-                  <span className={cn("block font-bold", o.muted ? "text-sm" : "text-base")}>{o.title}</span>
-                  <ul className={cn("mt-1.5 space-y-0.5", o.muted ? "" : "list-disc pl-5")}>
-                    {o.lines.map((line) => {
-                      const isPrice = line.startsWith("$");
-                      return (
-                        <li key={line}
-                          className={cn(o.muted ? "text-xs" : "text-sm", active ? "text-white/85" : "text-gray-600", isPrice && "font-semibold")}
-                          style={isPrice && !active ? { color: RED } : undefined}>
-                          {line}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                <span className="text-[15px] font-semibold">
+                  {INTEREST_LABEL[v]}
+                  {v === "group" && <span className={cn("font-normal", active ? "text-white/70" : "text-gray-500")}> (bring friends)</span>}
                 </span>
-                <span className={cn("mt-1 grid h-5 w-5 shrink-0 place-content-center rounded-md border", active ? "border-white bg-white/15" : "border-gray-300")}>
+                <span className={cn("grid h-5 w-5 shrink-0 place-content-center rounded-md border", active ? "border-white bg-white/15" : "border-gray-300")}>
                   {active && <Check className="h-3.5 w-3.5" />}
                 </span>
               </button>
-              {o.value === "something_else" && active && (
+              {v === "something_else" && active && (
                 <textarea value={draft.somethingElseNote} onChange={(e) => update("somethingElseNote", e.target.value)}
                   maxLength={1000} rows={3} autoFocus
-                  placeholder="What do you have in mind? Tell me what you're looking for and I'll see how I can help."
+                  placeholder="What do you have in mind? Tell me what you're looking for."
                   className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-[16px] focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200" />
               )}
             </div>
           );
         })}
       </div>
-      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={draft.helpTypes.length === 0}>Continue</PrimaryBtn></div>
+      <p className="mt-4 text-sm text-gray-600">I&apos;ll reply within 1 business day with options and exact pricing — no obligation.</p>
+      <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={draft.interests.length === 0}>Continue</PrimaryBtn></div>
     </div>
   );
 }
 
 // ---------- Consolidated request summary ----------
+// Single-select optional pills (tap the active pill again to clear).
+function PillGroup({ label, options, value, onChange, note }: {
+  label: string; options: { value: string; label: string }[]; value: string | null; onChange: (v: string | null) => void; note?: string;
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-semibold" style={{ color: NAVY }}>{label}{note && <span className="ml-1 font-normal text-gray-400">{note}</span>}</p>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => {
+          const active = value === o.value;
+          return (
+            <button key={o.value} type="button" onClick={() => onChange(active ? null : o.value)}
+              className={cn("rounded-full border px-3.5 py-2 text-sm font-medium transition", active ? "border-transparent text-white" : "bg-white text-gray-700 hover:border-gray-300")}
+              style={active ? { background: NAVY } : undefined}>
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
@@ -792,7 +821,7 @@ function RequestSummary({ draft, hideChosenOption }: { draft: Draft; hideChosenO
       <div className="mt-3 space-y-1.5 border-t border-gray-200 pt-3">
         <SummaryRow label="Days to next exam" value={examSummary(draft)} />
         {!hideChosenOption && (
-          <SummaryRow label={draft.helpTypes.length > 1 ? "Chosen options" : "Chosen option"} value={chosenOptionsLabel(draft.helpTypes)} />
+          <SummaryRow label="Interested in" value={interestsLabel(draft.interests)} />
         )}
       </div>
     </div>
@@ -827,7 +856,7 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
       // any "something else" ask live in special_requests; files in attachments.
       const parts = [
         draft.specialInstructions.trim(),
-        draft.helpTypes.includes("something_else") && draft.somethingElseNote.trim()
+        draft.interests.includes("something_else") && draft.somethingElseNote.trim()
           ? `Something else: ${draft.somethingElseNote.trim()}`
           : "",
       ].filter(Boolean);
@@ -842,14 +871,17 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
           courseFamily: draft.courseFamily, courseCode: draft.courseCode.trim() || null, courseName: draft.courseName.trim() || null,
           professorName: draft.professorName.trim() || null, professorLeadId: draft.professorLeadId,
           examDate: examDateFor(draft), examTimeframe: examTimeframeFor(draft),
-          tier: primaryTier(draft.helpTypes),
-          requestedOptions: draft.helpTypes,
+          tier: deriveTier(draft.interests),
+          interests: draft.interests,
+          isAccountingMajor: (draft.isAccountingMajor as "yes" | "no" | "definitely_not" | "not_sure" | null) ?? null,
+          referralSource: (draft.referralSource as "professor" | "friend" | "greek" | "social" | "search" | "other" | null) ?? null,
+          referralSourceDetail: draft.referralSource === "other" ? (draft.referralSourceDetail.trim() || null) : null,
           chapterCountOnly: null,
           requestScope: draft.requestScope,
           requestNotes: null,
           specialInstructions: detail || null,
           attachments: draft.attachments,
-          interestedInGroup: false,
+          interestedInGroup: draft.interests.includes("group"),
           groupSize: null,
           chapters,
         },
@@ -868,6 +900,15 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
 
       <div className="mt-4">
         <ConfirmDetail draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} />
+      </div>
+
+      <div className="mt-6">
+        <PillGroup label="How did you find me?" note="(optional)"
+          options={REFERRAL_OPTIONS} value={draft.referralSource} onChange={(v) => update("referralSource", v)} />
+        {draft.referralSource === "other" && (
+          <Input className="mt-2" value={draft.referralSourceDetail} placeholder="Tell me how"
+            onChange={(e) => update("referralSourceDetail", e.target.value)} />
+        )}
       </div>
 
       <p className="mt-6 text-sm font-bold" style={{ color: NAVY }}>Add your info</p>
@@ -901,7 +942,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 // ---------- Confirmation ----------
 function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResult }) {
   const ref = refCode(draft.campusName, draft.firstName, draft.lastName, result.shortRef);
-  const hideChosen = draft.helpTypes.includes("something_else");
+  const hideChosen = draft.interests.includes("something_else");
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EAEEF6 0%, #FAFAF7 360px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
       <Header />

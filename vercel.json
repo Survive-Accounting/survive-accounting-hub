@@ -1,4 +1,18 @@
 {
   "buildCommand": "bun run build",
-  "framework": null
+  "framework": null,
+  "crons": [
+    {
+      "path": "/api/cron/backup",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-digest",
+      "schedule": "0 13 * * 0"
+    },
+    {
+      "path": "/api/cron/weekly-digest",
+      "schedule": "0 14 * * 0"
+    }
+  ]
 }

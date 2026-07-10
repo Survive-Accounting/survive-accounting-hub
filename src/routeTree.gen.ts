@@ -28,15 +28,20 @@ import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
+import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
+import { Route as OutreachProfintelMetricsRouteImport } from './routes/outreach.profintel-metrics'
 import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
+import { Route as OutreachParentGroupsRouteImport } from './routes/outreach.parent-groups'
 import { Route as OutreachOrdersRouteImport } from './routes/outreach.orders'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
 import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.leadfinder-batch'
 import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
+import { Route as OutreachGreekOrgsRouteImport } from './routes/outreach.greek-orgs'
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
+import { Route as OutreachBackupsRouteImport } from './routes/outreach.backups'
 import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.active-roster'
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
@@ -46,9 +51,14 @@ import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.l
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
+import { Route as OutreachGreekOrgsVendorQueueRouteImport } from './routes/outreach.greek-orgs_.vendor-queue'
+import { Route as OutreachGreekOrgsQueueRouteImport } from './routes/outreach.greek-orgs_.queue'
+import { Route as OutreachGreekOrgsPeopleQueueRouteImport } from './routes/outreach.greek-orgs_.people-queue'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
+import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
+import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -145,15 +155,31 @@ const OutreachResearchRoute = OutreachResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachRedditRoute = OutreachRedditRouteImport.update({
+  id: '/reddit',
+  path: '/reddit',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachProfintelScheduleRoute =
   OutreachProfintelScheduleRouteImport.update({
     id: '/profintel-schedule',
     path: '/profintel-schedule',
     getParentRoute: () => OutreachRoute,
   } as any)
+const OutreachProfintelMetricsRoute =
+  OutreachProfintelMetricsRouteImport.update({
+    id: '/profintel-metrics',
+    path: '/profintel-metrics',
+    getParentRoute: () => OutreachRoute,
+  } as any)
 const OutreachProfintelRoute = OutreachProfintelRouteImport.update({
   id: '/profintel',
   path: '/profintel',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachParentGroupsRoute = OutreachParentGroupsRouteImport.update({
+  id: '/parent-groups',
+  path: '/parent-groups',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachOrdersRoute = OutreachOrdersRouteImport.update({
@@ -177,6 +203,11 @@ const OutreachLandingRoute = OutreachLandingRouteImport.update({
   path: '/landing',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachGreekOrgsRoute = OutreachGreekOrgsRouteImport.update({
+  id: '/greek-orgs',
+  path: '/greek-orgs',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachCampusesRoute = OutreachCampusesRouteImport.update({
   id: '/campuses',
   path: '/campuses',
@@ -190,6 +221,11 @@ const OutreachCampaignTargetsRoute = OutreachCampaignTargetsRouteImport.update({
 const OutreachCampaignMetricsRoute = OutreachCampaignMetricsRouteImport.update({
   id: '/campaign-metrics',
   path: '/campaign-metrics',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachBackupsRoute = OutreachBackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachActiveRosterRoute = OutreachActiveRosterRouteImport.update({
@@ -238,6 +274,23 @@ const OutreachLeadfinderCampusIdRoute =
     path: '/leadfinder/$campusId',
     getParentRoute: () => OutreachRoute,
   } as any)
+const OutreachGreekOrgsVendorQueueRoute =
+  OutreachGreekOrgsVendorQueueRouteImport.update({
+    id: '/greek-orgs_/vendor-queue',
+    path: '/greek-orgs/vendor-queue',
+    getParentRoute: () => OutreachRoute,
+  } as any)
+const OutreachGreekOrgsQueueRoute = OutreachGreekOrgsQueueRouteImport.update({
+  id: '/greek-orgs_/queue',
+  path: '/greek-orgs/queue',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachGreekOrgsPeopleQueueRoute =
+  OutreachGreekOrgsPeopleQueueRouteImport.update({
+    id: '/greek-orgs_/people-queue',
+    path: '/greek-orgs/people-queue',
+    getParentRoute: () => OutreachRoute,
+  } as any)
 const CeqIdTutorRoute = CeqIdTutorRouteImport.update({
   id: '/$id/tutor',
   path: '/$id/tutor',
@@ -254,6 +307,16 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
+const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
+  id: '/api/cron/weekly-digest',
+  path: '/api/cron/weekly-digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
+  id: '/api/cron/backup',
+  path: '/api/cron/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -275,23 +338,33 @@ export interface FileRoutesByFullPath {
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
+  '/outreach/backups': typeof OutreachBackupsRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/parent-groups': typeof OutreachParentGroupsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
+  '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
+  '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
+  '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
@@ -316,23 +389,33 @@ export interface FileRoutesByTo {
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
+  '/outreach/backups': typeof OutreachBackupsRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/parent-groups': typeof OutreachParentGroupsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
+  '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
+  '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
+  '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
@@ -359,23 +442,33 @@ export interface FileRoutesById {
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
+  '/outreach/backups': typeof OutreachBackupsRoute
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
   '/outreach/leadfinder-batch': typeof OutreachLeadfinderBatchRoute
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
+  '/outreach/parent-groups': typeof OutreachParentGroupsRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
+  '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
+  '/outreach/reddit': typeof OutreachRedditRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
+  '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
+  '/outreach/greek-orgs_/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
+  '/outreach/greek-orgs_/queue': typeof OutreachGreekOrgsQueueRoute
+  '/outreach/greek-orgs_/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
@@ -403,23 +496,33 @@ export interface FileRouteTypes {
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
+    | '/outreach/backups'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/greek-orgs'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
+    | '/outreach/parent-groups'
     | '/outreach/profintel'
+    | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach/'
+    | '/api/cron/backup'
+    | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/greek-orgs/people-queue'
+    | '/outreach/greek-orgs/queue'
+    | '/outreach/greek-orgs/vendor-queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
@@ -444,23 +547,33 @@ export interface FileRouteTypes {
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
+    | '/outreach/backups'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/greek-orgs'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
+    | '/outreach/parent-groups'
     | '/outreach/profintel'
+    | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach'
+    | '/api/cron/backup'
+    | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/greek-orgs/people-queue'
+    | '/outreach/greek-orgs/queue'
+    | '/outreach/greek-orgs/vendor-queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
@@ -486,23 +599,33 @@ export interface FileRouteTypes {
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
+    | '/outreach/backups'
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/greek-orgs'
     | '/outreach/landing'
     | '/outreach/leadfinder-batch'
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
+    | '/outreach/parent-groups'
     | '/outreach/profintel'
+    | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
+    | '/outreach/reddit'
     | '/outreach/research'
     | '/outreach/students'
     | '/study_/foundations'
     | '/t/$slug'
     | '/outreach/'
+    | '/api/cron/backup'
+    | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
+    | '/outreach/greek-orgs_/people-queue'
+    | '/outreach/greek-orgs_/queue'
+    | '/outreach/greek-orgs_/vendor-queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
     | '/study_/scenarios/$slug'
@@ -527,6 +650,8 @@ export interface RootRouteChildren {
   OShortRefRoute: typeof OShortRefRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
+  ApiCronBackupRoute: typeof ApiCronBackupRoute
+  ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
 }
@@ -666,6 +791,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachResearchRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/reddit': {
+      id: '/outreach/reddit'
+      path: '/reddit'
+      fullPath: '/outreach/reddit'
+      preLoaderRoute: typeof OutreachRedditRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/profintel-schedule': {
       id: '/outreach/profintel-schedule'
       path: '/profintel-schedule'
@@ -673,11 +805,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachProfintelScheduleRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/profintel-metrics': {
+      id: '/outreach/profintel-metrics'
+      path: '/profintel-metrics'
+      fullPath: '/outreach/profintel-metrics'
+      preLoaderRoute: typeof OutreachProfintelMetricsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/profintel': {
       id: '/outreach/profintel'
       path: '/profintel'
       fullPath: '/outreach/profintel'
       preLoaderRoute: typeof OutreachProfintelRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/parent-groups': {
+      id: '/outreach/parent-groups'
+      path: '/parent-groups'
+      fullPath: '/outreach/parent-groups'
+      preLoaderRoute: typeof OutreachParentGroupsRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/outreach/orders': {
@@ -708,6 +854,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLandingRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/greek-orgs': {
+      id: '/outreach/greek-orgs'
+      path: '/greek-orgs'
+      fullPath: '/outreach/greek-orgs'
+      preLoaderRoute: typeof OutreachGreekOrgsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/campuses': {
       id: '/outreach/campuses'
       path: '/campuses'
@@ -727,6 +880,13 @@ declare module '@tanstack/react-router' {
       path: '/campaign-metrics'
       fullPath: '/outreach/campaign-metrics'
       preLoaderRoute: typeof OutreachCampaignMetricsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/backups': {
+      id: '/outreach/backups'
+      path: '/backups'
+      fullPath: '/outreach/backups'
+      preLoaderRoute: typeof OutreachBackupsRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/outreach/active-roster': {
@@ -792,6 +952,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLeadfinderCampusIdRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/greek-orgs_/vendor-queue': {
+      id: '/outreach/greek-orgs_/vendor-queue'
+      path: '/greek-orgs/vendor-queue'
+      fullPath: '/outreach/greek-orgs/vendor-queue'
+      preLoaderRoute: typeof OutreachGreekOrgsVendorQueueRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/greek-orgs_/queue': {
+      id: '/outreach/greek-orgs_/queue'
+      path: '/greek-orgs/queue'
+      fullPath: '/outreach/greek-orgs/queue'
+      preLoaderRoute: typeof OutreachGreekOrgsQueueRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/greek-orgs_/people-queue': {
+      id: '/outreach/greek-orgs_/people-queue'
+      path: '/greek-orgs/people-queue'
+      fullPath: '/outreach/greek-orgs/people-queue'
+      preLoaderRoute: typeof OutreachGreekOrgsPeopleQueueRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/ceq/$id/tutor': {
       id: '/ceq/$id/tutor'
       path: '/$id/tutor'
@@ -812,6 +993,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/ceq/$courseSlug/$chapterSlug'
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
+    }
+    '/api/cron/weekly-digest': {
+      id: '/api/cron/weekly-digest'
+      path: '/api/cron/weekly-digest'
+      fullPath: '/api/cron/weekly-digest'
+      preLoaderRoute: typeof ApiCronWeeklyDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/backup': {
+      id: '/api/cron/backup'
+      path: '/api/cron/backup'
+      fullPath: '/api/cron/backup'
+      preLoaderRoute: typeof ApiCronBackupRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -854,36 +1049,52 @@ const OrderRouteWithChildren = OrderRoute._addFileChildren(OrderRouteChildren)
 
 interface OutreachRouteChildren {
   OutreachActiveRosterRoute: typeof OutreachActiveRosterRoute
+  OutreachBackupsRoute: typeof OutreachBackupsRoute
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
+  OutreachGreekOrgsRoute: typeof OutreachGreekOrgsRoute
   OutreachLandingRoute: typeof OutreachLandingRoute
   OutreachLeadfinderBatchRoute: typeof OutreachLeadfinderBatchRoute
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
   OutreachOrdersRoute: typeof OutreachOrdersRoute
+  OutreachParentGroupsRoute: typeof OutreachParentGroupsRoute
   OutreachProfintelRoute: typeof OutreachProfintelRoute
+  OutreachProfintelMetricsRoute: typeof OutreachProfintelMetricsRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
+  OutreachRedditRoute: typeof OutreachRedditRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
+  OutreachGreekOrgsPeopleQueueRoute: typeof OutreachGreekOrgsPeopleQueueRoute
+  OutreachGreekOrgsQueueRoute: typeof OutreachGreekOrgsQueueRoute
+  OutreachGreekOrgsVendorQueueRoute: typeof OutreachGreekOrgsVendorQueueRoute
   OutreachLeadfinderCampusIdRoute: typeof OutreachLeadfinderCampusIdRoute
   OutreachLeadfinderIndexRoute: typeof OutreachLeadfinderIndexRoute
 }
 
 const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachActiveRosterRoute: OutreachActiveRosterRoute,
+  OutreachBackupsRoute: OutreachBackupsRoute,
   OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,
+  OutreachGreekOrgsRoute: OutreachGreekOrgsRoute,
   OutreachLandingRoute: OutreachLandingRoute,
   OutreachLeadfinderBatchRoute: OutreachLeadfinderBatchRoute,
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
   OutreachOrdersRoute: OutreachOrdersRoute,
+  OutreachParentGroupsRoute: OutreachParentGroupsRoute,
   OutreachProfintelRoute: OutreachProfintelRoute,
+  OutreachProfintelMetricsRoute: OutreachProfintelMetricsRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
+  OutreachRedditRoute: OutreachRedditRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
   OutreachIndexRoute: OutreachIndexRoute,
+  OutreachGreekOrgsPeopleQueueRoute: OutreachGreekOrgsPeopleQueueRoute,
+  OutreachGreekOrgsQueueRoute: OutreachGreekOrgsQueueRoute,
+  OutreachGreekOrgsVendorQueueRoute: OutreachGreekOrgsVendorQueueRoute,
   OutreachLeadfinderCampusIdRoute: OutreachLeadfinderCampusIdRoute,
   OutreachLeadfinderIndexRoute: OutreachLeadfinderIndexRoute,
 }
@@ -910,6 +1121,8 @@ const rootRouteChildren: RootRouteChildren = {
   OShortRefRoute: OShortRefRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
+  ApiCronBackupRoute: ApiCronBackupRoute,
+  ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
 }

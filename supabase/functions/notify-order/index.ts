@@ -177,7 +177,7 @@ const sendLeeSms = (body: string) => LEE_PHONE ? sendSmsTo(LEE_PHONE, body) : Pr
 function studentConfirmationBody(rec: Record<string, unknown>): string {
   const first = String(rec.first_name ?? "").trim() || "there";
   const course = String(rec.course_code ?? "").trim() || String(rec.course_name ?? "").trim() || "your course";
-  return `Hey ${first}, it's Lee with Survive Accounting — got your exam prep request for ${course}! ` +
+  return `Hey ${first}, it's Lee with Survive Accounting — got your request for ${course}! ` +
     `I'll review it and text you a gameplan within 1 business day. No payment until you approve. Questions? Just reply here.`;
 }
 

@@ -218,9 +218,9 @@ function Tracker({ shortRef, data, onReload }: {
             </div>
           )}
           <div className="mt-3 border-t border-dashed border-gray-300 pt-3 space-y-1.5">
-            <Row label="DUE TODAY" value="$0" strong />
+            <Row label="DUE TODAY" value="Nothing — free to request" strong />
             <Row label="PAYMENT" value="Pay only if you unlock the full Help Video" />
-            <Row label="ESTIMATED PRICE" value="Usually $30–$100 depending on scope" />
+            <Row label="PRICING" value="I’ll text you options and exact pricing within 1 business day" />
             {o.unlock_price_cents != null && <Row label="UNLOCK PRICE" value={money(o.unlock_price_cents)} strong />}
             {o.preview_url && <Row label="PREVIEW" value={<a href={o.preview_url} target="_blank" rel="noreferrer" className="underline" style={{ color: RED }}>Watch →</a>} />}
           </div>
