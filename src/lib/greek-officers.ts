@@ -155,33 +155,69 @@ export interface ParsedPreparer {
   address: string | null;
 }
 
-const PREP_LABEL_RE = /^(firm'?s (name|ein|address)|phone no|ptin|check\b|self-employed|date$)/i;
-
-/** Pull the paid-preparer firm/phone/address out of a pasted 990 render. The
- *  signature block reads "Firm's name / <FIRM> / Firm's EIN / <EIN> / Firm's
- *  address / <lines> / Phone no. / <phone>". First match wins; missing → null. */
+/** Pull the paid-preparer firm/phone/address out of a pasted 990 render. Renders
+ *  vary wildly: a label can sit on its own line with the value on the next line
+ *  ("Firm's name\nWATKINS WARD…"), OR be glued to the token before it AND to its
+ *  own value ("…P00639065Firm's name THE KALOS GROUP LLC",
+ *  "Firm's EIN 26-1257309Firm's addressPO BOX 3117"). So we scan the WHOLE text
+ *  for each label (not line-anchored) and take what follows up to the next label.
+ *  Firm name is a single line; the address may run across lines up to "Phone no." */
 export function extractPreparer(text: string): ParsedPreparer {
-  const lines = toLines(text);
-  let firm: string | null = null;
-  let phone: string | null = null;
-  const addr: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    if (!firm && /^firm'?s name\b/i.test(l)) {
-      const cand = l.replace(/^firm'?s name\s*/i, "").trim() || lines[i + 1] || "";
-      if (cand && !PREP_LABEL_RE.test(cand)) firm = cand;
-    } else if (addr.length === 0 && /^firm'?s address\b/i.test(l)) {
-      const inline = l.replace(/^firm'?s address\s*/i, "").trim();
-      if (inline && !PREP_LABEL_RE.test(inline)) addr.push(inline);
-      for (let j = i + 1; j < lines.length && addr.length < 3; j++) {
-        if (PREP_LABEL_RE.test(lines[j])) break;
-        addr.push(lines[j]);
-      }
-    } else if (!phone && /^phone no\b/i.test(l)) {
-      const cand = `${l} ${lines[i + 1] ?? ""}`;
-      const m = cand.match(/\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/);
-      if (m) phone = m[0].trim();
-    }
-  }
-  return { firm, phone, address: addr.length ? addr.join(", ") : null };
+  const t = (text ?? "").replace(/\r/g, "");
+  const collapse = (s: string) => s.replace(/[ \t]+/g, " ").trim();
+
+  // Firm name: value up to the next label or the end of its line.
+  const firmM = t.match(
+    /firm'?s name[\s:]*([\s\S]*?)(?=\s*(?:firm'?s (?:ein|address)|phone no|ptin\b|preparer'?s)|\n|$)/i,
+  );
+  let firm = firmM ? collapse(firmM[1]) : "";
+  if (/^(?:ein|address|phone|ptin)\b/i.test(firm)) firm = "";
+
+  // Firm address: value (possibly glued + multi-line) up to "Phone no." / next label.
+  const addrM = t.match(
+    /firm'?s address[\s:]*([\s\S]*?)(?=\s*(?:phone no|may the irs|firm'?s (?:name|ein))|\n\s*\n\s*(?:part |form 990)|$)/i,
+  );
+  const addrParts = addrM
+    ? addrM[1]
+        .split(/\n/)
+        .map((s) => collapse(s))
+        .filter(Boolean)
+    : [];
+  const address = addrParts.length ? addrParts.join(", ") : null;
+
+  // Phone: the first phone number after the "Phone no." label.
+  const phoneM = t.match(/phone no\.?[\s:]*(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/i);
+  const phone = phoneM ? phoneM[1].trim() : null;
+
+  return { firm: firm || null, phone, address };
+}
+
+// --- Balance-sheet property (Part X line 10, from the same whole-page paste) ----
+export interface ParsedBalanceSheet {
+  landBuildingsGross: number | null; // 10a: land, buildings & equipment cost basis
+  accumDepreciation: number | null; // 10b: less accumulated depreciation
+}
+
+/** Pull the property cost basis + accumulated depreciation from Form 990 Part X
+ *  (Balance Sheet) line 10 — present in the CORE 990 iframe of a /full render, so
+ *  it comes along with the officers/preparer paste. Renders glue the line marker
+ *  to its value ("…Schedule D10a8,557,507", "…depreciation 10b959,2487,132,391"),
+ *  so we anchor on the label then read ONE comma-grouped number after the marker
+ *  (the `\d{1,3}(?:,\d{3})*` stops at the next number's boundary, not merging the
+ *  glued net-book-value that follows). The buildings-vs-land-vs-equipment SPLIT is
+ *  on Schedule D Part VI (a separate iframe) and stays manual. */
+export function extractBalanceSheet(text: string): ParsedBalanceSheet {
+  const t = (text ?? "").replace(/\r/g, "");
+  const numAfter = (re: RegExp): number | null => {
+    const m = t.match(re);
+    if (!m) return null;
+    const n = Number(m[1].replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    landBuildingsGross: numAfter(
+      /land,?\s*buildings,?\s*and\s*equipment[^\n]*?10a\s*(\d{1,3}(?:,\d{3})*)/i,
+    ),
+    accumDepreciation: numAfter(/accumulated\s+depreciation[^\n]*?10b\s*(\d{1,3}(?:,\d{3})*)/i),
+  };
 }

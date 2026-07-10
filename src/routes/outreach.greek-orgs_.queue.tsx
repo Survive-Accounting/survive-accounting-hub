@@ -26,7 +26,7 @@ import {
   type GreekChapter,
 } from "@/lib/greek-orgs";
 import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
-import { extractPreparer, parseOfficers } from "@/lib/greek-officers";
+import { extractBalanceSheet, extractPreparer, parseOfficers } from "@/lib/greek-officers";
 import { CampusCombobox } from "@/components/outreach/CampusCombobox";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { Button } from "@/components/ui/button";
@@ -181,6 +181,28 @@ function Queue() {
     }
   }
 
+  // Free navigation within the batch (no save) — Prev/Next + jump-to.
+  const goTo = (i: number) => setIdx(Math.max(0, Math.min(queue.length - 1, i)));
+
+  // ← / → arrow keys navigate the deck (ignored while typing in a field).
+  useEffect(() => {
+    if (!started) return;
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"))
+        return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setIdx((i) => Math.max(0, i - 1));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setIdx((i) => Math.min(queue.length - 1, i + 1));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [started, queue.length]);
+
   if (!started) {
     const selectionLabel = activeGroup
       ? activeGroup.label
@@ -285,14 +307,52 @@ function Queue() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
-      {/* progress */}
-      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+      {/* nav */}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <button type="button" onClick={() => setStarted(false)} className="text-primary underline">
           ← batches
         </button>
         <span>
           {activeGroup?.label ?? campusById.get(campusId ?? "")?.name} · {idx + 1} of {queue.length}
         </span>
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-[11px]"
+          disabled={idx === 0}
+          onClick={() => goTo(idx - 1)}
+          title="Previous (←)"
+        >
+          ← Prev
+        </Button>
+        <select
+          value={idx}
+          onChange={(e) => goTo(Number(e.target.value))}
+          title="Jump to a chapter in this batch"
+          className="h-7 max-w-[320px] flex-1 truncate rounded-md border border-input bg-background px-1.5 text-[11px]"
+        >
+          {queue.map((q, i) => (
+            <option key={q.chapterId} value={i}>
+              {i + 1}. {q.chapter.letters ? `${q.chapter.letters} ` : ""}
+              {q.orgName}
+              {q.chapter.chapter_designation ? ` (${q.chapter.chapter_designation})` : ""} ·{" "}
+              {q.campus?.name ?? "—"}
+              {q.status === "enriched" ? " ✓" : ""}
+            </option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-[11px]"
+          disabled={idx >= queue.length - 1}
+          onClick={() => goTo(idx + 1)}
+          title="Next (→)"
+        >
+          Next →
+        </Button>
       </div>
       <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
@@ -323,6 +383,8 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
   const [prepFirm, setPrepFirm] = useState("");
   const [prepPhone, setPrepPhone] = useState("");
   const [prepAddress, setPrepAddress] = useState("");
+  const [landBldg, setLandBldg] = useState(""); // Part X 10a cost basis
+  const [accumDep, setAccumDep] = useState(""); // Part X 10b accumulated depreciation
   const [note, setNote] = useState("");
 
   useEffect(() => {
@@ -339,13 +401,18 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
           .sort((a, b) => (b.tax_year ?? 0) - (a.tax_year ?? 0))
       : [];
 
-  /** Whole-page paste → officers + best-effort preparer auto-fill (editable). */
+  /** Whole-page paste → officers + best-effort preparer + Part X property auto-fill
+   *  (all editable). Fills only blanks so re-pasting doesn't clobber manual edits. */
   function onOfficersPaste(text: string) {
     setOfficersText(text);
     const prep = extractPreparer(text);
     if (prep.firm && !prepFirm.trim()) setPrepFirm(prep.firm);
     if (prep.phone && !prepPhone.trim()) setPrepPhone(prep.phone);
     if (prep.address && !prepAddress.trim()) setPrepAddress(prep.address);
+    const bs = extractBalanceSheet(text);
+    if (bs.landBuildingsGross != null && !landBldg.trim())
+      setLandBldg(String(bs.landBuildingsGross));
+    if (bs.accumDepreciation != null && !accumDep.trim()) setAccumDep(String(bs.accumDepreciation));
   }
 
   /** Save the current paste for its year and clear the box — supports the
@@ -394,16 +461,20 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
   async function confirmNext() {
     setBusy(true);
     try {
-      // Save officers (if pasted) + preparer (onto the latest filing) + mark enriched.
+      // Save officers (if pasted) + preparer + Part X property (onto the latest
+      // filing) + mark enriched.
       const officers = parseOfficers(officersText);
       const y = Number(officerYear);
       if (officers.length && y) await accumulateOfficers(item.chapterId, item.orgId, officers, y);
-      if (latest && (prepFirm.trim() || prepPhone.trim() || prepAddress.trim())) {
-        await updateGreekFiling(latest.id, {
-          preparer_firm: prepFirm.trim() || null,
-          preparer_phone: prepPhone.trim() || null,
-          preparer_address: prepAddress.trim() || null,
-        });
+      const num = (s: string) => (s.trim() ? Number(s.replace(/[^0-9.-]/g, "")) || null : null);
+      const filingPatch: Record<string, unknown> = {};
+      if (prepFirm.trim()) filingPatch.preparer_firm = prepFirm.trim();
+      if (prepPhone.trim()) filingPatch.preparer_phone = prepPhone.trim();
+      if (prepAddress.trim()) filingPatch.preparer_address = prepAddress.trim();
+      if (landBldg.trim()) filingPatch.land_buildings_gross = num(landBldg);
+      if (accumDep.trim()) filingPatch.accum_depreciation = num(accumDep);
+      if (latest && Object.keys(filingPatch).length) {
+        await updateGreekFiling(latest.id, filingPatch);
       }
       await setChapterEnrichment(item.chapterId, "enriched");
       toast.success("Enriched.");
@@ -443,7 +514,18 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, officersText, officerYear, prepFirm, prepPhone, prepAddress, note, latest]);
+  }, [
+    busy,
+    officersText,
+    officerYear,
+    prepFirm,
+    prepPhone,
+    prepAddress,
+    landBldg,
+    accumDep,
+    note,
+    latest,
+  ]);
 
   return (
     <div className="rounded-lg border border-border bg-card/60 p-4 text-sm">
@@ -625,6 +707,18 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
             placeholder="Preparer address"
             className="h-8 text-sm sm:col-span-2"
           />
+          <Input
+            value={landBldg}
+            onChange={(e) => setLandBldg(e.target.value)}
+            placeholder="Land+buildings+equip cost basis (Part X 10a)"
+            className="h-8 text-sm"
+          />
+          <Input
+            value={accumDep}
+            onChange={(e) => setAccumDep(e.target.value)}
+            placeholder="Accumulated depreciation (Part X 10b)"
+            className="h-8 text-sm"
+          />
         </div>
         <div className="mt-2 flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground">Officers (Part VII) for year</span>
@@ -645,22 +739,46 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
           placeholder="Paste the /full render page here (Ctrl+A, Ctrl+C) — or type the Part VII block for scanned filings"
           className="mt-1 min-h-[70px] text-[11px]"
         />
-        {officersText.trim() && (
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">
-              Parsed {parseOfficers(officersText).length} officer(s).
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[11px]"
-              disabled={busy}
-              onClick={saveOfficersPaste}
-            >
-              Save officers for {officerYear || "…"}
-            </Button>
-          </div>
-        )}
+        {officersText.trim() &&
+          (() => {
+            const parsed = parseOfficers(officersText);
+            return (
+              <div className="mt-1.5 rounded-md border border-border bg-background/60 p-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    Review {parsed.length} officer{parsed.length === 1 ? "" : "s"} — then Save, or
+                    Confirm/Skip below
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 shrink-0 px-2 text-[11px]"
+                    disabled={busy || parsed.length === 0}
+                    onClick={saveOfficersPaste}
+                  >
+                    Save officers for {officerYear || "…"}
+                  </Button>
+                </div>
+                {parsed.length > 0 ? (
+                  <ul className="max-h-44 space-y-0.5 overflow-y-auto pr-1 text-[11px]">
+                    {parsed.map((o, i) => (
+                      <li key={i} className="flex items-baseline gap-1.5">
+                        <span className="w-4 shrink-0 text-right text-[10px] text-muted-foreground">
+                          {i + 1}
+                        </span>
+                        <span className="font-medium">{o.name}</span>
+                        <span className="text-muted-foreground">— {o.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">
+                    No (name, title) pairs recognized yet — check the paste.
+                  </span>
+                )}
+              </div>
+            );
+          })()}
       </div>
 
       {/* STEP 3 */}
