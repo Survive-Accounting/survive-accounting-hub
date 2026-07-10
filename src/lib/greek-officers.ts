@@ -191,3 +191,33 @@ export function extractPreparer(text: string): ParsedPreparer {
 
   return { firm: firm || null, phone, address };
 }
+
+// --- Balance-sheet property (Part X line 10, from the same whole-page paste) ----
+export interface ParsedBalanceSheet {
+  landBuildingsGross: number | null; // 10a: land, buildings & equipment cost basis
+  accumDepreciation: number | null; // 10b: less accumulated depreciation
+}
+
+/** Pull the property cost basis + accumulated depreciation from Form 990 Part X
+ *  (Balance Sheet) line 10 — present in the CORE 990 iframe of a /full render, so
+ *  it comes along with the officers/preparer paste. Renders glue the line marker
+ *  to its value ("…Schedule D10a8,557,507", "…depreciation 10b959,2487,132,391"),
+ *  so we anchor on the label then read ONE comma-grouped number after the marker
+ *  (the `\d{1,3}(?:,\d{3})*` stops at the next number's boundary, not merging the
+ *  glued net-book-value that follows). The buildings-vs-land-vs-equipment SPLIT is
+ *  on Schedule D Part VI (a separate iframe) and stays manual. */
+export function extractBalanceSheet(text: string): ParsedBalanceSheet {
+  const t = (text ?? "").replace(/\r/g, "");
+  const numAfter = (re: RegExp): number | null => {
+    const m = t.match(re);
+    if (!m) return null;
+    const n = Number(m[1].replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    landBuildingsGross: numAfter(
+      /land,?\s*buildings,?\s*and\s*equipment[^\n]*?10a\s*(\d{1,3}(?:,\d{3})*)/i,
+    ),
+    accumDepreciation: numAfter(/accumulated\s+depreciation[^\n]*?10b\s*(\d{1,3}(?:,\d{3})*)/i),
+  };
+}

@@ -26,7 +26,7 @@ import {
   type GreekChapter,
 } from "@/lib/greek-orgs";
 import { enrichGreekOrgFilings } from "@/lib/greek-orgs.functions";
-import { extractPreparer, parseOfficers } from "@/lib/greek-officers";
+import { extractBalanceSheet, extractPreparer, parseOfficers } from "@/lib/greek-officers";
 import { CampusCombobox } from "@/components/outreach/CampusCombobox";
 import { FilterPill } from "@/components/outreach/FilterPill";
 import { Button } from "@/components/ui/button";
@@ -383,6 +383,8 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
   const [prepFirm, setPrepFirm] = useState("");
   const [prepPhone, setPrepPhone] = useState("");
   const [prepAddress, setPrepAddress] = useState("");
+  const [landBldg, setLandBldg] = useState(""); // Part X 10a cost basis
+  const [accumDep, setAccumDep] = useState(""); // Part X 10b accumulated depreciation
   const [note, setNote] = useState("");
 
   useEffect(() => {
@@ -399,13 +401,18 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
           .sort((a, b) => (b.tax_year ?? 0) - (a.tax_year ?? 0))
       : [];
 
-  /** Whole-page paste → officers + best-effort preparer auto-fill (editable). */
+  /** Whole-page paste → officers + best-effort preparer + Part X property auto-fill
+   *  (all editable). Fills only blanks so re-pasting doesn't clobber manual edits. */
   function onOfficersPaste(text: string) {
     setOfficersText(text);
     const prep = extractPreparer(text);
     if (prep.firm && !prepFirm.trim()) setPrepFirm(prep.firm);
     if (prep.phone && !prepPhone.trim()) setPrepPhone(prep.phone);
     if (prep.address && !prepAddress.trim()) setPrepAddress(prep.address);
+    const bs = extractBalanceSheet(text);
+    if (bs.landBuildingsGross != null && !landBldg.trim())
+      setLandBldg(String(bs.landBuildingsGross));
+    if (bs.accumDepreciation != null && !accumDep.trim()) setAccumDep(String(bs.accumDepreciation));
   }
 
   /** Save the current paste for its year and clear the box — supports the
@@ -454,16 +461,20 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
   async function confirmNext() {
     setBusy(true);
     try {
-      // Save officers (if pasted) + preparer (onto the latest filing) + mark enriched.
+      // Save officers (if pasted) + preparer + Part X property (onto the latest
+      // filing) + mark enriched.
       const officers = parseOfficers(officersText);
       const y = Number(officerYear);
       if (officers.length && y) await accumulateOfficers(item.chapterId, item.orgId, officers, y);
-      if (latest && (prepFirm.trim() || prepPhone.trim() || prepAddress.trim())) {
-        await updateGreekFiling(latest.id, {
-          preparer_firm: prepFirm.trim() || null,
-          preparer_phone: prepPhone.trim() || null,
-          preparer_address: prepAddress.trim() || null,
-        });
+      const num = (s: string) => (s.trim() ? Number(s.replace(/[^0-9.-]/g, "")) || null : null);
+      const filingPatch: Record<string, unknown> = {};
+      if (prepFirm.trim()) filingPatch.preparer_firm = prepFirm.trim();
+      if (prepPhone.trim()) filingPatch.preparer_phone = prepPhone.trim();
+      if (prepAddress.trim()) filingPatch.preparer_address = prepAddress.trim();
+      if (landBldg.trim()) filingPatch.land_buildings_gross = num(landBldg);
+      if (accumDep.trim()) filingPatch.accum_depreciation = num(accumDep);
+      if (latest && Object.keys(filingPatch).length) {
+        await updateGreekFiling(latest.id, filingPatch);
       }
       await setChapterEnrichment(item.chapterId, "enriched");
       toast.success("Enriched.");
@@ -503,7 +514,18 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, officersText, officerYear, prepFirm, prepPhone, prepAddress, note, latest]);
+  }, [
+    busy,
+    officersText,
+    officerYear,
+    prepFirm,
+    prepPhone,
+    prepAddress,
+    landBldg,
+    accumDep,
+    note,
+    latest,
+  ]);
 
   return (
     <div className="rounded-lg border border-border bg-card/60 p-4 text-sm">
@@ -684,6 +706,18 @@ function ChapterCard({ item, onDone }: { item: QueueItem; onDone: () => void }) 
             onChange={(e) => setPrepAddress(e.target.value)}
             placeholder="Preparer address"
             className="h-8 text-sm sm:col-span-2"
+          />
+          <Input
+            value={landBldg}
+            onChange={(e) => setLandBldg(e.target.value)}
+            placeholder="Land+buildings+equip cost basis (Part X 10a)"
+            className="h-8 text-sm"
+          />
+          <Input
+            value={accumDep}
+            onChange={(e) => setAccumDep(e.target.value)}
+            placeholder="Accumulated depreciation (Part X 10b)"
+            className="h-8 text-sm"
           />
         </div>
         <div className="mt-2 flex items-center gap-2">

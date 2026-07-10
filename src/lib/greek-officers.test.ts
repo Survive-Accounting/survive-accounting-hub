@@ -1,6 +1,6 @@
 // Unit tests for the 990 Part VII officers parser. Run with `bun test`.
 import { test, expect } from "bun:test";
-import { extractPreparer, parseOfficers } from "./greek-officers";
+import { extractBalanceSheet, extractPreparer, parseOfficers } from "./greek-officers";
 
 // Stacked format (typical when copied out of a 990 PDF / ProPublica text view).
 const STACKED = `Part VII
@@ -300,4 +300,24 @@ test("extractPreparer handles labels+values glued mid-line", () => {
   expect(p.firm).toBe("THE KALOS GROUP LLC");
   expect(p.phone).toBe("(659) 734-2900");
   expect(p.address).toBe("PO BOX 3117, TUSCALOOSA, AL354033117");
+});
+
+// Part X line 10 in a real render — the marker is glued to its value, and the
+// net-book-value columns are glued to the accum-dep number ("10b959,2487,132,391").
+const BALANCE_SHEET = `9Prepaid expenses and deferred charges ......80,090975,376
+10aLand, buildings, and equipment: cost or other basis. Complete Part VI of Schedule D10a8,557,507
+bLess: accumulated depreciation 10b959,2487,132,39110c7,598,259
+11Investments—publicly traded securities . 11 `;
+
+test("extractBalanceSheet pulls cost basis + accumulated depreciation", () => {
+  const b = extractBalanceSheet(BALANCE_SHEET);
+  expect(b.landBuildingsGross).toBe(8557507);
+  expect(b.accumDepreciation).toBe(959248); // NOT merged with the glued 7,132,391
+});
+
+test("extractBalanceSheet is null when line 10 is absent", () => {
+  expect(extractBalanceSheet("11 Investments 12 Intangibles")).toEqual({
+    landBuildingsGross: null,
+    accumDepreciation: null,
+  });
 });
