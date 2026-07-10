@@ -14,6 +14,7 @@ import {
   ReactFlowProvider,
   useNodes,
   useReactFlow,
+  useStore,
   type NodeProps,
   type Viewport,
 } from "@xyflow/react";
@@ -35,6 +36,7 @@ import { cardId, type BgMode, type CardData, type CardNode, type JeCard, type Sc
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
+import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -65,7 +67,7 @@ function ZoneNode({ id, data, selected }: NodeProps) {
     >
       <div className="px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.pinkSoft }}>
         <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Zone" />
-        <button className="nodrag ml-2 text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
+        <button className="nodrag zone-actions ml-2 text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
           ✕
         </button>
       </div>
@@ -141,6 +143,9 @@ function PresentCanvas() {
   const [bg, setBg] = useState<BgMode>("flat");
   const [minimap, setMinimap] = useState(true);
   const [clean, setClean] = useState(false);
+  const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
+  // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
+  const lowZoom = useStore((s) => s.transform[2] < 0.75);
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
@@ -345,6 +350,8 @@ function PresentCanvas() {
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       if (e.key === "c" || e.key === "C") {
         setClean((v) => !v);
+      } else if (e.key === "v" || e.key === "V") {
+        setFilm((v) => !v); // film mode: clean screen + at-rest chrome off + spotlight/ripple
       } else if (e.key === "Escape") {
         setLoadOpen(false);
         rf.fitView({ duration: 500, padding: 0.15 });
@@ -392,10 +399,26 @@ function PresentCanvas() {
     [rf],
   );
 
-  const chrome = !clean;
+  const chrome = !clean && !film;
 
   return (
-    <div className="fixed inset-0" style={{ background: NEON.bg }}>
+    <div className={`fixed inset-0 ${film ? "film-mode" : ""}`} style={{ background: NEON.bg }}>
+      <style>{FILM_MODE_CSS}</style>
+      {film && (
+        <>
+          <CursorSpotlight />
+          <ClickRipples />
+        </>
+      )}
+      {/* Type floor — prep warning, hidden while actually filming */}
+      {lowZoom && !film && (
+        <div
+          className="absolute bottom-12 left-1/2 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold"
+          style={{ background: "rgba(255,210,63,0.14)", border: "1px solid rgba(255,210,63,0.55)", color: NEON.yellow }}
+        >
+          zoom &lt; 75% — text may be illegible on camera
+        </div>
+      )}
       {/* looping video background (low opacity, filming-optional) */}
       {bg === "video" && (
         <video
