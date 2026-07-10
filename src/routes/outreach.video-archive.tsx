@@ -49,6 +49,8 @@ function VideoArchivePage() {
   const [loading, setLoading] = useState(true);
   const [watchUrl, setWatchUrl] = useState<string | null>(null);
   const [watchTitle, setWatchTitle] = useState<string>("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -77,6 +79,18 @@ function VideoArchivePage() {
     }
     return Array.from(g.entries());
   }, [scenarios]);
+
+  // Paginate + filter so we never render 1,327 rows × a 200-option <select> at
+  // once (that many DOM nodes freezes the browser). Only the current page mounts.
+  const PAGE_SIZE = 50;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => (r.title ?? r.source_video_id).toLowerCase().includes(q));
+  }, [rows, query]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const clampedPage = Math.min(page, pageCount - 1);
+  const pageRows = filtered.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE);
 
   const onAssign = async (id: string, slug: string) => {
     try {
@@ -109,9 +123,21 @@ function VideoArchivePage() {
             Vimeo → Mux migration. Signed playback only until you flip a video public.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Search titles…"
+            className="h-8 w-52 rounded-md border border-input bg-background px-2 text-sm"
+          />
+          <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
       </div>
 
       {loading && rows.length === 0 ? (
@@ -136,7 +162,7 @@ function VideoArchivePage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {pageRows.map((r) => (
                 <tr key={r.id} className="border-b border-border/60 align-top last:border-0">
                   <td className="px-3 py-2">
                     <div className="font-medium">{r.title ?? r.source_video_id}</div>
@@ -193,6 +219,35 @@ function VideoArchivePage() {
               ))}
             </tbody>
           </table>
+          <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+            <span>
+              {filtered.length === 0
+                ? "No matches"
+                : `${clampedPage * PAGE_SIZE + 1}–${Math.min((clampedPage + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length}`}
+              {query && ` (filtered from ${rows.length})`}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={clampedPage <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Prev
+              </Button>
+              <span>
+                Page {clampedPage + 1} / {pageCount}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={clampedPage >= pageCount - 1}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
