@@ -200,6 +200,37 @@ export const snapshotScene = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---- Mux signed playback (ENV-GATED) ----------------------------------------
+// video_archive playback IDs use Mux's SIGNED policy (public URLs 403). This fn
+// mints a playback token when the signing env vars exist. HUMAN ACTION until
+// then: create a signing key in the Mux dashboard (Settings → Signing Keys) and
+// set MUX_SIGNING_KEY_ID + MUX_SIGNING_PRIVATE_KEY (base64 .pem as downloaded)
+// in .env + Vercel. The video card plays PUBLIC playback IDs fine meanwhile.
+const b64url = (b: Buffer | string) =>
+  (typeof b === "string" ? Buffer.from(b) : b).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+const signMuxSchema = z.object({ playbackId: z.string().min(8).max(120) });
+
+export const signMuxPlayback = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => signMuxSchema.parse(d))
+  .handler(async ({ data }): Promise<{ token: string }> => {
+    const keyId = process.env.MUX_SIGNING_KEY_ID;
+    const pkB64 = process.env.MUX_SIGNING_PRIVATE_KEY;
+    if (!keyId || !pkB64) {
+      throw new Error(
+        "MUX signing not configured — create a signing key in the Mux dashboard and set MUX_SIGNING_KEY_ID + MUX_SIGNING_PRIVATE_KEY. Public playback IDs play without it.",
+      );
+    }
+    const { createSign } = await import("node:crypto");
+    const privateKey = Buffer.from(pkB64, "base64").toString("utf8");
+    const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT", kid: keyId }));
+    const payload = b64url(JSON.stringify({ sub: data.playbackId, aud: "v", exp: Math.floor(Date.now() / 1000) + 6 * 3600 }));
+    const signer = createSign("RSA-SHA256");
+    signer.update(`${header}.${payload}`);
+    const signature = b64url(signer.sign(privateKey));
+    return { token: `${header}.${payload}.${signature}` };
+  });
+
 export interface SnapshotListRow {
   id: string;
   taken_at: string;
