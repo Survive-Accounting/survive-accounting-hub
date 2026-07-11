@@ -41,6 +41,7 @@ import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
+import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
@@ -447,14 +448,11 @@ function PresentCanvas() {
     const vp = rf.getViewport();
     return {
       name: sceneName,
-      // strip the transient _arrowPending flag; edges + schema_version ride along
+      // sanitize: transient state (selected/dragging/_arrowPending) must not round-trip —
+      // persisted multi-selection made loaded cards drag as a group (S2.0 bug)
       nodes_json: JSON.stringify({
         schema_version: 1,
-        nodes: rf.getNodes().map((n) => {
-          const { _arrowPending, ...data } = n.data as Record<string, unknown>;
-          void _arrowPending;
-          return { ...n, data };
-        }),
+        nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
       }),
       viewport_json: JSON.stringify(vp),
@@ -495,7 +493,8 @@ function PresentCanvas() {
       }
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
-      rf.setNodes((nj.nodes ?? []) as CardNode[]);
+      // sanitize on LOAD too: scenes saved before the S2.0 fix heal here
+      rf.setNodes(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]));
       rf.setEdges((nj.edges ?? []) as never[]);
       setSceneName(payload.name);
       setSceneId(id);
