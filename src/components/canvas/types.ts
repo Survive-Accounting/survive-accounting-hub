@@ -122,7 +122,12 @@ export interface MemorizeCard extends CardBase {
 // ---- Note ----
 export interface NoteCard extends CardBase {
   kind: "note";
+  /** Plain text (kept in sync for outlines/search; legacy scenes only have this). */
   body: string;
+  /** TipTap rich content; wins over body when present. */
+  bodyHtml?: string;
+  /** Card-level font step (Ctrl+Shift+> / <). */
+  fontSize?: number;
   color: number; // index into NOTE_COLORS
 }
 

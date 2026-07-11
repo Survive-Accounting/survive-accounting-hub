@@ -277,53 +277,7 @@ export function MemorizeCardNode({ id, data, selected }: NodeProps) {
   );
 }
 
-// ============================== NOTE ==============================
-// Chromeless (no BaseCard header) — marker-style freeform note, three neon colors.
-export function NoteCardNode({ id, data, selected }: NodeProps) {
-  const d = data as unknown as NoteCard;
-  const { update, remove, toFront } = useCardActions(id);
-  const editing = !!d.editMode;
-  const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
-  const arrowPending = !!(data as unknown as Record<string, unknown>)._arrowPending;
-
-  return (
-    <div
-      onPointerDownCapture={toFront}
-      className="rounded-lg p-3"
-      style={{
-        width: d.w ?? 240,
-        minHeight: d.h ?? 90,
-        background: c.bg,
-        border: `1.5px solid ${arrowPending ? NEON.cyan : c.border}`,
-        boxShadow: arrowPending ? `0 0 0 2px ${NEON.cyan}, 0 0 24px -4px ${NEON.cyan}` : selected ? `0 0 0 1px ${c.ink}, 0 12px 26px -12px rgba(0,0,0,0.55)` : "0 10px 24px -14px rgba(0,0,0,0.5)",
-        color: c.ink,
-        fontFamily: "'Comic Sans MS', 'Segoe Print', cursive",
-      }}
-    >
-      {/* invisible arrow anchors (chromeless card — BaseCard adds these for the rest) */}
-      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
-      <div className="flex items-start gap-1">
-        <div className="min-w-0 flex-1 text-[15px] leading-snug">
-          <EditableText value={d.body} onChange={(v) => update({ body: v })} editing={editing} multiline placeholder="write…" autoFocus={!d.body} />
-        </div>
-        <div className="flex shrink-0 flex-col gap-1">
-          {NOTE_COLORS.map((nc, i) => (
-            <button
-              key={nc.name}
-              className="nodrag h-3 w-3 rounded-full"
-              style={{ background: nc.ink, opacity: i === d.color ? 1 : 0.35 }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => update({ color: i })}
-              title={nc.name}
-            />
-          ))}
-          <IconBtn title="Delete" danger onClick={remove}><Trash2 className="h-3 w-3" /></IconBtn>
-        </div>
-      </div>
-    </div>
-  );
-}
+// NOTE: the note card moved to NoteCardNode.tsx (TipTap rich text).
 
 // ============================== VIDEO ==============================
 export function VideoCardNode({ id, data, selected }: NodeProps) {
