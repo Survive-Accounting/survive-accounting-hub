@@ -16,6 +16,8 @@ import {
   useNodes,
   useReactFlow,
   useStore,
+  useStoreApi,
+  useUpdateNodeInternals,
   type NodeProps,
   type Viewport,
 } from "@xyflow/react";
@@ -274,15 +276,18 @@ function PresentCanvas() {
       if (!src) {
         rf.updateNodeData(node.id, { _arrowPending: true });
       } else if (src !== node.id) {
-        rf.addEdges([
-          {
-            id: cardId("edge"),
-            source: src,
-            target: node.id,
-            style: { stroke: NEON.pink, strokeWidth: 2.5 },
-            markerEnd: { type: MarkerType.ArrowClosed, color: NEON.pink, width: 18, height: 18 },
-          },
-        ]);
+        const edge = {
+          id: cardId("edge"),
+          source: src,
+          target: node.id,
+          style: { stroke: NEON.pink, strokeWidth: 2.5 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: NEON.pink, width: 18, height: 18 },
+        };
+        bus.dispatch({
+          label: "connect cards",
+          do: () => rf.addEdges([{ ...edge }]),
+          undo: () => rf.setEdges((eds) => eds.filter((e) => e.id !== edge.id)),
+        });
         clearArrowPending();
       } else {
         clearArrowPending(); // mod+click the pending card again = cancel
@@ -334,6 +339,34 @@ function PresentCanvas() {
     },
     [rf, dealFaceDown],
   );
+
+  // DEV probe: drive the React Flow instance from the console (import.meta.env.DEV only).
+  // __rfStore lets headless tests force node measurement synchronously — hidden tabs
+  // freeze requestAnimationFrame, which starves ResizeObserver AND the public
+  // useUpdateNodeInternals hook (both deliver on frames).
+  const storeApi = useStoreApi();
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as unknown as Record<string, unknown>).__rf = rf;
+      (window as unknown as Record<string, unknown>).__rfStore = storeApi;
+    }
+  }, [rf, storeApi]);
+
+  // ARROWS ROOT CAUSE: React Flow only renders edges between MEASURED nodes
+  // (measured.width set + handleBounds registered). Measurement rides a
+  // ResizeObserver that can lag or sit inert (observed: headless panes; slow
+  // tabs). Nodes here read offsetWidth fine — so when a node stays unmeasured
+  // after render, force updateNodeInternals for it. No-op when RO already did
+  // its job (the effect finds nothing unmeasured and stops).
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    const unmeasured = liveNodes
+      .filter((n) => !n.hidden && !(n.measured && typeof n.measured.width === "number"))
+      .map((n) => n.id);
+    if (unmeasured.length === 0) return;
+    const raf = requestAnimationFrame(() => updateNodeInternals(unmeasured));
+    return () => cancelAnimationFrame(raf);
+  }, [liveNodes, updateNodeInternals]);
 
   // Last known pointer position (screen coords) — quick-spawn drops cards at the cursor.
   const lastMouse = useRef<{ x: number; y: number } | null>(null);
@@ -804,6 +837,31 @@ function PresentCanvas() {
   );
   useKeymap(bindings);
 
+  // Delete-key removals happen natively inside React Flow; record them on the
+  // bus AFTER the fact so Ctrl+Z restores the exact nodes + edges. dispatch()
+  // re-runs do(), which re-filters the already-deleted ids — a safe no-op.
+  const onDelete = useCallback(
+    ({ nodes, edges }: { nodes: CardNode[]; edges: { id: string; source: string; target: string }[] }) => {
+      if (nodes.length === 0 && edges.length === 0) return;
+      const nodesSnap = structuredClone(nodes);
+      const edgesSnap = structuredClone(edges);
+      const nIds = new Set(nodesSnap.map((n) => n.id));
+      const eIds = new Set(edgesSnap.map((e) => e.id));
+      bus.dispatch({
+        label: "delete selection",
+        do: () => {
+          rf.setNodes((nds) => nds.filter((n) => !nIds.has(n.id)));
+          rf.setEdges((eds) => eds.filter((e) => !eIds.has(e.id)));
+        },
+        undo: () => {
+          if (nodesSnap.length) rf.addNodes(structuredClone(nodesSnap));
+          if (edgesSnap.length) rf.setEdges((eds) => [...eds, ...structuredClone(edgesSnap)]);
+        },
+      });
+    },
+    [rf],
+  );
+
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
     (_e: unknown, node: CardNode) => {
@@ -856,6 +914,7 @@ function PresentCanvas() {
         defaultEdges={[]}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
+        onDelete={onDelete}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodeClick={onNodeClick}
         multiSelectionKeyCode="Shift" // free Ctrl/Cmd+click for the arrow gesture
