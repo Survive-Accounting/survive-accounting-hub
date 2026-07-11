@@ -26,6 +26,7 @@ const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
   { kind: "note", label: "Note" },
   { kind: "video", label: "Video (Mux)" },
   { kind: "image", label: "Image" },
+  { kind: "legend", label: "Legend card" },
 ];
 
 const KIND_FILTERS: (CardKind | "all")[] = ["all", "je", "schedule", "computation", "taccount", "ceq", "memorize"];

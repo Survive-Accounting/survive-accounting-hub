@@ -13,7 +13,8 @@ export type CardKind =
   | "note"
   | "video"
   | "list"
-  | "image";
+  | "image"
+  | "legend";
 
 /** Shared across every card, merged into node.data. */
 export interface CardBase {
@@ -138,6 +139,19 @@ export interface ImageCard extends CardBase {
   caption?: string;
 }
 
+// ---- Legend (trading card: Pacioli, companies, key concepts — the collectible) ----
+export interface LegendCard extends CardBase {
+  kind: "legend";
+  name: string;
+  year: string; // gold chip next to the name ("1494")
+  imageUrl: string; // portrait window (canvas-media)
+  typeLine: string; // "Legend · Father of accounting"
+  facts: string[]; // 1–3 fact lines in the cream rules box
+  flavor: string; // italic flavor line
+  setLabel: string; // footer ("Legends · 001")
+  cornerChip: string; // editable corner stat (default "DR = CR")
+}
+
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----
 export interface ListRow {
   id: string;
@@ -165,7 +179,8 @@ export type CardData =
   | NoteCard
   | VideoCard
   | ListCard
-  | ImageCard;
+  | ImageCard
+  | LegendCard;
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 

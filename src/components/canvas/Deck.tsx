@@ -25,6 +25,7 @@ const KIND_DOT: Record<string, string> = {
   video: NEON.pinkSoft,
   list: NEON.green,
   image: NEON.cyan,
+  legend: NEON.yellow,
 };
 
 /** Deck entries in deal order (stageOrder asc; legacy minimized cards ride along). */

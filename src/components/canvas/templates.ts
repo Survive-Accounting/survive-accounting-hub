@@ -33,6 +33,18 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "video", playbackId: "", editMode: true };
     case "image":
       return { kind: "image", url: "", fit: "contain", caption: "", editMode: true };
+    case "legend":
+      return {
+        kind: "legend",
+        name: "",
+        year: "",
+        imageUrl: "",
+        typeLine: "",
+        facts: [""],
+        flavor: "",
+        setLabel: "Legends · 001",
+        cornerChip: "DR = CR",
+      };
     case "list":
       return {
         kind: "list",
@@ -144,4 +156,5 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   video: "Video",
   list: "List",
   image: "Image",
+  legend: "Legend card",
 };

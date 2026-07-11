@@ -36,6 +36,7 @@ import {
 } from "@/components/canvas/cards/OtherCards";
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
 import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
+import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
 import { cardId, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
@@ -100,6 +101,7 @@ const nodeTypes = {
   video: withFaceDown(VideoCardNode),
   list: withFaceDown(ListCardNode),
   image: withFaceDown(ImageCardNode),
+  legend: withFaceDown(LegendCardNode),
   zone: ZoneNode,
 };
 
