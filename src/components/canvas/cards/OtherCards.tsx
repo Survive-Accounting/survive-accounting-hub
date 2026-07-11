@@ -1,6 +1,6 @@
 // The simpler card types: T-account (live balance), Computation (step reveal),
 // CEQ (distractor feedback), Memorize (kind badge), Note (neon marker), Video (Mux).
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import type { NodeProps } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
@@ -11,10 +11,8 @@ import {
   type CeqCard,
   type ComputationCard,
   type MemorizeCard,
-  type NoteCard,
   type TAccountCard,
   type TAccountEntry,
-  type VideoCard,
 } from "../types";
 
 // ============================== T-ACCOUNT ==============================
@@ -278,37 +276,4 @@ export function MemorizeCardNode({ id, data, selected }: NodeProps) {
 }
 
 // NOTE: the note card moved to NoteCardNode.tsx (TipTap rich text).
-
-// ============================== VIDEO ==============================
-export function VideoCardNode({ id, data, selected }: NodeProps) {
-  const d = data as unknown as VideoCard;
-  const { update } = useCardActions(id);
-  const editing = !!d.editMode;
-
-  return (
-    <BaseCard id={id} data={d} selected={selected} accent={NEON.pinkSoft}>
-      {editing || !d.playbackId ? (
-        <label className="block text-[11px]" style={{ color: PAPER.inkMuted }}>
-          Mux playback ID
-          <input
-            className="nodrag mt-0.5 w-full rounded bg-black/5 px-1.5 py-1 text-[12px] outline-none ring-1 ring-[rgba(20,33,61,0.30)]"
-            defaultValue={d.playbackId}
-            placeholder="e.g. DS00Spx1CV902MCtPj5WknGlR102V5HFkDe"
-            onBlur={(e) => update({ playbackId: e.target.value.trim() })}
-            onKeyDown={(e) => e.stopPropagation()}
-          />
-        </label>
-      ) : null}
-      {d.playbackId && (
-        <video
-          className="nodrag mt-1 w-full rounded"
-          style={{ minWidth: 280 }}
-          controls
-          playsInline
-          src={`https://stream.mux.com/${d.playbackId}/high.mp4`}
-          poster={`https://image.mux.com/${d.playbackId}/thumbnail.jpg?time=1`}
-        />
-      )}
-    </BaseCard>
-  );
-}
+// NOTE: the video card moved to VideoCardNode.tsx (HLS.js + Mux signed playback).

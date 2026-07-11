@@ -200,16 +200,19 @@ export const snapshotScene = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ---- Mux signed playback (ENV-GATED) ----------------------------------------
-// video_archive playback IDs use Mux's SIGNED policy (public URLs 403). This fn
-// mints a playback token when the signing env vars exist. HUMAN ACTION until
-// then: create a signing key in the Mux dashboard (Settings → Signing Keys) and
-// set MUX_SIGNING_KEY_ID + MUX_SIGNING_PRIVATE_KEY (base64 .pem as downloaded)
-// in .env + Vercel. The video card plays PUBLIC playback IDs fine meanwhile.
+// ---- Mux signed playback ------------------------------------------------
+// video_archive playback IDs use Mux's SIGNED policy (public URLs 403; confirmed
+// against live Mux: unsigned thumbnail/mp4/HLS all 403, signed HLS returns 200
+// with a real manifest). Mints a short-lived per-resource token — "v" for HLS
+// video, "t" for thumbnails (Mux checks the audience claim per resource type;
+// a "v" token 403s on image.mux.com). Signing key lives in
+// MUX_SIGNING_KEY_ID + MUX_SIGNING_PRIVATE_KEY (base64 .pem); public playback
+// IDs still play unsigned regardless (the video card only requests a token
+// when the initial unsigned load fails).
 const b64url = (b: Buffer | string) =>
   (typeof b === "string" ? Buffer.from(b) : b).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-const signMuxSchema = z.object({ playbackId: z.string().min(8).max(120) });
+const signMuxSchema = z.object({ playbackId: z.string().min(8).max(120), aud: z.enum(["v", "t", "s", "g"]).default("v") });
 
 export const signMuxPlayback = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => signMuxSchema.parse(d))
@@ -224,7 +227,7 @@ export const signMuxPlayback = createServerFn({ method: "POST" })
     const { createSign } = await import("node:crypto");
     const privateKey = Buffer.from(pkB64, "base64").toString("utf8");
     const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT", kid: keyId }));
-    const payload = b64url(JSON.stringify({ sub: data.playbackId, aud: "v", exp: Math.floor(Date.now() / 1000) + 6 * 3600 }));
+    const payload = b64url(JSON.stringify({ sub: data.playbackId, aud: data.aud, exp: Math.floor(Date.now() / 1000) + 6 * 3600 }));
     const signer = createSign("RSA-SHA256");
     signer.update(`${header}.${payload}`);
     const signature = b64url(signer.sign(privateKey));

@@ -34,8 +34,9 @@ import { Palette } from "@/components/canvas/Palette";
 import { JeCardNode } from "@/components/canvas/cards/JeCardNode";
 import { ScheduleCardNode } from "@/components/canvas/cards/ScheduleCardNode";
 import {
-  CeqCardNode, ComputationCardNode, MemorizeCardNode, TAccountCardNode, VideoCardNode,
+  CeqCardNode, ComputationCardNode, MemorizeCardNode, TAccountCardNode,
 } from "@/components/canvas/cards/OtherCards";
+import { VideoCardNode } from "@/components/canvas/cards/VideoCardNode";
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
 import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
 import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
