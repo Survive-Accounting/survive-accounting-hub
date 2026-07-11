@@ -34,12 +34,13 @@ import { Palette } from "@/components/canvas/Palette";
 import { JeCardNode } from "@/components/canvas/cards/JeCardNode";
 import { ScheduleCardNode } from "@/components/canvas/cards/ScheduleCardNode";
 import {
-  CeqCardNode, ComputationCardNode, MemorizeCardNode, NoteCardNode, TAccountCardNode, VideoCardNode,
+  CeqCardNode, ComputationCardNode, MemorizeCardNode, TAccountCardNode, VideoCardNode,
 } from "@/components/canvas/cards/OtherCards";
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
 import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
 import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
+import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { cardId, type CardData, type CardNode, type FormulaCard, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
@@ -441,12 +442,40 @@ function PresentCanvas() {
     [spawn],
   );
 
-  // Ctrl+V with an image on the clipboard → image card at the cursor, uploading
-  // in place. Skipped while typing (inputs own their own paste).
+  // ---- PASTE ROUTER (cross-tab copy/paste) ----------------------------------
+  // 1. our card JSON (marker __saCanvasCards) → spawn with FRESH ids at cursor
+  // 2. image file → image card uploading in place
+  // 3. plain text → focused editor only (typing targets return early; the
+  //    canvas itself ignores loose text)
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (text.includes("__saCanvasCards")) {
+        try {
+          const payload = JSON.parse(text) as { __saCanvasCards?: number; cards?: CardNode[] };
+          if (payload.__saCanvasCards === 1 && Array.isArray(payload.cards) && payload.cards.length) {
+            e.preventDefault();
+            const at = lastMouse.current
+              ? rf.screenToFlowPosition(lastMouse.current)
+              : rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+            // keep the copied group's relative layout, anchored at the cursor
+            const minX = Math.min(...payload.cards.map((n) => n.position.x));
+            const minY = Math.min(...payload.cards.map((n) => n.position.y));
+            const fresh = payload.cards.map((n) => ({
+              ...n,
+              id: cardId((n.data as unknown as CardData).kind),
+              position: { x: at.x + (n.position.x - minX), y: at.y + (n.position.y - minY) },
+              parentId: undefined,
+              selected: true,
+            }));
+            rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+            bus.dispatch(addNodesCmd(rf as unknown as RfLike, fresh, "paste cards"));
+            return;
+          }
+        } catch { /* not ours — fall through */ }
+      }
       const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
       if (!file) return;
       e.preventDefault();
@@ -458,6 +487,22 @@ function PresentCanvas() {
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
   }, [spawn, rf]);
+
+  // Ctrl+C with cards selected (and no text selection) → card JSON to the SYSTEM
+  // clipboard with our marker — works across tabs and windows.
+  useEffect(() => {
+    const onCopy = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if ((window.getSelection()?.toString() ?? "") !== "") return; // real text copy wins
+      const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
+      if (sel.length === 0) return;
+      e.preventDefault();
+      e.clipboardData?.setData("text/plain", JSON.stringify({ __saCanvasCards: 1, cards: sanitizeSceneNodes(structuredClone(sel)) }));
+    };
+    window.addEventListener("copy", onCopy);
+    return () => window.removeEventListener("copy", onCopy);
+  }, [rf]);
 
   const addZone = useCallback(() => {
     const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
