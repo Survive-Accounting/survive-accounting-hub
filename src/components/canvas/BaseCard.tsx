@@ -2,6 +2,7 @@
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { Handle, NodeResizer, Position, useReactFlow } from "@xyflow/react";
 import { Clapperboard, Pencil, Copy, Minus, X } from "lucide-react";
+import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { NEON, PAPER } from "./theme";
 import { cardId, type CardBase } from "./types";
 
@@ -19,24 +20,42 @@ let Z = 10;
 
 export function useCardActions(id: string) {
   const rf = useReactFlow();
+  const rfl = rf as unknown as RfLike;
   return {
-    update: (patch: Record<string, unknown>) => rf.updateNodeData(id, patch),
+    /** Absolute patch through the dispatcher (undoable). Bursts on the same keys —
+     *  keystrokes in the title input, slider drags — coalesce into ONE undo step. */
+    update: (patch: Record<string, unknown>) => {
+      const c = patchDataCmd(rfl, id, patch, "edit card", `d:${id}:${Object.keys(patch).sort().join(",")}`);
+      if (c) bus.dispatch(c);
+    },
     /** Derive the patch from the LATEST node data — required for list mutations (lines,
      *  cells, steps): building from the render closure loses concurrent commits. */
-    updateFn: (fn: (data: Record<string, unknown>) => Record<string, unknown>) =>
-      rf.updateNodeData(id, (node) => fn(node.data as Record<string, unknown>)),
-    remove: () => rf.setNodes((nds) => nds.filter((n) => n.id !== id)),
+    updateFn: (fn: (data: Record<string, unknown>) => Record<string, unknown>) => {
+      const c = patchDataFnCmd(rfl, id, fn, "edit card");
+      if (c) bus.dispatch(c);
+    },
+    remove: () => {
+      const c = removeNodesCmd(rfl, [id], "delete card");
+      if (c) bus.dispatch(c);
+    },
+    // z-order is view noise, deliberately NOT on the undo rail
     toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: ++Z } : n))),
     /** Backstage: hide from canvas, append to the rail (order = end of the show). */
-    stage: () => rf.updateNodeData(id, { staged: true, stageOrder: nextStageOrder(rf.getNodes()) }),
+    stage: () => {
+      const c = patchDataCmd(rfl, id, { staged: true, stageOrder: nextStageOrder(rf.getNodes()) }, "stage card");
+      if (c) bus.dispatch(c);
+    },
     duplicate: () => {
       const node = rf.getNode(id);
       if (!node) return;
       const nid = cardId((node.data as unknown as CardBase).kind);
-      rf.setNodes((nds) => [
-        ...nds,
-        { ...node, id: nid, selected: false, position: { x: node.position.x + 36, y: node.position.y + 36 }, zIndex: ++Z, data: structuredClone(node.data) },
-      ]);
+      bus.dispatch(
+        addNodesCmd(
+          rfl,
+          [{ ...node, id: nid, selected: false, position: { x: node.position.x + 36, y: node.position.y + 36 }, zIndex: ++Z, data: structuredClone(node.data) }],
+          "duplicate card",
+        ),
+      );
     },
   };
 }

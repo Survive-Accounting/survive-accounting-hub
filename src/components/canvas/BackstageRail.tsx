@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
 import { ChevronsLeft, ChevronsRight, Clapperboard, GripVertical } from "lucide-react";
 
+import { bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { NEON } from "./theme";
 import { nextStageOrder } from "./BaseCard";
 import { CARD_KIND_LABEL } from "./templates";
@@ -39,13 +40,15 @@ export function BackstageRail({ onSummon }: { onSummon: (id: string) => void }) 
   const staged = stagedInOrder(nodes as never);
 
   const stageAll = () => {
-    rf.setNodes((nds) => {
-      let next = nextStageOrder(nds);
-      return nds.map((n) => {
-        if (n.type === "zone" || (n.data as unknown as CardBase).staged || (n.data as unknown as CardBase).minimized) return n;
-        return { ...n, data: { ...n.data, staged: true, stageOrder: next++ } };
-      });
-    });
+    const nds = rf.getNodes();
+    let next = nextStageOrder(nds);
+    const c = compositeCmd(
+      nds
+        .filter((n) => n.type !== "zone" && !(n.data as unknown as CardBase).staged && !(n.data as unknown as CardBase).minimized)
+        .map((n) => patchDataCmd(rf as unknown as RfLike, n.id, { staged: true, stageOrder: next++ }, "stage")),
+      "stage all",
+    );
+    if (c) bus.dispatch(c);
   };
 
   /** Drop dragId in front of targetId (or at the end when targetId is null). */
@@ -54,12 +57,11 @@ export function BackstageRail({ onSummon }: { onSummon: (id: string) => void }) 
     const ids = staged.map((s) => s.id).filter((x) => x !== dragId);
     const at = targetId ? ids.indexOf(targetId) : ids.length;
     ids.splice(at < 0 ? ids.length : at, 0, dragId);
-    rf.setNodes((nds) =>
-      nds.map((n) => {
-        const idx = ids.indexOf(n.id);
-        return idx === -1 ? n : { ...n, data: { ...n.data, stageOrder: idx } };
-      }),
+    const c = compositeCmd(
+      ids.map((nid, idx) => patchDataCmd(rf as unknown as RfLike, nid, { stageOrder: idx }, "reorder")),
+      "reorder show",
     );
+    if (c) bus.dispatch(c);
     setDragId(null);
   };
 

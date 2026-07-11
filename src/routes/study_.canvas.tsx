@@ -39,6 +39,7 @@ import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageC
 import { cardId, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
+import { addNodesCmd, bus, compositeCmd, isTypingTarget, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
@@ -263,12 +264,15 @@ function PresentCanvas() {
 
   // ---- SUMMON: bring a staged card on stage — visible, selected, everything else deselected.
   // (Un-hiding remounts the node, so the card's mount animation plays — the summon effect.)
+  // The staged flag rides the dispatcher (undo re-stages); visibility/selection are derived.
   const summon = useCallback(
     (id: string) => {
+      const c = patchDataCmd(rf as unknown as RfLike, id, { staged: false, minimized: false }, "deal card");
+      if (c) bus.dispatch(c);
       rf.setNodes((nds) =>
         nds.map((n) =>
           n.id === id
-            ? { ...n, hidden: false, selected: true, data: { ...n.data, staged: false } }
+            ? { ...n, hidden: false, selected: true }
             : n.selected
               ? { ...n, selected: false }
               : n,
@@ -299,17 +303,23 @@ function PresentCanvas() {
       // exclusive-select the new card so the stepper/focus hotkeys target it
       rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
       const id = cardId(data.kind);
-      rf.addNodes([
-        {
-          id,
-          type: data.kind,
-          position: at
-            ? { x: center.x, y: center.y }
-            : { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) },
-          data: data as unknown as CardData & Record<string, unknown>,
-          selected: true,
-        },
-      ]);
+      bus.dispatch(
+        addNodesCmd(
+          rf as unknown as RfLike,
+          [
+            {
+              id,
+              type: data.kind,
+              position: at
+                ? { x: center.x, y: center.y }
+                : { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) },
+              data: data as unknown as CardData & Record<string, unknown>,
+              selected: true,
+            },
+          ],
+          `spawn ${data.kind}`,
+        ),
+      );
       return id;
     },
     [rf],
@@ -353,22 +363,57 @@ function PresentCanvas() {
   const addZone = useCallback(() => {
     const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
     const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
-    rf.addNodes([
-      {
-        id: cardId("zone"),
-        type: "zone",
-        position: { x: center.x - 260, y: center.y - 160 },
-        width: 520,
-        height: 320,
-        zIndex: -1,
-        data: { kind: "note", label: "New zone", w: 520, h: 320 } as unknown as CardData & Record<string, unknown>,
-      },
-    ]);
+    bus.dispatch(
+      addNodesCmd(
+        rf as unknown as RfLike,
+        [
+          {
+            id: cardId("zone"),
+            type: "zone",
+            position: { x: center.x - 260, y: center.y - 160 },
+            width: 520,
+            height: 320,
+            zIndex: -1,
+            data: { kind: "note", label: "New zone", w: 520, h: 320 } as unknown as CardData & Record<string, unknown>,
+          },
+        ],
+        "add zone",
+      ),
+    );
+  }, [rf]);
+
+  // ---- drag undo: snapshot {position, parentId} at drag start; one command per drag ----
+  const dragStart = useRef<Map<string, { position: { x: number; y: number }; parentId?: string }> | null>(null);
+  const onNodeDragStart = useCallback(
+    (_e: unknown, _node: CardNode, nodes: CardNode[]) => {
+      dragStart.current = new Map(nodes.map((n) => [n.id, { position: { ...n.position }, parentId: n.parentId }]));
+    },
+    [],
+  );
+  /** Runs AFTER zone parenting settles: diff the snapshots, dispatch ONE move command.
+   *  do() re-applies the landing spot, so dispatching post-hoc is a visual no-op. */
+  const commitDrag = useCallback(() => {
+    const before = dragStart.current;
+    dragStart.current = null;
+    if (!before) return;
+    const after = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
+    let changed = false;
+    for (const [nid, b] of before) {
+      const n = rf.getNode(nid);
+      if (!n) continue;
+      const a = { position: { ...n.position }, parentId: n.parentId };
+      after.set(nid, a);
+      if (a.position.x !== b.position.x || a.position.y !== b.position.y || a.parentId !== b.parentId) changed = true;
+    }
+    if (!changed) return;
+    const apply = (m: typeof before) =>
+      rf.setNodes((nds) => nds.map((n) => (m.has(n.id) ? { ...n, position: { ...m.get(n.id)!.position }, parentId: m.get(n.id)!.parentId } : n)));
+    bus.dispatch({ label: "move card", do: () => apply(after), undo: () => apply(before) });
   }, [rf]);
 
   // ---- zone membership: drop a card inside a zone → parent it (moves with the zone) ----
   const onNodeDragStop = useCallback((_e: unknown, node: CardNode) => {
-    if (node.type === "zone") return;
+    if (node.type === "zone") { commitDrag(); return; }
     rf.setNodes((nds) => {
       const zones = nds.filter((n) => n.type === "zone");
       const abs = node.parentId
@@ -391,7 +436,8 @@ function PresentCanvas() {
         return n;
       });
     });
-  }, [rf]);
+    commitDrag(); // setNodes above is sync — the after-snapshot sees the parented state
+  }, [rf, commitDrag]);
 
   // ---- scenes (JSON blobs cross the server-fn boundary as strings) ----
   const serialize = useCallback(() => {
@@ -445,6 +491,7 @@ function PresentCanvas() {
         return;
       }
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
+      bus.clear(); // history refers to nodes that no longer exist
       rf.setNodes((nj.nodes ?? []) as CardNode[]);
       rf.setEdges((nj.edges ?? []) as never[]);
       setSceneName(payload.name);
@@ -476,6 +523,7 @@ function PresentCanvas() {
   }, [applyScene]);
 
   const newScene = useCallback(() => {
+    bus.clear();
     rf.setNodes([]);
     rf.setEdges([]);
     setSceneId(null);
@@ -496,8 +544,14 @@ function PresentCanvas() {
   // ---- hotkeys: c (clean screen), space (stepper), f (focus), Esc (full view) ----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      // text editors own the keyboard — including their native Ctrl+Z
+      if (isTypingTarget(e.target as Element | null)) return;
+      if (e.ctrlKey || e.metaKey) {
+        const k = e.key.toLowerCase();
+        if (k === "z" && !e.shiftKey) { e.preventDefault(); bus.undo(); }
+        else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); bus.redo(); }
+        return; // never let modified keys fall through to quick-spawn/toggles
+      }
       if (e.key === "c" || e.key === "C") {
         setClean((v) => !v);
       } else if (e.key === "v" || e.key === "V") {
@@ -525,20 +579,25 @@ function PresentCanvas() {
         const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
         const patch = sel ? stepReveal(sel.data as unknown as CardData) : null;
         if (sel && patch) {
-          rf.updateNodeData(sel.id, patch);
+          const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
+          if (c) bus.dispatch(c);
         } else {
           const next = stagedInOrder(rf.getNodes() as never)[0];
           if (next) summon(next.id);
         }
       } else if (e.key === "s" || e.key === "S") {
-        // stage/unstage selected card(s)
+        // stage/unstage selected card(s) — one undo step
         const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
         if (sel.length === 0) return;
         let order = nextStageOrder(rf.getNodes());
-        for (const n of sel) {
-          const st = (n.data as unknown as CardData).staged;
-          rf.updateNodeData(n.id, st ? { staged: false } : { staged: true, stageOrder: order++ });
-        }
+        const c = compositeCmd(
+          sel.map((n) => {
+            const st = (n.data as unknown as CardData).staged;
+            return patchDataCmd(rf as unknown as RfLike, n.id, st ? { staged: false } : { staged: true, stageOrder: order++ }, "stage");
+          }),
+          "stage cards",
+        );
+        if (c) bus.dispatch(c);
       } else if (e.key === "f" || e.key === "F") {
         const sel = rf.getNodes().find((n) => n.selected);
         if (sel) rf.fitView({ nodes: [{ id: sel.id }], duration: 500, padding: 0.35 });
@@ -546,7 +605,10 @@ function PresentCanvas() {
         const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
         if (!sel) return;
         const patch = hideAll(sel.data as unknown as CardData);
-        if (patch) rf.updateNodeData(sel.id, patch);
+        if (patch) {
+          const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "hide all");
+          if (c) bus.dispatch(c);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -602,6 +664,7 @@ function PresentCanvas() {
       <ReactFlow
         defaultNodes={[]}
         defaultEdges={[]}
+        onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodeClick={onNodeClick}
