@@ -41,12 +41,12 @@ import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageC
 import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
-import { cardId, type CardData, type CardNode, type FormulaCard, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, deckInOrder } from "@/components/canvas/Deck";
-import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
+import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { CanvasSettingsContext, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
@@ -74,6 +74,34 @@ export const Route = createFileRoute("/study_/canvas")({
 function ZoneNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as ZoneBox & { editMode?: boolean };
   const { update, remove } = useCardActions(id);
+  const rf = useReactFlow();
+
+  /** Grid-align this zone's children with even gaps — ONE undoable bus command. */
+  const tidyZone = (zoneId: string) => {
+    const zone = rf.getNode(zoneId);
+    if (!zone) return;
+    const children = rf.getNodes().filter((n) => n.parentId === zoneId && !n.hidden);
+    if (children.length === 0) return;
+    const GAP = 24;
+    const PAD_TOP = 44; // clears the zone label row
+    const zw = (zone.data as unknown as ZoneBox).w ?? zone.width ?? 520;
+    const wOf = (n: CardNode) => n.measured?.width ?? ((n.data as unknown as CardBase).w as number | undefined) ?? 300;
+    const hOf = (n: CardNode) => n.measured?.height ?? ((n.data as unknown as CardBase).h as number | undefined) ?? 170;
+    let x = GAP;
+    let y = PAD_TOP;
+    let rowH = 0;
+    const moves: { id: string; from: { x: number; y: number }; to: { x: number; y: number } }[] = [];
+    for (const n of [...children].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)) {
+      const w = wOf(n as CardNode);
+      const h = hOf(n as CardNode);
+      if (x > GAP && x + w > zw - GAP) { x = GAP; y += rowH + GAP; rowH = 0; }
+      moves.push({ id: n.id, from: { ...n.position }, to: { x, y } });
+      x += w + GAP;
+      rowH = Math.max(rowH, h);
+    }
+    const c = moveNodesCmd(rf as unknown as RfLike, moves, "tidy zone");
+    if (c) bus.dispatch(c);
+  };
   return (
     <div
       className="h-full w-full rounded-2xl"
@@ -84,9 +112,36 @@ function ZoneNode({ id, data, selected }: NodeProps) {
         boxShadow: selected ? `0 0 24px -8px ${NEON.cyan}` : "none",
       }}
     >
-      <div className="px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.cyan }}>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.cyan }}>
         <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Zone" />
-        <button className="nodrag zone-actions ml-2 text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
+        {/* teaching-path position: deck deal order + the space-walk follow it when set */}
+        <span
+          className="zone-actions rounded px-1 text-[9px] font-bold normal-case tabular-nums"
+          style={{
+            border: `1px solid ${typeof d.pathOrder === "number" ? "rgba(252,163,17,0.55)" : NEON.borderSoft}`,
+            color: typeof d.pathOrder === "number" ? NEON.yellow : NEON.muted,
+          }}
+          title="Teaching path position — deck deals this zone's cards in this order"
+        >
+          path{" "}
+          <EditableText
+            value={typeof d.pathOrder === "number" ? String(d.pathOrder) : ""}
+            onChange={(v) => {
+              const n = parseInt(v, 10);
+              update({ pathOrder: Number.isFinite(n) ? n : null });
+            }}
+            placeholder="–"
+          />
+        </span>
+        <button
+          className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100"
+          title="Tidy: grid-align this zone's cards with even gaps (one undo step)"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => tidyZone(id)}
+        >
+          tidy
+        </button>
+        <button className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
           ✕
         </button>
       </div>
@@ -534,6 +589,52 @@ function PresentCanvas() {
     },
     [],
   );
+  // ---- SNAP GUIDES: edge/center matches vs nearby cards while dragging; the
+  // drop settles onto a guide within threshold (no mid-drag position fighting).
+  const SNAP_TH = 6; // flow units
+  const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+  const guideMatches = useCallback(
+    (node: CardNode) => {
+      const w = node.measured?.width ?? 300;
+      const h = node.measured?.height ?? 170;
+      const mine = { xs: [node.position.x, node.position.x + w / 2, node.position.x + w], ys: [node.position.y, node.position.y + h / 2, node.position.y + h] };
+      const vx: number[] = [];
+      const vy: number[] = [];
+      let snapX: number | null = null;
+      let snapY: number | null = null;
+      for (const o of rf.getNodes()) {
+        if (o.id === node.id || o.type === "zone" || o.hidden) continue;
+        const ow = o.measured?.width ?? 300;
+        const oh = o.measured?.height ?? 170;
+        for (const ox of [o.position.x, o.position.x + ow / 2, o.position.x + ow]) {
+          for (let i = 0; i < 3; i++) {
+            const d = ox - mine.xs[i];
+            if (Math.abs(d) <= SNAP_TH) { vx.push(ox); if (snapX == null) snapX = node.position.x + d; }
+          }
+        }
+        for (const oy of [o.position.y, o.position.y + oh / 2, o.position.y + oh]) {
+          for (let i = 0; i < 3; i++) {
+            const d = oy - mine.ys[i];
+            if (Math.abs(d) <= SNAP_TH) { vy.push(oy); if (snapY == null) snapY = node.position.y + d; }
+          }
+        }
+      }
+      return { vx: [...new Set(vx)].slice(0, 3), vy: [...new Set(vy)].slice(0, 3), snapX, snapY };
+    },
+    [rf],
+  );
+  const onNodeDrag = useCallback(
+    (_e: unknown, node: CardNode) => {
+      if (node.type === "zone" || node.parentId) { setGuides({ v: [], h: [] }); return; }
+      const m = guideMatches(node);
+      setGuides({
+        v: m.vx.map((gx) => rf.flowToScreenPosition({ x: gx, y: 0 }).x),
+        h: m.vy.map((gy) => rf.flowToScreenPosition({ x: 0, y: gy }).y),
+      });
+    },
+    [rf, guideMatches],
+  );
+
   /** Runs AFTER zone parenting settles: diff the snapshots, dispatch ONE move command.
    *  do() re-applies the landing spot, so dispatching post-hoc is a visual no-op. */
   const commitDrag = useCallback(() => {
@@ -557,7 +658,18 @@ function PresentCanvas() {
 
   // ---- zone membership: drop a card inside a zone → parent it (moves with the zone) ----
   const onNodeDragStop = useCallback((_e: unknown, node: CardNode) => {
+    setGuides({ v: [], h: [] });
     if (node.type === "zone") { commitDrag(); return; }
+    // settle onto a matched guide (within threshold) before parenting/commit
+    if (!node.parentId) {
+      const m = guideMatches(node);
+      if (m.snapX != null || m.snapY != null) {
+        rf.setNodes((nds) =>
+          nds.map((n) => (n.id === node.id ? { ...n, position: { x: m.snapX ?? n.position.x, y: m.snapY ?? n.position.y } } : n)),
+        );
+        node = { ...node, position: { x: m.snapX ?? node.position.x, y: m.snapY ?? node.position.y } };
+      }
+    }
     rf.setNodes((nds) => {
       const zones = nds.filter((n) => n.type === "zone");
       const abs = node.parentId
@@ -581,7 +693,7 @@ function PresentCanvas() {
       });
     });
     commitDrag(); // setNodes above is sync — the after-snapshot sees the parented state
-  }, [rf, commitDrag]);
+  }, [rf, commitDrag, guideMatches]);
 
   // ---- scenes (JSON blobs cross the server-fn boundary as strings) ----
   const serialize = useCallback(() => {
@@ -967,6 +1079,7 @@ function PresentCanvas() {
         defaultNodes={[]}
         defaultEdges={[]}
         onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onDelete={onDelete}
         onNodeDoubleClick={onNodeDoubleClick}
@@ -1128,6 +1241,14 @@ function PresentCanvas() {
 
       {/* "?" cheat sheet — rendered from the keymap registry */}
       {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
+
+      {/* snap guides — gold hairlines while a drag aligns with a neighbor */}
+      {guides.v.map((x) => (
+        <div key={`gv${x}`} className="pointer-events-none absolute z-[45]" style={{ left: x, top: 0, bottom: 0, width: 1, background: "rgba(252,163,17,0.75)" }} />
+      ))}
+      {guides.h.map((y) => (
+        <div key={`gh${y}`} className="pointer-events-none absolute z-[45]" style={{ top: y, left: 0, right: 0, height: 1, background: "rgba(252,163,17,0.75)" }} />
+      ))}
 
       {/* two-tab guard banner */}
       {tabConflict && chrome && (

@@ -213,6 +213,9 @@ export interface ZoneBox {
   y: number;
   w: number;
   h: number;
+  /** Teaching path position (1, 2, 3…). When set, the deck's default deal order
+   *  and the space-walk visit this zone's cards in path order. Null = unordered. */
+  pathOrder?: number | null;
 }
 
 // ---- Scene (serialized layout) ----

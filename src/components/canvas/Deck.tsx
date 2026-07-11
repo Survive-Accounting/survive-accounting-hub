@@ -29,11 +29,25 @@ const KIND_DOT: Record<string, string> = {
   formula: NEON.yellow,
 };
 
-/** Deck entries in deal order (stageOrder asc; legacy minimized cards ride along). */
-export function deckInOrder(nodes: { id: string; type?: string; data: Record<string, unknown> }[]) {
+/** Deck entries in deal order. Zone path_order wins when set (a card belongs to
+ *  a zone via parentId); within a zone — and for unzoned cards — stageOrder rules. */
+export function deckInOrder(nodes: { id: string; type?: string; parentId?: string; data: Record<string, unknown> }[]) {
+  const zonePath = new Map<string, number>();
+  for (const n of nodes) {
+    if (n.type === "zone") {
+      const p = (n.data as { pathOrder?: number | null }).pathOrder;
+      if (typeof p === "number") zonePath.set(n.id, p);
+    }
+  }
+  const pathOf = (n: { parentId?: string }) => (n.parentId != null && zonePath.has(n.parentId) ? zonePath.get(n.parentId)! : Number.MAX_SAFE_INTEGER);
   return nodes
     .filter((n) => n.type !== "zone" && ((n.data as unknown as CardBase).staged || (n.data as unknown as CardBase).minimized))
-    .sort((a, b) => ((a.data as unknown as CardBase).stageOrder ?? 0) - ((b.data as unknown as CardBase).stageOrder ?? 0) || a.id.localeCompare(b.id));
+    .sort(
+      (a, b) =>
+        pathOf(a) - pathOf(b) ||
+        ((a.data as unknown as CardBase).stageOrder ?? 0) - ((b.data as unknown as CardBase).stageOrder ?? 0) ||
+        a.id.localeCompare(b.id),
+    );
 }
 
 /** Category stamp stored on deck entry (spec: the filtering hook, cheap today). */
