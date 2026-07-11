@@ -1,7 +1,7 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { Handle, NodeResizer, Position, useReactFlow } from "@xyflow/react";
-import { Clapperboard, Pencil, Copy, Minus, X } from "lucide-react";
+import { Clapperboard, Pencil, Copy, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { NEON, PAPER } from "./theme";
 import { cardId, type CardBase } from "./types";
@@ -40,9 +40,24 @@ export function useCardActions(id: string) {
     },
     // z-order is view noise, deliberately NOT on the undo rail
     toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: ++Z } : n))),
-    /** Backstage: hide from canvas, append to the rail (order = end of the show). */
+    /** To the DECK: hide from canvas, append to the deal order, remember the spot. */
     stage: () => {
-      const c = patchDataCmd(rfl, id, { staged: true, stageOrder: nextStageOrder(rf.getNodes()) }, "stage card");
+      const node = rf.getNode(id);
+      if (!node) return;
+      const kind = (node.data as unknown as CardBase).kind;
+      const entryType = (node.data as Record<string, unknown>).entryType as string | undefined;
+      const c = patchDataCmd(
+        rfl,
+        id,
+        {
+          staged: true,
+          minimized: false,
+          stageOrder: nextStageOrder(rf.getNodes()),
+          deckPos: { x: node.position.x, y: node.position.y },
+          deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
+        },
+        "to deck",
+      );
       if (c) bus.dispatch(c);
     },
     duplicate: () => {
@@ -96,19 +111,6 @@ export function BaseCard({
   const title = data.title ?? "";
   // Ctrl/Cmd+click arrow flow: first click marks this card as the pending source.
   const arrowPending = !!(data as unknown as Record<string, unknown>)._arrowPending;
-
-  if (data.minimized) {
-    return (
-      <div
-        onClick={() => { toFront(); update({ minimized: false }); }}
-        className="nodrag cursor-pointer rounded-md px-2 py-1 text-[11px] font-semibold"
-        style={{ background: NEON.panelSolid, color: accent, border: `1px solid ${accent}`, boxShadow: NEON.glow }}
-        title="Restore card"
-      >
-        ▸ {title || (data as { kind: string }).kind}
-      </div>
-    );
-  }
 
   return (
     <div
@@ -169,14 +171,13 @@ export function BaseCard({
         )}
         <div className="card-actions flex items-center gap-0.5">
           {headerRight}
-          <IconBtn title="Send backstage (s)" onClick={stage}>
+          <IconBtn title="To the deck (s)" onClick={stage}>
             <Clapperboard className="h-3 w-3" />
           </IconBtn>
           {!noEditBtn && (
             <IconBtn title="Edit card" active={data.editMode} onClick={() => update({ editMode: !data.editMode })}><Pencil className="h-3 w-3" /></IconBtn>
           )}
           <IconBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></IconBtn>
-          <IconBtn title="Minimize" onClick={() => update({ minimized: true })}><Minus className="h-3 w-3" /></IconBtn>
           <IconBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></IconBtn>
         </div>
       </div>

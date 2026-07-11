@@ -19,11 +19,18 @@ export type CardKind =
 export interface CardBase {
   kind: CardKind;
   title?: string; // header label; falls back to a per-kind default
-  minimized?: boolean; // collapsed to the bottom tray
-  /** Backstage: invisible on canvas, listed in the left rail, summoned in order. */
+  /** Legacy bottom-tray flag — the DECK absorbed the tray; still honored on load. */
+  minimized?: boolean;
+  /** In the DECK: invisible on canvas, listed in the left panel, dealt in order. */
   staged?: boolean;
-  /** Rail position (lower = earlier in the show). Set on stage; reordered in the rail. */
+  /** Deck position (lower = dealt earlier). Set on entering; reordered in the panel. */
   stageOrder?: number;
+  /** Canvas position remembered when the card entered the deck — deal returns it there. */
+  deckPos?: { x: number; y: number };
+  /** Category stamp for future deck filtering ("je:adjusting", "schedule", …). */
+  deckCategory?: string;
+  /** Dealt face down — renders the SURVIVE card back until flipped. */
+  faceDown?: boolean;
   editMode?: boolean; // whole-card edit affordances on
   w?: number; // resize width/height (px), applied to the shell
   h?: number;

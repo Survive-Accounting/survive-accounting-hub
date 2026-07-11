@@ -14,6 +14,8 @@ export interface CanvasSettings {
   coa: CoaGroup[];
   /** Flat canonical names for free-text autocomplete. */
   coaNames: string[];
+  /** Quiz mode: face-down banners show "???" instead of the card title. */
+  hideFdLabels: boolean;
   setJeCardWidth: (n: number) => void;
   setJePreset: (p: JePreset) => void;
 }
@@ -25,6 +27,7 @@ export const CanvasSettingsContext = createContext<CanvasSettings>({
   jePreset: "guided",
   coa: [],
   coaNames: [],
+  hideFdLabels: false,
   setJeCardWidth: () => {},
   setJePreset: () => {},
 });

@@ -39,6 +39,8 @@ import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageC
 import { cardId, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
+import { withFaceDown } from "@/components/canvas/CardBack";
+import { Deck, categoryOf, deckInOrder } from "@/components/canvas/Deck";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
@@ -46,7 +48,6 @@ import { CanvasSettingsContext, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/
 import { JE_PRESETS, groupCoa, hopLine, sideOf, type JePreset } from "@/components/canvas/je-logic";
 import { listCoa } from "@/lib/canvas.functions";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
-import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 
@@ -87,17 +88,18 @@ function ZoneNode({ id, data, selected }: NodeProps) {
   );
 }
 
+// Every card kind rides the face-down gate (zone boxes can't be decked).
 const nodeTypes = {
-  je: JeCardNode,
-  schedule: ScheduleCardNode,
-  computation: ComputationCardNode,
-  taccount: TAccountCardNode,
-  ceq: CeqCardNode,
-  memorize: MemorizeCardNode,
-  note: NoteCardNode,
-  video: VideoCardNode,
-  list: ListCardNode,
-  image: ImageCardNode,
+  je: withFaceDown(JeCardNode),
+  schedule: withFaceDown(ScheduleCardNode),
+  computation: withFaceDown(ComputationCardNode),
+  taccount: withFaceDown(TAccountCardNode),
+  ceq: withFaceDown(CeqCardNode),
+  memorize: withFaceDown(MemorizeCardNode),
+  note: withFaceDown(NoteCardNode),
+  video: withFaceDown(VideoCardNode),
+  list: withFaceDown(ListCardNode),
+  image: withFaceDown(ImageCardNode),
   zone: ZoneNode,
 };
 
@@ -222,14 +224,15 @@ function PresentCanvas() {
   // Scene-level card settings (persisted in the scene payload)
   const [jeCardWidth, setJeCardWidth] = useState(JE_WIDTH_DEFAULT);
   const [jePreset, setJePreset] = useState<JePreset>("guided");
+  const [dealFaceDown, setDealFaceDown] = useState(false); // deck toggle: deals arrive as card backs
+  const [hideFdLabels, setHideFdLabels] = useState(false); // quiz mode: banners show "???"
   const canvasSettings = useMemo<CanvasSettings>(
-    () => ({ jeCardWidth, jePreset, coa: coaGroups, coaNames, setJeCardWidth, setJePreset }),
-    [jeCardWidth, jePreset, coaGroups, coaNames],
+    () => ({ jeCardWidth, jePreset, coa: coaGroups, coaNames, hideFdLabels, setJeCardWidth, setJePreset }),
+    [jeCardWidth, jePreset, coaGroups, coaNames, hideFdLabels],
   );
 
-  // Minimized cards → bottom tray; STAGED cards → backstage rail. Both are hidden on
-  // the canvas via the same node.hidden sync.
-  const trayCards = liveNodes.filter((n) => (n.data as unknown as CardData).minimized);
+  // Deck members (staged; legacy minimized rides along) are hidden on the canvas
+  // via the node.hidden sync below. The old bottom tray is gone — one system.
   const offCanvas = (d: CardData) => !!d.minimized || !!d.staged;
   useEffect(() => {
     if (liveNodes.some((n) => !!n.hidden !== offCanvas(n.data as unknown as CardData) || (n.hidden && n.selected))) {
@@ -285,24 +288,48 @@ function PresentCanvas() {
     [rf, clearArrowPending],
   );
 
-  // ---- SUMMON: bring a staged card on stage — visible, selected, everything else deselected.
-  // (Un-hiding remounts the node, so the card's mount animation plays — the summon effect.)
-  // The staged flag rides the dispatcher (undo re-stages); visibility/selection are derived.
-  const summon = useCallback(
+  // ---- DEAL: card leaves the deck for its REMEMBERED canvas spot (else viewport
+  // center), selected on arrival; mount animation = the entrance. Optionally face
+  // down. One dispatcher command — undo returns it to the deck at its old order.
+  const deal = useCallback(
     (id: string) => {
-      const c = patchDataCmd(rf as unknown as RfLike, id, { staged: false, minimized: false }, "deal card");
-      if (c) bus.dispatch(c);
-      rf.setNodes((nds) =>
-        nds.map((n) =>
-          n.id === id
-            ? { ...n, hidden: false, selected: true }
-            : n.selected
-              ? { ...n, selected: false }
-              : n,
-        ),
-      );
+      const node = rf.getNode(id);
+      if (!node) return;
+      const d = node.data as unknown as CardData;
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const center = rf.screenToFlowPosition({
+        x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2,
+        y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2,
+      });
+      const target = d.deckPos ?? { x: center.x - 190, y: center.y - 120 };
+      const before = {
+        staged: d.staged,
+        minimized: d.minimized,
+        faceDown: d.faceDown,
+        position: { ...node.position },
+      };
+      const fd = dealFaceDown;
+      bus.dispatch({
+        label: "deal card",
+        do: () => {
+          rf.updateNodeData(id, { staged: false, minimized: false, faceDown: fd });
+          rf.setNodes((nds) =>
+            nds.map((n) =>
+              n.id === id
+                ? { ...n, position: { ...target }, hidden: false, selected: true }
+                : n.selected
+                  ? { ...n, selected: false }
+                  : n,
+            ),
+          );
+        },
+        undo: () => {
+          rf.updateNodeData(id, { staged: before.staged, minimized: before.minimized, faceDown: before.faceDown });
+          rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position }, selected: false } : n)));
+        },
+      });
     },
-    [rf],
+    [rf, dealFaceDown],
   );
 
   // Last known pointer position (screen coords) — quick-spawn drops cards at the cursor.
@@ -477,12 +504,12 @@ function PresentCanvas() {
         schema_version: 1,
         nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
-        sceneSettings: { jeCardWidth, jePreset },
+        sceneSettings: { jeCardWidth, jePreset, dealFaceDown, hideFdLabels },
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jePreset]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jePreset, dealFaceDown, hideFdLabels]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -506,7 +533,12 @@ function PresentCanvas() {
 
   const applyScene = useCallback(
     (payload: { name: string; nodes_json: string; viewport_json: string; bg?: string | null }, id: string | null) => {
-      let nj: { schema_version?: number; nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
+      let nj: {
+        schema_version?: number;
+        nodes?: CardNode[];
+        edges?: unknown[];
+        sceneSettings?: { jeCardWidth?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean };
+      } = {};
       let vp: Viewport | null = null;
       try {
         nj = JSON.parse(payload.nodes_json || "{}");
@@ -526,6 +558,8 @@ function PresentCanvas() {
       if (nj.sceneSettings?.jePreset === "guided" || nj.sceneSettings?.jePreset === "practice" || nj.sceneSettings?.jePreset === "blind") {
         setJePreset(nj.sceneSettings.jePreset);
       }
+      if (typeof nj.sceneSettings?.dealFaceDown === "boolean") setDealFaceDown(nj.sceneSettings.dealFaceDown);
+      if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
       const cfg = decodeBg(payload.bg);
       if (cfg) setBgCfg(cfg);
       const vpFinal = vp;
@@ -593,18 +627,23 @@ function PresentCanvas() {
       {
         combo: "space",
         group: "Show",
-        description: "Reveal next on selected card, else deal next from backstage",
+        description: "Flip face-down card, else reveal next, else deal from the deck",
         handler: (e) => {
           // THE SHOW KEY: one key walks the whole lesson.
           e.preventDefault();
           const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
+          if (sel && (sel.data as unknown as CardData).faceDown) {
+            const c = patchDataCmd(rf as unknown as RfLike, sel.id, { faceDown: false }, "flip card");
+            if (c) bus.dispatch(c);
+            return;
+          }
           const patch = sel ? stepReveal(sel.data as unknown as CardData) : null;
           if (sel && patch) {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
             if (c) bus.dispatch(c);
           } else {
-            const next = stagedInOrder(rf.getNodes() as never)[0];
-            if (next) summon(next.id);
+            const next = deckInOrder(rf.getNodes() as never)[0];
+            if (next) deal(next.id);
           }
         },
       },
@@ -625,7 +664,7 @@ function PresentCanvas() {
       {
         combo: "s",
         group: "Show",
-        description: "Stage / unstage selected card(s)",
+        description: "Send selected card(s) to the deck / bring back",
         handler: () => {
           const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
           if (sel.length === 0) return;
@@ -633,9 +672,22 @@ function PresentCanvas() {
           const c = compositeCmd(
             sel.map((n) => {
               const st = (n.data as unknown as CardData).staged;
-              return patchDataCmd(rf as unknown as RfLike, n.id, st ? { staged: false } : { staged: true, stageOrder: order++ }, "stage");
+              return patchDataCmd(
+                rf as unknown as RfLike,
+                n.id,
+                st
+                  ? { staged: false }
+                  : {
+                      staged: true,
+                      minimized: false,
+                      stageOrder: order++,
+                      deckPos: { x: n.position.x, y: n.position.y },
+                      deckCategory: categoryOf(n.data as unknown as CardData),
+                    },
+                "to deck",
+              );
             }),
-            "stage cards",
+            "to deck",
           );
           if (c) bus.dispatch(c);
         },
@@ -685,7 +737,7 @@ function PresentCanvas() {
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
-    [rf, summon, quickSpawn, clearArrowPending, hopSelectedLine],
+    [rf, deal, quickSpawn, clearArrowPending, hopSelectedLine],
   );
   useKeymap(bindings);
 
@@ -772,8 +824,16 @@ function PresentCanvas() {
       {/* Palette */}
       {chrome && <Palette library={library} onSpawn={spawn} collapsed={paletteCollapsed} onToggle={() => setPaletteCollapsed((v) => !v)} />}
 
-      {/* Backstage rail — the show queue (hidden in clean/film mode; spacebar still summons) */}
-      {chrome && <BackstageRail onSummon={summon} />}
+      {/* The DECK — one holding system (hidden in clean/film mode; spacebar still deals) */}
+      {chrome && (
+        <Deck
+          onDeal={deal}
+          dealFaceDown={dealFaceDown}
+          setDealFaceDown={setDealFaceDown}
+          hideFdLabels={hideFdLabels}
+          setHideFdLabels={setHideFdLabels}
+        />
+      )}
 
       {/* Toolbar */}
       {chrome && (
@@ -894,26 +954,6 @@ function PresentCanvas() {
       {dbDown && chrome && (
         <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red }}>
           Scene DB unavailable — {dbDown}. Falling back to localStorage.
-        </div>
-      )}
-
-      {/* Bottom tray — minimized cards */}
-      {chrome && trayCards.length > 0 && (
-        <div className="absolute bottom-3 left-3 z-40 flex max-w-[60vw] flex-wrap gap-1.5">
-          {trayCards.map((n) => {
-            const d = n.data as unknown as CardData;
-            return (
-              <button
-                key={n.id}
-                className="rounded-md px-2 py-1 text-[11px] font-semibold"
-                style={{ background: NEON.panelSolid, color: NEON.pinkSoft, border: `1px solid ${NEON.border}` }}
-                onClick={() => rf.updateNodeData(n.id, { minimized: false })}
-                title="Restore card"
-              >
-                ▸ {d.title || d.kind}
-              </button>
-            );
-          })}
         </div>
       )}
 
