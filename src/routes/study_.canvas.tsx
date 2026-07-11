@@ -39,7 +39,9 @@ import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageC
 import { cardId, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
-import { addNodesCmd, bus, compositeCmd, isTypingTarget, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
+import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
+import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
+import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
@@ -198,6 +200,7 @@ function PresentCanvas() {
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false); // "?" cheat sheet
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   // Scenario library for the palette (same query key as /study — shared cache).
@@ -541,79 +544,95 @@ function PresentCanvas() {
     return () => clearInterval(t);
   }, [sceneId]);
 
-  // ---- hotkeys: c (clean screen), space (stepper), f (focus), Esc (full view) ----
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // text editors own the keyboard — including their native Ctrl+Z
-      if (isTypingTarget(e.target as Element | null)) return;
-      if (e.ctrlKey || e.metaKey) {
-        const k = e.key.toLowerCase();
-        if (k === "z" && !e.shiftKey) { e.preventDefault(); bus.undo(); }
-        else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); bus.redo(); }
-        return; // never let modified keys fall through to quick-spawn/toggles
-      }
-      if (e.key === "c" || e.key === "C") {
-        setClean((v) => !v);
-      } else if (e.key === "v" || e.key === "V") {
-        setFilm((v) => !v); // film mode: clean screen + at-rest chrome off + spotlight/ripple
-      } else if (e.key === "b" || e.key === "B") {
-        setCamera((v) => !v); // webcam bubble (screen-fixed filming chrome)
-      } else if (e.key === "j" || e.key === "J") {
-        quickSpawn("je");
-      } else if (e.key === "t" || e.key === "T") {
-        quickSpawn("taccount");
-      } else if (e.key === "n" || e.key === "N") {
-        quickSpawn("note");
-      } else if (e.key === "q" || e.key === "Q") {
-        quickSpawn("ceq");
-      } else if (e.key === "l" || e.key === "L") {
-        quickSpawn("list");
-      } else if (e.key === "Escape") {
-        setLoadOpen(false);
-        clearArrowPending(); // cancel a pending arrow source
-        rf.fitView({ duration: 500, padding: 0.15 });
-      } else if (e.key === " ") {
-        // THE SHOW KEY: selected card has hidden elements → reveal next; otherwise summon
-        // the next staged card in rail order. One key walks the whole lesson.
-        e.preventDefault();
-        const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
-        const patch = sel ? stepReveal(sel.data as unknown as CardData) : null;
-        if (sel && patch) {
-          const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
+  // ---- hotkeys: every binding lives in the registry; "?" renders the cheat sheet ----
+  const bindings = useMemo<KeyBinding[]>(
+    () => [
+      {
+        combo: "space",
+        group: "Show",
+        description: "Reveal next on selected card, else deal next from backstage",
+        handler: (e) => {
+          // THE SHOW KEY: one key walks the whole lesson.
+          e.preventDefault();
+          const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
+          const patch = sel ? stepReveal(sel.data as unknown as CardData) : null;
+          if (sel && patch) {
+            const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
+            if (c) bus.dispatch(c);
+          } else {
+            const next = stagedInOrder(rf.getNodes() as never)[0];
+            if (next) summon(next.id);
+          }
+        },
+      },
+      {
+        combo: "h",
+        group: "Show",
+        description: "Hide all reveals on selected card",
+        handler: () => {
+          const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
+          if (!sel) return;
+          const patch = hideAll(sel.data as unknown as CardData);
+          if (patch) {
+            const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "hide all");
+            if (c) bus.dispatch(c);
+          }
+        },
+      },
+      {
+        combo: "s",
+        group: "Show",
+        description: "Stage / unstage selected card(s)",
+        handler: () => {
+          const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
+          if (sel.length === 0) return;
+          let order = nextStageOrder(rf.getNodes());
+          const c = compositeCmd(
+            sel.map((n) => {
+              const st = (n.data as unknown as CardData).staged;
+              return patchDataCmd(rf as unknown as RfLike, n.id, st ? { staged: false } : { staged: true, stageOrder: order++ }, "stage");
+            }),
+            "stage cards",
+          );
           if (c) bus.dispatch(c);
-        } else {
-          const next = stagedInOrder(rf.getNodes() as never)[0];
-          if (next) summon(next.id);
-        }
-      } else if (e.key === "s" || e.key === "S") {
-        // stage/unstage selected card(s) — one undo step
-        const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
-        if (sel.length === 0) return;
-        let order = nextStageOrder(rf.getNodes());
-        const c = compositeCmd(
-          sel.map((n) => {
-            const st = (n.data as unknown as CardData).staged;
-            return patchDataCmd(rf as unknown as RfLike, n.id, st ? { staged: false } : { staged: true, stageOrder: order++ }, "stage");
-          }),
-          "stage cards",
-        );
-        if (c) bus.dispatch(c);
-      } else if (e.key === "f" || e.key === "F") {
-        const sel = rf.getNodes().find((n) => n.selected);
-        if (sel) rf.fitView({ nodes: [{ id: sel.id }], duration: 500, padding: 0.35 });
-      } else if (e.key === "h" || e.key === "H") {
-        const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
-        if (!sel) return;
-        const patch = hideAll(sel.data as unknown as CardData);
-        if (patch) {
-          const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "hide all");
-          if (c) bus.dispatch(c);
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rf, summon, quickSpawn, clearArrowPending]);
+        },
+      },
+      {
+        combo: "f",
+        group: "Show",
+        description: "Focus-zoom the selected card",
+        handler: () => {
+          const sel = rf.getNodes().find((n) => n.selected);
+          if (sel) rf.fitView({ nodes: [{ id: sel.id }], duration: 500, padding: 0.35 });
+        },
+      },
+      {
+        combo: "escape",
+        group: "Show",
+        description: "Full view · close dialogs · cancel pending arrow",
+        handler: () => {
+          setHelpOpen(false);
+          setLoadOpen(false);
+          clearArrowPending();
+          rf.fitView({ duration: 500, padding: 0.15 });
+        },
+      },
+      { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
+      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => !v) },
+      { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
+      { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
+      { combo: "t", group: "Quick-spawn", description: "T-account at cursor", handler: () => quickSpawn("taccount") },
+      { combo: "n", group: "Quick-spawn", description: "Note at cursor", handler: () => quickSpawn("note") },
+      { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor", handler: () => quickSpawn("ceq") },
+      { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor", handler: () => quickSpawn("list") },
+      { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
+      { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
+      { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
+      { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
+    ],
+    [rf, summon, quickSpawn, clearArrowPending],
+  );
+  useKeymap(bindings);
 
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
@@ -763,12 +782,15 @@ function PresentCanvas() {
         </div>
       )}
 
-      {/* hotkey hint */}
+      {/* hotkey hint — the full sheet lives on "?" */}
       {chrome && (
         <div className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full px-3 py-1 text-[10.5px]" style={{ background: "rgba(0,0,0,0.45)", color: NEON.muted }}>
-          space = reveal / summon next · h = hide all · s = stage · f = focus · Esc = full view · c = clean · v = film · b = camera · J/T/N/Q/L = quick-spawn
+          space = reveal / deal next · s = stage · c = clean · v = film · b = camera · Ctrl+Z = undo · ? = all keys
         </div>
       )}
+
+      {/* "?" cheat sheet — rendered from the keymap registry */}
+      {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
 
       {/* fail-loud banner: scenes table missing / server down */}
       {dbDown && chrome && (
