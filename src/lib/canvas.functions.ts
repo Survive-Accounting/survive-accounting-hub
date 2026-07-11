@@ -152,6 +152,54 @@ export const uploadCanvasMedia = createServerFn({ method: "POST" })
     return { url: pub.publicUrl };
   });
 
+// ---- scene snapshots (auto on entering film mode; keep the 10 newest) ------
+const MISSING_SNAPSHOTS_HINT =
+  "canvas_scene_snapshots missing — run migration/supabase-migrations/0086_canvas_scene_snapshots.sql in the Supabase SQL editor";
+
+const snapshotSchema = z.object({
+  scene_id: z.string().uuid(),
+  label: z.string().max(80).optional(),
+  nodes_json: z.string(),
+  viewport_json: z.string(),
+  bg: z.string().optional(),
+});
+
+export const snapshotScene = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => snapshotSchema.parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let nodesJson: unknown, viewportJson: unknown;
+    try {
+      nodesJson = JSON.parse(data.nodes_json);
+      viewportJson = JSON.parse(data.viewport_json);
+    } catch (e) {
+      throw new Error(`Snapshot payload is not valid JSON: ${e instanceof Error ? e.message : e}`);
+    }
+    const tbl = () => supabaseAdmin.from("canvas_scene_snapshots" as never) as any;
+    const { error } = await tbl().insert({
+      scene_id: data.scene_id,
+      label: data.label ?? null,
+      nodes_json: nodesJson,
+      viewport_json: viewportJson,
+      bg: data.bg ?? null,
+    });
+    if (error) {
+      if (error.code === "42P01" || /relation .*canvas_scene_snapshots.* does not exist/i.test(error.message)) {
+        throw new Error(MISSING_SNAPSHOTS_HINT);
+      }
+      throw new Error(error.message);
+    }
+    // prune: everything past the 10 newest for this scene
+    const { data: extra } = await tbl()
+      .select("id")
+      .eq("scene_id", data.scene_id)
+      .order("taken_at", { ascending: false })
+      .range(10, 1009);
+    const ids = (extra ?? []).map((r: { id: string }) => r.id);
+    if (ids.length) await tbl().delete().in("id", ids);
+    return { ok: true };
+  });
+
 const deleteSchema = z.object({ id: z.string().uuid() });
 
 export const deleteScene = createServerFn({ method: "POST" })

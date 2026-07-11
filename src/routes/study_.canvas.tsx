@@ -21,7 +21,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery } from "@tanstack/react-query";
-import { Film, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Video as VideoIcon } from "lucide-react";
+import { Download, Film, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Upload, Video as VideoIcon } from "lucide-react";
 
 import { fetchJeBrowserTree } from "@/lib/je-api";
 import { deleteScene, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -47,7 +47,8 @@ import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { CanvasSettingsContext, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopLine, sideOf, type JePreset } from "@/components/canvas/je-logic";
-import { listCoa } from "@/lib/canvas.functions";
+import { listCoa, snapshotScene } from "@/lib/canvas.functions";
+import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
@@ -597,15 +598,75 @@ function PresentCanvas() {
     setSavedAt(null);
   }, [rf]);
 
-  // autosave every 30s (only once a scene exists or after first manual save attempt)
+  // ---- two-tab guard: first tab to open a scene owns its autosave; a second
+  // tab sees the fresh foreign lock, pauses autosave, and shows a banner.
+  const TAB_ID = useRef(Math.random().toString(36).slice(2));
+  const [tabConflict, setTabConflict] = useState(false);
+  const lockKey = sceneId ? `sa-canvas-lock-${sceneId}` : null;
+  const lockOwned = useCallback(() => {
+    if (!lockKey) return true;
+    try {
+      const raw = localStorage.getItem(lockKey);
+      if (!raw) return true;
+      const l = JSON.parse(raw) as { tab: string; at: number };
+      return l.tab === TAB_ID.current || Date.now() - l.at > 12_000; // stale = takeable
+    } catch { return true; }
+  }, [lockKey]);
+  useEffect(() => {
+    if (!lockKey) { setTabConflict(false); return; }
+    const beat = () => {
+      const owned = lockOwned();
+      setTabConflict(!owned);
+      if (!owned) return; // never overwrite a live foreign lock
+      try { localStorage.setItem(lockKey, JSON.stringify({ tab: TAB_ID.current, at: Date.now() })); } catch { /* ignore */ }
+    };
+    beat();
+    const t = setInterval(beat, 5_000);
+    return () => {
+      clearInterval(t);
+      try {
+        const raw = localStorage.getItem(lockKey);
+        if (raw && (JSON.parse(raw) as { tab: string }).tab === TAB_ID.current) localStorage.removeItem(lockKey);
+      } catch { /* ignore */ }
+    };
+  }, [lockKey, lockOwned]);
+
+  // autosave every 30s (only once a scene exists; paused while another tab owns it)
   const saveRef = useRef(doSave);
   saveRef.current = doSave;
   useEffect(() => {
     const t = setInterval(() => {
-      if (sceneId) void saveRef.current();
+      if (sceneId && lockOwned()) void saveRef.current();
     }, 30_000);
     return () => clearInterval(t);
-  }, [sceneId]);
+  }, [sceneId, lockOwned]);
+
+  // ---- export / import ----
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const exportScene = useCallback(() => {
+    const body = serialize();
+    const stem = (sceneName || "scene").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "scene";
+    downloadText(`${stem}.canvas.json`, JSON.stringify(body, null, 2));
+    downloadText(`${stem}.outline.md`, sceneToOutline(body), "text/markdown");
+  }, [serialize, sceneName]);
+  const onImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setImportPreview(parseImport(await f.text()));
+  }, []);
+
+  // ---- auto-snapshot when film mode turns ON (keeps the 10 newest per scene) ----
+  const filmSnapDone = useRef(false);
+  useEffect(() => {
+    if (!film) { filmSnapDone.current = false; return; }
+    if (filmSnapDone.current || !sceneId) return;
+    filmSnapDone.current = true;
+    const body = serialize();
+    void snapshotScene({ data: { scene_id: sceneId, label: "auto (film mode)", nodes_json: body.nodes_json, viewport_json: body.viewport_json, bg: body.bg } })
+      .catch((err) => console.warn("[canvas] scene snapshot skipped:", err instanceof Error ? err.message : err));
+  }, [film, sceneId, serialize]);
 
   // ← / → hop the selected line of the selected JE card to the other column.
   const hopSelectedLine = useCallback(
@@ -853,6 +914,9 @@ function PresentCanvas() {
           <TB title="Save" onClick={() => void doSave()}><Save className="h-3.5 w-3.5" /></TB>
           <TB title="Save as new scene" onClick={() => void doSave(true)}><FilePlus2 className="h-3.5 w-3.5" /></TB>
           <TB title="Load scene" onClick={() => void openLoad()}><FolderOpen className="h-3.5 w-3.5" /></TB>
+          <TB title="Export scene (.json + outline.md)" onClick={exportScene}><Download className="h-3.5 w-3.5" /></TB>
+          <TB title="Import scene from file" onClick={() => importRef.current?.click()}><Upload className="h-3.5 w-3.5" /></TB>
+          <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />
           <TB title="New (clear canvas)" onClick={newScene}><Plus className="h-3.5 w-3.5" /></TB>
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
           <TB title="Add zone" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
@@ -951,6 +1015,53 @@ function PresentCanvas() {
 
       {/* "?" cheat sheet — rendered from the keymap registry */}
       {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
+
+      {/* two-tab guard banner */}
+      {tabConflict && chrome && (
+        <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(252,163,17,0.15)", border: `1px solid ${NEON.yellow}`, color: NEON.yellow }}>
+          This scene is open in another tab — autosave paused here (manual Save still works).
+        </div>
+      )}
+
+      {/* import diff preview */}
+      {importPreview && (
+        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setImportPreview(null)}>
+          <div className="w-96 rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Import preview</div>
+            {importPreview.error ? (
+              <p className="text-[12px]" style={{ color: NEON.red }}>{importPreview.error}</p>
+            ) : (
+              <>
+                <p className="text-[12.5px]">
+                  “{importPreview.name}” brings <b>{importPreview.incomingTotal}</b> cards
+                  {Object.entries(importPreview.incomingByKind).map(([k, n]) => ` · ${n} ${k}`).join("")}
+                </p>
+                <p className="mt-1.5 text-[11.5px]" style={{ color: NEON.muted }}>
+                  Applying REPLACES the current canvas ({rf.getNodes().filter((n) => n.type !== "zone").length} cards). The imported scene
+                  arrives unsaved — hit Save to keep it. Your DB scenes are untouched until then.
+                </p>
+              </>
+            )}
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setImportPreview(null)}>
+                cancel
+              </button>
+              {!importPreview.error && (
+                <button
+                  className="rounded px-2.5 py-1 text-[11.5px] font-bold"
+                  style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                  onClick={() => {
+                    applyScene(importPreview.payload, null);
+                    setImportPreview(null);
+                  }}
+                >
+                  apply import
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* fail-loud banner: scenes table missing / server down */}
       {dbDown && chrome && (
