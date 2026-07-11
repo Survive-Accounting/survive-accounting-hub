@@ -33,6 +33,16 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "video", playbackId: "", editMode: true };
     case "image":
       return { kind: "image", url: "", fit: "contain", caption: "", editMode: true };
+    case "formula":
+      return {
+        kind: "formula",
+        segments: [
+          { id: cardId("fs"), label: "", value: "" },
+          { id: cardId("fs"), label: "", value: "" },
+          { id: cardId("fs"), label: "", value: "" },
+        ],
+        operators: ["+", "="],
+      };
     case "legend":
       return {
         kind: "legend",
@@ -66,6 +76,20 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
 
 const cell = (v = "") => ({ v });
 const row = (n: number) => Array.from({ length: n }, () => cell());
+
+/** Pinned formula preset — Foundations Ch1 films on it. */
+export function formulaAle(): CardData {
+  return {
+    kind: "formula",
+    title: "The accounting equation",
+    segments: [
+      { id: cardId("fs"), label: "Assets", value: "" },
+      { id: cardId("fs"), label: "Liabilities", value: "" },
+      { id: cardId("fs"), label: "Equity", value: "" },
+    ],
+    operators: ["=", "+"],
+  };
+}
 
 export function scheduleTemplate(preset: SchedulePreset): CardData {
   switch (preset) {
@@ -157,4 +181,5 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   list: "List",
   image: "Image",
   legend: "Legend card",
+  formula: "Formula",
 };

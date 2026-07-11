@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
 
 import { NEON } from "./theme";
-import { blankCard, scheduleTemplate, CARD_KIND_LABEL } from "./templates";
+import { blankCard, formulaAle, scheduleTemplate, CARD_KIND_LABEL } from "./templates";
 import type { LibraryItem } from "./library";
 import type { CardData, CardKind, SchedulePreset } from "./types";
 
@@ -27,6 +27,7 @@ const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
   { kind: "video", label: "Video (Mux)" },
   { kind: "image", label: "Image" },
   { kind: "legend", label: "Legend card" },
+  { kind: "formula", label: "Formula" },
 ];
 
 const KIND_FILTERS: (CardKind | "all")[] = ["all", "je", "schedule", "computation", "taccount", "ceq", "memorize"];
@@ -111,6 +112,15 @@ export function Palette({
             </button>
           ))}
         </div>
+        {/* pinned preset — Foundations Ch1 films on this */}
+        <button
+          onClick={() => onSpawn(formulaAle())}
+          className="mt-1 block w-full rounded-md px-2 py-1 text-left text-[11.5px] font-semibold transition-all hover:-translate-y-px"
+          style={{ border: `1px solid rgba(252,163,17,0.45)`, color: NEON.yellow, background: "rgba(252,163,17,0.08)" }}
+          title="Formula preset: Assets = Liabilities + Equity"
+        >
+          A = L + E
+        </button>
       </div>
 
       {/* LIBRARY — collapsible; a 1,000-item list is prep clutter mid-lesson */}

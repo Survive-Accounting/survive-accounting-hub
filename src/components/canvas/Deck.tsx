@@ -26,6 +26,7 @@ const KIND_DOT: Record<string, string> = {
   list: NEON.green,
   image: NEON.cyan,
   legend: NEON.yellow,
+  formula: NEON.yellow,
 };
 
 /** Deck entries in deal order (stageOrder asc; legacy minimized cards ride along). */

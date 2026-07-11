@@ -39,7 +39,8 @@ import {
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
 import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
 import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
-import { cardId, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
+import { cardId, type CardData, type CardNode, type FormulaCard, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -105,6 +106,7 @@ const nodeTypes = {
   list: withFaceDown(ListCardNode),
   image: withFaceDown(ImageCardNode),
   legend: withFaceDown(LegendCardNode),
+  formula: withFaceDown(FormulaCardNode),
   zone: ZoneNode,
 };
 
@@ -143,6 +145,12 @@ function stepReveal(data: CardData): Partial<CardData> | null {
     if (i === -1) return null;
     return { rows: d.rows.map((r, j) => (j === i ? { ...r, hidden: false } : r)) } as Partial<CardData>;
   }
+  if (data.kind === "formula") {
+    const d = data as FormulaCard;
+    const i = d.segments.findIndex((s) => s.hidden);
+    if (i === -1) return null;
+    return { segments: d.segments.map((s, j) => (j === i ? { ...s, hidden: false } : s)) } as Partial<CardData>;
+  }
   return null;
 }
 
@@ -151,6 +159,7 @@ function hideAll(data: CardData): Partial<CardData> | null {
   if (data.kind === "je") return { lines: (data as JeCard).lines.map((l) => ({ ...l, hidden: true })) } as Partial<CardData>;
   if (data.kind === "computation") return { steps: (data as ComputationCard).steps.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
   if (data.kind === "list") return { rows: (data as ListCard).rows.map((r) => ({ ...r, hidden: true })) } as Partial<CardData>;
+  if (data.kind === "formula") return { segments: (data as FormulaCard).segments.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
   if (data.kind === "schedule") {
     const d = data as ScheduleCard;
     return { rows: d.rows.map((row) => row.map((cl) => ({ ...cl, hidden: cl.v !== "" ? true : cl.hidden }))) } as Partial<CardData>;

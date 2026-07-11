@@ -14,7 +14,8 @@ export type CardKind =
   | "video"
   | "list"
   | "image"
-  | "legend";
+  | "legend"
+  | "formula";
 
 /** Shared across every card, merged into node.data. */
 export interface CardBase {
@@ -152,6 +153,20 @@ export interface LegendCard extends CardBase {
   cornerChip: string; // editable corner stat (default "DR = CR")
 }
 
+// ---- Formula (horizontal chain: [Beginning inv] + [Purchases] = [Goods avail] …) ----
+export interface FormulaSegment {
+  id: string;
+  label: string; // "Beginning inventory"
+  value: string; // shown bold; "" renders the ??? placeholder
+  hidden?: boolean; // stepper reveal
+}
+export interface FormulaCard extends CardBase {
+  kind: "formula";
+  segments: FormulaSegment[];
+  /** One operator between each pair of segments (length = segments.length - 1). */
+  operators: string[];
+}
+
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----
 export interface ListRow {
   id: string;
@@ -180,7 +195,8 @@ export type CardData =
   | VideoCard
   | ListCard
   | ImageCard
-  | LegendCard;
+  | LegendCard
+  | FormulaCard;
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 
