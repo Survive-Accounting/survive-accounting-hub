@@ -18,11 +18,14 @@ const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
   { kind: "schedule", label: "Depreciation", preset: "depreciation" },
   { kind: "schedule", label: "FIFO/LIFO layers", preset: "fifo" },
   { kind: "schedule", label: "Bank rec", preset: "bankrec" },
+  { kind: "schedule", label: "Income stmt", preset: "incomestmt" },
+  { kind: "schedule", label: "Balance sheet", preset: "balancesheet" },
   { kind: "computation", label: "Computation" },
   { kind: "ceq", label: "Question (CEQ)" },
   { kind: "memorize", label: "Memorize" },
   { kind: "note", label: "Note" },
   { kind: "video", label: "Video (Mux)" },
+  { kind: "image", label: "Image" },
 ];
 
 const KIND_FILTERS: (CardKind | "all")[] = ["all", "je", "schedule", "computation", "taccount", "ceq", "memorize"];

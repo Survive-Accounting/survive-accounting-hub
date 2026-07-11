@@ -103,6 +103,37 @@ export const saveScene = createServerFn({ method: "POST" })
     return { id: (ins as { id: string }).id };
   });
 
+// ---- canvas-media uploads (image card paste/upload) -----------------------
+// Bucket `canvas-media` must exist (public read; writes only via service role —
+// SQL in migration/supabase-migrations/0085_canvas_media_bucket.sql). Images
+// cross the boundary as base64 strings for the same serializable-type reason.
+const MISSING_BUCKET_HINT =
+  "canvas-media bucket missing — run migration/supabase-migrations/0085_canvas_media_bucket.sql in the Supabase SQL editor";
+
+const uploadSchema = z.object({
+  b64: z.string().min(1).max(9_000_000), // ~6.5MB binary ceiling
+  contentType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+});
+
+export const uploadCanvasMedia = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => uploadSchema.parse(d))
+  .handler(async ({ data }): Promise<{ url: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" }[data.contentType];
+    const path = `canvas/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const bytes = Buffer.from(data.b64, "base64");
+    const { error } = await supabaseAdmin.storage.from("canvas-media").upload(path, bytes, {
+      contentType: data.contentType,
+      cacheControl: "31536000",
+    });
+    if (error) {
+      if (/bucket.*not.*found/i.test(error.message)) throw new Error(MISSING_BUCKET_HINT);
+      throw new Error(`upload failed: ${error.message}`);
+    }
+    const { data: pub } = supabaseAdmin.storage.from("canvas-media").getPublicUrl(path);
+    return { url: pub.publicUrl };
+  });
+
 const deleteSchema = z.object({ id: z.string().uuid() });
 
 export const deleteScene = createServerFn({ method: "POST" })

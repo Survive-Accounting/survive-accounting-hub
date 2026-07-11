@@ -35,6 +35,7 @@ import {
   CeqCardNode, ComputationCardNode, MemorizeCardNode, NoteCardNode, TAccountCardNode, VideoCardNode,
 } from "@/components/canvas/cards/OtherCards";
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
+import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
 import { cardId, type CardData, type CardNode, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
@@ -89,6 +90,7 @@ const nodeTypes = {
   note: NoteCardNode,
   video: VideoCardNode,
   list: ListCardNode,
+  image: ImageCardNode,
   zone: ZoneNode,
 };
 
@@ -329,6 +331,24 @@ function PresentCanvas() {
     },
     [spawn],
   );
+
+  // Ctrl+V with an image on the clipboard → image card at the cursor, uploading
+  // in place. Skipped while typing (inputs own their own paste).
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
+      if (!file) return;
+      e.preventDefault();
+      const id = spawn({ kind: "image", url: "", fit: "contain", caption: "" }, lastMouse.current ?? undefined);
+      void uploadImageFile(file)
+        .then((url) => rf.updateNodeData(id, { url }))
+        .catch((err) => rf.updateNodeData(id, { caption: `upload failed: ${err instanceof Error ? err.message : err}` }));
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [spawn, rf]);
 
   const addZone = useCallback(() => {
     const rect = document.querySelector(".react-flow")?.getBoundingClientRect();

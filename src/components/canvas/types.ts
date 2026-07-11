@@ -12,7 +12,8 @@ export type CardKind =
   | "memorize"
   | "note"
   | "video"
-  | "list";
+  | "list"
+  | "image";
 
 /** Shared across every card, merged into node.data. */
 export interface CardBase {
@@ -50,7 +51,7 @@ export interface JeCard extends CardBase {
 }
 
 // ---- Schedule (generic table engine + presets) ----
-export type SchedulePreset = "generic" | "amortization" | "depreciation" | "fifo" | "bankrec";
+export type SchedulePreset = "generic" | "amortization" | "depreciation" | "fifo" | "bankrec" | "incomestmt" | "balancesheet";
 export interface ScheduleCell {
   v: string; // raw text (numbers stored as strings, formatted on display)
   hidden?: boolean; // per-cell reveal
@@ -114,6 +115,14 @@ export interface VideoCard extends CardBase {
   playbackId: string;
 }
 
+// ---- Image (pasted/uploaded picture, stored in the canvas-media bucket) ----
+export interface ImageCard extends CardBase {
+  kind: "image";
+  url: string; // empty until uploaded/linked
+  fit: "cover" | "contain";
+  caption?: string;
+}
+
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----
 export interface ListRow {
   id: string;
@@ -140,7 +149,8 @@ export type CardData =
   | MemorizeCard
   | NoteCard
   | VideoCard
-  | ListCard;
+  | ListCard
+  | ImageCard;
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 

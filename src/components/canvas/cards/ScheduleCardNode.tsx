@@ -185,7 +185,16 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
           {(d.runningTotals || d.footerCheck) && (
             <tr>
               {d.headers.map((_, c) => (
-                <td key={c} className={`px-1.5 py-1 font-bold tabular-nums ${isNum(c) ? "text-right" : ""}`} style={{ color: PAPER.navy, borderTop: `2px solid ${PAPER.navy}` }}>
+                <td
+                  key={c}
+                  className={`px-1.5 py-1 font-bold tabular-nums ${isNum(c) ? "text-right" : ""}`}
+                  style={
+                    d.preset === "bankrec"
+                      ? // the accountant's GREEN RULE — double-ruled adjusted balances
+                        { color: PAPER.green, borderTop: `3px double ${PAPER.green}` }
+                      : { color: PAPER.navy, borderTop: `2px solid ${PAPER.navy}` }
+                  }
+                >
                   {isNum(c) ? fmtNum(totals[c]) : c === 0 ? "Σ" : ""}
                 </td>
               ))}
@@ -208,6 +217,18 @@ export function ScheduleCardNode({ id, data, selected }: NodeProps) {
             <MiniBtn onClick={runCheck} color={PAPER.green}><BadgeCheck className="h-3 w-3" /> Check</MiniBtn>
             <MiniBtn onClick={autoFill} color={PAPER.inkMuted}><Wand2 className="h-3 w-3" /> auto-fill</MiniBtn>
           </>
+        )}
+        {d.preset === "balancesheet" && totals.length >= 3 && (totals[1] !== 0 || totals[2] !== 0) && (
+          <span
+            className="ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums"
+            style={
+              Math.abs(totals[1] - totals[2]) < 0.005
+                ? { color: PAPER.green, border: `1px solid ${PAPER.green}`, background: "rgba(30,127,79,0.08)" }
+                : { color: PAPER.red, border: "1px solid rgba(194,24,50,0.4)" }
+            }
+          >
+            {Math.abs(totals[1] - totals[2]) < 0.005 ? "✓ A = L + E" : `A ≠ L+E · Δ ${fmtNum(Math.abs(totals[1] - totals[2]))}`}
+          </span>
         )}
         {checkMsg && <span className="text-[11px]" style={{ color: checkMsg.startsWith("✓") ? PAPER.green : PAPER.inkMuted }}>{checkMsg}</span>}
       </div>

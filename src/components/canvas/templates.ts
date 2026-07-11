@@ -30,6 +30,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       };
     case "video":
       return { kind: "video", playbackId: "", editMode: true };
+    case "image":
+      return { kind: "image", url: "", fit: "contain", caption: "", editMode: true };
     case "list":
       return {
         kind: "list",
@@ -90,6 +92,32 @@ export function scheduleTemplate(preset: SchedulePreset): CardData {
         headers: ["Bank side", "", "Book side", ""],
         rows: [row(4), row(4), row(4)],
         numericCols: [false, true, false, true],
+        runningTotals: true, // adjusted balances land on the green rule
+        editMode: true,
+      };
+    case "incomestmt":
+      return {
+        kind: "schedule",
+        preset,
+        headers: ["Income Statement", "Amount"],
+        rows: [
+          [cell("Revenues"), cell()],
+          [cell(), cell()],
+          [cell("Expenses"), cell()],
+          [cell(), cell()],
+          [cell("Net income"), cell()],
+        ],
+        numericCols: [false, true],
+        editMode: true,
+      };
+    case "balancesheet":
+      return {
+        kind: "schedule",
+        preset,
+        headers: ["", "Assets", "Liab + Equity"],
+        rows: [row(3), row(3), row(3), row(3)],
+        numericCols: [false, true, true],
+        footerCheck: true, // totals row + A = L + E chip
         editMode: true,
       };
     default:
@@ -114,4 +142,5 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   note: "Note",
   video: "Video",
   list: "List",
+  image: "Image",
 };
