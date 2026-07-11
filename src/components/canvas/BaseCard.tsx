@@ -48,11 +48,14 @@ export function useCardActions(id: string) {
     duplicate: () => {
       const node = rf.getNode(id);
       if (!node) return;
-      const nid = cardId((node.data as unknown as CardBase).kind);
+      const kind = (node.data as unknown as CardBase).kind;
+      const nid = cardId(kind);
+      // JE clones stack directly above the original — a visible layered pile
+      const offset = kind === "je" ? { x: 10, y: -12 } : { x: 36, y: 36 };
       bus.dispatch(
         addNodesCmd(
           rfl,
-          [{ ...node, id: nid, selected: false, position: { x: node.position.x + 36, y: node.position.y + 36 }, zIndex: ++Z, data: structuredClone(node.data) }],
+          [{ ...node, id: nid, selected: false, position: { x: node.position.x + offset.x, y: node.position.y + offset.y }, zIndex: ++Z, data: structuredClone(node.data) }],
           "duplicate card",
         ),
       );
@@ -66,6 +69,11 @@ export function BaseCard({
   accent = NEON.pink,
   selected,
   headerRight,
+  titleNode,
+  kindBadge,
+  noEditBtn,
+  fixedWidth,
+  noResize,
   children,
 }: {
   id: string;
@@ -73,6 +81,15 @@ export function BaseCard({
   accent?: string;
   selected?: boolean;
   headerRight?: React.ReactNode;
+  /** Replaces the default title input (JE puts its description editor here). */
+  titleNode?: React.ReactNode;
+  /** Tiny corner kind label replacing the accent dot ("JE"). */
+  kindBadge?: string;
+  /** Hide the pencil (cards where everything is always inline-editable). */
+  noEditBtn?: boolean;
+  /** Scene-uniform width (JE) — overrides per-card w. */
+  fixedWidth?: number;
+  noResize?: boolean;
   children: React.ReactNode;
 }) {
   const { update, remove, toFront, duplicate, stage } = useCardActions(id);
@@ -98,7 +115,7 @@ export function BaseCard({
       onPointerDownCapture={toFront}
       className="animate-in fade-in zoom-in-95 flex flex-col overflow-hidden rounded-xl duration-150"
       style={{
-        width: data.w ?? undefined,
+        width: fixedWidth ?? data.w ?? undefined,
         height: data.h ?? undefined,
         minWidth: 220,
         // PAPER card: off-white "textbook flashcard" that pops off the navy table
@@ -115,34 +132,49 @@ export function BaseCard({
       {/* invisible anchors for card-to-card arrows (edges are created programmatically) */}
       <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
       <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
-      <NodeResizer
-        isVisible={!!selected}
-        minWidth={220}
-        minHeight={90}
-        lineStyle={{ borderColor: accent }}
-        handleStyle={{ width: 8, height: 8, borderRadius: 2, background: accent, border: "none" }}
-        onResize={(_, p) => update({ w: Math.round(p.width), h: Math.round(p.height) })}
-      />
+      {!noResize && (
+        <NodeResizer
+          isVisible={!!selected}
+          minWidth={220}
+          minHeight={90}
+          lineStyle={{ borderColor: accent }}
+          handleStyle={{ width: 8, height: 8, borderRadius: 2, background: accent, border: "none" }}
+          onResize={(_, p) => update({ w: Math.round(p.width), h: Math.round(p.height) })}
+        />
+      )}
       {/* Header (drag handle for the whole card) — brand navy band */}
       <div
         className="flex items-center gap-1.5 px-2 py-1"
         style={{ background: PAPER.header }}
       >
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} />
-        <input
-          className="nodrag min-w-0 flex-1 bg-transparent text-[11px] font-semibold uppercase tracking-wide outline-none"
-          style={{ color: PAPER.headerMuted }}
-          value={title}
-          placeholder={(data as { kind: string }).kind}
-          onChange={(e) => update({ title: e.target.value })}
-          onPointerDown={(e) => e.stopPropagation()}
-        />
+        {kindBadge ? (
+          <span
+            className="shrink-0 rounded px-1 text-[8.5px] font-bold uppercase tracking-wider"
+            style={{ color: accent, border: `1px solid ${accent}66` }}
+          >
+            {kindBadge}
+          </span>
+        ) : (
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} />
+        )}
+        {titleNode ?? (
+          <input
+            className="nodrag min-w-0 flex-1 bg-transparent text-[11px] font-semibold uppercase tracking-wide outline-none"
+            style={{ color: PAPER.headerMuted }}
+            value={title}
+            placeholder={(data as { kind: string }).kind}
+            onChange={(e) => update({ title: e.target.value })}
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+        )}
         <div className="card-actions flex items-center gap-0.5">
           {headerRight}
           <IconBtn title="Send backstage (s)" onClick={stage}>
             <Clapperboard className="h-3 w-3" />
           </IconBtn>
-          <IconBtn title="Edit card" active={data.editMode} onClick={() => update({ editMode: !data.editMode })}><Pencil className="h-3 w-3" /></IconBtn>
+          {!noEditBtn && (
+            <IconBtn title="Edit card" active={data.editMode} onClick={() => update({ editMode: !data.editMode })}><Pencil className="h-3 w-3" /></IconBtn>
+          )}
           <IconBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></IconBtn>
           <IconBtn title="Minimize" onClick={() => update({ minimized: true })}><Minus className="h-3 w-3" /></IconBtn>
           <IconBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></IconBtn>

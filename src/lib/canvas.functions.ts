@@ -103,6 +103,24 @@ export const saveScene = createServerFn({ method: "POST" })
     return { id: (ins as { id: string }).id };
   });
 
+// ---- chart of accounts (JE picker) -----------------------------------------
+// RLS blocks anon SELECT on chart_of_accounts (verified: 0 rows, no error), so
+// the canvas reads it through the service role. Read-only vocabulary, safe.
+export interface CoaRowOut {
+  canonical_name: string;
+  account_type: string;
+  normal_balance: string;
+}
+
+export const listCoa = createServerFn({ method: "GET" }).handler(async (): Promise<CoaRowOut[]> => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await (supabaseAdmin.from("chart_of_accounts" as never) as any)
+    .select("canonical_name,account_type,normal_balance")
+    .order("canonical_name");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CoaRowOut[];
+});
+
 // ---- canvas-media uploads (image card paste/upload) -----------------------
 // Bucket `canvas-media` must exist (public read; writes only via service role —
 // SQL in migration/supabase-migrations/0085_canvas_media_bucket.sql). Images

@@ -4,16 +4,19 @@
 //     React Flow drags every selected node as a group — "two JE cards spawned
 //     together move as a group" (the S2.0 bug).
 //   - dragging: mid-gesture flag.
-//   - _arrowPending: half-finished arrow gesture.
-// sanitizeSceneNodes strips all three; it runs on SAVE and on LOAD (so scenes
+//   - data keys starting with "_" (_arrowPending, _selLine, …): transient
+//     gesture state cards stash in node data.
+// sanitizeSceneNodes strips all of it; it runs on SAVE and on LOAD (so scenes
 // saved before this fix heal on their next load).
 
 export function sanitizeSceneNodes<T extends { data?: Record<string, unknown>; selected?: boolean; dragging?: boolean }>(
   nodes: T[],
 ): T[] {
   return nodes.map((n) => {
-    const { _arrowPending, ...data } = (n.data ?? {}) as Record<string, unknown>;
-    void _arrowPending;
+    const data: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries((n.data ?? {}) as Record<string, unknown>)) {
+      if (!k.startsWith("_")) data[k] = v;
+    }
     const { selected, dragging, ...rest } = n;
     void selected;
     void dragging;

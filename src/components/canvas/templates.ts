@@ -2,14 +2,15 @@
 // state, spawned at viewport center by the palette/toolbar.
 import { cardId, type CardData, type SchedulePreset } from "./types";
 
-function line() {
-  return { id: cardId("l"), account: "", dr: null, cr: null, label: "" };
+function line(side: "dr" | "cr") {
+  return { id: cardId("l"), account: "", dr: null, cr: null, side, label: "" };
 }
 
 export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): CardData {
   switch (kind) {
     case "je":
-      return { kind: "je", caption: "New entry", lines: [line(), line()], accountBank: [], showAmounts: true, showLabels: true, editMode: true };
+      // caption empty → header shows the "New entry" placeholder; one debit, one credit
+      return { kind: "je", caption: "", entryType: "standard", lines: [line("dr"), line("cr")], accountBank: [], showAmounts: true, showLabels: true };
     case "taccount":
       return { kind: "taccount", account: "Account", debits: [{ id: cardId("d"), label: "", amount: null }], credits: [{ id: cardId("c"), label: "", amount: null }], editMode: true };
     case "computation":

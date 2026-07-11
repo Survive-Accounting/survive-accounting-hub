@@ -35,6 +35,9 @@ export interface JeLine {
   account: string;
   dr: number | null;
   cr: number | null;
+  /** Explicit column; legacy lines derive it from which amount is set (see sideOf). */
+  side?: "dr" | "cr";
+  /** The line's MEMO (lightbulb). Same field the scenario docs populate. */
   label?: string;
   hidden?: boolean; // stepper hide
   /** Alternate wrong version + one feedback sentence (distractor flip). */
@@ -43,11 +46,16 @@ export interface JeLine {
 }
 export interface JeCard extends CardBase {
   kind: "je";
+  /** The transaction description — IS the card header. */
   caption: string;
+  entryType?: "standard" | "adjusting" | "closing";
   lines: JeLine[];
-  accountBank?: string[]; // autocomplete pool
+  accountBank?: string[]; // autocomplete pool (unioned with the COA)
+  /** Legacy reveal flag; per-card settings.showAmounts wins when present. */
   showAmounts: boolean;
-  showLabels: boolean;
+  showLabels: boolean; // legacy labels column (superseded by lightbulbs)
+  /** Per-card overrides on top of the canvas default preset (see je-logic). */
+  settings?: Partial<import("./je-logic").JeSettings>;
 }
 
 // ---- Schedule (generic table engine + presets) ----

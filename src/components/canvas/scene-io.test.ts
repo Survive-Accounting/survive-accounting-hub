@@ -17,9 +17,9 @@ describe("sanitizeSceneNodes", () => {
     expect(out.map((n) => n.id)).toEqual(["je-1", "je-2", "note-1"]);
   });
 
-  test("strips dragging and _arrowPending, keeps real data", () => {
+  test("strips dragging and every _transient data key, keeps real data", () => {
     const out = sanitizeSceneNodes([
-      { id: "a", dragging: true, data: { kind: "je", caption: "keep me", _arrowPending: true } },
+      { id: "a", dragging: true, data: { kind: "je", caption: "keep me", _arrowPending: true, _selLine: "l-3" } },
     ]);
     expect("dragging" in out[0]).toBe(false);
     expect(out[0].data).toEqual({ kind: "je", caption: "keep me" });

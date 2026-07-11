@@ -21,7 +21,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery } from "@tanstack/react-query";
-import { Film, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Video as VideoIcon } from "lucide-react";
+import { Film, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Video as VideoIcon } from "lucide-react";
 
 import { fetchJeBrowserTree } from "@/lib/je-api";
 import { deleteScene, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -42,6 +42,9 @@ import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { CanvasSettingsContext, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
+import { JE_PRESETS, groupCoa, hopLine, sideOf, type JePreset } from "@/components/canvas/je-logic";
+import { listCoa } from "@/lib/canvas.functions";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { BackstageRail, stagedInOrder } from "@/components/canvas/BackstageRail";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
@@ -202,11 +205,27 @@ function PresentCanvas() {
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false); // "?" cheat sheet
+  const [settingsOpen, setSettingsOpen] = useState(false); // toolbar canvas-settings gear
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   // Scenario library for the palette (same query key as /study — shared cache).
   const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1 });
   const library = useMemo(() => (treeQuery.data ? buildLibrary(treeQuery.data) : []), [treeQuery.data]);
+
+  // Chart of accounts (Ole Miss canonical vocabulary — repaired in 0083) for the
+  // JE picker + free-text autocomplete. Served by a service-role server fn (RLS
+  // blocks anon select). Empty on failure: picker degrades, typing works.
+  const coaQuery = useQuery({ queryKey: ["chart-of-accounts"], queryFn: () => listCoa(), staleTime: 600_000, retry: 1 });
+  const coaGroups = useMemo(() => groupCoa(coaQuery.data ?? []), [coaQuery.data]);
+  const coaNames = useMemo(() => (coaQuery.data ?? []).map((r) => r.canonical_name), [coaQuery.data]);
+
+  // Scene-level card settings (persisted in the scene payload)
+  const [jeCardWidth, setJeCardWidth] = useState(JE_WIDTH_DEFAULT);
+  const [jePreset, setJePreset] = useState<JePreset>("guided");
+  const canvasSettings = useMemo<CanvasSettings>(
+    () => ({ jeCardWidth, jePreset, coa: coaGroups, coaNames, setJeCardWidth, setJePreset }),
+    [jeCardWidth, jePreset, coaGroups, coaNames],
+  );
 
   // Minimized cards → bottom tray; STAGED cards → backstage rail. Both are hidden on
   // the canvas via the same node.hidden sync.
@@ -306,6 +325,10 @@ function PresentCanvas() {
       );
       // exclusive-select the new card so the stepper/focus hotkeys target it
       rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+      // newly spawned JE cards get the CURRENT canvas default preset stamped in
+      if (data.kind === "je" && !(data as JeCard).settings) {
+        data = { ...data, settings: { ...JE_PRESETS[jePreset] } } as CardData;
+      }
       const id = cardId(data.kind);
       bus.dispatch(
         addNodesCmd(
@@ -326,7 +349,7 @@ function PresentCanvas() {
       );
       return id;
     },
-    [rf],
+    [rf, jePreset],
   );
 
   /** Quick-spawn (J/T/N/Q/L): blank at the cursor, edit mode on, first field focused. */
@@ -454,11 +477,12 @@ function PresentCanvas() {
         schema_version: 1,
         nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
+        sceneSettings: { jeCardWidth, jePreset },
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jePreset]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -482,7 +506,7 @@ function PresentCanvas() {
 
   const applyScene = useCallback(
     (payload: { name: string; nodes_json: string; viewport_json: string; bg?: string | null }, id: string | null) => {
-      let nj: { schema_version?: number; nodes?: CardNode[]; edges?: unknown[] } = {};
+      let nj: { schema_version?: number; nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       let vp: Viewport | null = null;
       try {
         nj = JSON.parse(payload.nodes_json || "{}");
@@ -498,6 +522,10 @@ function PresentCanvas() {
       rf.setEdges((nj.edges ?? []) as never[]);
       setSceneName(payload.name);
       setSceneId(id);
+      if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
+      if (nj.sceneSettings?.jePreset === "guided" || nj.sceneSettings?.jePreset === "practice" || nj.sceneSettings?.jePreset === "blind") {
+        setJePreset(nj.sceneSettings.jePreset);
+      }
       const cfg = decodeBg(payload.bg);
       if (cfg) setBgCfg(cfg);
       const vpFinal = vp;
@@ -542,6 +570,22 @@ function PresentCanvas() {
     }, 30_000);
     return () => clearInterval(t);
   }, [sceneId]);
+
+  // ← / → hop the selected line of the selected JE card to the other column.
+  const hopSelectedLine = useCallback(
+    (to: "dr" | "cr") => {
+      const sel = rf.getNodes().find((n) => n.selected && n.type === "je");
+      if (!sel) return;
+      const lid = (sel.data as Record<string, unknown>)._selLine as string | undefined;
+      if (!lid) return;
+      const lines = (sel.data as unknown as JeCard).lines;
+      const line = lines.find((l) => l.id === lid);
+      if (!line || sideOf(line) === to) return;
+      const c = patchDataCmd(rf as unknown as RfLike, sel.id, { lines: hopLine(lines, lid) }, "hop line");
+      if (c) bus.dispatch(c);
+    },
+    [rf],
+  );
 
   // ---- hotkeys: every binding lives in the registry; "?" renders the cheat sheet ----
   const bindings = useMemo<KeyBinding[]>(
@@ -624,12 +668,24 @@ function PresentCanvas() {
       { combo: "n", group: "Quick-spawn", description: "Note at cursor", handler: () => quickSpawn("note") },
       { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor", handler: () => quickSpawn("ceq") },
       { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor", handler: () => quickSpawn("list") },
+      {
+        combo: "arrowleft",
+        group: "JE lines",
+        description: "Hop selected JE line to the debit side",
+        handler: () => hopSelectedLine("dr"),
+      },
+      {
+        combo: "arrowright",
+        group: "JE lines",
+        description: "Hop selected JE line to the credit side",
+        handler: () => hopSelectedLine("cr"),
+      },
       { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
       { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
-    [rf, summon, quickSpawn, clearArrowPending],
+    [rf, summon, quickSpawn, clearArrowPending, hopSelectedLine],
   );
   useKeymap(bindings);
 
@@ -645,6 +701,7 @@ function PresentCanvas() {
   const chrome = !clean && !film;
 
   return (
+    <CanvasSettingsContext.Provider value={canvasSettings}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""}`} style={{ background: NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
       {film && (
@@ -776,6 +833,48 @@ function PresentCanvas() {
             )}
           </div>
           <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
+          <div className="relative">
+            <TB title="Canvas settings (JE width, default preset)" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
+              <Settings2 className="h-3.5 w-3.5" />
+            </TB>
+            {settingsOpen && (
+              <div
+                className="absolute left-1/2 top-9 z-50 w-52 -translate-x-1/2 rounded-xl p-2.5"
+                style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}
+              >
+                <label className="block text-[10px]" style={{ color: NEON.muted }}>
+                  JE card width · {jeCardWidth}px <span className="opacity-60">(all JE cards)</span>
+                  <input
+                    type="range"
+                    min={300}
+                    max={520}
+                    step={10}
+                    value={jeCardWidth}
+                    onChange={(e) => setJeCardWidth(Number(e.target.value))}
+                    className="mt-0.5 w-full"
+                    style={{ accentColor: NEON.yellow }}
+                  />
+                </label>
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>New-JE preset</div>
+                <div className="mt-1 flex gap-1">
+                  {(["guided", "practice", "blind"] as const).map((p) => (
+                    <button
+                      key={p}
+                      className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase"
+                      style={{
+                        color: jePreset === p ? NEON.yellow : NEON.muted,
+                        border: `1px solid ${jePreset === p ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`,
+                        background: jePreset === p ? "rgba(252,163,17,0.12)" : "transparent",
+                      }}
+                      onClick={() => setJePreset(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <TB title="Clean screen (c)" onClick={() => setClean(true)}><Film className="h-3.5 w-3.5" /></TB>
           {savedAt && <span className="pl-1 text-[10px]" style={{ color: NEON.muted }}>saved {savedAt}</span>}
         </div>
@@ -857,6 +956,7 @@ function PresentCanvas() {
         </div>
       )}
     </div>
+    </CanvasSettingsContext.Provider>
   );
 }
 
