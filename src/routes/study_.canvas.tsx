@@ -51,7 +51,7 @@ import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { CanvasSettingsContext, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopLine, sideOf, type JePreset } from "@/components/canvas/je-logic";
-import { listCoa, snapshotScene } from "@/lib/canvas.functions";
+import { listCoa, listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
@@ -856,6 +856,45 @@ function PresentCanvas() {
     setImportPreview(parseImport(await f.text()));
   }, []);
 
+  // ---- snapshot restore (Load dialog) ----
+  const [snapsFor, setSnapsFor] = useState<string | null>(null); // scene id expanded
+  const [snaps, setSnaps] = useState<SnapshotListRow[]>([]);
+  const [snapErr, setSnapErr] = useState<string | null>(null);
+  const [confirmSnap, setConfirmSnap] = useState<SnapshotListRow | null>(null);
+  const openSnaps = useCallback(async (sceneRowId: string) => {
+    if (snapsFor === sceneRowId) { setSnapsFor(null); return; }
+    setSnapErr(null);
+    try {
+      setSnaps(await listSnapshots({ data: { scene_id: sceneRowId } }));
+      setSnapsFor(sceneRowId);
+    } catch (e) {
+      setSnapErr(e instanceof Error ? e.message : String(e));
+      setSnapsFor(sceneRowId);
+      setSnaps([]);
+    }
+  }, [snapsFor]);
+  /** Replace the canvas with a snapshot's content — ONE undoable bus command. */
+  const restoreSnapshot = useCallback(
+    async (snapId: string) => {
+      const snap = await loadSnapshot({ data: { id: snapId } });
+      let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
+      try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
+      const nodesAfter = sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]);
+      const edgesAfter = (nj.edges ?? []) as never[];
+      const nodesBefore = structuredClone(rf.getNodes());
+      const edgesBefore = structuredClone(rf.getEdges());
+      bus.dispatch({
+        label: "restore snapshot",
+        do: () => { rf.setNodes(structuredClone(nodesAfter)); rf.setEdges(structuredClone(edgesAfter)); },
+        undo: () => { rf.setNodes(structuredClone(nodesBefore)); rf.setEdges(structuredClone(edgesBefore)); },
+      });
+      if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
+      const cfg = decodeBg(snap.bg);
+      if (cfg) setBgCfg(cfg);
+    },
+    [rf],
+  );
+
   // ---- auto-snapshot when film mode turns ON (keeps the 10 newest per scene) ----
   const filmSnapDone = useRef(false);
   useEffect(() => {
@@ -1250,6 +1289,34 @@ function PresentCanvas() {
         <div key={`gh${y}`} className="pointer-events-none absolute z-[45]" style={{ top: y, left: 0, right: 0, height: 1, background: "rgba(252,163,17,0.75)" }} />
       ))}
 
+      {/* snapshot restore confirm */}
+      {confirmSnap && (
+        <div className="absolute inset-0 z-[60] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setConfirmSnap(null)}>
+          <div className="w-80 rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[12.5px]">
+              Replace the current canvas with the snapshot from{" "}
+              <b className="tabular-nums">{new Date(confirmSnap.taken_at).toLocaleString()}</b>? Ctrl+Z brings the current state back.
+            </p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setConfirmSnap(null)}>
+                cancel
+              </button>
+              <button
+                className="rounded px-2.5 py-1 text-[11.5px] font-bold"
+                style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                onClick={() => {
+                  void restoreSnapshot(confirmSnap.id);
+                  setConfirmSnap(null);
+                  setLoadOpen(false);
+                }}
+              >
+                restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* two-tab guard banner */}
       {tabConflict && chrome && (
         <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(252,163,17,0.15)", border: `1px solid ${NEON.yellow}`, color: NEON.yellow }}>
@@ -1312,30 +1379,61 @@ function PresentCanvas() {
             {scenes.length === 0 && <p className="text-[12px] italic" style={{ color: NEON.muted }}>No saved scenes yet.</p>}
             <div className="space-y-1">
               {scenes.map((s) => (
-                <div key={s.id} className="flex items-center gap-2 rounded-md px-2 py-1.5" style={{ border: `1px solid ${NEON.borderSoft}` }}>
-                  <button
-                    className="min-w-0 flex-1 truncate text-left text-[12.5px] font-medium hover:underline"
-                    onClick={async () => {
-                      const row = await loadScene({ data: { id: s.id } });
-                      applyScene(row, row.id);
-                      setLoadOpen(false);
-                    }}
-                  >
-                    {s.name}
-                  </button>
-                  <span className="text-[10px]" style={{ color: NEON.muted }}>{new Date(s.updated_at).toLocaleString()}</span>
-                  <button
-                    className="text-[10px]"
-                    style={{ color: NEON.red }}
-                    title="Delete scene"
-                    onClick={async () => {
-                      await deleteScene({ data: { id: s.id } });
-                      setScenes((xs) => xs.filter((x) => x.id !== s.id));
-                      if (sceneId === s.id) setSceneId(null);
-                    }}
-                  >
-                    ✕
-                  </button>
+                <div key={s.id} className="rounded-md px-2 py-1.5" style={{ border: `1px solid ${NEON.borderSoft}` }}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="min-w-0 flex-1 truncate text-left text-[12.5px] font-medium hover:underline"
+                      onClick={async () => {
+                        const row = await loadScene({ data: { id: s.id } });
+                        applyScene(row, row.id);
+                        setLoadOpen(false);
+                      }}
+                    >
+                      {s.name}
+                    </button>
+                    <span className="text-[10px]" style={{ color: NEON.muted }}>{new Date(s.updated_at).toLocaleString()}</span>
+                    <button
+                      className="text-[9.5px] font-semibold uppercase"
+                      style={{ color: snapsFor === s.id ? NEON.yellow : NEON.muted }}
+                      title="Snapshots (auto-saved when film mode starts)"
+                      onClick={() => void openSnaps(s.id)}
+                    >
+                      snaps
+                    </button>
+                    <button
+                      className="text-[10px]"
+                      style={{ color: NEON.red }}
+                      title="Delete scene"
+                      onClick={async () => {
+                        await deleteScene({ data: { id: s.id } });
+                        setScenes((xs) => xs.filter((x) => x.id !== s.id));
+                        if (sceneId === s.id) setSceneId(null);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {snapsFor === s.id && (
+                    <div className="mt-1 space-y-0.5 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
+                      {snapErr && <p className="text-[10px]" style={{ color: NEON.red }}>{snapErr}</p>}
+                      {!snapErr && snaps.length === 0 && (
+                        <p className="text-[10px] italic" style={{ color: NEON.muted }}>No snapshots yet — one is taken each time film mode starts.</p>
+                      )}
+                      {snaps.map((sn) => (
+                        <div key={sn.id} className="flex items-center gap-2 text-[10.5px]">
+                          <span className="flex-1 tabular-nums" style={{ color: NEON.text }}>{new Date(sn.taken_at).toLocaleString()}</span>
+                          <span style={{ color: NEON.muted }}>{sn.label ?? ""}</span>
+                          <button
+                            className="rounded px-1.5 text-[9.5px] font-bold uppercase"
+                            style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)" }}
+                            onClick={() => setConfirmSnap(sn)}
+                          >
+                            restore
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
