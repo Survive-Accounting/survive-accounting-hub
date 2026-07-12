@@ -8,6 +8,8 @@ import type { CoaGroup, JePreset } from "./je-logic";
 export interface CanvasSettings {
   /** ALL JE cards render at this width (px). One knob, scene-wide. */
   jeCardWidth: number;
+  /** Credit-block offset (px) — the tetris stagger. Block width = jeCardWidth − jeIndent. */
+  jeIndent: number;
   /** Default settings preset stamped onto newly spawned JE cards. */
   jePreset: JePreset;
   /** Grouped chart of accounts ([] until loaded / unavailable). */
@@ -17,18 +19,22 @@ export interface CanvasSettings {
   /** Quiz mode: face-down banners show "???" instead of the card title. */
   hideFdLabels: boolean;
   setJeCardWidth: (n: number) => void;
+  setJeIndent: (n: number) => void;
   setJePreset: (p: JePreset) => void;
 }
 
 export const JE_WIDTH_DEFAULT = 380;
+export const JE_INDENT_DEFAULT = 32;
 
 export const CanvasSettingsContext = createContext<CanvasSettings>({
   jeCardWidth: JE_WIDTH_DEFAULT,
+  jeIndent: JE_INDENT_DEFAULT,
   jePreset: "guided",
   coa: [],
   coaNames: [],
   hideFdLabels: false,
   setJeCardWidth: () => {},
+  setJeIndent: () => {},
   setJePreset: () => {},
 });
 

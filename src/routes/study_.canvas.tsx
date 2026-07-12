@@ -50,7 +50,7 @@ import { Deck, categoryOf, deckInOrder } from "@/components/canvas/Deck";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
-import { CanvasSettingsContext, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
+import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopLine, sideOf, type JePreset } from "@/components/canvas/je-logic";
 import { listCoa, listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
@@ -294,12 +294,13 @@ function PresentCanvas() {
 
   // Scene-level card settings (persisted in the scene payload)
   const [jeCardWidth, setJeCardWidth] = useState(JE_WIDTH_DEFAULT);
+  const [jeIndent, setJeIndent] = useState(JE_INDENT_DEFAULT); // tetris credit-block stagger
   const [jePreset, setJePreset] = useState<JePreset>("guided");
   const [dealFaceDown, setDealFaceDown] = useState(false); // deck toggle: deals arrive as card backs
   const [hideFdLabels, setHideFdLabels] = useState(false); // quiz mode: banners show "???"
   const canvasSettings = useMemo<CanvasSettings>(
-    () => ({ jeCardWidth, jePreset, coa: coaGroups, coaNames, hideFdLabels, setJeCardWidth, setJePreset }),
-    [jeCardWidth, jePreset, coaGroups, coaNames, hideFdLabels],
+    () => ({ jeCardWidth, jeIndent, jePreset, coa: coaGroups, coaNames, hideFdLabels, setJeCardWidth, setJeIndent, setJePreset }),
+    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels],
   );
 
   // Deck members (staged; legacy minimized rides along) are hidden on the canvas
@@ -707,12 +708,12 @@ function PresentCanvas() {
         schema_version: 1,
         nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
-        sceneSettings: { jeCardWidth, jePreset, dealFaceDown, hideFdLabels },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels },
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jePreset, dealFaceDown, hideFdLabels]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -740,7 +741,7 @@ function PresentCanvas() {
         schema_version?: number;
         nodes?: CardNode[];
         edges?: unknown[];
-        sceneSettings?: { jeCardWidth?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean };
+        sceneSettings?: { jeCardWidth?: number; jeIndent?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean };
       } = {};
       let vp: Viewport | null = null;
       try {
@@ -758,6 +759,7 @@ function PresentCanvas() {
       setSceneName(payload.name);
       setSceneId(id);
       if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
+      if (typeof nj.sceneSettings?.jeIndent === "number") setJeIndent(nj.sceneSettings.jeIndent);
       if (nj.sceneSettings?.jePreset === "guided" || nj.sceneSettings?.jePreset === "practice" || nj.sceneSettings?.jePreset === "blind") {
         setJePreset(nj.sceneSettings.jePreset);
       }
@@ -890,6 +892,7 @@ function PresentCanvas() {
         undo: () => { rf.setNodes(structuredClone(nodesBefore)); rf.setEdges(structuredClone(edgesBefore)); },
       });
       if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
+      if (typeof (nj.sceneSettings as { jeIndent?: number } | undefined)?.jeIndent === "number") setJeIndent((nj.sceneSettings as { jeIndent: number }).jeIndent);
       const cfg = decodeBg(snap.bg);
       if (cfg) setBgCfg(cfg);
     },
@@ -1243,6 +1246,19 @@ function PresentCanvas() {
                     step={10}
                     value={jeCardWidth}
                     onChange={(e) => setJeCardWidth(Number(e.target.value))}
+                    className="mt-0.5 w-full"
+                    style={{ accentColor: NEON.yellow }}
+                  />
+                </label>
+                <label className="mt-1.5 block text-[10px]" style={{ color: NEON.muted }}>
+                  Credit indent · {jeIndent}px <span className="opacity-60">(tetris stagger)</span>
+                  <input
+                    type="range"
+                    min={16}
+                    max={64}
+                    step={4}
+                    value={jeIndent}
+                    onChange={(e) => setJeIndent(Number(e.target.value))}
                     className="mt-0.5 w-full"
                     style={{ accentColor: NEON.yellow }}
                   />
