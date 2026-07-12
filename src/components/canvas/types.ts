@@ -21,11 +21,16 @@ export type CardKind =
 export interface CardBase {
   kind: CardKind;
   title?: string; // header label; falls back to a per-kind default
-  /** Legacy bottom-tray flag — the DECK absorbed the tray; still honored on load. */
+  /** DECK MEMBERSHIP — separate from presence. A member can be dealt (visible
+   *  on canvas) or tucked (hidden in the deck). Loose cards are non-members. */
+  deckMember?: boolean;
+  /** Member presence: true = tucked away in the deck, false/absent = dealt. */
+  tucked?: boolean;
+  /** LEGACY (schema_version 1): both meant "in deck + hidden". Migrated to
+   *  deckMember+tucked on load; never written by new saves. */
   minimized?: boolean;
-  /** In the DECK: invisible on canvas, listed in the left panel, dealt in order. */
   staged?: boolean;
-  /** Deck position (lower = dealt earlier). Set on entering; reordered in the panel. */
+  /** Deck position (lower = dealt earlier). Set on joining; reordered in the panel. */
   stageOrder?: number;
   /** Canvas position remembered when the card entered the deck — deal returns it there. */
   deckPos?: { x: number; y: number };

@@ -49,7 +49,7 @@ const SOCKET_PULSE_CSS = `
 export function JeCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as JeCard;
   const rf = useReactFlow();
-  const { update, updateFn, remove, toFront, duplicate, stage } = useCardActions(id);
+  const { update, updateFn, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const ctx = useCanvasSettings();
   const S = effectiveSettings(d.settings, ctx.jePreset, d.showAmounts);
 
@@ -343,9 +343,15 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         className={`card-actions absolute -top-7 right-1 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
         style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
       >
-        <ChromeBtn title="Tuck into deck (s)" onClick={stage}>
-          <span className="text-[11px] font-black leading-none">_</span>
-        </ChromeBtn>
+        {d.deckMember ? (
+          <ChromeBtn title="Tuck into deck (s)" onClick={tuck}>
+            <span className="text-[11px] font-black leading-none">_</span>
+          </ChromeBtn>
+        ) : (
+          <ChromeBtn title="Add to deck" onClick={addToDeck}>
+            <Plus className="h-3 w-3" />
+          </ChromeBtn>
+        )}
         <ChromeBtn title="Clone (stacks above)" onClick={duplicate}><Copy className="h-3 w-3" /></ChromeBtn>
         <button
           title="Card settings"

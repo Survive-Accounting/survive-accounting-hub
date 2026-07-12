@@ -1,11 +1,12 @@
-// The DECK — ONE holding system for off-canvas cards (the old backstage rail and
-// the minimized tray, merged). Cards enter by minimize/stage/sweep, remember
-// their canvas spot, and DEAL back to it (or viewport center). Spacebar deals
-// the next card when nothing is left to reveal. Face-down dealing renders the
-// SURVIVE card back until flipped. Every mutation is a dispatcher command.
+// The DECK — a run-of-show ROSTER, not a black hole. MEMBERSHIP (deckMember)
+// is separate from PRESENCE (dealt on canvas vs tucked away): a card can sit
+// on the canvas and still be part of the deck. Rows show title + kind + a
+// dealt/tucked indicator; clicking a tucked row deals it, a dealt row focuses
+// it; the row × removes MEMBERSHIP only (a tucked card re-deals first — cards
+// never vanish). RESET tucks every member and leaves loose cards alone.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronsRight, EyeOff, Hand, Layers3, Shuffle } from "lucide-react";
+import { ChevronsRight, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
 
 import { bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { CardBack } from "./CardBack";
@@ -27,11 +28,17 @@ const KIND_DOT: Record<string, string> = {
   image: NEON.cyan,
   legend: NEON.yellow,
   formula: NEON.yellow,
+  heading: NEON.cyan,
 };
 
-/** Deck entries in deal order. Zone path_order wins when set (a card belongs to
- *  a zone via parentId); within a zone — and for unzoned cards — stageOrder rules. */
-export function deckInOrder(nodes: { id: string; type?: string; parentId?: string; data: Record<string, unknown> }[]) {
+type DeckNode = { id: string; type?: string; parentId?: string; data: Record<string, unknown> };
+
+const isMember = (d: CardBase) => !!d.deckMember || !!d.staged || !!d.minimized; // legacy counts until migrated
+export const isTucked = (d: CardBase) => (d.deckMember ? !!d.tucked : !!d.staged || !!d.minimized);
+
+/** ALL deck members in deal order. Zone path_order wins when set; within a
+ *  zone — and for unzoned cards — stageOrder rules. */
+export function deckMembers(nodes: DeckNode[]) {
   const zonePath = new Map<string, number>();
   for (const n of nodes) {
     if (n.type === "zone") {
@@ -41,7 +48,7 @@ export function deckInOrder(nodes: { id: string; type?: string; parentId?: strin
   }
   const pathOf = (n: { parentId?: string }) => (n.parentId != null && zonePath.has(n.parentId) ? zonePath.get(n.parentId)! : Number.MAX_SAFE_INTEGER);
   return nodes
-    .filter((n) => n.type !== "zone" && ((n.data as unknown as CardBase).staged || (n.data as unknown as CardBase).minimized))
+    .filter((n) => n.type !== "zone" && isMember(n.data as unknown as CardBase))
     .sort(
       (a, b) =>
         pathOf(a) - pathOf(b) ||
@@ -50,19 +57,28 @@ export function deckInOrder(nodes: { id: string; type?: string; parentId?: strin
     );
 }
 
-/** Category stamp stored on deck entry (spec: the filtering hook, cheap today). */
+/** Next card the show key deals: first TUCKED member in order. */
+export function nextTucked(nodes: DeckNode[]) {
+  return deckMembers(nodes).find((n) => isTucked(n.data as unknown as CardBase));
+}
+
+/** Category stamp stored on deck entry (future filtering hook). */
 export function categoryOf(d: CardData): string {
   return d.kind === "je" ? `je:${(d as { entryType?: string }).entryType ?? "standard"}` : d.kind;
 }
 
 export function Deck({
   onDeal,
+  onFocus,
+  onRemoveMembership,
   dealFaceDown,
   setDealFaceDown,
   hideFdLabels,
   setHideFdLabels,
 }: {
   onDeal: (id: string) => void;
+  onFocus: (id: string) => void;
+  onRemoveMembership: (id: string) => void;
   dealFaceDown: boolean;
   setDealFaceDown: (v: boolean) => void;
   hideFdLabels: boolean;
@@ -73,15 +89,17 @@ export function Deck({
   const [collapsed, setCollapsed] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
 
-  const deck = deckInOrder(nodes as never);
+  const members = deckMembers(nodes as never);
+  const tuckedCount = members.filter((n) => isTucked(n.data as unknown as CardBase)).length;
 
   const dealNext = () => {
-    if (deck[0]) onDeal(deck[0].id);
+    const next = nextTucked(rf.getNodes() as never);
+    if (next) onDeal(next.id);
   };
 
   const shuffle = () => {
-    if (deck.length < 2) return;
-    const ids = deck.map((d) => d.id);
+    if (members.length < 2) return;
+    const ids = members.map((m) => m.id);
     for (let i = ids.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [ids[i], ids[j]] = [ids[j], ids[i]];
@@ -93,28 +111,28 @@ export function Deck({
     if (c) bus.dispatch(c);
   };
 
-  /** SWEEP: every on-canvas card returns to the deck (remembers its spot). */
-  const sweep = () => {
-    const nds = rf.getNodes();
-    let order = nextStageOrder(nds);
+  /** RESET: tuck every MEMBER (remember spots); loose cards untouched. */
+  const reset = () => {
     const c = compositeCmd(
-      nds
-        .filter((n) => n.type !== "zone" && !(n.data as unknown as CardBase).staged && !(n.data as unknown as CardBase).minimized)
+      rf
+        .getNodes()
+        .filter((n) => n.type !== "zone" && isMember(n.data as unknown as CardBase) && !isTucked(n.data as unknown as CardBase))
         .map((n) =>
           patchDataCmd(
             rf as unknown as RfLike,
             n.id,
             {
-              staged: true,
-              minimized: false,
-              stageOrder: order++,
+              deckMember: true,
+              tucked: true,
+              staged: undefined,
+              minimized: undefined,
               deckPos: { x: n.position.x, y: n.position.y },
               deckCategory: categoryOf(n.data as unknown as CardData),
             },
-            "sweep",
+            "reset",
           ),
         ),
-      "sweep to deck",
+      "reset deck",
     );
     if (c) bus.dispatch(c);
   };
@@ -122,7 +140,7 @@ export function Deck({
   /** Drop dragId in front of targetId (or at the end when targetId is null). */
   const reorder = (targetId: string | null) => {
     if (!dragId || dragId === targetId) return;
-    const ids = deck.map((s) => s.id).filter((x) => x !== dragId);
+    const ids = members.map((s) => s.id).filter((x) => x !== dragId);
     const at = targetId ? ids.indexOf(targetId) : ids.length;
     ids.splice(at < 0 ? ids.length : at, 0, dragId);
     const c = compositeCmd(
@@ -137,18 +155,18 @@ export function Deck({
     return (
       <button
         onClick={() => setCollapsed(false)}
-        title={`Deck (${deck.length})`}
+        title={`Deck (${members.length})`}
         className="absolute right-3 top-3 z-40 overflow-hidden rounded-lg"
         style={{ border: `1px solid ${NEON.border}` }}
       >
-        <CardBack small width={38} height={53} label={`${deck.length}`} />
+        <CardBack small width={38} height={53} label={`${members.length}`} />
       </button>
     );
   }
 
   return (
     <aside
-      className="absolute right-3 top-3 z-40 flex max-h-[70vh] w-56 flex-col rounded-xl"
+      className="absolute right-3 top-3 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"
       style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => reorder(null)}
@@ -156,7 +174,7 @@ export function Deck({
       <div className="flex items-center gap-1.5 px-2.5 py-1.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
         <Layers3 className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
         <span className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.yellow }}>
-          Deck <span style={{ color: NEON.muted }}>({deck.length})</span>
+          Deck <span style={{ color: NEON.muted }}>({tuckedCount}/{members.length})</span>
         </span>
         <button onClick={() => setCollapsed(true)} title="Collapse" className="ml-auto" style={{ color: NEON.muted }}>
           <ChevronsRight className="h-3.5 w-3.5" />
@@ -165,14 +183,14 @@ export function Deck({
 
       {/* actions */}
       <div className="flex items-center gap-1 px-2 py-1.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-        <DeckBtn title="Deal the next card (space)" onClick={dealNext} disabled={deck.length === 0}>
+        <DeckBtn title="Deal the next tucked card (space)" onClick={dealNext} disabled={tuckedCount === 0}>
           <Hand className="h-3 w-3" /> deal
         </DeckBtn>
-        <DeckBtn title="Randomize deal order" onClick={shuffle} disabled={deck.length < 2}>
+        <DeckBtn title="Randomize deal order" onClick={shuffle} disabled={members.length < 2}>
           <Shuffle className="h-3 w-3" /> shuffle
         </DeckBtn>
-        <DeckBtn title="Return every card on the canvas to the deck" onClick={sweep}>
-          <Layers3 className="h-3 w-3" /> sweep
+        <DeckBtn title="Tuck every deck member (loose cards stay put)" onClick={reset}>
+          <RotateCcw className="h-3 w-3" /> reset
         </DeckBtn>
       </div>
       <div className="flex items-center gap-2 px-2.5 py-1" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
@@ -189,13 +207,14 @@ export function Deck({
       </div>
 
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1.5">
-        {deck.length === 0 && (
+        {members.length === 0 && (
           <p className="px-1 py-2 text-[10.5px] italic leading-relaxed" style={{ color: NEON.muted }}>
-            Empty. Send cards here with the clapperboard, “s”, or SWEEP — spacebar deals them back in order.
+            Empty. “+” on any card adds it to the deck (it stays put); the tuck button or “s” hides it here. Spacebar deals tucked cards back in order.
           </p>
         )}
-        {deck.map((n, i) => {
+        {members.map((n, i) => {
           const d = n.data as unknown as CardData;
+          const tucked = isTucked(d as CardBase);
           return (
             <div
               key={n.id}
@@ -203,23 +222,32 @@ export function Deck({
               onDragStart={() => setDragId(n.id)}
               onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
               onDrop={(e) => { e.stopPropagation(); reorder(n.id); }}
-              className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 transition-colors"
+              className="group/row flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 transition-colors"
               style={{ border: `1px solid ${dragId === n.id ? NEON.yellow : NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}
-              onClick={() => onDeal(n.id)}
-              title="Deal to the canvas"
+              onClick={() => (tucked ? onDeal(n.id) : onFocus(n.id))}
+              title={tucked ? "Deal to the canvas" : "On canvas — click to focus"}
             >
               <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8.5px] font-bold" style={{ border: `1px solid ${NEON.yellow}`, color: NEON.yellow }}>
                 {i + 1}
               </span>
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: KIND_DOT[d.kind] ?? NEON.pink }} />
-              <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium">
+              <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium" style={{ opacity: tucked ? 0.75 : 1 }}>
                 {d.title || (d.kind === "je" && (d as { caption?: string }).caption) || CARD_KIND_LABEL[d.kind] || d.kind}
               </span>
-              {(d as CardBase).deckCategory?.startsWith("je:") && (d as CardBase).deckCategory !== "je:standard" && (
-                <span className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.4)" }}>
-                  {(d as CardBase).deckCategory!.slice(3, 6)}
-                </span>
-              )}
+              {/* presence indicator: tucked = filled gold, dealt = hollow green */}
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                title={tucked ? "tucked in the deck" : "dealt on canvas"}
+                style={tucked ? { background: NEON.yellow } : { border: `1.5px solid ${NEON.green}` }}
+              />
+              <button
+                className="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100"
+                style={{ color: NEON.red }}
+                title="Remove from deck (card stays on canvas)"
+                onClick={(e) => { e.stopPropagation(); onRemoveMembership(n.id); }}
+              >
+                <X className="h-3 w-3" />
+              </button>
             </div>
           );
         })}

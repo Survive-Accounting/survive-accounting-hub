@@ -3,7 +3,7 @@
 // cards saved selected reload as a drag-group).
 import { describe, expect, test } from "bun:test";
 
-import { sanitizeSceneNodes } from "./scene-io";
+import { migrateDeckFields, sanitizeSceneNodes } from "./scene-io";
 
 describe("sanitizeSceneNodes", () => {
   test("strips selected from every node — no multi-select group survives a save/load", () => {
@@ -23,6 +23,19 @@ describe("sanitizeSceneNodes", () => {
     ]);
     expect("dragging" in out[0]).toBe(false);
     expect(out[0].data).toEqual({ kind: "je", caption: "keep me" });
+  });
+
+  test("legacy staged/minimized migrate to deckMember+tucked; v2 nodes untouched", () => {
+    const out = migrateDeckFields([
+      { data: { kind: "je", staged: true, stageOrder: 3 } },
+      { data: { kind: "note", minimized: true } },
+      { data: { kind: "list", deckMember: true, tucked: false } },
+      { data: { kind: "ceq" } },
+    ]);
+    expect(out[0].data).toEqual({ kind: "je", deckMember: true, tucked: true, stageOrder: 3 });
+    expect(out[1].data).toEqual({ kind: "note", deckMember: true, tucked: true });
+    expect(out[2].data).toEqual({ kind: "list", deckMember: true, tucked: false });
+    expect(out[3].data).toEqual({ kind: "ceq" });
   });
 
   test("position/parentId/zIndex survive untouched", () => {

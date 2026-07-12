@@ -4,7 +4,7 @@
 // uploads into canvas-media. Chromeless like the note card — hover actions only.
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Clapperboard, Copy, ImagePlus, Plus, Trash2, X } from "lucide-react";
+import { Copy, ImagePlus, Minus, Plus, Trash2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { EditableText } from "../ui";
@@ -16,7 +16,7 @@ const FRAME = { frame: "#0B0F1E", field: "#14213D", gold: "#E8B84B", red: "#CE11
 
 export function LegendCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as LegendCard;
-  const { update, updateFn, remove, toFront, duplicate, stage } = useCardActions(id);
+  const { update, updateFn, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const arrowPending = !!(data as Record<string, unknown>)._arrowPending;
@@ -58,10 +58,10 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
       {/* hover actions (film mode hides via .card-actions) */}
       <div className="card-actions absolute right-1.5 top-1.5 z-10 flex gap-0.5 opacity-0 transition-opacity group-hover/legend:opacity-100">
         {([
-          ["To the deck (s)", Clapperboard, stage],
-          ["Duplicate", Copy, duplicate],
-          ["Delete", X, remove],
-        ] as const).map(([title, Icon, fn]) => (
+          d.deckMember ? (["Tuck into deck (s)", Minus, tuck] as const) : (["Add to deck", Plus, addToDeck] as const),
+          ["Duplicate", Copy, duplicate] as const,
+          ["Delete", X, remove] as const,
+        ]).map(([title, Icon, fn]) => (
           <button
             key={title}
             title={title}

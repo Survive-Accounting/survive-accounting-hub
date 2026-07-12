@@ -1,7 +1,7 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { Handle, NodeResizer, Position, useReactFlow } from "@xyflow/react";
-import { Clapperboard, Pencil, Copy, X } from "lucide-react";
+import { Minus, Pencil, Plus, Copy, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { NEON, PAPER } from "./theme";
 import { cardId, type CardBase } from "./types";
@@ -40,8 +40,8 @@ export function useCardActions(id: string) {
     },
     // z-order is view noise, deliberately NOT on the undo rail
     toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: ++Z } : n))),
-    /** To the DECK: hide from canvas, append to the deal order, remember the spot. */
-    stage: () => {
+    /** Join the deck WITHOUT leaving the canvas (dealt member, end of order). */
+    addToDeck: () => {
       const node = rf.getNode(id);
       if (!node) return;
       const kind = (node.data as unknown as CardBase).kind;
@@ -50,13 +50,33 @@ export function useCardActions(id: string) {
         rfl,
         id,
         {
-          staged: true,
-          minimized: false,
+          deckMember: true,
+          tucked: false,
           stageOrder: nextStageOrder(rf.getNodes()),
+          deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
+        },
+        "add to deck",
+      );
+      if (c) bus.dispatch(c);
+    },
+    /** TUCK: hide a member into the deck, remembering its spot (joins if loose). */
+    tuck: () => {
+      const node = rf.getNode(id);
+      if (!node) return;
+      const d = node.data as unknown as CardBase;
+      const kind = d.kind;
+      const entryType = (node.data as Record<string, unknown>).entryType as string | undefined;
+      const c = patchDataCmd(
+        rfl,
+        id,
+        {
+          deckMember: true,
+          tucked: true,
+          stageOrder: d.deckMember ? d.stageOrder : nextStageOrder(rf.getNodes()),
           deckPos: { x: node.position.x, y: node.position.y },
           deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
         },
-        "to deck",
+        "tuck into deck",
       );
       if (c) bus.dispatch(c);
     },
@@ -107,7 +127,7 @@ export function BaseCard({
   noResize?: boolean;
   children: React.ReactNode;
 }) {
-  const { update, remove, toFront, duplicate, stage } = useCardActions(id);
+  const { update, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const title = data.title ?? "";
   // Ctrl/Cmd+click arrow flow: first click marks this card as the pending source.
   const arrowPending = !!(data as unknown as Record<string, unknown>)._arrowPending;
@@ -171,9 +191,16 @@ export function BaseCard({
         )}
         <div className="card-actions flex items-center gap-0.5">
           {headerRight}
-          <IconBtn title="To the deck (s)" onClick={stage}>
-            <Clapperboard className="h-3 w-3" />
-          </IconBtn>
+          {/* membership vs presence: loose card joins (stays put); a member tucks away */}
+          {data.deckMember ? (
+            <IconBtn title="Tuck into deck (s)" onClick={tuck}>
+              <Minus className="h-3 w-3" />
+            </IconBtn>
+          ) : (
+            <IconBtn title="Add to deck" onClick={addToDeck}>
+              <Plus className="h-3 w-3" />
+            </IconBtn>
+          )}
           {!noEditBtn && (
             <IconBtn title="Edit card" active={data.editMode} onClick={() => update({ editMode: !data.editMode })}><Pencil className="h-3 w-3" /></IconBtn>
           )}

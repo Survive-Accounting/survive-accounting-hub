@@ -46,10 +46,10 @@ import { cardId, type CardBase, type CardData, type CardNode, type FormulaCard, 
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
-import { Deck, categoryOf, deckInOrder } from "@/components/canvas/Deck";
+import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopLine, sideOf, type JePreset } from "@/components/canvas/je-logic";
 import { listCoa, listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
@@ -303,9 +303,9 @@ function PresentCanvas() {
     [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels],
   );
 
-  // Deck members (staged; legacy minimized rides along) are hidden on the canvas
-  // via the node.hidden sync below. The old bottom tray is gone — one system.
-  const offCanvas = (d: CardData) => !!d.minimized || !!d.staged;
+  // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
+  // legacy staged/minimized read as tucked until the load-time migration clears them.
+  const offCanvas = (d: CardData) => isTucked(d);
   useEffect(() => {
     if (liveNodes.some((n) => !!n.hidden !== offCanvas(n.data as unknown as CardData) || (n.hidden && n.selected))) {
       rf.setNodes((nds) =>
@@ -378,6 +378,8 @@ function PresentCanvas() {
       });
       const target = d.deckPos ?? { x: center.x - 190, y: center.y - 120 };
       const before = {
+        deckMember: d.deckMember,
+        tucked: d.tucked,
         staged: d.staged,
         minimized: d.minimized,
         faceDown: d.faceDown,
@@ -387,7 +389,8 @@ function PresentCanvas() {
       bus.dispatch({
         label: "deal card",
         do: () => {
-          rf.updateNodeData(id, { staged: false, minimized: false, faceDown: fd });
+          // dealt member: stays IN the deck roster, just visible again
+          rf.updateNodeData(id, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, faceDown: fd });
           rf.setNodes((nds) =>
             nds.map((n) =>
               n.id === id
@@ -399,13 +402,42 @@ function PresentCanvas() {
           );
         },
         undo: () => {
-          rf.updateNodeData(id, { staged: before.staged, minimized: before.minimized, faceDown: before.faceDown });
+          rf.updateNodeData(id, { deckMember: before.deckMember, tucked: before.tucked, staged: before.staged, minimized: before.minimized, faceDown: before.faceDown });
           rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position }, selected: false } : n)));
         },
       });
     },
     [rf, dealFaceDown],
   );
+
+  /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
+   *  spot as a loose card first. Cards never vanish. */
+  const removeMembership = useCallback(
+    (id: string) => {
+      const node = rf.getNode(id);
+      if (!node) return;
+      const d = node.data as unknown as CardData;
+      const wasTucked = isTucked(d);
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+      const target = d.deckPos ?? { x: center.x - 190, y: center.y - 120 };
+      const before = { deckMember: d.deckMember, tucked: d.tucked, staged: d.staged, minimized: d.minimized, position: { ...node.position } };
+      bus.dispatch({
+        label: "leave deck",
+        do: () => {
+          rf.updateNodeData(id, { deckMember: false, tucked: false, staged: undefined, minimized: undefined });
+          if (wasTucked) rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...target }, hidden: false } : n)));
+        },
+        undo: () => {
+          rf.updateNodeData(id, { deckMember: before.deckMember, tucked: before.tucked, staged: before.staged, minimized: before.minimized });
+          rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position } } : n)));
+        },
+      });
+    },
+    [rf],
+  );
+
+  const focusNode = useCallback((id: string) => rf.fitView({ nodes: [{ id }], duration: 400, padding: 0.4 }), [rf]);
 
   // DEV probe: drive the React Flow instance from the console (import.meta.env.DEV only).
   // __rfStore lets headless tests force node measurement synchronously — hidden tabs
@@ -705,7 +737,7 @@ function PresentCanvas() {
       // sanitize: transient state (selected/dragging/_arrowPending) must not round-trip —
       // persisted multi-selection made loaded cards drag as a group (S2.0 bug)
       nodes_json: JSON.stringify({
-        schema_version: 1,
+        schema_version: 2, // v2: deckMember/tucked replace staged/minimized (loader migrates v1)
         nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
         sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels },
@@ -753,8 +785,8 @@ function PresentCanvas() {
       }
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
-      // sanitize on LOAD too: scenes saved before the S2.0 fix heal here
-      rf.setNodes(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]));
+      // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
+      rf.setNodes(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])));
       rf.setEdges((nj.edges ?? []) as never[]);
       setSceneName(payload.name);
       setSceneId(id);
@@ -882,7 +914,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]);
+      const nodesAfter = migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]));
       const edgesAfter = (nj.edges ?? []) as never[];
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
@@ -947,7 +979,7 @@ function PresentCanvas() {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
             if (c) bus.dispatch(c);
           } else {
-            const next = deckInOrder(rf.getNodes() as never)[0];
+            const next = nextTucked(rf.getNodes() as never);
             if (next) deal(next.id);
           }
         },
@@ -969,30 +1001,30 @@ function PresentCanvas() {
       {
         combo: "s",
         group: "Show",
-        description: "Send selected card(s) to the deck / bring back",
+        description: "Tuck selected card(s) into the deck (joins if loose)",
         handler: () => {
           const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
           if (sel.length === 0) return;
           let order = nextStageOrder(rf.getNodes());
           const c = compositeCmd(
             sel.map((n) => {
-              const st = (n.data as unknown as CardData).staged;
+              const d = n.data as unknown as CardData;
               return patchDataCmd(
                 rf as unknown as RfLike,
                 n.id,
-                st
-                  ? { staged: false }
-                  : {
-                      staged: true,
-                      minimized: false,
-                      stageOrder: order++,
-                      deckPos: { x: n.position.x, y: n.position.y },
-                      deckCategory: categoryOf(n.data as unknown as CardData),
-                    },
-                "to deck",
+                {
+                  deckMember: true,
+                  tucked: true,
+                  staged: undefined,
+                  minimized: undefined,
+                  stageOrder: d.deckMember ? d.stageOrder : order++,
+                  deckPos: { x: n.position.x, y: n.position.y },
+                  deckCategory: categoryOf(d),
+                },
+                "tuck",
               );
             }),
-            "to deck",
+            "tuck into deck",
           );
           if (c) bus.dispatch(c);
         },
@@ -1160,6 +1192,8 @@ function PresentCanvas() {
       {chrome && (
         <Deck
           onDeal={deal}
+          onFocus={focusNode}
+          onRemoveMembership={removeMembership}
           dealFaceDown={dealFaceDown}
           setDealFaceDown={setDealFaceDown}
           hideFdLabels={hideFdLabels}
