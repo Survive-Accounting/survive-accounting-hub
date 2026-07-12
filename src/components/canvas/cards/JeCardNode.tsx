@@ -8,6 +8,7 @@ import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Lightbulb, Plus, Repeat, Settings2, X } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
+import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { CoaPicker } from "./CoaPicker";
 import { EditableNumber, fmtNum } from "../ui";
@@ -46,9 +47,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
 
   const [flipFeedback, setFlipFeedback] = useState<string | null>(null);
   const [dragLine, setDragLine] = useState<string | null>(null);
-  const [memoOpen, setMemoOpen] = useState<string | null>(null); // lightbulb popover / memo editor
-  const [pickerFor, setPickerFor] = useState<string | null>(null);
-  const [gearOpen, setGearOpen] = useState(false);
+  // popovers portal to document.body (CardPopover) — each carries its anchor element
+  const [memoOpen, setMemoOpen] = useState<{ id: string; anchor: HTMLElement } | null>(null);
+  const [pickerFor, setPickerFor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
+  const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
   const selLine = (data as Record<string, unknown>)._selLine as string | undefined;
 
   // All line mutations run through the dispatcher via updateFn (absolute patches).
@@ -140,19 +142,21 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             onClick={(e) => {
               e.stopPropagation();
               selectLine(isSel ? null : l.id);
-              if (S.showPicker) setPickerFor(pickerFor === l.id ? null : l.id);
+              if (S.showPicker) setPickerFor(pickerFor?.id === l.id ? null : { id: l.id, anchor: e.currentTarget });
             }}
           >
             {eff(l).account || "Choose account"}
           </button>
-          {pickerFor === l.id && S.showPicker && (
-            <CoaPicker
-              groups={ctx.coa}
-              allowSearch={S.allowSearch}
-              showChips={S.showNormalChips}
-              onPick={(name) => { patchLine(l.id, { account: name }); setPickerFor(null); }}
-              onClose={() => setPickerFor(null)}
-            />
+          {pickerFor?.id === l.id && S.showPicker && (
+            <CardPopover anchor={pickerFor.anchor} onClose={() => setPickerFor(null)}>
+              <CoaPicker
+                groups={ctx.coa}
+                allowSearch={S.allowSearch}
+                showChips={S.showNormalChips}
+                onPick={(name) => { patchLine(l.id, { account: name }); setPickerFor(null); }}
+                onClose={() => setPickerFor(null)}
+              />
+            </CardPopover>
           )}
           {!S.showPicker && (
             <FreeTypeEditor line={l} onCommit={(v) => patchLine(l.id, { account: v })} names={[...(d.accountBank ?? []), ...ctx.coaNames]} cardId={id} />
@@ -181,7 +185,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 style={{ color: PAPER.gold }}
                 title="Show memo"
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); setMemoOpen(memoOpen === l.id ? null : l.id); }}
+                onClick={(e) => { e.stopPropagation(); setMemoOpen(memoOpen?.id === l.id ? null : { id: l.id, anchor: e.currentTarget }); }}
               >
                 <Lightbulb className="h-3.5 w-3.5" />
               </button>
@@ -191,17 +195,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 style={{ color: PAPER.inkMuted }}
                 title="Add memo"
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); setMemoOpen(l.id); }}
+                onClick={(e) => { e.stopPropagation(); setMemoOpen({ id: l.id, anchor: e.currentTarget }); }}
               >
                 <Plus className="h-3 w-3" />
               </button>
             )}
-            {memoOpen === l.id && (
-              <MemoPopover
-                value={l.label ?? ""}
-                onSave={(v) => { patchLine(l.id, { label: v }); setMemoOpen(null); }}
-                onClose={() => setMemoOpen(null)}
-              />
+            {memoOpen?.id === l.id && (
+              <CardPopover anchor={memoOpen.anchor} align="right" onClose={() => setMemoOpen(null)}>
+                <MemoPopover
+                  value={l.label ?? ""}
+                  onSave={(v) => { patchLine(l.id, { label: v }); setMemoOpen(null); }}
+                  onClose={() => setMemoOpen(null)}
+                />
+              </CardPopover>
             )}
           </div>
         )}
@@ -286,20 +292,28 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           >
             {entryType.slice(0, 3)}
           </button>
-          <IconBtn title="Card settings" active={gearOpen} onClick={() => setGearOpen((v) => !v)}>
+          <button
+            title="Card settings"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setGearAnchor(gearAnchor ? null : e.currentTarget); }}
+            className="nodrag grid h-5 w-5 place-items-center rounded transition-colors"
+            style={{ color: gearAnchor ? NEON.pink : NEON.muted, background: gearAnchor ? "rgba(224,40,74,0.14)" : "transparent" }}
+          >
             <Settings2 className="h-3 w-3" />
-          </IconBtn>
+          </button>
         </>
       }
     >
       <div className="group/card relative">
-        {gearOpen && (
-          <GearPanel
-            settings={S}
-            onPatch={(p) => update({ settings: { ...(d.settings ?? {}), ...p } })}
-            onPreset={(preset) => update({ settings: { ...JE_PRESETS[preset] } })}
-            onClose={() => setGearOpen(false)}
-          />
+        {gearAnchor && (
+          <CardPopover anchor={gearAnchor} align="right" onClose={() => setGearAnchor(null)}>
+            <GearPanel
+              settings={S}
+              onPatch={(p) => update({ settings: { ...(d.settings ?? {}), ...p } })}
+              onPreset={(preset) => update({ settings: { ...JE_PRESETS[preset] } })}
+              onClose={() => setGearAnchor(null)}
+            />
+          </CardPopover>
         )}
 
         {renderSide("dr")}
@@ -407,7 +421,7 @@ function MemoPopover({ value, onSave, onClose }: { value: string; onSave: (v: st
   const [local, setLocal] = useState(value);
   return (
     <div
-      className="nodrag absolute right-0 top-6 z-30 w-52 rounded-lg p-2 shadow-xl"
+      className="nodrag w-52 rounded-lg p-2 shadow-xl"
       style={{ background: "#FFF9E8", border: "1px solid rgba(138,90,0,0.35)", boxShadow: "0 14px 30px -10px rgba(20,33,61,0.4)" }}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -455,7 +469,7 @@ function GearPanel({ settings, onPatch, onPreset, onClose }: {
   ];
   return (
     <div
-      className="nodrag absolute right-0 top-0 z-40 w-48 rounded-lg p-2 shadow-xl"
+      className="nodrag w-48 rounded-lg p-2 shadow-xl"
       style={{ background: "#FFFFFF", border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 16px 40px -12px rgba(20,33,61,0.45)" }}
       onPointerDown={(e) => e.stopPropagation()}
     >

@@ -31,7 +31,8 @@ export function CoaPicker({
 
   return (
     <div
-      className="nodrag nowheel absolute left-0 top-full z-30 mt-1 max-h-64 w-64 overflow-y-auto rounded-lg p-1.5 shadow-xl"
+      // pure content — positioning/portal belongs to CardPopover (never clips inside a card)
+      className="nodrag nowheel max-h-64 w-64 overflow-y-auto rounded-lg p-1.5 shadow-xl"
       style={{ background: "#FFFFFF", border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 16px 40px -12px rgba(20,33,61,0.45)" }}
       onPointerDown={(e) => e.stopPropagation()}
     >
