@@ -28,20 +28,27 @@ const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
   { kind: "image", label: "Image" },
   { kind: "legend", label: "Legend card" },
   { kind: "formula", label: "Formula" },
+  { kind: "heading", label: "Heading" },
 ];
 
 const KIND_FILTERS: (CardKind | "all")[] = ["all", "je", "schedule", "computation", "taccount", "ceq", "memorize"];
+
+/** Focus mode trims the blank deck to the filming staples. */
+const FOCUS_KINDS: CardKind[] = ["je", "taccount", "note", "heading"];
 
 export function Palette({
   library,
   onSpawn,
   collapsed,
   onToggle,
+  focus = false,
 }: {
   library: LibraryItem[];
   onSpawn: (data: CardData) => void;
   collapsed: boolean;
   onToggle: () => void;
+  /** ON: BLANK section shows only JE / T-account / Note / Heading. */
+  focus?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [course, setCourse] = useState<string>("all");
@@ -101,7 +108,7 @@ export function Palette({
       <div className="px-3 pt-2">
         <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Blank</div>
         <div className="grid grid-cols-2 gap-1">
-          {BLANKS.map((b) => (
+          {(focus ? BLANKS.filter((b) => FOCUS_KINDS.includes(b.kind)) : BLANKS).map((b) => (
             <button
               key={b.label}
               onClick={() => onSpawn(b.kind === "schedule" ? scheduleTemplate(b.preset ?? "generic") : blankCard(b.kind))}

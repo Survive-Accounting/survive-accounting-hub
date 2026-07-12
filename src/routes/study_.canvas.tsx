@@ -42,6 +42,7 @@ import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageC
 import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
+import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
 import { cardId, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
@@ -164,6 +165,7 @@ const nodeTypes = {
   image: withFaceDown(ImageCardNode),
   legend: withFaceDown(LegendCardNode),
   formula: withFaceDown(FormulaCardNode),
+  heading: withFaceDown(HeadingCardNode),
   zone: ZoneNode,
 };
 
@@ -298,6 +300,7 @@ function PresentCanvas() {
   const [jePreset, setJePreset] = useState<JePreset>("guided");
   const [dealFaceDown, setDealFaceDown] = useState(false); // deck toggle: deals arrive as card backs
   const [hideFdLabels, setHideFdLabels] = useState(false); // quiz mode: banners show "???"
+  const [focusPalette, setFocusPalette] = useState(true); // blanks trimmed to JE/T-account/Note/Heading
   const canvasSettings = useMemo<CanvasSettings>(
     () => ({ jeCardWidth, jeIndent, jePreset, coa: coaGroups, coaNames, hideFdLabels, setJeCardWidth, setJeIndent, setJePreset }),
     [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels],
@@ -794,12 +797,12 @@ function PresentCanvas() {
         schema_version: 2, // v2: deckMember/tucked replace staged/minimized (loader migrates v1)
         nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette },
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -827,7 +830,7 @@ function PresentCanvas() {
         schema_version?: number;
         nodes?: CardNode[];
         edges?: unknown[];
-        sceneSettings?: { jeCardWidth?: number; jeIndent?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean };
+        sceneSettings?: { jeCardWidth?: number; jeIndent?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean; focusPalette?: boolean };
       } = {};
       let vp: Viewport | null = null;
       try {
@@ -851,6 +854,7 @@ function PresentCanvas() {
       }
       if (typeof nj.sceneSettings?.dealFaceDown === "boolean") setDealFaceDown(nj.sceneSettings.dealFaceDown);
       if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
+      if (typeof nj.sceneSettings?.focusPalette === "boolean") setFocusPalette(nj.sceneSettings.focusPalette);
       const cfg = decodeBg(payload.bg);
       if (cfg) setBgCfg(cfg);
       const vpFinal = vp;
@@ -1109,8 +1113,8 @@ function PresentCanvas() {
       { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
       { combo: "t", group: "Quick-spawn", description: "T-account at cursor", handler: () => quickSpawn("taccount") },
       { combo: "n", group: "Quick-spawn", description: "Note at cursor", handler: () => quickSpawn("note") },
-      { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor", handler: () => quickSpawn("ceq") },
-      { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor", handler: () => quickSpawn("list") },
+      { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("ceq"); } },
+      { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("list"); } },
       {
         combo: "arrowleft",
         group: "JE lines",
@@ -1128,7 +1132,7 @@ function PresentCanvas() {
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
-    [rf, deal, quickSpawn, clearArrowPending, hopSelectedLine],
+    [rf, deal, quickSpawn, clearArrowPending, hopSelectedLine, focusPalette],
   );
   useKeymap(bindings);
 
@@ -1241,7 +1245,7 @@ function PresentCanvas() {
       </ReactFlow>
 
       {/* Palette */}
-      {chrome && <Palette library={library} onSpawn={spawn} collapsed={paletteCollapsed} onToggle={() => setPaletteCollapsed((v) => !v)} />}
+      {chrome && <Palette library={library} onSpawn={spawn} collapsed={paletteCollapsed} onToggle={() => setPaletteCollapsed((v) => !v)} focus={focusPalette} />}
 
       {/* The DECK — one holding system (hidden in clean/film mode; spacebar still deals) */}
       {chrome && (
@@ -1351,6 +1355,10 @@ function PresentCanvas() {
                     className="mt-0.5 w-full"
                     style={{ accentColor: NEON.yellow }}
                   />
+                </label>
+                <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: focusPalette ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={focusPalette} onChange={(e) => setFocusPalette(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Focus palette <span className="opacity-60">(JE · T · Note · Heading)</span>
                 </label>
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>New-JE preset</div>
                 <div className="mt-1 flex gap-1">

@@ -33,6 +33,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "video", playbackId: "", editMode: true };
     case "image":
       return { kind: "image", url: "", fit: "contain", caption: "", editMode: true };
+    case "heading":
+      return { kind: "heading", text: "", level: 1 };
     case "formula":
       return {
         kind: "formula",
@@ -182,4 +184,5 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   image: "Image",
   legend: "Legend card",
   formula: "Formula",
+  heading: "Heading",
 };

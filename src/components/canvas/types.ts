@@ -15,7 +15,8 @@ export type CardKind =
   | "list"
   | "image"
   | "legend"
-  | "formula";
+  | "formula"
+  | "heading";
 
 /** Shared across every card, merged into node.data. */
 export interface CardBase {
@@ -177,6 +178,14 @@ export interface FormulaCard extends CardBase {
   operators: string[];
 }
 
+// ---- Heading (big display text: section titles on the whiteboard) ----
+export interface HeadingCard extends CardBase {
+  kind: "heading";
+  /** Display text; a trailing "[sub]" renders as a smaller bracketed sub-label. */
+  text: string;
+  level: 1 | 2; // H1 ~48px / H2 ~28px at zoom 1
+}
+
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----
 export interface ListRow {
   id: string;
@@ -206,7 +215,8 @@ export type CardData =
   | ListCard
   | ImageCard
   | LegendCard
-  | FormulaCard;
+  | FormulaCard
+  | HeadingCard;
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 
