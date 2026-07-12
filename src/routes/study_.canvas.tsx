@@ -363,20 +363,73 @@ function PresentCanvas() {
     [rf, clearArrowPending],
   );
 
-  // ---- DEAL: card leaves the deck for its REMEMBERED canvas spot (else viewport
-  // center), selected on arrival; mount animation = the entrance. Optionally face
-  // down. One dispatcher command — undo returns it to the deck at its old order.
-  const deal = useCallback(
-    (id: string) => {
-      const node = rf.getNode(id);
-      if (!node) return;
-      const d = node.data as unknown as CardData;
+  // User pan/zoom timestamp — auto-fit never fights a hand on the wheel.
+  const lastUserView = useRef(0);
+  const onMoveStart = useCallback((event: unknown) => {
+    if (event) lastUserView.current = Date.now();
+  }, []);
+
+  /** No remembered spot → next free cell in a flowing grid from viewport center
+   *  (cell = footprint + 40px gutter, max 5 columns, wrapping down). */
+  const nextFreeGridSlot = useCallback(
+    (w: number, h: number) => {
       const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
       const center = rf.screenToFlowPosition({
         x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2,
         y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2,
       });
-      const target = d.deckPos ?? { x: center.x - 190, y: center.y - 120 };
+      const GUTTER = 40;
+      const COLS = 5;
+      const cellW = w + GUTTER;
+      const cellH = h + GUTTER;
+      const originX = center.x - (cellW * COLS) / 2 + GUTTER / 2;
+      const originY = center.y - cellH / 2;
+      const others = rf.getNodes().filter((n) => !n.hidden && n.type !== "zone");
+      const overlaps = (x: number, y: number) =>
+        others.some((o) => {
+          const ow = o.measured?.width ?? 300;
+          const oh = o.measured?.height ?? 170;
+          return x < o.position.x + ow && x + w > o.position.x && y < o.position.y + oh && y + h > o.position.y;
+        });
+      for (let i = 0; i < 60; i++) {
+        const x = originX + (i % COLS) * cellW;
+        const y = originY + Math.floor(i / COLS) * cellH;
+        if (!overlaps(x, y)) return { x, y };
+      }
+      return { x: center.x, y: center.y };
+    },
+    [rf],
+  );
+
+  /** Post-deal: if visible cards spill past the viewport, zoom-to-fit (~250ms) —
+   *  unless the user panned/zoomed within the last few seconds. */
+  const maybeAutoFit = useCallback(() => {
+    if (Date.now() - lastUserView.current < 4000) return;
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    if (!rect) return;
+    const vp = rf.getViewport();
+    const view = { x: -vp.x / vp.zoom, y: -vp.y / vp.zoom, w: rect.width / vp.zoom, h: rect.height / vp.zoom };
+    const visible = rf.getNodes().filter((n) => !n.hidden && n.type !== "zone");
+    if (visible.length === 0) return;
+    const outside = visible.some((n) => {
+      const w = n.measured?.width ?? 300;
+      const h = n.measured?.height ?? 170;
+      return n.position.x < view.x || n.position.y < view.y || n.position.x + w > view.x + view.w || n.position.y + h > view.y + view.h;
+    });
+    if (outside) void rf.fitView({ duration: 250, padding: 0.12 });
+  }, [rf]);
+
+  // ---- DEAL: card leaves the deck for its REMEMBERED canvas spot (else the next
+  // free grid slot), selected on arrival; mount animation = the entrance. One
+  // dispatcher command — undo returns it to the deck at its old order.
+  const deal = useCallback(
+    (id: string) => {
+      const node = rf.getNode(id);
+      if (!node) return;
+      const d = node.data as unknown as CardData;
+      const fw = node.measured?.width ?? (d.kind === "je" ? jeCardWidth : ((d as CardData & { w?: number }).w ?? 300));
+      const fh = node.measured?.height ?? 190;
+      const target = d.deckPos ?? nextFreeGridSlot(fw, fh);
       const before = {
         deckMember: d.deckMember,
         tucked: d.tucked,
@@ -406,8 +459,9 @@ function PresentCanvas() {
           rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position }, selected: false } : n)));
         },
       });
+      setTimeout(maybeAutoFit, 40); // after the store settles
     },
-    [rf, dealFaceDown],
+    [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit],
   );
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
@@ -1156,6 +1210,7 @@ function PresentCanvas() {
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onMoveStart={onMoveStart}
         onDelete={onDelete}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodeClick={onNodeClick}
