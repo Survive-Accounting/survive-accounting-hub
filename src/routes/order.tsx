@@ -77,7 +77,9 @@ const FAMILY_LABELS: Record<FamilyKey, string> = {
 const FAMILY_ORDER: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
 
 // Scope-first: the student's problem comes first.
-const STEPS = ["What you need", "Exam", "School", "Course", "Professor", "Preferred option", "Your info"] as const;
+// Fall 2026 waitlist: slimmed to 4 steps. The scope / exam-date / detail+upload /
+// major steps are hidden (their components remain in this file for later restore).
+const STEPS = ["School", "Course", "Professor", "Your info"] as const;
 
 // Interest multi-select (no pricing — demand-testing launch).
 type Interest = "one_on_one" | "group" | "videos_tools" | "something_else";
@@ -206,13 +208,10 @@ function refCode(campusName: string, first: string, last: string, shortRef: stri
 // Per-step completion gate — drives the forward arrow.
 function stepComplete(step: number, d: Draft): boolean {
   switch (step) {
-    case 0: return !!d.requestScope;
-    case 1: return !!d.examDate || d.examChoice === "not_sure";
-    case 2: return !!d.campusId || (d.campusOther && d.campusName.trim().length > 0);
-    case 3: return d.courseFamily != null || d.courseCode.trim().length > 0 || d.courseName.trim().length > 0;
-    case 4: return true; // professor optional
-    case 5: return d.interests.length > 0;
-    default: return false;
+    case 0: return !!d.campusId || (d.campusOther && d.campusName.trim().length > 0); // school
+    case 1: return d.courseFamily != null || d.courseCode.trim().length > 0 || d.courseName.trim().length > 0; // course
+    case 2: return true; // professor optional
+    default: return false; // final step (interests + info) submits via its own button
   }
 }
 
@@ -256,13 +255,10 @@ function OrderPage() {
       <div className="mx-auto w-full max-w-2xl px-4 pb-14 pt-5">
         <StepNav step={step} canForward={canForward} onBack={goBack} onForward={next} />
         <div className="mt-4 rounded-[28px] bg-white p-6 shadow-[0_30px_80px_-28px_rgba(20,33,61,0.45)] ring-1 ring-black/[0.04] sm:p-9">
-          {step === 0 && <ScopeStep draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} onNext={next} />}
-          {step === 1 && <ExamStep draft={draft} update={update} onNext={next} />}
-          {step === 2 && <CampusStep draft={draft} update={update} onNext={next} />}
-          {step === 3 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} />}
-          {step === 4 && <ProfessorStep draft={draft} update={update} onNext={next} />}
-          {step === 5 && <HelpOptionsStep draft={draft} update={update} onNext={next} />}
-          {step === 6 && <InfoStep draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} onSubmitted={setResult} />}
+          {step === 0 && <CampusStep draft={draft} update={update} onNext={next} />}
+          {step === 1 && <CourseStep draft={draft} update={update} ctx={ctx} onNext={next} />}
+          {step === 2 && <ProfessorStep draft={draft} update={update} onNext={next} />}
+          {step === 3 && <InfoStep draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} onSubmitted={setResult} />}
         </div>
         <StepFooter />
       </div>
@@ -285,17 +281,17 @@ function Intro({ onStart }: { onStart: () => void }) {
           <img src={leeHeadshot} alt="Lee Ingram" className="h-full w-full object-cover" draggable={false} />
         </span>
         <h1 className="mt-6 text-[32px] leading-[1.1] sm:text-[44px]" style={{ color: NAVY, fontFamily: SERIF, fontWeight: 400 }}>
-          Exam prep built for your exact class
+          Join the Fall 2026 waitlist
         </h1>
         <p className="mx-auto mt-3 max-w-md text-[15px] text-gray-600">
-          Built by Lee Ingram — Ole Miss BAccy &amp; MAccy who's tutored 1,000+ accounting students
-          since 2015.
+          You&apos;re joining the Fall 2026 list. I&apos;ll text you before your semester starts —
+          students on the list get early access and beta invites first.
         </p>
         <div className="mt-8">
           <button type="button" onClick={onStart}
             className="inline-flex h-14 items-center justify-center rounded-2xl px-10 text-lg font-bold text-white transition hover:brightness-110 hover:-translate-y-0.5"
             style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 14px 34px rgba(206,17,38,0.30)" }}>
-            Get started
+            Join the waitlist
           </button>
           <div className="mt-4">
             <button type="button" onClick={scrollToReviews} className="text-sm font-medium text-gray-500 underline underline-offset-2 hover:text-gray-700">
@@ -678,10 +674,6 @@ function CourseStep({ draft, update, ctx, onNext }: {
           {!forceOther && <button type="button" className="text-xs text-gray-600 underline" onClick={() => update("courseOther", false)}>Pick from the list instead</button>}
         </div>
       )}
-      <div className="mt-6 border-t border-gray-100 pt-5">
-        <PillGroup label="Are you an accounting major?" note="(optional)"
-          options={MAJOR_OPTIONS} value={draft.isAccountingMajor} onChange={(v) => update("isAccountingMajor", v)} />
-      </div>
       <div className="mt-6"><PrimaryBtn onClick={onNext} disabled={!canContinue}>Continue</PrimaryBtn></div>
     </div>
   );
@@ -838,6 +830,8 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
   const submitFn = useServerFn(submitOrder);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const toggle = (v: Interest) =>
+    update("interests", draft.interests.includes(v) ? draft.interests.filter((x) => x !== v) : [...draft.interests, v]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -896,14 +890,36 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
 
   return (
     <div>
-      <Title>Confirm your request</Title>
-      <RequestSummary draft={draft} />
-
-      <div className="mt-4">
-        <ConfirmDetail draft={draft} update={update} sessionId={sessionId} addAttachment={addAttachment} removeAttachment={removeAttachment} />
+      <Title>What are you interested in? <span className="font-normal text-gray-500">(pick any)</span></Title>
+      <div className="space-y-2.5">
+        {INTEREST_ORDER.map((v) => {
+          const active = draft.interests.includes(v);
+          return (
+            <div key={v}>
+              <button type="button" onClick={() => toggle(v)}
+                className={cn("flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-4 text-left transition", active ? "border-transparent text-white" : "bg-white hover:border-gray-300")}
+                style={active ? { background: NAVY } : undefined}>
+                <span className="text-[15px] font-semibold">
+                  {INTEREST_LABEL[v]}
+                  {v === "group" && <span className={cn("font-normal", active ? "text-white/70" : "text-gray-500")}> (bring friends)</span>}
+                </span>
+                <span className={cn("grid h-5 w-5 shrink-0 place-content-center rounded-md border", active ? "border-white bg-white/15" : "border-gray-300")}>
+                  {active && <Check className="h-3.5 w-3.5" />}
+                </span>
+              </button>
+              {v === "something_else" && active && (
+                <textarea value={draft.somethingElseNote} onChange={(e) => update("somethingElseNote", e.target.value)}
+                  maxLength={1000} rows={3} autoFocus
+                  placeholder="What do you have in mind? Tell me what you're looking for."
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-[16px] focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200" />
+              )}
+            </div>
+          );
+        })}
       </div>
+      <p className="mt-4 text-sm text-gray-600">I&apos;ll be in touch before Fall with your options — no obligation.</p>
 
-      <div className="mt-6">
+      <div className="mt-8">
         <PillGroup label="How did you find me?" note="(optional)"
           options={REFERRAL_OPTIONS} value={draft.referralSource} onChange={(v) => update("referralSource", v)} />
         {draft.referralSource === "other" && (
@@ -920,11 +936,11 @@ function InfoStep({ draft, update, sessionId, addAttachment, removeAttachment, o
         <Field label="Phone" error={errors.phone}><Input type="tel" value={draft.phone} placeholder="(555) 555-5555" onChange={(e) => update("phone", e.target.value)} autoComplete="tel" /></Field>
       </div>
 
-      <p className="mt-7 text-center text-sm text-gray-600">I&apos;ll text you in 1 business day with a gameplan.</p>
+      <p className="mt-7 text-center text-sm text-gray-600">You&apos;ll be on the Fall 2026 list — I&apos;ll text you before your semester starts.</p>
 
       <div className="mt-6">
-        <PrimaryBtn onClick={submit} disabled={busy}>
-          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : "Submit exam prep request"}
+        <PrimaryBtn onClick={submit} disabled={busy || draft.interests.length === 0}>
+          {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Joining…</> : "Join the waitlist"}
         </PrimaryBtn>
       </div>
     </div>
@@ -950,7 +966,7 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
       <div className="mx-auto w-full max-w-2xl px-4 pb-16 pt-8">
         <div className="rounded-3xl bg-white p-6 shadow-[0_10px_40px_-15px_rgba(20,33,61,0.15)] sm:p-9">
           <div className="mx-auto grid h-14 w-14 place-content-center rounded-full bg-emerald-50"><Check className="h-8 w-8 text-emerald-600" /></div>
-          <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>Request received!</h1>
+          <h1 className="mt-5 text-center text-2xl font-bold sm:text-3xl" style={{ color: NAVY }}>You&apos;re on the list!</h1>
           <p className="mt-1 text-center text-sm text-gray-500">Reference <span className="font-mono">#{ref}</span></p>
 
           <div className="mt-6"><RequestSummary draft={draft} hideChosenOption={hideChosen} /></div>
@@ -958,8 +974,8 @@ function Confirmation({ draft, result }: { draft: Draft; result: SubmitOrderResu
           <div className="mt-6">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">What happens next</p>
             <ol className="mt-3 space-y-3 text-sm text-gray-800">
-              <li className="flex gap-3"><Num n={1} /> I review your request (1 business day) and send back a gameplan, and we&apos;ll go from there.</li>
-              <li className="flex gap-3"><Num n={2} /> You&apos;ll receive a text soon with more details.</li>
+              <li className="flex gap-3"><Num n={1} /> You&apos;re on the Fall 2026 list. I&apos;ll text you before your semester starts — students on the list get early access and beta invites first.</li>
+              <li className="flex gap-3"><Num n={2} /> Want me ready for your exact course? Text me your syllabus or schedule anytime and I&apos;ll have your class dialed in.</li>
             </ol>
           </div>
 
