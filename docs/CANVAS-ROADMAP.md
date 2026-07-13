@@ -38,3 +38,26 @@ box as the dashboard. Depends on the scenario-doc generator pipeline.
 Read-only-ish canvas tuned for phones held landscape: bigger hit targets,
 deal/reveal via tap, no editing chrome. Pairs with map-run navigation; the
 type-floor warning logic is reusable as a legibility gate.
+
+## Solve-It pipeline (September)
+
+### Textbook registry
+`textbook_problems` catalog per book (chapter, problem code QS/E/PR/BE, type,
+page). Catalog acquired via vision intake: photograph TOC/problem pages →
+Claude extracts rows. Rebuild clean — do NOT port Lovable-era code; check the
+old repo for salvageable *extracted data* only. Campus onboarding
+prepopulates that campus's textbooks; an "Add yours" flow covers missing
+books; rent a textbook on demand once ~3 requests hit an uncovered one.
+Solved problems publish to ALL subscribers of that book (solve once, serve
+many). Pricing: $25 flat per problem, 1 included with the semester pass, no
+rush tier at launch (rush = $50+ later, only if demanded). Card-on-file
+needs Stripe Customers + saved payment methods — add to
+FREE-PASS-SYSTEM-DESIGN.md scope, August.
+
+## Beta program (early August — jumps the queue)
+5–8 former students on magic-link beta accounts (the pass-system auth doing
+double duty), each dropped into a prepped sandbox world — their own scene,
+resettable. The ask: screen-record the first 5 minutes (Loom/OBS), think out
+loud, send the video. This forces student-safe mode into July's scope: auth,
+scene protection, COA/library read-only, dorm-laptop performance. Beta infra
+IS the World v1 dry run — build it once, get both.
