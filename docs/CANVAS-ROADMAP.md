@@ -39,6 +39,45 @@ Read-only-ish canvas tuned for phones held landscape: bigger hit targets,
 deal/reveal via tap, no editing chrome. Pairs with map-run navigation; the
 type-floor warning logic is reusable as a legibility gate.
 
+## Guided navigation menu
+A cluster/menu that jumps the camera to any Region Home or Lesson in path
+order. Prev / home / next controls live in each lesson header; the full menu
+lives in the Region Home lesson (its "menu · soon" placeholder slot already
+renders). Replaces reliance on the minimap for navigation. Data spine ships:
+lesson `pathOrder` + `home` flag (B1/B4, July run).
+
+## Minimap → MAP → globe/legend
+Visual navigation showing Regions, then zoomed-in Lessons with card-type
+markers (JE/CEQ/vocab/memorize) so students explore like a game map. The
+stepping stone between today's minimap and the long-term globe (see Globe).
+
+## Per-chapter filtered scenario views
+Inside a given Region/chapter, the JE description picker (A12) filters to
+that chapter's scenarios only — the picker already filters by course +
+chapter; this wires the ambient region context in as the default filter.
+
+## Natural zoom from anywhere
+Evaluate replacing minimap-driven nav with free scroll-zoom (zoom out to the
+map, dive back in). A UX decision to TEST, not a build — don't rip the
+minimap until the map view proves itself.
+
+## Card-flip help for all card types
+The "stuck?" back face (reveal / hint / switch-to-guided) shipped on JE (A2,
+July run). Generalize the mechanism so every card kind flips: CEQ shows the
+answer + feedback, computation reveals steps, memorize shows the body. Same
+dispatcher command, same gate-in-practice contract.
+
+## Gate rendering (free/paid boundary)
+GATE = a marker dropped between lessons. Free region renders with a B&W
+tint, paid in full color; the boundary carries a border treatment from Lee's
+photo frames + a Join button. Ties into Free/paid territory + World v1.
+
+## Zone → REGION rename (follow-up)
+B1 added LESSON as a second grouping tier and adopted the WORLD → REGION →
+LESSON → CARD vocabulary in comments/UI copy, but the zone node type, files,
+and scene payloads still say "zone". Finish the rename in one sweep (node
+type alias + loader migration) — don't half-rename.
+
 ## Solve-It pipeline (September)
 
 ### Textbook registry
