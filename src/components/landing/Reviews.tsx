@@ -164,10 +164,6 @@ export default function Reviews() {
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
-
-          <p className="mt-3 text-center text-xs text-gray-400">
-            {index + 1} of {items.length}
-          </p>
         </div>
       </div>
     </section>
