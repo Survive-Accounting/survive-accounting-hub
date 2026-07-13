@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
-import { Copy, Lightbulb, Plus, Repeat, Settings2, X } from "lucide-react";
+import { CircleHelp, Copy, Lightbulb, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -77,6 +77,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const effLines = d.lines.map(eff);
   const g = groupLines(effLines);
   const bal = balanceState(effLines);
+
+  // ---- CARD-FLIP HELP (A2): the tetris-card back doing double duty ----------
+  const flipHelp = () => update({ helpOpen: !d.helpOpen });
+  /** Reveal the correct answer: the stored solution wins; else unhide everything. */
+  const revealCorrect = () =>
+    updateFn((prev) => {
+      const sol = prev.solution as JeLine[] | undefined;
+      if (sol?.length) return { lines: structuredClone(sol), helpOpen: false };
+      return { lines: ((prev.lines as JeLine[]) ?? []).map((l) => ({ ...l, hidden: false, flipped: false })), helpOpen: false };
+    });
+  const switchToGuided = () => update({ mode: "guided", settings: { ...JE_PRESETS.guided }, helpOpen: false });
+  /** First line's memo — the hint. Solution memos win (practice copies blank lines). */
+  const hint = (d.solution ?? d.lines).find((l) => l.label)?.label ?? null;
 
   const addLine = (side: JeSide) =>
     setLines((lines) => {
@@ -390,45 +403,136 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         </CardPopover>
       )}
 
-      {/* badge + floating description (marker font, no box) — drags the cluster */}
-      <div className="mb-2 flex items-start gap-1.5">
-        <span
-          className="mt-0.5 shrink-0 rounded px-1 text-[9px] font-black tracking-wider"
-          style={{ color: NEON.pink, border: `1px solid rgba(224,40,74,0.55)` }}
-        >
-          {BADGE[entryType]}
-        </span>
-        <TitleEditor value={d.caption} onCommit={(v) => update({ caption: v })} />
-      </div>
+      {d.helpOpen ? (
+        <HelpBack
+          width={ctx.jeCardWidth - 8}
+          caption={d.caption}
+          hint={hint}
+          mode={mode}
+          mustAttempt={mode === "practice" && !hasAttempt(d.lines)}
+          onReveal={revealCorrect}
+          onGuided={switchToGuided}
+          onFlipBack={flipHelp}
+        />
+      ) : (
+        <>
+          {/* badge + floating description (no box) — drags the cluster */}
+          <div className="mb-2 flex items-start gap-1.5">
+            <span
+              className="mt-0.5 shrink-0 rounded px-1 text-[9px] font-black tracking-wider"
+              style={{ color: NEON.pink, border: `1px solid rgba(224,40,74,0.55)` }}
+            >
+              {BADGE[entryType]}
+            </span>
+            <TitleEditor value={d.caption} onCommit={(v) => update({ caption: v })} />
+          </div>
 
-      {/* the tetris blocks */}
-      <div className="flex flex-col gap-2">
-        {renderSide("dr")}
-        {renderSide("cr")}
-      </div>
+          {/* the tetris blocks */}
+          <div className="flex flex-col gap-2">
+            {renderSide("dr")}
+            {renderSide("cr")}
+          </div>
 
-      {flipFeedback && (
-        <div className="mt-2 rounded px-2 py-1 text-[11.5px]" style={{ background: "rgba(194,24,50,0.15)", color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.4)`, width: blockW }}>
-          {flipFeedback}
+          {flipFeedback && (
+            <div className="mt-2 rounded px-2 py-1 text-[11.5px]" style={{ background: "rgba(194,24,50,0.15)", color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.4)`, width: blockW }}>
+              {flipFeedback}
+            </div>
+          )}
+
+          {/* balance pill floats bottom-right of the cluster */}
+          <div className="mt-1.5 flex justify-end">
+            <span
+              className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
+              style={
+                bal.state === "balanced"
+                  ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
+                  : bal.state === "off"
+                    ? { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
+                    : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }
+              }
+              title={bal.state === "unknown" ? "Some amounts are still ??? — balance unknown" : undefined}
+            >
+              {bal.state === "balanced" ? "✓ balanced" : bal.state === "off" ? `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}` : "?"}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* bottom-right corner group — help flip ("stuck?") */}
+      <div
+        className={`card-actions absolute -bottom-6 right-1 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || d.helpOpen ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
+        style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
+      >
+        <ChromeBtn title={d.helpOpen ? "Flip back to the entry" : "Stuck? Flip for help"} onClick={flipHelp}>
+          {d.helpOpen ? <Undo2 className="h-3 w-3" /> : <CircleHelp className="h-3 w-3" />}
+        </ChromeBtn>
+      </div>
+    </div>
+  );
+}
+
+/** The BACK FACE (A2) — navy SURVIVE-back styling, the "stuck?" panel. Reveal is
+ *  gated in PRACTICE: no attempt yet → "Try it first" with a Switch-to-Guided out.
+ *  Every card type inherits this mechanism later (roadmap). */
+function HelpBack({ width, caption, hint, mode, mustAttempt, onReveal, onGuided, onFlipBack }: {
+  width: number;
+  caption: string;
+  hint: string | null;
+  mode: JePreset;
+  mustAttempt: boolean;
+  onReveal: () => void;
+  onGuided: () => void;
+  onFlipBack: () => void;
+}) {
+  const [showHint, setShowHint] = useState(false);
+  const [gate, setGate] = useState(false); // "Try it first" dialog
+  const btn = (label: string, onClick: () => void, opts?: { gold?: boolean; disabled?: boolean }) => (
+    <button
+      className="nodrag w-full rounded px-2 py-1.5 text-left text-[11.5px] font-semibold transition-colors disabled:opacity-40"
+      style={{
+        color: opts?.gold ? "#E8B84B" : "#F4EFE6",
+        border: `1px solid ${opts?.gold ? "rgba(232,184,75,0.55)" : "rgba(244,239,230,0.25)"}`,
+        background: "rgba(11,15,30,0.45)",
+      }}
+      disabled={opts?.disabled}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div
+      className="animate-in fade-in zoom-in-95 rounded-xl p-3 duration-150"
+      style={{ width, background: "#14213D", border: "1px solid rgba(232,184,75,0.55)", boxShadow: "inset 0 0 0 3px rgba(232,184,75,0.25), 0 14px 34px -14px rgba(0,0,0,0.65)" }}
+    >
+      <div className="mb-0.5 text-[9.5px] font-bold uppercase tracking-[0.2em]" style={{ color: "#E8B84B" }}>Stuck?</div>
+      {caption && <div className="mb-2 text-[12px] leading-snug" style={{ color: "rgba(244,239,230,0.85)" }}>{caption}</div>}
+
+      {gate ? (
+        <div className="rounded-lg p-2" style={{ border: "1px solid rgba(232,184,75,0.4)", background: "rgba(232,184,75,0.08)" }}>
+          <p className="mb-2 text-[11.5px] leading-snug" style={{ color: "#F4EFE6" }}>
+            <b>Try it first.</b> Put down an account or an amount — even a wrong guess teaches more than peeking.
+          </p>
+          <div className="flex flex-col gap-1">
+            {btn("OK — I'll try", () => { setGate(false); onFlipBack(); })}
+            {btn("Switch to Guided instead", onGuided, { gold: true })}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {btn("Reveal the correct answer", () => (mustAttempt ? setGate(true) : onReveal()), { gold: true })}
+          {hint && btn(showHint ? "Hide hint" : "Hint", () => setShowHint((v) => !v))}
+          {mode === "practice" && btn("Switch to Guided", onGuided)}
         </div>
       )}
 
-      {/* balance pill floats bottom-right of the cluster */}
-      <div className="mt-1.5 flex justify-end">
-        <span
-          className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
-          style={
-            bal.state === "balanced"
-              ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
-              : bal.state === "off"
-                ? { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
-                : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }
-          }
-          title={bal.state === "unknown" ? "Some amounts are still ??? — balance unknown" : undefined}
-        >
-          {bal.state === "balanced" ? "✓ balanced" : bal.state === "off" ? `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}` : "?"}
-        </span>
-      </div>
+      {showHint && hint && !gate && (
+        <div className="mt-2 rounded px-2 py-1.5 text-[11.5px] leading-snug" style={{ color: "#F4EFE6", background: "rgba(232,184,75,0.12)", border: "1px solid rgba(232,184,75,0.4)" }}>
+          <Lightbulb className="mr-1 inline h-3 w-3" style={{ color: "#E8B84B" }} />
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
