@@ -301,9 +301,10 @@ function PresentCanvas() {
   const [dealFaceDown, setDealFaceDown] = useState(false); // deck toggle: deals arrive as card backs
   const [hideFdLabels, setHideFdLabels] = useState(false); // quiz mode: banners show "???"
   const [focusPalette, setFocusPalette] = useState(true); // blanks trimmed to JE/T-account/Note/Heading
+  const jeLibrary = useMemo(() => library.filter((it) => it.kind === "je"), [library]); // description picker (A12)
   const canvasSettings = useMemo<CanvasSettings>(
-    () => ({ jeCardWidth, jeIndent, jePreset, coa: coaGroups, coaNames, hideFdLabels, setJeCardWidth, setJeIndent, setJePreset }),
-    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels],
+    () => ({ jeCardWidth, jeIndent, jePreset, coa: coaGroups, coaNames, hideFdLabels, jeLibrary, setJeCardWidth, setJeIndent, setJePreset }),
+    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary],
   );
 
   // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);

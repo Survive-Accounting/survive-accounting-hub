@@ -4,6 +4,7 @@
 import { createContext, useContext } from "react";
 
 import type { CoaGroup, JePreset } from "./je-logic";
+import type { LibraryItem } from "./library";
 
 export interface CanvasSettings {
   /** ALL JE cards render at this width (px). One knob, scene-wide. */
@@ -18,6 +19,8 @@ export interface CanvasSettings {
   coaNames: string[];
   /** Quiz mode: face-down banners show "???" instead of the card title. */
   hideFdLabels: boolean;
+  /** JE entries from the scenario library — the description picker (A12). */
+  jeLibrary: LibraryItem[];
   setJeCardWidth: (n: number) => void;
   setJeIndent: (n: number) => void;
   setJePreset: (p: JePreset) => void;
@@ -34,6 +37,7 @@ export const CanvasSettingsContext = createContext<CanvasSettings>({
   coa: [],
   coaNames: [],
   hideFdLabels: false,
+  jeLibrary: [],
   setJeCardWidth: () => {},
   setJeIndent: () => {},
   setJePreset: () => {},

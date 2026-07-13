@@ -15,7 +15,9 @@ import { useCardActions } from "../BaseCard";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
+import type { LibraryItem } from "../library";
 import { CoaPicker } from "./CoaPicker";
+import { JeScenarioPicker } from "./JeScenarioPicker";
 import { EditableNumber, fmtNum } from "../ui";
 import { JE_FONT, NEON, PAPER } from "../theme";
 import {
@@ -66,6 +68,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [memoEdit, setMemoEdit] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [pickerFor, setPickerFor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
+  const [descMenu, setDescMenu] = useState<HTMLElement | null>(null); // scenario picker (A12)
+  const [titleEditing, setTitleEditing] = useState(false); // free-text description
   const selLine = (data as Record<string, unknown>)._selLine as string | undefined;
   const arrowPending = !!(data as Record<string, unknown>)._arrowPending;
 
@@ -115,6 +119,25 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       ),
     );
     setCloneMenu(null);
+  };
+
+  // ---- SCENARIO PICKER (A12): adopt a library entry's description + answer key.
+  // An untouched card also adopts the scenario's ghost silhouette; a card with
+  // work on it keeps its lines (only caption/solution/bank update).
+  const applyScenario = (it: LibraryItem) => {
+    const made = it.make() as JeCard;
+    updateFn((prev) => {
+      const cur = (prev.lines as JeLine[]) ?? [];
+      const patch: Record<string, unknown> = {
+        caption: made.caption,
+        title: made.title,
+        solution: structuredClone(made.solution ?? made.lines),
+        accountBank: [...new Set([...((prev.accountBank as string[]) ?? []), ...(made.accountBank ?? [])])],
+      };
+      if (!hasAttempt(cur)) patch.lines = blankFrom(made.lines, () => cardId("l"));
+      return patch;
+    });
+    setDescMenu(null);
   };
 
   // ---- CARD-FLIP HELP (A2): the tetris-card back doing double duty ----------
@@ -534,8 +557,25 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 <Lock className="h-3 w-3" style={{ color: NEON.yellow }} />
               </span>
             )}
-            <TitleEditor value={d.caption} readOnly={locked} onCommit={(v) => update({ caption: v })} />
+            <TitleEditor
+              value={d.caption}
+              readOnly={locked}
+              editing={titleEditing}
+              onOpen={(anchor) => setDescMenu(descMenu ? null : anchor)}
+              onCommit={(v) => { update({ caption: v }); setTitleEditing(false); }}
+              onCancel={() => setTitleEditing(false)}
+            />
           </div>
+          {descMenu && (
+            <CardPopover anchor={descMenu} onClose={() => setDescMenu(null)}>
+              <JeScenarioPicker
+                items={ctx.jeLibrary}
+                onPick={applyScenario}
+                onCustom={() => { setDescMenu(null); setTitleEditing(true); }}
+                onClose={() => setDescMenu(null)}
+              />
+            </CardPopover>
+          )}
 
           {/* the tetris blocks — tightened (A7): blocks sit close */}
           <div className="flex flex-col gap-1">
@@ -684,14 +724,24 @@ function ChromeBtn({ children, onClick, title, danger }: { children: React.React
 }
 
 /** Floating description — Poppins (A11), modern and clean, no box.
- *  At rest it DRAGS the cluster; click (no drag) opens the editor. */
-function TitleEditor({ value, readOnly, onCommit }: { value: string; readOnly?: boolean; onCommit: (v: string) => void }) {
+ *  At rest it DRAGS the cluster; a click opens the SCENARIO PICKER (A12) via
+ *  onOpen — free-text lives behind the picker's "type custom" (parent-driven
+ *  `editing`). */
+function TitleEditor({ value, readOnly, editing, onOpen, onCommit, onCancel }: {
+  value: string;
+  readOnly?: boolean;
+  editing: boolean;
+  onOpen: (anchor: HTMLElement) => void;
+  onCommit: (v: string) => void;
+  onCancel: () => void;
+}) {
   const [local, setLocal] = useState(value);
-  const [editing, setEditing] = useState(false);
+  // "type custom" opens the editor from the picker — sync local at that moment
+  useEffect(() => { if (editing) setLocal(value); }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!editing || readOnly) {
     return (
       <span
-        className={`min-w-0 flex-1 text-[16.5px] leading-snug ${readOnly ? "" : "cursor-text"}`}
+        className={`min-w-0 flex-1 text-[16.5px] leading-snug ${readOnly ? "" : "cursor-pointer"}`}
         style={{
           color: value ? "rgba(244,246,250,0.95)" : "rgba(147,160,180,0.7)",
           fontFamily: JE_FONT,
@@ -703,8 +753,8 @@ function TitleEditor({ value, readOnly, onCommit }: { value: string; readOnly?: 
           WebkitBoxOrient: "vertical",
           overflow: "hidden",
         }}
-        title={value || "New entry"}
-        onClick={() => { if (!readOnly) { setLocal(value); setEditing(true); } }}
+        title={readOnly ? value || undefined : "Pick from the scenario library or type your own"}
+        onClick={(e) => { if (!readOnly) { setLocal(value); onOpen(e.currentTarget); } }}
       >
         {value || "New entry"}
       </span>
@@ -716,13 +766,13 @@ function TitleEditor({ value, readOnly, onCommit }: { value: string; readOnly?: 
       autoFocus
       className="nodrag min-w-0 flex-1 resize-none rounded bg-black/30 px-1 py-0.5 text-[16.5px] leading-snug outline-none"
       style={{ color: "rgba(244,246,250,0.95)", fontFamily: JE_FONT, fontWeight: 600 }}
-      value={local}
+      defaultValue={value}
       placeholder="New entry"
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => { onCommit(local); setEditing(false); }}
+      onBlur={() => onCommit(local)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onCommit(local); setEditing(false); }
-        if (e.key === "Escape") setEditing(false);
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onCommit(local); }
+        if (e.key === "Escape") onCancel();
         e.stopPropagation();
       }}
     />
