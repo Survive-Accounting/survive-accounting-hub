@@ -6,7 +6,7 @@
 // Full card contract: drag, deck membership, clone, delete, save/load.
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Copy, Minus, Plus, X } from "lucide-react";
+import { Copy, Lock, LockOpen, Minus, Plus, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { DISPLAY_FONT, NEON } from "../theme";
@@ -72,6 +72,9 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
           H{d.level}
         </button>
         <HBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></HBtn>
+        <HBtn title={d.posLock ? "Unlock position" : "Lock in place (edits still work)"} onClick={() => update({ posLock: !d.posLock })}>
+          {d.posLock ? <Lock className="h-3 w-3" style={{ color: NEON.yellow }} /> : <LockOpen className="h-3 w-3" />}
+        </HBtn>
         <HBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></HBtn>
       </div>
 

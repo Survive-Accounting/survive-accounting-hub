@@ -4,7 +4,7 @@
 // uploads into canvas-media. Chromeless like the note card — hover actions only.
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Copy, ImagePlus, Minus, Plus, Trash2, X } from "lucide-react";
+import { Copy, ImagePlus, Lock, LockOpen, Minus, Plus, Trash2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { EditableText } from "../ui";
@@ -60,6 +60,9 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
         {([
           d.deckMember ? (["Tuck into deck (s)", Minus, tuck] as const) : (["Add to deck", Plus, addToDeck] as const),
           ["Duplicate", Copy, duplicate] as const,
+          d.posLock
+            ? (["Unlock position", Lock, () => update({ posLock: false })] as const)
+            : (["Lock in place (edits still work)", LockOpen, () => update({ posLock: true })] as const),
           ["Delete", X, remove] as const,
         ]).map(([title, Icon, fn]) => (
           <button

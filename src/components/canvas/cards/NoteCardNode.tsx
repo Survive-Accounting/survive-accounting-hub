@@ -9,7 +9,7 @@ import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
-import { GripHorizontal, Trash2 } from "lucide-react";
+import { GripHorizontal, Lock, LockOpen, Trash2 } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { NEON, NOTE_COLORS } from "../theme";
@@ -119,6 +119,15 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
             title={nc.name}
           />
         ))}
+        <button
+          className="nodrag ml-0.5"
+          style={{ color: c.ink, opacity: d.posLock ? 1 : 0.45 }}
+          title={d.posLock ? "Unlock position" : "Lock in place (edits still work)"}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => update({ posLock: !d.posLock })}
+        >
+          {d.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+        </button>
         <button
           className="nodrag ml-0.5"
           style={{ color: c.ink, opacity: 0.6 }}

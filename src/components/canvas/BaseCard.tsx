@@ -1,7 +1,7 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { Handle, NodeResizer, Position, useReactFlow } from "@xyflow/react";
-import { Minus, Pencil, Plus, Copy, X } from "lucide-react";
+import { Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { NEON, PAPER } from "./theme";
 import { cardId, type CardBase } from "./types";
@@ -135,7 +135,7 @@ export function BaseCard({
   return (
     <div
       onPointerDownCapture={toFront}
-      className="animate-in fade-in zoom-in-95 flex flex-col overflow-hidden rounded-xl duration-150"
+      className="group/shell animate-in fade-in zoom-in-95 relative flex flex-col overflow-hidden rounded-xl duration-150"
       style={{
         width: fixedWidth ?? data.w ?? undefined,
         height: data.h ?? undefined,
@@ -209,6 +209,17 @@ export function BaseCard({
         </div>
       </div>
       <div className="nowheel min-h-0 flex-1 overflow-auto p-2.5">{children}</div>
+      {/* POSITION LOCK (B2) — bottom-right: freezes the spot (no drag), edits
+          still work. The JE review-lock is the stricter cousin (edits too). */}
+      <button
+        title={data.posLock ? "Unlock position" : "Lock in place — no accidental drags (edits still work)"}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); update({ posLock: !data.posLock }); }}
+        className={`nodrag absolute bottom-1 right-1 z-[5] grid h-5 w-5 place-items-center rounded transition-opacity ${data.posLock ? "opacity-90" : "opacity-0 group-hover/shell:opacity-70 hover:!opacity-100"}`}
+        style={{ color: data.posLock ? "#8A5A00" : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${PAPER.cardEdge}` }}
+      >
+        {data.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+      </button>
     </div>
   );
 }
