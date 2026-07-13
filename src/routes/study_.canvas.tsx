@@ -1114,8 +1114,9 @@ function PresentCanvas() {
       {
         combo: "escape",
         group: "Show",
-        description: "Full view · close dialogs · cancel pending arrow",
+        description: "Restore controls (clean screen) · full view · close dialogs · cancel arrow",
         handler: () => {
+          setClean(false); // A13: Esc brings the chrome back after "c"
           setHelpOpen(false);
           setLoadOpen(false);
           clearArrowPending();
