@@ -896,16 +896,20 @@ function PresentCanvas() {
     [rf, guideMatches],
   );
 
-  /** Runs AFTER zone parenting settles: diff the snapshots, dispatch ONE move command.
-   *  do() re-applies the landing spot, so dispatching post-hoc is a visual no-op. */
-  const commitDrag = useCallback(() => {
+  /** Runs AFTER container parenting settles: diff the snapshots, dispatch ONE move
+   *  command. do() re-applies the landing spot, so dispatching post-hoc is a visual
+   *  no-op. `settled` carries the parenting updater's OWN output — rf.getNode()
+   *  lags one setNodes call behind the store updaters see (observed live: the
+   *  after-snapshot read the pre-parenting state and stripped a just-set parentId,
+   *  which is why cards never actually rode their zones). */
+  const commitDrag = useCallback((settled?: Map<string, { position: { x: number; y: number }; parentId?: string }> | null) => {
     const before = dragStart.current;
     dragStart.current = null;
     if (!before) return;
     const after = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
     let changed = false;
     for (const [nid, b] of before) {
-      const n = rf.getNode(nid);
+      const n = settled?.get(nid) ?? rf.getNode(nid);
       if (!n) continue;
       const a = { position: { ...n.position }, parentId: n.parentId };
       after.set(nid, a);
@@ -932,30 +936,41 @@ function PresentCanvas() {
         node = { ...node, position: { x: m.snapX ?? node.position.x, y: m.snapY ?? node.position.y } };
       }
     }
-    rf.setNodes((nds) => {
-      // lessons FIRST: a card dropped where a lesson overlaps its region joins the lesson
-      const containers = [...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
-      const abs = node.parentId
-        ? (() => {
-            const p = nds.find((n) => n.id === node.parentId);
-            return p ? { x: p.position.x + node.position.x, y: p.position.y + node.position.y } : node.position;
-          })()
-        : node.position;
-      const hit = containers.find((z) => {
-        const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
-        const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
-        return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
-      });
-      return nds.map((n) => {
-        if (n.id !== node.id) return n;
-        if (hit && n.parentId !== hit.id) {
-          return { ...n, parentId: hit.id, position: { x: abs.x - hit.position.x, y: abs.y - hit.position.y } };
-        }
-        if (!hit && n.parentId) return { ...n, parentId: undefined, position: abs };
-        return n;
-      });
+    // Decide the parenting SYNCHRONOUSLY from the current store, then write.
+    // rf.setNodes defers its updater, so nothing written here can be read back
+    // in this tick (observed live: a settled-state capture inside the updater
+    // was still null when the drag command snapshotted, and the command's
+    // queued do() then stripped the just-set parentId — cards never actually
+    // rode their zones). The decision below feeds BOTH the store write and the
+    // drag command's after-snapshot, so they can't disagree.
+    const nds = rf.getNodes();
+    // lessons FIRST: a card dropped where a lesson overlaps its region joins the lesson
+    const containers = [...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
+    const abs = node.parentId
+      ? (() => {
+          const p = nds.find((n) => n.id === node.parentId);
+          return p ? { x: p.position.x + node.position.x, y: p.position.y + node.position.y } : node.position;
+        })()
+      : node.position;
+    const hit = containers.find((z) => {
+      const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
+      const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
+      return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
     });
-    commitDrag(); // setNodes above is sync — the after-snapshot sees the parented state
+    let decision: { position: { x: number; y: number }; parentId?: string } | null = null;
+    if (hit && node.parentId !== hit.id) {
+      decision = { parentId: hit.id, position: { x: abs.x - hit.position.x, y: abs.y - hit.position.y } };
+    } else if (!hit && node.parentId) {
+      decision = { parentId: undefined, position: abs };
+    }
+    if (decision) {
+      const d = decision;
+      rf.setNodes((cur) => cur.map((n) => (n.id === node.id ? { ...n, parentId: d.parentId, position: { ...d.position } } : n)));
+    }
+    // after-state for the dragged node: the decision (or its snap-settled spot);
+    // co-dragged selection members fall back to rf.getNode inside commitDrag —
+    // XYDrag's own position writes ARE visible by drag-stop.
+    commitDrag(new Map([[node.id, decision ?? { position: { ...node.position }, parentId: node.parentId }]]));
   }, [rf, commitDrag, guideMatches]);
 
   // ---- scenes (JSON blobs cross the server-fn boundary as strings) ----
