@@ -9,10 +9,11 @@
 //404s on them.
 import { useEffect, useRef, useState } from "react";
 import type { NodeProps } from "@xyflow/react";
+import { Clapperboard } from "lucide-react";
 
 import { signMuxPlayback } from "@/lib/canvas.functions";
 import { BaseCard, useCardActions } from "../BaseCard";
-import { PAPER } from "../theme";
+import { JE_FONT, PAPER } from "../theme";
 import type { VideoCard } from "../types";
 
 type LoadState = "idle" | "unsigned" | "signing" | "signed" | "error";
@@ -108,6 +109,36 @@ export function VideoCardNode({ id, data, selected }: NodeProps) {
 
   return (
     <BaseCard id={id} data={d} selected={selected} accent="#4FA3E3">
+      {/* PLACEHOLDER (B3): no playback ID yet — a titled slot Lee can lay the
+          path out with, plus a production note that is NOT student-facing. */}
+      {!d.playbackId && (
+        <div
+          className="mb-1.5 rounded-md px-2.5 py-3 text-center"
+          style={{ background: "rgba(79,163,227,0.07)", border: "1.5px dashed rgba(79,163,227,0.5)" }}
+        >
+          <Clapperboard className="mx-auto mb-1 h-5 w-5" style={{ color: "#4FA3E3" }} />
+          <input
+            className="nodrag w-full bg-transparent text-center text-[14px] outline-none placeholder:italic placeholder:opacity-50"
+            style={{ color: PAPER.navy, fontFamily: JE_FONT, fontWeight: 600 }}
+            defaultValue={d.plannedTitle ?? ""}
+            placeholder="Planned video title…"
+            onBlur={(e) => update({ plannedTitle: e.target.value.trim() })}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+          <label className="mt-2 block text-left text-[9.5px] font-bold uppercase tracking-wider" style={{ color: PAPER.inkMuted }}>
+            internal note — not student-facing
+            <textarea
+              rows={2}
+              className="nodrag nowheel mt-0.5 w-full resize-none rounded bg-white/70 px-1.5 py-1 text-[11px] font-normal normal-case leading-snug outline-none ring-1 ring-[rgba(20,33,61,0.18)]"
+              style={{ color: PAPER.ink, letterSpacing: "normal" }}
+              defaultValue={d.internalNote ?? ""}
+              placeholder="What this video will be…"
+              onBlur={(e) => update({ internalNote: e.target.value })}
+              onKeyDown={(e) => e.stopPropagation()}
+            />
+          </label>
+        </div>
+      )}
       {editing || !d.playbackId ? (
         <label className="block text-[11px]" style={{ color: PAPER.inkMuted }}>
           Mux playback ID
