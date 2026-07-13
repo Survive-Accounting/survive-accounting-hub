@@ -52,7 +52,7 @@ import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
-import { JE_PRESETS, groupCoa, hopLine, sideOf, type JePreset } from "@/components/canvas/je-logic";
+import { JE_PRESETS, groupCoa, hopTo, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listCoa, listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
@@ -544,9 +544,9 @@ function PresentCanvas() {
       );
       // exclusive-select the new card so the stepper/focus hotkeys target it
       rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
-      // newly spawned JE cards get the CURRENT canvas default preset stamped in
+      // newly spawned JE cards get the CURRENT canvas default mode stamped in
       if (data.kind === "je" && !(data as JeCard).settings) {
-        data = { ...data, settings: { ...JE_PRESETS[jePreset] } } as CardData;
+        data = { ...data, mode: jePreset, settings: { ...JE_PRESETS[jePreset] } } as CardData;
       }
       const id = cardId(data.kind);
       bus.dispatch(
@@ -794,7 +794,11 @@ function PresentCanvas() {
       // sanitize: transient state (selected/dragging/_arrowPending) must not round-trip —
       // persisted multi-selection made loaded cards drag as a group (S2.0 bug)
       nodes_json: JSON.stringify({
-        schema_version: 2, // v2: deckMember/tucked replace staged/minimized (loader migrates v1)
+        // v2: deckMember/tucked replace staged/minimized (loader migrates v1)
+        // v3: blind retired (loader normalizes), lesson nodes, JE mode/solution/
+        //     reviewLock/helpOpen, posLock, video plannedTitle/internalNote — all
+        //     additive, so v2 scenes open unchanged.
+        schema_version: 3,
         nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
         sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette },
@@ -849,9 +853,8 @@ function PresentCanvas() {
       setSceneId(id);
       if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
       if (typeof nj.sceneSettings?.jeIndent === "number") setJeIndent(nj.sceneSettings.jeIndent);
-      if (nj.sceneSettings?.jePreset === "guided" || nj.sceneSettings?.jePreset === "practice" || nj.sceneSettings?.jePreset === "blind") {
-        setJePreset(nj.sceneSettings.jePreset);
-      }
+      // v≤2 scenes may say "blind" — normalize maps it to practice (blind retired)
+      if (typeof nj.sceneSettings?.jePreset === "string") setJePreset(normalizePreset(nj.sceneSettings.jePreset));
       if (typeof nj.sceneSettings?.dealFaceDown === "boolean") setDealFaceDown(nj.sceneSettings.dealFaceDown);
       if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
       if (typeof nj.sceneSettings?.focusPalette === "boolean") setFocusPalette(nj.sceneSettings.focusPalette);
@@ -1000,17 +1003,16 @@ function PresentCanvas() {
       .catch((err) => console.warn("[canvas] scene snapshot skipped:", err instanceof Error ? err.message : err));
   }, [film, sceneId, serialize]);
 
-  // ← / → hop the selected line of the selected JE card to the other column.
+  // ← / → hop the SELECTED line of the selected JE card to the other column.
+  // hopTo moves exactly _selLine or nothing (A6: never a neighbor).
   const hopSelectedLine = useCallback(
     (to: "dr" | "cr") => {
       const sel = rf.getNodes().find((n) => n.selected && n.type === "je");
       if (!sel) return;
       const lid = (sel.data as Record<string, unknown>)._selLine as string | undefined;
-      if (!lid) return;
-      const lines = (sel.data as unknown as JeCard).lines;
-      const line = lines.find((l) => l.id === lid);
-      if (!line || sideOf(line) === to) return;
-      const c = patchDataCmd(rf as unknown as RfLike, sel.id, { lines: hopLine(lines, lid) }, "hop line");
+      const next = hopTo((sel.data as unknown as JeCard).lines, lid, to);
+      if (!next) return;
+      const c = patchDataCmd(rf as unknown as RfLike, sel.id, { lines: next }, "hop line");
       if (c) bus.dispatch(c);
     },
     [rf],
@@ -1360,9 +1362,9 @@ function PresentCanvas() {
                   <input type="checkbox" checked={focusPalette} onChange={(e) => setFocusPalette(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Focus palette <span className="opacity-60">(JE · T · Note · Heading)</span>
                 </label>
-                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>New-JE preset</div>
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>New-JE mode</div>
                 <div className="mt-1 flex gap-1">
-                  {(["guided", "practice", "blind"] as const).map((p) => (
+                  {(["guided", "practice"] as const).map((p) => (
                     <button
                       key={p}
                       className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase"

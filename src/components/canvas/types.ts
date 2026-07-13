@@ -39,6 +39,9 @@ export interface CardBase {
   deckCategory?: string;
   /** Dealt face down — renders the SURVIVE card back until flipped. */
   faceDown?: boolean;
+  /** POSITION LOCK (B2): frozen in place (no drag) — edits still allowed.
+   *  Distinct from the JE review-lock, which also freezes edits. */
+  posLock?: boolean;
   editMode?: boolean; // whole-card edit affordances on
   w?: number; // resize width/height (px), applied to the shell
   h?: number;
@@ -64,11 +67,23 @@ export interface JeCard extends CardBase {
   /** The transaction description — IS the card header. */
   caption: string;
   entryType?: "standard" | "adjusting" | "closing";
+  /** GUIDED (picker + chips, free reveal) or PRACTICE (free-type, reveal gated
+   *  behind an attempt). Absent = the canvas default preset. Blind retired in v3. */
+  mode?: "guided" | "practice";
   lines: JeLine[];
+  /** The ANSWER KEY: full correct lines (with memos) when known — stamped by the
+   *  scenario picker and practice copies. Powers reveal-correct + the flip Hint. */
+  solution?: JeLine[];
+  /** REVIEW LOCK (A3): no drag, no inline edit, no socket drag. The answer-key
+   *  state — clone offers a practice copy. Superset of posLock. */
+  reviewLock?: boolean;
+  /** Card-flip help (A2): showing the back face (stuck? panel). Undoable. */
+  helpOpen?: boolean;
   accountBank?: string[]; // autocomplete pool (unioned with the COA)
-  /** Legacy reveal flag; per-card settings.showAmounts wins when present. */
-  showAmounts: boolean;
-  showLabels: boolean; // legacy labels column (superseded by lightbulbs)
+  /** LEGACY (v≤2): reveal flag / labels column — ignored since v3 (amounts are
+   *  always ???-until-valued; memos ride the lightbulbs). Kept for old scenes. */
+  showAmounts?: boolean;
+  showLabels?: boolean;
   /** Per-card overrides on top of the canvas default preset (see je-logic). */
   settings?: Partial<import("./je-logic").JeSettings>;
 }
@@ -141,6 +156,11 @@ export interface NoteCard extends CardBase {
 export interface VideoCard extends CardBase {
   kind: "video";
   playbackId: string;
+  /** Placeholder title while no playbackId — lets Lee lay out the path with
+   *  empty video slots ("Intro: the accounting equation"). */
+  plannedTitle?: string;
+  /** Lee's production note ("what this video will be") — NOT student-facing. */
+  internalNote?: string;
 }
 
 // ---- Image (pasted/uploaded picture, stored in the canvas-media bucket) ----
@@ -220,7 +240,12 @@ export type CardData =
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 
-// ---- Zones (labeled translucent group boxes) ----
+// ---- Path primitives (Part B vocabulary) -----------------------------------
+// WORLD (the canvas) → REGION (course/chapter territory — today's "zone" node;
+// full rename parked, see docs/CANVAS-ROADMAP.md) → LESSON (heading + cards in
+// a hugging highlighted box) → CARD. GATE = free/paid boundary (roadmap).
+
+// ---- Zones (labeled translucent group boxes — the REGION tier) ----
 export interface ZoneBox {
   id: string;
   label: string;
@@ -231,6 +256,18 @@ export interface ZoneBox {
   /** Teaching path position (1, 2, 3…). When set, the deck's default deal order
    *  and the space-walk visit this zone's cards in path order. Null = unordered. */
   pathOrder?: number | null;
+}
+
+// ---- Lessons (the finer grouping tier: one taught section) ----
+export interface LessonBox {
+  label: string; // manual label; a contained heading's text wins for display
+  w: number;
+  h: number;
+  /** Teaching path position within the region. */
+  pathOrder?: number | null;
+  /** One lesson per region is HOME: welcome heading, intro video, Ask Lee, nav.
+   *  Renders a home badge + a placeholder menu slot (nav menu = roadmap). */
+  home?: boolean;
 }
 
 // ---- Scene (serialized layout) ----

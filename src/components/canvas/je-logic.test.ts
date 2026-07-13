@@ -1,6 +1,22 @@
 import { describe, expect, test } from "bun:test";
 
-import { balanceState, effectiveSettings, groupCoa, groupLines, hopLine, moveLine, sideOf, swapLines, JE_PRESETS } from "./je-logic";
+import {
+  balanceState,
+  blankFrom,
+  effectiveMode,
+  effectiveSettings,
+  ensureMinLines,
+  groupCoa,
+  groupLines,
+  hasAttempt,
+  hopLine,
+  hopTo,
+  moveLine,
+  normalizePreset,
+  sideOf,
+  swapLines,
+  JE_PRESETS,
+} from "./je-logic";
 import type { JeLine } from "./types";
 
 const L = (id: string, side: "dr" | "cr", amt: number | null = 100, extra: Partial<JeLine> = {}): JeLine => ({
@@ -76,6 +92,21 @@ describe("hopLine", () => {
   });
 });
 
+describe("hopTo (A6 regression: arrows act on the SELECTED block)", () => {
+  const lines = [L("a", "dr"), L("b", "dr"), L("c", "cr")];
+  test("moves exactly the selected id — never a neighbor", () => {
+    const out = hopTo(lines, "a", "cr")!;
+    const g = groupLines(out);
+    expect(g.dr.map((l) => l.id)).toEqual(["b"]); // b (the block below a) did NOT move
+    expect(g.cr.map((l) => l.id)).toEqual(["c", "a"]);
+  });
+  test("no selection / unknown id / already on that side → null (no undo step)", () => {
+    expect(hopTo(lines, undefined, "cr")).toBeNull();
+    expect(hopTo(lines, "zzz", "cr")).toBeNull();
+    expect(hopTo(lines, "a", "dr")).toBeNull();
+  });
+});
+
 describe("balanceState (the ??? contract)", () => {
   test("any visible null amount → unknown, even if the rest balances", () => {
     expect(balanceState([L("a", "dr", 100), L("b", "cr", 100), L("c", "cr", null)]).state).toBe("unknown");
@@ -92,19 +123,81 @@ describe("balanceState (the ??? contract)", () => {
   });
 });
 
-describe("effectiveSettings", () => {
+describe("effectiveSettings (two modes)", () => {
   test("presets apply; per-card overrides win", () => {
     expect(effectiveSettings(undefined, "guided").showPicker).toBe(true);
-    expect(effectiveSettings(undefined, "blind").showGhosts).toBe(false);
-    expect(effectiveSettings({ showPicker: true }, "blind").showPicker).toBe(true);
+    expect(effectiveSettings(undefined, "practice").showPicker).toBe(false);
+    expect(effectiveSettings({ showPicker: true }, "practice").showPicker).toBe(true);
   });
-  test("legacy showAmounts flag maps in when card has no explicit setting", () => {
-    expect(effectiveSettings(undefined, "guided", false).showAmounts).toBe(false);
-    expect(effectiveSettings({ showAmounts: true }, "guided", false).showAmounts).toBe(true);
+  test("NEVER zero-grid: ghost sockets ship on in both presets", () => {
+    expect(JE_PRESETS.guided.showGhosts).toBe(true);
+    expect(JE_PRESETS.practice.showGhosts).toBe(true);
   });
-  test("blind preset really strips everything", () => {
-    const b = JE_PRESETS.blind;
-    expect(b.showPicker || b.allowSearch || b.showNormalChips || b.showGhosts || b.lightbulbs).toBe(false);
+  test("retired keys in old per-card overrides are ignored, not spread in", () => {
+    const s = effectiveSettings({ allowSearch: false, showAmounts: false } as never, "guided");
+    expect("allowSearch" in s).toBe(false);
+    expect("showAmounts" in s).toBe(false);
+    expect(s.showPicker).toBe(true);
+  });
+});
+
+describe("mode normalization (blind retired)", () => {
+  test("legacy blind reads as practice; unknown falls back to guided", () => {
+    expect(normalizePreset("blind")).toBe("practice");
+    expect(normalizePreset("practice")).toBe("practice");
+    expect(normalizePreset("guided")).toBe("guided");
+    expect(normalizePreset(undefined)).toBe("guided");
+    expect(normalizePreset("nonsense")).toBe("guided");
+  });
+  test("per-card mode wins over the canvas default", () => {
+    expect(effectiveMode("practice", "guided")).toBe("practice");
+    expect(effectiveMode(undefined, "practice")).toBe("practice");
+    expect(effectiveMode("blind" as never, "guided")).toBe("guided"); // invalid card mode → canvas default
+  });
+});
+
+describe("ensureMinLines (the never-zero invariant)", () => {
+  let seq = 0;
+  const mkId = () => `n${++seq}`;
+  test("deleting a whole side re-spawns one blank socket there", () => {
+    const out = ensureMinLines([L("a", "dr")], mkId);
+    const g = groupLines(out);
+    expect(g.dr.map((l) => l.id)).toEqual(["a"]);
+    expect(g.cr.length).toBe(1);
+    expect(g.cr[0].account).toBe("");
+  });
+  test("empty card gets 1 debit + 1 credit", () => {
+    const g = groupLines(ensureMinLines([], mkId));
+    expect(g.dr.length).toBe(1);
+    expect(g.cr.length).toBe(1);
+  });
+  test("a full card is untouched", () => {
+    const lines = [L("a", "dr"), L("b", "cr")];
+    expect(ensureMinLines(lines, mkId)).toBe(lines);
+  });
+});
+
+describe("hasAttempt (practice reveal gate)", () => {
+  test("blank sockets = no attempt; any typed account or amount counts", () => {
+    const blank = { id: "x", account: "", dr: null, cr: null, side: "dr" as const };
+    expect(hasAttempt([blank, { ...blank, id: "y", side: "cr" as const }])).toBe(false);
+    expect(hasAttempt([{ ...blank, account: "Cash" }])).toBe(true);
+    expect(hasAttempt([{ ...blank, dr: 100 }])).toBe(true);
+  });
+  test("hidden lines don't count as an attempt", () => {
+    expect(hasAttempt([{ id: "x", account: "Cash", dr: 100, cr: null, hidden: true }])).toBe(false);
+  });
+});
+
+describe("blankFrom (practice copy silhouette)", () => {
+  test("same shape, fresh ids, no content", () => {
+    let seq = 0;
+    const out = blankFrom([L("a", "dr", 100), L("b", "dr", 40), L("c", "cr", 140)], () => `p${++seq}`);
+    const g = groupLines(out);
+    expect(g.dr.length).toBe(2);
+    expect(g.cr.length).toBe(1);
+    expect(out.every((l) => l.account === "" && l.dr === null && l.cr === null)).toBe(true);
+    expect(out.map((l) => l.id)).toEqual(["p1", "p2", "p3"]);
   });
 });
 

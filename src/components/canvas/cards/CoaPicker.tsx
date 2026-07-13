@@ -1,6 +1,6 @@
 // COA picker — the "Choose account" panel. Five teaching types first; click a
-// type to expand its accounts; pick one. Optional search + normal-balance chips
-// (both gated by the card's settings). Paper styling: it renders INSIDE a card.
+// type to expand its accounts; pick one. Search is ALWAYS on (A9 — the toggle
+// retired); normal-balance chips gated by the card's settings. Paper styling.
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
 
@@ -9,13 +9,11 @@ import type { CoaGroup } from "../je-logic";
 
 export function CoaPicker({
   groups,
-  allowSearch,
   showChips,
   onPick,
   onClose,
 }: {
   groups: CoaGroup[];
-  allowSearch: boolean;
   showChips: boolean;
   onPick: (name: string) => void;
   onClose: () => void;
@@ -37,22 +35,18 @@ export function CoaPicker({
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="mb-1 flex items-center gap-1">
-        {allowSearch ? (
-          <label className="flex min-w-0 flex-1 items-center gap-1 rounded px-1.5 py-0.5" style={{ border: `1px solid ${PAPER.line}` }}>
-            <Search className="h-3 w-3 shrink-0" style={{ color: PAPER.inkMuted }} />
-            <input
-              className="w-full bg-transparent text-[11.5px] outline-none"
-              style={{ color: PAPER.ink }}
-              placeholder="Search accounts…"
-              value={q}
-              autoFocus
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
-            />
-          </label>
-        ) : (
-          <span className="flex-1 px-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: PAPER.inkMuted }}>Choose account</span>
-        )}
+        <label className="flex min-w-0 flex-1 items-center gap-1 rounded px-1.5 py-0.5" style={{ border: `1px solid ${PAPER.line}` }}>
+          <Search className="h-3 w-3 shrink-0" style={{ color: PAPER.inkMuted }} />
+          <input
+            className="w-full bg-transparent text-[11.5px] outline-none"
+            style={{ color: PAPER.ink }}
+            placeholder="Search accounts…"
+            value={q}
+            autoFocus
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
+          />
+        </label>
         <button className="shrink-0 rounded p-0.5" style={{ color: PAPER.inkMuted }} onClick={onClose} title="Close">
           <X className="h-3.5 w-3.5" />
         </button>

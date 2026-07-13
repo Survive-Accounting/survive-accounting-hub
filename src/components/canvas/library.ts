@@ -62,15 +62,19 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
               key: `${s.slug}:${variant.id}:${entry.id}`,
               kind: "je",
               label: caption,
-              make: () => ({
-                kind: "je",
-                title: s.title,
-                caption,
-                lines: jeLinesFrom(doc, entry),
-                accountBank: bank,
-                showAmounts: true,
-                showLabels: true,
-              }),
+              make: () => {
+                // prepared cards carry the ANSWER KEY too — reveal-correct + the
+                // flip Hint read solution; lines arrive solved (Lee hides via `h`)
+                const lines = jeLinesFrom(doc, entry);
+                return {
+                  kind: "je",
+                  title: s.title,
+                  caption,
+                  lines,
+                  solution: jeLinesFrom(doc, entry),
+                  accountBank: bank,
+                };
+              },
             });
           }
           // Computation paths → Computation cards

@@ -10,7 +10,7 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
   switch (kind) {
     case "je":
       // caption empty → header shows the "New entry" placeholder; one debit, one credit
-      return { kind: "je", caption: "", entryType: "standard", lines: [line("dr"), line("cr")], accountBank: [], showAmounts: true, showLabels: true };
+      return { kind: "je", caption: "", entryType: "standard", lines: [line("dr"), line("cr")], accountBank: [] };
     case "taccount":
       return { kind: "taccount", account: "Account", debits: [{ id: cardId("d"), label: "", amount: null }], credits: [{ id: cardId("c"), label: "", amount: null }], editMode: true };
     case "computation":

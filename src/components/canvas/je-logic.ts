@@ -60,6 +60,42 @@ export function hopLine(lines: JeLine[], id: string): JeLine[] {
   return moveLine(lines, id, to, Number.MAX_SAFE_INTEGER);
 }
 
+/** Directed hop for the arrow keys: move EXACTLY `id` to `to`. Returns null when
+ *  there's nothing to do (no such line / already on that side) so callers don't
+ *  dispatch empty undo steps. The A6 regression contract: the SELECTED line is
+ *  the one that moves — never a neighbor. */
+export function hopTo(lines: JeLine[], id: string | undefined, to: JeSide): JeLine[] | null {
+  if (!id) return null;
+  const l = lines.find((x) => x.id === id);
+  if (!l || sideOf(l) === to) return null;
+  return moveLine(lines, id, to, Number.MAX_SAFE_INTEGER);
+}
+
+/** THE INVARIANT: a JE cluster never has fewer than 1 debit + 1 credit block.
+ *  Deleting down to zero on a side re-spawns one blank socket there. */
+export function ensureMinLines(lines: JeLine[], mkId: () => string): JeLine[] {
+  const g = groupLines(lines);
+  let out = lines;
+  if (g.dr.length === 0) out = [{ id: mkId(), account: "", dr: null, cr: null, side: "dr" as const }, ...out];
+  if (g.cr.length === 0) out = [...out, { id: mkId(), account: "", dr: null, cr: null, side: "cr" as const }];
+  return out;
+}
+
+/** PRACTICE reveal gate: an "attempt" = any visible line the student put content
+ *  into (an account name or an amount). No attempt → reveal shows the dialog. */
+export function hasAttempt(lines: JeLine[]): boolean {
+  return lines.some((l) => !l.hidden && (l.account.trim() !== "" || l.dr != null || l.cr != null));
+}
+
+/** Blank silhouette of a solved entry: same line count + sides, empty content.
+ *  Used by practice copies and the gear RESET (min-lines invariant applies). */
+export function blankFrom(solution: JeLine[], mkId: () => string): JeLine[] {
+  return ensureMinLines(
+    solution.map((l) => ({ id: mkId(), account: "", dr: null, cr: null, side: sideOf(l) })),
+    mkId,
+  );
+}
+
 /** Balance state honoring the ??? contract: any VISIBLE line with a null amount
  *  → "unknown" (neutral chip); otherwise sum and compare. */
 export function balanceState(lines: JeLine[]): { state: "unknown" | "balanced" | "off"; sumDr: number; sumCr: number } {
@@ -80,29 +116,47 @@ export function balanceState(lines: JeLine[]): { state: "unknown" | "balanced" |
 }
 
 // ---- settings + presets ----------------------------------------------------
+// A1/A8/A9 cleanup: TWO modes only (Blind removed — a zero-grid card taught
+// nothing). Amounts are ALWAYS ??? -until-valued (no visibility toggle) and the
+// picker search is ALWAYS on — both left this struct entirely.
 export interface JeSettings {
-  showPicker: boolean; // "Choose account" panel on click
-  allowSearch: boolean; // search box inside the picker
+  showPicker: boolean; // GUIDED: "Choose account" dropdown; PRACTICE: free-type
   showNormalChips: boolean; // DR/CR normal-balance chips in the picker
-  showGhosts: boolean; // ghost slots while dragging a line
+  showGhosts: boolean; // ghost template sockets (both modes ship true — never zero-grid)
   lightbulbs: boolean; // memo lightbulbs on lines
-  showAmounts: boolean; // amounts visible ($'s old job)
 }
 
-export type JePreset = "guided" | "practice" | "blind";
+export type JePreset = "guided" | "practice";
 
 export const JE_PRESETS: Record<JePreset, JeSettings> = {
-  guided: { showPicker: true, allowSearch: true, showNormalChips: true, showGhosts: true, lightbulbs: true, showAmounts: true },
-  practice: { showPicker: false, allowSearch: false, showNormalChips: false, showGhosts: true, lightbulbs: false, showAmounts: true },
-  blind: { showPicker: false, allowSearch: false, showNormalChips: false, showGhosts: false, lightbulbs: false, showAmounts: true },
+  guided: { showPicker: true, showNormalChips: true, showGhosts: true, lightbulbs: true },
+  practice: { showPicker: false, showNormalChips: false, showGhosts: true, lightbulbs: false },
 };
 
-/** Effective settings: canvas default preset, overridden per card. Legacy cards
- *  (no settings key) map showAmounts from the old flag so old scenes look right. */
-export function effectiveSettings(cardSettings: Partial<JeSettings> | undefined, canvasPreset: JePreset, legacyShowAmounts?: boolean): JeSettings {
-  const base = { ...JE_PRESETS[canvasPreset] };
-  if (legacyShowAmounts !== undefined && cardSettings?.showAmounts === undefined) base.showAmounts = legacyShowAmounts;
-  return { ...base, ...cardSettings };
+/** Legacy preset names (v≤2 scenes) → the surviving two. Blind reads as practice. */
+export function normalizePreset(p: string | undefined): JePreset {
+  return p === "practice" || p === "blind" ? "practice" : "guided";
+}
+
+/** Effective settings: canvas default preset, overridden per card. Old cards may
+ *  carry retired keys (allowSearch/showAmounts) in their overrides — harmless. */
+export function effectiveSettings(cardSettings: Partial<JeSettings> | undefined, canvasPreset: JePreset): JeSettings {
+  return { ...JE_PRESETS[canvasPreset], ...pickKnown(cardSettings) };
+}
+
+function pickKnown(s: Partial<JeSettings> | undefined): Partial<JeSettings> {
+  if (!s) return {};
+  const out: Partial<JeSettings> = {};
+  if (typeof s.showPicker === "boolean") out.showPicker = s.showPicker;
+  if (typeof s.showNormalChips === "boolean") out.showNormalChips = s.showNormalChips;
+  if (typeof s.showGhosts === "boolean") out.showGhosts = s.showGhosts;
+  if (typeof s.lightbulbs === "boolean") out.lightbulbs = s.lightbulbs;
+  return out;
+}
+
+/** The card's effective mode: explicit per-card mode wins, else the canvas default. */
+export function effectiveMode(cardMode: string | undefined, canvasPreset: JePreset): JePreset {
+  return cardMode === "guided" || cardMode === "practice" ? cardMode : canvasPreset;
 }
 
 // ---- chart of accounts grouping ---------------------------------------------

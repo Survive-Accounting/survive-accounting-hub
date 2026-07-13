@@ -21,8 +21,12 @@ import {
   JE_PRESETS,
   amountOf,
   balanceState,
+  blankFrom,
+  effectiveMode,
   effectiveSettings,
+  ensureMinLines,
   groupLines,
+  hasAttempt,
   moveLine,
   swapLines,
   type JePreset,
@@ -51,7 +55,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const rf = useReactFlow();
   const { update, updateFn, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const ctx = useCanvasSettings();
-  const S = effectiveSettings(d.settings, ctx.jePreset, d.showAmounts);
+  const S = effectiveSettings(d.settings, ctx.jePreset);
+  const mode = effectiveMode(d.mode, ctx.jePreset);
 
   const [flipFeedback, setFlipFeedback] = useState<string | null>(null);
   const [dragLine, setDragLine] = useState<string | null>(null);
@@ -78,6 +83,11 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       const nl: JeLine = { id: cardId("l"), account: "", dr: null, cr: null, side, label: "" };
       return moveLine([...lines, nl], nl.id, side, Number.MAX_SAFE_INTEGER);
     });
+
+  /** Delete honors THE INVARIANT: a side never drops below one block — deleting
+   *  the last block on a side re-spawns a blank socket there. */
+  const deleteLine = (lid: string) =>
+    setLines((lines) => ensureMinLines(lines.filter((x) => x.id !== lid), () => cardId("l")));
 
   const onDropSlot = (side: JeSide, index: number) => {
     if (!dragLine) return;
@@ -160,7 +170,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               style={{ color: PAPER.red, background: "rgba(194,24,50,0.08)" }}
               title="Delete line"
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); setLines((lines) => lines.filter((x) => x.id !== l.id)); }}
+              onClick={(e) => { e.stopPropagation(); deleteLine(l.id); }}
             >
               <X className="h-2.5 w-2.5" />
             </button>
@@ -187,7 +197,6 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               <CardPopover anchor={pickerFor.anchor} onClose={() => setPickerFor(null)}>
                 <CoaPicker
                   groups={ctx.coa}
-                  allowSearch={S.allowSearch}
                   showChips={S.showNormalChips}
                   onPick={(name) => { patchLine(l.id, { account: name }); setPickerFor(null); }}
                   onClose={() => setPickerFor(null)}
@@ -198,17 +207,13 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               <FreeTypeEditor line={l} onCommit={(v) => patchLine(l.id, { account: v })} names={[...(d.accountBank ?? []), ...ctx.coaNames]} cardId={id} />
             )}
 
-            {/* AMOUNT — indents WITH its block; ??? until valued */}
+            {/* AMOUNT — indents WITH its block; ??? IS the permanent no-value state (A8) */}
             <div className="w-20 shrink-0 text-right" style={{ color: trapOn ? PAPER.red : PAPER.ink }}>
-              {S.showAmounts ? (
-                <EditableNumber
-                  value={amt}
-                  placeholder="???"
-                  onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
-                />
-              ) : (
-                <span className="inline-block h-3 w-12 rounded-sm align-middle" style={{ background: "rgba(20,33,61,0.12)" }} />
-              )}
+              <EditableNumber
+                value={amt}
+                placeholder="???"
+                onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
+              />
             </div>
 
             {/* memo lightbulb on block hover */}
@@ -367,11 +372,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       {gearAnchor && (
         <CardPopover anchor={gearAnchor} align="right" onClose={() => setGearAnchor(null)}>
           <GearPanel
+            mode={mode}
             settings={S}
             entryType={entryType}
+            onMode={(m) => update({ mode: m, settings: { ...JE_PRESETS[m] } })}
             onEntryType={(t) => update({ entryType: t })}
             onPatch={(p) => update({ settings: { ...(d.settings ?? {}), ...p } })}
-            onPreset={(preset) => update({ settings: { ...JE_PRESETS[preset] } })}
+            onReset={() =>
+              updateFn((prev) => {
+                const sol = prev.solution as JeLine[] | undefined;
+                const cur = (prev.lines as JeLine[]) ?? [];
+                return { lines: blankFrom(sol?.length ? sol : cur, () => cardId("l")), helpOpen: false };
+              })
+            }
             onClose={() => setGearAnchor(null)}
           />
         </CardPopover>
@@ -401,23 +414,21 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       )}
 
       {/* balance pill floats bottom-right of the cluster */}
-      {S.showAmounts && (
-        <div className="mt-1.5 flex justify-end">
-          <span
-            className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
-            style={
-              bal.state === "balanced"
-                ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
-                : bal.state === "off"
-                  ? { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
-                  : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }
-            }
-            title={bal.state === "unknown" ? "Some amounts are still ??? — balance unknown" : undefined}
-          >
-            {bal.state === "balanced" ? "✓ balanced" : bal.state === "off" ? `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}` : "?"}
-          </span>
-        </div>
-      )}
+      <div className="mt-1.5 flex justify-end">
+        <span
+          className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
+          style={
+            bal.state === "balanced"
+              ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
+              : bal.state === "off"
+                ? { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
+                : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }
+          }
+          title={bal.state === "unknown" ? "Some amounts are still ??? — balance unknown" : undefined}
+        >
+          {bal.state === "balanced" ? "✓ balanced" : bal.state === "off" ? `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}` : "?"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -552,22 +563,18 @@ function MemoPopover({ value, onSave, onClose }: { value: string; onSave: (v: st
   );
 }
 
-function GearPanel({ settings, entryType, onEntryType, onPatch, onPreset, onClose }: {
+/** Gear contents (A10): mode · entry type · normal-balance chips · RESET.
+ *  Amounts-visible and picker-search are gone — they're always-on now. */
+function GearPanel({ mode, settings, entryType, onMode, onEntryType, onPatch, onReset, onClose }: {
+  mode: JePreset;
   settings: JeSettings;
   entryType: (typeof ENTRY_TYPES)[number];
+  onMode: (m: JePreset) => void;
   onEntryType: (t: (typeof ENTRY_TYPES)[number]) => void;
   onPatch: (p: Partial<JeSettings>) => void;
-  onPreset: (p: JePreset) => void;
+  onReset: () => void;
   onClose: () => void;
 }) {
-  const toggles: { key: keyof JeSettings; label: string }[] = [
-    { key: "showPicker", label: "Account picker" },
-    { key: "allowSearch", label: "Picker search" },
-    { key: "showNormalChips", label: "Normal-balance chips" },
-    { key: "showGhosts", label: "Ghost template sockets" },
-    { key: "lightbulbs", label: "Memo lightbulbs" },
-    { key: "showAmounts", label: "Amounts visible" },
-  ];
   return (
     <div
       className="nodrag w-52 rounded-lg p-2 shadow-xl"
@@ -578,7 +585,25 @@ function GearPanel({ settings, entryType, onEntryType, onPatch, onPreset, onClos
         <span className="flex-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: PAPER.inkMuted }}>This entry</span>
         <button style={{ color: PAPER.inkMuted }} onClick={onClose} title="Close"><X className="h-3 w-3" /></button>
       </div>
-      {/* entry type lives here now; the corner badge follows (JE → ADJ → CL) */}
+      {/* MODE — guided teaches, practice tests (reveal gated behind an attempt) */}
+      <div className="mb-1.5 flex gap-1">
+        {(["guided", "practice"] as const).map((m) => (
+          <button
+            key={m}
+            className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase"
+            style={{
+              color: mode === m ? "#FFFFFF" : PAPER.navy,
+              background: mode === m ? PAPER.navy : "transparent",
+              border: "1px solid rgba(20,33,61,0.35)",
+            }}
+            title={m === "guided" ? "Picker + chips + memos; reveal is free" : "Free-type; reveal requires an attempt"}
+            onClick={() => onMode(m)}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+      {/* entry type — the corner badge follows (JE → ADJ → CL) */}
       <div className="mb-1.5 flex gap-1">
         {ENTRY_TYPES.map((t) => (
           <button
@@ -595,24 +620,18 @@ function GearPanel({ settings, entryType, onEntryType, onPatch, onPreset, onClos
           </button>
         ))}
       </div>
-      {toggles.map((t) => (
-        <label key={t.key} className="flex cursor-pointer items-center gap-1.5 py-0.5 text-[11.5px]" style={{ color: PAPER.ink }}>
-          <input type="checkbox" checked={settings[t.key]} onChange={(e) => onPatch({ [t.key]: e.target.checked })} style={{ accentColor: "#14213D" }} />
-          {t.label}
-        </label>
-      ))}
-      <div className="mt-1.5 flex gap-1">
-        {(["guided", "practice", "blind"] as const).map((p) => (
-          <button
-            key={p}
-            className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase"
-            style={{ color: PAPER.navy, border: "1px solid rgba(20,33,61,0.35)" }}
-            onClick={() => onPreset(p)}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+      <label className="flex cursor-pointer items-center gap-1.5 py-0.5 text-[11.5px]" style={{ color: PAPER.ink }}>
+        <input type="checkbox" checked={settings.showNormalChips} onChange={(e) => onPatch({ showNormalChips: e.target.checked })} style={{ accentColor: "#14213D" }} />
+        Normal-balance chips
+      </label>
+      <button
+        className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
+        style={{ color: PAPER.red, border: "1px solid rgba(194,24,50,0.4)", background: "rgba(194,24,50,0.05)" }}
+        title="Blank the lines back to an unattempted silhouette (Ctrl+Z restores)"
+        onClick={() => { onReset(); onClose(); }}
+      >
+        reset attempt
+      </button>
     </div>
   );
 }
