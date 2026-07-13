@@ -83,13 +83,13 @@ function HeroCta() {
     <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
         <a href="/order" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
-          <span style={{ fontWeight: 800 }}>Get Exam Help</span>
+          <span style={{ fontWeight: 800 }}>Join the waitlist</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
       </div>
       <div className="flex flex-col items-center gap-1">
         <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.65)", fontFamily: "Inter, sans-serif" }}>
-          New content weekly · Covering Intro and Intermediate · More info below
+          Early access + beta seats go out first to students on the list.
         </p>
       </div>
     </div>
@@ -209,8 +209,8 @@ function Home() {
       <SiteNav />
       {s.hero && (
         <Hero
-          headline="Survive your accounting exam."
-          subtext="Videos, interactive practice tools, and tutoring — built for your exact course by an Ole Miss accounting grad who's helped 1,000+ students since 2015."
+          headline="Be first for Fall 2026."
+          subtext="By an Ole Miss accounting grad who's helped 1,000+ students since 2015. A new way to study accounting — videos, interactive practice, and tutoring built for your exact course. Launching Fall 2026 — join the list to get in first."
           ctaSlot={<HeroCta />}
         />
       )}
@@ -224,16 +224,16 @@ function Home() {
       <section id="how-it-works" className="scroll-mt-20 px-4 py-16 sm:py-20" style={{ background: "#FFFFFF" }}>
         <Reveal className="mx-auto max-w-5xl">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: RED }}>
-            How Survive Accounting works
+            How the Fall 2026 waitlist works
           </p>
           <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl font-bold tracking-tight sm:text-3xl" style={{ color: NAVY }}>
-            Get exam help built for your course
+            Get on the Fall 2026 list
           </h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
-              { n: 1, img: "/step1.png", title: "Tell me about your exam", body: "Your course, professor, and what's giving you trouble." },
-              { n: 2, img: "/step2.png", title: "I reply within 1 business day", body: "A gameplan with your options and exact pricing — no obligation." },
-              { n: 3, img: "/step3.png", title: "Get what you need before test day", body: "Videos, practice tools, or a 1-on-1 session — whatever fits." },
+              { n: 1, img: "/step1.png", title: "Tell me your course", body: "Your campus, course, and professor — it takes about a minute." },
+              { n: 2, img: "/step2.png", title: "You're on the Fall list", body: "I'll text you before your semester starts." },
+              { n: 3, img: "/step3.png", title: "Get in first when we open", body: "Early access, beta seats, and free Foundations go to the list first." },
             ].map((step) => (
               <div key={step.n} className="text-center">
                 <img src={step.img} alt="" aria-hidden="true" className="mx-auto mb-3 w-full max-w-[280px] object-contain" loading="lazy" />
@@ -288,7 +288,7 @@ function Home() {
                 <a href="/order"
                   className="group inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
                   style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}>
-                  Request Help <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                  Join the waitlist <span className="transition-transform group-hover:translate-x-0.5">→</span>
                 </a>
               </div>
             </div>
