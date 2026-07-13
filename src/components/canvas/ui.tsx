@@ -64,9 +64,12 @@ interface EditableNumberProps {
   editing?: boolean;
   className?: string;
   placeholder?: string;
+  /** ONE click opens entry (JE amounts: ??? is a button, not a label). Default
+   *  stays double-click so table cells don't open while selecting cards. */
+  clickToEdit?: boolean;
 }
 
-export function EditableNumber({ value, onChange, editing, className, placeholder }: EditableNumberProps) {
+export function EditableNumber({ value, onChange, editing, className, placeholder, clickToEdit }: EditableNumberProps) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
@@ -96,7 +99,9 @@ export function EditableNumber({ value, onChange, editing, className, placeholde
   return (
     <span
       onDoubleClick={(e) => { e.stopPropagation(); setOpen(true); }}
-      className={`cursor-text tabular-nums ${value == null ? "opacity-30" : ""} ${className ?? ""}`}
+      onClick={clickToEdit ? (e) => { e.stopPropagation(); setOpen(true); } : undefined}
+      title={clickToEdit && value == null ? "Click to set the amount" : undefined}
+      className={`cursor-text tabular-nums ${value == null ? (clickToEdit ? "opacity-50" : "opacity-30") : ""} ${className ?? ""}`}
     >
       {value == null ? (placeholder ?? "—") : fmtNum(value)}
     </span>

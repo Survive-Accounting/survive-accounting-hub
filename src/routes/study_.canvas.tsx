@@ -309,14 +309,26 @@ function PresentCanvas() {
   // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
   // legacy staged/minimized read as tucked until the load-time migration clears them.
   const offCanvas = (d: CardData) => isTucked(d);
+  // LOCKS: posLock (B2, any card — position frozen, edits fine) and the JE
+  // reviewLock (A3 — superset: also freezes edits inside the card face) both
+  // pin the node by syncing React Flow's draggable flag off.
+  const dragFrozen = (d: CardData) => !!(d as CardBase).posLock || !!(d as { reviewLock?: boolean }).reviewLock;
   useEffect(() => {
-    if (liveNodes.some((n) => !!n.hidden !== offCanvas(n.data as unknown as CardData) || (n.hidden && n.selected))) {
+    const stale = liveNodes.some((n) => {
+      const d = n.data as unknown as CardData;
+      return !!n.hidden !== offCanvas(d) || (n.hidden && n.selected) || (n.draggable === false) !== dragFrozen(d);
+    });
+    if (stale) {
       rf.setNodes((nds) =>
         nds.map((n) => {
-          const off = offCanvas(n.data as unknown as CardData);
+          const d = n.data as unknown as CardData;
+          const off = offCanvas(d);
+          const frozen = dragFrozen(d);
           // off-canvas cards are also DESELECTED — otherwise the show key would step the
           // reveals of an invisible staged card instead of summoning the next one.
-          if (!!n.hidden !== off || (off && n.selected)) return { ...n, hidden: off, selected: off ? false : n.selected };
+          if (!!n.hidden !== off || (off && n.selected) || (n.draggable === false) !== frozen) {
+            return { ...n, hidden: off, selected: off ? false : n.selected, draggable: frozen ? false : undefined };
+          }
           return n;
         }),
       );

@@ -6,17 +6,18 @@
 // JE/ADJ/CL corner badge; chrome (deck/clone/gear/×) appears only on hover or
 // selection; memos float to the RIGHT of their block with a leader line.
 // Everything mutates through the command bus; popovers ride CardPopover.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
-import { CircleHelp, Copy, Lightbulb, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, CircleHelp, CircleX, Copy, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
+import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { CoaPicker } from "./CoaPicker";
 import { EditableNumber, fmtNum } from "../ui";
-import { NEON, PAPER } from "../theme";
+import { JE_FONT, NEON, PAPER } from "../theme";
 import {
   JE_PRESETS,
   amountOf,
@@ -53,7 +54,7 @@ const SOCKET_PULSE_CSS = `
 export function JeCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as JeCard;
   const rf = useReactFlow();
-  const { update, updateFn, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
+  const { update, updateFn, remove, toFront, addToDeck, tuck } = useCardActions(id);
   const ctx = useCanvasSettings();
   const S = effectiveSettings(d.settings, ctx.jePreset);
   const mode = effectiveMode(d.mode, ctx.jePreset);
@@ -68,6 +69,12 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const selLine = (data as Record<string, unknown>)._selLine as string | undefined;
   const arrowPending = !!(data as Record<string, unknown>)._arrowPending;
 
+  // A6: a stale _selLine outliving the card's selection made ←/→ move "the block
+  // below the selected one" — clear it whenever the NODE deselects.
+  useEffect(() => {
+    if (!selected && selLine) rf.updateNodeData(id, { _selLine: undefined });
+  }, [selected, selLine, rf, id]);
+
   const blockW = ctx.jeCardWidth - ctx.jeIndent;
 
   const setLines = (mk: (lines: JeLine[]) => JeLine[]) => updateFn((prev) => ({ lines: mk((prev.lines as JeLine[]) ?? []) }));
@@ -77,6 +84,38 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const effLines = d.lines.map(eff);
   const g = groupLines(effLines);
   const bal = balanceState(effLines);
+
+  // ---- REVIEW LOCK (A3): the answer-key state — review-only, no drag/edit ---
+  const locked = !!d.reviewLock;
+  const [cloneMenu, setCloneMenu] = useState<HTMLElement | null>(null);
+
+  /** Clone lands to the RIGHT of the original (A5). asPractice = the student
+   *  copy: blank silhouette + solution stamped + practice mode, unlocked. */
+  const cloneAs = (asPractice: boolean) => {
+    const node = rf.getNode(id);
+    if (!node) return;
+    const src = structuredClone(node.data) as unknown as JeCard;
+    const key = src.solution?.length ? src.solution : src.lines;
+    const data = asPractice
+      ? {
+          ...src,
+          mode: "practice" as const,
+          settings: { ...JE_PRESETS.practice },
+          reviewLock: false,
+          helpOpen: false,
+          solution: structuredClone(key),
+          lines: blankFrom(key, () => cardId("l")),
+        }
+      : src;
+    bus.dispatch(
+      addNodesCmd(
+        rf as unknown as RfLike,
+        [{ ...node, id: cardId("je"), selected: false, position: { x: node.position.x + ctx.jeCardWidth + 28, y: node.position.y }, data: data as unknown as Record<string, unknown> }],
+        asPractice ? "clone as practice copy" : "duplicate card",
+      ),
+    );
+    setCloneMenu(null);
+  };
 
   // ---- CARD-FLIP HELP (A2): the tetris-card back doing double duty ----------
   const flipHelp = () => update({ helpOpen: !d.helpOpen });
@@ -158,53 +197,59 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     const socketStyle = empty && S.showGhosts;
     return (
       <div key={l.id} className="relative" style={{ marginLeft: isCr ? ctx.jeIndent : 0, width: blockW, opacity: l.hidden ? 0.15 : 1 }}>
-        {/* the block — outer edge drags the CLUSTER (no nodrag); inner row is the HTML5 line-drag */}
+        {/* the block — outer edge drags the CLUSTER (no nodrag); inner row is the HTML5 line-drag.
+            Clicking ANYWHERE on the block selects it (A6) — the arrows then act on IT. */}
         <div
           className="group/block relative z-[1] rounded-lg px-1.5 py-1"
           style={{
             background: socketStyle ? "rgba(251,249,244,0.06)" : PAPER.card,
             border: socketStyle
               ? "2px dashed rgba(252,163,17,0.55)"
-              : `1px solid ${trapOn ? "rgba(194,24,50,0.6)" : isSel ? "rgba(252,163,17,0.75)" : PAPER.cardEdge}`,
-            boxShadow: socketStyle ? "none" : isSel ? "0 0 0 2px rgba(252,163,17,0.35), 0 10px 22px -12px rgba(0,0,0,0.6)" : "0 10px 22px -14px rgba(0,0,0,0.55)",
+              : `1px solid ${trapOn ? "rgba(194,24,50,0.6)" : isSel ? "#FCA311" : PAPER.cardEdge}`,
+            boxShadow: socketStyle
+              ? isSel
+                ? "0 0 0 2.5px rgba(252,163,17,0.55)"
+                : "none"
+              : isSel
+                ? "0 0 0 2.5px rgba(252,163,17,0.55), 0 10px 22px -12px rgba(0,0,0,0.6)"
+                : "0 10px 22px -14px rgba(0,0,0,0.55)",
           }}
+          onClick={() => { if (!locked) selectLine(l.id); }}
           onDragOver={(e) => { if (dragLine && dragLine !== l.id) e.preventDefault(); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropSwap(l.id); }}
         >
           <div
-            className="nodrag flex cursor-grab items-center gap-1 active:cursor-grabbing"
-            draggable
-            onDragStart={(e) => { e.dataTransfer.setData("text/plain", l.id); e.dataTransfer.effectAllowed = "move"; setDragLine(l.id); }}
+            className={`nodrag flex items-center gap-1 ${locked ? "" : "cursor-grab active:cursor-grabbing"}`}
+            draggable={!locked}
+            onDragStart={(e) => { if (locked) return; e.dataTransfer.setData("text/plain", l.id); e.dataTransfer.effectAllowed = "move"; setDragLine(l.id); }}
             onDragEnd={() => { setDragLine(null); setHotSocket(null); }}
           >
-            {/* delete on hover, far left */}
-            <button
-              className="nodrag -ml-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full opacity-0 transition-opacity group-hover/block:opacity-100"
-              style={{ color: PAPER.red, background: "rgba(194,24,50,0.08)" }}
-              title="Delete line"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); deleteLine(l.id); }}
-            >
-              <X className="h-2.5 w-2.5" />
-            </button>
+            {locked && !empty && <Lock className="h-2.5 w-2.5 shrink-0" style={{ color: PAPER.inkFaint }} />}
 
-            {/* ACCOUNT */}
+            {/* ACCOUNT — reads as an obvious DROPDOWN (A9): border + chevron + hover */}
             <button
-              className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[13px]"
+              className="group/dd flex min-w-0 flex-1 items-center gap-1 rounded px-1.5 py-0.5 text-left text-[13px] transition-colors"
               style={{
                 color: trapOn ? PAPER.red : empty ? (socketStyle ? "rgba(252,163,17,0.85)" : PAPER.inkMuted) : PAPER.ink,
                 fontStyle: empty ? "italic" : undefined,
-                background: dragLine === l.id ? "rgba(20,33,61,0.08)" : "transparent",
+                background: dragLine === l.id ? "rgba(20,33,61,0.08)" : locked ? "transparent" : "rgba(20,33,61,0.03)",
+                border: locked ? "1px solid transparent" : "1px solid rgba(20,33,61,0.18)",
               }}
-              title={eff(l).account || "Choose account"}
+              title={eff(l).account || (S.showPicker ? "Choose account" : "Type the account")}
               onPointerDown={(e) => e.stopPropagation()}
+              onMouseEnter={(e) => { if (!locked) e.currentTarget.style.borderColor = "rgba(20,33,61,0.45)"; }}
+              onMouseLeave={(e) => { if (!locked) e.currentTarget.style.borderColor = "rgba(20,33,61,0.18)"; }}
               onClick={(e) => {
+                if (locked) return; // review-only
                 e.stopPropagation();
-                selectLine(isSel ? null : l.id);
+                selectLine(l.id);
                 if (S.showPicker) setPickerFor(pickerFor?.id === l.id ? null : { id: l.id, anchor: e.currentTarget });
               }}
             >
-              {eff(l).account || "Choose account"}
+              <span className="min-w-0 flex-1 truncate">{eff(l).account || "Choose account"}</span>
+              {!locked && S.showPicker && (
+                <ChevronDown className="h-3 w-3 shrink-0 opacity-40 transition-opacity group-hover/dd:opacity-90" style={{ color: PAPER.navy }} />
+              )}
             </button>
             {pickerFor?.id === l.id && S.showPicker && (
               <CardPopover anchor={pickerFor.anchor} onClose={() => setPickerFor(null)}>
@@ -216,35 +261,31 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 />
               </CardPopover>
             )}
-            {!S.showPicker && (
-              <FreeTypeEditor line={l} onCommit={(v) => patchLine(l.id, { account: v })} names={[...(d.accountBank ?? []), ...ctx.coaNames]} cardId={id} />
+            {!S.showPicker && !locked && (
+              <FreeTypeEditor
+                line={l}
+                onOpen={() => selectLine(l.id)}
+                onCommit={(v) => patchLine(l.id, { account: v })}
+                names={[...(d.accountBank ?? []), ...ctx.coaNames]}
+                cardId={id}
+              />
             )}
 
-            {/* AMOUNT — indents WITH its block; ??? IS the permanent no-value state (A8) */}
+            {/* AMOUNT — indents WITH its block; ??? IS the permanent no-value state
+                and ONE click on it opens amount entry (A8) */}
             <div className="w-20 shrink-0 text-right" style={{ color: trapOn ? PAPER.red : PAPER.ink }}>
-              <EditableNumber
-                value={amt}
-                placeholder="???"
-                onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
-              />
+              {locked ? (
+                <span className={`tabular-nums ${amt == null ? "opacity-30" : ""}`}>{amt == null ? "???" : fmtNum(amt)}</span>
+              ) : (
+                <EditableNumber
+                  value={amt}
+                  placeholder="???"
+                  clickToEdit
+                  onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
+                />
+              )}
             </div>
 
-            {/* memo lightbulb on block hover */}
-            {S.lightbulbs && (
-              <button
-                className={`nodrag grid h-5 w-5 shrink-0 place-items-center transition-opacity ${l.label ? "" : "opacity-0 group-hover/block:opacity-60"}`}
-                style={{ color: l.label ? PAPER.gold : PAPER.inkMuted }}
-                title={l.label ? "Show memo" : "Add memo"}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (l.label) toggleMemoView(l.id);
-                  else setMemoEdit({ id: l.id, anchor: e.currentTarget });
-                }}
-              >
-                {l.label ? <Lightbulb className="h-3.5 w-3.5" /> : <Plus className="h-3 w-3" />}
-              </button>
-            )}
             {memoEdit?.id === l.id && (
               <CardPopover anchor={memoEdit.anchor} align="right" onClose={() => setMemoEdit(null)}>
                 <MemoPopover
@@ -273,6 +314,40 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               </button>
             )}
           </div>
+
+          {/* per-block controls — RIGHT of the block, OUTSIDE the grid (A4):
+              lightbulb (memo) then ⊗ delete. Hover-only; review-lock hides edits. */}
+          <div
+            className="nodrag absolute top-1 z-[2] flex items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100"
+            style={{ left: "100%", paddingLeft: 4 }}
+          >
+            {(S.lightbulbs || l.label) && (!locked || l.label) && (
+              <button
+                className="grid h-5 w-5 place-items-center rounded-full"
+                style={{ color: l.label ? PAPER.gold : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${PAPER.cardEdge}` }}
+                title={l.label ? "Show memo" : "Add memo"}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (l.label) toggleMemoView(l.id);
+                  else if (!locked) setMemoEdit({ id: l.id, anchor: e.currentTarget });
+                }}
+              >
+                <Lightbulb className="h-3 w-3" />
+              </button>
+            )}
+            {!locked && (
+              <button
+                className="grid h-5 w-5 place-items-center rounded-full"
+                style={{ color: PAPER.red, background: "rgba(251,249,244,0.9)", border: "1px solid rgba(194,24,50,0.35)" }}
+                title="Delete line"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); deleteLine(l.id); }}
+              >
+                <CircleX className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* floating memo note — node space, right of the block, leader line, z-behind */}
@@ -290,10 +365,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 <X className="h-2.5 w-2.5" />
               </button>
               <span
-                className="nodrag cursor-text"
-                title="Click to edit memo"
+                className={`nodrag ${locked ? "" : "cursor-text"}`}
+                title={locked ? undefined : "Click to edit memo"}
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => setMemoEdit({ id: l.id, anchor: e.currentTarget as HTMLElement })}
+                onClick={(e) => { if (!locked) setMemoEdit({ id: l.id, anchor: e.currentTarget as HTMLElement }); }}
               >
                 {l.label}
               </span>
@@ -312,7 +387,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         {list.map((l, i) => {
           const raw = d.lines.find((x) => x.id === l.id) ?? l;
           return (
-            <div key={l.id} className="flex flex-col gap-2">
+            <div key={l.id} className="flex flex-col gap-1">
               {block(raw, side)}
               {socket(side, i + 1)}
             </div>
@@ -321,15 +396,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         {dragLine && S.showGhosts ? (
           socket(side, list.length + 1, "new line")
         ) : (
-          <button
-            className="nodrag grid h-4 place-items-center rounded opacity-0 transition-opacity hover:!opacity-100 group-hover/cluster:opacity-30"
-            style={{ color: NEON.muted, width: blockW, marginLeft: side === "cr" ? ctx.jeIndent : 0 }}
-            title={side === "dr" ? "Add debit line" : "Add credit line"}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); addLine(side); }}
-          >
-            <Plus className="h-3 w-3" />
-          </button>
+          !locked && (
+            // add-line "+" sits in the INDENT NOOK: under the leftmost edge of
+            // its own column (A7) — a small chip, not a full-width row
+            <button
+              className="nodrag grid h-5 w-7 place-items-center rounded-md opacity-0 transition-opacity hover:!opacity-100 group-hover/cluster:opacity-40"
+              style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}`, marginLeft: side === "cr" ? ctx.jeIndent : 0 }}
+              title={side === "dr" ? "Add debit line" : "Add credit line"}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); addLine(side); }}
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          )
         )}
       </>
     );
@@ -356,7 +435,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
       <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
 
-      {/* chrome strip — hover/selection only: deck-toggle · clone · gear · × */}
+      {/* chrome strip — hover/selection only, exactly 3 (A4): deck-toggle · clone · × */}
       <div
         className={`card-actions absolute -top-7 right-1 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
         style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
@@ -366,22 +445,48 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             <span className="text-[11px] font-black leading-none">_</span>
           </ChromeBtn>
         ) : (
-          <ChromeBtn title="Add to deck" onClick={addToDeck}>
-            <Plus className="h-3 w-3" />
+          <ChromeBtn title="Add to deck (top-right)" onClick={addToDeck}>
+            <ArrowUpRight className="h-3 w-3" />
           </ChromeBtn>
         )}
-        <ChromeBtn title="Clone (stacks above)" onClick={duplicate}><Copy className="h-3 w-3" /></ChromeBtn>
         <button
-          title="Card settings"
+          title={locked ? "Clone… (locked original stays the answer key)" : "Clone (lands to the right)"}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); setGearAnchor(gearAnchor ? null : e.currentTarget); }}
+          onClick={(e) => { e.stopPropagation(); if (locked) setCloneMenu(cloneMenu ? null : e.currentTarget); else cloneAs(false); }}
           className="nodrag grid h-5 w-5 place-items-center rounded"
-          style={{ color: gearAnchor ? NEON.yellow : NEON.muted }}
+          style={{ color: cloneMenu ? NEON.yellow : NEON.muted }}
         >
-          <Settings2 className="h-3 w-3" />
+          <Copy className="h-3 w-3" />
         </button>
         <ChromeBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></ChromeBtn>
       </div>
+      {cloneMenu && (
+        <CardPopover anchor={cloneMenu} align="right" onClose={() => setCloneMenu(null)}>
+          <div
+            className="nodrag w-56 rounded-lg p-1.5 shadow-xl"
+            style={{ background: "#FFFFFF", border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 16px 40px -12px rgba(20,33,61,0.45)" }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              className="block w-full rounded px-2 py-1.5 text-left text-[11.5px] font-semibold hover:bg-black/5"
+              style={{ color: PAPER.navy }}
+              onClick={() => cloneAs(true)}
+            >
+              Clone as Practice copy
+              <span className="block text-[10px] font-normal" style={{ color: PAPER.inkMuted }}>
+                blank silhouette for the student — this locked original stays the answer key
+              </span>
+            </button>
+            <button
+              className="block w-full rounded px-2 py-1.5 text-left text-[11.5px] font-semibold hover:bg-black/5"
+              style={{ color: PAPER.ink }}
+              onClick={() => cloneAs(false)}
+            >
+              Exact clone
+            </button>
+          </div>
+        </CardPopover>
+      )}
       {gearAnchor && (
         <CardPopover anchor={gearAnchor} align="right" onClose={() => setGearAnchor(null)}>
           <GearPanel
@@ -420,15 +525,20 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           <div className="mb-2 flex items-start gap-1.5">
             <span
               className="mt-0.5 shrink-0 rounded px-1 text-[9px] font-black tracking-wider"
-              style={{ color: NEON.pink, border: `1px solid rgba(224,40,74,0.55)` }}
+              style={{ color: NEON.pink, border: `1px solid rgba(224,40,74,0.55)`, fontFamily: JE_FONT }}
             >
               {BADGE[entryType]}
             </span>
-            <TitleEditor value={d.caption} onCommit={(v) => update({ caption: v })} />
+            {locked && (
+              <span className="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center" title="Locked for review">
+                <Lock className="h-3 w-3" style={{ color: NEON.yellow }} />
+              </span>
+            )}
+            <TitleEditor value={d.caption} readOnly={locked} onCommit={(v) => update({ caption: v })} />
           </div>
 
-          {/* the tetris blocks */}
-          <div className="flex flex-col gap-2">
+          {/* the tetris blocks — tightened (A7): blocks sit close */}
+          <div className="flex flex-col gap-1">
             {renderSide("dr")}
             {renderSide("cr")}
           </div>
@@ -458,11 +568,31 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         </>
       )}
 
-      {/* bottom-right corner group — help flip ("stuck?") */}
+      {/* bottom-right corner group (A4): lock · gear · "?" */}
       <div
-        className={`card-actions absolute -bottom-6 right-1 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || d.helpOpen ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
+        className={`card-actions absolute -bottom-6 right-1 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || d.helpOpen || locked ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
         style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
       >
+        <button
+          title={locked ? "Unlock — allow drag + edits" : "Lock for review — no drag, no edits (the answer-key state)"}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); update({ reviewLock: !locked }); }}
+          className="nodrag grid h-5 w-5 place-items-center rounded"
+          style={{ color: locked ? NEON.yellow : NEON.muted }}
+        >
+          {locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+        </button>
+        {!locked && (
+          <button
+            title="Card settings"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setGearAnchor(gearAnchor ? null : e.currentTarget); }}
+            className="nodrag grid h-5 w-5 place-items-center rounded"
+            style={{ color: gearAnchor ? NEON.yellow : NEON.muted }}
+          >
+            <Settings2 className="h-3 w-3" />
+          </button>
+        )}
         <ChromeBtn title={d.helpOpen ? "Flip back to the entry" : "Stuck? Flip for help"} onClick={flipHelp}>
           {d.helpOpen ? <Undo2 className="h-3 w-3" /> : <CircleHelp className="h-3 w-3" />}
         </ChromeBtn>
@@ -553,18 +683,20 @@ function ChromeBtn({ children, onClick, title, danger }: { children: React.React
   );
 }
 
-/** Floating description — marker font, light on the whiteboard, no box.
+/** Floating description — Poppins (A11), modern and clean, no box.
  *  At rest it DRAGS the cluster; click (no drag) opens the editor. */
-function TitleEditor({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+function TitleEditor({ value, readOnly, onCommit }: { value: string; readOnly?: boolean; onCommit: (v: string) => void }) {
   const [local, setLocal] = useState(value);
   const [editing, setEditing] = useState(false);
-  if (!editing) {
+  if (!editing || readOnly) {
     return (
       <span
-        className="min-w-0 flex-1 cursor-text text-[14.5px] font-semibold leading-snug"
+        className={`min-w-0 flex-1 text-[16.5px] leading-snug ${readOnly ? "" : "cursor-text"}`}
         style={{
-          color: value ? "rgba(244,246,250,0.92)" : "rgba(147,160,180,0.7)",
-          fontFamily: "'Comic Sans MS', 'Segoe Print', cursive",
+          color: value ? "rgba(244,246,250,0.95)" : "rgba(147,160,180,0.7)",
+          fontFamily: JE_FONT,
+          fontWeight: 600,
+          letterSpacing: "-0.01em",
           fontStyle: value ? undefined : "italic",
           display: "-webkit-box",
           WebkitLineClamp: 2,
@@ -572,7 +704,7 @@ function TitleEditor({ value, onCommit }: { value: string; onCommit: (v: string)
           overflow: "hidden",
         }}
         title={value || "New entry"}
-        onClick={() => { setLocal(value); setEditing(true); }}
+        onClick={() => { if (!readOnly) { setLocal(value); setEditing(true); } }}
       >
         {value || "New entry"}
       </span>
@@ -582,8 +714,8 @@ function TitleEditor({ value, onCommit }: { value: string; onCommit: (v: string)
     <textarea
       rows={2}
       autoFocus
-      className="nodrag min-w-0 flex-1 resize-none rounded bg-black/30 px-1 py-0.5 text-[14.5px] font-semibold leading-snug outline-none"
-      style={{ color: "rgba(244,246,250,0.92)", fontFamily: "'Comic Sans MS', 'Segoe Print', cursive" }}
+      className="nodrag min-w-0 flex-1 resize-none rounded bg-black/30 px-1 py-0.5 text-[16.5px] leading-snug outline-none"
+      style={{ color: "rgba(244,246,250,0.95)", fontFamily: JE_FONT, fontWeight: 600 }}
       value={local}
       placeholder="New entry"
       onChange={(e) => setLocal(e.target.value)}
@@ -597,16 +729,16 @@ function TitleEditor({ value, onCommit }: { value: string; onCommit: (v: string)
   );
 }
 
-/** Free-text account entry when the picker is off (PRACTICE/BLIND): dbl-click to type. */
-function FreeTypeEditor({ line, onCommit, names, cardId: cid }: { line: JeLine; onCommit: (v: string) => void; names: string[]; cardId: string }) {
+/** Free-text account entry when the picker is off (PRACTICE): one click to type. */
+function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid }: { line: JeLine; onOpen?: () => void; onCommit: (v: string) => void; names: string[]; cardId: string }) {
   const listId = `bank-${cid}-${line.id}`;
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
       <span
         className="absolute inset-0 cursor-text"
-        onDoubleClick={(e) => { e.stopPropagation(); setOpen(true); }}
-        title="Double-click to type the account"
+        onClick={(e) => { e.stopPropagation(); onOpen?.(); setOpen(true); }}
+        title="Click to type the account"
       />
     );
   }

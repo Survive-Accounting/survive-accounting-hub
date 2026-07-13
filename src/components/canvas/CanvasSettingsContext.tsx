@@ -23,7 +23,8 @@ export interface CanvasSettings {
   setJePreset: (p: JePreset) => void;
 }
 
-export const JE_WIDTH_DEFAULT = 380;
+// A11: default cluster widened modestly (380 → 420) for the Poppins description.
+export const JE_WIDTH_DEFAULT = 420;
 export const JE_INDENT_DEFAULT = 32;
 
 export const CanvasSettingsContext = createContext<CanvasSettings>({

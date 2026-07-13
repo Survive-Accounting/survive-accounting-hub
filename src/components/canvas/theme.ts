@@ -43,6 +43,9 @@ export const PAPER = {
 /** The home-page display face ("Survive your accounting exam."). */
 export const DISPLAY_FONT = "'DM Serif Display', serif";
 
+/** JE card voice (A11): transaction descriptions + badges — modern, clean. */
+export const JE_FONT = "'Poppins', 'Inter', system-ui, sans-serif";
+
 // Note-card marker colors — brand trio on paper.
 export const NOTE_COLORS = [
   { name: "red", ink: "#C21832", bg: "#FDF2F2", border: "#E5B4BC" },
