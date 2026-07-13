@@ -270,6 +270,10 @@ export interface LessonBox {
   home?: boolean;
 }
 
+/** Grouping-tier nodes (region/zone + lesson) — never cards: excluded from the
+ *  deck, quick-copy, snap guides, grid placement, and auto-fit. */
+export const isContainerType = (t: string | undefined): boolean => t === "zone" || t === "lesson";
+
 // ---- Scene (serialized layout) ----
 export interface SceneDoc {
   id?: string;

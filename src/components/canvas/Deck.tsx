@@ -13,7 +13,7 @@ import { CardBack } from "./CardBack";
 import { nextStageOrder } from "./BaseCard";
 import { CARD_KIND_LABEL } from "./templates";
 import { NEON } from "./theme";
-import type { CardBase, CardData } from "./types";
+import { isContainerType, type CardBase, type CardData } from "./types";
 
 const KIND_DOT: Record<string, string> = {
   je: NEON.pink,
@@ -36,19 +36,19 @@ type DeckNode = { id: string; type?: string; parentId?: string; data: Record<str
 const isMember = (d: CardBase) => !!d.deckMember || !!d.staged || !!d.minimized; // legacy counts until migrated
 export const isTucked = (d: CardBase) => (d.deckMember ? !!d.tucked : !!d.staged || !!d.minimized);
 
-/** ALL deck members in deal order. Zone path_order wins when set; within a
- *  zone — and for unzoned cards — stageOrder rules. */
+/** ALL deck members in deal order. Container path_order (region/zone OR lesson)
+ *  wins when set; within a container — and for loose cards — stageOrder rules. */
 export function deckMembers(nodes: DeckNode[]) {
-  const zonePath = new Map<string, number>();
+  const containerPath = new Map<string, number>();
   for (const n of nodes) {
-    if (n.type === "zone") {
+    if (isContainerType(n.type)) {
       const p = (n.data as { pathOrder?: number | null }).pathOrder;
-      if (typeof p === "number") zonePath.set(n.id, p);
+      if (typeof p === "number") containerPath.set(n.id, p);
     }
   }
-  const pathOf = (n: { parentId?: string }) => (n.parentId != null && zonePath.has(n.parentId) ? zonePath.get(n.parentId)! : Number.MAX_SAFE_INTEGER);
+  const pathOf = (n: { parentId?: string }) => (n.parentId != null && containerPath.has(n.parentId) ? containerPath.get(n.parentId)! : Number.MAX_SAFE_INTEGER);
   return nodes
-    .filter((n) => n.type !== "zone" && isMember(n.data as unknown as CardBase))
+    .filter((n) => !isContainerType(n.type) && isMember(n.data as unknown as CardBase))
     .sort(
       (a, b) =>
         pathOf(a) - pathOf(b) ||
@@ -116,7 +116,7 @@ export function Deck({
     const c = compositeCmd(
       rf
         .getNodes()
-        .filter((n) => n.type !== "zone" && isMember(n.data as unknown as CardBase) && !isTucked(n.data as unknown as CardBase))
+        .filter((n) => !isContainerType(n.type) && isMember(n.data as unknown as CardBase) && !isTucked(n.data as unknown as CardBase))
         .map((n) =>
           patchDataCmd(
             rf as unknown as RfLike,

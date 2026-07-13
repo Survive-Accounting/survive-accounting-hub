@@ -23,7 +23,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Film, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Upload, Video as VideoIcon } from "lucide-react";
+import { Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon } from "lucide-react";
 
 import { fetchJeBrowserTree } from "@/lib/je-api";
 import { deleteScene, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -43,7 +43,7 @@ import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
-import { cardId, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, isContainerType, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -151,7 +151,141 @@ function ZoneNode({ id, data, selected }: NodeProps) {
   );
 }
 
-// Every card kind rides the face-down gate (zone boxes can't be decked).
+// ---------------------------------------------------------------------------
+// Lesson node — the finer grouping tier (WORLD → REGION(zone) → LESSON → CARD).
+// A titled translucent box that HUGS a heading + its cards: neon-gold border,
+// display label follows a contained heading, hug button auto-fits to children,
+// pathOrder within the region, HOME flag (welcome lesson: badge + placeholder
+// menu slot — the nav menu itself is roadmap). Cards inside ride parentId, so
+// dragging the lesson moves them natively, exactly like zones.
+// ---------------------------------------------------------------------------
+function LessonNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as LessonBox;
+  const { update, remove } = useCardActions(id);
+  const rf = useReactFlow();
+  const nodes = useNodes(); // subscribe: the display label follows a contained heading live
+
+  const headingText = (() => {
+    const h = nodes.find((n) => n.parentId === id && n.type === "heading");
+    if (!h) return null;
+    const raw = ((h.data as Record<string, unknown>).text as string) ?? "";
+    const m = /^(.*?)\s*\[[^\]]+\]\s*$/s.exec(raw); // strip the "[sub]" tail
+    return (m ? m[1] : raw).trim() || null;
+  })();
+
+  /** HUG: shrink-wrap the box around its children (+padding) — ONE undo step.
+   *  Children keep their absolute spots: the box moves, their rel coords shift. */
+  const hug = () => {
+    const me = rf.getNode(id);
+    if (!me) return;
+    const children = rf.getNodes().filter((n) => n.parentId === id && !n.hidden);
+    if (children.length === 0) return;
+    const PAD = 24;
+    const PAD_TOP = 48; // clears the label row
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const c of children) {
+      const w = c.measured?.width ?? ((c.data as unknown as CardBase).w as number | undefined) ?? 300;
+      const h = c.measured?.height ?? ((c.data as unknown as CardBase).h as number | undefined) ?? 170;
+      minX = Math.min(minX, c.position.x);
+      minY = Math.min(minY, c.position.y);
+      maxX = Math.max(maxX, c.position.x + w);
+      maxY = Math.max(maxY, c.position.y + h);
+    }
+    const dx = minX - PAD;
+    const dy = minY - PAD_TOP;
+    const after = { pos: { x: me.position.x + dx, y: me.position.y + dy }, w: Math.round(maxX - minX + PAD * 2), h: Math.round(maxY - minY + PAD_TOP + PAD) };
+    const before = { pos: { ...me.position }, w: d.w, h: d.h, kids: children.map((c) => ({ id: c.id, pos: { ...c.position } })) };
+    const apply = (pos: { x: number; y: number }, w: number, h: number, kidPos: (n: { id: string; position: { x: number; y: number } }) => { x: number; y: number }) =>
+      rf.setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id === id) return { ...n, position: { ...pos }, width: w, height: h, data: { ...n.data, w, h } };
+          if (n.parentId === id) return { ...n, position: kidPos(n) };
+          return n;
+        }),
+      );
+    bus.dispatch({
+      label: "hug lesson",
+      do: () => apply(after.pos, after.w, after.h, (n) => ({ x: n.position.x - dx, y: n.position.y - dy })),
+      undo: () => apply(before.pos, before.w, before.h, (n) => before.kids.find((k) => k.id === n.id)?.pos ?? n.position),
+    });
+  };
+
+  return (
+    <div
+      className="h-full w-full rounded-2xl"
+      style={{
+        width: d.w,
+        height: d.h,
+        background: "rgba(252,163,17,0.045)",
+        border: `1.5px solid ${selected ? NEON.yellow : "rgba(252,163,17,0.35)"}`,
+        boxShadow: selected ? `0 0 24px -8px ${NEON.yellow}` : "none",
+      }}
+    >
+      <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em]" style={{ color: NEON.yellow }}>
+        {d.home && (
+          <span className="grid h-4 w-4 place-items-center rounded" title="HOME lesson — this region's welcome" style={{ background: "rgba(252,163,17,0.18)" }}>
+            <Home className="h-3 w-3" />
+          </span>
+        )}
+        {headingText ? (
+          <span title="Label follows the heading inside this lesson">{headingText}</span>
+        ) : (
+          <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Lesson" />
+        )}
+        {/* teaching-path position within the region */}
+        <span
+          className="zone-actions rounded px-1 text-[9px] font-bold normal-case tabular-nums"
+          style={{
+            border: `1px solid ${typeof d.pathOrder === "number" ? "rgba(252,163,17,0.55)" : NEON.borderSoft}`,
+            color: typeof d.pathOrder === "number" ? NEON.yellow : NEON.muted,
+          }}
+          title="Lesson path position within its region"
+        >
+          path{" "}
+          <EditableText
+            value={typeof d.pathOrder === "number" ? String(d.pathOrder) : ""}
+            onChange={(v) => {
+              const n = parseInt(v, 10);
+              update({ pathOrder: Number.isFinite(n) ? n : null });
+            }}
+            placeholder="–"
+          />
+        </span>
+        <button
+          className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100"
+          title="Hug: shrink-wrap this lesson around its cards (one undo step)"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={hug}
+        >
+          <Shrink className="h-3 w-3" />
+        </button>
+        <button
+          className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100"
+          title={d.home ? "Unset HOME" : "Mark as this region's HOME lesson"}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => update({ home: !d.home })}
+        >
+          <Home className="h-3 w-3" />
+        </button>
+        <button className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
+          ✕
+        </button>
+      </div>
+      {/* HOME lesson: placeholder nav-menu slot (guided navigation menu = roadmap) */}
+      {d.home && (
+        <div
+          className="absolute bottom-2 left-3 rounded-md px-2 py-1 text-[9.5px] font-semibold uppercase tracking-wider"
+          style={{ border: `1px dashed rgba(252,163,17,0.45)`, color: NEON.muted }}
+          title="Navigation menu lands here (roadmap: prev/home/next + full region menu)"
+        >
+          menu · soon
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Every card kind rides the face-down gate (zone/lesson boxes can't be decked).
 const nodeTypes = {
   je: withFaceDown(JeCardNode),
   schedule: withFaceDown(ScheduleCardNode),
@@ -167,6 +301,7 @@ const nodeTypes = {
   formula: withFaceDown(FormulaCardNode),
   heading: withFaceDown(HeadingCardNode),
   zone: ZoneNode,
+  lesson: LessonNode,
 };
 
 // ---------------------------------------------------------------------------
@@ -351,7 +486,7 @@ function PresentCanvas() {
   const lastClickStamp = useRef(0);
   const onNodeClick = useCallback(
     (e: React.MouseEvent, node: CardNode) => {
-      if (!(e.ctrlKey || e.metaKey) || node.type === "zone") return;
+      if (!(e.ctrlKey || e.metaKey) || isContainerType(node.type)) return;
       if (e.timeStamp === lastClickStamp.current) return;
       lastClickStamp.current = e.timeStamp;
       e.preventDefault();
@@ -400,7 +535,7 @@ function PresentCanvas() {
       const cellH = h + GUTTER;
       const originX = center.x - (cellW * COLS) / 2 + GUTTER / 2;
       const originY = center.y - cellH / 2;
-      const others = rf.getNodes().filter((n) => !n.hidden && n.type !== "zone");
+      const others = rf.getNodes().filter((n) => !n.hidden && !isContainerType(n.type));
       const overlaps = (x: number, y: number) =>
         others.some((o) => {
           const ow = o.measured?.width ?? 300;
@@ -425,7 +560,7 @@ function PresentCanvas() {
     if (!rect) return;
     const vp = rf.getViewport();
     const view = { x: -vp.x / vp.zoom, y: -vp.y / vp.zoom, w: rect.width / vp.zoom, h: rect.height / vp.zoom };
-    const visible = rf.getNodes().filter((n) => !n.hidden && n.type !== "zone");
+    const visible = rf.getNodes().filter((n) => !n.hidden && !isContainerType(n.type));
     if (visible.length === 0) return;
     const outside = visible.some((n) => {
       const w = n.measured?.width ?? 300;
@@ -654,7 +789,7 @@ function PresentCanvas() {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if ((window.getSelection()?.toString() ?? "") !== "") return; // real text copy wins
-      const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
+      const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
       if (sel.length === 0) return;
       e.preventDefault();
       e.clipboardData?.setData("text/plain", JSON.stringify({ __saCanvasCards: 1, cards: sanitizeSceneNodes(structuredClone(sel)) }));
@@ -685,6 +820,28 @@ function PresentCanvas() {
     );
   }, [rf]);
 
+  const addLesson = useCallback(() => {
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    bus.dispatch(
+      addNodesCmd(
+        rf as unknown as RfLike,
+        [
+          {
+            id: cardId("lesson"),
+            type: "lesson",
+            position: { x: center.x - 230, y: center.y - 140 },
+            width: 460,
+            height: 280,
+            zIndex: -1,
+            data: { kind: "note", label: "New lesson", w: 460, h: 280, pathOrder: null } as unknown as CardData & Record<string, unknown>,
+          },
+        ],
+        "add lesson",
+      ),
+    );
+  }, [rf]);
+
   // ---- drag undo: snapshot {position, parentId} at drag start; one command per drag ----
   const dragStart = useRef<Map<string, { position: { x: number; y: number }; parentId?: string }> | null>(null);
   const onNodeDragStart = useCallback(
@@ -707,7 +864,7 @@ function PresentCanvas() {
       let snapX: number | null = null;
       let snapY: number | null = null;
       for (const o of rf.getNodes()) {
-        if (o.id === node.id || o.type === "zone" || o.hidden) continue;
+        if (o.id === node.id || isContainerType(o.type) || o.hidden) continue;
         const ow = o.measured?.width ?? 300;
         const oh = o.measured?.height ?? 170;
         for (const ox of [o.position.x, o.position.x + ow / 2, o.position.x + ow]) {
@@ -729,7 +886,7 @@ function PresentCanvas() {
   );
   const onNodeDrag = useCallback(
     (_e: unknown, node: CardNode) => {
-      if (node.type === "zone" || node.parentId) { setGuides({ v: [], h: [] }); return; }
+      if (isContainerType(node.type) || node.parentId) { setGuides({ v: [], h: [] }); return; }
       const m = guideMatches(node);
       setGuides({
         v: m.vx.map((gx) => rf.flowToScreenPosition({ x: gx, y: 0 }).x),
@@ -760,10 +917,11 @@ function PresentCanvas() {
     bus.dispatch({ label: "move card", do: () => apply(after), undo: () => apply(before) });
   }, [rf]);
 
-  // ---- zone membership: drop a card inside a zone → parent it (moves with the zone) ----
+  // ---- container membership: drop a card inside a LESSON (finer tier wins)
+  // or a zone/region → parent it (it then moves with the box natively) ----
   const onNodeDragStop = useCallback((_e: unknown, node: CardNode) => {
     setGuides({ v: [], h: [] });
-    if (node.type === "zone") { commitDrag(); return; }
+    if (isContainerType(node.type)) { commitDrag(); return; } // boxes stay top-level
     // settle onto a matched guide (within threshold) before parenting/commit
     if (!node.parentId) {
       const m = guideMatches(node);
@@ -775,14 +933,15 @@ function PresentCanvas() {
       }
     }
     rf.setNodes((nds) => {
-      const zones = nds.filter((n) => n.type === "zone");
+      // lessons FIRST: a card dropped where a lesson overlaps its region joins the lesson
+      const containers = [...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
       const abs = node.parentId
         ? (() => {
             const p = nds.find((n) => n.id === node.parentId);
             return p ? { x: p.position.x + node.position.x, y: p.position.y + node.position.y } : node.position;
           })()
         : node.position;
-      const hit = zones.find((z) => {
+      const hit = containers.find((z) => {
         const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
         const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
         return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
@@ -1041,7 +1200,7 @@ function PresentCanvas() {
         handler: (e) => {
           // THE SHOW KEY: one key walks the whole lesson.
           e.preventDefault();
-          const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
+          const sel = rf.getNodes().find((n) => n.selected && !isContainerType(n.type));
           if (sel && (sel.data as unknown as CardData).faceDown) {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, { faceDown: false }, "flip card");
             if (c) bus.dispatch(c);
@@ -1062,7 +1221,7 @@ function PresentCanvas() {
         group: "Show",
         description: "Hide all reveals on selected card",
         handler: () => {
-          const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
+          const sel = rf.getNodes().find((n) => n.selected && !isContainerType(n.type));
           if (!sel) return;
           const patch = hideAll(sel.data as unknown as CardData);
           if (patch) {
@@ -1076,7 +1235,7 @@ function PresentCanvas() {
         group: "Show",
         description: "Tuck selected card(s) into the deck (joins if loose)",
         handler: () => {
-          const sel = rf.getNodes().filter((n) => n.selected && n.type !== "zone");
+          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
           if (sel.length === 0) return;
           let order = nextStageOrder(rf.getNodes());
           const c = compositeCmd(
@@ -1180,7 +1339,7 @@ function PresentCanvas() {
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
     (_e: unknown, node: CardNode) => {
-      if (node.type === "zone") return;
+      if (isContainerType(node.type)) return;
       rf.fitView({ nodes: [{ id: node.id }], duration: 500, padding: 0.35 });
     },
     [rf],
@@ -1297,7 +1456,8 @@ function PresentCanvas() {
           <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />
           <TB title="New (clear canvas)" onClick={newScene}><Plus className="h-3.5 w-3.5" /></TB>
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
-          <TB title="Add zone" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
+          <TB title="Add region (zone)" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
+          <TB title="Add lesson (heading + cards in a hugging box)" onClick={addLesson}><Frame className="h-3.5 w-3.5" /></TB>
           <div className="relative">
             <TB title="Background & animations" active={bgOpen || bgCfg.mode === "video"} onClick={() => setBgOpen((v) => !v)}>
               {bgCfg.mode === "video" ? <VideoIcon className="h-3.5 w-3.5" /> : <Grid3x3 className="h-3.5 w-3.5" />}
@@ -1468,7 +1628,7 @@ function PresentCanvas() {
                   {Object.entries(importPreview.incomingByKind).map(([k, n]) => ` · ${n} ${k}`).join("")}
                 </p>
                 <p className="mt-1.5 text-[11.5px]" style={{ color: NEON.muted }}>
-                  Applying REPLACES the current canvas ({rf.getNodes().filter((n) => n.type !== "zone").length} cards). The imported scene
+                  Applying REPLACES the current canvas ({rf.getNodes().filter((n) => !isContainerType(n.type)).length} cards). The imported scene
                   arrives unsaved — hit Save to keep it. Your DB scenes are untouched until then.
                 </p>
               </>
