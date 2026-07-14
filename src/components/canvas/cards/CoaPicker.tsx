@@ -2,13 +2,14 @@
 // type to expand its accounts; pick one. Search is ALWAYS on (A9 — the toggle
 // retired); normal-balance chips gated by the card's settings. Paper styling.
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Search, X } from "lucide-react";
 
 import { PAPER } from "../theme";
 import type { CoaGroup } from "../je-logic";
 
 export function CoaPicker({
   groups,
+  recent = [],
   showChips,
   onToggleChips,
   courseName,
@@ -18,6 +19,9 @@ export function CoaPicker({
 }: {
   /** The SCENE COURSE's curated set, grouped (content reset) — not the master. */
   groups: CoaGroup[];
+  /** Accounts already used elsewhere in THIS scene (#4) — floated to the top
+   *  under a "Recent" group so the common ones are one click away. Scene-scoped. */
+  recent?: string[];
   showChips: boolean;
   /** Normal-balance chips live HERE now (V2) — small toggle in the header. */
   onToggleChips: (v: boolean) => void;
@@ -32,6 +36,12 @@ export function CoaPicker({
   const [q, setQ] = useState("");
 
   const needle = q.trim().toLowerCase();
+  // normal-balance lookup so Recent rows still show the right +DR/+CR chip
+  const normalOf = useMemo(() => {
+    const m = new Map<string, "debit" | "credit">();
+    for (const g of groups) for (const a of g.accounts) m.set(a.name, a.normal);
+    return m;
+  }, [groups]);
   const hits = useMemo(
     () => (needle ? groups.flatMap((g) => g.accounts.filter((a) => a.name.toLowerCase().includes(needle)).map((a) => ({ ...a, group: g.label }))) : []),
     [groups, needle],
@@ -97,6 +107,16 @@ export function CoaPicker({
         </div>
       )}
 
+      {!needle && recent.length > 0 && (
+        <div className="mb-1 border-b pb-1" style={{ borderColor: PAPER.line }}>
+          <div className="flex items-center gap-1 px-1 py-0.5 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: PAPER.inkMuted }}>
+            <Clock className="h-2.5 w-2.5" /> Recent
+          </div>
+          {recent.map((name) => (
+            <AccountRow key={`recent-${name}`} name={name} normal={normalOf.get(name) ?? "debit"} showChip={showChips} indent onPick={onPick} />
+          ))}
+        </div>
+      )}
       {needle
         ? hits.map((a) => (
             <AccountRow key={`${a.group}-${a.name}`} name={a.name} sub={a.group} normal={a.normal} showChip={showChips} onPick={onPick} />

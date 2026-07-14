@@ -18,6 +18,16 @@ export function groupLines(lines: JeLine[]): { dr: JeLine[]; cr: JeLine[] } {
   return { dr: lines.filter((l) => sideOf(l) === "dr"), cr: lines.filter((l) => sideOf(l) === "cr") };
 }
 
+/** DR/CR INVARIANT (#1): the canonical shape — ALL debits (entry order) then
+ *  ALL credits (entry order). A stable side-partition, so it's idempotent and
+ *  preserves within-side order. Route every line mutation's RESULT and every
+ *  RENDER through this and an interleaved (dr, cr, dr) silhouette becomes
+ *  impossible, no matter how lines were added, dragged, or hopped. */
+export function orderLines(lines: JeLine[]): JeLine[] {
+  const g = groupLines(lines);
+  return [...g.dr, ...g.cr];
+}
+
 /** The single amount of a line (whichever column it sits in). */
 export function amountOf(l: JeLine): number | null {
   return sideOf(l) === "dr" ? l.dr : l.cr;
@@ -57,6 +67,18 @@ export function hopLine(lines: JeLine[], id: string): JeLine[] {
   const l = lines.find((x) => x.id === id);
   if (!l) return lines;
   const to: JeSide = sideOf(l) === "dr" ? "cr" : "dr";
+  return moveLine(lines, id, to, Number.MAX_SAFE_INTEGER);
+}
+
+/** Directed hop that lands at the END of the target side's group (#1). ←/→ and
+ *  the block toggle use this: flipping a line to the other side always drops it
+ *  after that side's existing blocks, keeping the canonical grouped shape.
+ *  Supersedes the older in-place `hopTo` (A6) — the invariant wins. Returns null
+ *  when there's nothing to do (no such line / already on that side). */
+export function hopToEnd(lines: JeLine[], id: string | undefined, to: JeSide): JeLine[] | null {
+  if (!id) return null;
+  const l = lines.find((x) => x.id === id);
+  if (!l || sideOf(l) === to) return null;
   return moveLine(lines, id, to, Number.MAX_SAFE_INTEGER);
 }
 

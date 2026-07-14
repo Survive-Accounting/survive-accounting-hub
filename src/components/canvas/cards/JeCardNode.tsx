@@ -36,6 +36,7 @@ import {
   insertLine,
   memoOf,
   memosOf,
+  orderLines,
   patchMemo,
   placeLine,
   sideOf,
@@ -79,6 +80,27 @@ const SOCKET_PULSE_CSS = `
 /** Uniform row height — the polyomino contract: every block is one tetris cell. */
 const BLOCK_H = 36;
 
+/** RECENTS (#4): account names already used ANYWHERE in this scene, deduped —
+ *  the current card's own accounts first (most relevant), then the rest, so the
+ *  picker floats the scene's working set to the top. Scene-scoped snapshot,
+ *  read when the picker opens. */
+function sceneRecentAccounts(rf: ReturnType<typeof useReactFlow>, selfId: string): string[] {
+  const nodes = rf.getNodes();
+  const self = nodes.find((n) => n.id === selfId);
+  const others = nodes.filter((n) => n.type === "je" && n.id !== selfId);
+  const ordered = [self, ...others];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const n of ordered) {
+    if (!n || (n.type !== "je" && n.id !== selfId)) continue;
+    for (const ln of ((n.data as unknown as JeCard).lines ?? [])) {
+      const name = ln.account?.trim();
+      if (name && !seen.has(name)) { seen.add(name); out.push(name); }
+    }
+  }
+  return out.slice(0, 8);
+}
+
 export function JeCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as JeCard;
   const rf = useReactFlow();
@@ -110,11 +132,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
 
   const blockW = ctx.jeCardWidth - ctx.jeIndent;
 
-  const setLines = (mk: (lines: JeLine[]) => JeLine[]) => updateFn((prev) => ({ lines: mk((prev.lines as JeLine[]) ?? []) }));
+  // DR/CR INVARIANT (#1): every mutation sees grouped input and writes grouped
+  // output, so the flat lines array is ALWAYS [debits…, credits…] in entry
+  // order — the render below can never draw an interleaved silhouette.
+  const setLines = (mk: (lines: JeLine[]) => JeLine[]) =>
+    updateFn((prev) => ({ lines: orderLines(mk(orderLines((prev.lines as JeLine[]) ?? []))) }));
   const patchLine = (lid: string, patch: Partial<JeLine>) => setLines((lines) => lines.map((l) => (l.id === lid ? { ...l, ...patch } : l)));
   const selectLine = (lid: string | null) => rf.updateNodeData(id, { _selLine: lid ?? undefined }); // transient
 
-  const effLines = d.lines.map(eff);
+  // ONE canonical order for everything that renders or indexes by position
+  // (rows, indents, memo geometry, drag sockets) — grouped, so a scene saved
+  // with an older interleaved array still draws canonically before any edit.
+  const lines = orderLines(d.lines);
+  const effLines = lines.map(eff);
   const bal = balanceState(effLines);
   // THE POLYOMINO: array order IS render order; each row's indent follows its
   // EFFECTIVE side (traps can cross columns), so the silhouette shows the truth.
@@ -124,7 +154,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   // React Flow caches handle positions per node — after a hop/reorder moves a
   // block, tell it to re-measure so anchored edges follow the block.
   const updateNodeInternals = useUpdateNodeInternals();
-  const linesShape = d.lines.map((l, i) => `${l.id}:${inds[i]}`).join("|");
+  const linesShape = lines.map((l, i) => `${l.id}:${inds[i]}`).join("|");
   useEffect(() => {
     updateNodeInternals(id);
   }, [linesShape, id, updateNodeInternals]);
@@ -231,17 +261,17 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
    *  text box so both open readable when a line carries the pair. */
   const defaultMemoPos = (i: number, kind: JeMemo["kind"]) =>
     ({ x: inds[i] + blockW + 22, y: i * BLOCK_H - 2 + (kind === "calc" ? 30 : 0) });
-  const lineOf = (lid: string) => d.lines.find((l) => l.id === lid);
+  const lineOf = (lid: string) => lines.find((l) => l.id === lid);
   const toggleMemo = (lid: string, kind: JeMemo["kind"]) => {
-    const i = d.lines.findIndex((l) => l.id === lid);
-    const l = d.lines[i];
+    const i = lines.findIndex((l) => l.id === lid);
+    const l = lines[i];
     const m = l && memoOf(l, kind);
     if (!l || !m) return;
     patchLine(lid, patchMemo(l, kind, { open: !m.open, pos: m.pos ?? defaultMemoPos(i, kind) }));
   };
   const saveMemo = (lid: string, kind: JeMemo["kind"], text: string) => {
-    const i = d.lines.findIndex((l) => l.id === lid);
-    const l = d.lines[i];
+    const i = lines.findIndex((l) => l.id === lid);
+    const l = lines[i];
     if (!l) return;
     const hadIt = !!memoOf(l, kind);
     // a fresh memo pops open right of its block, arrow attached
@@ -375,25 +405,30 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           style={{ right: -5, top: "50%", width: 8, height: 8, background: "#101B31", border: `2px solid ${NEON.yellow}`, borderRadius: 999 }}
         />
         {/* the block — outer edge drags the CLUSTER (no nodrag); inner row is the HTML5 line-drag.
-            Clicking ANYWHERE on the block selects it (A6) — the arrows then act on IT. */}
+            Clicking ANYWHERE on the block (incl. the gap between account + amount)
+            selects it (#5) — ←/→ then toggle THIS block's side. */}
         <div
-          className="group/block relative z-[1] h-full"
+          className={`group/block relative z-[1] h-full ${!locked ? "cursor-pointer" : ""}`}
           style={{
-            background: socketStyle ? "rgba(252,163,17,0.05)" : PAPER.card,
+            // SELECTED BLOCK (#5): a CLEAR platinum highlight — bright inset ring
+            // + soft outer halo + faint silver wash — distinct from the calm
+            // at-rest edge and unmistakably "this block is selected".
+            background: (isSel || isGlow) && !socketStyle ? "rgba(174,185,201,0.16)" : socketStyle ? "rgba(252,163,17,0.05)" : PAPER.card,
             boxShadow: trapOn
               ? "inset 0 0 0 2px rgba(194,24,50,0.5)"
-              : isGlow
-                ? "inset 0 0 0 2px rgba(252,163,17,0.95), 0 0 10px 1px rgba(252,163,17,0.55)" // arrow endpoint = gold
-                : isSel
-                  ? "inset 0 0 0 2px rgba(174,185,201,0.95)" // single-block focus = SILVER
-                  : undefined,
+              : isSel || isGlow
+                // SELECTED block (#5) OR an arrow endpoint (#6) → the SAME clear
+                // platinum highlight (silver, per spec — endpoints match block
+                // selection). Bright inset ring + soft halo + faint wash.
+                ? `inset 0 0 0 2px ${SILVER}, 0 0 0 2px rgba(174,185,201,0.55), 0 0 12px -1px ${SILVER_SHEEN}`
+                : undefined,
           }}
           onClick={() => { if (!locked) selectLine(l.id); }}
           onDragOver={(e) => { if (dragLine && dragLine !== l.id) e.preventDefault(); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropSwap(l.id); }}
         >
           <div
-            className={`nodrag flex h-full items-center gap-1 px-1.5 ${locked ? "" : "cursor-grab active:cursor-grabbing"}`}
+            className="nodrag flex h-full items-center gap-1 px-1.5"
             draggable={!locked}
             onDragStart={(e) => { if (locked) return; e.dataTransfer.setData("text/plain", l.id); e.dataTransfer.effectAllowed = "move"; setDragLine(l.id); }}
             onDragEnd={() => { setDragLine(null); setHotSocket(null); }}
@@ -443,6 +478,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               <CardPopover anchor={pickerFor.anchor} side="left" onClose={() => setPickerFor(null)}>
                 <CoaPicker
                   groups={ctx.coa}
+                  recent={sceneRecentAccounts(rf, id)}
                   showChips={S.showNormalChips}
                   onToggleChips={(v) => update({ settings: { ...(d.settings ?? {}), showNormalChips: v } })}
                   courseName={ctx.courseName}
@@ -571,7 +607,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const memoLayer = () => {
     if (dragLine) return null;
     const open: { l: JeLine; i: number; m: JeMemo }[] = [];
-    d.lines.forEach((l, i) => {
+    lines.forEach((l, i) => {
       for (const m of memosOf(l)) if (m.open && m.text) open.push({ l, i, m });
     });
     if (open.length === 0) return null;
@@ -772,7 +808,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         </CardPopover>
       )}
       {gearAnchor && (
-        <CardPopover anchor={gearAnchor} align="right" onClose={() => setGearAnchor(null)}>
+        <CardPopover anchor={gearAnchor} side="left" onClose={() => setGearAnchor(null)}>
           <GearPanel
             mode={mode}
             entryType={entryType}
@@ -889,7 +925,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               (relative: the memo layer positions in THIS coordinate space) */}
           <div className="relative flex flex-col">
             {gapSocket(0)}
-            {d.lines.map((l, i) => (
+            {lines.map((l, i) => (
               <div key={l.id} className="flex flex-col">
                 {row(l, i)}
                 {gapSocket(i + 1)}

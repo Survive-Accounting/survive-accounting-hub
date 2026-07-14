@@ -11,9 +11,11 @@ import {
   hasAttempt,
   hopLine,
   hopTo,
+  hopToEnd,
   insertLine,
   moveLine,
   normalizePreset,
+  orderLines,
   placeLine,
   sideOf,
   swapLines,
@@ -342,5 +344,62 @@ describe("fmtJeDate", () => {
     expect(fmtJeDate(undefined, now)).toBeNull();
     expect(fmtJeDate("not-a-date", now)).toBeNull();
     expect(fmtJeDate("2026-13-05", now)).toBeNull();
+  });
+});
+
+// ---- #1: DEBIT/CREDIT INVARIANT (canonical grouped shape) --------------------
+describe("orderLines + hopToEnd (DR/CR invariant — no interleave)", () => {
+  const isGrouped = (ls: JeLine[]) => {
+    // every debit index precedes every credit index
+    const sides = ls.map(sideOf);
+    const firstCr = sides.indexOf("cr");
+    return firstCr === -1 || !sides.slice(firstCr).includes("dr");
+  };
+
+  test("orderLines groups an interleaved array (dr, cr, dr) → dr,dr,cr", () => {
+    const interleaved = [L("a", "dr"), L("b", "cr"), L("c", "dr")];
+    const out = orderLines(interleaved);
+    expect(out.map((l) => l.id)).toEqual(["a", "c", "b"]);
+    expect(isGrouped(out)).toBe(true);
+  });
+
+  test("orderLines is idempotent + preserves within-side entry order", () => {
+    const ls = [L("a", "dr"), L("b", "dr"), L("c", "cr"), L("d", "cr")];
+    const once = orderLines(ls);
+    expect(orderLines(once)).toEqual(once);
+    expect(once.map((l) => l.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  test("hopToEnd lands the line at the END of the target side's group", () => {
+    const ls = [L("a", "dr"), L("b", "dr"), L("c", "cr")];
+    const out = hopToEnd(ls, "a", "cr")!; // debit a → credits
+    expect(out.map((l) => l.id)).toEqual(["b", "c", "a"]); // a is last credit
+    expect(sideOf(out.find((l) => l.id === "a")!)).toBe("cr");
+    expect(isGrouped(out)).toBe(true);
+  });
+
+  test("hopToEnd is a no-op (null) when the line is already on that side / missing", () => {
+    const ls = [L("a", "dr"), L("b", "cr")];
+    expect(hopToEnd(ls, "a", "dr")).toBeNull();
+    expect(hopToEnd(ls, undefined, "cr")).toBeNull();
+    expect(hopToEnd(ls, "zzz", "cr")).toBeNull();
+  });
+
+  test("ARBITRARY hop sequence never interleaves (fuzz)", () => {
+    let ls: JeLine[] = [L("a", "dr"), L("b", "cr"), L("c", "dr"), L("d", "cr"), L("e", "dr")];
+    const ids = ["a", "b", "c", "d", "e"];
+    const sides: JeSide[] = ["dr", "cr"];
+    // deterministic pseudo-random walk of 40 hops
+    let seed = 7;
+    const rnd = (n: number) => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) % n;
+    for (let i = 0; i < 40; i++) {
+      const id = ids[rnd(ids.length)];
+      const to = sides[rnd(2)];
+      const next = hopToEnd(orderLines(ls), id, to);
+      if (next) ls = next;
+      expect(isGrouped(orderLines(ls))).toBe(true);
+    }
+    // both sides always retain at least their survivors, grouped
+    expect(isGrouped(orderLines(ls))).toBe(true);
   });
 });

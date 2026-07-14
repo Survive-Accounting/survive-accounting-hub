@@ -66,7 +66,16 @@ export function ArrowEdge(props: EdgeProps) {
 export const ARROW_EDGE_CSS = `
 @keyframes sa-edge-dash { from { stroke-dashoffset: 120; } to { stroke-dashoffset: 0; } }
 .sa-edge-pulse { stroke-dasharray: 14 10; animation: sa-edge-dash 700ms linear 1; }
-.react-flow__edge.selected .react-flow__edge-path { stroke-width: 3.5px; filter: drop-shadow(0 0 4px rgba(252,163,17,0.65)); }
+/* SELECTED EDGE (#6): a SLOW, LOOPING dash march (source → target) that
+   persists while selected — silver, matching the block-selection language —
+   and returns to a static solid line on deselect. */
+@keyframes sa-edge-march { to { stroke-dashoffset: -34; } }
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3px;
+  stroke-dasharray: 10 7;
+  animation: sa-edge-march 1.6s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(174,185,201,0.75));
+}
 .react-flow__node:hover .line-dot { opacity: 0; }
 .je-row:hover .line-dot, .sa-connecting .line-dot { opacity: 1 !important; }
 .line-dot.connectingto, .line-dot.valid { opacity: 1 !important; transform: scale(1.35); }

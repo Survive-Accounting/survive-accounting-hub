@@ -66,11 +66,11 @@ import { addEdgeCmd, lineIdOfHandle, resolveConnection, type EdgeLike } from "@/
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
-import { JE_PRESETS, groupCoa, hopTo, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
+import { JE_PRESETS, groupCoa, hopToEnd, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
-import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
+import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
@@ -774,9 +774,9 @@ function PresentCanvas() {
     [rf],
   );
 
-  // ---- edge click (PROMPT A): select + one-shot PULSE + gold-ring BOTH
-  // endpoint blocks (line-anchored ends light their block via transient
-  // _glowLine node data; card-level ends rely on the edge's selection glow).
+  // ---- edge click (#6): RF selects the edge (slow looping silver march + ×);
+  // we additionally light BOTH endpoint blocks SILVER (same language as block
+  // selection) via transient _glowLine. Cleared on pane click / Esc / next edge.
   const glowedNodes = useRef<string[]>([]);
   const clearEdgeGlow = useCallback(() => {
     for (const nid of glowedNodes.current) rf.updateNodeData(nid, { _glowLine: undefined });
@@ -794,11 +794,6 @@ function PresentCanvas() {
         rf.updateNodeData(nid, { _glowLine: lineId });
         glowedNodes.current.push(nid);
       }
-      // pulse: sweep the dash train once, then settle back to solid
-      rf.setEdges((eds) => eds.map((e) => (e.id === edge.id ? { ...e, data: { ...e.data, _pulse: true } } : e)));
-      window.setTimeout(() => {
-        rf.setEdges((eds) => eds.map((e) => (e.id === edge.id ? { ...e, data: { ...e.data, _pulse: undefined } } : e)));
-      }, 750);
     },
     [rf, clearEdgeGlow],
   );
@@ -1971,13 +1966,14 @@ function PresentCanvas() {
   }, [film, sceneId, serialize]);
 
   // ← / → hop the SELECTED line of the selected JE card to the other column.
-  // hopTo moves exactly _selLine or nothing (A6: never a neighbor).
+  // hopToEnd moves exactly _selLine or nothing (never a neighbor) and lands it
+  // at the END of the target side's group (#1 — canonical grouped shape).
   const hopSelectedLine = useCallback(
     (to: "dr" | "cr") => {
       const sel = rf.getNodes().find((n) => n.selected && n.type === "je");
       if (!sel) return;
       const lid = (sel.data as Record<string, unknown>)._selLine as string | undefined;
-      const next = hopTo((sel.data as unknown as JeCard).lines, lid, to);
+      const next = hopToEnd((sel.data as unknown as JeCard).lines, lid, to);
       if (!next) return;
       const c = patchDataCmd(rf as unknown as RfLike, sel.id, { lines: next }, "hop line");
       if (c) bus.dispatch(c);
@@ -2189,8 +2185,11 @@ function PresentCanvas() {
     <CanvasSettingsContext.Provider value={canvasSettings}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""}`} style={{ background: NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
+      <style>{CARD_CURSOR_CSS}</style>
       <style>{CONNECTION_DOTS_CSS}</style>
       <style>{ARROW_EDGE_CSS}</style>
+      {/* card tap feedback — always on (authoring); the audience never sees it in film/clean */}
+      {chrome && <CardTapPulse />}
       {film && (
         <>
           <CursorSpotlight />

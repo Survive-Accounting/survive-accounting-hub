@@ -130,3 +130,22 @@ resettable. The ask: screen-record the first 5 minutes (Loom/OBS), think out
 loud, send the video. This forces student-safe mode into July's scope: auth,
 scene protection, COA/library read-only, dorm-laptop performance. Beta infra
 IS the World v1 dry run — build it once, get both.
+
+## Student card mode (World v1 / mobile)
+The authoring/filming card and the student practice card are TWO MODES of one
+card, not one UI with controls hidden. Student mode exposes exactly FOUR verbs:
+choose account, enter amount, flip-for-help (reads Lee's memos/hints — this is
+where teaching lives), check/reveal. REMOVED for students: lock toggle,
+settings gear, memo/calc CREATION (they read, not write), arrow drawing, deck
+management, all scene/authoring tools. The author sets Guided/Practice at build
+time; the student receives that mode and can't change structure. Touch-first:
+big account picker, number-pad amount entry, tap-to-flip. The portrait-phone
+layout is the hard open problem — evaluate (a) the tetris shape scales to width
+vs (b) a stacked debit-section / credit-section variant that preserves the
+teaching structure without the wide DR/CR grid; decide with a phone in hand.
+Student cards are read-only re: structure; practice state (their attempt) is
+per-student and does NOT mutate the authored scene. Ties to auth + read-only
+scene mode (already flagged for beta / World v1). NB: the invariant that debits
+always render as a contiguous group above credits (built in the "JE interaction
++ polish" pass) is what makes the stacked-section mobile variant clean — the
+data is already grouped, so option (b) is a layout swap, not a re-model.
