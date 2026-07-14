@@ -8,7 +8,7 @@
 // Everything mutates through the command bus; popovers ride CardPopover.
 import { useEffect, useRef, useState } from "react";
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
-import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
+import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, FlipVertical2, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { lineHandleId, memoHandleId } from "../arrows";
@@ -32,8 +32,10 @@ import {
   effectiveSettings,
   ensureMinLines,
   fmtJeDate,
+  flipSides,
   hasAttempt,
   insertLine,
+  jeTabTarget,
   memoKindOf,
   memoLeaderGeom,
   memoOf,
@@ -184,52 +186,52 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const effLines = lines.map(eff);
   const bal = balanceState(effLines);
 
-  // TAB-TO-ADVANCE (#2): one-handed authoring. account → amount → next block on
-  // the SAME side → (last block filled) spawn another → (last block empty) cross
-  // to the FIRST block of the OTHER side. Fully symmetric, so building an entry
-  // credit-first works identically. Shift+Tab walks it backwards.
+  // TAB = WALK-AND-WRAP (JT1): Tab moves to the NEXT EXISTING field in canonical
+  // order (debits top→bottom account→amount, then credits, WRAP to the first
+  // debit's account). Shift+Tab walks it backwards, wrapping. NEVER spawns — the
+  // never-zero invariant guarantees 1 DR + 1 CR, so the common flow is
+  // DR-acct → DR-amt → CR-acct → CR-amt (echo) → done, no clicks. Adding a block
+  // is EXPLICIT (Enter, see addBlockBelow). Commits an amount atomically first
+  // so the walk sees the pending value (undefined = account field, no commit).
   const advanceField = (lineId: string, which: "account" | "amount", back: boolean, commitVal?: number | null) => {
     if (locked) return;
-    // ATOMIC COMMIT (#2/#3): an amount's value (typed or accepted ghost) is
-    // folded into the SAME setLines that spawns/moves — one command — so a
-    // separate patch can't be clobbered by the structural change (they read
-    // node data independently). undefined = nothing to commit (account fields).
     const applyAmt = (ls: JeLine[]): JeLine[] =>
       commitVal === undefined ? ls : ls.map((l) => {
         if (l.id !== lineId) return l;
         const s = sideOf(l);
         return s === "dr" ? { ...l, dr: commitVal, cr: null, side: s } : { ...l, cr: commitVal, dr: null, side: s };
       });
-    const L = orderLines(applyAmt(orderLines(d.lines))); // decisions see the pending commit
-    const cur = L.find((l) => l.id === lineId);
-    if (!cur) return;
-    const side = sideOf(cur);
-    const same = L.filter((l) => sideOf(l) === side);
-    const other = L.filter((l) => sideOf(l) !== side);
-    const pos = same.findIndex((l) => l.id === lineId);
-    const go = (lid: string, w: "account" | "amount") => setAuthoring({ lineId: lid, which: w, seq: Date.now() });
-    if (!back) {
-      if (which === "account") { go(lineId, "amount"); return; }
-      if (pos < same.length - 1) { setLines(applyAmt); go(same[pos + 1].id, "account"); return; }
-      const empty = !cur.account?.trim() && amountOf(eff(cur)) == null;
-      if (!empty) {
-        const nid = cardId("l");
-        setLines((ls) => insertLine(applyAmt(ls), side, { id: nid, account: "", dr: null, cr: null, side }));
-        go(nid, "account");
-        return;
-      }
-      // empty trailing block ends this side → drop it (unless it's the side's
-      // last survivor) and cross to the other side's first block
-      if (same.length > 1) setLines((ls) => ensureMinLines(ls.filter((x) => x.id !== lineId), () => cardId("l")));
-      if (other[0]) go(other[0].id, "account");
-      else setAuthoring(null);
-      return;
-    }
-    // BACKWARD (Shift+Tab)
-    if (which === "amount") { setLines(applyAmt); go(lineId, "account"); return; }
-    if (pos > 0) { go(same[pos - 1].id, "amount"); return; }
-    if (other.length) go(other[other.length - 1].id, "amount");
+    if (commitVal !== undefined) setLines(applyAmt);
+    const L = applyAmt(orderLines(d.lines)); // the walk sees the pending commit
+    const target = jeTabTarget(L, lineId, which, back);
+    if (target) setAuthoring({ lineId: target.lineId, which: target.which, seq: Date.now() });
   };
+
+  /** ENTER = add a block on THIS side, directly below, focus its account (JT1).
+   *  Commits a pending amount first so nothing is lost. */
+  const addBlockBelow = (lineId: string, commitVal?: number | null) => {
+    if (locked) return;
+    const l = lines.find((x) => x.id === lineId);
+    if (!l) return;
+    const side = sideOf(l);
+    const nid = cardId("l");
+    setLines((ls) => {
+      const committed = commitVal === undefined ? ls : ls.map((x) => {
+        if (x.id !== lineId) return x;
+        const s = sideOf(x);
+        return s === "dr" ? { ...x, dr: commitVal, cr: null, side: s } : { ...x, cr: commitVal, dr: null, side: s };
+      });
+      const i = committed.findIndex((x) => x.id === lineId);
+      const nl: JeLine = { id: nid, account: "", dr: null, cr: null, side };
+      return i < 0 ? insertLine(committed, side, nl) : [...committed.slice(0, i + 1), nl, ...committed.slice(i + 1)];
+    });
+    setAuthoring({ lineId: nid, which: "account", seq: Date.now() });
+  };
+
+  /** FLIP (JT4): swap every line's side (dr↔cr) — accounts, amounts, memos, ids
+   *  preserved; the invariant re-sorts the shape. Undoable via the bus. Many JEs
+   *  are the flip of another (reversing entries, "the other side"). */
+  const flip = () => { if (!locked) updateFn((prev) => ({ lines: flipSides((prev.lines as JeLine[]) ?? []) })); };
   // THE POLYOMINO: array order IS render order; each row's indent follows its
   // EFFECTIVE side (traps can cross columns), so the silhouette shows the truth.
   const inds = effLines.map((l) => (sideOf(l) === "cr" ? ctx.jeIndent : 0));
@@ -541,6 +543,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 account recedes to calm parchment with a faint solid edge. The
                 amber affordance brightens while the cluster is selected and
                 takes the one-shot fill-pulse then. */}
+            {/* ACCOUNT REGION (JT2): a positioned flex-1 wrapper so the Practice
+                free-type input overlays ONLY the account slot — the amount + gap
+                stay visible and independently clickable at all times. */}
+            <div className="relative flex min-w-0 flex-1 items-center">
             <button
               className={`group/dd flex min-w-0 flex-1 items-center gap-1 rounded px-1.5 py-0.5 text-left text-[13px] transition-colors ${actionable && selected ? "je-fill-pulse" : ""}`}
               style={{
@@ -605,8 +611,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 cardId={id}
                 openSeq={authAcct}
                 onFieldTab={(back) => advanceField(l.id, "account", back)}
+                onEnter={() => addBlockBelow(l.id)}
               />
             )}
+            </div>{/* /account region */}
 
             {/* AMOUNT — ??? is the permanent no-value state; it now reads as a
                 fillable amber slot that RHYMES with the dashed account box
@@ -625,6 +633,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                   emptyStyle={{ color: "rgba(138,90,0,0.85)", borderColor: `rgba(252,163,17,${selected ? 0.8 : 0.55})` }}
                   openSeq={authAmt}
                   onFieldTab={(back, val) => advanceField(l.id, "amount", back, val)}
+                  onEnter={(val) => addBlockBelow(l.id, val)}
                   ghost={ghostAmt}
                   onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
                 />
@@ -744,7 +753,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     });
     return (
       <>
-        <svg className="pointer-events-none absolute left-0 top-0 z-0" style={{ width: 0, height: 0, overflow: "visible" }}>
+        <svg className="pointer-events-none absolute left-0 top-0 z-[3]" style={{ width: 0, height: 0, overflow: "visible" }}>
           <defs>
             <marker id={`memo-arr-${id}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
               <path d="M0,0 L7,3.5 L0,7 Z" fill="rgba(252,163,17,0.85)" />
@@ -885,6 +894,21 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     >
       <style>{SOCKET_PULSE_CSS}</style>
       <ConnectionDots />
+
+      {/* FLIP (JT4) — to the LEFT of the cluster, left of the connection dots;
+          hover-revealed. Swaps debits ↔ credits (a JE is often the flip of
+          another: reversing entries, "now the other side"). */}
+      {!locked && (
+        <button
+          className="card-actions absolute -left-9 top-1/2 z-[2] grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full opacity-0 transition-opacity group-hover/cluster:opacity-100"
+          style={{ color: NEON.muted, background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
+          title="Flip — swap debits and credits"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); flip(); }}
+        >
+          <FlipVertical2 className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       {/* ONE chrome grid (V2) — top-right, 2×3, hover/selection only:
           [↗ deck | clone | ×] / [lock | gear | ? flip-help] */}
@@ -1267,9 +1291,9 @@ function TitleEditor({ value, readOnly, editing, onOpen, onCommit, onCancel }: {
 
 /** Free-text account entry when the picker is off (PRACTICE): one click to type.
  *  TAB AUTHORING (#2): the card can force it open + intercept Tab. */
-function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid, openSeq, onFieldTab }: {
+function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid, openSeq, onFieldTab, onEnter }: {
   line: JeLine; onOpen?: () => void; onCommit: (v: string) => void; names: string[]; cardId: string;
-  openSeq?: number; onFieldTab?: (back: boolean) => void;
+  openSeq?: number; onFieldTab?: (back: boolean) => void; onEnter?: () => void;
 }) {
   const listId = `bank-${cid}-${line.id}`;
   const [open, setOpen] = useState(false);
@@ -1311,7 +1335,7 @@ function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid, openSeq, o
         onBlur={(e) => { onCommit(e.target.value); setOpen(false); }}
         onKeyDown={(e) => {
           if (e.key === "Tab" && onFieldTab) { e.preventDefault(); onCommit((e.target as HTMLInputElement).value); setOpen(false); onFieldTab(e.shiftKey); e.stopPropagation(); return; }
-          if (e.key === "Enter") { e.preventDefault(); onCommit((e.target as HTMLInputElement).value); setOpen(false); }
+          if (e.key === "Enter") { e.preventDefault(); onCommit((e.target as HTMLInputElement).value); setOpen(false); if (onEnter) { onEnter(); e.stopPropagation(); return; } }
           if (e.key === "Escape") setOpen(false);
           e.stopPropagation();
         }}

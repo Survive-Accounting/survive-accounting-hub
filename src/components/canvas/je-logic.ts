@@ -126,6 +126,47 @@ export function ensureMinLines(lines: JeLine[], mkId: () => string): JeLine[] {
   return out;
 }
 
+// ---- Tab authoring: WALK-AND-WRAP (never spawns) ---------------------------
+export type JeField = "account" | "amount";
+export interface JeFieldRef { lineId: string; which: JeField }
+
+/** Canonical field walk order: debits top→bottom (account then amount each),
+ *  then credits top→bottom, as a flat list. Tab/Shift+Tab step through it and
+ *  wrap; nothing is ever spawned. */
+export function jeFieldOrder(lines: JeLine[]): JeFieldRef[] {
+  const L = orderLines(lines);
+  const out: JeFieldRef[] = [];
+  for (const side of ["dr", "cr"] as const)
+    for (const l of L.filter((x) => sideOf(x) === side)) {
+      out.push({ lineId: l.id, which: "account" });
+      out.push({ lineId: l.id, which: "amount" });
+    }
+  return out;
+}
+
+/** The field Tab (back=false) / Shift+Tab (back=true) lands on, wrapping at the
+ *  ends. Null when the source field isn't found. */
+export function jeTabTarget(lines: JeLine[], lineId: string, which: JeField, back: boolean): JeFieldRef | null {
+  const order = jeFieldOrder(lines);
+  const i = order.findIndex((o) => o.lineId === lineId && o.which === which);
+  if (i < 0 || order.length === 0) return null;
+  const n = order.length;
+  return order[(i + (back ? -1 : 1) + n) % n];
+}
+
+/** FLIP (JT4): swap every line's side (dr↔cr), moving its amount to the other
+ *  column; account, memos, id, trap all preserved. orderLines re-sorts the
+ *  shape so the silhouette stays [debits…, credits…]. */
+export function flipSides(lines: JeLine[]): JeLine[] {
+  return orderLines(
+    lines.map((l) => {
+      const s = sideOf(l);
+      const amt = amountOf(l);
+      return s === "dr" ? { ...l, side: "cr" as const, dr: null, cr: amt } : { ...l, side: "dr" as const, cr: null, dr: amt };
+    }),
+  );
+}
+
 /** PRACTICE reveal gate: an "attempt" = any visible line the student put content
  *  into (an account name or an amount). No attempt → reveal shows the dialog. */
 export function hasAttempt(lines: JeLine[]): boolean {

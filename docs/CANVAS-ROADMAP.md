@@ -39,6 +39,27 @@ layout instead.
   Codes deck → switch to 9:16 → deal one memo per take → ten shorts in twenty
   minutes. Promotional engine falls out of the teaching structure for free.
 
+SHORTS PIPELINE (post-filming, per lesson):
+1. Film the core 16:9 lesson → Mux auto-transcript (infra exists).
+2. AI SHORTLISTS short-worthy moments from the transcript — never chooses. The
+   transcript can't see whether the cards looked good; Lee picks from the
+   shortlist. Same "AI drafts, Lee reviews" rule as everywhere.
+3. TRANSCRIPT → MEMO → SHORT (the real loop): phrasing Lee invents live on camera
+   gets captured back as a cheat/trap memo. That memo then feeds the memo deck
+   (Check recap), the shorts library, and the wrap-up. Improvised gold gets
+   caught, not lost in a 20-min video.
+4. TWO CUTS, not one: SOCIAL cut = hook in first 2s (trap/payoff first) → card
+   moment → outro bump ("The whole foundations course is free — Start Here at
+   surviveaccounting.com" — name the free thing, never generic "tools"). PLAYLIST
+   cut = no hook, just the moment; lives in Course Wrap-up as the exam-eve
+   highlights reel (20× 30s of every trap and cheat code — the best cram artifact
+   in the product).
+5. DISTRIBUTION: drip, don't dump — one lesson = weeks of social. TIME POSTS TO
+   THE ACADEMIC CALENDAR: adjusting entries land ~week 6 nearly everywhere; post
+   the deferrals short when the whole country hits deferrals. Waitlist campus/
+   course/professor data makes this calendar knowable — real edge, no competitor
+   has it.
+
 ## Map-run navigation
 Student-facing traversal of a prepared scene: "Begin" buttons on zones that
 walk the teaching path (zone `path_order` already ships), an intro tour video

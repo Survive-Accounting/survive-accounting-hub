@@ -31,6 +31,9 @@ export function sanitizeSceneNodes<T extends { data?: Record<string, unknown>; s
  *  ever ran) with no style, no marker, no type. */
 export const EDGE_STYLE = { stroke: "#E0284A", strokeWidth: 2.5 } as const;
 export const EDGE_MARKER = { type: "arrowclosed", color: "#E0284A", width: 18, height: 18 } as const;
+/** Edge z-order (JT3): arrows draw ABOVE card bodies. Selected nodes elevate to
+ *  1000 (RF default), so this must clear that. */
+export const EDGE_Z = 1001;
 
 /** V2 connections: every edge rides named handles (t/b/l/r or line-level
  *  ln:<lineId>:l|r) + smoothstep + arrowhead. Old scenes' edges (Ctrl+click
@@ -38,7 +41,7 @@ export const EDGE_MARKER = { type: "arrowclosed", color: "#E0284A", width: 18, h
  *  resolve, so stamp the old visual (right → left). Auto-added RF edges (the
  *  uncontrolled-mode era) get style/marker stamped too. No-op when migrated. */
 export function migrateEdges<
-  T extends { sourceHandle?: string | null; targetHandle?: string | null; type?: string; style?: unknown; markerEnd?: unknown },
+  T extends { sourceHandle?: string | null; targetHandle?: string | null; type?: string; style?: unknown; markerEnd?: unknown; zIndex?: number },
 >(edges: T[]): T[] {
   return edges.map((e) => ({
     ...e,
@@ -47,6 +50,7 @@ export function migrateEdges<
     type: e.type ?? "smoothstep",
     style: e.style ?? { ...EDGE_STYLE },
     markerEnd: e.markerEnd ?? { ...EDGE_MARKER },
+    zIndex: e.zIndex ?? EDGE_Z, // JT3: arrows above card bodies
   }));
 }
 

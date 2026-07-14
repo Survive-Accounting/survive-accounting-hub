@@ -14,7 +14,7 @@
 // the styled replacement to dispatch through the bus, or null when a
 // bus-created identical edge already exists (the genuine double-invoke case).
 import type { Command, RfLike } from "./commands";
-import { EDGE_MARKER, EDGE_STYLE } from "./scene-io";
+import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 
 export interface EdgeLike {
   id: string;
@@ -65,6 +65,10 @@ export function resolveConnection(
       sourceHandle: c.sourceHandle ?? "r",
       targetHandle: c.targetHandle ?? "l",
       type: "smoothstep",
+      // ABOVE THE CARDS (JT3): a connection has to be visible ACROSS card bodies.
+      // Selected nodes elevate to zIndex 1000 (RF default), so edges ride above
+      // even a selected card.
+      zIndex: EDGE_Z,
       style: { ...EDGE_STYLE },
       markerEnd: { ...EDGE_MARKER },
     },

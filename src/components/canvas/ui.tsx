@@ -81,12 +81,15 @@ interface EditableNumberProps {
    *  AND commits `commitVal` atomically (typed value, or the ghost when empty),
    *  so the commit can't race a concurrent spawn/move. */
   onFieldTab?: (back: boolean, commitVal: number | null) => void;
+  /** ENTER (JT1): the card adds a block on this side and commits `commitVal`
+   *  atomically. When set, Enter no longer just closes the input. */
+  onEnter?: (commitVal: number | null) => void;
   /** Dim balancing suggestion shown while empty; committed if you Tab/Enter off
    *  an empty field. Typing overrides it. Never auto-commits on its own (#3). */
   ghost?: number | null;
 }
 
-export function EditableNumber({ value, onChange, editing, className, placeholder, clickToEdit, emptyClassName, emptyStyle, openSeq, onFieldTab, ghost }: EditableNumberProps) {
+export function EditableNumber({ value, onChange, editing, className, placeholder, clickToEdit, emptyClassName, emptyStyle, openSeq, onFieldTab, onEnter, ghost }: EditableNumberProps) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
@@ -137,7 +140,12 @@ export function EditableNumber({ value, onChange, editing, className, placeholde
             e.stopPropagation();
             return;
           }
-          if (e.key === "Enter") { e.preventDefault(); commitWithGhost(); setOpen(false); }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            setOpen(false);
+            if (onEnter) { const commitVal = local.trim() === "" ? (ghost ?? null) : parseNum(local); onEnter(commitVal); e.stopPropagation(); return; }
+            commitWithGhost();
+          }
           if (e.key === "Escape") { setLocal(value == null ? "" : String(value)); setOpen(false); }
           e.stopPropagation();
         }}

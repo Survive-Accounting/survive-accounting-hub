@@ -19,6 +19,8 @@ import {
   placeLine,
   sideOf,
   swapLines,
+  flipSides,
+  jeTabTarget,
   memoKindOf,
   memoLeaderGeom,
   memoOf,
@@ -470,5 +472,61 @@ describe("memos as objects — edit after creation (Phase 1)", () => {
     const m = memoOf(l, "text")!;
     expect(m.memoKind).toBe("cheat");
     expect(m.category).toBe("b");
+  });
+});
+
+describe("Tab walk-and-wrap (JT1)", () => {
+  const t = (lines: JeLine[], id: string, w: "account" | "amount", back = false) => {
+    const r = jeTabTarget(lines, id, w, back);
+    return r ? `${r.lineId}:${r.which}` : null;
+  };
+  test("1DR/1CR forward: DR acct → DR amt → CR acct → CR amt → (wrap) DR acct", () => {
+    const ls = [L("d", "dr"), L("c", "cr")];
+    expect(t(ls, "d", "account")).toBe("d:amount");
+    expect(t(ls, "d", "amount")).toBe("c:account");
+    expect(t(ls, "c", "account")).toBe("c:amount");
+    expect(t(ls, "c", "amount")).toBe("d:account"); // WRAP
+  });
+  test("Shift+Tab walks backwards and wraps", () => {
+    const ls = [L("d", "dr"), L("c", "cr")];
+    expect(t(ls, "d", "account", true)).toBe("c:amount"); // wrap back
+    expect(t(ls, "c", "account", true)).toBe("d:amount");
+    expect(t(ls, "d", "amount", true)).toBe("d:account");
+  });
+  test("2DR/1CR: DR0 amt → DR1 acct, DR1 amt → CR acct", () => {
+    const ls = [L("d0", "dr"), L("d1", "dr"), L("c", "cr")];
+    expect(t(ls, "d0", "amount")).toBe("d1:account");
+    expect(t(ls, "d1", "amount")).toBe("c:account");
+    expect(t(ls, "c", "amount")).toBe("d0:account"); // wrap
+  });
+  test("credit-first: Tab past the CREDIT amount WRAPS to the debit, never spawns", () => {
+    // orderLines re-sorts to [dr, cr]; the credit's amount is the last field
+    const ls = [L("c", "cr"), L("d", "dr")];
+    expect(t(ls, "c", "amount")).toBe("d:account");
+  });
+});
+
+describe("flipSides (JT4)", () => {
+  test("swaps every side, preserves account/amount/id, re-sorts shape", () => {
+    const ls = [L("a", "dr", 100, { account: "Cash" }), L("b", "cr", 100, { account: "Revenue" })];
+    const f = flipSides(ls);
+    // re-sorted: debits first — the old credit (Revenue) is now the debit
+    expect(f.map((l) => l.id)).toEqual(["b", "a"]);
+    const b = f.find((l) => l.id === "b")!;
+    const a = f.find((l) => l.id === "a")!;
+    expect(sideOf(b)).toBe("dr");
+    expect(b.account).toBe("Revenue");
+    expect(b.dr).toBe(100);
+    expect(b.cr).toBeNull();
+    expect(sideOf(a)).toBe("cr");
+    expect(a.cr).toBe(100);
+  });
+  test("2DR/1CR flips to 1DR/2CR (double flip is identity on sides)", () => {
+    const ls = [L("d0", "dr"), L("d1", "dr"), L("c", "cr")];
+    const f = flipSides(ls);
+    expect(f.filter((l) => sideOf(l) === "cr").map((l) => l.id).sort()).toEqual(["d0", "d1"]);
+    expect(f.filter((l) => sideOf(l) === "dr").map((l) => l.id)).toEqual(["c"]);
+    const back = flipSides(f);
+    expect(back.filter((l) => sideOf(l) === "dr").map((l) => l.id).sort()).toEqual(["d0", "d1"]);
   });
 });
