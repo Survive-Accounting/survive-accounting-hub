@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Minimize2, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -50,11 +50,14 @@ import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
 import { MemoCardNode } from "@/components/canvas/cards/MemoCardNode";
+import { FrameNode } from "@/components/canvas/cards/FrameNode";
+import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
+import { absRectOf, adjacentFrame, blankFrameData, framesInLesson, nextFrameOrder } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, FRAME_H, FRAME_W, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -197,6 +200,7 @@ function LessonNode({ id, data, selected }: NodeProps) {
   const { update, remove } = useCardActions(id);
   const rf = useReactFlow();
   const nodes = useNodes(); // subscribe: the display label follows a contained heading live
+  const frameNav = useFrameNav();
   const [hover, setHover] = useState(false);
   const showChrome = hover || selected; // chrome (incl. resize handles) is hover-only
   // manual resize (V2): NodeResizer writes live; the end commits ONE bus command
@@ -359,6 +363,9 @@ function LessonNode({ id, data, selected }: NodeProps) {
           >
             <Flag className="h-3 w-3" style={{ color: d.check ? "#FF8B9E" : NEON.muted }} />
           </button>
+          <button className={chromeBtn} title="Add a frame (a 16:9 shot) to this lesson" onPointerDown={stop} onClick={() => frameNav.addFrame(id)}>
+            <Plus className="h-3 w-3" style={{ color: NEON.cyan }} />
+          </button>
           <button className={chromeBtn} title="Fit to contents (one undo step)" onPointerDown={stop} onClick={hug}>
             <Shrink className="h-3 w-3" />
           </button>
@@ -397,6 +404,7 @@ const nodeTypes = {
   shareinvite: withFaceDown(BridgeCardNode),
   zone: ZoneNode,
   lesson: LessonNode,
+  frame: FrameNode,
 };
 
 // ONE edge renderer, registered under "smoothstep" so existing scenes' edges
@@ -642,6 +650,9 @@ function PresentCanvas() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
+  const [currentFrameId, setCurrentFrameId] = useState<string | null>(null); // FRAMES: the frame the camera is fitted to
+  const currentFrameRef = useRef<string | null>(null);
+  currentFrameRef.current = currentFrameId;
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -1132,6 +1143,71 @@ function PresentCanvas() {
     [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit],
   );
 
+  // ---- FRAMES: enter/exit/step camera (the frame's bounds = the viewport) ----
+  const enterFrame = useCallback((frameId: string) => {
+    const nodes = rf.getNodes();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const f = byId.get(frameId);
+    if (!f || f.type !== "frame") return;
+    const r = absRectOf(f as never, byId as never);
+    setCurrentFrameId(frameId);
+    lastUserView.current = Date.now(); // suppress auto-fit fighting the frame camera
+    // EXACT FIT (the whole point: frame bounds = the viewport). Compute the
+    // viewport directly rather than fitBounds so the shot is deterministic —
+    // "contain" the 16:9 frame, centered, clamped to the zoom range.
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const cw = rect?.width ?? window.innerWidth;
+    const ch = rect?.height ?? window.innerHeight;
+    const zoom = Math.max(0.08, Math.min(2.5, Math.min(cw / r.w, ch / r.h)));
+    const x = cw / 2 - (r.x + r.w / 2) * zoom;
+    const y = ch / 2 - (r.y + r.h / 2) * zoom;
+    void rf.setViewport({ x, y, zoom }, { duration: 280 });
+  }, [rf]);
+
+  const exitFrame = useCallback(() => {
+    const cur = currentFrameRef.current;
+    setCurrentFrameId(null);
+    if (!cur) return;
+    const nodes = rf.getNodes();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const f = byId.get(cur);
+    const lesson = f?.parentId ? byId.get(f.parentId) : undefined;
+    if (lesson) {
+      const r = absRectOf(lesson as never, byId as never);
+      void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: 280, padding: 0.12 });
+    } else {
+      void rf.fitView({ duration: 280, padding: 0.2 });
+    }
+  }, [rf]);
+
+  const stepFrame = useCallback((dir: -1 | 1) => {
+    const cur = currentFrameRef.current;
+    if (!cur) return;
+    const adj = adjacentFrame(rf.getNodes() as never, cur, dir);
+    if (adj) enterFrame(adj.id);
+  }, [rf, enterFrame]);
+
+  const canStepFrame = useCallback((frameId: string, dir: -1 | 1) => !!adjacentFrame(rf.getNodes() as never, frameId, dir), [rf]);
+
+  /** Add a blank frame to a lesson (appended in order), fit into it. */
+  const addFrameToLesson = useCallback((lessonId: string) => {
+    const nodes = rf.getNodes();
+    const order = nextFrameOrder(nodes as never, lessonId);
+    const existing = framesInLesson(nodes as never, lessonId);
+    // append to the right of the last frame (inside the lesson's coord space)
+    const last = existing[existing.length - 1];
+    const pos = last ? { x: last.position.x + (((last.data as Record<string, unknown>).w as number) ?? FRAME_W) + 60, y: last.position.y } : { x: 40, y: 60 };
+    const fid = cardId("frame");
+    // node width/height MUST be set (not just data.w/h) — the FrameNode is h-full
+    // w-full, so without them RF sizes it to min-content (320×180) and the camera
+    // fits a tiny rect. data.w/h stay synced for the parenting hit test + resize.
+    const node = { id: fid, type: "frame", parentId: lessonId, position: pos, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("none", order) } } as unknown as CardNode;
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, [node], "add frame"));
+    return fid;
+  }, [rf]);
+
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepFrame, canStep: canStepFrame, addFrame: addFrameToLesson }), [currentFrameId, enterFrame, exitFrame, stepFrame, canStepFrame, addFrameToLesson]);
+
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
   const removeMembership = useCallback(
@@ -1483,7 +1559,8 @@ function PresentCanvas() {
     setGuides({ v: [], h: [] });
     // restore smoothstep routing on every edge the drag simplified
     rf.setEdges((eds) => eds.map((e) => (e.data?._drag ? { ...e, data: { ...e.data, _drag: undefined } } : e)));
-    if (isContainerType(node.type)) { commitDrag(); return; } // boxes stay top-level
+    // regions + lessons stay top-level; FRAMES fall through — they parent INTO a lesson
+    if (node.type === "zone" || node.type === "lesson") { commitDrag(); return; }
     // settle onto a matched guide (within threshold) before parenting/commit
     if (!node.parentId) {
       const m = guideMatches(node);
@@ -1506,18 +1583,28 @@ function PresentCanvas() {
     // co-dragged card (multi-select drag), so moving a group into or out of a
     // lesson reparents the whole group — one setNodes, one drag command.
     const nds = rf.getNodes();
-    // lessons FIRST: a card dropped where a lesson overlaps its region joins the lesson
-    const containers = [...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
-    const absOf = (n: CardNode) => {
-      if (!n.parentId) return n.position;
-      const p = nds.find((x) => x.id === n.parentId);
-      return p ? { x: p.position.x + n.position.x, y: p.position.y + n.position.y } : n.position;
+    const byId = new Map(nds.map((n) => [n.id, n]));
+    // absolute pos walking the full parent chain (card→frame→lesson)
+    const absPos = (n: CardNode): { x: number; y: number } => {
+      let x = n.position.x, y = n.position.y;
+      let p = n.parentId ? byId.get(n.parentId) : undefined;
+      let g = 0;
+      while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? byId.get(p.parentId) : undefined; }
+      return { x, y };
     };
+    // FRAMES parent to LESSONS; a CARD prefers a FRAME (innermost), then a lesson,
+    // then a zone. Frames listed first so a card dropped in a frame joins the frame.
+    const isFrameDrag = node.type === "frame";
+    const containers = isFrameDrag
+      ? nds.filter((n) => n.type === "lesson")
+      : [...nds.filter((n) => n.type === "frame"), ...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
+    const absOf = (n: CardNode) => absPos(n);
     const hitFor = (abs: { x: number; y: number }) =>
       containers.find((z) => {
         const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
         const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
-        return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
+        const zp = absPos(z as CardNode);
+        return abs.x > zp.x && abs.y > zp.y && abs.x < zp.x + w && abs.y < zp.y + h;
       });
     // Co-dragged nodes: rf.getNode lags XYDrag's writes at drag-stop (deferred
     // store), so their end positions derive from the PRIMARY's DELTA against
@@ -1528,8 +1615,12 @@ function PresentCanvas() {
       const s = start?.get(nid);
       if (!s) return null;
       if (!s.parentId) return s.position;
-      const p = nds.find((x) => x.id === s.parentId);
-      return p ? { x: p.position.x + s.position.x, y: p.position.y + s.position.y } : s.position;
+      // walk from the (unchanged) start parent up the live chain
+      let x = s.position.x, y = s.position.y;
+      let p = byId.get(s.parentId);
+      let g = 0;
+      while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? byId.get(p.parentId) : undefined; }
+      return { x, y };
     };
     const primaryStartAbs = startAbsOf(node.id);
     const primaryEndAbs = absOf(node);
@@ -1573,7 +1664,8 @@ function PresentCanvas() {
       const hit = hitFor(abs);
       const startParent = start?.get(nid)?.parentId ?? cur.parentId;
       if (hit && startParent !== hit.id) {
-        decisions.set(nid, { parentId: hit.id, position: { x: abs.x - hit.position.x, y: abs.y - hit.position.y } });
+        const hp = absPos(hit as CardNode); // parent-relative pos = abs − parent-abs (nesting-safe)
+        decisions.set(nid, { parentId: hit.id, position: { x: abs.x - hp.x, y: abs.y - hp.y } });
       } else if (!hit && startParent) {
         decisions.set(nid, { parentId: undefined, position: abs });
       }
@@ -1615,7 +1707,9 @@ function PresentCanvas() {
         // v3: blind retired (loader normalizes), lesson nodes, JE mode/solution/
         //     reviewLock/helpOpen, posLock, video plannedTitle/internalNote — all
         //     additive, so v2 scenes open unchanged.
-        schema_version: 3,
+        // v4: FRAME nodes (16:9 shot tier) + named decks (scene.decks) + memo
+        //     nodes — all additive; v≤3 scenes load unchanged (no frames/decks).
+        schema_version: 4,
         nodes: sanitizeSceneNodes(rf.getNodes()),
         // edges: strip transient interaction data (_drag/_pulse) — same
         // contract as node _-keys; selected must not round-trip either
@@ -2221,6 +2315,8 @@ function PresentCanvas() {
             void rf.fitView({ duration: 400, padding: 0.15 });
             return;
           }
+          // RUNG 3.5 — leave a framed shot back to the lesson (FRAMES)
+          if (currentFrameRef.current) { exitFrame(); return; }
           // RUNG 4 — film/clean → restore FULL chrome
           if (film || clean) {
             setFilm(false);
@@ -2254,13 +2350,17 @@ function PresentCanvas() {
         description: "Hop selected JE line to the credit side",
         handler: () => hopSelectedLine("cr"),
       },
+      { combo: "]", group: "Frames", description: "Next frame in the lesson (also PageDown)", handler: () => stepFrame(1) },
+      { combo: "[", group: "Frames", description: "Previous frame in the lesson (also PageUp)", handler: () => stepFrame(-1) },
+      { combo: "pagedown", group: "Frames", description: "Next frame", hidden: true, handler: (e) => { e.preventDefault(); stepFrame(1); } },
+      { combo: "pageup", group: "Frames", description: "Previous frame", hidden: true, handler: (e) => { e.preventDefault(); stepFrame(-1); } },
       { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
       { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, exitFrame],
   );
   useKeymap(bindings);
 
@@ -2302,6 +2402,7 @@ function PresentCanvas() {
 
   return (
     <CanvasSettingsContext.Provider value={canvasSettings}>
+    <FrameNavContext.Provider value={frameNav}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""}`} style={{ background: NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
       <style>{CARD_CURSOR_CSS}</style>
@@ -2392,6 +2493,17 @@ function PresentCanvas() {
           />
         )}
       </ReactFlow>
+
+      {/* FRAME HUD — while inside a frame: ‹ prev · exit ⌂ · next › (hidden in
+          film/clean; the frame fills the screen there). */}
+      {currentFrameId && chrome && (
+        <div className="absolute left-1/2 top-3 z-[58] flex -translate-x-1/2 items-center gap-1 rounded-full px-1.5 py-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
+          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous frame ( [ / PageUp )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepFrame(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
+          <span className="px-1 text-[11px] font-semibold" style={{ color: NEON.muted }}>{(rf.getNode(currentFrameId)?.data as { title?: string } | undefined)?.title || "Frame"}</span>
+          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next frame ( ] / PageDown )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepFrame(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
+          <button className="ml-0.5 grid h-6 w-6 place-items-center rounded-full" title="Exit frame (Esc)" onClick={exitFrame} style={{ color: NEON.yellow, borderLeft: `1px solid ${NEON.borderSoft}` }}><Minimize2 className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
 
       {/* BRAND BAR + DRAWER (workspace chrome) — the drawer is the menu:
           Cards (palette) and Key (legend) open as panels inside it, keeping
@@ -3047,6 +3159,7 @@ function PresentCanvas() {
         </div>
       )}
     </div>
+    </FrameNavContext.Provider>
     </CanvasSettingsContext.Provider>
   );
 }

@@ -6,10 +6,13 @@
 // updates live because it reads the same node store the canvas mutates.
 import { useMemo, useState } from "react";
 import { useNodes, useReactFlow, useStore } from "@xyflow/react";
-import { ChevronDown, ChevronRight, Frame, Layers } from "lucide-react";
+import { ChevronDown, ChevronRight, Clapperboard, Frame, Layers } from "lucide-react";
 
 import { NEON } from "./theme";
-import { isContainerType, type CardBase, type CardNode } from "./types";
+import { useFrameNav } from "./FrameNavContext";
+import { framesInLesson } from "./frames";
+import { BEAT_META } from "./cards/FrameNode";
+import { isContainerType, type CardBase, type CardNode, type FrameBox } from "./types";
 
 /** Absolute rect of a node (a card parented to a lesson carries a relative pos). */
 function absRect(n: CardNode, byId: Map<string, CardNode>) {
@@ -47,6 +50,7 @@ export function OutlinePanel() {
   const nodes = useNodes() as CardNode[];
   const rf = useReactFlow();
   const transform = useStore((s) => s.transform); // [tx, ty, zoom] — you-are-here
+  const nav = useFrameNav();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -59,12 +63,20 @@ export function OutlinePanel() {
     const zone = nodes.find((n) => n.type === "zone");
     return zone ? labelOf(zone) : "Region";
   }, [nodes]);
-  const cardsByLesson = useMemo(() => {
+  // FRAMES nest between lesson and card: a card parents to a FRAME (shot) or
+  // directly to a lesson (loose-in-lesson); cards under neither are "Unfiled".
+  const framesByLesson = useMemo(() => {
     const m = new Map<string, CardNode[]>();
+    for (const l of nodes.filter((n) => n.type === "lesson")) m.set(l.id, framesInLesson(nodes as never, l.id) as unknown as CardNode[]);
+    return m;
+  }, [nodes]);
+  const cardsByLesson = useMemo(() => {
+    const m = new Map<string, CardNode[]>(); // parentId (lesson OR frame) → cards
     const loose: CardNode[] = [];
     for (const n of nodes) {
       if (isContainerType(n.type) || (n.data as unknown as CardBase).tucked) continue;
-      if (n.parentId && byId.get(n.parentId)?.type === "lesson") {
+      const pt = n.parentId ? byId.get(n.parentId)?.type : undefined;
+      if (n.parentId && (pt === "lesson" || pt === "frame")) {
         const arr = m.get(n.parentId) ?? [];
         arr.push(n);
         m.set(n.parentId, arr);
@@ -125,10 +137,24 @@ export function OutlinePanel() {
 
       <div className="ml-1 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
         {lessons.map((l) => {
-          const kids = cardsByLesson.m.get(l.id) ?? [];
+          const frames = framesByLesson.get(l.id) ?? [];
+          const looseKids = cardsByLesson.m.get(l.id) ?? []; // cards directly in the lesson (not in a frame)
+          const hasContent = frames.length > 0 || looseKids.length > 0;
           const isCol = collapsed.has(l.id);
           const here = hereLessonId === l.id;
           const po = pathOrderOf(l);
+          const cardRow = (c: CardNode) => (
+            <button
+              key={c.id}
+              className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-white/5"
+              style={{ color: NEON.muted }}
+              onClick={() => fly(c)}
+              title="Fly here"
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ background: NEON.muted }} />
+              <span className="min-w-0 flex-1 truncate">{labelOf(c)}</span>
+            </button>
+          );
           return (
             <div key={l.id}>
               <div
@@ -136,7 +162,7 @@ export function OutlinePanel() {
                 style={here ? { background: "rgba(252,163,17,0.14)", boxShadow: "inset 2px 0 0 " + NEON.yellow } : undefined}
               >
                 <button className="shrink-0 rounded p-0.5 hover:bg-white/10" style={{ color: NEON.muted }} onClick={() => toggle(l.id)} title={isCol ? "Expand" : "Collapse"}>
-                  {kids.length > 0 ? (isCol ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <span className="inline-block h-3 w-3" />}
+                  {hasContent ? (isCol ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <span className="inline-block h-3 w-3" />}
                 </button>
                 {here && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: NEON.yellow, boxShadow: `0 0 6px ${NEON.yellow}` }} />}
                 <button
@@ -152,20 +178,37 @@ export function OutlinePanel() {
                   <span className="min-w-0 flex-1 truncate">{labelOf(l)}</span>
                 </button>
               </div>
-              {!isCol && kids.length > 0 && (
+              {!isCol && hasContent && (
                 <div className="ml-4 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
-                  {kids.map((c) => (
-                    <button
-                      key={c.id}
-                      className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-white/5"
-                      style={{ color: NEON.muted }}
-                      onClick={() => fly(c)}
-                      title="Fly here"
-                    >
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ background: NEON.muted }} />
-                      <span className="min-w-0 flex-1 truncate">{labelOf(c)}</span>
-                    </button>
-                  ))}
+                  {/* FRAMES (shots), in order, with beat tag — click ENTERS the frame */}
+                  {frames.map((f) => {
+                    const fd = f.data as unknown as FrameBox;
+                    const bm = BEAT_META[fd.beat ?? "none"];
+                    const fcards = cardsByLesson.m.get(f.id) ?? [];
+                    return (
+                      <div key={f.id}>
+                        <button
+                          className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-white/5"
+                          style={{ color: nav.currentFrameId === f.id ? bm.color : NEON.text }}
+                          onClick={() => nav.enter(f.id)}
+                          title="Enter this frame (fit the camera to it)"
+                        >
+                          <Clapperboard className="h-3 w-3 shrink-0 opacity-70" style={{ color: bm.color }} />
+                          {fd.beat && fd.beat !== "none" && (
+                            <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: bm.color, border: `1px solid ${bm.edge}` }}>{bm.label}</span>
+                          )}
+                          <span className="min-w-0 flex-1 truncate">{fd.title || "Frame"}</span>
+                        </button>
+                        {fcards.length > 0 && (
+                          <div className="ml-4 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
+                            {fcards.map(cardRow)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {/* loose-in-lesson cards (not inside any frame) */}
+                  {looseKids.map(cardRow)}
                 </div>
               )}
             </div>

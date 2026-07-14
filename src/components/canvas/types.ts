@@ -428,9 +428,27 @@ export interface LessonBox {
   // top outline entry + a Home element (welcome heading + Ask Lee) in the region.
 }
 
-/** Grouping-tier nodes (region/zone + lesson) — never cards: excluded from the
- *  deck, quick-copy, snap guides, grid placement, and auto-fit. */
-export const isContainerType = (t: string | undefined): boolean => t === "zone" || t === "lesson";
+// ---- Frames (the SHOT tier: WORLD › REGION › LESSON › FRAME › CARD) ----
+// A FRAME is one screen / one shot / one sitting — a bounded 16:9 stage inside a
+// lesson holding cards (parented, like a lesson holds cards). A lesson is an
+// ORDERED LIST OF FRAMES; the beat is a TAG on a frame, not a container.
+export type FrameBeat = "hook" | "teach" | "model_practice" | "check" | "none";
+export interface FrameBox {
+  title?: string;
+  /** 16:9 aspect-locked (h = round(w * 9 / 16)). */
+  w: number;
+  h: number;
+  beat?: FrameBeat;
+  /** Position within its lesson's frame list (1, 2, 3…). */
+  order?: number | null;
+}
+/** Frame default size — legible at 1080p (cards ~300px read clearly inside). */
+export const FRAME_W = 1120;
+export const FRAME_H = 630; // 16:9
+
+/** Grouping-tier nodes (region/zone + lesson + frame) — never cards: excluded
+ *  from the deck, quick-copy, snap guides, grid placement, and auto-fit. */
+export const isContainerType = (t: string | undefined): boolean => t === "zone" || t === "lesson" || t === "frame";
 
 // ---- Named decks (P3) — first-class deck OBJECTS -----------------------------
 // A deck is a named, reusable object: whole CARDS or MEMO objects, dealt in
