@@ -20,7 +20,6 @@ import {
   useReactFlow,
   useStore,
   useStoreApi,
-  useUpdateNodeInternals,
   type Connection,
   type NodeProps,
   type Viewport,
@@ -681,28 +680,26 @@ function PresentCanvas() {
     }
   }, [rf, storeApi]);
 
-  // ARROWS ROOT CAUSE (C1, extended in V2): React Flow keeps a node invisible
-  // and unconnectable until it's INITIALIZED — measured.width set AND
-  // handleBounds registered. Both ride a ResizeObserver/rAF path that can lag
-  // or sit inert (observed: headless panes; slow tabs). When a rendered node is
-  // missing either, force updateNodeInternals for it. Zones are exempt — they
-  // have no handles, so their handleBounds never exist by design. No-op when
-  // RO already did its job.
-  const updateNodeInternals = useUpdateNodeInternals();
+  // ARROWS ROOT CAUSE (C1, finally nailed in V2): React Flow keeps a node
+  // INVISIBLE and unconnectable until initialized — measured.width set AND
+  // handleBounds registered. Both normally arrive via ResizeObserver→rAF, and
+  // rAF can be throttled to ZERO in occluded/background windows (measured
+  // live: rAF never fired at all — even useUpdateNodeInternals defers through
+  // its own rAF, so the old hook-based rescue was dead in exactly the
+  // environments that needed it). Rescue synchronously through the store
+  // instead. Zones are exempt: no handles by design, so they'd loop forever.
   useEffect(() => {
-    const lookup = storeApi.getState().nodeLookup;
-    const stale = liveNodes
-      .filter(
-        (n) =>
-          !n.hidden &&
-          n.type !== "zone" &&
-          (!(n.measured && typeof n.measured.width === "number") || !lookup.get(n.id)?.internals.handleBounds),
-      )
-      .map((n) => n.id);
-    if (stale.length === 0) return;
-    const raf = requestAnimationFrame(() => updateNodeInternals(stale));
-    return () => cancelAnimationFrame(raf);
-  }, [liveNodes, updateNodeInternals, storeApi]);
+    const { nodeLookup, domNode, updateNodeInternals: forceInternals } = storeApi.getState();
+    const updates = new Map<string, { id: string; nodeElement: HTMLDivElement; force: boolean }>();
+    for (const n of liveNodes) {
+      if (n.hidden || n.type === "zone") continue;
+      const initialized = n.measured && typeof n.measured.width === "number" && !!nodeLookup.get(n.id)?.internals.handleBounds;
+      if (initialized) continue;
+      const nodeElement = domNode?.querySelector<HTMLDivElement>(`.react-flow__node[data-id="${n.id}"]`);
+      if (nodeElement) updates.set(n.id, { id: n.id, nodeElement, force: true });
+    }
+    if (updates.size > 0) forceInternals(updates, { triggerFitView: false });
+  }, [liveNodes, storeApi]);
 
   // Last known pointer position (screen coords) — quick-spawn drops cards at the cursor.
   const lastMouse = useRef<{ x: number; y: number } | null>(null);
