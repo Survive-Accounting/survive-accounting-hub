@@ -252,7 +252,9 @@ function LessonNode({ id, data, selected }: NodeProps) {
             rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...pos }, width: w, height: h, data: { ...n.data, w, h } } : n)));
           bus.dispatch({
             label: "resize lesson",
-            do: () => apply({ x: p.x, y: p.y }, Math.round(p.width), Math.round(p.height)),
+            // floor at the min even if the resizer reports garbage — a lesson
+            // below header size is unrecoverable by hand
+            do: () => apply({ x: p.x, y: p.y }, Math.max(180, Math.round(p.width)), Math.max(56, Math.round(p.height))),
             undo: () => apply(before.pos, before.w, before.h),
           });
         }}
@@ -679,21 +681,28 @@ function PresentCanvas() {
     }
   }, [rf, storeApi]);
 
-  // ARROWS ROOT CAUSE: React Flow only renders edges between MEASURED nodes
-  // (measured.width set + handleBounds registered). Measurement rides a
-  // ResizeObserver that can lag or sit inert (observed: headless panes; slow
-  // tabs). Nodes here read offsetWidth fine — so when a node stays unmeasured
-  // after render, force updateNodeInternals for it. No-op when RO already did
-  // its job (the effect finds nothing unmeasured and stops).
+  // ARROWS ROOT CAUSE (C1, extended in V2): React Flow keeps a node invisible
+  // and unconnectable until it's INITIALIZED — measured.width set AND
+  // handleBounds registered. Both ride a ResizeObserver/rAF path that can lag
+  // or sit inert (observed: headless panes; slow tabs). When a rendered node is
+  // missing either, force updateNodeInternals for it. Zones are exempt — they
+  // have no handles, so their handleBounds never exist by design. No-op when
+  // RO already did its job.
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
-    const unmeasured = liveNodes
-      .filter((n) => !n.hidden && !(n.measured && typeof n.measured.width === "number"))
+    const lookup = storeApi.getState().nodeLookup;
+    const stale = liveNodes
+      .filter(
+        (n) =>
+          !n.hidden &&
+          n.type !== "zone" &&
+          (!(n.measured && typeof n.measured.width === "number") || !lookup.get(n.id)?.internals.handleBounds),
+      )
       .map((n) => n.id);
-    if (unmeasured.length === 0) return;
-    const raf = requestAnimationFrame(() => updateNodeInternals(unmeasured));
+    if (stale.length === 0) return;
+    const raf = requestAnimationFrame(() => updateNodeInternals(stale));
     return () => cancelAnimationFrame(raf);
-  }, [liveNodes, updateNodeInternals]);
+  }, [liveNodes, updateNodeInternals, storeApi]);
 
   // Last known pointer position (screen coords) — quick-spawn drops cards at the cursor.
   const lastMouse = useRef<{ x: number; y: number } | null>(null);
