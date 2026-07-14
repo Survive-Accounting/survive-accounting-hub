@@ -7,10 +7,11 @@
 // selection; memos float to the RIGHT of their block with a leader line.
 // Everything mutates through the command bus; popovers ride CardPopover.
 import { useEffect, useRef, useState } from "react";
-import { useReactFlow, type NodeProps } from "@xyflow/react";
-import { ArrowUpRight, ChevronDown, CircleHelp, CircleX, Copy, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
+import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
+import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
+import { lineHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
@@ -26,18 +27,25 @@ import {
   amountOf,
   balanceState,
   blankFrom,
+  calcRows,
   effectiveMode,
   effectiveSettings,
   ensureMinLines,
+  fmtJeDate,
   hasAttempt,
   insertLine,
+  memoOf,
+  memosOf,
+  patchMemo,
   placeLine,
   sideOf,
   swapLines,
+  textMemoOf,
+  upsertMemo,
   type JePreset,
   type JeSide,
 } from "../je-logic";
-import { cardId, type JeCard, type JeLine } from "../types";
+import { cardId, type JeCard, type JeLine, type JeMemo } from "../types";
 
 const ENTRY_TYPES = ["standard", "adjusting", "closing"] as const;
 const BADGE: Record<(typeof ENTRY_TYPES)[number], string> = { standard: "JE", adjusting: "ADJ", closing: "CL" };
@@ -68,9 +76,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [flipFeedback, setFlipFeedback] = useState<string | null>(null);
   const [dragLine, setDragLine] = useState<string | null>(null);
   const [hotSocket, setHotSocket] = useState<string | null>(null); // "side-index" under the dragged block
-  /** Live memo drag (visual only) — the drop dispatches ONE bus command. */
-  const [memoDrag, setMemoDrag] = useState<{ id: string; startX: number; startY: number; from: { x: number; y: number }; pos: { x: number; y: number } } | null>(null);
-  const [memoEdit, setMemoEdit] = useState<{ id: string; anchor: HTMLElement } | null>(null);
+  /** Live memo drag (visual only) — the drop dispatches ONE bus command.
+   *  Keyed by line + memo KIND (a line can float a text AND a calc box). */
+  const [memoDrag, setMemoDrag] = useState<{ id: string; kind: JeMemo["kind"]; startX: number; startY: number; from: { x: number; y: number }; pos: { x: number; y: number } } | null>(null);
+  const [memoEdit, setMemoEdit] = useState<{ id: string; kind: JeMemo["kind"]; anchor: HTMLElement } | null>(null);
   const [pickerFor, setPickerFor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
   const [descMenu, setDescMenu] = useState<HTMLElement | null>(null); // scenario picker (A12)
@@ -96,12 +105,24 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   // EFFECTIVE side (traps can cross columns), so the silhouette shows the truth.
   const inds = effLines.map((l) => (sideOf(l) === "cr" ? ctx.jeIndent : 0));
 
+  // LINE-LEVEL ARROWS (PROMPT A): each block carries ln:<lineId>:l|r handles.
+  // React Flow caches handle positions per node — after a hop/reorder moves a
+  // block, tell it to re-measure so anchored edges follow the block.
+  const updateNodeInternals = useUpdateNodeInternals();
+  const linesShape = d.lines.map((l, i) => `${l.id}:${inds[i]}`).join("|");
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [linesShape, id, updateNodeInternals]);
+  /** Gold ring on a block whose line is an endpoint of the clicked edge. */
+  const glowLine = (data as Record<string, unknown>)._glowLine as string | undefined;
+
   // ---- REVIEW LOCK (A3): the answer-key state — review-only, no drag/edit ---
   const locked = !!d.reviewLock;
   const [cloneMenu, setCloneMenu] = useState<HTMLElement | null>(null);
 
-  /** Clone lands to the RIGHT of the original (A5). asPractice = the student
-   *  copy: blank silhouette + solution stamped + practice mode, unlocked. */
+  /** Clone lands directly UNDERNEATH the original (PROMPT A item 7 — column/
+   *  shape comparison; replaced the old clone-to-the-right). asPractice = the
+   *  student copy: blank silhouette + solution stamped + practice mode. */
   const cloneAs = (asPractice: boolean) => {
     const node = rf.getNode(id);
     if (!node) return;
@@ -119,10 +140,11 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           lines: blankFrom(key, () => cardId("l")),
         }
       : src;
+    const below = { x: node.position.x, y: node.position.y + (node.measured?.height ?? d.lines.length * BLOCK_H + 80) + 24 };
     bus.dispatch(
       addNodesCmd(
         rf as unknown as RfLike,
-        [{ ...node, id: cardId("je"), selected: false, position: { x: node.position.x + ctx.jeCardWidth + 28, y: node.position.y }, data: data as unknown as Record<string, unknown> }],
+        [{ ...node, id: cardId("je"), selected: false, position: below, data: data as unknown as Record<string, unknown> }],
         asPractice ? "clone as practice copy" : "duplicate card",
       ),
     );
@@ -159,8 +181,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       return { lines: ((prev.lines as JeLine[]) ?? []).map((l) => ({ ...l, hidden: false, flipped: false })), helpOpen: false, revealUsed: true };
     });
   const switchToGuided = () => update({ mode: "guided", settings: { ...JE_PRESETS.guided }, helpOpen: false });
-  /** First line's memo — the hint. Solution memos win (practice copies blank lines). */
-  const hint = (d.solution ?? d.lines).find((l) => l.label)?.label ?? null;
+  /** First line's TEXT memo — the hint. Solution memos win (practice copies blank lines). */
+  const hint = (d.solution ?? d.lines).map((l) => textMemoOf(l)).find(Boolean) ?? null;
 
   const addLine = (side: JeSide) =>
     setLines((lines) => insertLine(lines, side, { id: cardId("l"), account: "", dr: null, cr: null, side, label: "" }));
@@ -188,22 +210,35 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     setHotSocket(null);
   };
 
-  // ---- MEMO ARROWS (V2): floating boxes in rows-local node space -------------
-  /** Default spawn: right of the line's block. */
-  const defaultMemoPos = (i: number) => ({ x: inds[i] + blockW + 22, y: i * BLOCK_H - 2 });
-  const toggleMemo = (lid: string) => {
+  // ---- MEMO ARROWS (V2 + PROMPT A): floating TEXT and CALC boxes, each with
+  // its own pointer arrow, in rows-local node space -----------------------------
+  /** Default spawn: right of the line's block; the calc box staggers below the
+   *  text box so both open readable when a line carries the pair. */
+  const defaultMemoPos = (i: number, kind: JeMemo["kind"]) =>
+    ({ x: inds[i] + blockW + 22, y: i * BLOCK_H - 2 + (kind === "calc" ? 30 : 0) });
+  const lineOf = (lid: string) => d.lines.find((l) => l.id === lid);
+  const toggleMemo = (lid: string, kind: JeMemo["kind"]) => {
+    const i = d.lines.findIndex((l) => l.id === lid);
+    const l = d.lines[i];
+    const m = l && memoOf(l, kind);
+    if (!l || !m) return;
+    patchLine(lid, patchMemo(l, kind, { open: !m.open, pos: m.pos ?? defaultMemoPos(i, kind) }));
+  };
+  const saveMemo = (lid: string, kind: JeMemo["kind"], text: string) => {
     const i = d.lines.findIndex((l) => l.id === lid);
     const l = d.lines[i];
     if (!l) return;
-    patchLine(lid, { memoOpen: !l.memoOpen, memoPos: l.memoPos ?? defaultMemoPos(i) });
+    const hadIt = !!memoOf(l, kind);
+    // a fresh memo pops open right of its block, arrow attached
+    patchLine(lid, upsertMemo(l, kind, text, text && !hadIt ? { open: true, pos: defaultMemoPos(i, kind) } : undefined));
   };
   const memoMoved = useRef(false); // suppress click-to-edit right after a drag
-  const startMemoDrag = (e: React.PointerEvent, lid: string, from: { x: number; y: number }) => {
+  const startMemoDrag = (e: React.PointerEvent, lid: string, kind: JeMemo["kind"], from: { x: number; y: number }) => {
     if (locked) return;
     e.stopPropagation();
     try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* capture is best-effort */ }
     memoMoved.current = false;
-    setMemoDrag({ id: lid, startX: e.clientX, startY: e.clientY, from, pos: from });
+    setMemoDrag({ id: lid, kind, startX: e.clientX, startY: e.clientY, from, pos: from });
   };
   const moveMemoDrag = (e: React.PointerEvent) => {
     if (!memoDrag) return;
@@ -213,7 +248,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   };
   const endMemoDrag = () => {
     if (!memoDrag) return;
-    patchLine(memoDrag.id, { memoPos: { x: Math.round(memoDrag.pos.x), y: Math.round(memoDrag.pos.y) } }); // bus — undoable
+    const l = lineOf(memoDrag.id);
+    if (l) patchLine(memoDrag.id, patchMemo(l, memoDrag.kind, { pos: { x: Math.round(memoDrag.pos.x), y: Math.round(memoDrag.pos.y) } })); // bus — undoable
     setMemoDrag(null);
   };
 
@@ -295,9 +331,27 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           ? edgeSeg("eb", socketStyle, edgeColor, { right: 0, width: IND, bottom: 0 })
           : edgeSeg("eb", socketStyle, edgeColor, { left: 0, width: IND, bottom: 0 }),
       );
+    // gold ring: this line is an endpoint of the clicked arrow (PROMPT A)
+    const isGlow = glowLine === l.id;
     return (
-      <div key={l.id} className="relative" style={{ marginLeft: ind, width: blockW, height: BLOCK_H, opacity: l.hidden ? 0.15 : 1 }}>
+      <div key={l.id} className="je-row relative" style={{ marginLeft: ind, width: blockW, height: BLOCK_H, opacity: l.hidden ? 0.15 : 1 }}>
         {edges}
+        {/* LINE-LEVEL CONNECTION DOTS (PROMPT A): edges anchor to the LINE id,
+            so they follow this block through hops/reorders and save/load. */}
+        <Handle
+          id={lineHandleId(l.id, "l")}
+          type="source"
+          position={Position.Left}
+          className="conn-dot line-dot"
+          style={{ left: -5, top: "50%", width: 8, height: 8, background: "#101B31", border: `2px solid ${NEON.yellow}`, borderRadius: 999 }}
+        />
+        <Handle
+          id={lineHandleId(l.id, "r")}
+          type="source"
+          position={Position.Right}
+          className="conn-dot line-dot"
+          style={{ right: -5, top: "50%", width: 8, height: 8, background: "#101B31", border: `2px solid ${NEON.yellow}`, borderRadius: 999 }}
+        />
         {/* the block — outer edge drags the CLUSTER (no nodrag); inner row is the HTML5 line-drag.
             Clicking ANYWHERE on the block selects it (A6) — the arrows then act on IT. */}
         <div
@@ -306,9 +360,11 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             background: socketStyle ? "rgba(252,163,17,0.05)" : PAPER.card,
             boxShadow: trapOn
               ? "inset 0 0 0 2px rgba(194,24,50,0.5)"
-              : isSel
-                ? "inset 0 0 0 2px rgba(252,163,17,0.6)"
-                : undefined,
+              : isGlow
+                ? "inset 0 0 0 2px rgba(252,163,17,0.95), 0 0 10px 1px rgba(252,163,17,0.55)"
+                : isSel
+                  ? "inset 0 0 0 2px rgba(252,163,17,0.6)"
+                  : undefined,
           }}
           onClick={() => { if (!locked) selectLine(l.id); }}
           onDragOver={(e) => { if (dragLine && dragLine !== l.id) e.preventDefault(); }}
@@ -388,12 +444,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             {memoEdit?.id === l.id && (
               <CardPopover anchor={memoEdit.anchor} align="right" onClose={() => setMemoEdit(null)}>
                 <MemoPopover
-                  value={l.label ?? ""}
-                  onSave={(v) => {
-                    // a fresh memo pops open right of its block, arrow attached
-                    patchLine(l.id, { label: v, ...(v && !l.label ? { memoOpen: true, memoPos: l.memoPos ?? defaultMemoPos(i) } : {}) });
-                    setMemoEdit(null);
-                  }}
+                  kind={memoEdit.kind}
+                  value={memoOf(l, memoEdit.kind)?.text ?? ""}
+                  onSave={(v) => { saveMemo(l.id, memoEdit.kind, v); setMemoEdit(null); }}
                   onClose={() => setMemoEdit(null)}
                 />
               </CardPopover>
@@ -418,27 +471,40 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             )}
           </div>
 
-          {/* per-block controls — RIGHT of the block, OUTSIDE the grid (A4):
-              lightbulb (memo) then ⊗ delete. Hover-only; review-lock hides edits. */}
+          {/* per-block controls — RIGHT of the block, OUTSIDE the grid (A4 +
+              PROMPT A): lightbulb (TEXT memo) · calculator (CALC memo) · ⊗
+              delete. Hover-only; review-lock hides edits but keeps set memos. */}
           <div
             className="nodrag absolute top-1 z-[2] flex items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100"
             style={{ left: "100%", paddingLeft: 4 }}
           >
-            {(S.lightbulbs || l.label) && (!locked || l.label) && (
-              <button
-                className="grid h-5 w-5 place-items-center rounded-full"
-                style={{ color: l.label ? PAPER.gold : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${l.memoOpen ? "rgba(138,90,0,0.5)" : PAPER.cardEdge}` }}
-                title={l.label ? (l.memoOpen ? "Hide memo" : "Show memo") : "Add memo"}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (l.label) toggleMemo(l.id);
-                  else if (!locked) setMemoEdit({ id: l.id, anchor: e.currentTarget });
-                }}
-              >
-                <Lightbulb className="h-3 w-3" />
-              </button>
-            )}
+            {(() => {
+              const tm = memoOf(l, "text");
+              const cm = memoOf(l, "calc");
+              const memoBtn = (kind: JeMemo["kind"], m: JeMemo | undefined, Icon: typeof Lightbulb, addTitle: string) =>
+                (S.lightbulbs || m) && (!locked || m) ? (
+                  <button
+                    key={kind}
+                    className="grid h-5 w-5 place-items-center rounded-full"
+                    style={{ color: m ? PAPER.gold : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${m?.open ? "rgba(138,90,0,0.5)" : PAPER.cardEdge}` }}
+                    title={m ? (m.open ? `Hide ${kind} memo` : `Show ${kind} memo`) : addTitle}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (m) toggleMemo(l.id, kind);
+                      else if (!locked) setMemoEdit({ id: l.id, kind, anchor: e.currentTarget });
+                    }}
+                  >
+                    <Icon className="h-3 w-3" />
+                  </button>
+                ) : null;
+              return (
+                <>
+                  {memoBtn("text", tm, Lightbulb, "Add memo")}
+                  {memoBtn("calc", cm, Calculator, "Add calc memo")}
+                </>
+              );
+            })()}
             {!locked && (
               <button
                 className="grid h-5 w-5 place-items-center rounded-full"
@@ -457,24 +523,28 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     );
   };
 
-  /** MEMO LAYER (V2): floating boxes anywhere in rows-local node space, each
-   *  with a thin arrow that re-routes live to the EXACT block it annotates.
-   *  Hidden while a line drag reshuffles the rows (indexes are in motion). */
+  /** MEMO LAYER (V2 + PROMPT A): floating TEXT and CALC boxes anywhere in
+   *  rows-local node space, EACH with its own thin arrow that re-routes live
+   *  to the EXACT block it annotates. A line can float both at once. Hidden
+   *  while a line drag reshuffles the rows (indexes are in motion). */
   const memoLayer = () => {
     if (dragLine) return null;
-    const open = d.lines
-      .map((l, i) => ({ l, i }))
-      .filter(({ l }) => l.memoOpen && l.label);
+    const open: { l: JeLine; i: number; m: JeMemo }[] = [];
+    d.lines.forEach((l, i) => {
+      for (const m of memosOf(l)) if (m.open && m.text) open.push({ l, i, m });
+    });
     if (open.length === 0) return null;
-    const geom = open.map(({ l, i }) => {
-      const pos = memoDrag?.id === l.id ? memoDrag.pos : (l.memoPos ?? defaultMemoPos(i));
+    const BOX_W = 190;
+    const geom = open.map(({ l, i, m }) => {
+      const live = memoDrag && memoDrag.id === l.id && memoDrag.kind === m.kind;
+      const pos = live ? memoDrag.pos : (m.pos ?? defaultMemoPos(i, m.kind));
       const by = i * BLOCK_H + BLOCK_H / 2;
       // arrow runs memo → block: leave from the memo edge facing the block,
       // land on the block edge facing the memo
-      const memoRightOfBlock = pos.x + 95 > inds[i] + blockW / 2;
-      const mx = memoRightOfBlock ? pos.x : pos.x + 190;
+      const memoRightOfBlock = pos.x + BOX_W / 2 > inds[i] + blockW / 2;
+      const mx = memoRightOfBlock ? pos.x : pos.x + BOX_W;
       const bx = memoRightOfBlock ? inds[i] + blockW : inds[i];
-      return { l, i, pos, mx, my: pos.y + 14, bx, by };
+      return { l, i, m, pos, mx, my: pos.y + 14, bx, by };
     });
     return (
       <>
@@ -485,22 +555,23 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             </marker>
           </defs>
           {geom.map((a) => (
-            <line key={a.l.id} x1={a.mx} y1={a.my} x2={a.bx} y2={a.by} stroke="rgba(252,163,17,0.55)" strokeWidth={1.5} markerEnd={`url(#memo-arr-${id})`} />
+            <line key={`${a.l.id}-${a.m.kind}`} x1={a.mx} y1={a.my} x2={a.bx} y2={a.by} stroke="rgba(252,163,17,0.55)" strokeWidth={1.5} markerEnd={`url(#memo-arr-${id})`} />
           ))}
         </svg>
         {geom.map((a) => (
           <div
-            key={`memo-${a.l.id}`}
-            className={`nodrag absolute z-[4] w-[190px] rounded-md px-2 py-1 text-[11px] leading-snug ${locked ? "" : "cursor-grab active:cursor-grabbing"}`}
+            key={`memo-${a.l.id}-${a.m.kind}`}
+            className={`nodrag absolute z-[4] rounded-md px-2 py-1 leading-snug ${locked ? "" : "cursor-grab active:cursor-grabbing"}`}
             style={{
               left: a.pos.x,
               top: a.pos.y,
+              width: BOX_W,
               color: "rgba(244,246,250,0.9)",
               background: "rgba(16,27,49,0.92)",
               border: "1px solid rgba(252,163,17,0.35)",
               boxShadow: "0 10px 24px -12px rgba(0,0,0,0.6)",
             }}
-            onPointerDown={(e) => startMemoDrag(e, a.l.id, a.pos)}
+            onPointerDown={(e) => startMemoDrag(e, a.l.id, a.m.kind, a.pos)}
             onPointerMove={moveMemoDrag}
             onPointerUp={endMemoDrag}
           >
@@ -509,19 +580,36 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               style={{ color: NEON.muted, background: "#101B31", border: "1px solid rgba(147,160,180,0.4)" }}
               title="Dismiss"
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => toggleMemo(a.l.id)}
+              onClick={() => toggleMemo(a.l.id, a.m.kind)}
             >
               <X className="h-2.5 w-2.5" />
             </button>
             <span
-              className={locked ? "" : "cursor-text"}
-              title={locked ? undefined : "Click to edit memo"}
+              className={`block ${locked ? "" : "cursor-text"}`}
+              title={locked ? undefined : `Click to edit ${a.m.kind} memo`}
               onClick={(e) => {
                 if (locked || memoMoved.current) return;
-                setMemoEdit({ id: a.l.id, anchor: e.currentTarget as HTMLElement });
+                setMemoEdit({ id: a.l.id, kind: a.m.kind, anchor: e.currentTarget as HTMLElement });
               }}
             >
-              {a.l.label}
+              {a.m.kind === "calc" ? (
+                // CALC: tabular arithmetic, = signs aligned in a 2-col grid
+                <span className="grid grid-cols-[1fr_auto] gap-x-1 text-[10.5px] tabular-nums" style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>
+                  <Calculator className="col-span-2 mb-0.5 h-3 w-3" style={{ color: "rgba(252,163,17,0.8)" }} />
+                  {calcRows(a.m.text).map((r, ri) =>
+                    r.right === null ? (
+                      <span key={ri} className="col-span-2 text-right">{r.left}</span>
+                    ) : (
+                      <span key={ri} className="contents">
+                        <span className="text-right">{r.left}</span>
+                        <span>= {r.right}</span>
+                      </span>
+                    ),
+                  )}
+                </span>
+              ) : (
+                <span className="text-[11px]">{a.m.text}</span>
+              )}
             </span>
           </div>
         ))}
@@ -574,7 +662,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           </ChromeBtn>
         )}
         <button
-          title={locked ? "Clone… (locked original stays the answer key)" : "Clone (lands to the right)"}
+          title={locked ? "Clone… (locked original stays the answer key)" : "Clone (lands underneath)"}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); if (locked) setCloneMenu(cloneMenu ? null : e.currentTarget); else cloneAs(false); }}
           className="nodrag grid h-5 w-5 place-items-center rounded"
@@ -638,8 +726,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           <GearPanel
             mode={mode}
             entryType={entryType}
+            date={d.date}
             onMode={(m) => update({ mode: m, settings: { ...JE_PRESETS[m] } })}
             onEntryType={(t) => update({ entryType: t })}
+            onDate={(v) => update({ date: v })}
             onReset={() =>
               updateFn((prev) => {
                 const sol = prev.solution as JeLine[] | undefined;
@@ -689,6 +779,16 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             {locked && (
               <span className="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center" title="Locked for review">
                 <Lock className="h-3 w-3" style={{ color: NEON.yellow }} />
+              </span>
+            )}
+            {fmtJeDate(d.date) && (
+              // "Jan 15 · Purchasing insurance upfront" — the date is set in the gear
+              <span
+                className="mt-0.5 shrink-0 text-[13px] font-semibold"
+                style={{ color: NEON.yellow, fontFamily: JE_FONT, letterSpacing: "-0.01em" }}
+                title={d.date}
+              >
+                {fmtJeDate(d.date)} ·
               </span>
             )}
             <TitleEditor
@@ -741,22 +841,20 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             </div>
           )}
 
-          {/* balance chip — GUIDED always; PRACTICE only after attempt+reveal
-              (feedback, not a live answer-checker while the student works) */}
-          {(mode === "guided" || d.revealUsed) && (
+          {/* balance chip — GUIDED always; PRACTICE only after attempt+reveal.
+              UNKNOWN renders NOTHING (PROMPT A item 2: the old "?" pill at the
+              cluster's bottom-right was pure noise — chrome-consolidation era). */}
+          {(mode === "guided" || d.revealUsed) && bal.state !== "unknown" && (
             <div className="mt-1.5 flex justify-end">
               <span
                 className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
                 style={
                   bal.state === "balanced"
                     ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
-                    : bal.state === "off"
-                      ? { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
-                      : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }
+                    : { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
                 }
-                title={bal.state === "unknown" ? "Some amounts are still ??? — balance unknown" : undefined}
               >
-                {bal.state === "balanced" ? "✓ balanced" : bal.state === "off" ? `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}` : "?"}
+                {bal.state === "balanced" ? "✓ balanced" : `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}`}
               </span>
             </div>
           )}
@@ -939,32 +1037,48 @@ function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid }: { line: 
   );
 }
 
-function MemoPopover({ value, onSave, onClose }: { value: string; onSave: (v: string) => void; onClose: () => void }) {
+function MemoPopover({ kind, value, onSave, onClose }: { kind: JeMemo["kind"]; value: string; onSave: (v: string) => void; onClose: () => void }) {
   const [local, setLocal] = useState(value);
+  const calc = kind === "calc";
   return (
     <div
-      className="nodrag w-52 rounded-lg p-2 shadow-xl"
+      className="nodrag w-56 rounded-lg p-2 shadow-xl"
       style={{ background: "#FFF9E8", border: "1px solid rgba(138,90,0,0.35)", boxShadow: "0 14px 30px -10px rgba(20,33,61,0.4)" }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="mb-1 flex items-center gap-1">
-        <Lightbulb className="h-3 w-3" style={{ color: PAPER.gold }} />
-        <span className="flex-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "#8A5A00" }}>Memo</span>
+        {calc ? <Calculator className="h-3 w-3" style={{ color: PAPER.gold }} /> : <Lightbulb className="h-3 w-3" style={{ color: PAPER.gold }} />}
+        <span className="flex-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "#8A5A00" }}>{calc ? "Calc memo" : "Memo"}</span>
         <button style={{ color: PAPER.inkMuted }} onClick={onClose} title="Dismiss"><X className="h-3 w-3" /></button>
       </div>
       <textarea
-        rows={3}
+        rows={calc ? 4 : 3}
         autoFocus
-        className="w-full resize-none rounded bg-white/70 px-1.5 py-1 text-[11.5px] leading-snug outline-none"
-        style={{ color: PAPER.ink, border: `1px solid ${PAPER.line}` }}
+        className="w-full resize-none rounded bg-white/70 px-1.5 py-1 leading-snug outline-none"
+        style={{
+          color: PAPER.ink,
+          border: `1px solid ${PAPER.line}`,
+          fontSize: calc ? 11 : 11.5,
+          fontFamily: calc ? "ui-monospace, Menlo, Consolas, monospace" : undefined,
+        }}
         value={local}
-        placeholder="Why this line…"
+        placeholder={calc ? "500,000 × 8% × 6/12 = 20,000\n(one step per line — = signs align)" : "Why this line…"}
         onChange={(e) => setLocal(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
       />
-      <div className="mt-1 text-right">
+      <div className="mt-1 flex items-center">
+        {value && (
+          <button
+            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+            style={{ color: PAPER.red, border: "1px solid rgba(194,24,50,0.35)" }}
+            title={`Remove this ${calc ? "calc " : ""}memo`}
+            onClick={() => onSave("")}
+          >
+            remove
+          </button>
+        )}
         <button
-          className="rounded px-2 py-0.5 text-[10.5px] font-semibold"
+          className="ml-auto rounded px-2 py-0.5 text-[10.5px] font-semibold"
           style={{ color: PAPER.navy, border: "1px solid rgba(20,33,61,0.35)" }}
           onClick={() => onSave(local)}
         >
@@ -975,13 +1089,16 @@ function MemoPopover({ value, onSave, onClose }: { value: string; onSave: (v: st
   );
 }
 
-/** Gear contents (V2): mode · entry type · RESET. Normal-balance chips moved
- *  into the picker header; amounts-visible and picker-search are always-on. */
-function GearPanel({ mode, entryType, onMode, onEntryType, onReset, onSaveToLibrary, onClose }: {
+/** Gear contents (V2 + PROMPT A): mode · entry type · DATE · RESET. Normal-
+ *  balance chips moved into the picker header; amounts-visible and
+ *  picker-search are always-on. */
+function GearPanel({ mode, entryType, date, onMode, onEntryType, onDate, onReset, onSaveToLibrary, onClose }: {
   mode: JePreset;
   entryType: (typeof ENTRY_TYPES)[number];
+  date: string | undefined;
   onMode: (m: JePreset) => void;
   onEntryType: (t: (typeof ENTRY_TYPES)[number]) => void;
+  onDate: (v: string | undefined) => void;
   onReset: () => void;
   onSaveToLibrary: () => void;
   onClose: () => void;
@@ -1030,6 +1147,27 @@ function GearPanel({ mode, entryType, onMode, onEntryType, onReset, onSaveToLibr
             {BADGE[t]}
           </button>
         ))}
+      </div>
+      {/* DATE (PROMPT A): optional; renders "Jan 15 · <description>" when set */}
+      <div className="mb-1.5 flex items-center gap-1">
+        <CalendarDays className="h-3 w-3 shrink-0" style={{ color: PAPER.inkMuted }} />
+        <input
+          type="date"
+          value={date ?? ""}
+          className="min-w-0 flex-1 rounded px-1 py-0.5 text-[10.5px] outline-none"
+          style={{ color: date ? PAPER.ink : PAPER.inkMuted, border: "1px solid rgba(20,33,61,0.35)", background: "transparent" }}
+          onChange={(e) => onDate(e.target.value || undefined)}
+        />
+        {date && (
+          <button
+            className="shrink-0 rounded px-1 text-[9.5px] font-bold uppercase"
+            style={{ color: PAPER.red, border: "1px solid rgba(194,24,50,0.35)" }}
+            title="Remove the date"
+            onClick={() => onDate(undefined)}
+          >
+            ×
+          </button>
+        )}
       </div>
       <button
         className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"

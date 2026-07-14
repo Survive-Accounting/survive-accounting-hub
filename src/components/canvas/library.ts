@@ -4,7 +4,7 @@
 import { resolveSlot } from "@/lib/je/slot-resolver";
 import { chapterLabel as formatChapterLabel, courseLabel as formatCourseLabel, type JeBrowserTree } from "@/lib/je-api";
 import type { ScenarioDoc } from "@/lib/je-engine";
-import { amountOf, sideOf } from "./je-logic";
+import { amountOf, sideOf, textMemoOf } from "./je-logic";
 import { cardId, type CardData, type CardKind, type JeCard, type JeLine } from "./types";
 
 export interface LibraryItem {
@@ -165,8 +165,11 @@ function sortLibrary(items: LibraryItem[]): LibraryItem[] {
 }
 
 /** AUTHOR FROM CANVAS: a JE card → a minimal authored ScenarioDoc. The answer
- *  key (solution) is the truth when present; caption, amounts, memos (label),
- *  and trap feedback all round-trip through the same fields jeLinesFrom reads.
+ *  key (solution) is the truth when present; caption, amounts, TEXT memos
+ *  (doc.lines[].label — read via textMemoOf so the PROMPT A memos array and
+ *  legacy label both round-trip), and trap feedback all map through the same
+ *  fields jeLinesFrom reads. Calc memos stay canvas-only for now — the doc
+ *  schema gains them when Solve-It starts generating them (roadmap).
  *  slug/title are injected server-side to stay consistent with the row. */
 export function docFromJeCard(card: JeCard, title: string): ScenarioDoc {
   const key = card.solution?.length ? card.solution : card.lines;
@@ -188,7 +191,7 @@ export function docFromJeCard(card: JeCard, title: string): ScenarioDoc {
               account: l.account,
               side: sideOf(l) === "cr" ? "credit" : "debit",
               amount: amountOf(l),
-              label: l.label || undefined,
+              label: textMemoOf(l),
               trap: l.trap?.feedback || undefined,
             })),
           },

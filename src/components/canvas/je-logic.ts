@@ -1,7 +1,7 @@
-// Pure JE-card logic — side handling, line moves/swaps/hops, settings presets.
-// Everything returns NEW arrays (absolute patches for the dispatcher); nothing
-// here touches React Flow. Unit-tested in je-logic.test.ts.
-import type { JeLine } from "./types";
+// Pure JE-card logic — side handling, line moves/swaps/hops, memos, settings
+// presets. Everything returns NEW arrays (absolute patches for the dispatcher);
+// nothing here touches React Flow. Unit-tested in je-logic.test.ts.
+import type { JeLine, JeMemo } from "./types";
 
 export type JeSide = "dr" | "cr";
 export type JeEntryType = "standard" | "adjusting" | "closing";
@@ -136,6 +136,71 @@ export function balanceState(lines: JeLine[]): { state: "unknown" | "balanced" |
   }
   if (anyUnknown || !anyValue) return { state: "unknown", sumDr, sumCr };
   return { state: Math.abs(sumDr - sumCr) < 0.005 ? "balanced" : "off", sumDr, sumCr };
+}
+
+// ---- memos (PROMPT A: text + calc per line) ---------------------------------
+
+/** The line's memos, normalized: the memos array is truth; a legacy `label`
+ *  (scenario docs still spawn it) synthesizes a text memo carrying the old
+ *  pos/open fields, so pre-migration lines render identically. */
+export function memosOf(l: JeLine): JeMemo[] {
+  if (l.memos) return l.memos;
+  if (l.label) return [{ id: `${l.id}-m-text`, kind: "text", text: l.label, pos: l.memoPos, open: l.memoOpen }];
+  return [];
+}
+
+export function memoOf(l: JeLine, kind: JeMemo["kind"]): JeMemo | undefined {
+  return memosOf(l).find((m) => m.kind === kind);
+}
+
+/** The text memo's content — what scenario docs call the line label (hint,
+ *  save-to-library round-trip). */
+export function textMemoOf(l: JeLine): string | undefined {
+  return memoOf(l, "text")?.text || undefined;
+}
+
+/** Set/replace the memo of `kind` (one per kind). Empty text REMOVES it.
+ *  Returns the line's next memo fields — INCLUDING `label` kept in sync for
+ *  the text kind, so doc round-trips and old readers stay correct. */
+export function upsertMemo(l: JeLine, kind: JeMemo["kind"], text: string, extra?: Partial<JeMemo>): Partial<JeLine> {
+  const rest = memosOf(l).filter((m) => m.kind !== kind);
+  const prev = memoOf(l, kind);
+  const memos = text.trim() === ""
+    ? rest
+    : [...rest, { id: prev?.id ?? `${l.id}-m-${kind}`, kind, text, pos: prev?.pos, open: prev?.open, ...extra }];
+  const patch: Partial<JeLine> = { memos };
+  if (kind === "text") patch.label = text.trim() === "" ? undefined : text;
+  return patch;
+}
+
+/** Patch ONE memo's fields (pos/open) without touching its siblings. */
+export function patchMemo(l: JeLine, kind: JeMemo["kind"], patch: Partial<JeMemo>): Partial<JeLine> {
+  return { memos: memosOf(l).map((m) => (m.kind === kind ? { ...m, ...patch } : m)) };
+}
+
+/** Calc memo display: split each physical line at its LAST "=" so the = signs
+ *  align in a two-column grid. Lines without "=" span both columns. */
+export function calcRows(text: string): { left: string; right: string | null }[] {
+  return text.split("\n").filter((ln) => ln.trim() !== "").map((ln) => {
+    const at = ln.lastIndexOf("=");
+    if (at === -1) return { left: ln.trim(), right: null };
+    return { left: ln.slice(0, at).trim(), right: ln.slice(at + 1).trim() };
+  });
+}
+
+// ---- date (PROMPT A item 6) -------------------------------------------------
+
+/** "2026-01-15" → "Jan 15" (year appended only when it differs from today's). */
+export function fmtJeDate(iso: string | undefined, now: Date = new Date()): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = MONTHS[Number(mo) - 1];
+  if (!month || Number(d) < 1 || Number(d) > 31) return null;
+  const day = Number(d);
+  return Number(y) === now.getFullYear() ? `${month} ${day}` : `${month} ${day}, ${y}`;
 }
 
 // ---- settings + presets ----------------------------------------------------

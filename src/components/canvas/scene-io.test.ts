@@ -70,3 +70,48 @@ describe("sanitizeSceneNodes", () => {
     expect(out[0]).toEqual({ id: "a", position: { x: 5, y: 7 }, parentId: "zone-1", zIndex: 12, data: {} } as never);
   });
 });
+
+// ---- PROMPT A: edge visual stamps + JE memo schema migration ----
+
+import { migrateJeMemos } from "./scene-io";
+
+describe("migrateEdges (arrow visual contract)", () => {
+  test("stamps style + arrowhead marker on RF auto-added bare edges", () => {
+    const [e] = migrateEdges([{ id: "xy-edge__a-b", source: "a", target: "b" } as never]) as Record<string, unknown>[];
+    expect(e.type).toBe("smoothstep");
+    expect((e.style as { stroke: string }).stroke).toBe("#E0284A");
+    expect((e.markerEnd as { type: string }).type).toBe("arrowclosed");
+  });
+
+  test("keeps explicit style/marker/handles intact (incl. line-level handles)", () => {
+    const styled = { id: "e1", source: "a", target: "b", sourceHandle: "ln:l1:r", targetHandle: "ln:l9:l", type: "smoothstep", style: { stroke: "blue" }, markerEnd: { type: "arrow" } };
+    const [e] = migrateEdges([styled as never]) as Record<string, unknown>[];
+    expect(e.sourceHandle).toBe("ln:l1:r");
+    expect((e.style as { stroke: string }).stroke).toBe("blue");
+    expect((e.markerEnd as { type: string }).type).toBe("arrow");
+  });
+});
+
+describe("migrateJeMemos", () => {
+  const jeNode = (lines: Record<string, unknown>[], solution?: Record<string, unknown>[]) =>
+    ({ id: "n1", data: { kind: "je", lines, ...(solution ? { solution } : {}) } }) as never;
+
+  test("legacy label/memoPos/memoOpen become a text memo entry; label survives for docs", () => {
+    const [n] = migrateJeMemos([jeNode([{ id: "l1", label: "why", memoPos: { x: 3, y: 4 }, memoOpen: true }])]) as { data: { lines: Record<string, unknown>[] } }[];
+    const l = n.data.lines[0];
+    expect(l.memos).toEqual([{ id: "l1-m-text", kind: "text", text: "why", pos: { x: 3, y: 4 }, open: true }]);
+    expect(l.label).toBe("why");
+    expect(l.memoPos).toBeUndefined();
+    expect(l.memoOpen).toBeUndefined();
+  });
+
+  test("solution lines migrate too; already-migrated + non-JE untouched", () => {
+    const [n] = migrateJeMemos([jeNode([{ id: "l1" }], [{ id: "s1", label: "sol memo" }])]) as { data: { solution: Record<string, unknown>[] } }[];
+    expect(n.data.solution[0].memos).toBeDefined();
+    const already = { id: "l1", label: "x", memos: [{ id: "m", kind: "calc", text: "1 = 1" }] };
+    const [m] = migrateJeMemos([jeNode([already])]) as { data: { lines: Record<string, unknown>[] } }[];
+    expect(m.data.lines[0].memos).toEqual(already.memos);
+    const note = { id: "n2", data: { kind: "note", body: "hi" } } as never;
+    expect((migrateJeMemos([note])[0] as { data: { body: string } }).data.body).toBe("hi");
+  });
+});

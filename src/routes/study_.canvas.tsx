@@ -15,7 +15,6 @@ import {
   NodeResizer,
   ReactFlow,
   ReactFlowProvider,
-  MarkerType,
   useNodes,
   useReactFlow,
   useStore,
@@ -59,7 +58,9 @@ import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { addEdgeCmd, lineIdOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
+import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopTo, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
@@ -356,6 +357,10 @@ const nodeTypes = {
   lesson: LessonNode,
 };
 
+// ONE edge renderer, registered under "smoothstep" so existing scenes' edges
+// upgrade in place: arrowhead, ×-on-select, pulse, straight-while-dragging.
+const edgeTypes = { smoothstep: ArrowEdge };
+
 // ---------------------------------------------------------------------------
 // Spacebar stepper — reveal the NEXT hidden element on a card, reading order.
 // Returns a patched data object, or null when nothing left to reveal.
@@ -641,37 +646,58 @@ function PresentCanvas() {
     }
   }, [liveNodes, rf]);
 
-  // ---- CONNECTIONS (V2): hover dots on every card/lesson (ConnectionDots),
-  // drag dot → live smoothstep line → drop on another node's dot. Loose mode:
-  // every dot both starts and receives; the chosen sides (t/b/l/r handles)
-  // anchor the edge so it never cuts through either endpoint. Click edge +
-  // Delete removes (onDelete records it on the bus). Replaces the Ctrl+click
-  // gesture era (_arrowPending) entirely.
+  // ---- CONNECTIONS (V2 + PROMPT A): hover dots on every card/lesson, plus
+  // per-LINE dots on JE blocks (ln:<lineId>:l|r handles — edges anchored to a
+  // line travel with its block through hops/reorders). Drag dot → live line →
+  // drop on any dot; loose mode so every dot both starts and receives.
+  //
+  // THE UNDO FIX (PROMPT A item 4, root cause in arrows.ts): React Flow in
+  // uncontrolled mode auto-adds its OWN plain edge before this callback runs —
+  // the old dupe-guard saw it and bailed, so the bus never recorded arrows
+  // (Ctrl+Z ignored them) and the visible edge was RF's unstyled bezier (no
+  // arrowhead). Now: strip the auto edge raw (it was never a user action) and
+  // dispatch the styled replacement through the bus.
   const onConnect = useCallback(
     (c: Connection) => {
-      if (!c.source || !c.target || c.source === c.target) return;
-      // this tree double-invokes RF callbacks (same quirk C1 saw on onNodeClick):
-      // the first dispatch adds the edge synchronously, so an identical-edge
-      // check kills the twin — and stops pointless exact-duplicate edges too
-      if (rf.getEdges().some((e) => e.source === c.source && e.target === c.target && e.sourceHandle === c.sourceHandle && e.targetHandle === c.targetHandle)) return;
-      const edge = {
-        id: cardId("edge"),
-        source: c.source,
-        target: c.target,
-        sourceHandle: c.sourceHandle ?? "r",
-        targetHandle: c.targetHandle ?? "l",
-        type: "smoothstep" as const,
-        style: { stroke: NEON.pink, strokeWidth: 2.5 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: NEON.pink, width: 18, height: 18 },
-      };
-      bus.dispatch({
-        label: "connect",
-        do: () => rf.addEdges([{ ...edge }]),
-        undo: () => rf.setEdges((eds) => eds.filter((e) => e.id !== edge.id)),
-      });
+      const { autoIds, edge } = resolveConnection(rf.getEdges() as EdgeLike[], c, () => cardId("edge"));
+      if (autoIds.length) {
+        const drop = new Set(autoIds);
+        rf.setEdges((eds) => eds.filter((e) => !drop.has(e.id)));
+      }
+      if (edge) bus.dispatch(addEdgeCmd(rf as unknown as RfLike, edge));
     },
     [rf],
   );
+
+  // ---- edge click (PROMPT A): select + one-shot PULSE + gold-ring BOTH
+  // endpoint blocks (line-anchored ends light their block via transient
+  // _glowLine node data; card-level ends rely on the edge's selection glow).
+  const glowedNodes = useRef<string[]>([]);
+  const clearEdgeGlow = useCallback(() => {
+    for (const nid of glowedNodes.current) rf.updateNodeData(nid, { _glowLine: undefined });
+    glowedNodes.current = [];
+  }, [rf]);
+  const onEdgeClick = useCallback(
+    (_e: React.MouseEvent, edge: { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => {
+      clearEdgeGlow();
+      const ends: [string, string | null][] = [
+        [edge.source, lineIdOfHandle(edge.sourceHandle)],
+        [edge.target, lineIdOfHandle(edge.targetHandle)],
+      ];
+      for (const [nid, lineId] of ends) {
+        if (!lineId) continue;
+        rf.updateNodeData(nid, { _glowLine: lineId });
+        glowedNodes.current.push(nid);
+      }
+      // pulse: sweep the dash train once, then settle back to solid
+      rf.setEdges((eds) => eds.map((e) => (e.id === edge.id ? { ...e, data: { ...e.data, _pulse: true } } : e)));
+      window.setTimeout(() => {
+        rf.setEdges((eds) => eds.map((e) => (e.id === edge.id ? { ...e, data: { ...e.data, _pulse: undefined } } : e)));
+      }, 750);
+    },
+    [rf, clearEdgeGlow],
+  );
+  const onPaneClick = useCallback(() => clearEdgeGlow(), [clearEdgeGlow]);
   // while a connection drag is live, EVERY node's dots show (drop targets)
   const connecting = useStore((s) => !!s.connection.inProgress);
 
@@ -1021,8 +1047,15 @@ function PresentCanvas() {
   const onNodeDragStart = useCallback(
     (_e: unknown, _node: CardNode, nodes: CardNode[]) => {
       dragStart.current = new Map(nodes.map((n) => [n.id, { position: { ...n.position }, parentId: n.parentId }]));
+      // DRAG PERF (PROMPT A): edges touching a dragged node simplify to a
+      // straight path for the duration (no smoothstep corner math per frame).
+      // Transient — raw setEdges, not the bus; onNodeDragStop restores.
+      const dragged = new Set(nodes.map((n) => n.id));
+      rf.setEdges((eds) =>
+        eds.map((e) => (dragged.has(e.source) || dragged.has(e.target) ? { ...e, data: { ...e.data, _drag: true } } : e)),
+      );
     },
-    [],
+    [rf],
   );
   // ---- SNAP GUIDES: edge/center matches vs nearby cards while dragging; the
   // drop settles onto a guide within threshold (no mid-drag position fighting).
@@ -1099,6 +1132,8 @@ function PresentCanvas() {
   // or a zone/region → parent it (it then moves with the box natively) ----
   const onNodeDragStop = useCallback((_e: unknown, node: CardNode) => {
     setGuides({ v: [], h: [] });
+    // restore smoothstep routing on every edge the drag simplified
+    rf.setEdges((eds) => eds.map((e) => (e.data?._drag ? { ...e, data: { ...e.data, _drag: undefined } } : e)));
     if (isContainerType(node.type)) { commitDrag(); return; } // boxes stay top-level
     // settle onto a matched guide (within threshold) before parenting/commit
     if (!node.parentId) {
@@ -1161,7 +1196,14 @@ function PresentCanvas() {
         //     additive, so v2 scenes open unchanged.
         schema_version: 3,
         nodes: sanitizeSceneNodes(rf.getNodes()),
-        edges: rf.getEdges(),
+        // edges: strip transient interaction data (_drag/_pulse) — same
+        // contract as node _-keys; selected must not round-trip either
+        edges: rf.getEdges().map(({ selected, ...e }) => {
+          void selected;
+          if (!e.data) return e;
+          const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
+          return { ...e, data };
+        }),
         sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId },
       }),
       viewport_json: JSON.stringify(vp),
@@ -1210,7 +1252,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind));
+      rf.setNodes(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -1237,7 +1279,7 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind));
+            rf.setNodes(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -1589,7 +1631,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind);
+      const nodesAfter = migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
@@ -1752,7 +1794,8 @@ function PresentCanvas() {
             setClean(false);
             return;
           }
-          // RUNG 5 — deselect all
+          // RUNG 5 — deselect all (edge endpoint glow clears with it)
+          clearEdgeGlow();
           rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
           rf.setEdges((eds) => eds.map((ed) => (ed.selected ? { ...ed, selected: false } : ed)));
         },
@@ -1783,7 +1826,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen],
+    [rf, storeApi, deal, quickSpawn, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow],
   );
   useKeymap(bindings);
 
@@ -1828,6 +1871,7 @@ function PresentCanvas() {
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""}`} style={{ background: NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
       <style>{CONNECTION_DOTS_CSS}</style>
+      <style>{ARROW_EDGE_CSS}</style>
       {film && (
         <>
           <CursorSpotlight />
@@ -1870,12 +1914,15 @@ function PresentCanvas() {
         onDelete={onDelete}
         onNodeDoubleClick={onNodeDoubleClick}
         onConnect={onConnect}
+        onEdgeClick={onEdgeClick}
+        onPaneClick={onPaneClick}
         connectionMode={ConnectionMode.Loose}
         connectionRadius={28}
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: NEON.cyan, strokeWidth: 2 }}
         multiSelectionKeyCode="Shift"
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         proOptions={{ hideAttribution: true }}
         minZoom={0.08}
         maxZoom={2.5}

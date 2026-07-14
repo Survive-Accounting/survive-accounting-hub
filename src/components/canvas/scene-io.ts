@@ -24,17 +24,53 @@ export function sanitizeSceneNodes<T extends { data?: Record<string, unknown>; s
   });
 }
 
-/** V2 connections: every edge rides named handles (t/b/l/r) + smoothstep.
- *  Old scenes' edges (Ctrl+click era) had NO handle ids — with 4 named source
- *  handles per node they'd fail to resolve, so stamp the old visual (right →
- *  left) and the new edge type on load. No-op for already-migrated edges. */
-export function migrateEdges<T extends { sourceHandle?: string | null; targetHandle?: string | null; type?: string }>(edges: T[]): T[] {
+/** Arrow visual contract (PROMPT A): every edge carries the brand stroke + a
+ *  real directional arrowhead. Exported so onConnect and the migration stamp
+ *  the SAME look — old scenes may hold React Flow auto-added edges (the
+ *  uncontrolled-mode bug: RF added its own unstyled bezier before onConnect
+ *  ever ran) with no style, no marker, no type. */
+export const EDGE_STYLE = { stroke: "#E0284A", strokeWidth: 2.5 } as const;
+export const EDGE_MARKER = { type: "arrowclosed", color: "#E0284A", width: 18, height: 18 } as const;
+
+/** V2 connections: every edge rides named handles (t/b/l/r or line-level
+ *  ln:<lineId>:l|r) + smoothstep + arrowhead. Old scenes' edges (Ctrl+click
+ *  era) had NO handle ids — with named source handles per node they'd fail to
+ *  resolve, so stamp the old visual (right → left). Auto-added RF edges (the
+ *  uncontrolled-mode era) get style/marker stamped too. No-op when migrated. */
+export function migrateEdges<
+  T extends { sourceHandle?: string | null; targetHandle?: string | null; type?: string; style?: unknown; markerEnd?: unknown },
+>(edges: T[]): T[] {
   return edges.map((e) => ({
     ...e,
     sourceHandle: e.sourceHandle ?? "r",
     targetHandle: e.targetHandle ?? "l",
     type: e.type ?? "smoothstep",
+    style: e.style ?? { ...EDGE_STYLE },
+    markerEnd: e.markerEnd ?? { ...EDGE_MARKER },
   }));
+}
+
+/** PROMPT A memo schema: JeLine.label/memoPos/memoOpen (single text memo) →
+ *  memos: [{kind:'text'|'calc', …}]. `label` stays ON the line (scenario-doc
+ *  round-trip reads it) but pos/open move into the memo entry. No-op for
+ *  migrated lines; non-JE nodes pass through untouched. */
+export function migrateJeMemos<T extends { data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  return nodes.map((n) => {
+    const d = (n.data ?? {}) as Record<string, unknown>;
+    if (d.kind !== "je") return n;
+    const migrateLines = (lines: unknown): unknown => {
+      if (!Array.isArray(lines)) return lines;
+      return lines.map((l: Record<string, unknown>) => {
+        if (l.memos || !l.label) return l;
+        const { memoPos, memoOpen, ...rest } = l;
+        return {
+          ...rest,
+          memos: [{ id: `${l.id}-m-text`, kind: "text", text: l.label, pos: memoPos, open: memoOpen }],
+        };
+      });
+    };
+    return { ...n, data: { ...d, lines: migrateLines(d.lines), ...(d.solution ? { solution: migrateLines(d.solution) } : {}) } } as T;
+  });
 }
 
 /** schema_version 1 → 2: `staged`/`minimized` both meant "in the deck, hidden".

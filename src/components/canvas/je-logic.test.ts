@@ -260,3 +260,87 @@ describe("groupCoa", () => {
     expect(g[0].normal).toBe("debit");
   });
 });
+
+// ---- PROMPT A: memos (text + calc), calc alignment, date ----
+
+import { calcRows, fmtJeDate, memoOf, memosOf, patchMemo, textMemoOf, upsertMemo } from "./je-logic";
+
+describe("memosOf / textMemoOf (legacy label fallback)", () => {
+  test("legacy label synthesizes a text memo carrying pos/open", () => {
+    const l = L("a", "dr", 100, { label: "why this line", memoPos: { x: 5, y: 6 }, memoOpen: true });
+    const ms = memosOf(l);
+    expect(ms).toHaveLength(1);
+    expect(ms[0].kind).toBe("text");
+    expect(ms[0].text).toBe("why this line");
+    expect(ms[0].pos).toEqual({ x: 5, y: 6 });
+    expect(ms[0].open).toBe(true);
+    expect(textMemoOf(l)).toBe("why this line");
+  });
+
+  test("memos array wins over legacy label; no memos → empty", () => {
+    const l = L("a", "dr", 100, { label: "old", memos: [{ id: "m1", kind: "calc", text: "2+2 = 4" }] });
+    expect(memosOf(l).map((m) => m.kind)).toEqual(["calc"]);
+    expect(textMemoOf(l)).toBeUndefined();
+    expect(memosOf(L("b", "cr"))).toEqual([]);
+  });
+});
+
+describe("upsertMemo (one per kind; text keeps label in sync)", () => {
+  test("a line carries BOTH a text and a calc memo", () => {
+    const l = L("a", "dr");
+    const withText = { ...l, ...upsertMemo(l, "text", "prose why") } as typeof l;
+    const withBoth = { ...withText, ...upsertMemo(withText, "calc", "500,000 × 8% × 6/12 = 20,000") } as typeof l;
+    expect(memosOf(withBoth).map((m) => m.kind).sort()).toEqual(["calc", "text"]);
+    expect(withBoth.label).toBe("prose why"); // doc round-trip stays intact
+    expect(memoOf(withBoth, "calc")!.text).toContain("20,000");
+  });
+
+  test("replacing a kind keeps its pos/open; empty text removes it (and label for text)", () => {
+    const l = L("a", "dr", 100, { memos: [{ id: "m", kind: "text", text: "v1", pos: { x: 1, y: 2 }, open: true }], label: "v1" });
+    const replaced = { ...l, ...upsertMemo(l, "text", "v2") } as typeof l;
+    expect(memoOf(replaced, "text")).toMatchObject({ text: "v2", pos: { x: 1, y: 2 }, open: true });
+    expect(replaced.label).toBe("v2");
+    const removed = { ...replaced, ...upsertMemo(replaced, "text", "") } as typeof l;
+    expect(memoOf(removed, "text")).toBeUndefined();
+    expect(removed.label).toBeUndefined();
+  });
+});
+
+describe("patchMemo", () => {
+  test("patches one kind's pos/open without touching siblings", () => {
+    const l = L("a", "dr", 100, {
+      memos: [
+        { id: "t", kind: "text", text: "t", pos: { x: 0, y: 0 } },
+        { id: "c", kind: "calc", text: "c" },
+      ],
+    });
+    const out = { ...l, ...patchMemo(l, "calc", { pos: { x: 9, y: 9 }, open: true }) } as typeof l;
+    expect(memoOf(out, "calc")).toMatchObject({ pos: { x: 9, y: 9 }, open: true });
+    expect(memoOf(out, "text")!.pos).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("calcRows (= alignment)", () => {
+  test("splits each line at its LAST =; lines without = span full width", () => {
+    expect(calcRows("500,000 × 8% × 6/12 = 20,000\nsubtotal\n1 + 1 = 2 = 2")).toEqual([
+      { left: "500,000 × 8% × 6/12", right: "20,000" },
+      { left: "subtotal", right: null },
+      { left: "1 + 1 = 2", right: "2" },
+    ]);
+  });
+
+  test("blank lines dropped", () => {
+    expect(calcRows("a = 1\n\n\nb = 2")).toHaveLength(2);
+  });
+});
+
+describe("fmtJeDate", () => {
+  const now = new Date("2026-07-14T12:00:00Z");
+  test("same year → 'Jan 15'; other year appends it; bad input → null", () => {
+    expect(fmtJeDate("2026-01-15", now)).toBe("Jan 15");
+    expect(fmtJeDate("2025-12-31", now)).toBe("Dec 31, 2025");
+    expect(fmtJeDate(undefined, now)).toBeNull();
+    expect(fmtJeDate("not-a-date", now)).toBeNull();
+    expect(fmtJeDate("2026-13-05", now)).toBeNull();
+  });
+});

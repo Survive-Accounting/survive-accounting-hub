@@ -61,6 +61,14 @@ Evaluate replacing minimap-driven nav with free scroll-zoom (zoom out to the
 map, dive back in). A UX decision to TEST, not a build — don't rip the
 minimap until the map view proves itself.
 
+## Calc memos fed by problem text (Solve-It)
+JE lines carry TEXT + CALC memos (PROMPT A, July run) — the calc box renders
+tabular arithmetic ("500,000 × 8% × 6/12 = 20,000", = signs aligned). Next
+step: Solve-It's problem-text pipeline generates these calc memos from the
+source problem's numbers, so every solved line arrives with its arithmetic
+attached. Doc schema gains a calc field on lines at that point (today calc
+memos are canvas-only; only the text memo round-trips through doc.label).
+
 ## Card-flip help for all card types
 The "stuck?" back face (reveal / hint / switch-to-guided) shipped on JE (A2,
 July run). Generalize the mechanism so every card kind flips: CEQ shows the

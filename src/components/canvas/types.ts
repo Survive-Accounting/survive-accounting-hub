@@ -86,6 +86,20 @@ export interface CardBase {
 }
 
 // ---- JE ----
+/** A line's floating annotation (PROMPT A): TEXT (lightbulb, prose "why") or
+ *  CALC (calculator, tabular arithmetic like "500,000 × 8% × 6/12 = 20,000",
+ *  multi-line, = aligned, mono). A line carries AT MOST ONE of each kind.
+ *  Roadmap: calc memos will later draw from problem text (Solve-It). */
+export interface JeMemo {
+  id: string;
+  kind: "text" | "calc";
+  text: string;
+  /** Floating box offset in NODE space (rows-local) — travels with the cluster. */
+  pos?: { x: number; y: number };
+  /** Box shown (persisted so an arranged board reloads arranged). */
+  open?: boolean;
+}
+
 export interface JeLine {
   id: string;
   account: string;
@@ -93,12 +107,17 @@ export interface JeLine {
   cr: number | null;
   /** Explicit column; legacy lines derive it from which amount is set (see sideOf). */
   side?: "dr" | "cr";
-  /** The line's MEMO (lightbulb). Same field the scenario docs populate. */
+  /** MEMOS (source of truth since PROMPT A): up to one text + one calc.
+   *  Read through memosOf()/textMemoOf() in je-logic — those fall back to the
+   *  legacy label fields so pre-migration lines keep working. */
+  memos?: JeMemo[];
+  /** LEGACY single text memo — scenario docs still populate this on spawn and
+   *  read it back on save-to-library (doc.lines[].label is the doc-side truth).
+   *  memosOf() migrates it lazily; scene-io migrates it persistently on load. */
   label?: string;
-  /** Floating memo box offset in NODE space (rows-local) — travels with the
-   *  cluster; Lee drags it anywhere and a thin arrow tracks the block (V2). */
+  /** LEGACY floating memo box offset — superseded by memos[].pos. */
   memoPos?: { x: number; y: number };
-  /** Memo box shown (persisted so an arranged board reloads arranged). */
+  /** LEGACY memo visibility — superseded by memos[].open. */
   memoOpen?: boolean;
   hidden?: boolean; // stepper hide
   /** Alternate wrong version + one feedback sentence (distractor flip). */
@@ -109,6 +128,9 @@ export interface JeCard extends CardBase {
   kind: "je";
   /** The transaction description — IS the card header. */
   caption: string;
+  /** Optional transaction date (ISO yyyy-mm-dd). When set, the description
+   *  renders prefixed "Jan 15 · …". Removable in the gear. */
+  date?: string;
   entryType?: "standard" | "adjusting" | "closing";
   /** GUIDED (picker + chips, free reveal) or PRACTICE (free-type, reveal gated
    *  behind an attempt). Absent = the canvas default preset. Blind retired in v3. */
