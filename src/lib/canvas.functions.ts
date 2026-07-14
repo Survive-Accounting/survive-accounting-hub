@@ -107,6 +107,7 @@ export const saveScene = createServerFn({ method: "POST" })
 // RLS blocks anon SELECT on chart_of_accounts (verified: 0 rows, no error), so
 // the canvas reads it through the service role. Read-only vocabulary, safe.
 export interface CoaRowOut {
+  id: string;
   canonical_name: string;
   account_type: string;
   normal_balance: string;
@@ -115,11 +116,172 @@ export interface CoaRowOut {
 export const listCoa = createServerFn({ method: "GET" }).handler(async (): Promise<CoaRowOut[]> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await (supabaseAdmin.from("chart_of_accounts" as never) as any)
-    .select("canonical_name,account_type,normal_balance")
+    .select("id,canonical_name,account_type,normal_balance")
     .order("canonical_name");
   if (error) throw new Error(error.message);
   return (data ?? []) as CoaRowOut[];
 });
+
+// ---- COURSE COA SETS (content reset, migration 0087) ------------------------
+// Per-course curated account lists drawn from the master chart_of_accounts.
+// The master stays untouched as reference; course_coa maps course → subset.
+// Deny-by-default RLS — all access through these service-role fns.
+const MISSING_0087_HINT =
+  "content-reset schema missing — run migration/supabase-migrations/0087_content_reset.sql in the Supabase SQL editor";
+
+function rethrow0087(error: { code?: string; message: string }): never {
+  if (
+    error.code === "42P01" ||
+    error.code === "42703" ||
+    /relation .*course_coa.* does not exist/i.test(error.message) ||
+    /column .*(status|source|sort_order).* does not exist/i.test(error.message)
+  ) {
+    throw new Error(MISSING_0087_HINT);
+  }
+  throw new Error(error.message);
+}
+
+const courseIdSchema = z.object({ course_id: z.string().uuid() });
+
+export const listCourseAccounts = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => courseIdSchema.parse(d))
+  .handler(async ({ data }): Promise<CoaRowOut[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await (supabaseAdmin.from("course_coa" as never) as any)
+      .select("account_id, chart_of_accounts(id,canonical_name,account_type,normal_balance)")
+      .eq("course_id", data.course_id);
+    if (error) rethrow0087(error);
+    return ((rows ?? []) as any[])
+      .map((r) => r.chart_of_accounts)
+      .filter(Boolean)
+      .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name)) as CoaRowOut[];
+  });
+
+const courseAccountSchema = z.object({ course_id: z.string().uuid(), account_id: z.string().uuid() });
+
+export const addCourseAccount = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => courseAccountSchema.parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("course_coa" as never) as any)
+      .upsert({ course_id: data.course_id, account_id: data.account_id }, { onConflict: "course_id,account_id" });
+    if (error) rethrow0087(error);
+    return { ok: true };
+  });
+
+export const removeCourseAccount = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => courseAccountSchema.parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("course_coa" as never) as any)
+      .delete()
+      .eq("course_id", data.course_id)
+      .eq("account_id", data.account_id);
+    if (error) rethrow0087(error);
+    return { ok: true };
+  });
+
+const ACCOUNT_TYPES = [
+  "asset", "liability", "equity", "revenue", "expense",
+  "contra_asset", "contra_liability", "contra_equity", "contra_revenue", "liability_adjunct",
+] as const;
+
+const createAccountSchema = z.object({
+  course_id: z.string().uuid(),
+  canonical_name: z.string().min(2).max(80),
+  account_type: z.enum(ACCOUNT_TYPES),
+  normal_balance: z.enum(["debit", "credit"]),
+});
+
+/** Brand-new account: lands in the MASTER chart AND this course's set. If the
+ *  name already exists in the master (case-insensitive), reuse that row. */
+export const createAccount = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => createAccountSchema.parse(d))
+  .handler(async ({ data }): Promise<{ account: CoaRowOut }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const coa = () => supabaseAdmin.from("chart_of_accounts" as never) as any;
+    const { data: existing, error: selErr } = await coa()
+      .select("id,canonical_name,account_type,normal_balance")
+      .ilike("canonical_name", data.canonical_name.trim())
+      .maybeSingle();
+    if (selErr) throw new Error(selErr.message);
+    let account = existing as CoaRowOut | null;
+    if (!account) {
+      const { data: ins, error } = await coa()
+        .insert({ canonical_name: data.canonical_name.trim(), account_type: data.account_type, normal_balance: data.normal_balance })
+        .select("id,canonical_name,account_type,normal_balance")
+        .single();
+      if (error) throw new Error(error.message);
+      account = ins as CoaRowOut;
+    }
+    const { error: mapErr } = await (supabaseAdmin.from("course_coa" as never) as any)
+      .upsert({ course_id: data.course_id, account_id: account.id }, { onConflict: "course_id,account_id" });
+    if (mapErr) rethrow0087(mapErr);
+    return { account };
+  });
+
+// ---- AUTHOR FROM CANVAS (save a JE card as an authored scenario doc) --------
+const saveScenarioSchema = z.object({
+  id: z.string().uuid().optional(), // present = update the linked scenario
+  course_id: z.string().uuid(), // used to sanity-check the chapter belongs to it
+  chapter_id: z.string().uuid(),
+  sort_order: z.number().int().min(0).max(9999),
+  title: z.string().min(1).max(160),
+  doc_json: z.string(), // stringified ScenarioDoc (serializable-type contract)
+});
+
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "scenario";
+
+export const saveScenarioDoc = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => saveScenarioSchema.parse(d))
+  .handler(async ({ data }): Promise<{ id: string; slug: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let doc: unknown;
+    try {
+      doc = JSON.parse(data.doc_json);
+    } catch (e) {
+      throw new Error(`Scenario doc is not valid JSON: ${e instanceof Error ? e.message : e}`);
+    }
+    const { data: ch, error: chErr } = await supabaseAdmin
+      .from("chapters")
+      .select("id,course_id")
+      .eq("id", data.chapter_id)
+      .maybeSingle();
+    if (chErr) throw new Error(chErr.message);
+    if (!ch || (ch as { course_id: string }).course_id !== data.course_id) {
+      throw new Error("Chapter does not belong to the selected course");
+    }
+    const tbl = () => supabaseAdmin.from("je_scenarios" as never) as any;
+    if (data.id) {
+      const { error } = await tbl()
+        .update({ title: data.title, doc, chapter_id: data.chapter_id, sort_order: data.sort_order })
+        .eq("id", data.id);
+      if (error) rethrow0087(error);
+      const { data: row } = await tbl().select("slug").eq("id", data.id).maybeSingle();
+      return { id: data.id, slug: (row as { slug: string } | null)?.slug ?? "" };
+    }
+    const slug = `${slugify(data.title)}-${Date.now().toString(36).slice(-4)}`;
+    const payload = { slug, title: data.title, doc, chapter_id: data.chapter_id, sort_order: data.sort_order, status: "active", source: "authored" };
+    const { data: ins, error } = await tbl().insert(payload).select("id,slug").single();
+    if (error) rethrow0087(error);
+    return { id: (ins as { id: string }).id, slug: (ins as { slug: string }).slug };
+  });
+
+/** Next sort_order within a chapter (authored default: append). */
+export const nextScenarioSort = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ chapter_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ next: number }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await (supabaseAdmin.from("je_scenarios" as never) as any)
+      .select("sort_order")
+      .eq("chapter_id", data.chapter_id)
+      .order("sort_order", { ascending: false })
+      .limit(1);
+    if (error) rethrow0087(error);
+    const top = (rows?.[0] as { sort_order: number | null } | undefined)?.sort_order;
+    return { next: (typeof top === "number" ? top : 0) + 1 };
+  });
 
 // ---- canvas-media uploads (image card paste/upload) -----------------------
 // Bucket `canvas-media` must exist (public read; writes only via service role —

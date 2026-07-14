@@ -13,6 +13,11 @@ export interface ScenarioRow {
   title: string;
   doc: ScenarioDoc;
   chapter_id: string | null; // v2: links a scenario to an existing chapters row (migration 0025)
+  /** Content-reset lifecycle (migration 0087). undefined = 0087 not applied yet —
+   *  the canvas fails loud on that; /je keeps working treating rows as active. */
+  status?: "active" | "archived";
+  source?: "authored" | "imported";
+  sort_order?: number | null;
 }
 
 // chapter_id may not exist yet (before 0025 is applied). We try the chapter-aware select
@@ -23,13 +28,17 @@ const MISSING_COLUMN = Symbol("missing-column");
 function isMissingColumn(error: any): boolean {
   return (
     error?.code === "42703" || // undefined_column
-    /column .*chapter_id.* does not exist/i.test(error?.message ?? "")
+    /column .*(chapter_id|status|source|sort_order).* does not exist/i.test(error?.message ?? "")
   );
 }
 
-/** List all scenarios (lightweight — full doc included; the prototype set is small). */
+/** List all scenarios (lightweight — full doc included; the prototype set is small).
+ *  Tries the content-reset shape (0087) first and steps down so /je keeps working
+ *  on an un-migrated DB; rows then carry status/source = undefined, which the
+ *  CANVAS treats as "apply 0087" (fail loud there, tolerant here). */
 export async function fetchScenarios(): Promise<ScenarioRow[]> {
-  let res = await runScenarioSelect("id,slug,title,doc,chapter_id", (q) => q.order("title"));
+  let res = await runScenarioSelect("id,slug,title,doc,chapter_id,status,source,sort_order", (q) => q.order("title"));
+  if (res === MISSING_COLUMN) res = await runScenarioSelect("id,slug,title,doc,chapter_id", (q) => q.order("title"));
   if (res === MISSING_COLUMN) res = await runScenarioSelect("id,slug,title,doc", (q) => q.order("title"));
   return ((res as any[]) ?? []).map(toScenarioRow);
 }
@@ -62,6 +71,9 @@ function toScenarioRow(r: any): ScenarioRow {
     title: r.title,
     doc: (r.doc ?? {}) as ScenarioDoc,
     chapter_id: r.chapter_id ?? null,
+    status: r.status,
+    source: r.source,
+    sort_order: r.sort_order,
   };
 }
 
@@ -76,6 +88,9 @@ export interface BrowserScenario {
   title: string;
   doc: ScenarioDoc;
   chapter_id: string | null;
+  status?: "active" | "archived";
+  source?: "authored" | "imported";
+  sort_order?: number | null;
 }
 
 export interface BrowserChapter {
@@ -126,6 +141,9 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
     title: s.title,
     doc: s.doc,
     chapter_id: s.chapter_id,
+    status: s.status,
+    source: s.source,
+    sort_order: s.sort_order,
   }));
 
   // scenarios per chapter

@@ -87,6 +87,9 @@ export interface JeCard extends CardBase {
   /** Student used reveal-correct (V2): in PRACTICE the balance chip stays
    *  hidden until attempt+reveal — then it appears as feedback. Reset clears. */
   revealUsed?: boolean;
+  /** The JE↔scenario mapping: je_scenarios row this card was spawned from or
+   *  saved to (content reset). Re-saving a linked card offers update vs new. */
+  scenarioId?: string;
   accountBank?: string[]; // autocomplete pool (unioned with the COA)
   /** LEGACY (v≤2): reveal flag / labels column — ignored since v3 (amounts are
    *  always ???-until-valued; memos ride the lightbulbs). Kept for old scenes. */

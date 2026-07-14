@@ -11,10 +11,17 @@ export interface LibraryItem {
   kind: CardKind;
   label: string; // shown in the palette
   scenarioTitle: string;
+  /** je_scenarios row id — the JE↔scenario mapping (stamped on spawned cards). */
+  scenarioId: string;
   courseLabel: string;
   courseKey: string;
   chapterId: string | null;
   chapterLabel: string;
+  /** Content-reset lifecycle (0087). undefined = migration not applied — the
+   *  canvas fails loud on that instead of guessing. */
+  status?: "active" | "archived";
+  source?: "authored" | "imported";
+  sortOrder: number;
   make: () => CardData; // fresh copy per spawn
 }
 
@@ -51,7 +58,17 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
       for (const s of ch.scenarios) {
         const doc = s.doc;
         const bank = (doc.build?.accountBank ?? []).map((b) => b.account);
-        const base = { scenarioTitle: s.title, courseLabel, courseKey, chapterId: ch.id === "__unassigned__" ? null : ch.id, chapterLabel };
+        const base = {
+          scenarioTitle: s.title,
+          scenarioId: s.id,
+          courseLabel,
+          courseKey,
+          chapterId: ch.id === "__unassigned__" ? null : ch.id,
+          chapterLabel,
+          status: s.status,
+          source: s.source,
+          sortOrder: typeof s.sort_order === "number" ? s.sort_order : 9999,
+        };
 
         // Entries → JE cards
         for (const variant of doc.variants) {
@@ -64,7 +81,8 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
               label: caption,
               make: () => {
                 // prepared cards carry the ANSWER KEY too — reveal-correct + the
-                // flip Hint read solution; lines arrive solved (Lee hides via `h`)
+                // flip Hint read solution; lines arrive solved (Lee hides via `h`).
+                // scenarioId = the JE↔scenario mapping (re-save offers update).
                 const lines = jeLinesFrom(doc, entry);
                 return {
                   kind: "je",
@@ -73,6 +91,7 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
                   lines,
                   solution: jeLinesFrom(doc, entry),
                   accountBank: bank,
+                  scenarioId: s.id,
                 };
               },
             });
@@ -126,5 +145,13 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
       }
     }
   }
+  // AUTHORED ORDER: course → chapter → sort_order → label (0087 content reset)
+  items.sort(
+    (a, b) =>
+      a.courseLabel.localeCompare(b.courseLabel) ||
+      a.chapterLabel.localeCompare(b.chapterLabel) ||
+      a.sortOrder - b.sortOrder ||
+      a.label.localeCompare(b.label),
+  );
   return items;
 }
