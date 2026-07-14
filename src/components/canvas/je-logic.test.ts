@@ -19,6 +19,7 @@ import {
   placeLine,
   sideOf,
   swapLines,
+  memoKindOf,
   memoLeaderGeom,
   memoOf,
   upsertMemo,
@@ -436,5 +437,38 @@ describe("memo default pointer (J2/J3)", () => {
   test("re-target (J3) aims the leader at the TARGET row, not the memo's own", () => {
     const g = memoLeaderGeom({ boxX: 300, boxY: 0, boxW: 190, blockInd: 40, blockW: 280, rowIndex: 2, blockH: 36 });
     expect(g.by).toBe(2 * 36 + 18); // row 2 mid
+  });
+});
+
+describe("memos as objects — edit after creation (Phase 1)", () => {
+  const base: JeLine = { id: "l9", account: "Cash", dr: 100, cr: null, side: "dr" };
+
+  test("memoKindOf: explicit wins; else derived from structural kind", () => {
+    expect(memoKindOf({ id: "m", kind: "text", text: "x" })).toBe("note");
+    expect(memoKindOf({ id: "m", kind: "calc", text: "x" })).toBe("calc");
+    expect(memoKindOf({ id: "m", kind: "text", text: "x", memoKind: "trap" })).toBe("trap");
+  });
+
+  test("upsert then RE-EDIT preserves title/memoKind/category when body-only changes", () => {
+    let l: JeLine = { ...base, ...upsertMemo(base, "text", "watch this", { title: "Gotcha", memoKind: "trap", category: "exam" }) };
+    let m = memoOf(l, "text")!;
+    expect(m.title).toBe("Gotcha");
+    expect(m.memoKind).toBe("trap");
+    expect(m.category).toBe("exam");
+    // re-edit body only (extra omits the fields) → they survive
+    l = { ...l, ...upsertMemo(l, "text", "watch this closely") };
+    m = memoOf(l, "text")!;
+    expect(m.text).toBe("watch this closely");
+    expect(m.title).toBe("Gotcha");
+    expect(m.memoKind).toBe("trap");
+    expect(m.category).toBe("exam");
+  });
+
+  test("re-edit CAN change kind/category (extra overrides)", () => {
+    let l: JeLine = { ...base, ...upsertMemo(base, "text", "b", { memoKind: "note", category: "a" }) };
+    l = { ...l, ...upsertMemo(l, "text", "b", { memoKind: "cheat", category: "b" }) };
+    const m = memoOf(l, "text")!;
+    expect(m.memoKind).toBe("cheat");
+    expect(m.category).toBe("b");
   });
 });

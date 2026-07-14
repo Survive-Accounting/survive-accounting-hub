@@ -34,6 +34,7 @@ import {
   fmtJeDate,
   hasAttempt,
   insertLine,
+  memoKindOf,
   memoLeaderGeom,
   memoOf,
   memosOf,
@@ -47,7 +48,7 @@ import {
   type JePreset,
   type JeSide,
 } from "../je-logic";
-import { cardId, type JeCard, type JeLine, type JeMemo } from "../types";
+import { cardId, type JeCard, type JeLine, type JeMemo, type MemoKind } from "../types";
 
 const ENTRY_TYPES = ["standard", "adjusting", "closing"] as const;
 const BADGE: Record<(typeof ENTRY_TYPES)[number], string> = { standard: "JE", adjusting: "ADJ", closing: "CL" };
@@ -352,13 +353,20 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     if (!l || !m) return;
     patchLine(lid, patchMemo(l, kind, { open: !m.open, pos: m.pos ?? defaultMemoPos(i, kind) }));
   };
-  const saveMemo = (lid: string, kind: JeMemo["kind"], text: string) => {
+  /** Save a memo's full object (Phase 1: body + title + memoKind + category are
+   *  all editable after creation). A fresh memo pops open right of its block. */
+  const saveMemo = (lid: string, kind: JeMemo["kind"], payload: { text: string; title?: string; memoKind?: MemoKind; category?: string }) => {
     const i = lines.findIndex((l) => l.id === lid);
     const l = lines[i];
     if (!l) return;
     const hadIt = !!memoOf(l, kind);
-    // a fresh memo pops open right of its block, arrow attached
-    patchLine(lid, upsertMemo(l, kind, text, text && !hadIt ? { open: true, pos: defaultMemoPos(i, kind) } : undefined));
+    const extra: Partial<JeMemo> = {
+      title: payload.title?.trim() || undefined,
+      memoKind: payload.memoKind,
+      category: payload.category?.trim() || undefined,
+    };
+    if (payload.text && !hadIt) { extra.open = true; extra.pos = defaultMemoPos(i, kind); }
+    patchLine(lid, upsertMemo(l, kind, payload.text, extra));
   };
   const memoMoved = useRef(false); // suppress click-to-edit right after a drag
   const startMemoDrag = (e: React.PointerEvent, lid: string, kind: JeMemo["kind"], from: { x: number; y: number }) => {
@@ -627,8 +635,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               <CardPopover anchor={memoEdit.anchor} align="right" onClose={() => setMemoEdit(null)}>
                 <MemoPopover
                   kind={memoEdit.kind}
-                  value={memoOf(l, memoEdit.kind)?.text ?? ""}
-                  onSave={(v) => { saveMemo(l.id, memoEdit.kind, v); setMemoEdit(null); }}
+                  memo={memoOf(l, memoEdit.kind)}
+                  onSave={(payload) => { saveMemo(l.id, memoEdit.kind, payload); setMemoEdit(null); }}
                   onClose={() => setMemoEdit(null)}
                 />
               </CardPopover>
@@ -797,6 +805,16 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 setMemoEdit({ id: a.l.id, kind: a.m.kind, anchor: e.currentTarget as HTMLElement });
               }}
             >
+              {/* TITLE + semantic-kind chip (Phase 1) — the memo's name + its
+                  deck bucket (Note/Tip/Trap/Cheat/Calc), shown when set. */}
+              {(a.m.title || (a.m.memoKind && a.m.memoKind !== "note" && a.m.memoKind !== "calc")) && (
+                <span className="mb-0.5 flex items-center gap-1">
+                  {a.m.title && <span className="min-w-0 flex-1 truncate text-[10.5px] font-bold" style={{ color: "#F5D48F" }}>{a.m.title}</span>}
+                  <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: "rgba(252,163,17,0.9)", border: "1px solid rgba(252,163,17,0.4)" }}>
+                    {memoKindOf(a.m)}
+                  </span>
+                </span>
+              )}
               {a.m.kind === "calc" ? (
                 // CALC: tabular arithmetic, = signs aligned in a 2-col grid
                 <span className="grid grid-cols-[1fr_auto] gap-x-1 text-[10.5px] tabular-nums" style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>
@@ -1302,12 +1320,43 @@ function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid, openSeq, o
   );
 }
 
-function MemoPopover({ kind, value, onSave, onClose }: { kind: JeMemo["kind"]; value: string; onSave: (v: string) => void; onClose: () => void }) {
-  const [local, setLocal] = useState(value);
+/** The four semantic memoKinds an author can pick for a TEXT memo (a calc memo
+ *  is always memoKind 'calc'). Each feeds a memo deck later (Phase 3). */
+const MEMO_TEXT_KINDS: { key: MemoKind; label: string }[] = [
+  { key: "note", label: "Note" },
+  { key: "tip", label: "Tip" },
+  { key: "trap", label: "Trap" },
+  { key: "cheat", label: "Cheat" },
+];
+
+/** FULL MEMO EDITOR (Phase 1 — memos are objects, fully editable after creation):
+ *  title (name), semantic kind (note/tip/trap/cheat, or fixed calc), free category
+ *  tag, and body. Reopening an existing memo pre-fills every field. */
+function MemoPopover({
+  kind,
+  memo,
+  onSave,
+  onClose,
+}: {
+  kind: JeMemo["kind"];
+  memo: JeMemo | undefined;
+  onSave: (payload: { text: string; title?: string; memoKind?: MemoKind; category?: string }) => void;
+  onClose: () => void;
+}) {
   const calc = kind === "calc";
+  const [body, setBody] = useState(memo?.text ?? "");
+  const [title, setTitle] = useState(memo?.title ?? "");
+  const [category, setCategory] = useState(memo?.category ?? "");
+  const [mk, setMk] = useState<MemoKind>(memo ? memoKindOf(memo) : calc ? "calc" : "note");
+  const existed = !!memo;
+  const chip = (active: boolean): React.CSSProperties => ({
+    color: active ? "#8A5A00" : PAPER.inkMuted,
+    background: active ? "rgba(252,163,17,0.16)" : "transparent",
+    border: `1px solid ${active ? "rgba(138,90,0,0.5)" : PAPER.line}`,
+  });
   return (
     <div
-      className="nodrag w-56 rounded-lg p-2 shadow-xl"
+      className="nodrag w-60 rounded-lg p-2 shadow-xl"
       style={{ background: "#FFF9E8", border: "1px solid rgba(138,90,0,0.35)", boxShadow: "0 14px 30px -10px rgba(20,33,61,0.4)" }}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -1316,6 +1365,33 @@ function MemoPopover({ kind, value, onSave, onClose }: { kind: JeMemo["kind"]; v
         <span className="flex-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "#8A5A00" }}>{calc ? "Calc memo" : "Memo"}</span>
         <button style={{ color: PAPER.inkMuted }} onClick={onClose} title="Dismiss"><X className="h-3 w-3" /></button>
       </div>
+
+      {/* NAME (optional) */}
+      <input
+        className="mb-1 w-full rounded bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold outline-none"
+        style={{ color: PAPER.ink, border: `1px solid ${PAPER.line}` }}
+        value={title}
+        placeholder="Name (optional)"
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+
+      {/* SEMANTIC KIND — text memos pick note/tip/trap/cheat (calc is fixed) */}
+      {!calc && (
+        <div className="mb-1 flex flex-wrap gap-1">
+          {MEMO_TEXT_KINDS.map((k) => (
+            <button
+              key={k.key}
+              className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide"
+              style={chip(mk === k.key)}
+              onClick={() => setMk(k.key)}
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <textarea
         rows={calc ? 4 : 3}
         autoFocus
@@ -1326,18 +1402,29 @@ function MemoPopover({ kind, value, onSave, onClose }: { kind: JeMemo["kind"]; v
           fontSize: calc ? 11 : 11.5,
           fontFamily: calc ? "ui-monospace, Menlo, Consolas, monospace" : undefined,
         }}
-        value={local}
+        value={body}
         placeholder={calc ? "500,000 × 8% × 6/12 = 20,000\n(one step per line — = signs align)" : "Why this line…"}
-        onChange={(e) => setLocal(e.target.value)}
+        onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
       />
-      <div className="mt-1 flex items-center">
-        {value && (
+
+      {/* CATEGORY (free tag — memo-deck filter) */}
+      <input
+        className="mt-1 w-full rounded bg-white/70 px-1.5 py-0.5 text-[10.5px] outline-none"
+        style={{ color: PAPER.ink, border: `1px solid ${PAPER.line}` }}
+        value={category}
+        placeholder="Category tag (optional)"
+        onChange={(e) => setCategory(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+
+      <div className="mt-1.5 flex items-center">
+        {existed && (
           <button
             className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
             style={{ color: PAPER.red, border: "1px solid rgba(194,24,50,0.35)" }}
             title={`Remove this ${calc ? "calc " : ""}memo`}
-            onClick={() => onSave("")}
+            onClick={() => onSave({ text: "" })}
           >
             remove
           </button>
@@ -1345,7 +1432,7 @@ function MemoPopover({ kind, value, onSave, onClose }: { kind: JeMemo["kind"]; v
         <button
           className="ml-auto rounded px-2 py-0.5 text-[10.5px] font-semibold"
           style={{ color: PAPER.navy, border: "1px solid rgba(20,33,61,0.35)" }}
-          onClick={() => onSave(local)}
+          onClick={() => onSave({ text: body, title, memoKind: calc ? "calc" : mk, category })}
         >
           save
         </button>

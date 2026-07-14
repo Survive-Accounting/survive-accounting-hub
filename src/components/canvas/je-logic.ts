@@ -1,7 +1,7 @@
 // Pure JE-card logic — side handling, line moves/swaps/hops, memos, settings
 // presets. Everything returns NEW arrays (absolute patches for the dispatcher);
 // nothing here touches React Flow. Unit-tested in je-logic.test.ts.
-import type { JeLine, JeMemo } from "./types";
+import type { JeLine, JeMemo, MemoKind } from "./types";
 
 export type JeSide = "dr" | "cr";
 export type JeEntryType = "standard" | "adjusting" | "closing";
@@ -187,12 +187,20 @@ export function textMemoOf(l: JeLine): string | undefined {
 export function upsertMemo(l: JeLine, kind: JeMemo["kind"], text: string, extra?: Partial<JeMemo>): Partial<JeLine> {
   const rest = memosOf(l).filter((m) => m.kind !== kind);
   const prev = memoOf(l, kind);
+  // spread prev FIRST so edit-after-creation keeps title/memoKind/category/point
+  // when the caller only changes some fields (Phase 1); text + extra then win.
   const memos = text.trim() === ""
     ? rest
-    : [...rest, { id: prev?.id ?? `${l.id}-m-${kind}`, kind, text, pos: prev?.pos, open: prev?.open, ...extra }];
+    : [...rest, { ...(prev ?? {}), id: prev?.id ?? `${l.id}-m-${kind}`, kind, text, pos: prev?.pos, open: prev?.open, ...extra }];
   const patch: Partial<JeLine> = { memos };
   if (kind === "text") patch.label = text.trim() === "" ? undefined : text;
   return patch;
+}
+
+/** The memo's semantic role (memos-as-objects, Phase 1): explicit memoKind, else
+ *  derived from its structural kind (calc→'calc', text→'note'). */
+export function memoKindOf(m: JeMemo): MemoKind {
+  return m.memoKind ?? (m.kind === "calc" ? "calc" : "note");
 }
 
 /** Patch ONE memo's fields (pos/open) without touching its siblings. */

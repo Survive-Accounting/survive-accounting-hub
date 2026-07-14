@@ -95,10 +95,24 @@ export interface CardBase {
  *  CALC (calculator, tabular arithmetic like "500,000 × 8% × 6/12 = 20,000",
  *  multi-line, = aligned, mono). A line carries AT MOST ONE of each kind.
  *  Roadmap: calc memos will later draw from problem text (Solve-It). */
+/** MEMO SEMANTICS (memos-as-objects, Phase 1): the teaching ROLE of a memo,
+ *  used for memo-deck filtering (Cheat Codes / Exam Traps / Calculations / Tips)
+ *  and its box accent. Distinct from the STRUCTURAL `kind` (text vs calc) that
+ *  drives rendering — a 'calc' memoKind is the only one that renders tabular. */
+export type MemoKind = "note" | "calc" | "trap" | "tip" | "cheat";
+
 export interface JeMemo {
   id: string;
   kind: "text" | "calc";
   text: string;
+  /** OPTIONAL NAME (Phase 1): a short title shown above the body; also the memo's
+   *  label in a memo deck. */
+  title?: string;
+  /** SEMANTIC ROLE (Phase 1): note|calc|trap|tip|cheat — memo-deck bucket + accent.
+   *  Absent (legacy) → derived from `kind` (calc→'calc', else 'note'). */
+  memoKind?: MemoKind;
+  /** FREE TAG (Phase 1): author's category for deck filtering. */
+  category?: string;
   /** Floating box offset in NODE space (rows-local) — travels with the cluster. */
   pos?: { x: number; y: number };
   /** Box shown (persisted so an arranged board reloads arranged). */

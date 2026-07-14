@@ -153,6 +153,38 @@ card-contrast pass (light parchment bodies, dark ink, colour reserved for
 meaning) is the high-contrast look student/mobile wants — build student mode ON
 the light card, don't restyle.
 
+## Memos-as-objects + named decks + skeleton grid (in progress)
+Memos are becoming FIRST-CLASS objects: `id`, `kind` (note|calc|trap|tip|cheat),
+optional `title`/name, `body`, free `category` tag, and one-or-more attachment
+targets via the connection-arrow mechanic. Fully editable after creation
+(reopen → change body/kind/category/rename). Shipped so far (Phase 1, part 1):
+the object FIELDS (title/memoKind/category) + a full memo editor + edit-after-
+creation, on JE-hosted memos. STILL TO DO on memos: standalone memos (not tied
+to a JE line — a memo addressable on its own, still visually tied to its target)
+and hosting on non-JE targets (List rows, T-accounts) — the clean way is to
+promote memos to their own "memo" node so they can live anywhere and be
+deck-collected.
+
+DECKS gain a `payload_type` ('cards' | 'memos') and become first-class NAMED
+objects (table `canvas_decks`: id, name, payload_type, filter, run_mode
+sequence|shuffle, lesson_id nullable, slots_json, timestamps) — reusable across
+scenes; the old unnamed deck stays as default loose staging. A CARD deck is the
+existing behavior, named+saved. A MEMO deck collects memo objects; dealing a
+memo HIGHLIGHTS it (enlarged) over its DIMMED host card. Named memo decks —
+"Cheat Codes", "Exam Traps", "Calculations", "Tips & Tricks" — a memo joins by
+memoKind/category or manually. These feed a lesson's Check ("recap the cheat
+codes → run the CEQs → see them in action") and the Course Wrap-up.
+
+SKELETON GRID: a deck can be assigned a GRID of fixed canvas slots; undealt
+items render as a ghosted, on-brand, KIND-shaped skeleton (faint JE silhouette,
+faint CEQ shape, faint memo shape) — a student preview + Lee's filming
+teleprompter. Deal (space/click) fills the next slot in deck order; RESET
+re-skeletons; SHUFFLE (run_mode=shuffle) randomizes which item fills which slot
+on reset; per-deck "show skeletons" toggle, default ON. Deal-to-locked-position
+and skeleton-preview are ONE feature. A deck attached to a lesson lays its grid
+in that lesson's Check region by default (a lesson's Check = a named deck).
+Deferred: layout modes beyond grid (a grid-all memorization view).
+
 ## Campus-color region theming (World v1 skin)
 Lessons now alternate two BRAND tints (warm / navy) so consecutive path
 segments read distinctly, and a CHECK lesson wears a red gate tint ("this is
