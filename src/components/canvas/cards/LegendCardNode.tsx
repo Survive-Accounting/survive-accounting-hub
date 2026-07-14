@@ -9,7 +9,6 @@ import { Copy, ImagePlus, Lock, LockOpen, Minus, Plus, Trash2, X } from "lucide-
 import { useCardActions } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
 import { EditableText } from "../ui";
-import { NEON } from "../theme";
 import { uploadImageFile } from "./ImageCardNode";
 import type { LegendCard } from "../types";
 

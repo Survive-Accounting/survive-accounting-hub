@@ -13,7 +13,7 @@ import { GripHorizontal, Lock, LockOpen, Trash2 } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
-import { NEON, NOTE_COLORS } from "../theme";
+import { NOTE_COLORS } from "../theme";
 import { uploadImageFile } from "./ImageCardNode";
 import type { NoteCard } from "../types";
 
