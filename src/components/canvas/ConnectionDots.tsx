@@ -4,6 +4,7 @@
 // another node's dot (React Flow lights up valid targets). ConnectionMode is
 // LOOSE, so every dot both starts and receives. Replaces the old Ctrl+click
 // arrow gesture entirely.
+import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 
 const SPOTS = [
@@ -13,7 +14,10 @@ const SPOTS = [
   ["r", Position.Right],
 ] as const;
 
-export function ConnectionDots({ color = "#4FA3E3" }: { color?: string }) {
+// memo (hardening run): output depends ONLY on `color` (stable per card), but
+// it's rendered inside every card and re-runs on every card re-render. Shallow
+// prop compare skips the 4-Handle re-render — pure, zero behavior change.
+export const ConnectionDots = memo(function ConnectionDots({ color = "#4FA3E3" }: { color?: string }) {
   return (
     <>
       {SPOTS.map(([hid, pos]) => (
@@ -28,7 +32,7 @@ export function ConnectionDots({ color = "#4FA3E3" }: { color?: string }) {
       ))}
     </>
   );
-}
+});
 
 /** Injected once by the canvas route: dots are invisible until useful. */
 export const CONNECTION_DOTS_CSS = `
