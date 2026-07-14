@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, X } from "lucide-react";
 
 import { addCourseAccount, createAccount, listCoa, listCourseAccounts, removeCourseAccount, type CoaRowOut } from "@/lib/canvas.functions";
+import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { NEON } from "./theme";
 
 const ACCOUNT_TYPES = [
@@ -29,11 +30,12 @@ export function ManageAccountsDialog({ courseId, courseName, onClose }: {
 
   // networkMode "always": default "online" mode pauses retries when the browser
   // (wrongly) reports offline, hanging the query pending and muting fail-loud.
-  const master = useQuery({ queryKey: ["coa-master"], queryFn: () => listCoa(), staleTime: 600_000, networkMode: "always" });
+  const master = useQuery({ queryKey: ["coa-master"], queryFn: () => listCoa(), staleTime: 600_000, networkMode: "always", retry: retryUnlessMigrationHint });
   const setQuery = useQuery({
     queryKey: ["course-coa", courseId],
     queryFn: () => listCourseAccounts({ data: { course_id: courseId } }),
     networkMode: "always",
+    retry: retryUnlessMigrationHint,
   });
   const inSet = useMemo(() => new Set((setQuery.data ?? []).map((r) => r.id)), [setQuery.data]);
 

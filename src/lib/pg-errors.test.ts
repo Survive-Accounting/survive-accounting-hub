@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { isMissingSchema } from "./pg-errors";
+import { isMigrationHint, isMissingSchema, retryUnlessMigrationHint } from "./pg-errors";
 
 // Real shapes observed against the live project (2026-07-13): a SELECT on a
 // missing TABLE returns PGRST205, a SELECT of a missing COLUMN returns raw
@@ -56,5 +56,20 @@ describe("isMissingSchema", () => {
         /canvas_folders|folder_id/i,
       ),
     ).toBe(false);
+  });
+});
+
+describe("retryUnlessMigrationHint", () => {
+  const hint = new Error("scene folders missing — run migration/supabase-migrations/0088_scene_folders.sql in the Supabase SQL editor");
+
+  it("never retries a migration hint (deterministic failure; retry pause would delay the banner)", () => {
+    expect(isMigrationHint(hint)).toBe(true);
+    expect(retryUnlessMigrationHint(0, hint)).toBe(false);
+  });
+
+  it("retries other errors exactly once", () => {
+    const flaky = new Error("fetch failed");
+    expect(retryUnlessMigrationHint(0, flaky)).toBe(true);
+    expect(retryUnlessMigrationHint(1, flaky)).toBe(false);
   });
 });

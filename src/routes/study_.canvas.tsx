@@ -30,6 +30,7 @@ import { ChevronDown, ChevronRight, Download, Film, Frame, Grid3x3, Home, Layers
 
 import { fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { NEON } from "@/components/canvas/theme";
 import { blankCard } from "@/components/canvas/templates";
@@ -509,7 +510,7 @@ function PresentCanvas() {
   // thinks it's offline (embedded panes latch this spuriously), leaving the
   // query pending forever — the fail-loud banner never fires. "always" lets a
   // real network failure reject, which IS the loud path we want.
-  const foldersQuery = useQuery({ queryKey: ["canvas-folders"], queryFn: () => listFolders(), retry: 1, staleTime: 60_000, networkMode: "always" });
+  const foldersQuery = useQuery({ queryKey: ["canvas-folders"], queryFn: () => listFolders(), retry: retryUnlessMigrationHint, staleTime: 60_000, networkMode: "always" });
   const folders = foldersQuery.data;
   const [foldersError, setFoldersError] = useState<string | null>(null);
   useEffect(() => {
@@ -561,7 +562,7 @@ function PresentCanvas() {
     queryFn: () => listCourseAccounts({ data: { course_id: sceneCourseId! } }),
     enabled: !!sceneCourseId,
     staleTime: 60_000,
-    retry: 1,
+    retry: retryUnlessMigrationHint,
     networkMode: "always",
   });
   const coaGroups = useMemo(() => groupCoa(sceneCourseId ? (courseCoaQuery.data ?? []) : []), [sceneCourseId, courseCoaQuery.data]);
