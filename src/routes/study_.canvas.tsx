@@ -504,7 +504,12 @@ function PresentCanvas() {
 
   // SCENE FOLDERS (0088) — course groups in the Load dialog
   const qc = useQueryClient();
-  const foldersQuery = useQuery({ queryKey: ["canvas-folders"], queryFn: () => listFolders(), retry: 1, staleTime: 60_000 });
+  // networkMode "always" everywhere here: these hit our own server fns. The
+  // default "online" mode PAUSES a failed query's retry whenever the browser
+  // thinks it's offline (embedded panes latch this spuriously), leaving the
+  // query pending forever — the fail-loud banner never fires. "always" lets a
+  // real network failure reject, which IS the loud path we want.
+  const foldersQuery = useQuery({ queryKey: ["canvas-folders"], queryFn: () => listFolders(), retry: 1, staleTime: 60_000, networkMode: "always" });
   const folders = foldersQuery.data;
   const [foldersError, setFoldersError] = useState<string | null>(null);
   useEffect(() => {
@@ -536,7 +541,7 @@ function PresentCanvas() {
   );
 
   // Scenario library for the palette (same query key as /study — shared cache).
-  const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1 });
+  const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1, networkMode: "always" });
   const library = useMemo(() => (treeQuery.data ? buildLibrary(treeQuery.data) : []), [treeQuery.data]);
   // FAIL LOUD until 0087 is applied: rows come back without lifecycle flags.
   const contentResetMissing = useMemo(() => library.length > 0 && library.every((i) => i.status === undefined), [library]);
@@ -545,7 +550,7 @@ function PresentCanvas() {
   const [sceneCourseId, setSceneCourseId] = useState<string | null>(null);
   const [sceneChapterId, setSceneChapterId] = useState<string | null>(null);
   const [manageAccountsOpen, setManageAccountsOpen] = useState(false);
-  const coursesQuery = useQuery({ queryKey: ["course-options"], queryFn: fetchCourseOptions, staleTime: 600_000, retry: 1 });
+  const coursesQuery = useQuery({ queryKey: ["course-options"], queryFn: fetchCourseOptions, staleTime: 600_000, retry: 1, networkMode: "always" });
   const sceneCourse = (coursesQuery.data ?? []).find((c) => c.id === sceneCourseId) ?? null;
 
   // COURSE COA SET (0087): the JE picker shows ONLY the scene-course's curated
@@ -557,6 +562,7 @@ function PresentCanvas() {
     enabled: !!sceneCourseId,
     staleTime: 60_000,
     retry: 1,
+    networkMode: "always",
   });
   const coaGroups = useMemo(() => groupCoa(sceneCourseId ? (courseCoaQuery.data ?? []) : []), [sceneCourseId, courseCoaQuery.data]);
   const coaNames = useMemo(() => (sceneCourseId ? (courseCoaQuery.data ?? []) : []).map((r) => r.canonical_name), [sceneCourseId, courseCoaQuery.data]);

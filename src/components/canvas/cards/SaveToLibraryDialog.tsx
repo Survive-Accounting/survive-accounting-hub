@@ -22,7 +22,7 @@ export function SaveToLibraryDialog({ card, defaultCourseId, defaultChapterId, o
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const coursesQuery = useQuery({ queryKey: ["course-options"], queryFn: fetchCourseOptions, staleTime: 600_000 });
+  const coursesQuery = useQuery({ queryKey: ["course-options"], queryFn: fetchCourseOptions, staleTime: 600_000, networkMode: "always" });
   const [courseId, setCourseId] = useState<string>(defaultCourseId ?? "");
   const [chapterId, setChapterId] = useState<string>(defaultChapterId ?? "");
   const [sortOrder, setSortOrder] = useState<number | "">("");

@@ -27,10 +27,13 @@ export function ManageAccountsDialog({ courseId, courseName, onClose }: {
   const [newNormal, setNewNormal] = useState<"debit" | "credit">("debit");
   const [err, setErr] = useState<string | null>(null);
 
-  const master = useQuery({ queryKey: ["coa-master"], queryFn: () => listCoa(), staleTime: 600_000 });
+  // networkMode "always": default "online" mode pauses retries when the browser
+  // (wrongly) reports offline, hanging the query pending and muting fail-loud.
+  const master = useQuery({ queryKey: ["coa-master"], queryFn: () => listCoa(), staleTime: 600_000, networkMode: "always" });
   const setQuery = useQuery({
     queryKey: ["course-coa", courseId],
     queryFn: () => listCourseAccounts({ data: { course_id: courseId } }),
+    networkMode: "always",
   });
   const inSet = useMemo(() => new Set((setQuery.data ?? []).map((r) => r.id)), [setQuery.data]);
 
