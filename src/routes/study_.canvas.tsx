@@ -19,6 +19,7 @@ import {
   useReactFlow,
   useStore,
   useStoreApi,
+  useUpdateNodeInternals,
   type Connection,
   type NodeProps,
   type Viewport,
@@ -58,6 +59,7 @@ import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
 import { lessonIdOf, nextTuckedCross } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
+import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { addEdgeCmd, lineIdOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
@@ -572,6 +574,7 @@ function GroupChromeBar() {
 
 function PresentCanvas() {
   const rf = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   // UNCONTROLLED React Flow (defaultNodes + store mutations via rf.*): cards edit their own
   // node data with rf.updateNodeData — a controlled useState copy would race those writes
   // and clobber edits (observed: JE amounts lost). useNodes() subscribes where the shell
@@ -1153,6 +1156,25 @@ function PresentCanvas() {
     [spawn],
   );
 
+  /** "D" — duplicate the single selected card, landing directly UNDERNEATH it
+   *  (the same clone-below rule the JE Copy button uses). Bus command, so one
+   *  Ctrl+Z removes the copy. No-op unless exactly one non-container card is
+   *  selected (a group is the GroupChromeBar's clone job, not this). */
+  const duplicateSelected = useCallback(() => {
+    const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
+    if (sel.length !== 1) return;
+    const node = sel[0];
+    const kind = (node.data as unknown as CardBase).kind ?? "card";
+    const below = { x: node.position.x, y: node.position.y + (node.measured?.height ?? 180) + 24 };
+    bus.dispatch(
+      addNodesCmd(
+        rf as unknown as RfLike,
+        [{ ...node, id: cardId(kind), selected: false, parentId: node.parentId, position: below, data: structuredClone(node.data) }],
+        "duplicate card",
+      ),
+    );
+  }, [rf]);
+
   // ---- PASTE ROUTER (cross-tab copy/paste) ----------------------------------
   // 1. our card JSON (marker __saCanvasCards) → spawn with FRESH ids at cursor
   // 2. image file → image card uploading in place
@@ -1406,6 +1428,32 @@ function PresentCanvas() {
       : { x: 0, y: 0 };
     const draggedIds = new Set(start?.keys() ?? []);
     draggedIds.add(node.id);
+    // SINGLE-SELECT INVARIANT (#1): a GROUP move happens ONLY with an explicit
+    // multi-selection (≥2 cards selected, the grabbed one among them). React
+    // Flow's drag set is `selected ∪ grabbed`, so a stray still-selected card
+    // would otherwise ride along when you drag a lone card. When it's not a
+    // genuine group drag, move ONLY the primary and snap any card XYDrag
+    // already nudged back to its drag-start spot. (rule: intendedDragIds)
+    const selectedCardIds = nds.filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
+    const isGroupDrag = isExplicitGroupDrag(selectedCardIds, node.id);
+    if (!isGroupDrag && draggedIds.size > 1) {
+      const restores: { id: string; position: { x: number; y: number }; parentId?: string }[] = [];
+      for (const nid of draggedIds) {
+        if (nid === node.id) continue;
+        const s = start?.get(nid);
+        if (s) restores.push({ id: nid, position: { ...s.position }, parentId: s.parentId });
+      }
+      if (restores.length) {
+        rf.setNodes((cur) =>
+          cur.map((n) => {
+            const r = restores.find((x) => x.id === n.id);
+            return r ? { ...n, position: { ...r.position }, parentId: r.parentId } : n;
+          }),
+        );
+      }
+      draggedIds.clear();
+      draggedIds.add(node.id);
+    }
     const decisions = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
     for (const nid of draggedIds) {
       const cur = nid === node.id ? node : rf.getNode(nid);
@@ -1434,7 +1482,16 @@ function PresentCanvas() {
     const settled = new Map(decisions);
     if (!settled.has(node.id)) settled.set(node.id, { position: { ...node.position }, parentId: node.parentId });
     commitDrag(settled);
-  }, [rf, commitDrag, guideMatches]);
+    // ARROWS STAY ATTACHED (#2): after a move — especially a reparent, which
+    // changes a node's coordinate space — React Flow can hold stale handle
+    // bounds, so a line-anchored (ln:<lineId>) edge renders to the old spot and
+    // looks detached. Re-measuring the dragged nodes' internals re-pins every
+    // edge to its live handle. Runs next frame so the setNodes writes above land
+    // first.
+    requestAnimationFrame(() => {
+      for (const nid of draggedIds) updateNodeInternals(nid);
+    });
+  }, [rf, commitDrag, guideMatches, updateNodeInternals]);
 
   // ---- scenes (JSON blobs cross the server-fn boundary as strings) ----
   const serialize = useCallback(() => {
@@ -2069,6 +2126,7 @@ function PresentCanvas() {
       { combo: "n", group: "Quick-spawn", description: "Note at cursor", handler: () => quickSpawn("note") },
       { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("ceq"); } },
       { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("list"); } },
+      { combo: "d", group: "Cards", description: "Duplicate the selected card (lands underneath)", handler: () => duplicateSelected() },
       {
         combo: "arrowleft",
         group: "JE lines",
@@ -2087,7 +2145,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow],
   );
   useKeymap(bindings);
 

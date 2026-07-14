@@ -96,6 +96,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [memoEdit, setMemoEdit] = useState<{ id: string; kind: JeMemo["kind"]; anchor: HTMLElement } | null>(null);
   const [pickerFor, setPickerFor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
+  const [dateAnchor, setDateAnchor] = useState<HTMLElement | null>(null); // hover date picker (#7)
   const [descMenu, setDescMenu] = useState<HTMLElement | null>(null); // scenario picker (A12)
   const [titleEditing, setTitleEditing] = useState(false); // free-text description
   const [saveToLibOpen, setSaveToLibOpen] = useState(false); // author from canvas
@@ -439,7 +440,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               )}
             </button>
             {pickerFor?.id === l.id && S.showPicker && (
-              <CardPopover anchor={pickerFor.anchor} onClose={() => setPickerFor(null)}>
+              <CardPopover anchor={pickerFor.anchor} side="left" onClose={() => setPickerFor(null)}>
                 <CoaPicker
                   groups={ctx.coa}
                   showChips={S.showNormalChips}
@@ -679,7 +680,12 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       className="group/cluster animate-in fade-in zoom-in-95 relative rounded-2xl duration-150"
       style={{
         width: ctx.jeCardWidth,
-        padding: 4,
+        // RING PADDING (JE fixes #8): content-box keeps the tetris at its
+        // design width while this gutter pushes the node's selection outline +
+        // ambient sheen well clear of the description / accounts / amounts, so
+        // nothing touches the border. Uniform, so selecting never reflows.
+        boxSizing: "content-box",
+        padding: 12,
         // SELECTION SHEEN: a soft platinum ambient glow behind the whole
         // cluster — silhouette-agnostic (diffuse, no hard rectangle), calm
         // when deselected. The silhouette edges also go silver (see edgeColor).
@@ -811,7 +817,22 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         <>
           {/* description (no box) — drags the cluster. A JE badge would be noise:
               the badge renders ONLY for the special types (ADJ / CL). */}
-          <div className="mb-2 flex items-start gap-1.5">
+          <div className="group/desc mb-2 flex items-start gap-1.5">
+            {/* DATE ICON (#7): dates are occasional, so the calendar hides to
+                the LEFT of the description and reveals on hover; it stays lit
+                while a date is set (so you can change/remove it). Click opens
+                the picker → sets the "Mon D ·" prefix rendered below. */}
+            {!locked && (
+              <button
+                className={`nodrag mt-1 grid h-4 w-4 shrink-0 place-items-center rounded transition-opacity hover:!opacity-100 ${d.date ? "opacity-80" : "opacity-0 group-hover/desc:opacity-60"}`}
+                style={{ color: d.date ? NEON.yellow : NEON.muted }}
+                title={d.date ? "Change or remove the date" : "Add a date"}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setDateAnchor(dateAnchor ? null : e.currentTarget); }}
+              >
+                <CalendarDays className="h-3 w-3" />
+              </button>
+            )}
             {entryType !== "standard" && (
               <span
                 className="mt-0.5 shrink-0 rounded px-1 text-[9px] font-black tracking-wider"
@@ -845,7 +866,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             />
           </div>
           {descMenu && (
-            <CardPopover anchor={descMenu} onClose={() => setDescMenu(null)}>
+            <CardPopover anchor={descMenu} side="left" onClose={() => setDescMenu(null)}>
               <JeScenarioPicker
                 items={ctx.jeLibrary}
                 courseId={ctx.courseId}
@@ -855,6 +876,11 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 onCustom={() => { setDescMenu(null); setTitleEditing(true); }}
                 onClose={() => setDescMenu(null)}
               />
+            </CardPopover>
+          )}
+          {dateAnchor && (
+            <CardPopover anchor={dateAnchor} side="left" onClose={() => setDateAnchor(null)}>
+              <DatePopover date={d.date} onDate={(v) => update({ date: v })} onClose={() => setDateAnchor(null)} />
             </CardPopover>
           )}
 
@@ -1129,6 +1155,44 @@ function MemoPopover({ kind, value, onSave, onClose }: { kind: JeMemo["kind"]; v
           save
         </button>
       </div>
+    </div>
+  );
+}
+
+/** DATE picker popover (#7) — the hover calendar's dropdown. Native date input
+ *  + a remove button; setting a value stamps the "Mon D ·" prefix on the entry.
+ *  The gear still carries a date field too — this is the quick, in-place path. */
+function DatePopover({ date, onDate, onClose }: { date: string | undefined; onDate: (v: string | undefined) => void; onClose: () => void }) {
+  return (
+    <div
+      className="nodrag w-48 rounded-lg p-2 shadow-xl"
+      style={{ background: "#FFFFFF", border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 16px 40px -12px rgba(20,33,61,0.45)" }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="mb-1 flex items-center gap-1">
+        <CalendarDays className="h-3 w-3" style={{ color: PAPER.inkMuted }} />
+        <span className="flex-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: PAPER.inkMuted }}>Entry date</span>
+        <button style={{ color: PAPER.inkMuted }} onClick={onClose} title="Close"><X className="h-3 w-3" /></button>
+      </div>
+      <input
+        type="date"
+        autoFocus
+        value={date ?? ""}
+        className="w-full rounded px-1.5 py-1 text-[11px] outline-none"
+        style={{ color: date ? PAPER.ink : PAPER.inkMuted, border: "1px solid rgba(20,33,61,0.35)", background: "transparent" }}
+        onChange={(e) => onDate(e.target.value || undefined)}
+        onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
+      />
+      {date && (
+        <button
+          className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
+          style={{ color: PAPER.red, border: "1px solid rgba(194,24,50,0.4)", background: "rgba(194,24,50,0.05)" }}
+          title="Remove the date"
+          onClick={() => { onDate(undefined); onClose(); }}
+        >
+          remove date
+        </button>
+      )}
     </div>
   );
 }

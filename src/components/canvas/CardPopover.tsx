@@ -14,25 +14,46 @@ export function CardPopover({
   children,
   align = "left",
   offsetY = 4,
+  side = "below",
 }: {
   /** The element the popover hangs under (a chip, a gear button…). */
   anchor: HTMLElement;
   onClose: () => void;
   children: React.ReactNode;
-  /** Horizontal alignment against the anchor. */
+  /** Horizontal alignment against the anchor (only used when side="below"). */
   align?: "left" | "right";
   offsetY?: number;
+  /** Placement relative to the anchor's JE cluster. "below" (default) hangs
+   *  under the anchor; "left" floats to the LEFT of the whole cluster so it
+   *  never covers the entry being built (JE account + scenario pickers). Both
+   *  are edge-aware: "left" flips to the cluster's right near the left edge,
+   *  "below" flips above near the bottom. */
+  side?: "below" | "left";
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
-  // Position under the anchor, clamped into the viewport once we know our size.
+  // Position relative to the anchor, clamped into the viewport once we know
+  // our size. side="left" anchors off the JE cluster's LEFT edge, not the
+  // little button, so the popover clears the whole entry.
   useLayoutEffect(() => {
     const place = () => {
       const a = anchor.getBoundingClientRect();
       const box = boxRef.current?.getBoundingClientRect();
       const w = box?.width ?? 260;
       const h = box?.height ?? 200;
+      const GAP = 8;
+      if (side === "left") {
+        // reference the enclosing node cluster so we clear the whole entry
+        const cluster = (anchor.closest(".react-flow__node") as HTMLElement | null) ?? anchor;
+        const c = cluster.getBoundingClientRect();
+        let left = c.left - w - GAP; // to the LEFT of the cluster
+        if (left < 8) left = c.right + GAP; // edge-aware: flip to the cluster's right
+        left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+        const top = Math.max(8, Math.min(a.top, window.innerHeight - h - 8)); // align with the clicked row
+        setPos({ left, top });
+        return;
+      }
       let left = align === "left" ? a.left : a.right - w;
       let top = a.bottom + offsetY;
       left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
@@ -43,7 +64,7 @@ export function CardPopover({
     // re-place once after first paint so clamping uses the real size
     const t = setTimeout(place, 0);
     return () => clearTimeout(t);
-  }, [anchor, align, offsetY]);
+  }, [anchor, align, offsetY, side]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
