@@ -480,6 +480,96 @@ interface TabEntry {
 // ---------------------------------------------------------------------------
 const LS_KEY = "sa-canvas-fallback-scene";
 
+// GROUP CHROME (PROMPT B), isolated (hardening run): a floating action bar
+// above a 2+ card selection. Its OWN component so the transform + nodes
+// subscriptions it needs to track pan/zoom + drags live HERE — not on the
+// 2500-line route, which previously re-rendered on every pan/zoom frame just
+// to reposition this bar. Behavior identical; only the render scope shrank.
+function GroupChromeBar() {
+  const rf = useReactFlow();
+  const nodes = useNodes();
+  useStore((s) => s.transform); // re-render the BAR (not the route) on pan/zoom
+  const selectedCards = nodes.filter((n) => n.selected && !isContainerType(n.type) && !(n.data as unknown as CardBase).tucked);
+  if (selectedCards.length < 2) return null;
+
+  const nds = rf.getNodes();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity;
+  for (const n of selectedCards) {
+    const p = n.parentId ? nds.find((x) => x.id === n.parentId) : null;
+    const ax = (p?.position.x ?? 0) + n.position.x;
+    const ay = (p?.position.y ?? 0) + n.position.y;
+    minX = Math.min(minX, ax); minY = Math.min(minY, ay);
+    maxX = Math.max(maxX, ax + (n.measured?.width ?? 280));
+  }
+  const pos = rf.flowToScreenPosition({ x: (minX + maxX) / 2, y: minY });
+
+  const cloneAll = () => {
+    const cur = rf.getNodes();
+    const sel = cur.filter((n) => n.selected && !isContainerType(n.type));
+    if (sel.length < 2) return;
+    const absOf = (n: CardNode) => {
+      const p = n.parentId ? cur.find((x) => x.id === n.parentId) : null;
+      return { x: (p?.position.x ?? 0) + n.position.x, y: (p?.position.y ?? 0) + n.position.y };
+    };
+    let maxY = -Infinity, top = Infinity;
+    for (const n of sel) { maxY = Math.max(maxY, absOf(n as CardNode).y + (n.measured?.height ?? 170)); top = Math.min(top, absOf(n as CardNode).y); }
+    const dy = maxY - top + 48;
+    const clones = sel.map((n) => {
+      const abs = absOf(n as CardNode);
+      const data = structuredClone(n.data) as Record<string, unknown>;
+      delete data.deckMember; delete data.tucked; delete data.stageOrder; delete data.deckPos; delete data.deckCategory; delete data.faceDown;
+      return { ...n, id: cardId((data.kind as string) ?? "card"), selected: false, parentId: undefined, position: { x: abs.x, y: abs.y + dy }, data };
+    });
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, clones, "clone group"));
+  };
+  const deleteAll = () => {
+    const ids = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
+    if (ids.length < 2) return;
+    if (ids.length > 3 && !window.confirm(`Delete ${ids.length} selected cards? (Ctrl+Z restores)`)) return;
+    const c = removeNodesCmd(rf as unknown as RfLike, ids, "delete group");
+    if (c) bus.dispatch(c);
+  };
+  const deckAll = () => {
+    const cur = rf.getNodes();
+    const sel = cur.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+    if (sel.length === 0) return;
+    const base = nextStageOrder(cur);
+    const cmds = sel.map((n, i) => {
+      const kind = (n.data as unknown as CardBase).kind;
+      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
+      return patchDataCmd(rf as unknown as RfLike, n.id, { deckMember: true, tucked: false, stageOrder: base + i, deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind, deckLessonId: deckLessonFor(rf, n.parentId) }, "add to deck");
+    });
+    const c = compositeCmd(cmds, "add group to deck");
+    if (c) bus.dispatch(c);
+  };
+  const tuckAll = () => {
+    const cur = rf.getNodes();
+    const sel = cur.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+    if (sel.length === 0) return;
+    const base = nextStageOrder(cur);
+    const cmds = sel.map((n, i) => {
+      const d = n.data as unknown as CardBase;
+      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
+      return patchDataCmd(rf as unknown as RfLike, n.id, { deckMember: true, tucked: true, stageOrder: d.deckMember ? d.stageOrder : base + i, deckPos: { x: n.position.x, y: n.position.y }, deckCategory: d.kind === "je" ? `je:${entryType ?? "standard"}` : d.kind, deckLessonId: d.deckMember ? (d.deckLessonId ?? deckLessonFor(rf, n.parentId)) : deckLessonFor(rf, n.parentId) }, "tuck into deck");
+    });
+    const c = compositeCmd(cmds, "tuck group into deck");
+    if (c) bus.dispatch(c);
+  };
+
+  return (
+    <div
+      className="absolute z-[45] flex items-center gap-1 rounded-lg px-1.5 py-1"
+      style={{ left: pos.x, top: pos.y - 12, transform: "translate(-50%, -100%)", background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 10px 28px -12px rgba(0,0,0,0.7)" }}
+    >
+      <span className="px-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>{selectedCards.length} cards</span>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Clone all — preserved layout, offset below (one undo step)" onClick={cloneAll}>clone</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }} title="Add all to the deck (one undo step)" onClick={deckAll}>deck</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }} title="Tuck all into the deck (one undo step)" onClick={tuckAll}>tuck</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }} title="Delete all (confirms past 3; one undo step)" onClick={deleteAll}>delete</button>
+    </div>
+  );
+}
+
 function PresentCanvas() {
   const rf = useReactFlow();
   // UNCONTROLLED React Flow (defaultNodes + store mutations via rf.*): cards edit their own
@@ -733,99 +823,10 @@ function PresentCanvas() {
     };
   }, []);
 
-  // ---- GROUP CHROME (PROMPT B): a floating action bar above a 2+ selection.
-  // Every action is ONE undoable bus command. Positions track pan/zoom (the
-  // transform subscription re-renders the bar) and drags (liveNodes).
-  const viewTransform = useStore((s) => s.transform);
-  void viewTransform; // subscription only — the bar reads positions per render
-  const selectedCards = liveNodes.filter((n) => n.selected && !isContainerType(n.type) && !(n.data as unknown as CardBase).tucked);
-  const groupBarPos = (() => {
-    if (selectedCards.length < 2) return null;
-    const nds = rf.getNodes();
-    let minX = Infinity, minY = Infinity, maxX = -Infinity;
-    for (const n of selectedCards) {
-      const p = n.parentId ? nds.find((x) => x.id === n.parentId) : null;
-      const ax = (p?.position.x ?? 0) + n.position.x;
-      const ay = (p?.position.y ?? 0) + n.position.y;
-      minX = Math.min(minX, ax);
-      minY = Math.min(minY, ay);
-      maxX = Math.max(maxX, ax + (n.measured?.width ?? 280));
-    }
-    return rf.flowToScreenPosition({ x: (minX + maxX) / 2, y: minY });
-  })();
+  // GROUP CHROME (PROMPT B) is now its own <GroupChromeBar/> component (see
+  // module scope) so its pan/zoom + node subscriptions don't re-render this
+  // whole route. Rendered below in the JSX, gated on `chrome`.
 
-  const groupCloneAll = useCallback(() => {
-    const nds = rf.getNodes();
-    const sel = nds.filter((n) => n.selected && !isContainerType(n.type));
-    if (sel.length < 2) return;
-    // preserved relative layout: clones land at ABSOLUTE spots, offset below
-    // the selection's bounding box; membership strips (clones arrive loose)
-    let maxY = -Infinity;
-    const absOf = (n: CardNode) => {
-      const p = n.parentId ? nds.find((x) => x.id === n.parentId) : null;
-      return { x: (p?.position.x ?? 0) + n.position.x, y: (p?.position.y ?? 0) + n.position.y };
-    };
-    for (const n of sel) maxY = Math.max(maxY, absOf(n as CardNode).y + (n.measured?.height ?? 170));
-    let minY = Infinity;
-    for (const n of sel) minY = Math.min(minY, absOf(n as CardNode).y);
-    const dy = maxY - minY + 48;
-    const clones = sel.map((n) => {
-      const abs = absOf(n as CardNode);
-      const data = structuredClone(n.data) as Record<string, unknown>;
-      delete data.deckMember; delete data.tucked; delete data.stageOrder; delete data.deckPos; delete data.deckCategory; delete data.faceDown;
-      return { ...n, id: cardId((data.kind as string) ?? "card"), selected: false, parentId: undefined, position: { x: abs.x, y: abs.y + dy }, data };
-    });
-    bus.dispatch(addNodesCmd(rf as unknown as RfLike, clones, "clone group"));
-  }, [rf]);
-
-  const groupDeleteAll = useCallback(() => {
-    const ids = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
-    if (ids.length < 2) return;
-    if (ids.length > 3 && !window.confirm(`Delete ${ids.length} selected cards? (Ctrl+Z restores)`)) return;
-    const c = removeNodesCmd(rf as unknown as RfLike, ids, "delete group");
-    if (c) bus.dispatch(c);
-  }, [rf]);
-
-  const groupDeckAll = useCallback(() => {
-    const nds = rf.getNodes();
-    const sel = nds.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
-    if (sel.length === 0) return;
-    const base = nextStageOrder(nds);
-    const cmds = sel.map((n, i) => {
-      const kind = (n.data as unknown as CardBase).kind;
-      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
-      return patchDataCmd(rf as unknown as RfLike, n.id, {
-        deckMember: true,
-        tucked: false,
-        stageOrder: base + i,
-        deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
-        deckLessonId: deckLessonFor(rf, n.parentId),
-      }, "add to deck");
-    });
-    const c = compositeCmd(cmds, "add group to deck");
-    if (c) bus.dispatch(c);
-  }, [rf]);
-
-  const groupTuckAll = useCallback(() => {
-    const nds = rf.getNodes();
-    const sel = nds.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
-    if (sel.length === 0) return;
-    const base = nextStageOrder(nds);
-    const cmds = sel.map((n, i) => {
-      const d = n.data as unknown as CardBase;
-      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
-      return patchDataCmd(rf as unknown as RfLike, n.id, {
-        deckMember: true,
-        tucked: true,
-        stageOrder: d.deckMember ? d.stageOrder : base + i,
-        deckPos: { x: n.position.x, y: n.position.y },
-        deckCategory: d.kind === "je" ? `je:${entryType ?? "standard"}` : d.kind,
-        deckLessonId: d.deckMember ? (d.deckLessonId ?? deckLessonFor(rf, n.parentId)) : deckLessonFor(rf, n.parentId),
-      }, "tuck into deck");
-    });
-    const c = compositeCmd(cmds, "tuck group into deck");
-    if (c) bus.dispatch(c);
-  }, [rf]);
   // while a connection drag is live, EVERY node's dots show (drop targets)
   const connecting = useStore((s) => !!s.connection.inProgress);
 
@@ -2237,56 +2238,9 @@ function PresentCanvas() {
       )}
       {!chrome && <BrandWatermark />}
 
-      {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection */}
-      {chrome && groupBarPos && (
-        <div
-          className="absolute z-[45] flex items-center gap-1 rounded-lg px-1.5 py-1"
-          style={{
-            left: groupBarPos.x,
-            top: groupBarPos.y - 12,
-            transform: "translate(-50%, -100%)",
-            background: NEON.panelSolid,
-            border: `1px solid ${NEON.border}`,
-            boxShadow: "0 10px 28px -12px rgba(0,0,0,0.7)",
-          }}
-        >
-          <span className="px-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>
-            {selectedCards.length} cards
-          </span>
-          <button
-            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-            style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
-            title="Clone all — preserved layout, offset below (one undo step)"
-            onClick={groupCloneAll}
-          >
-            clone
-          </button>
-          <button
-            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-            style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
-            title="Add all to the deck (one undo step)"
-            onClick={groupDeckAll}
-          >
-            deck
-          </button>
-          <button
-            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-            style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
-            title="Tuck all into the deck (one undo step)"
-            onClick={groupTuckAll}
-          >
-            tuck
-          </button>
-          <button
-            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-            style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }}
-            title="Delete all (confirms past 3; one undo step)"
-            onClick={groupDeleteAll}
-          >
-            delete
-          </button>
-        </div>
-      )}
+      {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection; owns its
+          own subscriptions so pan/zoom doesn't re-render the route */}
+      {chrome && <GroupChromeBar />}
 
       {/* The DECK — one holding system (hidden in clean/film mode; spacebar still deals) */}
       {chrome && (
