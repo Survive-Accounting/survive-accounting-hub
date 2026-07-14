@@ -488,9 +488,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
       <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
 
-      {/* chrome strip — hover/selection only, exactly 3 (A4): deck-toggle · clone · × */}
+      {/* ONE chrome grid (V2) — top-right, 2×3, hover/selection only:
+          [↗ deck | clone | ×] / [lock | gear | ? flip-help] */}
       <div
-        className={`card-actions absolute -top-7 right-1 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
+        className={`card-actions absolute -top-12 right-1 z-[2] grid grid-cols-3 gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || d.helpOpen || locked ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
         style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
       >
         {d.deckMember ? (
@@ -512,6 +513,28 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           <Copy className="h-3 w-3" />
         </button>
         <ChromeBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></ChromeBtn>
+        <button
+          title={locked ? "Unlock — allow drag + edits" : "Lock for review — no drag, no edits (the answer-key state)"}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); update({ reviewLock: !locked }); }}
+          className="nodrag grid h-5 w-5 place-items-center rounded"
+          style={{ color: locked ? NEON.yellow : NEON.muted }}
+        >
+          {locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+        </button>
+        <button
+          title={locked ? "Unlock to change settings" : "Card settings"}
+          disabled={locked}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); setGearAnchor(gearAnchor ? null : e.currentTarget); }}
+          className="nodrag grid h-5 w-5 place-items-center rounded disabled:opacity-30"
+          style={{ color: gearAnchor ? NEON.yellow : NEON.muted }}
+        >
+          <Settings2 className="h-3 w-3" />
+        </button>
+        <ChromeBtn title={d.helpOpen ? "Flip back to the entry" : "Stuck? Flip for help"} onClick={flipHelp}>
+          {d.helpOpen ? <Undo2 className="h-3 w-3" /> : <CircleHelp className="h-3 w-3" />}
+        </ChromeBtn>
       </div>
       {cloneMenu && (
         <CardPopover anchor={cloneMenu} align="right" onClose={() => setCloneMenu(null)}>
@@ -572,14 +595,17 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         />
       ) : (
         <>
-          {/* badge + floating description (no box) — drags the cluster */}
+          {/* description (no box) — drags the cluster. A JE badge would be noise:
+              the badge renders ONLY for the special types (ADJ / CL). */}
           <div className="mb-2 flex items-start gap-1.5">
-            <span
-              className="mt-0.5 shrink-0 rounded px-1 text-[9px] font-black tracking-wider"
-              style={{ color: NEON.pink, border: `1px solid rgba(224,40,74,0.55)`, fontFamily: JE_FONT }}
-            >
-              {BADGE[entryType]}
-            </span>
+            {entryType !== "standard" && (
+              <span
+                className="mt-0.5 shrink-0 rounded px-1 text-[9px] font-black tracking-wider"
+                style={{ color: NEON.pink, border: `1px solid rgba(224,40,74,0.55)`, fontFamily: JE_FONT }}
+              >
+                {BADGE[entryType]}
+              </span>
+            )}
             {locked && (
               <span className="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center" title="Locked for review">
                 <Lock className="h-3 w-3" style={{ color: NEON.yellow }} />
@@ -652,35 +678,6 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         </>
       )}
 
-      {/* bottom-right corner group (A4): lock · gear · "?" */}
-      <div
-        className={`card-actions absolute -bottom-6 right-1 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || d.helpOpen || locked ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}
-        style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
-      >
-        <button
-          title={locked ? "Unlock — allow drag + edits" : "Lock for review — no drag, no edits (the answer-key state)"}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); update({ reviewLock: !locked }); }}
-          className="nodrag grid h-5 w-5 place-items-center rounded"
-          style={{ color: locked ? NEON.yellow : NEON.muted }}
-        >
-          {locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
-        </button>
-        {!locked && (
-          <button
-            title="Card settings"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); setGearAnchor(gearAnchor ? null : e.currentTarget); }}
-            className="nodrag grid h-5 w-5 place-items-center rounded"
-            style={{ color: gearAnchor ? NEON.yellow : NEON.muted }}
-          >
-            <Settings2 className="h-3 w-3" />
-          </button>
-        )}
-        <ChromeBtn title={d.helpOpen ? "Flip back to the entry" : "Stuck? Flip for help"} onClick={flipHelp}>
-          {d.helpOpen ? <Undo2 className="h-3 w-3" /> : <CircleHelp className="h-3 w-3" />}
-        </ChromeBtn>
-      </div>
     </div>
   );
 }
