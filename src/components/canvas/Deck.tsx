@@ -157,7 +157,7 @@ export function Deck({
       <button
         onClick={() => setCollapsed(false)}
         title={`Deck (${members.length})`}
-        className="absolute right-3 top-3 z-40 overflow-hidden rounded-lg"
+        className="absolute right-3 top-14 z-40 overflow-hidden rounded-lg"
         style={{ border: `1px solid ${NEON.border}` }}
       >
         <CardBack small width={38} height={53} label={`${members.length}`} />
@@ -167,7 +167,7 @@ export function Deck({
 
   return (
     <aside
-      className="absolute right-3 top-3 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"
+      className="absolute right-3 top-14 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"
       style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => reorder(null)}

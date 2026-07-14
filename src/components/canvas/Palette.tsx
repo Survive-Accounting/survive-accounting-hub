@@ -167,7 +167,7 @@ export function Palette({
       <button
         onClick={onToggle}
         title="Open card palette"
-        className="absolute left-3 top-3 z-40 grid h-9 w-9 place-items-center rounded-lg"
+        className="absolute left-3 top-14 z-40 grid h-9 w-9 place-items-center rounded-lg"
         style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.pink, boxShadow: NEON.glow }}
       >
         <ChevronsRight className="h-4 w-4" />
@@ -177,7 +177,7 @@ export function Palette({
 
   return (
     <aside
-      className={`absolute left-3 top-3 z-40 flex w-72 flex-col rounded-xl ${libOpen ? "bottom-3" : ""}`}
+      className={`absolute left-3 top-14 z-40 flex w-72 flex-col rounded-xl ${libOpen ? "bottom-3" : ""}`}
       style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
     >
       <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>

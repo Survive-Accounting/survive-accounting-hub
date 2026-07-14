@@ -66,6 +66,7 @@ import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
+import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -1472,7 +1473,7 @@ function PresentCanvas() {
       {/* Type floor — prep warning, hidden while actually filming */}
       {lowZoom && !film && (
         <div
-          className="absolute bottom-12 left-1/2 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold"
+          className="absolute left-1/2 top-14 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold"
           style={{ background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.55)", color: NEON.yellow }}
         >
           zoom &lt; 75% — text may be illegible on camera
@@ -1539,6 +1540,10 @@ function PresentCanvas() {
         )}
       </ReactFlow>
 
+      {/* BRAND BAR (workspace chrome) — film/clean swap it for the watermark */}
+      {chrome && <BrandBar />}
+      {!chrome && <BrandWatermark />}
+
       {/* Palette — LIBRARY shows ACTIVE + AUTHORED only (content reset) */}
       {chrome && (
         <Palette
@@ -1567,7 +1572,7 @@ function PresentCanvas() {
       {/* Toolbar */}
       {chrome && (
         <div
-          className="absolute left-1/2 top-3 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-xl px-2.5 py-1.5"
+          className="absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-xl px-2.5 py-1.5"
           style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
         >
           <input
@@ -1593,7 +1598,7 @@ function PresentCanvas() {
             </TB>
             {bgOpen && (
               <div
-                className="absolute left-1/2 top-9 z-50 w-44 -translate-x-1/2 rounded-xl p-2"
+                className="absolute bottom-9 left-1/2 z-50 w-44 -translate-x-1/2 rounded-xl p-2"
                 style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}
               >
                 <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Background</div>
@@ -1632,7 +1637,7 @@ function PresentCanvas() {
             </TB>
             {settingsOpen && (
               <div
-                className="absolute left-1/2 top-9 z-50 w-52 -translate-x-1/2 rounded-xl p-2.5"
+                className="absolute bottom-9 left-1/2 z-50 max-h-[75vh] w-52 -translate-x-1/2 overflow-y-auto rounded-xl p-2.5"
                 style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}
               >
                 <label className="block text-[10px]" style={{ color: NEON.muted }}>
@@ -1741,12 +1746,7 @@ function PresentCanvas() {
         </div>
       )}
 
-      {/* hotkey hint — the full sheet lives on "?" */}
-      {chrome && (
-        <div className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full px-3 py-1 text-[10.5px]" style={{ background: "rgba(0,0,0,0.45)", color: NEON.muted }}>
-          space = reveal / deal next · s = stage · c = clean · v = film · b = camera · Ctrl+Z = undo · ? = all keys
-        </div>
-      )}
+      {/* the persistent hotkey strip is GONE — "?" owns the cheat sheet */}
 
       {/* "?" cheat sheet — rendered from the keymap registry */}
       {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
