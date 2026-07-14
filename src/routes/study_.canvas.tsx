@@ -1344,7 +1344,7 @@ function PresentCanvas() {
         description: "Tuck selected card(s) into the deck (joins if loose)",
         handler: () => {
           // elements never deck — the show is cards only
-          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as CardBase).kind));
+          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
           if (sel.length === 0) return;
           let order = nextStageOrder(rf.getNodes());
           const c = compositeCmd(
