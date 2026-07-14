@@ -199,7 +199,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const startMemoDrag = (e: React.PointerEvent, lid: string, from: { x: number; y: number }) => {
     if (locked) return;
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* capture is best-effort */ }
     memoMoved.current = false;
     setMemoDrag({ id: lid, startX: e.clientX, startY: e.clientY, from, pos: from });
   };
