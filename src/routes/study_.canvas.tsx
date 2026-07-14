@@ -517,6 +517,10 @@ function PresentCanvas() {
   const onConnect = useCallback(
     (c: Connection) => {
       if (!c.source || !c.target || c.source === c.target) return;
+      // this tree double-invokes RF callbacks (same quirk C1 saw on onNodeClick):
+      // the first dispatch adds the edge synchronously, so an identical-edge
+      // check kills the twin — and stops pointless exact-duplicate edges too
+      if (rf.getEdges().some((e) => e.source === c.source && e.target === c.target && e.sourceHandle === c.sourceHandle && e.targetHandle === c.targetHandle)) return;
       const edge = {
         id: cardId("edge"),
         source: c.source,
