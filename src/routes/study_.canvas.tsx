@@ -10,6 +10,7 @@ import {
   Background,
   BackgroundVariant,
   MiniMap,
+  NodeResizer,
   ReactFlow,
   ReactFlowProvider,
   MarkerType,
@@ -164,6 +165,8 @@ function LessonNode({ id, data, selected }: NodeProps) {
   const { update, remove } = useCardActions(id);
   const rf = useReactFlow();
   const nodes = useNodes(); // subscribe: the display label follows a contained heading live
+  // manual resize (V2): NodeResizer writes live; the end commits ONE bus command
+  const resizeStart = useRef<{ pos: { x: number; y: number }; w: number; h: number } | null>(null);
 
   const headingText = (() => {
     const h = nodes.find((n) => n.parentId === id && n.type === "heading");
@@ -173,8 +176,9 @@ function LessonNode({ id, data, selected }: NodeProps) {
     return (m ? m[1] : raw).trim() || null;
   })();
 
-  /** HUG: shrink-wrap the box around its children (+padding) — ONE undo step.
-   *  Children keep their absolute spots: the box moves, their rel coords shift. */
+  /** FIT TO CONTENTS (optional button — never automatic): shrink-wrap the box
+   *  around its children (+padding) in ONE undo step. Children keep their
+   *  absolute spots: the box moves, their rel coords shift. */
   const hug = () => {
     const me = rf.getNode(id);
     if (!me) return;
@@ -204,7 +208,7 @@ function LessonNode({ id, data, selected }: NodeProps) {
         }),
       );
     bus.dispatch({
-      label: "hug lesson",
+      label: "fit lesson to contents",
       do: () => apply(after.pos, after.w, after.h, (n) => ({ x: n.position.x - dx, y: n.position.y - dy })),
       undo: () => apply(before.pos, before.w, before.h, (n) => before.kids.find((k) => k.id === n.id)?.pos ?? n.position),
     });
@@ -214,13 +218,39 @@ function LessonNode({ id, data, selected }: NodeProps) {
     <div
       className="h-full w-full rounded-2xl"
       style={{
-        width: d.w,
-        height: d.h,
+        // size comes from the NODE (width/height) — NodeResizer drives it live;
+        // data.w/h stay synced on resize-end for the parenting hit test
+        minWidth: 180,
+        minHeight: 56,
         background: "rgba(252,163,17,0.045)",
         border: `1.5px solid ${selected ? NEON.yellow : "rgba(252,163,17,0.35)"}`,
         boxShadow: selected ? `0 0 24px -8px ${NEON.yellow}` : "none",
       }}
     >
+      {/* the lesson is a DESIGNED SPACE: resize it by hand; min = the header */}
+      <NodeResizer
+        isVisible={!!selected}
+        minWidth={180}
+        minHeight={56}
+        lineStyle={{ borderColor: NEON.yellow }}
+        handleStyle={{ width: 8, height: 8, borderRadius: 2, background: NEON.yellow, border: "none" }}
+        onResizeStart={() => {
+          const me = rf.getNode(id);
+          if (me) resizeStart.current = { pos: { ...me.position }, w: d.w, h: d.h };
+        }}
+        onResizeEnd={(_, p) => {
+          const before = resizeStart.current;
+          resizeStart.current = null;
+          if (!before) return;
+          const apply = (pos: { x: number; y: number }, w: number, h: number) =>
+            rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...pos }, width: w, height: h, data: { ...n.data, w, h } } : n)));
+          bus.dispatch({
+            label: "resize lesson",
+            do: () => apply({ x: p.x, y: p.y }, Math.round(p.width), Math.round(p.height)),
+            undo: () => apply(before.pos, before.w, before.h),
+          });
+        }}
+      />
       <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em]" style={{ color: NEON.yellow }}>
         {d.home && (
           <span className="grid h-4 w-4 place-items-center rounded" title="HOME lesson — this region's welcome" style={{ background: "rgba(252,163,17,0.18)" }}>
@@ -253,7 +283,7 @@ function LessonNode({ id, data, selected }: NodeProps) {
         </span>
         <button
           className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100"
-          title="Hug: shrink-wrap this lesson around its cards (one undo step)"
+          title="Fit to contents (optional — one undo step)"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={hug}
         >
