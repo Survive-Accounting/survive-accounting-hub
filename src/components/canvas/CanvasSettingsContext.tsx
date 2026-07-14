@@ -21,6 +21,15 @@ export interface CanvasSettings {
   hideFdLabels: boolean;
   /** JE entries from the scenario library — the description picker (A12). */
   jeLibrary: LibraryItem[];
+  /** SCENE COURSE CONTEXT (content reset): pickers scope to this course.
+   *  null = unset → pickers show a set-the-course empty state. */
+  courseId: string | null;
+  chapterId: string | null;
+  courseName: string | null;
+  /** True while migration 0087 hasn't been applied — pickers fail loud. */
+  contentResetMissing: boolean;
+  /** Opens the Manage-accounts dialog (COA picker empty-state shortcut). */
+  onManageAccounts: () => void;
   setJeCardWidth: (n: number) => void;
   setJeIndent: (n: number) => void;
   setJePreset: (p: JePreset) => void;
@@ -38,6 +47,11 @@ export const CanvasSettingsContext = createContext<CanvasSettings>({
   coaNames: [],
   hideFdLabels: false,
   jeLibrary: [],
+  courseId: null,
+  chapterId: null,
+  courseName: null,
+  contentResetMissing: false,
+  onManageAccounts: () => {},
   setJeCardWidth: () => {},
   setJeIndent: () => {},
   setJePreset: () => {},

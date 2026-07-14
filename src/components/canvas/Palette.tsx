@@ -1,7 +1,7 @@
 // Card palette — left drawer. BLANK templates pinned on top (the improvisation deck),
 // then the LIBRARY (every entry / computation / memorize / question from the scenario
 // docs), searchable + filtered by course family, chapter, and card type. Fully collapsible.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
 
 import { NEON } from "./theme";
@@ -42,19 +42,29 @@ export function Palette({
   collapsed,
   onToggle,
   focus = false,
+  sceneCourseKey = null,
 }: {
+  /** Pre-filtered by the route: ACTIVE + AUTHORED only (content reset). */
   library: LibraryItem[];
   onSpawn: (data: CardData) => void;
   collapsed: boolean;
   onToggle: () => void;
   /** ON: BLANK section shows only JE / T-account / Note / Heading. */
   focus?: boolean;
+  /** Scene course context — the library's course filter follows it. */
+  sceneCourseKey?: string | null;
 }) {
   const [q, setQ] = useState("");
   const [course, setCourse] = useState<string>("all");
   const [chapter, setChapter] = useState<string>("all");
   const [kind, setKind] = useState<CardKind | "all">("all");
   const [libOpen, setLibOpen] = useState(false); // heavy section — closed by default
+
+  // one truth: the scene's course drives the library's default scope
+  useEffect(() => {
+    setCourse(sceneCourseKey ?? "all");
+    setChapter("all");
+  }, [sceneCourseKey]);
 
   const courses = useMemo(() => {
     const m = new Map<string, string>();

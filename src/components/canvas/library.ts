@@ -4,7 +4,8 @@
 import { resolveSlot } from "@/lib/je/slot-resolver";
 import type { JeBrowserTree } from "@/lib/je-api";
 import type { ScenarioDoc } from "@/lib/je-engine";
-import { cardId, type CardData, type CardKind, type JeLine } from "./types";
+import { amountOf, sideOf } from "./je-logic";
+import { cardId, type CardData, type CardKind, type JeCard, type JeLine } from "./types";
 
 export interface LibraryItem {
   key: string;
@@ -145,6 +146,10 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
       }
     }
   }
+  return sortLibrary(items);
+}
+
+function sortLibrary(items: LibraryItem[]): LibraryItem[] {
   // AUTHORED ORDER: course → chapter → sort_order → label (0087 content reset)
   items.sort(
     (a, b) =>
@@ -154,4 +159,39 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
       a.label.localeCompare(b.label),
   );
   return items;
+}
+
+/** AUTHOR FROM CANVAS: a JE card → a minimal authored ScenarioDoc. The answer
+ *  key (solution) is the truth when present; caption, amounts, memos (label),
+ *  and trap feedback all round-trip through the same fields jeLinesFrom reads.
+ *  slug/title are injected server-side to stay consistent with the row. */
+export function docFromJeCard(card: JeCard, title: string): ScenarioDoc {
+  const key = card.solution?.length ? card.solution : card.lines;
+  return {
+    slug: "pending",
+    title,
+    event: card.caption || title,
+    axes: [],
+    variants: [
+      {
+        id: "base",
+        conditions: {},
+        entries: [
+          {
+            id: "e1",
+            caption: card.caption || title,
+            lines: key.map((l, i) => ({
+              id: `l${i + 1}`,
+              account: l.account,
+              side: sideOf(l) === "cr" ? "credit" : "debit",
+              amount: amountOf(l),
+              label: l.label || undefined,
+              trap: l.trap?.feedback || undefined,
+            })),
+          },
+        ],
+      },
+    ],
+    ...(card.accountBank?.length ? { build: { accountBank: card.accountBank.map((a) => ({ account: a })) } } : {}),
+  } as unknown as ScenarioDoc;
 }

@@ -28,8 +28,9 @@ import "@xyflow/react/dist/style.css";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon } from "lucide-react";
 
-import { fetchJeBrowserTree } from "@/lib/je-api";
-import { deleteScene, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
+import { deleteScene, listCourseAccounts, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { NEON } from "@/components/canvas/theme";
 import { blankCard } from "@/components/canvas/templates";
 import { buildLibrary } from "@/components/canvas/library";
@@ -57,7 +58,7 @@ import { migrateDeckFields, migrateEdges, sanitizeSceneNodes } from "@/component
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopTo, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
-import { listCoa, listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
+import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
@@ -458,13 +459,28 @@ function PresentCanvas() {
   // Scenario library for the palette (same query key as /study — shared cache).
   const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1 });
   const library = useMemo(() => (treeQuery.data ? buildLibrary(treeQuery.data) : []), [treeQuery.data]);
+  // FAIL LOUD until 0087 is applied: rows come back without lifecycle flags.
+  const contentResetMissing = useMemo(() => library.length > 0 && library.every((i) => i.status === undefined), [library]);
 
-  // Chart of accounts (Ole Miss canonical vocabulary — repaired in 0083) for the
-  // JE picker + free-text autocomplete. Served by a service-role server fn (RLS
-  // blocks anon select). Empty on failure: picker degrades, typing works.
-  const coaQuery = useQuery({ queryKey: ["chart-of-accounts"], queryFn: () => listCoa(), staleTime: 600_000, retry: 1 });
-  const coaGroups = useMemo(() => groupCoa(coaQuery.data ?? []), [coaQuery.data]);
-  const coaNames = useMemo(() => (coaQuery.data ?? []).map((r) => r.canonical_name), [coaQuery.data]);
+  // SCENE COURSE CONTEXT (content reset): pickers scope to this course.
+  const [sceneCourseId, setSceneCourseId] = useState<string | null>(null);
+  const [sceneChapterId, setSceneChapterId] = useState<string | null>(null);
+  const [manageAccountsOpen, setManageAccountsOpen] = useState(false);
+  const coursesQuery = useQuery({ queryKey: ["course-options"], queryFn: fetchCourseOptions, staleTime: 600_000, retry: 1 });
+  const sceneCourse = (coursesQuery.data ?? []).find((c) => c.id === sceneCourseId) ?? null;
+
+  // COURSE COA SET (0087): the JE picker shows ONLY the scene-course's curated
+  // set (master chart_of_accounts stays reference-only, edited via Manage
+  // accounts). No course → empty groups → picker renders its set-course state.
+  const courseCoaQuery = useQuery({
+    queryKey: ["course-coa", sceneCourseId],
+    queryFn: () => listCourseAccounts({ data: { course_id: sceneCourseId! } }),
+    enabled: !!sceneCourseId,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const coaGroups = useMemo(() => groupCoa(sceneCourseId ? (courseCoaQuery.data ?? []) : []), [sceneCourseId, courseCoaQuery.data]);
+  const coaNames = useMemo(() => (sceneCourseId ? (courseCoaQuery.data ?? []) : []).map((r) => r.canonical_name), [sceneCourseId, courseCoaQuery.data]);
 
   // Scene-level card settings (persisted in the scene payload)
   const [jeCardWidth, setJeCardWidth] = useState(JE_WIDTH_DEFAULT);
@@ -474,9 +490,27 @@ function PresentCanvas() {
   const [hideFdLabels, setHideFdLabels] = useState(false); // quiz mode: banners show "???"
   const [focusPalette, setFocusPalette] = useState(true); // blanks trimmed to JE/T-account/Note/Heading
   const jeLibrary = useMemo(() => library.filter((it) => it.kind === "je"), [library]); // description picker (A12)
+  // palette LIBRARY default: active + authored only (archived stays queryable via the picker toggle)
+  const activeLibrary = useMemo(() => library.filter((i) => i.status === "active" && i.source === "authored"), [library]);
   const canvasSettings = useMemo<CanvasSettings>(
-    () => ({ jeCardWidth, jeIndent, jePreset, coa: coaGroups, coaNames, hideFdLabels, jeLibrary, setJeCardWidth, setJeIndent, setJePreset }),
-    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary],
+    () => ({
+      jeCardWidth,
+      jeIndent,
+      jePreset,
+      coa: coaGroups,
+      coaNames,
+      hideFdLabels,
+      jeLibrary,
+      courseId: sceneCourseId,
+      chapterId: sceneChapterId,
+      courseName: sceneCourse ? (sceneCourse.code ?? sceneCourse.course_name ?? "Course") : null,
+      contentResetMissing,
+      onManageAccounts: () => setManageAccountsOpen(true),
+      setJeCardWidth,
+      setJeIndent,
+      setJePreset,
+    }),
+    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary, sceneCourseId, sceneChapterId, sceneCourse, contentResetMissing],
   );
 
   // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
@@ -1021,12 +1055,12 @@ function PresentCanvas() {
         schema_version: 3,
         nodes: sanitizeSceneNodes(rf.getNodes()),
         edges: rf.getEdges(),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId },
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -1079,6 +1113,9 @@ function PresentCanvas() {
       if (typeof nj.sceneSettings?.dealFaceDown === "boolean") setDealFaceDown(nj.sceneSettings.dealFaceDown);
       if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
       if (typeof nj.sceneSettings?.focusPalette === "boolean") setFocusPalette(nj.sceneSettings.focusPalette);
+      const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
+      setSceneCourseId(ss?.courseId ?? null);
+      setSceneChapterId(ss?.chapterId ?? null);
       const cfg = decodeBg(payload.bg);
       if (cfg) setBgCfg(cfg);
       const vpFinal = vp;
@@ -1478,8 +1515,17 @@ function PresentCanvas() {
         )}
       </ReactFlow>
 
-      {/* Palette */}
-      {chrome && <Palette library={library} onSpawn={spawn} collapsed={paletteCollapsed} onToggle={() => setPaletteCollapsed((v) => !v)} focus={focusPalette} />}
+      {/* Palette — LIBRARY shows ACTIVE + AUTHORED only (content reset) */}
+      {chrome && (
+        <Palette
+          library={activeLibrary}
+          onSpawn={spawn}
+          collapsed={paletteCollapsed}
+          onToggle={() => setPaletteCollapsed((v) => !v)}
+          focus={focusPalette}
+          sceneCourseKey={sceneCourseId}
+        />
+      )}
 
       {/* The DECK — one holding system (hidden in clean/film mode; spacebar still deals) */}
       {chrome && (
@@ -1595,6 +1641,41 @@ function PresentCanvas() {
                   <input type="checkbox" checked={focusPalette} onChange={(e) => setFocusPalette(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Focus palette <span className="opacity-60">(JE · T · Note · Heading)</span>
                 </label>
+                {/* SCENE COURSE CONTEXT (content reset): pickers scope to this */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: sceneCourseId ? NEON.yellow : NEON.muted }}>Scene course</div>
+                <select
+                  value={sceneCourseId ?? ""}
+                  onChange={(e) => { setSceneCourseId(e.target.value || null); setSceneChapterId(null); }}
+                  className="mt-1 w-full rounded bg-black/40 px-1 py-1 text-[11px] outline-none"
+                  style={{ border: `1px solid ${sceneCourseId ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`, color: NEON.text }}
+                >
+                  <option value="">— no course set —</option>
+                  {(coursesQuery.data ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>{c.code ?? c.course_name ?? c.id.slice(0, 8)}</option>
+                  ))}
+                </select>
+                {sceneCourse && (
+                  <select
+                    value={sceneChapterId ?? ""}
+                    onChange={(e) => setSceneChapterId(e.target.value || null)}
+                    className="mt-1 w-full rounded bg-black/40 px-1 py-1 text-[11px] outline-none"
+                    style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                  >
+                    <option value="">All chapters</option>
+                    {sceneCourse.chapters.map((ch) => (
+                      <option key={ch.id} value={ch.id}>{ch.number != null ? `Ch ${ch.number}` : ""} {ch.name ?? ""}</option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
+                  style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
+                  disabled={!sceneCourseId}
+                  title={sceneCourseId ? "Curate this course's account list" : "Set the scene course first"}
+                  onClick={() => { setManageAccountsOpen(true); setSettingsOpen(false); }}
+                >
+                  Manage accounts
+                </button>
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>New-JE mode</div>
                 <div className="mt-1 flex gap-1">
                   {(["guided", "practice"] as const).map((p) => (
@@ -1710,6 +1791,22 @@ function PresentCanvas() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Manage accounts (course COA curation) */}
+      {manageAccountsOpen && sceneCourseId && (
+        <ManageAccountsDialog
+          courseId={sceneCourseId}
+          courseName={sceneCourse ? (sceneCourse.code ?? sceneCourse.course_name ?? "Course") : "Course"}
+          onClose={() => setManageAccountsOpen(false)}
+        />
+      )}
+
+      {/* fail-loud banner: content-reset migration not applied */}
+      {contentResetMissing && chrome && (
+        <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red }}>
+          Scenario lifecycle columns missing — run migration/supabase-migrations/0087_content_reset.sql in the Supabase SQL editor.
         </div>
       )}
 

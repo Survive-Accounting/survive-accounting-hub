@@ -11,13 +11,20 @@ export function CoaPicker({
   groups,
   showChips,
   onToggleChips,
+  courseName,
+  onManageAccounts,
   onPick,
   onClose,
 }: {
+  /** The SCENE COURSE's curated set, grouped (content reset) — not the master. */
   groups: CoaGroup[];
   showChips: boolean;
   /** Normal-balance chips live HERE now (V2) — small toggle in the header. */
   onToggleChips: (v: boolean) => void;
+  /** null = no scene course set → prompt for it instead of showing accounts. */
+  courseName: string | null;
+  /** Empty-set shortcut into the Manage-accounts dialog. */
+  onManageAccounts: () => void;
   onPick: (name: string) => void;
   onClose: () => void;
 }) {
@@ -68,9 +75,26 @@ export function CoaPicker({
       </div>
 
       {groups.length === 0 && (
-        <p className="px-1 py-2 text-[11px] italic" style={{ color: PAPER.inkMuted }}>
-          Chart of accounts unavailable — type the account name instead.
-        </p>
+        <div className="px-1 py-2">
+          {courseName ? (
+            <>
+              <p className="text-[11.5px] leading-relaxed" style={{ color: PAPER.inkMuted }}>
+                <b style={{ color: PAPER.ink }}>{courseName}</b> has no accounts in its set yet. Curate the list from the master chart:
+              </p>
+              <button
+                className="mt-1.5 w-full rounded px-2 py-1 text-[10.5px] font-bold uppercase tracking-wide"
+                style={{ color: PAPER.navy, border: "1px solid rgba(20,33,61,0.35)", background: "rgba(20,33,61,0.05)" }}
+                onClick={() => { onClose(); onManageAccounts(); }}
+              >
+                Manage accounts
+              </button>
+            </>
+          ) : (
+            <p className="text-[11.5px] leading-relaxed" style={{ color: PAPER.inkMuted }}>
+              No course set for this scene. Set the <b>scene course</b> in canvas settings (toolbar gear) to load its account list.
+            </p>
+          )}
+        </div>
       )}
 
       {needle

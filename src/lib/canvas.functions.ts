@@ -254,14 +254,20 @@ export const saveScenarioDoc = createServerFn({ method: "POST" })
     }
     const tbl = () => supabaseAdmin.from("je_scenarios" as never) as any;
     if (data.id) {
+      const { data: row } = await tbl().select("slug").eq("id", data.id).maybeSingle();
+      const slug = (row as { slug: string } | null)?.slug ?? `${slugify(data.title)}-${Date.now().toString(36).slice(-4)}`;
+      // keep the doc self-consistent — importers/exports treat doc.slug/title as truth
+      (doc as Record<string, unknown>).slug = slug;
+      (doc as Record<string, unknown>).title = data.title;
       const { error } = await tbl()
         .update({ title: data.title, doc, chapter_id: data.chapter_id, sort_order: data.sort_order })
         .eq("id", data.id);
       if (error) rethrow0087(error);
-      const { data: row } = await tbl().select("slug").eq("id", data.id).maybeSingle();
-      return { id: data.id, slug: (row as { slug: string } | null)?.slug ?? "" };
+      return { id: data.id, slug };
     }
     const slug = `${slugify(data.title)}-${Date.now().toString(36).slice(-4)}`;
+    (doc as Record<string, unknown>).slug = slug;
+    (doc as Record<string, unknown>).title = data.title;
     const payload = { slug, title: data.title, doc, chapter_id: data.chapter_id, sort_order: data.sort_order, status: "active", source: "authored" };
     const { data: ins, error } = await tbl().insert(payload).select("id,slug").single();
     if (error) rethrow0087(error);

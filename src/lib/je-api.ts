@@ -203,6 +203,41 @@ function unassignedCourse(scenarios: BrowserScenario[]): BrowserCourse {
   };
 }
 
+// ---- Course options (scene course context — content reset) -------------------
+// Every course with its chapters, whether or not it has scenarios yet — the
+// canvas course dropdown must show empty courses (Foundations starts empty).
+
+export interface CourseOption {
+  id: string;
+  code: string | null;
+  course_name: string | null;
+  course_family: string | null;
+  chapters: { id: string; number: number | null; name: string | null }[];
+}
+
+export async function fetchCourseOptions(): Promise<CourseOption[]> {
+  const [coursesRes, chaptersRes] = await Promise.all([
+    supabase.from("courses").select("id,code,course_name,course_family" as never).order("course_name"),
+    supabase.from("chapters").select("id,chapter_number,chapter_name,course_id").order("chapter_number", { ascending: true }),
+  ]);
+  if (coursesRes.error) throw coursesRes.error;
+  if (chaptersRes.error) throw chaptersRes.error;
+  const chaptersByCourse = new Map<string, CourseOption["chapters"]>();
+  for (const c of (chaptersRes.data ?? []) as any[]) {
+    if (!c.course_id) continue;
+    const list = chaptersByCourse.get(c.course_id) ?? [];
+    list.push({ id: c.id, number: c.chapter_number ?? null, name: c.chapter_name ?? null });
+    chaptersByCourse.set(c.course_id, list);
+  }
+  return ((coursesRes.data ?? []) as any[]).map((c) => ({
+    id: c.id,
+    code: c.code ?? null,
+    course_name: c.course_name ?? null,
+    course_family: c.course_family ?? null,
+    chapters: chaptersByCourse.get(c.id) ?? [],
+  }));
+}
+
 // ---- Principles (reference table) ----
 
 export interface PrincipleRow {

@@ -18,6 +18,7 @@ import { useCanvasSettings } from "../CanvasSettingsContext";
 import type { LibraryItem } from "../library";
 import { CoaPicker } from "./CoaPicker";
 import { JeScenarioPicker } from "./JeScenarioPicker";
+import { SaveToLibraryDialog } from "./SaveToLibraryDialog";
 import { EditableNumber, fmtNum } from "../ui";
 import { JE_FONT, NEON, PAPER } from "../theme";
 import {
@@ -74,6 +75,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
   const [descMenu, setDescMenu] = useState<HTMLElement | null>(null); // scenario picker (A12)
   const [titleEditing, setTitleEditing] = useState(false); // free-text description
+  const [saveToLibOpen, setSaveToLibOpen] = useState(false); // author from canvas
   const selLine = (data as Record<string, unknown>)._selLine as string | undefined;
 
   // A6: a stale _selLine outliving the card's selection made ←/→ move "the block
@@ -351,6 +353,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                   groups={ctx.coa}
                   showChips={S.showNormalChips}
                   onToggleChips={(v) => update({ settings: { ...(d.settings ?? {}), showNormalChips: v } })}
+                  courseName={ctx.courseName}
+                  onManageAccounts={ctx.onManageAccounts}
                   onPick={(name) => { patchLine(l.id, { account: name }); setPickerFor(null); }}
                   onClose={() => setPickerFor(null)}
                 />
@@ -643,9 +647,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 return { lines: blankFrom(sol?.length ? sol : cur, () => cardId("l")), helpOpen: false, revealUsed: false };
               })
             }
+            onSaveToLibrary={() => setSaveToLibOpen(true)}
             onClose={() => setGearAnchor(null)}
           />
         </CardPopover>
+      )}
+      {saveToLibOpen && (
+        <SaveToLibraryDialog
+          card={d}
+          defaultCourseId={ctx.courseId}
+          defaultChapterId={ctx.chapterId}
+          onSaved={(scenarioId) => update({ scenarioId })}
+          onClose={() => setSaveToLibOpen(false)}
+        />
       )}
 
       {d.helpOpen ? (
@@ -690,6 +704,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             <CardPopover anchor={descMenu} onClose={() => setDescMenu(null)}>
               <JeScenarioPicker
                 items={ctx.jeLibrary}
+                courseId={ctx.courseId}
+                courseName={ctx.courseName}
+                contentResetMissing={ctx.contentResetMissing}
                 onPick={applyScenario}
                 onCustom={() => { setDescMenu(null); setTitleEditing(true); }}
                 onClose={() => setDescMenu(null)}
@@ -960,12 +977,13 @@ function MemoPopover({ value, onSave, onClose }: { value: string; onSave: (v: st
 
 /** Gear contents (V2): mode · entry type · RESET. Normal-balance chips moved
  *  into the picker header; amounts-visible and picker-search are always-on. */
-function GearPanel({ mode, entryType, onMode, onEntryType, onReset, onClose }: {
+function GearPanel({ mode, entryType, onMode, onEntryType, onReset, onSaveToLibrary, onClose }: {
   mode: JePreset;
   entryType: (typeof ENTRY_TYPES)[number];
   onMode: (m: JePreset) => void;
   onEntryType: (t: (typeof ENTRY_TYPES)[number]) => void;
   onReset: () => void;
+  onSaveToLibrary: () => void;
   onClose: () => void;
 }) {
   return (
@@ -1013,6 +1031,14 @@ function GearPanel({ mode, entryType, onMode, onEntryType, onReset, onClose }: {
           </button>
         ))}
       </div>
+      <button
+        className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
+        style={{ color: PAPER.navy, border: "1px solid rgba(20,33,61,0.4)", background: "rgba(20,33,61,0.05)" }}
+        title="Save this entry as an authored scenario (the content library)"
+        onClick={() => { onSaveToLibrary(); onClose(); }}
+      >
+        save to library
+      </button>
       <button
         className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
         style={{ color: PAPER.red, border: "1px solid rgba(194,24,50,0.4)", background: "rgba(194,24,50,0.05)" }}
