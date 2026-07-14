@@ -1227,6 +1227,22 @@ function PresentCanvas() {
       if (cfg) setBgCfg(cfg);
       const vpFinal = vp;
       if (vpFinal && typeof vpFinal.zoom === "number") setTimeout(() => rf.setViewport(vpFinal), 0);
+      // HYDRATION INTEGRITY: rf.setNodes silently no-ops when the RF store
+      // isn't ready (fresh mount + restore effect races onInit). Re-apply once;
+      // if the canvas is still empty, say so loudly — autosave already refuses
+      // empty writes, so the row is safe either way.
+      const expected = (nj.nodes ?? []).length;
+      if (expected > 0) {
+        setTimeout(() => {
+          if (rf.getNodes().length === 0) {
+            rf.setNodes(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind));
+            rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
+            setTimeout(() => {
+              if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
+            }, 600);
+          }
+        }, 250);
+      }
     },
     [rf],
   );
@@ -1307,10 +1323,19 @@ function PresentCanvas() {
     [rf],
   );
 
+  /** True while a scene row is in flight for the ACTIVE tab. While set, the
+   *  canvas content is NOT the scene's truth — autosave must not write it and
+   *  tab switches must not snapshot it. Guards the data-loss path where a tab
+   *  carried a sceneId over a blank canvas (load pending, rejected, or
+   *  rf.setNodes dropped pre-init) and autosave overwrote the real row with
+   *  zero nodes (killed "polish round-trip"/"arrows round-trip", 2026-07-14). */
+  const sceneLoadingRef = useRef(false);
+
   /** Activate a tab whose scene was never visited this session — load from db;
    *  missing scenes drop silently (spec) and the canvas blanks. */
   const activateSceneTab = useCallback(
     async (t: TabEntry) => {
+      sceneLoadingRef.current = true;
       try {
         const row = await loadScene({ data: { id: t.sceneId! } });
         applyScene(row, row.id);
@@ -1320,6 +1345,8 @@ function PresentCanvas() {
           return rest.length ? { tabs: rest, active: rest[0].key } : p;
         });
         clearCanvasState();
+      } finally {
+        sceneLoadingRef.current = false;
       }
     },
     [applyScene, clearCanvasState],
@@ -1330,7 +1357,11 @@ function PresentCanvas() {
       if (key === tabState.active) return;
       const target = tabState.tabs.find((t) => t.key === key);
       if (!target) return;
-      const snapped = tabState.tabs.map((t) => (t.key === tabState.active ? { ...t, sceneId, name: sceneName, snap: snapshotCurrent() } : t));
+      // mid-load the live canvas is NOT this tab's content — keep its entry
+      // snap-less so the next visit reloads from db instead of a bogus snapshot
+      const snapped = tabState.tabs.map((t) =>
+        t.key === tabState.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t,
+      );
       setTabState({ tabs: snapped, active: key });
       if (target.snap) applySnap(target);
       else if (target.sceneId) void activateSceneTab(target);
@@ -1343,7 +1374,7 @@ function PresentCanvas() {
   const newTab = useCallback(() => {
     const key = Math.random().toString(36).slice(2);
     setTabState((p) => ({
-      tabs: [...p.tabs.map((t) => (t.key === p.active ? { ...t, sceneId, name: sceneName, snap: snapshotCurrent() } : t)), { key, sceneId: null, name: "Untitled scene", dirty: false }],
+      tabs: [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: null, name: "Untitled scene", dirty: false }],
       active: key,
     }));
     clearCanvasState();
@@ -1389,15 +1420,18 @@ function PresentCanvas() {
       }
       const key = Math.random().toString(36).slice(2);
       setTabState((p) => ({
-        tabs: [...p.tabs.map((t) => (t.key === p.active ? { ...t, sceneId, name: sceneName, snap: snapshotCurrent() } : t)), { key, sceneId: row.id, name: row.name, dirty: false }],
+        tabs: [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: row.id, name: row.name, dirty: false }],
         active: key,
       }));
       void (async () => {
+        sceneLoadingRef.current = true;
         try {
           const full = await loadScene({ data: { id: row.id } });
           applyScene(full, full.id);
         } catch (e) {
           setDbDown(e instanceof Error ? e.message : String(e));
+        } finally {
+          sceneLoadingRef.current = false;
         }
       })();
     },
@@ -1483,7 +1517,10 @@ function PresentCanvas() {
   tabStateRef.current = tabState;
   useEffect(() => {
     const saveSnapTab = async (t: TabEntry) => {
-      if (!t.sceneId || !t.snap) return;
+      // never autosave a 0-node snapshot over a scene row — a blank snap here
+      // means load-order breakage, not an intentionally emptied scene (manual
+      // Save is the path for persisting a deliberate clear)
+      if (!t.sceneId || !t.snap || t.snap.nodes.length === 0) return;
       const s = t.snap;
       await saveScene({
         data: {
@@ -1497,7 +1534,11 @@ function PresentCanvas() {
       setTabState((p) => ({ ...p, tabs: p.tabs.map((x) => (x.key === t.key ? { ...x, dirty: false } : x)) }));
     };
     const t = setInterval(() => {
-      if (sceneId && lockOwned()) void saveRef.current();
+      // AUTOSAVE SAFETY: skip while a scene load is in flight (canvas isn't the
+      // scene's truth yet) and never write an EMPTY canvas over a scene row —
+      // rf.setNodes can drop pre-init, leaving sceneId set over zero nodes.
+      // Deliberate empties persist via manual Save only.
+      if (sceneId && lockOwned() && !sceneLoadingRef.current && rf.getNodes().length > 0) void saveRef.current();
       for (const tab of tabStateRef.current.tabs) {
         if (tab.key !== tabStateRef.current.active && tab.dirty && tab.sceneId && tab.snap) {
           void saveSnapTab(tab).catch(() => { /* next tick retries */ });
