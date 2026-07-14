@@ -6,17 +6,20 @@
 // library layer. Deal-into-grid + memo highlight render in P4.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { Copy, Grid3x3, Layers, Plus, RotateCcw, Shuffle, SquareStack, Trash2 } from "lucide-react";
+import { Clapperboard, Copy, Grid3x3, Layers, Plus, RotateCcw, Shuffle, SquareStack, Trash2 } from "lucide-react";
 
 import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, removeDeck, shuffledOrder, updateDeck } from "./deck-defs";
 import { bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { nextStageOrder } from "./BaseCard";
+import { absRectOf } from "./frames";
+import { useFrameNav } from "./FrameNavContext";
 import { isContainerType, type DeckDef } from "./types";
 import { NEON } from "./theme";
 
 export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void }) {
   const rf = useReactFlow();
   const nodes = useNodes();
+  const nav = useFrameNav();
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState<string | null>(null);
 
@@ -46,16 +49,42 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
   const layGrid = (deck: DeckDef) => {
     const members = membersOf(deck);
     if (members.length === 0) return;
-    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
-    const c = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
     const cols = Math.max(1, Math.ceil(Math.sqrt(members.length)));
-    const slots = gridSlots(members.length, { originX: Math.round(c.x - (cols * 360) / 2), originY: Math.round(c.y - 120), cellW: 320, cellH: 200, gapX: 40, gapY: 40 });
+    let slots: { x: number; y: number }[];
+    const frame = deck.frameId ? rf.getNode(deck.frameId) : null;
+    if (frame) {
+      // DECK ↔ FRAME (F3): lay the grid INSIDE the frame's bounds — the frame is
+      // the deck's stage (a Check frame holding its CEQ grid).
+      const byId = new Map(rf.getNodes().map((n) => [n.id, n]));
+      const r = absRectOf(frame as never, byId as never);
+      const rows = Math.ceil(members.length / cols);
+      const pad = 40;
+      const gap = 24;
+      const cellW = Math.max(120, (r.w - 2 * pad - (cols - 1) * gap) / cols);
+      const cellH = Math.max(90, (r.h - 2 * pad - (rows - 1) * gap) / rows);
+      slots = gridSlots(members.length, { originX: Math.round(r.x + pad), originY: Math.round(r.y + pad), cols, cellW, cellH, gapX: gap, gapY: gap });
+    } else {
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const c = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+      slots = gridSlots(members.length, { originX: Math.round(c.x - (cols * 360) / 2), originY: Math.round(c.y - 120), cellW: 320, cellH: 200, gapX: 40, gapY: 40 });
+    }
     const cmd = compositeCmd(
       members.map((n, i) => patchDataCmd(rf as unknown as RfLike, n.id, { slotIndex: i, deckMember: true, tucked: true, staged: undefined, minimized: undefined, deckPos: slots[i] }, "lay grid")),
       `lay grid: ${deck.name}`,
     );
     if (cmd) bus.dispatch(cmd);
     setDecks((prev) => updateDeck(prev, deck.id, { slots }));
+  };
+
+  /** Attach the deck to the frame you're currently inside (or detach). */
+  const toggleFrameAttach = (deck: DeckDef) => {
+    const fid = nav.currentFrameId;
+    setDecks((prev) => updateDeck(prev, deck.id, { frameId: deck.frameId ? null : fid ?? null }));
+  };
+  const frameTitleOf = (fid: string | null | undefined) => {
+    if (!fid) return null;
+    const f = rf.getNode(fid);
+    return f ? (((f.data as { title?: string }).title || "Frame")) : null;
   };
 
   /** Deck RESET: re-skeleton the whole grid (tuck all members back to slots).
@@ -118,6 +147,9 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
                       {deck.name}
                     </button>
                   )}
+                  {deck.frameId && (
+                    <span className="shrink-0 rounded px-1 text-[8px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title={`Attached to frame: ${frameTitleOf(deck.frameId) ?? "?"}`}>◈</span>
+                  )}
                   <span className="shrink-0 text-[9.5px]" style={{ color: NEON.muted }}>{count}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-1">
@@ -127,7 +159,14 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
                   <DeckMini title={deck.showSkeletons === false ? "Skeletons off" : "Skeletons on"} active={deck.showSkeletons !== false} onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { showSkeletons: deck.showSkeletons === false }))}>
                     <SquareStack className="h-3 w-3" />
                   </DeckMini>
-                  <DeckMini title="Lay a skeleton grid — arrange members into fixed slots, start tucked" onClick={() => layGrid(deck)}><Grid3x3 className="h-3 w-3" /></DeckMini>
+                  <DeckMini
+                    title={deck.frameId ? `Detach from frame (${frameTitleOf(deck.frameId) ?? "?"})` : nav.currentFrameId ? "Attach to the current frame — the grid lays inside it" : "Enter a frame first, then attach the deck to it"}
+                    active={!!deck.frameId}
+                    onClick={() => toggleFrameAttach(deck)}
+                  >
+                    <Clapperboard className="h-3 w-3" />
+                  </DeckMini>
+                  <DeckMini title={deck.frameId ? "Lay the skeleton grid INSIDE the attached frame" : "Lay a skeleton grid — arrange members into fixed slots, start tucked"} onClick={() => layGrid(deck)}><Grid3x3 className="h-3 w-3" /></DeckMini>
                   <DeckMini title={deck.runMode === "shuffle" ? "Reset — re-skeleton (shuffle slot order)" : "Reset — re-skeleton the grid"} onClick={() => resetDeck(deck)}><RotateCcw className="h-3 w-3" /></DeckMini>
                   <button className="ml-auto rounded px-1 py-0.5 text-[9.5px] font-semibold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Add the selected cards/memos to this deck" onClick={() => addSelection(deck)}>
                     + sel

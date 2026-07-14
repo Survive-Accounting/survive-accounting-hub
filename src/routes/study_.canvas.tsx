@@ -653,6 +653,9 @@ function PresentCanvas() {
   const [currentFrameId, setCurrentFrameId] = useState<string | null>(null); // FRAMES: the frame the camera is fitted to
   const currentFrameRef = useRef<string | null>(null);
   currentFrameRef.current = currentFrameId;
+  const [frameTransitions, setFrameTransitions] = useState(true); // F3: animate enter/step (off = instant cut)
+  const frameTransitionsRef = useRef(true);
+  frameTransitionsRef.current = frameTransitions;
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -1193,7 +1196,7 @@ function PresentCanvas() {
     const zoom = Math.max(0.08, Math.min(2.5, Math.min(cw / r.w, ch / r.h)));
     const x = cw / 2 - (r.x + r.w / 2) * zoom;
     const y = ch / 2 - (r.y + r.h / 2) * zoom;
-    void rf.setViewport({ x, y, zoom }, { duration: 280 });
+    void rf.setViewport({ x, y, zoom }, { duration: frameTransitionsRef.current ? 280 : 0 });
   }, [rf]);
 
   const exitFrame = useCallback(() => {
@@ -1204,11 +1207,12 @@ function PresentCanvas() {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const f = byId.get(cur);
     const lesson = f?.parentId ? byId.get(f.parentId) : undefined;
+    const dur = frameTransitionsRef.current ? 280 : 0;
     if (lesson) {
       const r = absRectOf(lesson as never, byId as never);
-      void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: 280, padding: 0.12 });
+      void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: dur, padding: 0.12 });
     } else {
-      void rf.fitView({ duration: 280, padding: 0.2 });
+      void rf.fitView({ duration: dur, padding: 0.2 });
     }
   }, [rf]);
 
@@ -1769,13 +1773,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -1832,6 +1836,7 @@ function PresentCanvas() {
       if (typeof nj.sceneSettings?.dealFaceDown === "boolean") setDealFaceDown(nj.sceneSettings.dealFaceDown);
       if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
       if (typeof nj.sceneSettings?.focusPalette === "boolean") setFocusPalette(nj.sceneSettings.focusPalette);
+      setFrameTransitions((nj.sceneSettings as { frameTransitions?: boolean } | undefined)?.frameTransitions !== false); // default on
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -2551,6 +2556,7 @@ function PresentCanvas() {
           <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous frame ( [ / PageUp )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepFrame(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
           <span className="px-1 text-[11px] font-semibold" style={{ color: NEON.muted }}>{(rf.getNode(currentFrameId)?.data as { title?: string } | undefined)?.title || "Frame"}</span>
           <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next frame ( ] / PageDown )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepFrame(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
+          <button className="grid h-6 w-6 place-items-center rounded-full" title={frameTransitions ? "Smooth camera transitions (click for instant cuts)" : "Instant cuts (click for smooth transitions)"} onClick={() => setFrameTransitions((v) => !v)} style={{ color: frameTransitions ? NEON.cyan : NEON.muted }}><Film className="h-3.5 w-3.5" /></button>
           <button className="ml-0.5 grid h-6 w-6 place-items-center rounded-full" title="Exit frame (Esc)" onClick={exitFrame} style={{ color: NEON.yellow, borderLeft: `1px solid ${NEON.borderSoft}` }}><Minimize2 className="h-3.5 w-3.5" /></button>
         </div>
       )}

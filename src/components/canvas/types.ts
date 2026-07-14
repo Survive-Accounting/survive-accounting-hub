@@ -468,6 +468,9 @@ export interface DeckDef {
   filter?: string | null;
   runMode: DeckRunMode;
   lessonId?: string | null;
+  /** DECK ↔ FRAME (F3): a deck attached to a FRAME lays its skeleton grid INSIDE
+   *  that frame's bounds — a lesson's Check frame holds its CEQ deck + grid. */
+  frameId?: string | null;
   /** Skeleton-grid slots, in deal order (P4). Empty = no grid (free layout). */
   slots?: DeckSlot[];
   /** Show ghosted skeletons for undealt slots (P4). Default true. */
