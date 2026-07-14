@@ -1408,14 +1408,20 @@ function PresentCanvas() {
         onDelete={onDelete}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodeClick={onNodeClick}
-        multiSelectionKeyCode="Shift" // free Ctrl/Cmd+click for the arrow gesture
+        multiSelectionKeyCode="Shift"
         nodeTypes={nodeTypes}
         proOptions={{ hideAttribution: true }}
         minZoom={0.08}
         maxZoom={2.5}
+        // FIGMA-STYLE NAV: wheel = zoom at the cursor; drag on empty canvas =
+        // pan; shift+drag = selection marquee; pinch zoom native. Inner
+        // scrollables opt out with `nowheel` (pickers, card bodies) so their
+        // scrolling never zooms the canvas.
         panOnDrag
-        panOnScroll
+        panOnScroll={false}
+        zoomOnScroll
         zoomOnPinch
+        selectionKeyCode="Shift"
         selectionOnDrag={false}
         deleteKeyCode={["Delete", "Backspace"]}
         style={{ background: "transparent" }}
