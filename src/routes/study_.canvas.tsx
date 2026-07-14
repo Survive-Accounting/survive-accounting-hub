@@ -727,7 +727,15 @@ function PresentCanvas() {
     [rf],
   );
 
-  const focusNode = useCallback((id: string) => rf.fitView({ nodes: [{ id }], duration: 400, padding: 0.4 }), [rf]);
+  // Focus-zoom tracking — the Esc ladder's rung 3 exits it exactly once.
+  const zoomedRef = useRef(false);
+  const focusNode = useCallback(
+    (id: string) => {
+      zoomedRef.current = true;
+      void rf.fitView({ nodes: [{ id }], duration: 400, padding: 0.4 });
+    },
+    [rf],
+  );
 
   // DEV probe: drive the React Flow instance from the console (import.meta.env.DEV only).
   // __rfStore lets headless tests force node measurement synchronously — hidden tabs
@@ -1377,18 +1385,50 @@ function PresentCanvas() {
         description: "Focus-zoom the selected card",
         handler: () => {
           const sel = rf.getNodes().find((n) => n.selected);
-          if (sel) rf.fitView({ nodes: [{ id: sel.id }], duration: 500, padding: 0.35 });
+          if (sel) focusNode(sel.id);
         },
       },
       {
         combo: "escape",
         group: "Show",
-        description: "Restore controls (clean screen) · full view · close dialogs",
-        handler: () => {
-          setClean(false); // A13: Esc brings the chrome back after "c"
-          setHelpOpen(false);
-          setLoadOpen(false);
-          rf.fitView({ duration: 500, padding: 0.15 });
+        description: "Escape ladder: dialog → interaction → zoom → chrome → deselect",
+        handler: (e) => {
+          // THE ESCAPE LADDER — one prioritized handler; each press consumes
+          // exactly one rung. Card popovers (CardPopover) consume Esc themselves
+          // with a capture listener, so rung 1 covers them inherently.
+          e.preventDefault();
+          // RUNG 1 — close any open route-level dialog/popover
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || settingsOpen || bgOpen) {
+            setHelpOpen(false);
+            setLoadOpen(false);
+            setImportPreview(null);
+            setConfirmSnap(null);
+            setManageAccountsOpen(false);
+            setSettingsOpen(false);
+            setBgOpen(false);
+            return;
+          }
+          // RUNG 2 — cancel an in-progress connection drag
+          const st = storeApi.getState() as unknown as { connection?: { inProgress?: boolean }; cancelConnection?: () => void };
+          if (st.connection?.inProgress && st.cancelConnection) {
+            st.cancelConnection();
+            return;
+          }
+          // RUNG 3 — exit focus zoom
+          if (zoomedRef.current) {
+            zoomedRef.current = false;
+            void rf.fitView({ duration: 400, padding: 0.15 });
+            return;
+          }
+          // RUNG 4 — film/clean → restore FULL chrome
+          if (film || clean) {
+            setFilm(false);
+            setClean(false);
+            return;
+          }
+          // RUNG 5 — deselect all
+          rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+          rf.setEdges((eds) => eds.map((ed) => (ed.selected ? { ...ed, selected: false } : ed)));
         },
       },
       { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
@@ -1416,7 +1456,8 @@ function PresentCanvas() {
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
-    [rf, deal, quickSpawn, hopSelectedLine, focusPalette],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
+    [rf, storeApi, deal, quickSpawn, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, settingsOpen, bgOpen],
   );
   useKeymap(bindings);
 
@@ -1449,9 +1490,9 @@ function PresentCanvas() {
   const onNodeDoubleClick = useCallback(
     (_e: unknown, node: CardNode) => {
       if (isContainerType(node.type)) return;
-      rf.fitView({ nodes: [{ id: node.id }], duration: 500, padding: 0.35 });
+      focusNode(node.id);
     },
-    [rf],
+    [focusNode],
   );
 
   const chrome = !clean && !film;
