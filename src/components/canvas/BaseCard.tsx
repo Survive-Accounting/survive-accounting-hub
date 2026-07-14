@@ -5,7 +5,7 @@ import { Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { ConnectionDots } from "./ConnectionDots";
 import { NEON, PAPER } from "./theme";
-import { cardId, type CardBase } from "./types";
+import { cardId, isElementKind, type CardBase } from "./types";
 
 /** Next stageOrder = one past the current max (append to the end of the show). */
 export function nextStageOrder(nodes: { data: Record<string, unknown> }[]): number {
@@ -41,11 +41,13 @@ export function useCardActions(id: string) {
     },
     // z-order is view noise, deliberately NOT on the undo rail
     toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: ++Z } : n))),
-    /** Join the deck WITHOUT leaving the canvas (dealt member, end of order). */
+    /** Join the deck WITHOUT leaving the canvas (dealt member, end of order).
+     *  ELEMENTS never deck — hard no-op regardless of the caller. */
     addToDeck: () => {
       const node = rf.getNode(id);
       if (!node) return;
       const kind = (node.data as unknown as CardBase).kind;
+      if (isElementKind(kind)) return;
       const entryType = (node.data as Record<string, unknown>).entryType as string | undefined;
       const c = patchDataCmd(
         rfl,
@@ -60,12 +62,14 @@ export function useCardActions(id: string) {
       );
       if (c) bus.dispatch(c);
     },
-    /** TUCK: hide a member into the deck, remembering its spot (joins if loose). */
+    /** TUCK: hide a member into the deck, remembering its spot (joins if loose).
+     *  ELEMENTS never deck — hard no-op regardless of the caller. */
     tuck: () => {
       const node = rf.getNode(id);
       if (!node) return;
       const d = node.data as unknown as CardBase;
       const kind = d.kind;
+      if (isElementKind(kind)) return;
       const entryType = (node.data as Record<string, unknown>).entryType as string | undefined;
       const c = patchDataCmd(
         rfl,

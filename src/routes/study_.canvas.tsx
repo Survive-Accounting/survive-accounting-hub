@@ -535,8 +535,9 @@ function PresentCanvas() {
   );
 
   // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
-  // legacy staged/minimized read as tucked until the load-time migration clears them.
-  const offCanvas = (d: CardData) => isTucked(d);
+  // legacy staged/minimized read as tucked until the load-time migration clears
+  // them. ELEMENTS are never off-canvas — self-heals any stray membership.
+  const offCanvas = (d: CardData) => !isElementKind(d.kind) && isTucked(d);
   // LOCKS: posLock (B2, any card — position frozen, edits fine) and the JE
   // reviewLock (A3 — superset: also freezes edits inside the card face) both
   // pin the node by syncing React Flow's draggable flag off.
@@ -1342,7 +1343,8 @@ function PresentCanvas() {
         group: "Show",
         description: "Tuck selected card(s) into the deck (joins if loose)",
         handler: () => {
-          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
+          // elements never deck — the show is cards only
+          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as CardBase).kind));
           if (sel.length === 0) return;
           let order = nextStageOrder(rf.getNodes());
           const c = compositeCmd(
