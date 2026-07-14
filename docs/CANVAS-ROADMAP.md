@@ -4,6 +4,41 @@ Living list of Present Canvas directions that are decided-enough to park, not
 build. Each entry carries just enough context to cold-start later. Appended by
 build runs; don't delete entries — strike them through when shipped.
 
+## Frames — the shot tier (student side)
+FRAME (shipped: WORLD › REGION › LESSON › FRAME › CARD) is the unit of ONE SHOT /
+ONE STUDENT STEP: a bounded 16:9 stage a student walks through. Student navigation
+= prev/next frames (‹ ›, [ / ], PageUp/Down) + the outline (frames nested under
+their lesson with beat tags). The "take a tour" wizard auto-drives the frames in
+order with narration stops (rides the frame `order` — one source of truth, like
+the snake spine did for lessons). Mobile = ONE FRAME PER SCREEN: the 16:9 frame is
+the natural phone-friendly unit — revisit portrait with a phone in hand (see the
+9:16 variant below). The beat tag (Hook | Teach | Model-Practice | Check) is a
+per-frame label, not a container — a lesson may hold 3 Teach frames and 1 Check.
+
+## Multi-format frames (shorts)
+Content is DATA, not pixels — never AI-reframe footage; give frames a responsive
+layout instead.
+- FRAME ASPECT VARIANTS: a frame has a primary 16:9 layout + optional 9:16 (and
+  1:1) variants. Each card stores a position PER VARIANT. Default 9:16 auto-derives
+  (stack cards vertically in reading/beat order, scale to width); Lee nudges from
+  there. Switching a frame to Shorts re-lays it out; film via a 1080x1920
+  browser/OBS region.
+- SAFE ZONES as toggleable authoring guides (on while authoring, hidden in film
+  mode), per platform: YouTube 16:9 (bottom controls band, top-left title on
+  mobile, end-screen region bottom-right for the last ~20s); TikTok/Reels/Shorts
+  9:16 (right ~15% action rail, bottom ~25% caption/username/music, top platform
+  tabs). Cards warn/snap out of unsafe zones. Irrelevant on our own Mux player (we
+  control the chrome) — this is purely for off-platform distribution.
+- RE-FILM > RE-CROP: cropping 16:9 to vertical butchers cards. Because scenes
+  persist, a second vertical take is nearly free — the expensive part (authoring)
+  is already done. Structural advantage: cheap re-shoots forever.
+- AI's real job here is SELECTION, not layout: suggest which 30 seconds / which
+  memo of a lesson is short-worthy. Layout is deterministic.
+- KEY INSIGHT: memo decks ARE the shorts library. A "cheat" memo ("ANY receivable
+  is an asset") or an exam trap is a 20-second short. Workflow: open the Cheat
+  Codes deck → switch to 9:16 → deal one memo per take → ten shorts in twenty
+  minutes. Promotional engine falls out of the teaching structure for free.
+
 ## Map-run navigation
 Student-facing traversal of a prepared scene: "Begin" buttons on zones that
 walk the teaching path (zone `path_order` already ships), an intro tour video
