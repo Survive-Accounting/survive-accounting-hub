@@ -423,7 +423,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               title={eff(l).account || (S.showPicker ? "Choose account" : "Type the account")}
               onPointerDown={(e) => e.stopPropagation()}
               onMouseEnter={(e) => { if (!locked) e.currentTarget.style.borderColor = actionable ? "rgba(252,163,17,0.95)" : "rgba(20,33,61,0.4)"; }}
-              onMouseLeave={(e) => { if (!locked) e.currentTarget.style.borderColor = actionable ? `rgba(252,163,17,${selected ? 0.8 : 0.55})` : "rgba(20,33,61,0.12)"; }}
+              // clear the imperative override so the inline `border` (which
+              // tracks selected/actionable) wins again — self-heals on re-render
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = ""; }}
               onClick={(e) => {
                 if (locked) return; // review-only
                 e.stopPropagation();
