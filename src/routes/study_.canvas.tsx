@@ -1295,18 +1295,36 @@ function PresentCanvas() {
         const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
         return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
       });
-    const draggedIds = new Set(dragStart.current?.keys() ?? []);
+    // Co-dragged nodes: rf.getNode lags XYDrag's writes at drag-stop (deferred
+    // store), so their end positions derive from the PRIMARY's DELTA against
+    // the drag-start snapshot — parents can't change mid-drag, so start-abs +
+    // delta IS the true landing spot.
+    const start = dragStart.current;
+    const startAbsOf = (nid: string): { x: number; y: number } | null => {
+      const s = start?.get(nid);
+      if (!s) return null;
+      if (!s.parentId) return s.position;
+      const p = nds.find((x) => x.id === s.parentId);
+      return p ? { x: p.position.x + s.position.x, y: p.position.y + s.position.y } : s.position;
+    };
+    const primaryStartAbs = startAbsOf(node.id);
+    const primaryEndAbs = absOf(node);
+    const delta = primaryStartAbs
+      ? { x: primaryEndAbs.x - primaryStartAbs.x, y: primaryEndAbs.y - primaryStartAbs.y }
+      : { x: 0, y: 0 };
+    const draggedIds = new Set(start?.keys() ?? []);
     draggedIds.add(node.id);
     const decisions = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
     for (const nid of draggedIds) {
-      // the primary carries its snap-settled position from above; others read the store
       const cur = nid === node.id ? node : rf.getNode(nid);
       if (!cur || isContainerType(cur.type)) continue;
-      const abs = absOf(cur as CardNode);
+      const sAbs = nid === node.id ? null : startAbsOf(nid);
+      const abs = nid === node.id ? primaryEndAbs : sAbs ? { x: sAbs.x + delta.x, y: sAbs.y + delta.y } : absOf(cur as CardNode);
       const hit = hitFor(abs);
-      if (hit && cur.parentId !== hit.id) {
+      const startParent = start?.get(nid)?.parentId ?? cur.parentId;
+      if (hit && startParent !== hit.id) {
         decisions.set(nid, { parentId: hit.id, position: { x: abs.x - hit.position.x, y: abs.y - hit.position.y } });
-      } else if (!hit && cur.parentId) {
+      } else if (!hit && startParent) {
         decisions.set(nid, { parentId: undefined, position: abs });
       }
     }
