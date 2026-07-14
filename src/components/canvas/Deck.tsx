@@ -19,7 +19,8 @@ import { deckMembers, isMember, isTucked, lessonGroups, nextTucked, categoryOf, 
 import { blankFrom, JE_PRESETS } from "./je-logic";
 import { CARD_KIND_LABEL } from "./templates";
 import { NEON } from "./theme";
-import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type JeCard, type JeLine } from "./types";
+import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type DeckDef, type JeCard, type JeLine } from "./types";
+import { DeckManager } from "./DeckManager";
 
 // re-exports: the route and older imports keep working
 export { categoryOf, deckMembers, isTucked, nextTucked };
@@ -93,6 +94,8 @@ export function Deck({
   setDealFaceDown,
   hideFdLabels,
   setHideFdLabels,
+  decks,
+  setDecks,
 }: {
   onDeal: (id: string) => void;
   onFocus: (id: string) => void;
@@ -101,6 +104,8 @@ export function Deck({
   setDealFaceDown: (v: boolean) => void;
   hideFdLabels: boolean;
   setHideFdLabels: (v: boolean) => void;
+  decks: DeckDef[];
+  setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void;
 }) {
   const rf = useReactFlow();
   const nodes = useNodes();
@@ -263,6 +268,9 @@ export function Deck({
           </label>
         )}
       </div>
+
+      {/* NAMED DECKS (P3) — first-class deck objects, above the lesson roster */}
+      <DeckManager decks={decks} setDecks={setDecks} />
 
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
         {members.length === 0 && (

@@ -90,6 +90,12 @@ export interface CardBase {
   editMode?: boolean; // whole-card edit affordances on
   w?: number; // resize width/height (px), applied to the shell
   h?: number;
+  /** NAMED DECK membership (P3): the id of the DeckDef this card/memo belongs to.
+   *  Absent = not in any named deck (the legacy lesson-grouped roster still uses
+   *  deckMember/deckLessonId). A named-deck member is also a deckMember. */
+  deckId?: string;
+  /** Assigned skeleton-grid slot index within its named deck (P4). */
+  slotIndex?: number;
 }
 
 // ---- JE ----
@@ -426,6 +432,31 @@ export interface LessonBox {
  *  deck, quick-copy, snap guides, grid placement, and auto-fit. */
 export const isContainerType = (t: string | undefined): boolean => t === "zone" || t === "lesson";
 
+// ---- Named decks (P3) — first-class deck OBJECTS -----------------------------
+// A deck is a named, reusable object: whole CARDS or MEMO objects, dealt in
+// sequence or shuffled, optionally pinned to a lesson and laid on a slot GRID
+// (skeleton preview, P4). Cards/memos JOIN a named deck via `deckId` on their
+// data. Mirrors the canvas_decks table (migration 0090); scenes carry the defs.
+export type DeckPayloadType = "cards" | "memos";
+export type DeckRunMode = "sequence" | "shuffle";
+/** A fixed slot on the canvas a dealt item locks into (P4 skeleton grid). */
+export interface DeckSlot { x: number; y: number }
+export interface DeckDef {
+  id: string;
+  name: string;
+  payloadType: DeckPayloadType;
+  /** Card-kind (cards) or memoKind/category (memos) to auto-include, or null. */
+  filter?: string | null;
+  runMode: DeckRunMode;
+  lessonId?: string | null;
+  /** Skeleton-grid slots, in deal order (P4). Empty = no grid (free layout). */
+  slots?: DeckSlot[];
+  /** Show ghosted skeletons for undealt slots (P4). Default true. */
+  showSkeletons?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // ---- Scene (serialized layout) ----
 export interface SceneDoc {
   id?: string;
@@ -437,6 +468,9 @@ export interface SceneDoc {
   waypoints?: unknown; // reserved for v1.1 student map — unused now
   // "flat" | "grid" | "video|<file>|<opacity 0-100>" — see decodeBg in the canvas route
   bg?: string;
+  /** NAMED DECKS (P3): the scene's deck definitions. Membership is per-card via
+   *  data.deckId; the deck library (canvas_decks) makes them reusable across scenes. */
+  decks?: DeckDef[];
 }
 
 let _seq = 0;

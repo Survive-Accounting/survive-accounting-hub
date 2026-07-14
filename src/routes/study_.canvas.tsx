@@ -54,7 +54,7 @@ import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/c
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -640,6 +640,7 @@ function PresentCanvas() {
   }, []);
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
+  const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -1624,11 +1625,12 @@ function PresentCanvas() {
           return { ...e, data };
         }),
         sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId },
+        decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -1659,6 +1661,7 @@ function PresentCanvas() {
         nodes?: CardNode[];
         edges?: unknown[];
         sceneSettings?: { jeCardWidth?: number; jeIndent?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean; focusPalette?: boolean };
+        decks?: DeckDef[];
       } = {};
       let vp: Viewport | null = null;
       try {
@@ -1676,6 +1679,7 @@ function PresentCanvas() {
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
       setSceneId(id);
+      setDecks(Array.isArray(nj.decks) ? nj.decks : []); // named decks (P3)
       if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
       if (typeof nj.sceneSettings?.jeIndent === "number") setJeIndent(nj.sceneSettings.jeIndent);
       // v≤2 scenes may say "blind" — normalize maps it to practice (blind retired)
@@ -1735,6 +1739,7 @@ function PresentCanvas() {
     rf.setEdges([]);
     setSceneId(null);
     setSceneName("Untitled scene");
+    setDecks([]);
     setSavedAt(null);
     setSceneCourseId(null);
     setSceneChapterId(null);
@@ -2423,6 +2428,8 @@ function PresentCanvas() {
           setDealFaceDown={setDealFaceDown}
           hideFdLabels={hideFdLabels}
           setHideFdLabels={setHideFdLabels}
+          decks={decks}
+          setDecks={setDecks}
         />
       )}
 
