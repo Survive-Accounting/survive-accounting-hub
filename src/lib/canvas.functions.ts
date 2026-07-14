@@ -5,6 +5,12 @@
 // FAIL-LOUD CONTRACT: if canvas_scenes doesn't exist yet (0084 not applied), these throw
 // with a message naming the migration; the canvas shows a banner and falls back to
 // localStorage so the playground still works.
+//
+// EVERY fn here is method: "POST" — including pure reads. In this @tanstack/react-start
+// version a GET server fn that THROWS returns an empty 200, so the client resolves
+// `undefined` instead of rejecting and the fail-loud contract silently dies (observed
+// live on listFolders, 2026-07-13). POST errors propagate correctly. Do not switch
+// reads back to GET without re-testing the thrown-error path end to end.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -30,7 +36,7 @@ export interface SceneListRow {
   folder_id?: string | null;
 }
 
-export const listScenes = createServerFn({ method: "GET" }).handler(async (): Promise<SceneListRow[]> => {
+export const listScenes = createServerFn({ method: "POST" }).handler(async (): Promise<SceneListRow[]> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const tbl = () => supabaseAdmin.from("canvas_scenes" as never) as any;
   let { data, error } = await tbl().select("id,name,chapter_id,updated_at,folder_id").order("updated_at", { ascending: false });
@@ -43,7 +49,7 @@ export const listScenes = createServerFn({ method: "GET" }).handler(async (): Pr
 
 const loadSchema = z.object({ id: z.string().uuid() });
 
-export const loadScene = createServerFn({ method: "GET" })
+export const loadScene = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => loadSchema.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -128,7 +134,7 @@ export interface FolderRow {
   sort: number;
 }
 
-export const listFolders = createServerFn({ method: "GET" }).handler(async (): Promise<FolderRow[]> => {
+export const listFolders = createServerFn({ method: "POST" }).handler(async (): Promise<FolderRow[]> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await (supabaseAdmin.from("canvas_folders" as never) as any)
     .select("id,name,course_id,sort")
@@ -220,7 +226,7 @@ export interface CoaRowOut {
   normal_balance: string;
 }
 
-export const listCoa = createServerFn({ method: "GET" }).handler(async (): Promise<CoaRowOut[]> => {
+export const listCoa = createServerFn({ method: "POST" }).handler(async (): Promise<CoaRowOut[]> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await (supabaseAdmin.from("chart_of_accounts" as never) as any)
     .select("id,canonical_name,account_type,normal_balance")
@@ -245,7 +251,7 @@ function rethrow0087(error: { code?: string; message: string }): never {
 
 const courseIdSchema = z.object({ course_id: z.string().uuid() });
 
-export const listCourseAccounts = createServerFn({ method: "GET" })
+export const listCourseAccounts = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => courseIdSchema.parse(d))
   .handler(async ({ data }): Promise<CoaRowOut[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -377,7 +383,7 @@ export const saveScenarioDoc = createServerFn({ method: "POST" })
   });
 
 /** Next sort_order within a chapter (authored default: append). */
-export const nextScenarioSort = createServerFn({ method: "GET" })
+export const nextScenarioSort = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ chapter_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<{ next: number }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -512,7 +518,7 @@ export interface SnapshotListRow {
 
 const listSnapsSchema = z.object({ scene_id: z.string().uuid() });
 
-export const listSnapshots = createServerFn({ method: "GET" })
+export const listSnapshots = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => listSnapsSchema.parse(d))
   .handler(async ({ data }): Promise<SnapshotListRow[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -529,7 +535,7 @@ export const listSnapshots = createServerFn({ method: "GET" })
 
 const loadSnapSchema = z.object({ id: z.string().uuid() });
 
-export const loadSnapshot = createServerFn({ method: "GET" })
+export const loadSnapshot = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => loadSnapSchema.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
