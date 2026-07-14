@@ -63,8 +63,14 @@ export function CoaPicker({
             placeholder="Search accounts…"
             value={q}
             autoFocus
+            onKeyDown={(e) => {
+              // keyboard authoring (#2): Enter picks the top hit → the card
+              // auto-advances to the amount. Tab/Escape close the picker.
+              if (e.key === "Enter" && hits.length) { e.preventDefault(); onPick(hits[0].name); }
+              else if (e.key === "Escape" || e.key === "Tab") { onClose(); }
+              e.stopPropagation();
+            }}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
           />
         </label>
         <button

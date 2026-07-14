@@ -72,29 +72,72 @@ interface EditableNumberProps {
    *  editing. Other callers leave these unset for the plain look. */
   emptyClassName?: string;
   emptyStyle?: React.CSSProperties;
+  /** TAB AUTHORING (#2/#3, JE only): a changing `openSeq` opens + focuses the
+   *  input once (the card's keyboard directive); onFieldTab advances focus; a
+   *  GHOST balancing figure rides in dim. All optional — other callers keep
+   *  click-to-edit and never pass these. */
+  openSeq?: number;
+  /** Called on Tab (back=Shift+Tab) inside the input. The card advances focus
+   *  AND commits `commitVal` atomically (typed value, or the ghost when empty),
+   *  so the commit can't race a concurrent spawn/move. */
+  onFieldTab?: (back: boolean, commitVal: number | null) => void;
+  /** Dim balancing suggestion shown while empty; committed if you Tab/Enter off
+   *  an empty field. Typing overrides it. Never auto-commits on its own (#3). */
+  ghost?: number | null;
 }
 
-export function EditableNumber({ value, onChange, editing, className, placeholder, clickToEdit, emptyClassName, emptyStyle }: EditableNumberProps) {
+export function EditableNumber({ value, onChange, editing, className, placeholder, clickToEdit, emptyClassName, emptyStyle, openSeq, onFieldTab, ghost }: EditableNumberProps) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => setLocal(value == null ? "" : String(value)), [value]);
   const active = editing || open;
+  // keyboard authoring: a new openSeq opens + focuses this field ONCE, then it
+  // manages its own open state again (so blur still closes it). Retry across a
+  // few frames because a just-spawned block's input mounts a tick later.
+  useEffect(() => {
+    if (openSeq === undefined) return;
+    setOpen(true);
+    let tries = 0, raf = 0;
+    const grab = () => {
+      const el = ref.current;
+      if (el) { el.focus(); el.select(); }
+      else if (tries++ < 10) raf = requestAnimationFrame(grab);
+    };
+    raf = requestAnimationFrame(grab);
+    return () => cancelAnimationFrame(raf);
+  }, [openSeq]);
 
   if (active) {
     const commit = () => { onChange(parseNum(local)); setOpen(false); };
+    // accept the ghost when Tabbing/Entering off an empty field (never auto)
+    const commitWithGhost = () => {
+      if (local.trim() === "" && ghost != null) { onChange(ghost); return; }
+      onChange(parseNum(local));
+    };
     return (
       <input
         ref={ref}
         className={`nodrag nowheel w-full rounded bg-black/5 px-1.5 py-0.5 text-right tabular-nums text-inherit outline-none ring-1 ring-[rgba(20,33,61,0.30)] focus:ring-[rgba(194,24,50,0.55)] ${className ?? ""}`}
         value={local}
-        placeholder={placeholder}
+        // ghost balancing figure rides in as a dim placeholder when empty (#3)
+        placeholder={local === "" && ghost != null ? fmtNum(ghost) : placeholder}
         inputMode="decimal"
         autoFocus={!editing}
         onChange={(e) => setLocal(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Tab" && onFieldTab) {
+            // hand the value to the card, which commits it ATOMICALLY with the
+            // focus advance (empty + ghost → accept the ghost)
+            e.preventDefault();
+            const commitVal = local.trim() === "" ? (ghost ?? null) : parseNum(local);
+            setOpen(false);
+            onFieldTab(e.shiftKey, commitVal);
+            e.stopPropagation();
+            return;
+          }
+          if (e.key === "Enter") { e.preventDefault(); commitWithGhost(); setOpen(false); }
           if (e.key === "Escape") { setLocal(value == null ? "" : String(value)); setOpen(false); }
           e.stopPropagation();
         }}

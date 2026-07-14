@@ -120,6 +120,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
   const [dateAnchor, setDateAnchor] = useState<HTMLElement | null>(null); // hover date picker (#7)
   const [descMenu, setDescMenu] = useState<HTMLElement | null>(null); // scenario picker (A12)
+  // TAB AUTHORING (#2): which block/field the keyboard is driving. seq forces a
+  // re-focus even when the target field id is unchanged.
+  const [authoring, setAuthoring] = useState<{ lineId: string; which: "account" | "amount"; seq: number } | null>(null);
   const [titleEditing, setTitleEditing] = useState(false); // free-text description
   const [saveToLibOpen, setSaveToLibOpen] = useState(false); // author from canvas
   const selLine = (data as Record<string, unknown>)._selLine as string | undefined;
@@ -129,6 +132,23 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   useEffect(() => {
     if (!selected && selLine) rf.updateNodeData(id, { _selLine: undefined });
   }, [selected, selLine, rf, id]);
+
+  // TAB AUTHORING (#2), Guided path: the account is a picker-button, not an
+  // input, so when the keyboard lands focus on a Guided account we focus the
+  // button AND pop its picker (type-to-search, pick → auto-advance to amount).
+  // Practice + amount fields handle their own focus via openSeq. Cleared when
+  // the card deselects so a stale directive can't re-pop the picker.
+  useEffect(() => {
+    if (!selected) { setAuthoring(null); return; }
+    if (!authoring || authoring.which !== "account") return;
+    if (!S.showPicker) return; // PRACTICE: the free-type input handles its own focus (openSeq)
+    const raf = requestAnimationFrame(() => {
+      const btn = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"] [data-je-acct="${authoring.lineId}"]`);
+      if (btn) { btn.focus(); setPickerFor({ id: authoring.lineId, anchor: btn }); }
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authoring, selected, id, S.showPicker]);
 
   const blockW = ctx.jeCardWidth - ctx.jeIndent;
 
@@ -146,6 +166,53 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const lines = orderLines(d.lines);
   const effLines = lines.map(eff);
   const bal = balanceState(effLines);
+
+  // TAB-TO-ADVANCE (#2): one-handed authoring. account → amount → next block on
+  // the SAME side → (last block filled) spawn another → (last block empty) cross
+  // to the FIRST block of the OTHER side. Fully symmetric, so building an entry
+  // credit-first works identically. Shift+Tab walks it backwards.
+  const advanceField = (lineId: string, which: "account" | "amount", back: boolean, commitVal?: number | null) => {
+    if (locked) return;
+    // ATOMIC COMMIT (#2/#3): an amount's value (typed or accepted ghost) is
+    // folded into the SAME setLines that spawns/moves — one command — so a
+    // separate patch can't be clobbered by the structural change (they read
+    // node data independently). undefined = nothing to commit (account fields).
+    const applyAmt = (ls: JeLine[]): JeLine[] =>
+      commitVal === undefined ? ls : ls.map((l) => {
+        if (l.id !== lineId) return l;
+        const s = sideOf(l);
+        return s === "dr" ? { ...l, dr: commitVal, cr: null, side: s } : { ...l, cr: commitVal, dr: null, side: s };
+      });
+    const L = orderLines(applyAmt(orderLines(d.lines))); // decisions see the pending commit
+    const cur = L.find((l) => l.id === lineId);
+    if (!cur) return;
+    const side = sideOf(cur);
+    const same = L.filter((l) => sideOf(l) === side);
+    const other = L.filter((l) => sideOf(l) !== side);
+    const pos = same.findIndex((l) => l.id === lineId);
+    const go = (lid: string, w: "account" | "amount") => setAuthoring({ lineId: lid, which: w, seq: Date.now() });
+    if (!back) {
+      if (which === "account") { go(lineId, "amount"); return; }
+      if (pos < same.length - 1) { setLines(applyAmt); go(same[pos + 1].id, "account"); return; }
+      const empty = !cur.account?.trim() && amountOf(eff(cur)) == null;
+      if (!empty) {
+        const nid = cardId("l");
+        setLines((ls) => insertLine(applyAmt(ls), side, { id: nid, account: "", dr: null, cr: null, side }));
+        go(nid, "account");
+        return;
+      }
+      // empty trailing block ends this side → drop it (unless it's the side's
+      // last survivor) and cross to the other side's first block
+      if (same.length > 1) setLines((ls) => ensureMinLines(ls.filter((x) => x.id !== lineId), () => cardId("l")));
+      if (other[0]) go(other[0].id, "account");
+      else setAuthoring(null);
+      return;
+    }
+    // BACKWARD (Shift+Tab)
+    if (which === "amount") { setLines(applyAmt); go(lineId, "account"); return; }
+    if (pos > 0) { go(same[pos - 1].id, "amount"); return; }
+    if (other.length) go(other[other.length - 1].id, "amount");
+  };
   // THE POLYOMINO: array order IS render order; each row's indent follows its
   // EFFECTIVE side (traps can cross columns), so the silhouette shows the truth.
   const inds = effLines.map((l) => (sideOf(l) === "cr" ? ctx.jeIndent : 0));
@@ -352,6 +419,16 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     const amt = amountOf(eff(l));
     const isSel = selLine === l.id;
     const empty = !eff(l).account;
+    // TAB AUTHORING (#2): does the keyboard currently drive THIS block's fields?
+    const authAcct = authoring && authoring.lineId === l.id && authoring.which === "account" ? authoring.seq : undefined;
+    const authAmt = authoring && authoring.lineId === l.id && authoring.which === "amount" ? authoring.seq : undefined;
+    // AMOUNT ECHO (#3): the SOLE empty credit amount ghosts the balancing figure
+    // (total debits − other credits). Dim suggestion only — accepted on Tab/Enter
+    // off an empty field, overridden by typing; never auto-committed.
+    const sumDr = effLines.filter((x) => sideOf(x) === "dr").reduce((s, x) => s + (amountOf(x) ?? 0), 0);
+    const sumCrOther = effLines.filter((x) => sideOf(x) === "cr" && x.id !== l.id).reduce((s, x) => s + (amountOf(x) ?? 0), 0);
+    const soleCredit = side === "cr" && effLines.filter((x) => sideOf(x) === "cr").length === 1;
+    const ghostAmt = !locked && soleCredit && amt == null && sumDr > 0 ? sumDr - sumCrOther : null;
     // ACTIONABLE = an empty account slot the user can still fill (not locked).
     // Amber is reserved for exactly this — filled content never wears amber.
     const actionable = empty && !locked;
@@ -457,11 +534,17 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                     : "1px solid rgba(20,33,61,0.12)",
               }}
               title={eff(l).account || (S.showPicker ? "Choose account" : "Type the account")}
+              data-je-acct={l.id}
               onPointerDown={(e) => e.stopPropagation()}
               onMouseEnter={(e) => { if (!locked) e.currentTarget.style.borderColor = actionable ? "rgba(252,163,17,0.95)" : "rgba(20,33,61,0.4)"; }}
               // clear the imperative override so the inline `border` (which
               // tracks selected/actionable) wins again — self-heals on re-render
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = ""; }}
+              // TAB AUTHORING (#2, Guided): Tab from the focused account button
+              // advances to the amount (Enter/Space opens the picker to fill it).
+              onKeyDown={(e) => {
+                if (e.key === "Tab") { e.preventDefault(); e.stopPropagation(); advanceField(l.id, "account", e.shiftKey); }
+              }}
               onClick={(e) => {
                 if (locked) return; // review-only
                 e.stopPropagation();
@@ -483,7 +566,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                   onToggleChips={(v) => update({ settings: { ...(d.settings ?? {}), showNormalChips: v } })}
                   courseName={ctx.courseName}
                   onManageAccounts={ctx.onManageAccounts}
-                  onPick={(name) => { patchLine(l.id, { account: name }); setPickerFor(null); }}
+                  // pick → fill → auto-advance to the amount (fast Tab flow, #2)
+                  onPick={(name) => { patchLine(l.id, { account: name }); setPickerFor(null); advanceField(l.id, "account", false); }}
                   onClose={() => setPickerFor(null)}
                 />
               </CardPopover>
@@ -495,6 +579,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 onCommit={(v) => patchLine(l.id, { account: v })}
                 names={[...(d.accountBank ?? []), ...ctx.coaNames]}
                 cardId={id}
+                openSeq={authAcct}
+                onFieldTab={(back) => advanceField(l.id, "account", back)}
               />
             )}
 
@@ -513,6 +599,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                   clickToEdit
                   emptyClassName={`${amtEmpty && selected ? "je-fill-pulse " : ""}border-b border-dashed px-0.5`}
                   emptyStyle={{ color: "rgba(138,90,0,0.85)", borderColor: `rgba(252,163,17,${selected ? 0.8 : 0.55})` }}
+                  openSeq={authAmt}
+                  onFieldTab={(back, val) => advanceField(l.id, "amount", back, val)}
+                  ghost={ghostAmt}
                   onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
                 />
               )}
@@ -1109,10 +1198,29 @@ function TitleEditor({ value, readOnly, editing, onOpen, onCommit, onCancel }: {
   );
 }
 
-/** Free-text account entry when the picker is off (PRACTICE): one click to type. */
-function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid }: { line: JeLine; onOpen?: () => void; onCommit: (v: string) => void; names: string[]; cardId: string }) {
+/** Free-text account entry when the picker is off (PRACTICE): one click to type.
+ *  TAB AUTHORING (#2): the card can force it open + intercept Tab. */
+function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid, openSeq, onFieldTab }: {
+  line: JeLine; onOpen?: () => void; onCommit: (v: string) => void; names: string[]; cardId: string;
+  openSeq?: number; onFieldTab?: (back: boolean) => void;
+}) {
   const listId = `bank-${cid}-${line.id}`;
   const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // keyboard authoring: a new openSeq opens + focuses once, then self-manages.
+  // Retry across frames — a freshly-spawned block's input mounts a tick later.
+  useEffect(() => {
+    if (openSeq === undefined) return;
+    setOpen(true); onOpen?.();
+    let tries = 0, raf = 0;
+    const grab = () => {
+      const el = inputRef.current;
+      if (el) { el.focus(); el.select(); }
+      else if (tries++ < 10) raf = requestAnimationFrame(grab);
+    };
+    raf = requestAnimationFrame(grab);
+    return () => cancelAnimationFrame(raf);
+  }, [openSeq]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!open) {
     return (
       <span
@@ -1126,6 +1234,7 @@ function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid }: { line: 
     <>
       <datalist id={listId}>{[...new Set(names)].map((n) => <option key={n} value={n} />)}</datalist>
       <input
+        ref={inputRef}
         autoFocus
         list={listId}
         defaultValue={line.account}
@@ -1134,6 +1243,7 @@ function FreeTypeEditor({ line, onOpen, onCommit, names, cardId: cid }: { line: 
         style={{ color: PAPER.ink }}
         onBlur={(e) => { onCommit(e.target.value); setOpen(false); }}
         onKeyDown={(e) => {
+          if (e.key === "Tab" && onFieldTab) { e.preventDefault(); onCommit((e.target as HTMLInputElement).value); setOpen(false); onFieldTab(e.shiftKey); e.stopPropagation(); return; }
           if (e.key === "Enter") { e.preventDefault(); onCommit((e.target as HTMLInputElement).value); setOpen(false); }
           if (e.key === "Escape") setOpen(false);
           e.stopPropagation();
