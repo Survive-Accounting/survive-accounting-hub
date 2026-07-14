@@ -8,11 +8,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { isMissingSchema } from "@/lib/pg-errors";
+
 const MISSING_TABLE_HINT =
   "canvas_scenes table missing — apply migration/supabase-migrations/0084_canvas_scenes.sql in the Supabase SQL editor";
 
 function rethrow(error: { code?: string; message: string }): never {
-  if (error.code === "42P01" || /relation .*canvas_scenes.* does not exist/i.test(error.message)) {
+  if (isMissingSchema(error, /canvas_scenes/i)) {
     throw new Error(MISSING_TABLE_HINT);
   }
   throw new Error(error.message);
@@ -113,12 +115,7 @@ const MISSING_0088_HINT =
   "scene folders missing — run migration/supabase-migrations/0088_scene_folders.sql in the Supabase SQL editor";
 
 function rethrow0088(error: { code?: string; message: string }): never {
-  if (
-    error.code === "42P01" ||
-    error.code === "42703" ||
-    /relation .*canvas_folders.* does not exist/i.test(error.message) ||
-    /column .*folder_id.* does not exist/i.test(error.message)
-  ) {
+  if (isMissingSchema(error, /canvas_folders|folder_id/i)) {
     throw new Error(MISSING_0088_HINT);
   }
   throw new Error(error.message);
@@ -240,12 +237,7 @@ const MISSING_0087_HINT =
   "content-reset schema missing — run migration/supabase-migrations/0087_content_reset.sql in the Supabase SQL editor";
 
 function rethrow0087(error: { code?: string; message: string }): never {
-  if (
-    error.code === "42P01" ||
-    error.code === "42703" ||
-    /relation .*course_coa.* does not exist/i.test(error.message) ||
-    /column .*(status|source|sort_order).* does not exist/i.test(error.message)
-  ) {
+  if (isMissingSchema(error, /course_coa|status|source|sort_order/i)) {
     throw new Error(MISSING_0087_HINT);
   }
   throw new Error(error.message);
@@ -462,7 +454,7 @@ export const snapshotScene = createServerFn({ method: "POST" })
       bg: data.bg ?? null,
     });
     if (error) {
-      if (error.code === "42P01" || /relation .*canvas_scene_snapshots.* does not exist/i.test(error.message)) {
+      if (isMissingSchema(error, /canvas_scene_snapshots/i)) {
         throw new Error(MISSING_SNAPSHOTS_HINT);
       }
       throw new Error(error.message);
@@ -529,7 +521,7 @@ export const listSnapshots = createServerFn({ method: "GET" })
       .eq("scene_id", data.scene_id)
       .order("taken_at", { ascending: false });
     if (error) {
-      if (error.code === "42P01" || /does not exist/i.test(error.message)) throw new Error(MISSING_SNAPSHOTS_HINT);
+      if (isMissingSchema(error, /canvas_scene_snapshots|snapshot/i)) throw new Error(MISSING_SNAPSHOTS_HINT);
       throw new Error(error.message);
     }
     return (rows ?? []) as SnapshotListRow[];
