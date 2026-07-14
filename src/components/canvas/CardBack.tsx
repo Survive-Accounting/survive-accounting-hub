@@ -6,6 +6,7 @@ import type { NodeProps } from "@xyflow/react";
 
 import { useCardActions } from "./BaseCard";
 import { useCanvasSettings } from "./CanvasSettingsContext";
+import { ConnectionDots } from "./ConnectionDots";
 
 const BACK = {
   frame: "#0B0F1E",
@@ -142,7 +143,9 @@ export function withFaceDown(Component: ComponentType<NodeProps>): ComponentType
     const w = data.kind === "je" ? jeCardWidth : ((data.w as number) ?? 260);
     const h = (data.h as number) ?? 300;
     return (
-      <div className="animate-in fade-in zoom-in-90 duration-200">
+      <div className="animate-in fade-in zoom-in-90 relative duration-200">
+        {/* keep the 4 connection anchors while face down — edges stay attached */}
+        <ConnectionDots />
         <CardBack
           label={(data.title as string) || (data.kind as string)}
           hideLabel={hideFdLabels}

@@ -3,7 +3,7 @@
 // cards saved selected reload as a drag-group).
 import { describe, expect, test } from "bun:test";
 
-import { migrateDeckFields, sanitizeSceneNodes } from "./scene-io";
+import { migrateDeckFields, migrateEdges, sanitizeSceneNodes } from "./scene-io";
 
 describe("sanitizeSceneNodes", () => {
   test("strips selected from every node — no multi-select group survives a save/load", () => {
@@ -36,6 +36,15 @@ describe("sanitizeSceneNodes", () => {
     expect(out[1].data).toEqual({ kind: "note", deckMember: true, tucked: true });
     expect(out[2].data).toEqual({ kind: "list", deckMember: true, tucked: false });
     expect(out[3].data).toEqual({ kind: "ceq" });
+  });
+
+  test("old handle-less edges get the legacy right→left anchors + smoothstep", () => {
+    const out = migrateEdges([
+      { id: "e1", source: "a", target: "b" } as never,
+      { id: "e2", source: "a", target: "b", sourceHandle: "t", targetHandle: "b", type: "smoothstep" } as never,
+    ]);
+    expect(out[0]).toMatchObject({ sourceHandle: "r", targetHandle: "l", type: "smoothstep" });
+    expect(out[1]).toMatchObject({ sourceHandle: "t", targetHandle: "b" }); // already-migrated untouched
   });
 
   test("position/parentId/zIndex survive untouched", () => {

@@ -5,10 +5,11 @@
 //   "SURVIVE ACCOUNTING [5 types of accounts]"
 // Full card contract: drag, deck membership, clone, delete, save/load.
 import { useState } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { type NodeProps } from "@xyflow/react";
 import { Copy, Lock, LockOpen, Minus, Plus, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
+import { ConnectionDots } from "../ConnectionDots";
 import { DISPLAY_FONT, NEON } from "../theme";
 import type { HeadingCard } from "../types";
 
@@ -27,7 +28,6 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   const { update, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(d.text);
-  const arrowPending = !!(data as Record<string, unknown>)._arrowPending;
 
   const size = d.level === 1 ? 48 : 28;
   const { main, sub } = parseHeading(d.text);
@@ -41,16 +41,11 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         maxWidth: 720,
         padding: "4px 6px",
         borderRadius: 10,
-        boxShadow: arrowPending
-          ? `0 0 0 2px ${NEON.cyan}, 0 0 30px -4px ${NEON.cyan}`
-          : selected
-            ? "0 0 0 1.5px rgba(224,40,74,0.45)"
-            : undefined,
+        boxShadow: selected ? "0 0 0 1.5px rgba(224,40,74,0.45)" : undefined,
       }}
     >
       <style>{UNDERLINE_CSS}</style>
-      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
+      <ConnectionDots />
 
       {/* hover chrome: deck-toggle · level · clone · × */}
       <div

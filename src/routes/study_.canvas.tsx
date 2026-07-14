@@ -9,6 +9,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   Background,
   BackgroundVariant,
+  ConnectionLineType,
+  ConnectionMode,
   MiniMap,
   NodeResizer,
   ReactFlow,
@@ -19,6 +21,7 @@ import {
   useStore,
   useStoreApi,
   useUpdateNodeInternals,
+  type Connection,
   type NodeProps,
   type Viewport,
 } from "@xyflow/react";
@@ -51,7 +54,8 @@ import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, migrateEdges, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopTo, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listCoa, listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
@@ -227,6 +231,8 @@ function LessonNode({ id, data, selected }: NodeProps) {
         boxShadow: selected ? `0 0 24px -8px ${NEON.yellow}` : "none",
       }}
     >
+      {/* lessons connect too: card↔lesson, lesson↔lesson (V2) */}
+      <ConnectionDots color={NEON.yellow} />
       {/* the lesson is a DESIGNED SPACE: resize it by hand; min = the header */}
       <NodeResizer
         isVisible={!!selected}
@@ -501,48 +507,35 @@ function PresentCanvas() {
     }
   }, [liveNodes, rf]);
 
-  // ---- CARD-TO-CARD ARROWS: Ctrl/Cmd+click A (glows cyan as pending source), then
-  // Ctrl/Cmd+click B → neon edge A→B. Esc cancels. Click edge + Delete removes it.
-  // The pending source lives in NODE DATA (_arrowPending) — single source of truth, so
-  // it can't desync from a ref across remounts and stale flags self-heal.
-  const clearArrowPending = useCallback(() => {
-    rf.setNodes((nds) =>
-      nds.map((n) => ((n.data as Record<string, unknown>)._arrowPending ? { ...n, data: { ...n.data, _arrowPending: false } } : n)),
-    );
-  }, [rf]);
-  // React Flow 12 invokes onNodeClick TWICE per click in this tree (observed on a fresh
-  // page, single dispatched event) — dedupe on the event timestamp or the pending toggle
-  // would cancel itself instantly.
-  const lastClickStamp = useRef(0);
-  const onNodeClick = useCallback(
-    (e: React.MouseEvent, node: CardNode) => {
-      if (!(e.ctrlKey || e.metaKey) || isContainerType(node.type)) return;
-      if (e.timeStamp === lastClickStamp.current) return;
-      lastClickStamp.current = e.timeStamp;
-      e.preventDefault();
-      const src = rf.getNodes().find((n) => (n.data as Record<string, unknown>)._arrowPending)?.id ?? null;
-      if (!src) {
-        rf.updateNodeData(node.id, { _arrowPending: true });
-      } else if (src !== node.id) {
-        const edge = {
-          id: cardId("edge"),
-          source: src,
-          target: node.id,
-          style: { stroke: NEON.pink, strokeWidth: 2.5 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: NEON.pink, width: 18, height: 18 },
-        };
-        bus.dispatch({
-          label: "connect cards",
-          do: () => rf.addEdges([{ ...edge }]),
-          undo: () => rf.setEdges((eds) => eds.filter((e) => e.id !== edge.id)),
-        });
-        clearArrowPending();
-      } else {
-        clearArrowPending(); // mod+click the pending card again = cancel
-      }
+  // ---- CONNECTIONS (V2): hover dots on every card/lesson (ConnectionDots),
+  // drag dot → live smoothstep line → drop on another node's dot. Loose mode:
+  // every dot both starts and receives; the chosen sides (t/b/l/r handles)
+  // anchor the edge so it never cuts through either endpoint. Click edge +
+  // Delete removes (onDelete records it on the bus). Replaces the Ctrl+click
+  // gesture era (_arrowPending) entirely.
+  const onConnect = useCallback(
+    (c: Connection) => {
+      if (!c.source || !c.target || c.source === c.target) return;
+      const edge = {
+        id: cardId("edge"),
+        source: c.source,
+        target: c.target,
+        sourceHandle: c.sourceHandle ?? "r",
+        targetHandle: c.targetHandle ?? "l",
+        type: "smoothstep" as const,
+        style: { stroke: NEON.pink, strokeWidth: 2.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: NEON.pink, width: 18, height: 18 },
+      };
+      bus.dispatch({
+        label: "connect",
+        do: () => rf.addEdges([{ ...edge }]),
+        undo: () => rf.setEdges((eds) => eds.filter((e) => e.id !== edge.id)),
+      });
     },
-    [rf, clearArrowPending],
+    [rf],
   );
+  // while a connection drag is live, EVERY node's dots show (drop targets)
+  const connecting = useStore((s) => !!s.connection.inProgress);
 
   // User pan/zoom timestamp — auto-fit never fights a hand on the wheel.
   const lastUserView = useRef(0);
@@ -1065,7 +1058,8 @@ function PresentCanvas() {
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
       rf.setNodes(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])));
-      rf.setEdges((nj.edges ?? []) as never[]);
+      // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
+      rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
       setSceneId(id);
       if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
@@ -1193,7 +1187,7 @@ function PresentCanvas() {
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
       const nodesAfter = migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]));
-      const edgesAfter = (nj.edges ?? []) as never[];
+      const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
       bus.dispatch({
@@ -1318,12 +1312,11 @@ function PresentCanvas() {
       {
         combo: "escape",
         group: "Show",
-        description: "Restore controls (clean screen) · full view · close dialogs · cancel arrow",
+        description: "Restore controls (clean screen) · full view · close dialogs",
         handler: () => {
           setClean(false); // A13: Esc brings the chrome back after "c"
           setHelpOpen(false);
           setLoadOpen(false);
-          clearArrowPending();
           rf.fitView({ duration: 500, padding: 0.15 });
         },
       },
@@ -1352,7 +1345,7 @@ function PresentCanvas() {
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
-    [rf, deal, quickSpawn, clearArrowPending, hopSelectedLine, focusPalette],
+    [rf, deal, quickSpawn, hopSelectedLine, focusPalette],
   );
   useKeymap(bindings);
 
@@ -1394,8 +1387,9 @@ function PresentCanvas() {
 
   return (
     <CanvasSettingsContext.Provider value={canvasSettings}>
-    <div className={`fixed inset-0 ${film ? "film-mode" : ""}`} style={{ background: NEON.bg }}>
+    <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""}`} style={{ background: NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
+      <style>{CONNECTION_DOTS_CSS}</style>
       {film && (
         <>
           <CursorSpotlight />
@@ -1437,7 +1431,11 @@ function PresentCanvas() {
         onMoveStart={onMoveStart}
         onDelete={onDelete}
         onNodeDoubleClick={onNodeDoubleClick}
-        onNodeClick={onNodeClick}
+        onConnect={onConnect}
+        connectionMode={ConnectionMode.Loose}
+        connectionRadius={28}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineStyle={{ stroke: NEON.cyan, strokeWidth: 2 }}
         multiSelectionKeyCode="Shift"
         nodeTypes={nodeTypes}
         proOptions={{ hideAttribution: true }}

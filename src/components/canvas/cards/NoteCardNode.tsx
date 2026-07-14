@@ -5,13 +5,14 @@
 // down while a contenteditable has focus); drag the card by its top strip.
 // Plain-text bodies from old scenes migrate on first render.
 import { useEffect, useRef } from "react";
-import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
+import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import { GripHorizontal, Lock, LockOpen, Trash2 } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
+import { ConnectionDots } from "../ConnectionDots";
 import { NEON, NOTE_COLORS } from "../theme";
 import { uploadImageFile } from "./ImageCardNode";
 import type { NoteCard } from "../types";
@@ -36,7 +37,6 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
   const rf = useReactFlow();
   const { update, remove, toFront } = useCardActions(id);
   const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
-  const arrowPending = !!(data as Record<string, unknown>)._arrowPending;
   const fontSize = d.fontSize ?? 15;
   const lastHtml = useRef<string | null>(null);
 
@@ -92,18 +92,15 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
         width: d.w ?? 260,
         minHeight: d.h ?? 96,
         background: c.bg,
-        border: `1.5px solid ${arrowPending ? NEON.cyan : c.border}`,
-        boxShadow: arrowPending
-          ? `0 0 0 2px ${NEON.cyan}, 0 0 24px -4px ${NEON.cyan}`
-          : selected
-            ? `0 0 0 1px ${c.ink}, 0 12px 26px -12px rgba(0,0,0,0.55)`
-            : "0 10px 24px -14px rgba(0,0,0,0.5)",
+        border: `1.5px solid ${c.border}`,
+        boxShadow: selected
+          ? `0 0 0 1px ${c.ink}, 0 12px 26px -12px rgba(0,0,0,0.55)`
+          : "0 10px 24px -14px rgba(0,0,0,0.5)",
         color: c.ink,
         fontFamily: "'Comic Sans MS', 'Segoe Print', cursive",
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
+      <ConnectionDots />
 
       {/* drag strip — the ONLY drag surface; also hosts colors + delete */}
       <div className="card-actions flex items-center gap-1 px-2 pt-1.5">

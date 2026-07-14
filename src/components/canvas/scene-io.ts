@@ -24,6 +24,19 @@ export function sanitizeSceneNodes<T extends { data?: Record<string, unknown>; s
   });
 }
 
+/** V2 connections: every edge rides named handles (t/b/l/r) + smoothstep.
+ *  Old scenes' edges (Ctrl+click era) had NO handle ids — with 4 named source
+ *  handles per node they'd fail to resolve, so stamp the old visual (right →
+ *  left) and the new edge type on load. No-op for already-migrated edges. */
+export function migrateEdges<T extends { sourceHandle?: string | null; targetHandle?: string | null; type?: string }>(edges: T[]): T[] {
+  return edges.map((e) => ({
+    ...e,
+    sourceHandle: e.sourceHandle ?? "r",
+    targetHandle: e.targetHandle ?? "l",
+    type: e.type ?? "smoothstep",
+  }));
+}
+
 /** schema_version 1 → 2: `staged`/`minimized` both meant "in the deck, hidden".
  *  The v2 model splits MEMBERSHIP (deckMember) from PRESENCE (tucked). Runs on
  *  every load — a no-op for v2 scenes, so old and new both open fine. */

@@ -1,8 +1,9 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
-import { Handle, NodeResizer, Position, useReactFlow } from "@xyflow/react";
+import { NodeResizer, useReactFlow } from "@xyflow/react";
 import { Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
+import { ConnectionDots } from "./ConnectionDots";
 import { NEON, PAPER } from "./theme";
 import { cardId, type CardBase } from "./types";
 
@@ -129,8 +130,6 @@ export function BaseCard({
 }) {
   const { update, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const title = data.title ?? "";
-  // Ctrl/Cmd+click arrow flow: first click marks this card as the pending source.
-  const arrowPending = !!(data as unknown as Record<string, unknown>)._arrowPending;
 
   return (
     <div
@@ -142,18 +141,15 @@ export function BaseCard({
         minWidth: 220,
         // PAPER card: off-white "textbook flashcard" that pops off the navy table
         background: PAPER.card,
-        border: `1px solid ${arrowPending ? NEON.cyan : selected ? accent : PAPER.cardEdge}`,
-        boxShadow: arrowPending
-          ? `0 0 0 2px ${NEON.cyan}, 0 0 30px -4px ${NEON.cyan}`
-          : selected
-            ? `0 0 0 1.5px ${accent}, 0 14px 34px -14px rgba(0,0,0,0.65)`
-            : "0 12px 32px -14px rgba(0,0,0,0.6)",
+        border: `1px solid ${selected ? accent : PAPER.cardEdge}`,
+        boxShadow: selected
+          ? `0 0 0 1.5px ${accent}, 0 14px 34px -14px rgba(0,0,0,0.65)`
+          : "0 12px 32px -14px rgba(0,0,0,0.6)",
         color: PAPER.ink,
       }}
     >
-      {/* invisible anchors for card-to-card arrows (edges are created programmatically) */}
-      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
+      {/* hover connection dots — drag from one to grow an arrow (V2) */}
+      <ConnectionDots />
       {!noResize && (
         <NodeResizer
           isVisible={!!selected}

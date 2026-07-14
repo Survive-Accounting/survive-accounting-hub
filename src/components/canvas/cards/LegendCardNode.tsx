@@ -3,10 +3,11 @@
 // Every field is inline-editable; the portrait window takes paste/drop/click
 // uploads into canvas-media. Chromeless like the note card — hover actions only.
 import { useState } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { type NodeProps } from "@xyflow/react";
 import { Copy, ImagePlus, Lock, LockOpen, Minus, Plus, Trash2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
+import { ConnectionDots } from "../ConnectionDots";
 import { EditableText } from "../ui";
 import { NEON } from "../theme";
 import { uploadImageFile } from "./ImageCardNode";
@@ -19,7 +20,6 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
   const { update, updateFn, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const arrowPending = !!(data as Record<string, unknown>)._arrowPending;
 
   const takeFile = async (file: File) => {
     setErr(null);
@@ -48,12 +48,11 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
         background: FRAME.frame,
         borderRadius: 14,
         padding: 8,
-        border: `1px solid ${arrowPending ? NEON.cyan : selected ? FRAME.gold : "rgba(232,184,75,0.25)"}`,
+        border: `1px solid ${selected ? FRAME.gold : "rgba(232,184,75,0.25)"}`,
         boxShadow: selected ? `0 0 0 1.5px ${FRAME.gold}, 0 16px 40px -14px rgba(0,0,0,0.7)` : "0 12px 32px -14px rgba(0,0,0,0.6)",
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
+      <ConnectionDots color={FRAME.gold} />
 
       {/* hover actions (film mode hides via .card-actions) */}
       <div className="card-actions absolute right-1.5 top-1.5 z-10 flex gap-0.5 opacity-0 transition-opacity group-hover/legend:opacity-100">

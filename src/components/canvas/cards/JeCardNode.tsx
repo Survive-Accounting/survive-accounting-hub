@@ -8,12 +8,12 @@
 // Everything mutates through the command bus; popovers ride CardPopover.
 import { useEffect, useRef, useState } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
-import { Handle, Position } from "@xyflow/react";
 import { ArrowUpRight, ChevronDown, CircleHelp, CircleX, Copy, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
+import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import type { LibraryItem } from "../library";
 import { CoaPicker } from "./CoaPicker";
@@ -75,7 +75,6 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [descMenu, setDescMenu] = useState<HTMLElement | null>(null); // scenario picker (A12)
   const [titleEditing, setTitleEditing] = useState(false); // free-text description
   const selLine = (data as Record<string, unknown>)._selLine as string | undefined;
-  const arrowPending = !!(data as Record<string, unknown>)._arrowPending;
 
   // A6: a stale _selLine outliving the card's selection made ←/→ move "the block
   // below the selected one" — clear it whenever the NODE deselects.
@@ -548,18 +547,12 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       className="group/cluster animate-in fade-in zoom-in-95 relative rounded-2xl duration-150"
       style={{
         width: ctx.jeCardWidth,
-        // card-level selection = soft ring around the cluster (no card box)
-        boxShadow: arrowPending
-          ? `0 0 0 2px ${NEON.cyan}, 0 0 30px -4px ${NEON.cyan}`
-          : selected
-            ? "0 0 0 1.5px rgba(224,40,74,0.45)"
-            : undefined,
+        // card-level selection lives on the union outline (edge segments go gold)
         padding: 4,
       }}
     >
       <style>{SOCKET_PULSE_CSS}</style>
-      <Handle type="target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} />
-      <Handle type="source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} />
+      <ConnectionDots />
 
       {/* ONE chrome grid (V2) — top-right, 2×3, hover/selection only:
           [↗ deck | clone | ×] / [lock | gear | ? flip-help] */}
