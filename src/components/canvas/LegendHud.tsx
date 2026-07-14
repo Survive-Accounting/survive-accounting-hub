@@ -3,7 +3,7 @@
 // localStorage), hidden in film mode + clean screen. Compact by design: legible
 // at a glance, no scrolling.
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Home, Layers3, MessageCircleQuestion, Shapes, SquareDashed, TrafficCone } from "lucide-react";
+import { ChevronDown, ChevronUp, Flag, Layers3, MessageCircleQuestion, Shapes, SquareDashed, TrafficCone } from "lucide-react";
 
 import { NEON } from "./theme";
 
@@ -64,7 +64,7 @@ export function LegendHud({ docked = false }: {
           {/* roles */}
           <div>
             <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Roles</div>
-            <div className="flex items-center gap-1.5"><Home className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} /> <b>Home</b><span style={{ color: NEON.muted }}>— a region's welcome lesson</span></div>
+            <div className="flex items-center gap-1.5"><Flag className="h-3 w-3 shrink-0" style={{ color: "#FF8B9E" }} /> <b>Check</b><span style={{ color: NEON.muted }}>— red gate: where you get tested</span></div>
             <div className="flex items-center gap-1.5"><TrafficCone className="h-3 w-3 shrink-0" style={{ color: "#E8B84B" }} /> <b>Gate</b><span style={{ color: NEON.muted }}>— free/paid boundary</span></div>
           </div>
         </div>

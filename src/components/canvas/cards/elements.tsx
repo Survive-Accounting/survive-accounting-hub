@@ -4,7 +4,7 @@
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
 import { useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { Braces, Copy, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, UserRoundPlus, X } from "lucide-react";
+import { Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, UserRoundPlus, X } from "lucide-react";
 
 import { BaseCard, useCardActions } from "../BaseCard";
 import { bus } from "../commands";
@@ -150,6 +150,15 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
       <ConnectionDots />
       <ElementChrome id={id} posLock={d.posLock} selected={selected} />
       <ElementResizer id={id} selected={selected} minWidth={140} minHeight={48} />
+      {/* GRAB HANDLE (L4): hover grip so a bare text block is easy to grab; the
+          padding box drags too. Edit is DOUBLE-click (single click/drag moves). */}
+      <div
+        className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
+        title="Drag to move"
+        style={{ color: NEON.muted }}
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
       {editing ? (
         <>
           <textarea

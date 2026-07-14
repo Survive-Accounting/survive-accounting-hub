@@ -6,7 +6,7 @@
 // renders as a smaller bracketed sub-label.
 import { useRef, useState } from "react";
 import { type NodeProps } from "@xyflow/react";
-import { Braces, Copy, Lock, LockOpen, X } from "lucide-react";
+import { Braces, Copy, GripVertical, Lock, LockOpen, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -57,6 +57,17 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
       <style>{UNDERLINE_CSS}</style>
       <ConnectionDots />
       <ElementResizer id={id} selected={selected} minWidth={160} minHeight={40} />
+
+      {/* GRAB HANDLE (L4): a bare heading is hard to grab — this hover grip is a
+          clear drag affordance. It's NOT nodrag, so pointer-down on it drags the
+          node (the whole padding box drags too); text edits on DOUBLE-click. */}
+      <div
+        className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
+        title="Drag to move"
+        style={{ color: NEON.muted }}
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
 
       {/* ELEMENT chrome: level · clone · lock · × — no deck, no flip, no gear */}
       <div
@@ -123,9 +134,9 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         </div>
       ) : (
         <div
-          className="cursor-text whitespace-nowrap leading-tight"
-          title={d.text || "Click to edit"}
-          onClick={() => setEditing(true)}
+          className="cursor-move whitespace-nowrap leading-tight"
+          title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
+          onDoubleClick={() => setEditing(true)}
         >
           <span style={{ color: d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)", fontFamily: DISPLAY_FONT, fontSize: size, fontStyle: d.text ? undefined : "italic" }}>
             {main ? renderTokens(main, ctx.previewStudent) : "Heading"}

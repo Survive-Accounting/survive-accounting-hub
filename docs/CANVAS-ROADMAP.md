@@ -153,6 +153,17 @@ card-contrast pass (light parchment bodies, dark ink, colour reserved for
 meaning) is the high-contrast look student/mobile wants — build student mode ON
 the light card, don't restyle.
 
+## Campus-color region theming (World v1 skin)
+Lessons now alternate two BRAND tints (warm / navy) so consecutive path
+segments read distinctly, and a CHECK lesson wears a red gate tint ("this is
+where I get tested"). Campus-color theming is a World-v1 SKIN on top of that
+alternating-tint system: a region adopts the school's colors (navy/red as the
+house default), so the same lesson bands re-tint per campus without touching
+the band mechanic. The Check-gate red is also the visual SEED of the free/paid
+gate — the paid boundary reuses the red-gate treatment (ties into Free/paid
+territory + Gate rendering, above). Build order: alternating tints (shipped) →
+per-campus palette table → gate treatment shares the Check red.
+
 ## Path navigation (student side)
 The live OUTLINE panel (authoring, "path navigation" run) becomes STUDENT
 navigation. A "Take a tour" wizard auto-drives the camera along path_order with

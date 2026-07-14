@@ -200,6 +200,31 @@ export function patchMemo(l: JeLine, kind: JeMemo["kind"], patch: Partial<JeMemo
   return { memos: memosOf(l).map((m) => (m.kind === kind ? { ...m, ...patch } : m)) };
 }
 
+/** THE MEMO POINTER (J2/J3): endpoints of the in-card leader running from a
+ *  floating memo box to the block it annotates. Leaves the box edge FACING the
+ *  block and lands on the block edge facing the box, so it stays a short, clear
+ *  arrow whether the memo sits left or right of its target. Pure so the
+ *  guaranteed-default pointer is unit-testable (a fresh memo always yields a
+ *  non-degenerate leader). `rowIndex` is the TARGET block's row (own line by
+ *  default; another same-card line when the memo is re-targeted). */
+export function memoLeaderGeom(opts: {
+  boxX: number;
+  boxY: number;
+  boxW: number;
+  blockInd: number;
+  blockW: number;
+  rowIndex: number;
+  blockH: number;
+  boxAnchorY?: number;
+}): { mx: number; my: number; bx: number; by: number } {
+  const { boxX, boxY, boxW, blockInd, blockW, rowIndex, blockH } = opts;
+  const by = rowIndex * blockH + blockH / 2;
+  const memoRightOfBlock = boxX + boxW / 2 > blockInd + blockW / 2;
+  const mx = memoRightOfBlock ? boxX : boxX + boxW;
+  const bx = memoRightOfBlock ? blockInd + blockW : blockInd;
+  return { mx, my: boxY + (opts.boxAnchorY ?? 14), bx, by };
+}
+
 /** Calc memo display: split each physical line at its LAST "=" so the = signs
  *  align in a two-column grid. Lines without "=" span both columns. */
 export function calcRows(text: string): { left: string; right: string | null }[] {

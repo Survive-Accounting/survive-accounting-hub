@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -53,7 +53,7 @@ import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/c
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -64,11 +64,11 @@ import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { snakeBounds, snakeLayout, snakePerRow } from "@/components/canvas/snake-layout";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
-import { addEdgeCmd, lineIdOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
+import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
-import { JE_PRESETS, groupCoa, hopToEnd, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
+import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
@@ -170,17 +170,33 @@ function ZoneNode({ id, data, selected }: NodeProps) {
 
 // ---------------------------------------------------------------------------
 // Lesson node — the finer grouping tier (WORLD → REGION(zone) → LESSON → CARD).
-// A titled translucent box that HUGS a heading + its cards: neon-gold border,
-// display label follows a contained heading, hug button auto-fits to children,
-// pathOrder within the region, HOME flag (welcome lesson: badge + placeholder
-// menu slot — the nav menu itself is roadmap). Cards inside ride parentId, so
-// dragging the lesson moves them natively, exactly like zones.
+// A LESSON IS A CALM BAND AT REST (L1): a labeled colored strip — title + a
+// subtle brand tint — and nothing else, so a filmed board stays clean. ALL
+// chrome (path badge, resize handles, ×, fit, beat/check toggles) reveals only
+// on hover during authoring. Consecutive lessons alternate two brand tints
+// (warm / navy) so the path segments read distinctly; a CHECK lesson wears a
+// red gate tint — "this is where I get tested." Interior cards flow LEFT→RIGHT
+// through four OPTIONAL beat guides (Hook · Teach · Model-Practice · Check),
+// soft guides not hard containers. Cards inside ride parentId, so dragging the
+// lesson moves them natively. (Campus-color theming is a World-v1 skin on top
+// of this alternating-tint system — see docs/CANVAS-ROADMAP.md.)
 // ---------------------------------------------------------------------------
+const LESSON_TINTS = {
+  warm: { fill: "rgba(252,163,17,0.09)", edge: "rgba(252,163,17,0.32)", edgeOn: NEON.yellow, glow: NEON.yellow, ink: "#E8B84B" },
+  navy: { fill: "rgba(79,163,227,0.08)", edge: "rgba(79,163,227,0.30)", edgeOn: NEON.cyan, glow: NEON.cyan, ink: "#8CC0EE" },
+  check: { fill: "rgba(206,17,38,0.10)", edge: "rgba(206,17,38,0.45)", edgeOn: "#E0284A", glow: "#E0284A", ink: "#FF8B9E" },
+} as const;
+const BEAT_LABELS = ["Hook", "Teach", "Model · Practice", "Check"] as const;
+/** Stable parity for a lesson with no pathOrder, so the two tints still alternate. */
+const lessonHash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i)) | 0; return Math.abs(h); };
+
 function LessonNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as LessonBox;
   const { update, remove } = useCardActions(id);
   const rf = useReactFlow();
   const nodes = useNodes(); // subscribe: the display label follows a contained heading live
+  const [hover, setHover] = useState(false);
+  const showChrome = hover || selected; // chrome (incl. resize handles) is hover-only
   // manual resize (V2): NodeResizer writes live; the end commits ONE bus command
   const resizeStart = useRef<{ pos: { x: number; y: number }; w: number; h: number } | null>(null);
 
@@ -191,6 +207,11 @@ function LessonNode({ id, data, selected }: NodeProps) {
     const m = /^(.*?)\s*\[[^\]]+\]\s*$/s.exec(raw); // strip the "[sub]" tail
     return (m ? m[1] : raw).trim() || null;
   })();
+
+  // ALTERNATING TINT (L1): pathOrder parity picks warm/navy; a CHECK lesson is
+  // always the red gate. pathOrder-less lessons fall back to a stable id hash.
+  const parity = (typeof d.pathOrder === "number" ? d.pathOrder : lessonHash(id)) % 2;
+  const tint = d.check ? LESSON_TINTS.check : parity === 0 ? LESSON_TINTS.warm : LESSON_TINTS.navy;
 
   /** FIT TO CONTENTS (optional button — never automatic): shrink-wrap the box
    *  around its children (+padding) in ONE undo step. Children keep their
@@ -230,28 +251,33 @@ function LessonNode({ id, data, selected }: NodeProps) {
     });
   };
 
+  const stop = (e: React.PointerEvent) => e.stopPropagation();
+  const chromeBtn = "nodrag zone-actions grid h-4 w-4 place-items-center rounded opacity-60 hover:opacity-100";
+
   return (
     <div
-      className="h-full w-full rounded-2xl"
+      className="group/lesson relative h-full w-full rounded-2xl"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         // size comes from the NODE (width/height) — NodeResizer drives it live;
         // data.w/h stay synced on resize-end for the parenting hit test
         minWidth: 180,
         minHeight: 56,
-        background: "rgba(252,163,17,0.045)",
-        border: `1.5px solid ${selected ? NEON.yellow : "rgba(252,163,17,0.35)"}`,
-        boxShadow: selected ? `0 0 24px -8px ${NEON.yellow}` : "none",
+        background: tint.fill,
+        border: `1.5px solid ${selected ? tint.edgeOn : tint.edge}`,
+        boxShadow: selected ? `0 0 24px -8px ${tint.glow}` : "none",
       }}
     >
       {/* lessons connect too: card↔lesson, lesson↔lesson (V2) */}
-      <ConnectionDots color={NEON.yellow} />
-      {/* the lesson is a DESIGNED SPACE: resize it by hand; min = the header */}
+      <ConnectionDots color={tint.edgeOn} />
+      {/* the lesson is a DESIGNED SPACE: resize it by hand (handles on hover) */}
       <NodeResizer
-        isVisible={!!selected}
+        isVisible={showChrome}
         minWidth={180}
         minHeight={56}
-        lineStyle={{ borderColor: NEON.yellow }}
-        handleStyle={{ width: 8, height: 8, borderRadius: 2, background: NEON.yellow, border: "none" }}
+        lineStyle={{ borderColor: tint.edgeOn }}
+        handleStyle={{ width: 8, height: 8, borderRadius: 2, background: tint.edgeOn, border: "none" }}
         onResizeStart={() => {
           const me = rf.getNode(id);
           if (me) resizeStart.current = { pos: { ...me.position }, w: d.w, h: d.h };
@@ -271,66 +297,74 @@ function LessonNode({ id, data, selected }: NodeProps) {
           });
         }}
       />
-      <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em]" style={{ color: NEON.yellow }}>
-        {d.home && (
-          <span className="grid h-4 w-4 place-items-center rounded" title="HOME lesson — this region's welcome" style={{ background: "rgba(252,163,17,0.18)" }}>
-            <Home className="h-3 w-3" />
-          </span>
-        )}
+
+      {/* BEAT GUIDES (L2): four L→R sections with faint dividers + small labels —
+          a soft guide for authoring AND students, never hard containers. Shown
+          whenever enabled (toggle lives in the hover chrome); sits BEHIND cards. */}
+      {(d as { beats?: boolean }).beats && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-2 top-9 z-0">
+          {[1, 2, 3].map((k) => (
+            <div key={k} className="absolute top-0 bottom-0" style={{ left: `${(k / 4) * 100}%`, width: 1, background: tint.edge }} />
+          ))}
+          {BEAT_LABELS.map((lab, k) => (
+            <div
+              key={lab}
+              className="absolute top-0 text-[9px] font-bold uppercase tracking-wider"
+              style={{ left: `calc(${(k / 4) * 100}% + 8px)`, color: NEON.muted, opacity: 0.7 }}
+            >
+              {lab}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* THE CALM BAND LABEL — the only thing visible at rest (title + tint). */}
+      <div className="relative z-[1] flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em]" style={{ color: tint.ink }}>
+        {d.check && <Flag className="h-3 w-3 shrink-0" style={{ color: tint.ink }} />}
         {headingText ? (
           <span title="Label follows the heading inside this lesson">{headingText}</span>
         ) : (
           <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Lesson" />
         )}
-        {/* teaching-path position within the region */}
-        <span
-          className="zone-actions rounded px-1 text-[9px] font-bold normal-case tabular-nums"
-          style={{
-            border: `1px solid ${typeof d.pathOrder === "number" ? "rgba(252,163,17,0.55)" : NEON.borderSoft}`,
-            color: typeof d.pathOrder === "number" ? NEON.yellow : NEON.muted,
-          }}
-          title="Lesson path position within its region"
-        >
-          path{" "}
-          <EditableText
-            value={typeof d.pathOrder === "number" ? String(d.pathOrder) : ""}
-            onChange={(v) => {
-              const n = parseInt(v, 10);
-              update({ pathOrder: Number.isFinite(n) ? n : null });
-            }}
-            placeholder="–"
-          />
+        {/* CHROME — hover/selected only (L1); pointer-events off while hidden so
+            invisible controls can't be clicked. */}
+        <span className={`flex items-center gap-1 transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+          <span
+            className="zone-actions rounded px-1 text-[9px] font-bold normal-case tabular-nums"
+            style={{ border: `1px solid ${typeof d.pathOrder === "number" ? tint.edgeOn : NEON.borderSoft}`, color: typeof d.pathOrder === "number" ? tint.ink : NEON.muted }}
+            title="Lesson path position within its region"
+          >
+            path{" "}
+            <EditableText
+              value={typeof d.pathOrder === "number" ? String(d.pathOrder) : ""}
+              onChange={(v) => { const n = parseInt(v, 10); update({ pathOrder: Number.isFinite(n) ? n : null }); }}
+              placeholder="–"
+            />
+          </span>
+          <button
+            className={chromeBtn}
+            title={(d as { beats?: boolean }).beats ? "Hide the beat guides (Hook · Teach · Model-Practice · Check)" : "Show beat guides (Hook · Teach · Model-Practice · Check)"}
+            onPointerDown={stop}
+            onClick={() => update({ beats: !(d as { beats?: boolean }).beats })}
+          >
+            <Columns3 className="h-3 w-3" style={{ color: (d as { beats?: boolean }).beats ? tint.ink : NEON.muted }} />
+          </button>
+          <button
+            className={chromeBtn}
+            title={d.check ? "Not a Check gate" : "Mark as a Check gate — red, where students get tested"}
+            onPointerDown={stop}
+            onClick={() => update({ check: !d.check })}
+          >
+            <Flag className="h-3 w-3" style={{ color: d.check ? "#FF8B9E" : NEON.muted }} />
+          </button>
+          <button className={chromeBtn} title="Fit to contents (one undo step)" onPointerDown={stop} onClick={hug}>
+            <Shrink className="h-3 w-3" />
+          </button>
+          <button className={chromeBtn} title="Delete lesson" onPointerDown={stop} onClick={remove}>
+            <X className="h-3 w-3" />
+          </button>
         </span>
-        <button
-          className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100"
-          title="Fit to contents (optional — one undo step)"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={hug}
-        >
-          <Shrink className="h-3 w-3" />
-        </button>
-        <button
-          className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100"
-          title={d.home ? "Unset HOME" : "Mark as this region's HOME lesson"}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => update({ home: !d.home })}
-        >
-          <Home className="h-3 w-3" />
-        </button>
-        <button className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
-          ✕
-        </button>
       </div>
-      {/* HOME lesson: placeholder nav-menu slot (guided navigation menu = roadmap) */}
-      {d.home && (
-        <div
-          className="absolute bottom-2 left-3 rounded-md px-2 py-1 text-[9.5px] font-semibold uppercase tracking-wider"
-          style={{ border: `1px dashed rgba(252,163,17,0.45)`, color: NEON.muted }}
-          title="Navigation menu lands here (roadmap: prev/home/next + full region menu)"
-        >
-          menu · soon
-        </div>
-      )}
     </div>
   );
 }
@@ -771,6 +805,25 @@ function PresentCanvas() {
         const drop = new Set(autoIds);
         rf.setEdges((eds) => eds.filter((e) => !drop.has(e.id)));
       }
+      // MEMO RE-TARGET (J3): a memo dot dropped on a block IN THE SAME card
+      // (source === target, so no edge is made) re-points that memo's default
+      // in-card leader at the dropped line — one undoable data patch. Cross-card
+      // memo arrows fall through to the ordinary edge path below.
+      const memoSrc = memoOfHandle(c.sourceHandle);
+      if (memoSrc && c.source && c.source === c.target) {
+        const targetLine = lineIdOfHandle(c.targetHandle);
+        if (targetLine && targetLine !== memoSrc.lineId) {
+          const node = rf.getNode(c.source);
+          if (node) {
+            const nextLines = ((node.data as unknown as JeCard).lines ?? []).map((l) =>
+              l.id === memoSrc.lineId ? { ...l, memos: memosOf(l).map((m) => (m.kind === memoSrc.kind ? { ...m, point: targetLine } : m)) } : l,
+            ) as JeLine[];
+            const cmd = patchDataCmd(rf as unknown as RfLike, c.source, { lines: nextLines }, "re-target memo");
+            if (cmd) bus.dispatch(cmd);
+          }
+        }
+        return;
+      }
       if (edge) bus.dispatch(addEdgeCmd(rf as unknown as RfLike, edge));
     },
     [rf],
@@ -924,18 +977,44 @@ function PresentCanvas() {
     const oy = center.y - (bounds.h + HEADER_H + HEADER_GAP) / 2;
     const cells = snakeLayout(chapters.length, { ...layoutOpts, originX: ox, originY: oy + HEADER_H + HEADER_GAP });
     const name = scaffoldName.trim() || courseLabel(course);
+    // HOME (L3): no per-lesson home flag anymore — the region's front door is a
+    // Home ELEMENT stamped above the header (welcome heading + an Ask Lee card),
+    // and the top outline entry. Sits clear of the snake.
+    const HOME_H = 150;
     const nodes: CardNode[] = [
+      {
+        id: cardId("heading"),
+        type: "heading",
+        position: { x: ox, y: oy - HOME_H },
+        data: { kind: "heading", text: `Welcome — start here [${name}]`, level: 2 } as unknown as CardNode["data"],
+      },
+      {
+        id: cardId("asklee"),
+        type: "asklee",
+        position: { x: ox + Math.min(560, bounds.w - 300), y: oy - HOME_H + 6 },
+        data: { kind: "asklee" } as unknown as CardNode["data"],
+      },
       {
         id: cardId("heading"),
         type: "heading",
         position: { x: ox, y: oy },
         data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: bounds.w } as unknown as CardNode["data"],
       },
+      // HEADER-LABELED BANDED LESSONS (L3): each active chapter → a calm band
+      // whose label is its chapter heading, beat guides pre-placed. The course's
+      // FINAL chapter is conventionally the region Check → red gate tint.
       ...chapters.map((ch, i) => ({
         id: cardId("lesson"),
         type: "lesson",
         position: { x: cells[i].x, y: cells[i].y },
-        data: { label: chapterLabel(ch), w: LESSON_W, h: LESSON_H, pathOrder: i + 1 } as unknown as CardNode["data"],
+        data: {
+          label: chapterLabel(ch),
+          w: LESSON_W,
+          h: LESSON_H,
+          pathOrder: i + 1,
+          beats: true,
+          check: i === chapters.length - 1,
+        } as unknown as CardNode["data"],
       })),
     ] as CardNode[];
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));

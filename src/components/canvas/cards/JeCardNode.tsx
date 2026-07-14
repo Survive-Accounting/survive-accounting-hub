@@ -11,7 +11,7 @@ import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps 
 import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
-import { lineHandleId } from "../arrows";
+import { lineHandleId, memoHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
@@ -34,6 +34,7 @@ import {
   fmtJeDate,
   hasAttempt,
   insertLine,
+  memoLeaderGeom,
   memoOf,
   memosOf,
   orderLines,
@@ -80,6 +81,11 @@ const SOCKET_PULSE_CSS = `
 /** Uniform row height — the polyomino contract: every block is one tetris cell. */
 const BLOCK_H = 36;
 
+/** Gutter (px) past the cluster's content-right edge where the per-block control
+ *  rail lands (J1) — beyond the connection dots (cluster right dot ≈ +12), so
+ *  the lightbulb/calc/⊗ trio never overlaps a dot. */
+const RAIL_GUTTER = 24;
+
 /** RECENTS (#4): account names already used ANYWHERE in this scene, deduped —
  *  the current card's own accounts first (most relevant), then the rest, so the
  *  picker floats the scene's working set to the top. Scene-scoped snapshot,
@@ -104,6 +110,7 @@ function sceneRecentAccounts(rf: ReturnType<typeof useReactFlow>, selfId: string
 export function JeCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as JeCard;
   const rf = useReactFlow();
+  const updateInternals = useUpdateNodeInternals();
   const { update, updateFn, remove, toFront, addToDeck, tuck } = useCardActions(id);
   const ctx = useCanvasSettings();
   const S = effectiveSettings(d.settings, ctx.jePreset);
@@ -164,6 +171,15 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   // (rows, indents, memo geometry, drag sockets) — grouped, so a scene saved
   // with an older interleaved array still draws canonically before any edit.
   const lines = orderLines(d.lines);
+
+  // MEMO HANDLES (J3): each open memo box exposes a source dot for growing RF
+  // arrows to other cards. When a memo opens/closes/moves the handle set (or its
+  // measured position) changes, so RF must re-measure this node's internals or
+  // freshly-drawn cross-card arrows anchor to a stale spot.
+  const memoSig = lines
+    .map((l) => memosOf(l).filter((m) => m.open && m.text).map((m) => `${m.id}@${m.pos?.x ?? ""},${m.pos?.y ?? ""}`).join("|"))
+    .join(";");
+  useEffect(() => { updateInternals(id); }, [memoSig, id, updateInternals]);
   const effLines = lines.map(eff);
   const bal = balanceState(effLines);
 
@@ -637,12 +653,17 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             )}
           </div>
 
-          {/* per-block controls — RIGHT of the block, OUTSIDE the grid (A4 +
-              PROMPT A): lightbulb (TEXT memo) · calculator (CALC memo) · ⊗
-              delete. Hover-only; review-lock hides edits but keeps set memos. */}
+          {/* per-block controls — a VERTICAL RAIL just OUTSIDE the cluster's
+              right edge (J1), aligned to this block's row. The connection dots
+              stay on the cluster/block edge; the rail sits BEYOND them, so
+              lightbulb (TEXT memo) · calculator (CALC memo) · ⊗ delete never
+              collide with the dots at any zoom. The transparent left padding
+              bridges the block→rail gap so hover doesn't flicker (the dots are
+              z-30, so they still win pointer events inside the gap). Hover-only;
+              review-lock hides edits but keeps set memos. */}
           <div
-            className="nodrag absolute top-1 z-[2] flex items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100"
-            style={{ left: "100%", paddingLeft: 4 }}
+            className="nodrag absolute z-[2] flex items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100"
+            style={{ left: "100%", top: (BLOCK_H - 20) / 2, paddingLeft: ctx.jeCardWidth + RAIL_GUTTER - (ind + blockW) }}
           >
             {(() => {
               const tm = memoOf(l, "text");
@@ -704,13 +725,14 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     const geom = open.map(({ l, i, m }) => {
       const live = memoDrag && memoDrag.id === l.id && memoDrag.kind === m.kind;
       const pos = live ? memoDrag.pos : (m.pos ?? defaultMemoPos(i, m.kind));
-      const by = i * BLOCK_H + BLOCK_H / 2;
-      // arrow runs memo → block: leave from the memo edge facing the block,
-      // land on the block edge facing the memo
-      const memoRightOfBlock = pos.x + BOX_W / 2 > inds[i] + blockW / 2;
-      const mx = memoRightOfBlock ? pos.x : pos.x + BOX_W;
-      const bx = memoRightOfBlock ? inds[i] + blockW : inds[i];
-      return { l, i, m, pos, mx, my: pos.y + 14, bx, by };
+      // The GUARANTEED DEFAULT pointer (J2) targets the memo's OWN line; a
+      // re-target (J3) points it at another block IN THIS CARD via m.point.
+      // Cross-card arrows are RF edges grown from the memo dot — the edge layer
+      // draws those, not this in-card leader.
+      const tIdx = m.point ? lines.findIndex((x) => x.id === m.point) : i;
+      const ti = tIdx >= 0 ? tIdx : i;
+      const g = memoLeaderGeom({ boxX: pos.x, boxY: pos.y, boxW: BOX_W, blockInd: inds[ti], blockW, rowIndex: ti, blockH: BLOCK_H });
+      return { l, i, m, pos, ...g };
     });
     return (
       <>
@@ -741,6 +763,23 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             onPointerMove={moveMemoDrag}
             onPointerUp={endMemoDrag}
           >
+            {/* MEMO ARROW DOT (J3): drag from here to grow an ordinary arrow to
+                any block or card (persist/undo/× all inherited from the edge
+                system). Drop it on another block IN THIS CARD → re-targets the
+                default leader instead (onConnect intercepts same-card memo→line).
+                stopPropagation keeps the box-drag from firing; RF's connection
+                runs on mousedown, so it still starts. */}
+            {!locked && (
+              <Handle
+                id={memoHandleId(a.l.id, a.m.kind)}
+                type="source"
+                position={Position.Right}
+                className="conn-dot memo-dot"
+                style={{ right: -5, top: "50%", width: 9, height: 9, background: "#101B31", border: `2px solid ${NEON.yellow}`, borderRadius: 999 }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="Drag to point this memo at another block or card"
+              />
+            )}
             <button
               className="nodrag absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full"
               style={{ color: NEON.muted, background: "#101B31", border: "1px solid rgba(147,160,180,0.4)" }}

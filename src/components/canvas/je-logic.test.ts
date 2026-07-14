@@ -19,6 +19,9 @@ import {
   placeLine,
   sideOf,
   swapLines,
+  memoLeaderGeom,
+  memoOf,
+  upsertMemo,
   JE_PRESETS,
 } from "./je-logic";
 import type { JeLine } from "./types";
@@ -401,5 +404,37 @@ describe("orderLines + hopToEnd (DR/CR invariant — no interleave)", () => {
     }
     // both sides always retain at least their survivors, grouped
     expect(isGrouped(orderLines(ls))).toBe(true);
+  });
+});
+
+describe("memo default pointer (J2/J3)", () => {
+  const line: JeLine = { id: "l1", account: "Cash", dr: 100, cr: null, side: "dr" };
+
+  test("a freshly-created memo carries an OPEN box (the pointer's precondition)", () => {
+    const patch = upsertMemo(line, "text", "why cash", { open: true, pos: { x: 300, y: 40 } });
+    const m = memoOf({ ...line, ...patch }, "text");
+    expect(m).toBeTruthy();
+    expect(m!.open).toBe(true);
+    expect(m!.pos).toEqual({ x: 300, y: 40 });
+  });
+
+  test("a new memo yields a NON-DEGENERATE leader to its own block", () => {
+    // default spawn is to the RIGHT of the block: memo left edge → block right edge
+    const g = memoLeaderGeom({ boxX: 300, boxY: 40, boxW: 190, blockInd: 0, blockW: 280, rowIndex: 0, blockH: 36 });
+    expect(g.mx).not.toBe(g.bx); // visible span, never a zero-length arrow
+    expect(g.mx).toBe(300); // leaves the memo's left edge (memo is right of block)
+    expect(g.bx).toBe(280); // lands on the block's right edge
+    expect(g.by).toBe(18); // row 0 mid
+  });
+
+  test("a memo LEFT of its block points from the memo's RIGHT edge", () => {
+    const g = memoLeaderGeom({ boxX: -220, boxY: 0, boxW: 190, blockInd: 0, blockW: 280, rowIndex: 0, blockH: 36 });
+    expect(g.mx).toBe(-30); // memo right edge (-220 + 190)
+    expect(g.bx).toBe(0); // block left edge
+  });
+
+  test("re-target (J3) aims the leader at the TARGET row, not the memo's own", () => {
+    const g = memoLeaderGeom({ boxX: 300, boxY: 0, boxW: 190, blockInd: 40, blockW: 280, rowIndex: 2, blockH: 36 });
+    expect(g.by).toBe(2 * 36 + 18); // row 2 mid
   });
 });

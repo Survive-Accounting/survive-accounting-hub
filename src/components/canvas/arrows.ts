@@ -106,3 +106,18 @@ export function lineIdOfHandle(handle: string | null | undefined): string | null
   const parts = handle.split(":");
   return parts.length === 3 ? parts[1] : null;
 }
+
+// ---- memo anchoring (J3) ----------------------------------------------------
+// A memo box exposes ONE source dot "mn:<lineId>:<kind>". Dragging from it makes
+// an ordinary arrow (persist/undo/× all free) to any block or card — the memo's
+// own-block pointer stays the in-card leader (the guaranteed default, J2). A
+// same-card drop is intercepted upstream to re-target that leader instead.
+
+export const memoHandleId = (lineId: string, kind: "text" | "calc") => `mn:${lineId}:${kind}`;
+
+/** Decode a memo handle → { lineId, kind }, or null for non-memo handles. */
+export function memoOfHandle(handle: string | null | undefined): { lineId: string; kind: "text" | "calc" } | null {
+  if (!handle || !handle.startsWith("mn:")) return null;
+  const parts = handle.split(":");
+  return parts.length === 3 && (parts[2] === "text" || parts[2] === "calc") ? { lineId: parts[1], kind: parts[2] } : null;
+}

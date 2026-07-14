@@ -103,6 +103,11 @@ export interface JeMemo {
   pos?: { x: number; y: number };
   /** Box shown (persisted so an arranged board reloads arranged). */
   open?: boolean;
+  /** DEFAULT-POINTER target (J3): the id of the SAME-card line this memo's
+   *  in-card leader points to. Undefined = its own line (the guaranteed default,
+   *  J2). Re-targeted by dropping the memo's dot on another block in this card.
+   *  Cross-card arrows are ordinary RF edges from the memo's dot, not this. */
+  point?: string;
 }
 
 export interface JeLine {
@@ -366,9 +371,14 @@ export interface LessonBox {
   h: number;
   /** Teaching path position within the region. */
   pathOrder?: number | null;
-  /** One lesson per region is HOME: welcome heading, intro video, Ask Lee, nav.
-   *  Renders a home badge + a placeholder menu slot (nav menu = roadmap). */
-  home?: boolean;
+  /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
+   *  visual seed of the free/paid gate (roadmap). */
+  check?: boolean;
+  /** BEAT GUIDES (L2): show the Hook · Teach · Model-Practice · Check dividers
+   *  inside the band (soft guides, not containers). */
+  beats?: boolean;
+  // NOTE: the old per-lesson `home` flag was dropped (L3) — Home is now just the
+  // top outline entry + a Home element (welcome heading + Ask Lee) in the region.
 }
 
 /** Grouping-tier nodes (region/zone + lesson) — never cards: excluded from the
