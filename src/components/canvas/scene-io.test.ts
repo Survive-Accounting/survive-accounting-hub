@@ -115,3 +115,61 @@ describe("migrateJeMemos", () => {
     expect((migrateJeMemos([note])[0] as { data: { body: string } }).data.body).toBe("hi");
   });
 });
+
+// ---- HARDENING P3: full LOAD-pipeline round-trip (save→load must not drift) ----
+// Mirrors the route's load chain: migrateJeMemos ∘ migrateElementDeckFields ∘
+// migrateDeckFields ∘ sanitizeSceneNodes, plus migrateEdges for the edges.
+
+const loadPipeline = (nodes: any[]) =>
+  migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes(nodes)), isElement));
+
+describe("scene load pipeline — legacy scene heals; v3 scene is stable", () => {
+  test("a mixed legacy scene migrates every axis in one pass", () => {
+    const legacy = [
+      // JE: selected (transient), legacy staged deck, legacy label memo
+      { id: "je1", type: "je", selected: true, data: { kind: "je", staged: true, _selLine: "x", lines: [{ id: "l1", label: "why", memoPos: { x: 1, y: 2 }, memoOpen: true }] } },
+      // element with stray deck membership from the pre-category era
+      { id: "h1", type: "heading", data: { kind: "heading", deckMember: true, tucked: true } },
+      // a normal note, minimized (v1)
+      { id: "n1", type: "note", dragging: true, data: { kind: "note", minimized: true } },
+    ];
+    const [je, h, n] = loadPipeline(legacy) as any[];
+    // transient stripped
+    expect(je.selected).toBeUndefined();
+    expect(je.data._selLine).toBeUndefined();
+    expect(n.dragging).toBeUndefined();
+    // legacy deck → deckMember/tucked
+    expect(je.data.deckMember).toBe(true); expect(je.data.tucked).toBe(true);
+    expect(je.data.staged).toBeUndefined();
+    expect(n.data.deckMember).toBe(true); expect(n.data.tucked).toBe(true);
+    // element deck membership stripped (elements never deck)
+    expect(h.data.deckMember).toBeUndefined();
+    // JE memo migrated; label preserved for doc round-trips
+    expect(je.data.lines[0].memos).toEqual([{ id: "l1-m-text", kind: "text", text: "why", pos: { x: 1, y: 2 }, open: true }]);
+    expect(je.data.lines[0].label).toBe("why");
+  });
+
+  test("a clean v3 scene is IDEMPOTENT through the pipeline (no drift on re-save)", () => {
+    const v3 = [
+      { id: "je1", type: "je", data: { kind: "je", deckMember: true, tucked: false, lines: [{ id: "l1", account: "Cash", dr: 100, cr: null, side: "dr", memos: [{ id: "m", kind: "text", text: "note", open: true }] }] } },
+      { id: "n1", type: "note", data: { kind: "note", body: "hi" } },
+    ];
+    const once = loadPipeline(structuredClone(v3));
+    const twice = loadPipeline(structuredClone(once));
+    expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
+    // and the content is intact
+    expect((once[0] as any).data.lines[0].account).toBe("Cash");
+    expect((once[0] as any).data.lines[0].memos[0].text).toBe("note");
+  });
+
+  test("edges round-trip through migrateEdges with style+marker+handles preserved", () => {
+    const saved = [
+      { id: "edge-1", source: "je1", target: "n1", sourceHandle: "ln:l1:r", targetHandle: "l", type: "smoothstep", style: { stroke: "#E0284A" }, markerEnd: { type: "arrowclosed" } },
+    ];
+    const [e] = migrateEdges(structuredClone(saved) as never) as any[];
+    expect(e.sourceHandle).toBe("ln:l1:r");
+    expect(e.type).toBe("smoothstep");
+    expect(e.style.stroke).toBe("#E0284A");
+    expect(e.markerEnd.type).toBe("arrowclosed");
+  });
+});

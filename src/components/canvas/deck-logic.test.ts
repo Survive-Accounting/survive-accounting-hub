@@ -76,3 +76,58 @@ describe("lessonGroups — empty lessons included (import targets)", () => {
     expect(gs.map((g) => [g.label, g.members.length])).toEqual([["Intro", 1], ["Wrap-up", 0]]);
   });
 });
+
+// ---- HARDENING P3: membership-vs-presence + deal order (Lee's filming core) ----
+
+import { deckMembers, isMember, isTucked } from "./deck-logic";
+
+describe("isMember / isTucked — membership is separate from presence", () => {
+  test("a dealt member is still IN the deck (member, not tucked)", () => {
+    const d = { kind: "je" as const, deckMember: true, tucked: false };
+    expect(isMember(d)).toBe(true);
+    expect(isTucked(d)).toBe(false);
+  });
+  test("a tucked member is hidden but still a member", () => {
+    const d = { kind: "je" as const, deckMember: true, tucked: true };
+    expect(isMember(d)).toBe(true);
+    expect(isTucked(d)).toBe(true);
+  });
+  test("a loose card is NOT a member", () => {
+    expect(isMember({ kind: "je" as const })).toBe(false);
+  });
+  test("legacy staged/minimized read as tucked members (v1 scenes)", () => {
+    expect(isMember({ kind: "note" as const, staged: true })).toBe(true);
+    expect(isTucked({ kind: "note" as const, staged: true })).toBe(true);
+    expect(isMember({ kind: "note" as const, minimized: true })).toBe(true);
+    expect(isTucked({ kind: "note" as const, minimized: true })).toBe(true);
+  });
+  test("ELEMENTS never count as deck members even if flagged", () => {
+    expect(isMember({ kind: "heading" as const, deckMember: true })).toBe(false);
+    expect(isMember({ kind: "text" as const, deckMember: true, tucked: true })).toBe(false);
+  });
+});
+
+describe("deckMembers — deal order (container path first, then stageOrder)", () => {
+  const m = (id: string, stageOrder: number, parentId?: string): DeckNode =>
+    ({ id, type: "note", parentId, data: { kind: "note", deckMember: true, tucked: true, stageOrder } });
+
+  test("stageOrder orders loose members; elements + containers excluded", () => {
+    const nodes: DeckNode[] = [
+      m("c", 2), m("a", 0), m("b", 1),
+      { id: "el", type: "heading", data: { kind: "heading", deckMember: true } }, // element, excluded
+      { id: "L", type: "lesson", data: { label: "L", pathOrder: 1 } }, // container, excluded
+    ];
+    expect(deckMembers(nodes).map((n) => n.id)).toEqual(["a", "b", "c"]);
+  });
+
+  test("a lesson's pathOrder wins over stageOrder across containers", () => {
+    const nodes: DeckNode[] = [
+      { id: "L2", type: "lesson", data: { label: "L2", pathOrder: 2 } },
+      { id: "L1", type: "lesson", data: { label: "L1", pathOrder: 1 } },
+      m("x", 99, "L1"), // in L1 (path 1) but high stageOrder
+      m("y", 0, "L2"),  // in L2 (path 2) but low stageOrder
+    ];
+    // L1 (path 1) deals before L2 (path 2) regardless of stageOrder
+    expect(deckMembers(nodes).map((n) => n.id)).toEqual(["x", "y"]);
+  });
+});
