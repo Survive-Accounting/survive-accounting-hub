@@ -3,7 +3,9 @@
 // cards saved selected reload as a drag-group).
 import { describe, expect, test } from "bun:test";
 
-import { migrateDeckFields, migrateEdges, sanitizeSceneNodes } from "./scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, sanitizeSceneNodes } from "./scene-io";
+
+const isElement = (k: string | undefined) => k === "heading" || k === "text" || k === "paygate" || k === "signupgate";
 
 describe("sanitizeSceneNodes", () => {
   test("strips selected from every node — no multi-select group survives a save/load", () => {
@@ -36,6 +38,20 @@ describe("sanitizeSceneNodes", () => {
     expect(out[1].data).toEqual({ kind: "note", deckMember: true, tucked: true });
     expect(out[2].data).toEqual({ kind: "list", deckMember: true, tucked: false });
     expect(out[3].data).toEqual({ kind: "ceq" });
+  });
+
+  test("elements silently lose old deck membership; cards keep theirs", () => {
+    const out = migrateElementDeckFields(
+      [
+        { data: { kind: "heading", text: "Welcome", deckMember: true, tucked: true, stageOrder: 2 } },
+        { data: { kind: "je", deckMember: true, tucked: true } },
+        { data: { kind: "heading", text: "clean" } },
+      ],
+      isElement,
+    );
+    expect(out[0].data).toEqual({ kind: "heading", text: "Welcome" }); // membership gone, revealed
+    expect(out[1].data).toEqual({ kind: "je", deckMember: true, tucked: true }); // cards untouched
+    expect(out[2].data).toEqual({ kind: "heading", text: "clean" });
   });
 
   test("old handle-less edges get the legacy right→left anchors + smoothstep", () => {

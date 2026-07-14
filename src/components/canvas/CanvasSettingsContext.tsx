@@ -5,6 +5,7 @@ import { createContext, useContext } from "react";
 
 import type { CoaGroup, JePreset } from "./je-logic";
 import type { LibraryItem } from "./library";
+import { defaultPreviewStudent, type PreviewStudent } from "./variables";
 
 export interface CanvasSettings {
   /** ALL JE cards render at this width (px). One knob, scene-wide. */
@@ -30,6 +31,9 @@ export interface CanvasSettings {
   contentResetMissing: boolean;
   /** Opens the Manage-accounts dialog (COA picker empty-state shortcut). */
   onManageAccounts: () => void;
+  /** Template-variable substitution source ({first_name} …) — the PREVIEW
+   *  student until live resolution ships with auth/World v1. */
+  previewStudent: PreviewStudent;
   setJeCardWidth: (n: number) => void;
   setJeIndent: (n: number) => void;
   setJePreset: (p: JePreset) => void;
@@ -52,6 +56,7 @@ export const CanvasSettingsContext = createContext<CanvasSettings>({
   courseName: null,
   contentResetMissing: false,
   onManageAccounts: () => {},
+  previewStudent: defaultPreviewStudent(),
   setJeCardWidth: () => {},
   setJeIndent: () => {},
   setJePreset: () => {},

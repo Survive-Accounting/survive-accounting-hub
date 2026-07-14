@@ -9,9 +9,28 @@ import { blankCard, formulaAle, scheduleTemplate, CARD_KIND_LABEL } from "./temp
 import type { LibraryItem } from "./library";
 import type { CardData, CardKind, SchedulePreset } from "./types";
 
-const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
+type BlankSpec = { kind: CardKind; label: string; preset?: SchedulePreset; special?: "ale" };
+
+/** BLANK reorganized into three groups (design-elements run). */
+const CARD_BLANKS: BlankSpec[] = [
   { kind: "je", label: "Journal Entry" },
   { kind: "taccount", label: "T-Account" },
+  { kind: "note", label: "Note" },
+  { kind: "formula", label: "A = L + E", special: "ale" },
+];
+const ELEMENT_BLANKS: BlankSpec[] = [
+  { kind: "heading", label: "Heading" },
+  { kind: "text", label: "Text" },
+  { kind: "paygate", label: "Payment Gate" },
+  { kind: "signupgate", label: "Signup Gate" },
+];
+const BRIDGE_BLANKS: BlankSpec[] = [
+  { kind: "asklee", label: "Ask Lee" },
+  { kind: "submitproblem", label: "Submit a Problem" },
+  { kind: "shareinvite", label: "Share / Invite" },
+];
+/** Everything else stays reachable (video slots, schedules, …) — collapsed. */
+const MORE_BLANKS: BlankSpec[] = [
   { kind: "list", label: "List (reveal)" },
   { kind: "schedule", label: "Table (generic)", preset: "generic" },
   { kind: "schedule", label: "Amortization", preset: "amortization" },
@@ -23,18 +42,72 @@ const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
   { kind: "computation", label: "Computation" },
   { kind: "ceq", label: "Question (CEQ)" },
   { kind: "memorize", label: "Memorize" },
-  { kind: "note", label: "Note" },
   { kind: "video", label: "Video (Mux)" },
   { kind: "image", label: "Image" },
   { kind: "legend", label: "Legend card" },
-  { kind: "formula", label: "Formula" },
-  { kind: "heading", label: "Heading" },
 ];
 
 const KIND_FILTERS: (CardKind | "all")[] = ["all", "je", "schedule", "computation", "taccount", "ceq", "memorize"];
 
-/** Focus mode trims the blank deck to the filming staples. */
-const FOCUS_KINDS: CardKind[] = ["je", "taccount", "note", "heading"];
+/** Focus mode trims the CARDS group to the filming staples (elements/bridge untouched). */
+const FOCUS_KINDS: CardKind[] = ["je", "taccount", "note"];
+
+function spawnBlank(b: BlankSpec): CardData {
+  if (b.special === "ale") return formulaAle();
+  if (b.kind === "schedule") return scheduleTemplate(b.preset ?? "generic");
+  return blankCard(b.kind);
+}
+
+function BlankGroup({ title, color, blanks, onSpawn }: { title: string; color: string; blanks: BlankSpec[]; onSpawn: (d: CardData) => void }) {
+  if (blanks.length === 0) return null;
+  return (
+    <div className="mb-2">
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{title}</div>
+      <div className="grid grid-cols-2 gap-1">
+        {blanks.map((b) => (
+          <button
+            key={b.label}
+            onClick={() => onSpawn(spawnBlank(b))}
+            className="rounded-md px-2 py-1 text-left text-[11.5px] font-medium transition-all hover:-translate-y-px"
+            style={{ border: `1px dashed ${NEON.border}`, color: NEON.text, background: "rgba(252,163,17,0.05)" }}
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MoreBlanks({ onSpawn }: { onSpawn: (d: CardData) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-1">
+      <button
+        className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+        style={{ color: NEON.muted }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        More
+      </button>
+      {open && (
+        <div className="mt-1 grid grid-cols-2 gap-1">
+          {MORE_BLANKS.map((b) => (
+            <button
+              key={b.label}
+              onClick={() => onSpawn(spawnBlank(b))}
+              className="rounded-md px-2 py-1 text-left text-[11px] font-medium transition-all hover:-translate-y-px"
+              style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted, background: "rgba(0,0,0,0.2)" }}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Palette({
   library,
@@ -114,30 +187,17 @@ export function Palette({
         </button>
       </div>
 
-      {/* BLANK — the improvisation deck */}
+      {/* BLANK — three groups: CARDS · ELEMENTS · BRIDGE (+ MORE, collapsed) */}
       <div className="px-3 pt-2">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Blank</div>
-        <div className="grid grid-cols-2 gap-1">
-          {(focus ? BLANKS.filter((b) => FOCUS_KINDS.includes(b.kind)) : BLANKS).map((b) => (
-            <button
-              key={b.label}
-              onClick={() => onSpawn(b.kind === "schedule" ? scheduleTemplate(b.preset ?? "generic") : blankCard(b.kind))}
-              className="rounded-md px-2 py-1 text-left text-[11.5px] font-medium transition-all hover:-translate-y-px"
-              style={{ border: `1px dashed ${NEON.border}`, color: NEON.text, background: "rgba(252,163,17,0.05)" }}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
-        {/* pinned preset — Foundations Ch1 films on this */}
-        <button
-          onClick={() => onSpawn(formulaAle())}
-          className="mt-1 block w-full rounded-md px-2 py-1 text-left text-[11.5px] font-semibold transition-all hover:-translate-y-px"
-          style={{ border: `1px solid rgba(252,163,17,0.45)`, color: NEON.yellow, background: "rgba(252,163,17,0.08)" }}
-          title="Formula preset: Assets = Liabilities + Equity"
-        >
-          A = L + E
-        </button>
+        <BlankGroup
+          title="Cards"
+          color={NEON.yellow}
+          blanks={focus ? CARD_BLANKS.filter((b) => FOCUS_KINDS.includes(b.kind) || b.special === "ale") : CARD_BLANKS}
+          onSpawn={onSpawn}
+        />
+        <BlankGroup title="Elements" color={NEON.cyan} blanks={ELEMENT_BLANKS} onSpawn={onSpawn} />
+        <BlankGroup title="Bridge" color={NEON.pinkSoft} blanks={BRIDGE_BLANKS} onSpawn={onSpawn} />
+        <MoreBlanks onSpawn={onSpawn} />
       </div>
 
       {/* LIBRARY — collapsible; a 1,000-item list is prep clutter mid-lesson */}

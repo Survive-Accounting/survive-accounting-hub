@@ -50,3 +50,24 @@ export function migrateDeckFields<T extends { data?: Record<string, unknown> }>(
     return { ...n, data: { ...rest, deckMember: true, tucked: true } } as T;
   });
 }
+
+/** ELEMENTS never live in the deck (design-elements run). Old scenes may have a
+ *  heading with deck membership from the pre-category era — strip it silently
+ *  (revealing any tucked element back onto the canvas) and note it in console. */
+export function migrateElementDeckFields<T extends { data?: Record<string, unknown> }>(
+  nodes: T[],
+  isElement: (kind: string | undefined) => boolean,
+): T[] {
+  let stripped = 0;
+  const out = nodes.map((n) => {
+    const d = (n.data ?? {}) as Record<string, unknown>;
+    if (!isElement(d.kind as string | undefined)) return n;
+    if (!d.deckMember && !d.tucked && !d.faceDown) return n;
+    stripped++;
+    const { deckMember, tucked, stageOrder, deckPos, deckCategory, faceDown, ...rest } = d;
+    void deckMember; void tucked; void stageOrder; void deckPos; void deckCategory; void faceDown;
+    return { ...n, data: rest } as T;
+  });
+  if (stripped > 0) console.info(`[canvas] ${stripped} element(s) had deck membership from an old scene — membership dropped (elements never deck).`);
+  return out;
+}

@@ -13,7 +13,7 @@ import { CardBack } from "./CardBack";
 import { nextStageOrder } from "./BaseCard";
 import { CARD_KIND_LABEL } from "./templates";
 import { NEON } from "./theme";
-import { isContainerType, type CardBase, type CardData } from "./types";
+import { isContainerType, isElementKind, type CardBase, type CardData } from "./types";
 
 const KIND_DOT: Record<string, string> = {
   je: NEON.pink,
@@ -33,7 +33,8 @@ const KIND_DOT: Record<string, string> = {
 
 type DeckNode = { id: string; type?: string; parentId?: string; data: Record<string, unknown> };
 
-const isMember = (d: CardBase) => !!d.deckMember || !!d.staged || !!d.minimized; // legacy counts until migrated
+// ELEMENTS never deck (belt: load-migration strips them; braces: excluded here)
+const isMember = (d: CardBase) => !isElementKind(d.kind) && (!!d.deckMember || !!d.staged || !!d.minimized);
 export const isTucked = (d: CardBase) => (d.deckMember ? !!d.tucked : !!d.staged || !!d.minimized);
 
 /** ALL deck members in deal order. Container path_order (region/zone OR lesson)

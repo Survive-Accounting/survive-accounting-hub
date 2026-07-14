@@ -47,14 +47,17 @@ import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
-import { cardId, isContainerType, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { LegendHud } from "@/components/canvas/LegendHud";
+import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
+import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, migrateEdges, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopTo, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
@@ -337,7 +340,15 @@ const nodeTypes = {
   image: withFaceDown(ImageCardNode),
   legend: withFaceDown(LegendCardNode),
   formula: withFaceDown(FormulaCardNode),
-  heading: withFaceDown(HeadingCardNode),
+  // ELEMENTS: plain — never face-down (elements don't deck)
+  heading: HeadingCardNode,
+  text: TextElementNode,
+  paygate: GateNode,
+  signupgate: GateNode,
+  // BRIDGE placeholders: deckable cards
+  asklee: withFaceDown(BridgeCardNode),
+  submitproblem: withFaceDown(BridgeCardNode),
+  shareinvite: withFaceDown(BridgeCardNode),
   zone: ZoneNode,
   lesson: LessonNode,
 };
@@ -489,6 +500,15 @@ function PresentCanvas() {
   const [dealFaceDown, setDealFaceDown] = useState(false); // deck toggle: deals arrive as card backs
   const [hideFdLabels, setHideFdLabels] = useState(false); // quiz mode: banners show "???"
   const [focusPalette, setFocusPalette] = useState(true); // blanks trimmed to JE/T-account/Note/Heading
+  // PREVIEW STUDENT (template variables) — persisted in localStorage
+  const [previewStudent, setPreviewStudent] = useState<PreviewStudent>(() => loadPreviewStudent());
+  const patchPreview = useCallback((k: keyof PreviewStudent, v: string) => {
+    setPreviewStudent((prev) => {
+      const next = { ...prev, [k]: v };
+      savePreviewStudent(next);
+      return next;
+    });
+  }, []);
   const jeLibrary = useMemo(() => library.filter((it) => it.kind === "je"), [library]); // description picker (A12)
   // palette LIBRARY default: active + authored only (archived stays queryable via the picker toggle)
   const activeLibrary = useMemo(() => library.filter((i) => i.status === "active" && i.source === "authored"), [library]);
@@ -506,11 +526,12 @@ function PresentCanvas() {
       courseName: sceneCourse ? (sceneCourse.code ?? sceneCourse.course_name ?? "Course") : null,
       contentResetMissing,
       onManageAccounts: () => setManageAccountsOpen(true),
+      previewStudent,
       setJeCardWidth,
       setJeIndent,
       setJePreset,
     }),
-    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary, sceneCourseId, sceneChapterId, sceneCourse, contentResetMissing],
+    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary, sceneCourseId, sceneChapterId, sceneCourse, contentResetMissing, previewStudent],
   );
 
   // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
@@ -1101,7 +1122,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])));
+      rf.setNodes(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -1233,7 +1254,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]));
+      const nodesAfter = migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind);
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
@@ -1503,6 +1524,7 @@ function PresentCanvas() {
         fitView
       >
         {bgCfg.mode === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
+        {chrome && <LegendHud />}
         {chrome && minimap && (
           <MiniMap
             position="bottom-right"
@@ -1639,7 +1661,7 @@ function PresentCanvas() {
                 </label>
                 <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: focusPalette ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={focusPalette} onChange={(e) => setFocusPalette(e.target.checked)} style={{ accentColor: "#FCA311" }} />
-                  Focus palette <span className="opacity-60">(JE · T · Note · Heading)</span>
+                  Focus palette <span className="opacity-60">(trims CARDS to JE · T · Note)</span>
                 </label>
                 {/* SCENE COURSE CONTEXT (content reset): pickers scope to this */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: sceneCourseId ? NEON.yellow : NEON.muted }}>Scene course</div>
@@ -1676,6 +1698,22 @@ function PresentCanvas() {
                 >
                   Manage accounts
                 </button>
+                {/* PREVIEW STUDENT — template-variable substitution source */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }} title="Substitutes {first_name} etc. in headings/text. Live student data arrives with World v1.">
+                  Preview student
+                </div>
+                {TOKEN_KEYS.map((k) => (
+                  <label key={k} className="mt-1 flex items-center gap-1 text-[9.5px]" style={{ color: NEON.muted }}>
+                    <span className="w-20 shrink-0 truncate">{k}</span>
+                    <input
+                      className="min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[11px] outline-none"
+                      style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                      value={previewStudent[k]}
+                      onChange={(e) => patchPreview(k, e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </label>
+                ))}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>New-JE mode</div>
                 <div className="mt-1 flex gap-1">
                   {(["guided", "practice"] as const).map((p) => (

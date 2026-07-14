@@ -16,7 +16,45 @@ export type CardKind =
   | "image"
   | "legend"
   | "formula"
-  | "heading";
+  | "heading"
+  | "text"
+  | "paygate"
+  | "signupgate"
+  | "asklee"
+  | "submitproblem"
+  | "shareinvite";
+
+/** NODE CATEGORIES (design elements run):
+ *  - card: teaching content — full contract (deck, flip-help, modes).
+ *  - element: design furniture (headings, text, gates) — NEVER in the deck,
+ *    no flip-help, no teaching settings; chrome = clone · × · pos-lock · resize.
+ *  - bridge: placeholder feature cards (Ask Lee, …) — deckable like cards,
+ *    flip-help off, no backend yet. */
+export type NodeCategory = "card" | "element" | "bridge";
+
+export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
+  je: "card",
+  schedule: "card",
+  computation: "card",
+  taccount: "card",
+  ceq: "card",
+  memorize: "card",
+  note: "card",
+  video: "card",
+  list: "card",
+  image: "card",
+  legend: "card",
+  formula: "card",
+  heading: "element",
+  text: "element",
+  paygate: "element",
+  signupgate: "element",
+  asklee: "bridge",
+  submitproblem: "bridge",
+  shareinvite: "bridge",
+};
+
+export const isElementKind = (k: string | undefined): boolean => KIND_CATEGORY[k as CardKind] === "element";
 
 /** Shared across every card, merged into node.data. */
 export interface CardBase {
@@ -212,9 +250,31 @@ export interface FormulaCard extends CardBase {
 // ---- Heading (big display text: section titles on the whiteboard) ----
 export interface HeadingCard extends CardBase {
   kind: "heading";
-  /** Display text; a trailing "[sub]" renders as a smaller bracketed sub-label. */
+  /** Display text; a trailing "[sub]" renders as a smaller bracketed sub-label.
+   *  Supports template tokens: {first_name} {university} {professor}
+   *  {course_code} {exam_date} — stored raw, rendered substituted. */
   text: string;
   level: 1 | 2; // H1 ~48px / H2 ~28px at zoom 1
+}
+
+// ---- Text element (freeform markdown-lite block; ELEMENT category) ----
+export interface TextElement extends CardBase {
+  kind: "text";
+  /** Raw text with markdown-lite (**bold**, *italic*, "- " bullets, line
+   *  breaks) and template tokens (stored raw, rendered substituted). */
+  body: string;
+  color: number; // index into NOTE_COLORS accents
+}
+
+// ---- Gate elements (VISUAL PLACEHOLDERS — real gating is World v1) ----
+export interface GateElement extends CardBase {
+  kind: "paygate" | "signupgate";
+  label: string; // editable banner text
+}
+
+// ---- Bridge placeholders (deckable cards; features arrive with World v1) ----
+export interface BridgeCard extends CardBase {
+  kind: "asklee" | "submitproblem" | "shareinvite";
 }
 
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----
@@ -247,7 +307,10 @@ export type CardData =
   | ImageCard
   | LegendCard
   | FormulaCard
-  | HeadingCard;
+  | HeadingCard
+  | TextElement
+  | GateElement
+  | BridgeCard;
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 

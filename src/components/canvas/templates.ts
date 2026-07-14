@@ -35,6 +35,16 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "image", url: "", fit: "contain", caption: "", editMode: true };
     case "heading":
       return { kind: "heading", text: "", level: 1 };
+    case "text":
+      return { kind: "text", body: "", color: 0 };
+    case "paygate":
+      return { kind: "paygate", label: "Members beyond this point" };
+    case "signupgate":
+      return { kind: "signupgate", label: "Sign up to continue" };
+    case "asklee":
+    case "submitproblem":
+    case "shareinvite":
+      return { kind } as CardData;
     case "formula":
       return {
         kind: "formula",
@@ -185,4 +195,10 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   legend: "Legend card",
   formula: "Formula",
   heading: "Heading",
+  text: "Text",
+  paygate: "Payment Gate",
+  signupgate: "Signup Gate",
+  asklee: "Ask Lee",
+  submitproblem: "Submit a Problem",
+  shareinvite: "Share / Invite",
 };
