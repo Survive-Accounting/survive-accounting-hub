@@ -1,19 +1,28 @@
-// List card — a THIN reveal list (5 account types, accounting cycle steps, …).
-// Title (BaseCard header) + one-line definition + rows revealed via the stepper.
-// Optional per-row DR/CR chip (off by default — same cards power the debit/credit
-// rubric video later). Deliberately not a tree, not a chart-of-accounts explorer.
+// List card — a reveal list (the 5 account types, the accounting cycle, …).
+// Title + one-line definition + rows revealed via the stepper. P2 upgrades:
+// a SETTINGS gear (replaces the edit pencil, JE-consistent) for numbered↔bulleted,
+// DR/CR chips (default OFF — Foundations teaches the 5 types before debits/credits),
+// and a LIVE COA BIND (pull a course's Assets/Liabilities/… set, auto-updating);
+// plus a per-row INDENT that renders contra items in statement form ("Less: …").
+import { useState } from "react";
 import type { NodeProps } from "@xyflow/react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, IndentIncrease, Plus, Settings2, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
+import { CardPopover } from "../CardPopover";
+import { useCanvasSettings } from "../CanvasSettingsContext";
 import { EditableText } from "../ui";
 import { NEON, PAPER } from "../theme";
 import { cardId, type ListCard, type ListRow } from "../types";
 
+const COA_GROUPS = ["Assets", "Liabilities", "Equity", "Revenue", "Expenses"] as const;
+
 export function ListCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as ListCard;
   const { update, updateFn } = useCardActions(id);
+  const ctx = useCanvasSettings();
   const editing = !!d.editMode;
+  const [gear, setGear] = useState<HTMLElement | null>(null);
 
   const patchRow = (rid: string, p: Partial<ListRow>) =>
     updateFn((prev) => ({ rows: ((prev.rows as ListRow[]) ?? []).map((r) => (r.id === rid ? { ...r, ...p } : r)) }));
@@ -27,55 +36,99 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
   };
   const cycleChip = (r: ListRow) => patchRow(r.id, { chip: r.chip === "DR" ? "CR" : r.chip === "CR" ? undefined : "DR" });
 
+  // LIVE COA PULL (P2): a bound group's accounts precede the manual rows. Contra
+  // accounts arrive indented + "Less:" (statement form). These are derived —
+  // never stored — so editing the course's COA updates the card live.
+  const pulled = d.coaGroup ? (ctx.coa.find((g) => g.label === d.coaGroup)?.accounts ?? []) : [];
+  const pulledRows: { key: string; text: string; chip?: "DR" | "CR"; indent: boolean; pulled: true }[] = pulled.map((a) => ({
+    key: `coa:${a.name}`,
+    text: a.name,
+    chip: a.normal === "debit" ? "DR" : "CR",
+    indent: a.type.startsWith("contra"),
+    pulled: true,
+  }));
+
+  const bullet = (i: number) =>
+    d.bulleted ? (
+      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: PAPER.green }} />
+    ) : (
+      <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full text-[10px] font-bold" style={{ border: `1px solid ${PAPER.green}`, color: PAPER.green }}>
+        {i + 1}
+      </span>
+    );
+
+  const chipEl = (chip: "DR" | "CR" | undefined, onCycle?: () => void) =>
+    d.showChips && (chip || editing) ? (
+      <button
+        className="nodrag shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+        style={{
+          color: chip === "DR" ? PAPER.navy : chip === "CR" ? PAPER.red : PAPER.inkMuted,
+          border: `1px solid ${chip === "DR" ? PAPER.navy : chip === "CR" ? PAPER.red : PAPER.line}`,
+          opacity: chip ? 1 : 0.5,
+        }}
+        title={onCycle ? "Cycle DR → CR → none" : chip === "DR" ? "normal balance: debit" : "normal balance: credit"}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onCycle?.(); }}
+      >
+        {chip ?? "—"}
+      </button>
+    ) : null;
+
   return (
     <BaseCard
       id={id}
       data={d}
       selected={selected}
       accent={NEON.green}
+      noEditBtn
       headerRight={
         <button
-          title="Toggle DR/CR chips"
+          title="List settings"
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); update({ showChips: !d.showChips }); }}
-          className="nodrag rounded px-1 text-[10px] font-bold"
-          style={{ color: d.showChips ? NEON.yellow : NEON.muted, border: `1px solid ${d.showChips ? "rgba(252,163,17,0.5)" : "transparent"}` }}
+          onClick={(e) => { e.stopPropagation(); setGear(gear ? null : e.currentTarget); }}
+          className="nodrag grid h-5 w-5 place-items-center rounded"
+          style={{ color: gear ? NEON.yellow : NEON.muted }}
         >
-          DR
+          <Settings2 className="h-3 w-3" />
         </button>
       }
     >
+      {gear && (
+        <CardPopover anchor={gear} side="left" onClose={() => setGear(null)}>
+          <ListSettings d={d} onUpdate={update} onClose={() => setGear(null)} />
+        </CardPopover>
+      )}
+
       {(d.definition || editing) && (
         <p className="mb-1.5 text-[12px] italic" style={{ color: PAPER.inkMuted }}>
           <EditableText value={d.definition ?? ""} onChange={(v) => update({ definition: v })} editing={editing} placeholder="One-line definition" />
         </p>
       )}
+
       <ol className="space-y-1">
-        {d.rows.map((r, i) => (
-          <li key={r.id} className="flex items-center gap-1.5 text-[14px]" style={{ opacity: r.hidden ? 0.15 : 1 }}>
-            <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full text-[10px] font-bold" style={{ border: `1px solid ${PAPER.green}`, color: PAPER.green }}>
-              {i + 1}
-            </span>
+        {/* PULLED rows (live COA) — read-only, contra items in "Less:" form */}
+        {pulledRows.map((r, i) => (
+          <li key={r.key} className="flex items-center gap-1.5 text-[14px]" style={{ paddingLeft: r.indent ? 18 : 0 }}>
+            {bullet(i)}
             <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
+              {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
+              {r.text}
+            </span>
+            {chipEl(r.chip)}
+          </li>
+        ))}
+        {/* MANUAL rows */}
+        {d.rows.map((r, i) => (
+          <li key={r.id} className="flex items-center gap-1.5 text-[14px]" style={{ opacity: r.hidden ? 0.15 : 1, paddingLeft: r.indent ? 18 : 0 }}>
+            {bullet(pulledRows.length + i)}
+            <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
+              {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
               <EditableText value={r.text} onChange={(v) => patchRow(r.id, { text: v })} editing={editing} placeholder="Item" />
             </span>
-            {d.showChips && (r.chip || editing) && (
-              <button
-                className="nodrag shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
-                style={{
-                  color: r.chip === "DR" ? PAPER.navy : r.chip === "CR" ? PAPER.red : PAPER.inkMuted,
-                  border: `1px solid ${r.chip === "DR" ? PAPER.navy : r.chip === "CR" ? PAPER.red : PAPER.line}`,
-                  opacity: r.chip ? 1 : 0.5,
-                }}
-                title={editing ? "Cycle DR → CR → none" : r.chip === "DR" ? "normal balance: debit" : "normal balance: credit"}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); if (editing) cycleChip(r); }}
-              >
-                {r.chip ?? "—"}
-              </button>
-            )}
+            {chipEl(r.chip, editing ? () => cycleChip(r) : undefined)}
             {editing && (
               <span className="flex shrink-0">
+                <IconBtn title={r.indent ? "Unindent" : 'Indent + "Less:" (contra form)'} active={r.indent} onClick={() => patchRow(r.id, { indent: !r.indent })}><IndentIncrease className="h-3 w-3" /></IconBtn>
                 <IconBtn title="Up" onClick={() => move(i, -1)}><ArrowUp className="h-3 w-3" /></IconBtn>
                 <IconBtn title="Down" onClick={() => move(i, 1)}><ArrowDown className="h-3 w-3" /></IconBtn>
                 <IconBtn title="Remove" danger onClick={() => setRows(d.rows.filter((x) => x.id !== r.id))}><Trash2 className="h-3 w-3" /></IconBtn>
@@ -84,6 +137,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           </li>
         ))}
       </ol>
+
       {editing && (
         <button
           className="nodrag mt-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
@@ -95,5 +149,55 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         </button>
       )}
     </BaseCard>
+  );
+}
+
+/** LIST SETTINGS popover (P2) — replaces the edit pencil (JE-consistent gear):
+ *  edit rows, numbered↔bulleted, DR/CR chips, and the live COA bind. */
+function ListSettings({ d, onUpdate, onClose }: { d: ListCard; onUpdate: (p: Partial<ListCard>) => void; onClose: () => void }) {
+  const row = "flex items-center justify-between gap-2 py-0.5 text-[11.5px]";
+  const toggle = (on: boolean) => ({
+    color: on ? NEON.yellow : NEON.muted,
+    background: on ? "rgba(252,163,17,0.12)" : "transparent",
+    border: `1px solid ${on ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`,
+  });
+  return (
+    <div
+      className="nodrag w-56 rounded-lg p-2 shadow-xl"
+      style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>List settings</div>
+      <div className={row}>
+        <span>Edit rows</span>
+        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.editMode)} onClick={() => onUpdate({ editMode: !d.editMode })}>{d.editMode ? "on" : "off"}</button>
+      </div>
+      <div className={row}>
+        <span>Markers</span>
+        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!d.bulleted)} onClick={() => onUpdate({ bulleted: !d.bulleted })}>{d.bulleted ? "bulleted" : "numbered"}</button>
+      </div>
+      <div className={row}>
+        <span>DR/CR chips</span>
+        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.showChips)} onClick={() => onUpdate({ showChips: !d.showChips })}>{d.showChips ? "on" : "off"}</button>
+      </div>
+      <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+        <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Bind to COA</div>
+        <select
+          value={d.coaGroup ?? ""}
+          onChange={(e) => onUpdate({ coaGroup: e.target.value || null })}
+          className="w-full rounded bg-black/40 px-1 py-0.5 text-[11px] outline-none"
+          style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+        >
+          <option value="">Manual only</option>
+          {COA_GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <p className="mt-1 text-[9.5px] leading-snug" style={{ color: NEON.muted }}>
+          Pulls this course's accounts of that type, live. Manual rows still allowed below.
+        </p>
+      </div>
+      <div className="mt-1.5 flex justify-end">
+        <button className="rounded px-2 py-0.5 text-[10.5px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={onClose}>done</button>
+      </div>
+    </div>
   );
 }

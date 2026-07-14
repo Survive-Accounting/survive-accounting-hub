@@ -347,14 +347,23 @@ export interface ListRow {
   /** Optional debit/credit chip (the debit-credit-rubric video re-uses the same cards). */
   chip?: "DR" | "CR";
   hidden?: boolean; // stepper hide
+  /** CONTRA FORM (P2): indent + prepend "Less: " — statement form for contra
+   *  items (Equipment / Less: Accumulated Depreciation). */
+  indent?: boolean;
 }
 export interface ListCard extends CardBase {
   kind: "list";
   /** One-word/one-line definition under the title. */
   definition?: string;
   rows: ListRow[];
-  /** Chips off by default; toggled per card. */
+  /** Chips off by default (Foundations teaches the 5 types before DR/CR). */
   showChips: boolean;
+  /** NUMBERED (default) vs BULLETED rows (P2). */
+  bulleted?: boolean;
+  /** LIVE COA PULL (P2): bind to one of the 5 account-type GROUPS (Assets, …)
+   *  of the scene's course — rows auto-populate from that COA set, live, and
+   *  precede any manual teaching rows. null/absent = manual only. */
+  coaGroup?: string | null;
 }
 
 export type CardData =
