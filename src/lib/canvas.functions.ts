@@ -23,13 +23,18 @@ export interface SceneListRow {
   name: string;
   chapter_id: string | null;
   updated_at: string;
+  /** Folder assignment (0088). undefined when the migration isn't applied —
+   *  the Load dialog then renders flat with a fail-loud folder header. */
+  folder_id?: string | null;
 }
 
 export const listScenes = createServerFn({ method: "GET" }).handler(async (): Promise<SceneListRow[]> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await (supabaseAdmin.from("canvas_scenes" as never) as any)
-    .select("id,name,chapter_id,updated_at")
-    .order("updated_at", { ascending: false });
+  const tbl = () => supabaseAdmin.from("canvas_scenes" as never) as any;
+  let { data, error } = await tbl().select("id,name,chapter_id,updated_at,folder_id").order("updated_at", { ascending: false });
+  if (error && (error.code === "42703" || /folder_id/.test(error.message))) {
+    ({ data, error } = await tbl().select("id,name,chapter_id,updated_at").order("updated_at", { ascending: false }));
+  }
   if (error) rethrow(error);
   return (data ?? []) as SceneListRow[];
 });
@@ -101,6 +106,111 @@ export const saveScene = createServerFn({ method: "POST" })
       .single();
     if (error) rethrow(error);
     return { id: (ins as { id: string }).id };
+  });
+
+// ---- SCENE FOLDERS = COURSE GROUPS (workspace chrome, migration 0088) -------
+const MISSING_0088_HINT =
+  "scene folders missing — run migration/supabase-migrations/0088_scene_folders.sql in the Supabase SQL editor";
+
+function rethrow0088(error: { code?: string; message: string }): never {
+  if (
+    error.code === "42P01" ||
+    error.code === "42703" ||
+    /relation .*canvas_folders.* does not exist/i.test(error.message) ||
+    /column .*folder_id.* does not exist/i.test(error.message)
+  ) {
+    throw new Error(MISSING_0088_HINT);
+  }
+  throw new Error(error.message);
+}
+
+export interface FolderRow {
+  id: string;
+  name: string;
+  course_id: string | null;
+  sort: number;
+}
+
+export const listFolders = createServerFn({ method: "GET" }).handler(async (): Promise<FolderRow[]> => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await (supabaseAdmin.from("canvas_folders" as never) as any)
+    .select("id,name,course_id,sort")
+    .order("sort")
+    .order("name");
+  if (error) rethrow0088(error);
+  return (data ?? []) as FolderRow[];
+});
+
+export const createFolder = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ name: z.string().min(1).max(60) }).parse(d))
+  .handler(async ({ data }): Promise<FolderRow> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ins, error } = await (supabaseAdmin.from("canvas_folders" as never) as any)
+      .insert({ name: data.name.trim(), sort: 100 })
+      .select("id,name,course_id,sort")
+      .single();
+    if (error) rethrow0088(error);
+    return ins as FolderRow;
+  });
+
+export const renameFolder = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), name: z.string().min(1).max(60) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("canvas_folders" as never) as any)
+      .update({ name: data.name.trim() })
+      .eq("id", data.id);
+    if (error) rethrow0088(error);
+    return { ok: true };
+  });
+
+const moveSceneSchema = z.object({
+  scene_id: z.string().uuid(),
+  folder_id: z.string().uuid().nullable(), // null = Unfiled
+  /** true = overwrite a DIFFERENT existing course context with the folder's. */
+  force_course: z.boolean().optional(),
+});
+
+/** Move a scene into a folder. ONE GESTURE, ONE TRUTH: a course folder also
+ *  sets the scene's course context (inside nodes_json.sceneSettings) when it's
+ *  unset. If the scene already carries a DIFFERENT course, returns
+ *  { conflict } so the client can ask before forcing. */
+export const moveSceneToFolder = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => moveSceneSchema.parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; courseSet?: string } | { conflict: true; sceneCourseId: string; folderCourseId: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const scenes = () => supabaseAdmin.from("canvas_scenes" as never) as any;
+    let folderCourse: string | null = null;
+    if (data.folder_id) {
+      const { data: folder, error: fErr } = await (supabaseAdmin.from("canvas_folders" as never) as any)
+        .select("course_id")
+        .eq("id", data.folder_id)
+        .maybeSingle();
+      if (fErr) rethrow0088(fErr);
+      folderCourse = (folder as { course_id: string | null } | null)?.course_id ?? null;
+    }
+    const { data: scene, error: sErr } = await scenes().select("id,nodes_json").eq("id", data.scene_id).maybeSingle();
+    if (sErr) rethrow0088(sErr);
+    if (!scene) throw new Error(`Scene ${data.scene_id} not found`);
+
+    const nodesJson = ((scene as { nodes_json: unknown }).nodes_json ?? {}) as Record<string, unknown>;
+    const ss = ((nodesJson.sceneSettings ?? {}) as Record<string, unknown>);
+    const sceneCourseId = (ss.courseId as string | null | undefined) ?? null;
+
+    const patch: Record<string, unknown> = { folder_id: data.folder_id };
+    let courseSet: string | undefined;
+    if (folderCourse) {
+      if (!sceneCourseId || data.force_course) {
+        nodesJson.sceneSettings = { ...ss, courseId: folderCourse, ...(sceneCourseId && sceneCourseId !== folderCourse ? { chapterId: null } : {}) };
+        patch.nodes_json = nodesJson;
+        courseSet = folderCourse;
+      } else if (sceneCourseId !== folderCourse) {
+        return { conflict: true, sceneCourseId, folderCourseId: folderCourse };
+      }
+    }
+    const { error } = await scenes().update(patch).eq("id", data.scene_id);
+    if (error) rethrow0088(error);
+    return { ok: true, courseSet };
   });
 
 // ---- chart of accounts (JE picker) -----------------------------------------
