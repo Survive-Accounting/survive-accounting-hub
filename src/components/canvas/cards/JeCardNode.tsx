@@ -58,8 +58,22 @@ function eff(l: JeLine): JeLine {
   return { ...l, account: l.trap.account ?? l.account, dr, cr, side: l.trap.dr !== undefined || l.trap.cr !== undefined ? undefined : l.side };
 }
 
+// SELECTION = a quiet mode shift, not a loud border (visual-polish run). The
+// active-tool color is a cool platinum SILVER (never amber — amber is reserved
+// for empty/fillable slots so "what still needs doing" is scannable at a
+// glance). A single ~420ms breath plays once when the cluster is selected to
+// draw the eye to the fillable slots, then everything fades to calm scenery.
+const SILVER = "#AEB9C9"; // selection silhouette + line focus
+const SILVER_SHEEN = "rgba(174,185,201,0.8)"; // soft ambient glow on the cluster
+
 const SOCKET_PULSE_CSS = `
 @keyframes je-socket-pulse { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
+@keyframes je-fill-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(252,163,17,0); }
+  40% { box-shadow: 0 0 0 3px rgba(252,163,17,0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(252,163,17,0); }
+}
+.je-fill-pulse { animation: je-fill-pulse 420ms ease-out 1; }
 `;
 
 /** Uniform row height — the polyomino contract: every block is one tetris cell. */
@@ -307,12 +321,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     const amt = amountOf(eff(l));
     const isSel = selLine === l.id;
     const empty = !eff(l).account;
+    // ACTIONABLE = an empty account slot the user can still fill (not locked).
+    // Amber is reserved for exactly this — filled content never wears amber.
+    const actionable = empty && !locked;
+    const amtEmpty = amt == null && !locked;
     // GUIDED/PRACTICE: unfilled template lines render as dashed segments of the shape
     const socketStyle = empty && S.showGhosts;
     const prevInd = i === 0 ? null : inds[i - 1];
     const nextInd = i === inds.length - 1 ? null : inds[i + 1];
     const IND = ctx.jeIndent;
-    const edgeColor = socketStyle ? "rgba(252,163,17,0.75)" : selected ? "#FCA311" : PAPER.cardEdge;
+    // empty rows keep their amber ghost edge (fillable); FILLED rows go the
+    // calm silver at rest, brighter platinum SILVER when the cluster is
+    // selected — selection reads as a cool active-tool shift, not amber.
+    const edgeColor = socketStyle ? "rgba(252,163,17,0.75)" : selected ? SILVER : PAPER.cardEdge;
     const edges = [
       edgeSeg("el", socketStyle, edgeColor, { left: 0, top: 0, bottom: 0 }, true),
       edgeSeg("er", socketStyle, edgeColor, { right: 0, top: 0, bottom: 0 }, true),
@@ -361,9 +382,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             boxShadow: trapOn
               ? "inset 0 0 0 2px rgba(194,24,50,0.5)"
               : isGlow
-                ? "inset 0 0 0 2px rgba(252,163,17,0.95), 0 0 10px 1px rgba(252,163,17,0.55)"
+                ? "inset 0 0 0 2px rgba(252,163,17,0.95), 0 0 10px 1px rgba(252,163,17,0.55)" // arrow endpoint = gold
                 : isSel
-                  ? "inset 0 0 0 2px rgba(252,163,17,0.6)"
+                  ? "inset 0 0 0 2px rgba(174,185,201,0.95)" // single-block focus = SILVER
                   : undefined,
           }}
           onClick={() => { if (!locked) selectLine(l.id); }}
@@ -378,19 +399,31 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           >
             {locked && !empty && <Lock className="h-2.5 w-2.5 shrink-0" style={{ color: PAPER.inkFaint }} />}
 
-            {/* ACCOUNT — reads as an obvious DROPDOWN (A9): border + chevron + hover */}
+            {/* ACCOUNT — FILLABILITY LANGUAGE (visual-polish run): an EMPTY,
+                actionable slot is warm amber + DASHED ("fill me"); a FILLED
+                account recedes to calm parchment with a faint solid edge. The
+                amber affordance brightens while the cluster is selected and
+                takes the one-shot fill-pulse then. */}
             <button
-              className="group/dd flex min-w-0 flex-1 items-center gap-1 rounded px-1.5 py-0.5 text-left text-[13px] transition-colors"
+              className={`group/dd flex min-w-0 flex-1 items-center gap-1 rounded px-1.5 py-0.5 text-left text-[13px] transition-colors ${actionable && selected ? "je-fill-pulse" : ""}`}
               style={{
-                color: trapOn ? PAPER.red : empty ? (socketStyle ? "rgba(252,163,17,0.85)" : PAPER.inkMuted) : PAPER.ink,
+                color: trapOn ? PAPER.red : actionable ? "rgba(138,90,0,0.85)" : PAPER.ink,
                 fontStyle: empty ? "italic" : undefined,
-                background: dragLine === l.id ? "rgba(20,33,61,0.08)" : locked ? "transparent" : "rgba(20,33,61,0.03)",
-                border: locked ? "1px solid transparent" : "1px solid rgba(20,33,61,0.18)",
+                background: dragLine === l.id
+                  ? "rgba(20,33,61,0.08)"
+                  : actionable
+                    ? `rgba(252,163,17,${selected ? 0.11 : 0.06})`
+                    : locked ? "transparent" : "rgba(20,33,61,0.02)",
+                border: locked
+                  ? "1px solid transparent"
+                  : actionable
+                    ? `1px dashed rgba(252,163,17,${selected ? 0.8 : 0.55})`
+                    : "1px solid rgba(20,33,61,0.12)",
               }}
               title={eff(l).account || (S.showPicker ? "Choose account" : "Type the account")}
               onPointerDown={(e) => e.stopPropagation()}
-              onMouseEnter={(e) => { if (!locked) e.currentTarget.style.borderColor = "rgba(20,33,61,0.45)"; }}
-              onMouseLeave={(e) => { if (!locked) e.currentTarget.style.borderColor = "rgba(20,33,61,0.18)"; }}
+              onMouseEnter={(e) => { if (!locked) e.currentTarget.style.borderColor = actionable ? "rgba(252,163,17,0.95)" : "rgba(20,33,61,0.4)"; }}
+              onMouseLeave={(e) => { if (!locked) e.currentTarget.style.borderColor = actionable ? `rgba(252,163,17,${selected ? 0.8 : 0.55})` : "rgba(20,33,61,0.12)"; }}
               onClick={(e) => {
                 if (locked) return; // review-only
                 e.stopPropagation();
@@ -426,8 +459,11 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               />
             )}
 
-            {/* AMOUNT — indents WITH its block; ??? IS the permanent no-value state
-                and ONE click on it opens amount entry (A8) */}
+            {/* AMOUNT — ??? is the permanent no-value state; it now reads as a
+                fillable amber slot that RHYMES with the dashed account box
+                (dashed amber underline), so both halves of the block say
+                "fill me". A real amount recedes to calm ink. One click opens
+                entry (A8). Pulses once with the block on selection. */}
             <div className="w-20 shrink-0 text-right" style={{ color: trapOn ? PAPER.red : PAPER.ink }}>
               {locked ? (
                 <span className={`tabular-nums ${amt == null ? "opacity-30" : ""}`}>{amt == null ? "???" : fmtNum(amt)}</span>
@@ -436,6 +472,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                   value={amt}
                   placeholder="???"
                   clickToEdit
+                  emptyClassName={`${amtEmpty && selected ? "je-fill-pulse " : ""}border-b border-dashed px-0.5`}
+                  emptyStyle={{ color: "rgba(138,90,0,0.85)", borderColor: `rgba(252,163,17,${selected ? 0.8 : 0.55})` }}
                   onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
                 />
               )}
@@ -639,8 +677,12 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       className="group/cluster animate-in fade-in zoom-in-95 relative rounded-2xl duration-150"
       style={{
         width: ctx.jeCardWidth,
-        // card-level selection lives on the union outline (edge segments go gold)
         padding: 4,
+        // SELECTION SHEEN: a soft platinum ambient glow behind the whole
+        // cluster — silhouette-agnostic (diffuse, no hard rectangle), calm
+        // when deselected. The silhouette edges also go silver (see edgeColor).
+        boxShadow: selected ? `0 0 22px -6px ${SILVER_SHEEN}` : undefined,
+        transition: "box-shadow 200ms ease-out",
       }}
     >
       <style>{SOCKET_PULSE_CSS}</style>

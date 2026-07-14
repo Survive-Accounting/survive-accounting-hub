@@ -67,9 +67,14 @@ interface EditableNumberProps {
   /** ONE click opens entry (JE amounts: ??? is a button, not a label). Default
    *  stays double-click so table cells don't open while selecting cards. */
   clickToEdit?: boolean;
+  /** Fillability styling for the EMPTY display state only (JE amount ??? →
+   *  amber dashed affordance). Replaces the default dim-opacity; ignored while
+   *  editing. Other callers leave these unset for the plain look. */
+  emptyClassName?: string;
+  emptyStyle?: React.CSSProperties;
 }
 
-export function EditableNumber({ value, onChange, editing, className, placeholder, clickToEdit }: EditableNumberProps) {
+export function EditableNumber({ value, onChange, editing, className, placeholder, clickToEdit, emptyClassName, emptyStyle }: EditableNumberProps) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
@@ -96,14 +101,18 @@ export function EditableNumber({ value, onChange, editing, className, placeholde
       />
     );
   }
+  const isEmpty = value == null;
+  // empty + custom fillability style → use it (no dimming); else the old dim.
+  const emptyLook = isEmpty && emptyClassName ? emptyClassName : isEmpty ? (clickToEdit ? "opacity-50" : "opacity-30") : "";
   return (
     <span
       onDoubleClick={(e) => { e.stopPropagation(); setOpen(true); }}
       onClick={clickToEdit ? (e) => { e.stopPropagation(); setOpen(true); } : undefined}
-      title={clickToEdit && value == null ? "Click to set the amount" : undefined}
-      className={`cursor-text tabular-nums ${value == null ? (clickToEdit ? "opacity-50" : "opacity-30") : ""} ${className ?? ""}`}
+      title={clickToEdit && isEmpty ? "Click to set the amount" : undefined}
+      className={`cursor-text tabular-nums ${emptyLook} ${className ?? ""}`}
+      style={isEmpty && emptyClassName ? emptyStyle : undefined}
     >
-      {value == null ? (placeholder ?? "—") : fmtNum(value)}
+      {isEmpty ? (placeholder ?? "—") : fmtNum(value)}
     </span>
   );
 }
