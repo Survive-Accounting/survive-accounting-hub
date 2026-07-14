@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { absRectOf, adjacentFrame, frame169, framesInLesson, nextFrameOrder, type RectNode } from "./frames";
+import { absRectOf, adjacentFrame, filmstripLayout, frame169, framesInLesson, nextFrameOrder, SCAFFOLD_BEATS, type RectNode } from "./frames";
 
 const F = (id: string, parentId: string, order: number, x = 0): RectNode => ({ id, type: "frame", parentId, position: { x, y: 0 }, data: { order } });
 
@@ -35,5 +35,20 @@ describe("frames (F1)", () => {
     const byId = new Map([lesson, frame, card].map((n) => [n.id, n]));
     expect(absRectOf(card, byId)).toEqual({ x: 150, y: 180, w: 200, h: 120 }); // 100+40+10, 100+60+20
     expect(absRectOf(frame, byId)).toEqual({ x: 140, y: 160, w: 400, h: 225 });
+  });
+});
+
+describe("filmstrip layout (F2)", () => {
+  test("filmstripLayout lays frames L→R and sizes the lesson to contain them", () => {
+    const { positions, w, h } = filmstripLayout(4, 800, 450);
+    expect(positions).toHaveLength(4);
+    expect(positions[0]).toEqual({ x: 30, y: 56 + 30 }); // pad, headerH+pad
+    expect(positions[1].x).toBe(30 + 800 + 80); // +frameW +gap
+    expect(positions[1].y).toBe(positions[0].y); // same row
+    expect(w).toBe(30 + 4 * 800 + 3 * 80 + 30);
+    expect(h).toBe(56 + 30 + 450 + 30);
+  });
+  test("SCAFFOLD_BEATS are the four beats in walk order", () => {
+    expect(SCAFFOLD_BEATS.map((b) => b.beat)).toEqual(["hook", "teach", "model_practice", "check"]);
   });
 });

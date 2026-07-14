@@ -52,7 +52,7 @@ import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
 import { MemoCardNode } from "@/components/canvas/cards/MemoCardNode";
 import { FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
-import { absRectOf, adjacentFrame, blankFrameData, framesInLesson, nextFrameOrder } from "@/components/canvas/frames";
+import { absRectOf, adjacentFrame, blankFrameData, filmstripLayout, framesInLesson, nextFrameOrder, SCAFFOLD_BEATS } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -977,10 +977,13 @@ function PresentCanvas() {
     // the minimap. The course's final chapter (Foundations = "Course Wrap-up")
     // lands at the END of the snake naturally; pathOrder follows the snake so
     // the outline + a future tour ride the same spine.
-    const LESSON_W = 460;
-    const LESSON_H = 340;
-    const GAP_X = 130;
-    const GAP_Y = 170;
+    // Each lesson is now a FILMSTRIP (F2): a band sized to hold a row of 4 frames
+    // (Hook · Teach · Model-Practice · Check). The snake spaces the strips out.
+    const strip = filmstripLayout(SCAFFOLD_BEATS.length, FRAME_W, FRAME_H);
+    const LESSON_W = strip.w;
+    const LESSON_H = strip.h;
+    const GAP_X = 220;
+    const GAP_Y = 260;
     const HEADER_GAP = 60;
     const perRow = snakePerRow(chapters.length);
     const layoutOpts = { colW: LESSON_W, rowH: LESSON_H, gapX: GAP_X, gapY: GAP_Y, perRow, originX: 0, originY: 0 };
@@ -1015,22 +1018,35 @@ function PresentCanvas() {
         position: { x: ox, y: oy },
         data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: bounds.w } as unknown as CardNode["data"],
       },
-      // HEADER-LABELED BANDED LESSONS (L3): each active chapter → a calm band
-      // whose label is its chapter heading, beat guides pre-placed. The course's
-      // FINAL chapter is conventionally the region Check → red gate tint.
-      ...chapters.map((ch, i) => ({
-        id: cardId("lesson"),
-        type: "lesson",
-        position: { x: cells[i].x, y: cells[i].y },
-        data: {
-          label: chapterLabel(ch),
-          w: LESSON_W,
-          h: LESSON_H,
-          pathOrder: i + 1,
-          beats: true,
-          check: i === chapters.length - 1,
-        } as unknown as CardNode["data"],
-      })),
+      // FILMSTRIP LESSONS (F2): each active chapter → a lesson band pre-loaded
+      // with 4 empty FRAMES (Hook · Teach · Model-Practice · Check), tagged and
+      // ordered, laid left-to-right. Authoring = walk into each frame and fill it.
+      // The course's FINAL chapter carries the region-level red Check tint.
+      ...chapters.flatMap((ch, i) => {
+        const lid = cardId("lesson");
+        const lesson = {
+          id: lid,
+          type: "lesson",
+          position: { x: cells[i].x, y: cells[i].y },
+          data: {
+            label: chapterLabel(ch),
+            w: LESSON_W,
+            h: LESSON_H,
+            pathOrder: i + 1,
+            check: i === chapters.length - 1,
+          } as unknown as CardNode["data"],
+        };
+        const frames = SCAFFOLD_BEATS.map((b, k) => ({
+          id: cardId("frame"),
+          type: "frame",
+          parentId: lid,
+          position: strip.positions[k],
+          width: FRAME_W,
+          height: FRAME_H,
+          data: { ...blankFrameData(b.beat, k + 1), title: b.title } as unknown as CardNode["data"],
+        }));
+        return [lesson, ...frames];
+      }),
     ] as CardNode[];
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
     setScaffoldOpen(false);
@@ -1043,21 +1059,37 @@ function PresentCanvas() {
   // turns, no overlap — as ONE undoable command. Never automatic: manual
   // placement (and manual resize) is preserved until Lee presses this.
   const reflowPath = useCallback(() => {
-    const lessons = rf.getNodes().filter((n) => n.type === "lesson" && !n.parentId) as CardNode[];
-    if (lessons.length < 2) return;
-    const po = (n: CardNode) => {
-      const v = (n.data as Record<string, unknown>).pathOrder;
-      return typeof v === "number" ? v : Number.POSITIVE_INFINITY;
-    };
-    const ordered = [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x);
-    const colW = Math.max(...lessons.map((n) => n.measured?.width ?? ((n.data as Record<string, unknown>).w as number) ?? 460));
-    const rowH = Math.max(...lessons.map((n) => n.measured?.height ?? ((n.data as Record<string, unknown>).h as number) ?? 340));
-    const minX = Math.min(...lessons.map((n) => n.position.x));
-    const minY = Math.min(...lessons.map((n) => n.position.y));
-    const perRow = snakePerRow(ordered.length);
-    const cells = snakeLayout(ordered.length, { originX: minX, originY: minY, colW, rowH, gapX: 130, gapY: 170, perRow });
-    const before = new Map(ordered.map((n) => [n.id, { ...n.position }]));
-    const after = new Map(ordered.map((n, i) => [n.id, { x: cells[i].x, y: cells[i].y }]));
+    const all = rf.getNodes() as CardNode[];
+    const lessons = all.filter((n) => n.type === "lesson" && !n.parentId);
+    const before = new Map<string, { x: number; y: number }>();
+    const after = new Map<string, { x: number; y: number }>();
+    // 1) re-snake the region's lessons by pathOrder (if there are ≥2)
+    if (lessons.length >= 2) {
+      const po = (n: CardNode) => {
+        const v = (n.data as Record<string, unknown>).pathOrder;
+        return typeof v === "number" ? v : Number.POSITIVE_INFINITY;
+      };
+      const ordered = [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x);
+      const colW = Math.max(...lessons.map((n) => n.measured?.width ?? ((n.data as Record<string, unknown>).w as number) ?? 460));
+      const rowH = Math.max(...lessons.map((n) => n.measured?.height ?? ((n.data as Record<string, unknown>).h as number) ?? 340));
+      const minX = Math.min(...lessons.map((n) => n.position.x));
+      const minY = Math.min(...lessons.map((n) => n.position.y));
+      const perRow = snakePerRow(ordered.length);
+      const cells = snakeLayout(ordered.length, { originX: minX, originY: minY, colW, rowH, gapX: 220, gapY: 260, perRow });
+      ordered.forEach((n, i) => { before.set(n.id, { ...n.position }); after.set(n.id, { x: cells[i].x, y: cells[i].y }); });
+    }
+    // 2) re-lay each lesson's FRAMES as a left-to-right filmstrip (F2 item 9).
+    //    Frame positions are lesson-relative, so they don't depend on the
+    //    lesson's new spot — the strip rides along.
+    for (const l of lessons) {
+      const frames = framesInLesson(all as never, l.id);
+      if (frames.length === 0) continue;
+      const fw = Math.max(...frames.map((f) => (f as CardNode).measured?.width ?? ((f.data as Record<string, unknown>).w as number) ?? FRAME_W));
+      const fh = Math.max(...frames.map((f) => (f as CardNode).measured?.height ?? ((f.data as Record<string, unknown>).h as number) ?? FRAME_H));
+      const strip = filmstripLayout(frames.length, fw, fh);
+      frames.forEach((f, k) => { before.set(f.id, { ...(f as CardNode).position }); after.set(f.id, strip.positions[k]); });
+    }
+    if (after.size === 0) return;
     const apply = (m: Map<string, { x: number; y: number }>) =>
       rf.setNodes((nds) => nds.map((n) => (m.has(n.id) ? { ...n, position: { ...m.get(n.id)! } } : n)));
     bus.dispatch({ label: "tidy layout", do: () => apply(after), undo: () => apply(before) });
@@ -1206,7 +1238,25 @@ function PresentCanvas() {
     return fid;
   }, [rf]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepFrame, canStep: canStepFrame, addFrame: addFrameToLesson }), [currentFrameId, enterFrame, exitFrame, stepFrame, canStepFrame, addFrameToLesson]);
+  /** Reorder a frame within its lesson: swap with the -1/+1 neighbour, then
+   *  renumber all the lesson's frames 1..n — one undoable command. */
+  const reorderFrame = useCallback((frameId: string, dir: -1 | 1) => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return;
+    const list = framesInLesson(rf.getNodes() as never, f.parentId);
+    const i = list.findIndex((x) => x.id === frameId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    const swapped = [...list];
+    [swapped[i], swapped[j]] = [swapped[j], swapped[i]];
+    const cmd = compositeCmd(
+      swapped.map((fr, k) => patchDataCmd(rf as unknown as RfLike, fr.id, { order: k + 1 }, "reorder frame")),
+      "reorder frame",
+    );
+    if (cmd) bus.dispatch(cmd);
+  }, [rf]);
+
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepFrame, canStep: canStepFrame, addFrame: addFrameToLesson, reorder: reorderFrame }), [currentFrameId, enterFrame, exitFrame, stepFrame, canStepFrame, addFrameToLesson, reorderFrame]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -2330,7 +2380,7 @@ function PresentCanvas() {
         },
       },
       { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
-      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => !v) },
+      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on && currentFrameRef.current) enterFrame(currentFrameRef.current); return on; }) },
       { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
       { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
       { combo: "t", group: "Quick-spawn", description: "T-account at cursor", handler: () => quickSpawn("taccount") },
@@ -2360,7 +2410,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, exitFrame],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, exitFrame, enterFrame],
   );
   useKeymap(bindings);
 

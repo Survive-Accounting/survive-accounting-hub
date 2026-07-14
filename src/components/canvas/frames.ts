@@ -64,3 +64,27 @@ export const frame169 = (w: number): { w: number; h: number } => ({ w: Math.roun
 export function blankFrameData(beat: FrameBox["beat"] = "none", order?: number): FrameBox {
   return { title: "", w: FRAME_W, h: FRAME_H, beat, order: order ?? null };
 }
+
+/** The four beats a scaffolded lesson pre-loads, in walk order. */
+export const SCAFFOLD_BEATS: { beat: FrameBox["beat"]; title: string }[] = [
+  { beat: "hook", title: "Hook" },
+  { beat: "teach", title: "Teach" },
+  { beat: "model_practice", title: "Model · Practice" },
+  { beat: "check", title: "Check" },
+];
+
+export const FILMSTRIP = { headerH: 56, pad: 30, gap: 80 };
+
+/** Lay `count` frames as a horizontal FILMSTRIP inside a lesson: each frame's
+ *  LESSON-relative position + the lesson size needed to contain the strip. */
+export function filmstripLayout(count: number, frameW = FRAME_W, frameH = FRAME_H): {
+  positions: { x: number; y: number }[];
+  w: number;
+  h: number;
+} {
+  const { headerH, pad, gap } = FILMSTRIP;
+  const positions = Array.from({ length: count }, (_, i) => ({ x: pad + i * (frameW + gap), y: headerH + pad }));
+  const w = count > 0 ? pad + count * frameW + (count - 1) * gap + pad : 460;
+  const h = headerH + pad + frameH + pad;
+  return { positions, w, h };
+}

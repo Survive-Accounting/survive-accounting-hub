@@ -442,9 +442,10 @@ export interface FrameBox {
   /** Position within its lesson's frame list (1, 2, 3…). */
   order?: number | null;
 }
-/** Frame default size — legible at 1080p (cards ~300px read clearly inside). */
-export const FRAME_W = 1120;
-export const FRAME_H = 630; // 16:9
+/** Frame default size — 16:9, sized so 4 fit in a lesson filmstrip while staying
+ *  legible: entering a frame zooms it to fill 1080p (a ~420px JE renders large). */
+export const FRAME_W = 800;
+export const FRAME_H = 450; // 16:9
 
 /** Grouping-tier nodes (region/zone + lesson + frame) — never cards: excluded
  *  from the deck, quick-copy, snap guides, grid placement, and auto-fit. */
