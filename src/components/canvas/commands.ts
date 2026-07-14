@@ -27,9 +27,12 @@ export class CommandBus {
   limit = 200;
   /** Same-key dispatches inside this window merge into one undo step. */
   coalesceMs = 1200;
+  /** Fired on every dispatch/undo/redo — the scene-tab dirty tracker. */
+  onMutate: (() => void) | null = null;
 
   dispatch(cmd: Command): void {
     cmd.do();
+    this.onMutate?.();
     const now = Date.now();
     const top = this.undoStack[this.undoStack.length - 1];
     if (cmd.coalesceKey && cmd.coalesceKey === this.lastKey && now - this.lastAt < this.coalesceMs && top) {
@@ -55,6 +58,7 @@ export class CommandBus {
     cmd.undo();
     this.redoStack.push(cmd);
     this.lastKey = null;
+    this.onMutate?.();
     return true;
   }
 
@@ -64,6 +68,7 @@ export class CommandBus {
     cmd.do();
     this.undoStack.push(cmd);
     this.lastKey = null;
+    this.onMutate?.();
     return true;
   }
 

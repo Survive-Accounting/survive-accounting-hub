@@ -25,11 +25,11 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useQuery } from "@tanstack/react-query";
-import { Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight, Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
-import { deleteScene, listCourseAccounts, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { createFolder, deleteScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { NEON } from "@/components/canvas/theme";
 import { blankCard } from "@/components/canvas/templates";
@@ -441,6 +441,35 @@ function decodeBg(s: string | null | undefined): BgConfig | null {
 }
 
 // ---------------------------------------------------------------------------
+// SCENE TABS: one RF instance; a tab is a full snapshot swapped on switch.
+interface TabSnap {
+  nodes: CardNode[];
+  edges: unknown[];
+  viewport: Viewport | null;
+  settings: {
+    jeCardWidth: number;
+    jeIndent: number;
+    jePreset: JePreset;
+    dealFaceDown: boolean;
+    hideFdLabels: boolean;
+    focusPalette: boolean;
+    courseId: string | null;
+    chapterId: string | null;
+  };
+  bg: BgConfig;
+  film: boolean;
+  clean: boolean;
+  savedAt: string | null;
+}
+interface TabEntry {
+  key: string;
+  sceneId: string | null; // null = unsaved untitled
+  name: string;
+  snap?: TabSnap; // present once visited-and-switched-away
+  dirty: boolean;
+}
+
+// ---------------------------------------------------------------------------
 const LS_KEY = "sa-canvas-fallback-scene";
 
 function PresentCanvas() {
@@ -467,6 +496,44 @@ function PresentCanvas() {
   const [helpOpen, setHelpOpen] = useState(false); // "?" cheat sheet
   const [settingsOpen, setSettingsOpen] = useState(false); // toolbar canvas-settings gear
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  // SCENE TABS — the open set + which one drives the live canvas
+  const [tabState, setTabState] = useState<{ tabs: TabEntry[]; active: string }>(() => {
+    const key = Math.random().toString(36).slice(2);
+    return { tabs: [{ key, sceneId: null, name: "Untitled scene", dirty: false }], active: key };
+  });
+
+  // SCENE FOLDERS (0088) — course groups in the Load dialog
+  const qc = useQueryClient();
+  const foldersQuery = useQuery({ queryKey: ["canvas-folders"], queryFn: () => listFolders(), retry: 1, staleTime: 60_000 });
+  const folders = foldersQuery.data;
+  const [foldersError, setFoldersError] = useState<string | null>(null);
+  useEffect(() => {
+    setFoldersError(foldersQuery.error ? (foldersQuery.error as Error).message : null);
+  }, [foldersQuery.error]);
+  const qcFolders = useCallback(() => qc.invalidateQueries({ queryKey: ["canvas-folders"] }), [qc]);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [renamingFolder, setRenamingFolder] = useState<{ id: string } | null>(null);
+
+  /** Move a scene between folders. A COURSE folder also sets the scene's course
+   *  context when unset (one gesture, one truth); a different existing course
+   *  asks before forcing. */
+  const moveScene = useCallback(
+    async (s: SceneListRow, folderId: string | null) => {
+      try {
+        let res = await moveSceneToFolder({ data: { scene_id: s.id, folder_id: folderId } });
+        if ("conflict" in res) {
+          if (!window.confirm("This scene already has a DIFFERENT course set. Overwrite it with the folder's course?")) return;
+          res = await moveSceneToFolder({ data: { scene_id: s.id, folder_id: folderId, force_course: true } });
+        }
+        if ("courseSet" in res && res.courseSet && s.id === sceneId) setSceneCourseId(res.courseSet);
+        setScenes((xs) => xs.map((x) => (x.id === s.id ? { ...x, folder_id: folderId } : x)));
+      } catch (e) {
+        setFoldersError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [sceneId],
+  );
 
   // Scenario library for the palette (same query key as /study — shared cache).
   const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1 });
@@ -1101,6 +1168,8 @@ function PresentCanvas() {
         setSceneId(res.id);
         setSavedAt(new Date().toLocaleTimeString());
         setDbDown(null);
+        // the active tab is clean now (and knows its scene row)
+        setTabState((p) => ({ ...p, tabs: p.tabs.map((t) => (t.key === p.active ? { ...t, dirty: false, sceneId: res.id, name: body.name } : t)) }));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setDbDown(msg);
@@ -1173,14 +1242,198 @@ function PresentCanvas() {
     }
   }, [applyScene]);
 
-  const newScene = useCallback(() => {
+  /** Reset the CURRENT tab's canvas to a blank untitled scene. */
+  const clearCanvasState = useCallback(() => {
     bus.clear();
     rf.setNodes([]);
     rf.setEdges([]);
     setSceneId(null);
     setSceneName("Untitled scene");
     setSavedAt(null);
+    setSceneCourseId(null);
+    setSceneChapterId(null);
+    setFilm(false);
+    setClean(false);
   }, [rf]);
+
+  // ---- SCENE TABS (workspace chrome): ONE React Flow instance; every tab is a
+  // full snapshot (nodes, edges, viewport, settings, film/clean) swapped in and
+  // out on switch — deck, space-walk, film mode, and selection all ride the
+  // snapshot, so they're per-tab by construction. Undo history is per-visit
+  // (the bus clears on switch: its commands reference the other tab's nodes).
+  const snapshotCurrent = useCallback(
+    (): TabSnap => ({
+      nodes: structuredClone(rf.getNodes()) as CardNode[],
+      edges: structuredClone(rf.getEdges()) as unknown[],
+      viewport: rf.getViewport(),
+      settings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId },
+      bg: bgCfg,
+      film,
+      clean,
+      savedAt,
+    }),
+    [rf, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, bgCfg, film, clean, savedAt],
+  );
+
+  const applySnap = useCallback(
+    (t: TabEntry) => {
+      const s = t.snap!;
+      bus.clear();
+      rf.setNodes(structuredClone(s.nodes));
+      rf.setEdges(structuredClone(s.edges) as never[]);
+      setSceneId(t.sceneId);
+      setSceneName(t.name);
+      setSavedAt(s.savedAt);
+      setJeCardWidth(s.settings.jeCardWidth);
+      setJeIndent(s.settings.jeIndent);
+      setJePreset(s.settings.jePreset);
+      setDealFaceDown(s.settings.dealFaceDown);
+      setHideFdLabels(s.settings.hideFdLabels);
+      setFocusPalette(s.settings.focusPalette);
+      setSceneCourseId(s.settings.courseId);
+      setSceneChapterId(s.settings.chapterId);
+      setBgCfg(s.bg);
+      setFilm(s.film);
+      setClean(s.clean);
+      if (s.viewport) setTimeout(() => rf.setViewport(s.viewport!), 0);
+    },
+    [rf],
+  );
+
+  /** Activate a tab whose scene was never visited this session — load from db;
+   *  missing scenes drop silently (spec) and the canvas blanks. */
+  const activateSceneTab = useCallback(
+    async (t: TabEntry) => {
+      try {
+        const row = await loadScene({ data: { id: t.sceneId! } });
+        applyScene(row, row.id);
+      } catch {
+        setTabState((p) => {
+          const rest = p.tabs.filter((x) => x.key !== t.key);
+          return rest.length ? { tabs: rest, active: rest[0].key } : p;
+        });
+        clearCanvasState();
+      }
+    },
+    [applyScene, clearCanvasState],
+  );
+
+  const switchTab = useCallback(
+    (key: string) => {
+      if (key === tabState.active) return;
+      const target = tabState.tabs.find((t) => t.key === key);
+      if (!target) return;
+      const snapped = tabState.tabs.map((t) => (t.key === tabState.active ? { ...t, sceneId, name: sceneName, snap: snapshotCurrent() } : t));
+      setTabState({ tabs: snapped, active: key });
+      if (target.snap) applySnap(target);
+      else if (target.sceneId) void activateSceneTab(target);
+      else clearCanvasState();
+    },
+    [tabState, sceneId, sceneName, snapshotCurrent, applySnap, activateSceneTab, clearCanvasState],
+  );
+
+  /** Toolbar "+": NEW TAB — never clears the current canvas. */
+  const newTab = useCallback(() => {
+    const key = Math.random().toString(36).slice(2);
+    setTabState((p) => ({
+      tabs: [...p.tabs.map((t) => (t.key === p.active ? { ...t, sceneId, name: sceneName, snap: snapshotCurrent() } : t)), { key, sceneId: null, name: "Untitled scene", dirty: false }],
+      active: key,
+    }));
+    clearCanvasState();
+  }, [sceneId, sceneName, snapshotCurrent, clearCanvasState]);
+
+  const closeTab = useCallback(
+    (key: string) => {
+      const t = tabState.tabs.find((x) => x.key === key);
+      if (!t) return;
+      const isActive = key === tabState.active;
+      const dirty = isActive ? t.dirty : t.dirty; // active dirtiness tracked on the entry
+      if (dirty && !window.confirm(`"${isActive ? sceneName : t.name}" has unsaved changes — close anyway?`)) return;
+      const rest = tabState.tabs.filter((x) => x.key !== key);
+      if (rest.length === 0) {
+        const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled scene", dirty: false };
+        setTabState({ tabs: [fresh], active: fresh.key });
+        clearCanvasState();
+        return;
+      }
+      if (!isActive) {
+        setTabState({ tabs: rest, active: tabState.active });
+        return;
+      }
+      const idx = tabState.tabs.findIndex((x) => x.key === key);
+      const next = rest[Math.max(0, idx - 1)];
+      setTabState({ tabs: rest, active: next.key });
+      if (next.snap) applySnap(next);
+      else if (next.sceneId) void activateSceneTab(next);
+      else clearCanvasState();
+    },
+    [tabState, sceneName, applySnap, activateSceneTab, clearCanvasState],
+  );
+
+  /** Load-dialog open: focuses the existing tab when the scene is already open
+   *  (in-app duplicate prevention); otherwise a NEW tab. */
+  const openSceneInTab = useCallback(
+    (row: SceneListRow) => {
+      setLoadOpen(false);
+      const existing = tabState.tabs.find((t) => t.sceneId === row.id);
+      if (existing) {
+        switchTab(existing.key);
+        return;
+      }
+      const key = Math.random().toString(36).slice(2);
+      setTabState((p) => ({
+        tabs: [...p.tabs.map((t) => (t.key === p.active ? { ...t, sceneId, name: sceneName, snap: snapshotCurrent() } : t)), { key, sceneId: row.id, name: row.name, dirty: false }],
+        active: key,
+      }));
+      void (async () => {
+        try {
+          const full = await loadScene({ data: { id: row.id } });
+          applyScene(full, full.id);
+        } catch (e) {
+          setDbDown(e instanceof Error ? e.message : String(e));
+        }
+      })();
+    },
+    [tabState, sceneId, sceneName, snapshotCurrent, switchTab, applyScene],
+  );
+
+  // dirty tracking: every bus mutation marks the ACTIVE tab
+  useEffect(() => {
+    bus.onMutate = () => setTabState((p) => ({ ...p, tabs: p.tabs.map((t) => (t.key === p.active ? { ...t, dirty: true } : t)) }));
+    return () => { bus.onMutate = null; };
+  }, []);
+
+  // tab set + active persist; restore on reload (saved scenes only — untitled
+  // tabs can't be restored without a scene row)
+  const restoredTabsRef = useRef(false);
+  useEffect(() => {
+    if (!restoredTabsRef.current) return; // skip until restore ran
+    try {
+      const active = tabState.tabs.find((t) => t.key === tabState.active);
+      localStorage.setItem(
+        "sa-canvas-tabs-v1",
+        JSON.stringify({
+          tabs: tabState.tabs.filter((t) => (t.key === tabState.active ? sceneId : t.sceneId)).map((t) => (t.key === tabState.active ? { sceneId, name: sceneName } : { sceneId: t.sceneId, name: t.name })),
+          activeSceneId: active?.key === tabState.active ? sceneId : null,
+        }),
+      );
+    } catch { /* ignore */ }
+  }, [tabState, sceneId, sceneName]);
+  useEffect(() => {
+    if (restoredTabsRef.current) return;
+    restoredTabsRef.current = true;
+    try {
+      const raw = localStorage.getItem("sa-canvas-tabs-v1");
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { tabs: { sceneId: string; name: string }[]; activeSceneId: string | null };
+      if (!saved.tabs?.length) return;
+      const entries: TabEntry[] = saved.tabs.map((s) => ({ key: Math.random().toString(36).slice(2), sceneId: s.sceneId, name: s.name, dirty: false }));
+      const activeEntry = entries.find((e) => e.sceneId === saved.activeSceneId) ?? entries[0];
+      setTabState({ tabs: entries, active: activeEntry.key });
+      void activateSceneTab(activeEntry);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- two-tab guard: first tab to open a scene owns its autosave; a second
   // tab sees the fresh foreign lock, pauses autosave, and shows a banner.
@@ -1215,12 +1468,34 @@ function PresentCanvas() {
     };
   }, [lockKey, lockOwned]);
 
-  // autosave every 30s (only once a scene exists; paused while another tab owns it)
+  // autosave every 30s: the ACTIVE scene (lock-guarded), plus any DIRTY
+  // background tabs from their snapshots — each tab autosaves independently.
   const saveRef = useRef(doSave);
   saveRef.current = doSave;
+  const tabStateRef = useRef(tabState);
+  tabStateRef.current = tabState;
   useEffect(() => {
+    const saveSnapTab = async (t: TabEntry) => {
+      if (!t.sceneId || !t.snap) return;
+      const s = t.snap;
+      await saveScene({
+        data: {
+          id: t.sceneId,
+          name: t.name,
+          nodes_json: JSON.stringify({ schema_version: 3, nodes: sanitizeSceneNodes(s.nodes), edges: s.edges, sceneSettings: s.settings }),
+          viewport_json: JSON.stringify(s.viewport ?? {}),
+          bg: encodeBg(s.bg),
+        },
+      });
+      setTabState((p) => ({ ...p, tabs: p.tabs.map((x) => (x.key === t.key ? { ...x, dirty: false } : x)) }));
+    };
     const t = setInterval(() => {
       if (sceneId && lockOwned()) void saveRef.current();
+      for (const tab of tabStateRef.current.tabs) {
+        if (tab.key !== tabStateRef.current.active && tab.dirty && tab.sceneId && tab.snap) {
+          void saveSnapTab(tab).catch(() => { /* next tick retries */ });
+        }
+      }
     }, 30_000);
     return () => clearInterval(t);
   }, [sceneId, lockOwned]);
@@ -1629,7 +1904,7 @@ function PresentCanvas() {
           <TB title="Export scene (.json + outline.md)" onClick={exportScene}><Download className="h-3.5 w-3.5" /></TB>
           <TB title="Import scene from file" onClick={() => importRef.current?.click()}><Upload className="h-3.5 w-3.5" /></TB>
           <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />
-          <TB title="New (clear canvas)" onClick={newScene}><Plus className="h-3.5 w-3.5" /></TB>
+          <TB title="New tab (blank scene — clears nothing)" onClick={newTab}><Plus className="h-3.5 w-3.5" /></TB>
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
           <TB title="Add region (zone)" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
           <TB title="Add lesson (heading + cards in a hugging box)" onClick={addLesson}><Frame className="h-3.5 w-3.5" /></TB>
@@ -1746,6 +2021,20 @@ function PresentCanvas() {
                 >
                   Manage accounts
                 </button>
+                {/* CLEAR SCENE — the old "+" semantics, now explicit and guarded */}
+                <button
+                  className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }}
+                  title="Reset this tab to a blank untitled scene"
+                  onClick={() => {
+                    if (window.confirm("Clear this scene? The canvas resets to a blank untitled scene (saved scenes are untouched).")) {
+                      clearCanvasState();
+                      setSettingsOpen(false);
+                    }
+                  }}
+                >
+                  Clear scene
+                </button>
                 {/* PREVIEW STUDENT — template-variable substitution source */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }} title="Substitutes {first_name} etc. in headings/text. Live student data arrives with World v1.">
                   Preview student
@@ -1784,6 +2073,47 @@ function PresentCanvas() {
           </div>
           <TB title="Clean screen (c)" onClick={() => setClean(true)}><Film className="h-3.5 w-3.5" /></TB>
           {savedAt && <span className="pl-1 text-[10px]" style={{ color: NEON.muted }}>saved {savedAt}</span>}
+        </div>
+      )}
+
+      {/* SCENE TABS — bottom-left; drag the strip to scroll when overflowing */}
+      {chrome && (
+        <div
+          className="absolute bottom-3 left-3 z-40 flex max-w-[30vw] cursor-grab items-center gap-1 overflow-x-auto rounded-xl px-1.5 py-1 active:cursor-grabbing"
+          style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", scrollbarWidth: "none" }}
+          onMouseDown={(e) => {
+            const el = e.currentTarget;
+            const startX = e.clientX;
+            const startLeft = el.scrollLeft;
+            const move = (ev: MouseEvent) => { el.scrollLeft = startLeft - (ev.clientX - startX); };
+            const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+            window.addEventListener("mousemove", move);
+            window.addEventListener("mouseup", up);
+          }}
+        >
+          {tabState.tabs.map((t) => {
+            const active = t.key === tabState.active;
+            return (
+              <div
+                key={t.key}
+                className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px]"
+                style={{
+                  background: active ? "rgba(252,163,17,0.14)" : "transparent",
+                  border: `1px solid ${active ? "rgba(252,163,17,0.5)" : "transparent"}`,
+                  color: active ? NEON.yellow : NEON.muted,
+                  cursor: "pointer",
+                }}
+                title={active ? sceneName : t.name}
+                onClick={() => switchTab(t.key)}
+              >
+                <span className="max-w-[110px] truncate font-semibold">{active ? sceneName : t.name}</span>
+                {t.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: NEON.yellow }} title="Unsaved changes" />}
+                <button className="shrink-0 opacity-60 hover:opacity-100" title="Close tab" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }}>
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1898,27 +2228,97 @@ function PresentCanvas() {
         </div>
       )}
 
-      {/* Load dialog */}
+      {/* Load dialog — scenes grouped by FOLDER (= course groups, 0088) */}
       {loadOpen && (
         <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setLoadOpen(false)}>
-          <div className="max-h-[70vh] w-96 overflow-y-auto rounded-xl p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}>Load scene</div>
+          <div className="max-h-[75vh] w-[430px] overflow-y-auto rounded-xl p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}>Load scene</span>
+              <input
+                className="ml-auto w-32 rounded bg-black/30 px-1.5 py-0.5 text-[10.5px] outline-none"
+                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                placeholder="New folder…"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter" && newFolderName.trim()) {
+                    void createFolder({ data: { name: newFolderName.trim() } })
+                      .then(() => { setNewFolderName(""); void qcFolders(); })
+                      .catch((err) => setFoldersError(err instanceof Error ? err.message : String(err)));
+                  }
+                }}
+              />
+            </div>
+            {foldersError && <p className="mb-2 rounded px-2 py-1 text-[11px]" style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.4)" }}>{foldersError}</p>}
             {scenes.length === 0 && <p className="text-[12px] italic" style={{ color: NEON.muted }}>No saved scenes yet.</p>}
-            <div className="space-y-1">
-              {scenes.map((s) => (
+            {[...(folders ?? []), { id: null as string | null, name: "Unfiled", course_id: null, sort: 9999 }].map((f) => {
+              const inFolder = scenes.filter((s) => (s.folder_id ?? null) === f.id);
+              const fkey = f.id ?? "__unfiled__";
+              const isCollapsed = collapsedFolders.has(fkey);
+              return (
+                <div key={fkey} className="mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      className="flex min-w-0 flex-1 items-center gap-1 text-left text-[10.5px] font-bold uppercase tracking-wider"
+                      style={{ color: f.id ? NEON.yellow : NEON.muted }}
+                      onClick={() => setCollapsedFolders((p) => { const n = new Set(p); if (n.has(fkey)) n.delete(fkey); else n.add(fkey); return n; })}
+                    >
+                      {isCollapsed ? <ChevronRight className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
+                      {renamingFolder?.id === f.id ? (
+                        <input
+                          autoFocus
+                          className="w-32 rounded bg-black/40 px-1 text-[10.5px] font-bold uppercase outline-none"
+                          style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                          defaultValue={f.name}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") {
+                              const v = (e.target as HTMLInputElement).value.trim();
+                              if (v && f.id) void renameFolder({ data: { id: f.id, name: v } }).then(() => void qcFolders());
+                              setRenamingFolder(null);
+                            }
+                            if (e.key === "Escape") setRenamingFolder(null);
+                          }}
+                          onBlur={() => setRenamingFolder(null)}
+                        />
+                      ) : (
+                        <span
+                          className="truncate"
+                          title={f.id ? "Double-click to rename" : "Scenes without a folder"}
+                          onDoubleClick={(e) => { e.stopPropagation(); if (f.id) setRenamingFolder({ id: f.id }); }}
+                        >
+                          {f.name}
+                        </span>
+                      )}
+                      <span style={{ color: NEON.muted }}>({inFolder.length})</span>
+                    </button>
+                  </div>
+                  {!isCollapsed && (
+                    <div className="mt-1 space-y-1 pl-3">
+                      {inFolder.length === 0 && <p className="text-[10px] italic" style={{ color: NEON.muted }}>empty</p>}
+                      {inFolder.map((s) => (
                 <div key={s.id} className="rounded-md px-2 py-1.5" style={{ border: `1px solid ${NEON.borderSoft}` }}>
                   <div className="flex items-center gap-2">
                     <button
                       className="min-w-0 flex-1 truncate text-left text-[12.5px] font-medium hover:underline"
-                      onClick={async () => {
-                        const row = await loadScene({ data: { id: s.id } });
-                        applyScene(row, row.id);
-                        setLoadOpen(false);
-                      }}
+                      title={tabState.tabs.some((t) => t.sceneId === s.id) ? "Already open — focuses its tab" : "Open in a new tab"}
+                      onClick={() => openSceneInTab(s)}
                     >
                       {s.name}
                     </button>
                     <span className="text-[10px]" style={{ color: NEON.muted }}>{new Date(s.updated_at).toLocaleString()}</span>
+                    <select
+                      className="max-w-[70px] rounded bg-black/40 px-0.5 py-0.5 text-[9px] outline-none"
+                      style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }}
+                      title="Move to folder"
+                      value={s.folder_id ?? ""}
+                      onChange={(e) => void moveScene(s, e.target.value || null)}
+                    >
+                      <option value="">Unfiled</option>
+                      {(folders ?? []).map((fo) => <option key={fo.id} value={fo.id ?? ""}>{fo.name}</option>)}
+                    </select>
                     <button
                       className="text-[9.5px] font-semibold uppercase"
                       style={{ color: snapsFor === s.id ? NEON.yellow : NEON.muted }}
@@ -1962,8 +2362,12 @@ function PresentCanvas() {
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
