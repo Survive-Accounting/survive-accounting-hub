@@ -4,6 +4,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChartOfAccounts } from "@/lib/ceq-api";
 import type { AccountMeta, AccountType, ScenarioDoc } from "@/lib/je-engine";
+import { isMissingSchema } from "@/lib/pg-errors";
 
 // ---- Scenarios ----
 
@@ -25,11 +26,13 @@ export interface ScenarioRow {
 // hasn't had 0025 run — every scenario simply shows up "unassigned" until then.
 const MISSING_COLUMN = Symbol("missing-column");
 
+// isMissingSchema also catches PGRST204/205 (PostgREST's own "column/table not
+// in the schema cache" codes) — a plain 42703/message-regex check misses those,
+// which is exactly the bug that made the canvas fail-loud banners fail silent
+// (see src/lib/pg-errors.ts). Every tolerant-fallback select in this file goes
+// through this one function so that fix applies everywhere, not just canvas.
 function isMissingColumn(error: any): boolean {
-  return (
-    error?.code === "42703" || // undefined_column
-    /column .*(chapter_id|status|source|sort_order).* does not exist/i.test(error?.message ?? "")
-  );
+  return isMissingSchema(error ?? {}, /chapter_id|status|source|sort_order|subtitle/i);
 }
 
 /** List all scenarios (lightweight — full doc included; the prototype set is small).
@@ -97,6 +100,10 @@ export interface BrowserChapter {
   id: string; // "__unassigned__" for scenarios with no chapter
   chapter_number: number | null;
   chapter_name: string | null;
+  /** Course-structure-cleanup lifecycle (migration 0089). undefined = not
+   *  applied yet — callers treat that as active (no archived chapters exist
+   *  pre-migration anyway). */
+  status?: "active" | "archived";
   scenarios: BrowserScenario[];
 }
 
@@ -129,11 +136,24 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
     fetchScenarios(),
     supabase
       .from("chapters")
-      .select("id,chapter_number,chapter_name,course_id,courses(id,code,course_name)")
+      .select("id,chapter_number,chapter_name,course_id,status,courses(id,code,course_name)" as never)
       .order("chapter_number", { ascending: true }),
   ]);
-  if (chaptersRes.error) throw chaptersRes.error;
-  const allChapters = (chaptersRes.data ?? []) as any[];
+  let allChapters: any[];
+  if (chaptersRes.error) {
+    if (isMissingColumn(chaptersRes.error)) {
+      const fallback = await supabase
+        .from("chapters")
+        .select("id,chapter_number,chapter_name,course_id,courses(id,code,course_name)")
+        .order("chapter_number", { ascending: true });
+      if (fallback.error) throw fallback.error;
+      allChapters = (fallback.data ?? []) as any[];
+    } else {
+      throw chaptersRes.error;
+    }
+  } else {
+    allChapters = (chaptersRes.data ?? []) as any[];
+  }
 
   const flat: BrowserScenario[] = scenarios.map((s) => ({
     id: s.id,
@@ -177,6 +197,7 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
       id: c.id,
       chapter_number: c.chapter_number ?? null,
       chapter_name: c.chapter_name ?? null,
+      status: c.status,
       scenarios: scenariosByChapter.get(c.id) ?? [],
     });
   }
@@ -212,21 +233,49 @@ export interface CourseOption {
   code: string | null;
   course_name: string | null;
   course_family: string | null;
-  chapters: { id: string; number: number | null; name: string | null }[];
+  chapters: { id: string; number: number | null; name: string | null; status?: "active" | "archived"; subtitle?: string | null }[];
+}
+
+/** Course dropdowns show the clean course_name; code is now a legacy fallback
+ *  only (migration 0089 renamed both to the same clean string anyway). */
+export function courseLabel(c: { code: string | null; course_name: string | null }): string {
+  return c.course_name ?? c.code ?? "Course";
+}
+
+/** Chapter dropdown label — ONE format everywhere it appears (chapter
+ *  dropdowns, scenario picker, Manage course): "Ch N · Name". Archived
+ *  chapters stay selectable (existing refs keep working) but are marked so
+ *  Lee doesn't file NEW content under one. */
+export function chapterLabel(ch: { number: number | null; name: string | null; status?: "active" | "archived" }): string {
+  const base = ch.number != null ? `Ch ${ch.number} · ${ch.name ?? ""}` : (ch.name ?? "");
+  return ch.status === "archived" ? `${base} (archived)` : base;
 }
 
 export async function fetchCourseOptions(): Promise<CourseOption[]> {
-  const [coursesRes, chaptersRes] = await Promise.all([
-    supabase.from("courses").select("id,code,course_name,course_family" as never).order("course_name"),
-    supabase.from("chapters").select("id,chapter_number,chapter_name,course_id").order("chapter_number", { ascending: true }),
-  ]);
+  let coursesRes = await supabase
+    .from("courses")
+    .select("id,code,course_name,course_family,status" as never)
+    .eq("status" as never, "active")
+    .order("course_name");
+  if (coursesRes.error && isMissingColumn(coursesRes.error)) {
+    coursesRes = await supabase.from("courses").select("id,code,course_name,course_family" as never).order("course_name");
+  }
   if (coursesRes.error) throw coursesRes.error;
+
+  let chaptersRes = await supabase
+    .from("chapters")
+    .select("id,chapter_number,chapter_name,course_id,status,subtitle" as never)
+    .order("chapter_number", { ascending: true });
+  if (chaptersRes.error && isMissingColumn(chaptersRes.error)) {
+    chaptersRes = await supabase.from("chapters").select("id,chapter_number,chapter_name,course_id" as never).order("chapter_number", { ascending: true });
+  }
   if (chaptersRes.error) throw chaptersRes.error;
+
   const chaptersByCourse = new Map<string, CourseOption["chapters"]>();
   for (const c of (chaptersRes.data ?? []) as any[]) {
     if (!c.course_id) continue;
     const list = chaptersByCourse.get(c.course_id) ?? [];
-    list.push({ id: c.id, number: c.chapter_number ?? null, name: c.chapter_name ?? null });
+    list.push({ id: c.id, number: c.chapter_number ?? null, name: c.chapter_name ?? null, status: c.status, subtitle: c.subtitle ?? null });
     chaptersByCourse.set(c.course_id, list);
   }
   return ((coursesRes.data ?? []) as any[]).map((c) => ({
@@ -314,12 +363,16 @@ export async function fetchFoundationsIndex(): Promise<FoundationsIndex | null> 
   if (!course) return null;
   const courseId = (course as { id: string }).id;
 
-  const { data: chs } = await supabase
+  let chsRes: { data: unknown; error: any } = await supabase
     .from("chapters")
-    .select("id,chapter_number,chapter_name")
+    .select("id,chapter_number,chapter_name,status" as never)
     .eq("course_id", courseId)
+    .eq("status" as never, "active")
     .order("chapter_number", { ascending: true });
-  const chapters = (chs ?? []) as { id: string; chapter_number: number | null; chapter_name: string | null }[];
+  if (chsRes.error && isMissingColumn(chsRes.error)) {
+    chsRes = await supabase.from("chapters").select("id,chapter_number,chapter_name" as never).eq("course_id", courseId).order("chapter_number", { ascending: true });
+  }
+  const chapters = (chsRes.data ?? []) as { id: string; chapter_number: number | null; chapter_name: string | null }[];
   const chapterIds = chapters.map((c) => c.id);
 
   const scRes = chapterIds.length

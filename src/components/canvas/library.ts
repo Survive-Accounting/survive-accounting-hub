@@ -2,7 +2,7 @@
 // Every entry, computationPath, memorize item, and question becomes one palette item.
 // Spawning deep-clones into node data: prepared cards are COPIES, never references.
 import { resolveSlot } from "@/lib/je/slot-resolver";
-import type { JeBrowserTree } from "@/lib/je-api";
+import { chapterLabel as formatChapterLabel, courseLabel as formatCourseLabel, type JeBrowserTree } from "@/lib/je-api";
 import type { ScenarioDoc } from "@/lib/je-engine";
 import { amountOf, sideOf } from "./je-logic";
 import { cardId, type CardData, type CardKind, type JeCard, type JeLine } from "./types";
@@ -52,10 +52,13 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
   const items: LibraryItem[] = [];
 
   for (const course of tree.courses) {
-    const courseLabel = course.code ?? course.course_name ?? "Course";
+    const courseLabel = course.id ? formatCourseLabel({ code: course.code, course_name: course.course_name }) : "Unassigned";
     const courseKey = course.id ?? "unassigned";
     for (const ch of course.chapters) {
-      const chapterLabel = ch.chapter_number != null ? `Ch ${ch.chapter_number} · ${ch.chapter_name ?? ""}` : (ch.chapter_name ?? "Unassigned");
+      const chapterLabel =
+        ch.chapter_number != null
+          ? formatChapterLabel({ number: ch.chapter_number, name: ch.chapter_name, status: ch.status })
+          : (ch.chapter_name ?? "Unassigned");
       for (const s of ch.scenarios) {
         const doc = s.doc;
         const bank = (doc.build?.accountBank ?? []).map((b) => b.account);
