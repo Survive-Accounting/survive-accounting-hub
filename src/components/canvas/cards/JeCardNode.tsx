@@ -811,11 +811,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         // nothing touches the border. Uniform, so selecting never reflows.
         boxSizing: "content-box",
         padding: 12,
-        // SELECTION SHEEN: a soft platinum ambient glow behind the whole
-        // cluster — silhouette-agnostic (diffuse, no hard rectangle), calm
-        // when deselected. The silhouette edges also go silver (see edgeColor).
-        boxShadow: selected ? `0 0 22px -6px ${SILVER_SHEEN}` : undefined,
-        transition: "box-shadow 200ms ease-out",
+        // LIGHT CARD (contrast pass): the JE is now a PAPER body — an off-white
+        // "flashcard" that pops off the navy table, matching the T-account
+        // standard (BaseCard). Dark ink is the default; colour is reserved for
+        // meaning (amber=empty, silver=selected, green/red=balance). The tetris
+        // silhouette rides ON this body — its per-row edges still draw the shape.
+        background: PAPER.card,
+        color: PAPER.ink,
+        border: `1px solid ${selected ? SILVER : PAPER.cardEdge}`,
+        // pop off the dark table; selection adds a silver ring + platinum sheen
+        boxShadow: selected
+          ? `0 0 0 1.5px ${SILVER}, 0 0 22px -6px ${SILVER_SHEEN}, 0 14px 34px -14px rgba(0,0,0,0.6)`
+          : "0 12px 32px -14px rgba(0,0,0,0.55)",
+        transition: "box-shadow 200ms ease-out, border-color 200ms ease-out",
       }}
     >
       <style>{SOCKET_PULSE_CSS}</style>
@@ -1162,7 +1170,9 @@ function TitleEditor({ value, readOnly, editing, onOpen, onCommit, onCancel }: {
       <span
         className={`min-w-0 flex-1 text-[16.5px] leading-snug ${readOnly ? "" : "cursor-pointer"}`}
         style={{
-          color: value ? "rgba(244,246,250,0.95)" : "rgba(147,160,180,0.7)",
+          // dark ink on the parchment body (contrast pass) — a filled caption
+          // is calm navy; the empty prompt is muted ink, not washed-out grey
+          color: value ? PAPER.navy : PAPER.inkMuted,
           fontFamily: JE_FONT,
           fontWeight: 600,
           letterSpacing: "-0.01em",
@@ -1183,8 +1193,8 @@ function TitleEditor({ value, readOnly, editing, onOpen, onCommit, onCancel }: {
     <textarea
       rows={2}
       autoFocus
-      className="nodrag min-w-0 flex-1 resize-none rounded bg-black/30 px-1 py-0.5 text-[16.5px] leading-snug outline-none"
-      style={{ color: "rgba(244,246,250,0.95)", fontFamily: JE_FONT, fontWeight: 600 }}
+      className="nodrag min-w-0 flex-1 resize-none rounded bg-black/5 px-1 py-0.5 text-[16.5px] leading-snug outline-none ring-1 ring-[rgba(20,33,61,0.25)]"
+      style={{ color: PAPER.navy, fontFamily: JE_FONT, fontWeight: 600 }}
       defaultValue={value}
       placeholder="New entry"
       onChange={(e) => setLocal(e.target.value)}
