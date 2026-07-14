@@ -6,7 +6,7 @@
 // JE/ADJ/CL corner badge; chrome (deck/clone/gear/×) appears only on hover or
 // selection; memos float to the RIGHT of their block with a leader line.
 // Everything mutates through the command bus; popovers ride CardPopover.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import { ArrowUpRight, ChevronDown, CircleHelp, CircleX, Copy, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
@@ -67,7 +67,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [flipFeedback, setFlipFeedback] = useState<string | null>(null);
   const [dragLine, setDragLine] = useState<string | null>(null);
   const [hotSocket, setHotSocket] = useState<string | null>(null); // "side-index" under the dragged block
-  const [memoView, setMemoView] = useState<Set<string>>(new Set()); // floating notes open
+  /** Live memo drag (visual only) — the drop dispatches ONE bus command. */
+  const [memoDrag, setMemoDrag] = useState<{ id: string; startX: number; startY: number; from: { x: number; y: number }; pos: { x: number; y: number } } | null>(null);
   const [memoEdit, setMemoEdit] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [pickerFor, setPickerFor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
@@ -186,13 +187,34 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     setHotSocket(null);
   };
 
-  const toggleMemoView = (lid: string) =>
-    setMemoView((prev) => {
-      const next = new Set(prev);
-      if (next.has(lid)) next.delete(lid);
-      else next.add(lid);
-      return next;
-    });
+  // ---- MEMO ARROWS (V2): floating boxes in rows-local node space -------------
+  /** Default spawn: right of the line's block. */
+  const defaultMemoPos = (i: number) => ({ x: inds[i] + blockW + 22, y: i * BLOCK_H - 2 });
+  const toggleMemo = (lid: string) => {
+    const i = d.lines.findIndex((l) => l.id === lid);
+    const l = d.lines[i];
+    if (!l) return;
+    patchLine(lid, { memoOpen: !l.memoOpen, memoPos: l.memoPos ?? defaultMemoPos(i) });
+  };
+  const memoMoved = useRef(false); // suppress click-to-edit right after a drag
+  const startMemoDrag = (e: React.PointerEvent, lid: string, from: { x: number; y: number }) => {
+    if (locked) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    memoMoved.current = false;
+    setMemoDrag({ id: lid, startX: e.clientX, startY: e.clientY, from, pos: from });
+  };
+  const moveMemoDrag = (e: React.PointerEvent) => {
+    if (!memoDrag) return;
+    if (Math.abs(e.clientX - memoDrag.startX) + Math.abs(e.clientY - memoDrag.startY) > 3) memoMoved.current = true;
+    const zoom = rf.getZoom() || 1;
+    setMemoDrag({ ...memoDrag, pos: { x: memoDrag.from.x + (e.clientX - memoDrag.startX) / zoom, y: memoDrag.from.y + (e.clientY - memoDrag.startY) / zoom } });
+  };
+  const endMemoDrag = () => {
+    if (!memoDrag) return;
+    patchLine(memoDrag.id, { memoPos: { x: Math.round(memoDrag.pos.x), y: Math.round(memoDrag.pos.y) } }); // bus — undoable
+    setMemoDrag(null);
+  };
 
   /** Gap drop-socket while dragging a line: a slim row split into DR/CR halves —
    *  drop chooses BOTH the array position (the gap) and the side. */
@@ -364,7 +386,11 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               <CardPopover anchor={memoEdit.anchor} align="right" onClose={() => setMemoEdit(null)}>
                 <MemoPopover
                   value={l.label ?? ""}
-                  onSave={(v) => { patchLine(l.id, { label: v }); setMemoEdit(null); }}
+                  onSave={(v) => {
+                    // a fresh memo pops open right of its block, arrow attached
+                    patchLine(l.id, { label: v, ...(v && !l.label ? { memoOpen: true, memoPos: l.memoPos ?? defaultMemoPos(i) } : {}) });
+                    setMemoEdit(null);
+                  }}
                   onClose={() => setMemoEdit(null)}
                 />
               </CardPopover>
@@ -398,12 +424,12 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             {(S.lightbulbs || l.label) && (!locked || l.label) && (
               <button
                 className="grid h-5 w-5 place-items-center rounded-full"
-                style={{ color: l.label ? PAPER.gold : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${PAPER.cardEdge}` }}
-                title={l.label ? "Show memo" : "Add memo"}
+                style={{ color: l.label ? PAPER.gold : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${l.memoOpen ? "rgba(138,90,0,0.5)" : PAPER.cardEdge}` }}
+                title={l.label ? (l.memoOpen ? "Hide memo" : "Show memo") : "Add memo"}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (l.label) toggleMemoView(l.id);
+                  if (l.label) toggleMemo(l.id);
                   else if (!locked) setMemoEdit({ id: l.id, anchor: e.currentTarget });
                 }}
               >
@@ -424,32 +450,79 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           </div>
         </div>
 
-        {/* floating memo note — node space, right of the block, leader line, z-behind */}
-        {memoView.has(l.id) && l.label && (
-          <div className="absolute top-0 z-0" style={{ left: "100%", width: 190, paddingLeft: 18 }}>
-            <div className="absolute top-3 h-px" style={{ left: 0, width: 18, background: "rgba(252,163,17,0.5)" }} />
-            <div className="relative rounded-md px-2 py-1 text-[11px] leading-snug" style={{ color: "rgba(244,246,250,0.85)", background: "rgba(20,33,61,0.35)", border: "1px solid rgba(252,163,17,0.25)" }}>
-              <button
-                className="nodrag absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full"
-                style={{ color: NEON.muted, background: "#101B31", border: "1px solid rgba(147,160,180,0.4)" }}
-                title="Dismiss"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => toggleMemoView(l.id)}
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
-              <span
-                className={`nodrag ${locked ? "" : "cursor-text"}`}
-                title={locked ? undefined : "Click to edit memo"}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { if (!locked) setMemoEdit({ id: l.id, anchor: e.currentTarget as HTMLElement }); }}
-              >
-                {l.label}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
+    );
+  };
+
+  /** MEMO LAYER (V2): floating boxes anywhere in rows-local node space, each
+   *  with a thin arrow that re-routes live to the EXACT block it annotates.
+   *  Hidden while a line drag reshuffles the rows (indexes are in motion). */
+  const memoLayer = () => {
+    if (dragLine) return null;
+    const open = d.lines
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => l.memoOpen && l.label);
+    if (open.length === 0) return null;
+    const geom = open.map(({ l, i }) => {
+      const pos = memoDrag?.id === l.id ? memoDrag.pos : (l.memoPos ?? defaultMemoPos(i));
+      const by = i * BLOCK_H + BLOCK_H / 2;
+      // arrow runs memo → block: leave from the memo edge facing the block,
+      // land on the block edge facing the memo
+      const memoRightOfBlock = pos.x + 95 > inds[i] + blockW / 2;
+      const mx = memoRightOfBlock ? pos.x : pos.x + 190;
+      const bx = memoRightOfBlock ? inds[i] + blockW : inds[i];
+      return { l, i, pos, mx, my: pos.y + 14, bx, by };
+    });
+    return (
+      <>
+        <svg className="pointer-events-none absolute left-0 top-0 z-0" style={{ width: 0, height: 0, overflow: "visible" }}>
+          <defs>
+            <marker id={`memo-arr-${id}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="rgba(252,163,17,0.85)" />
+            </marker>
+          </defs>
+          {geom.map((a) => (
+            <line key={a.l.id} x1={a.mx} y1={a.my} x2={a.bx} y2={a.by} stroke="rgba(252,163,17,0.55)" strokeWidth={1.5} markerEnd={`url(#memo-arr-${id})`} />
+          ))}
+        </svg>
+        {geom.map((a) => (
+          <div
+            key={`memo-${a.l.id}`}
+            className={`nodrag absolute z-[4] w-[190px] rounded-md px-2 py-1 text-[11px] leading-snug ${locked ? "" : "cursor-grab active:cursor-grabbing"}`}
+            style={{
+              left: a.pos.x,
+              top: a.pos.y,
+              color: "rgba(244,246,250,0.9)",
+              background: "rgba(16,27,49,0.92)",
+              border: "1px solid rgba(252,163,17,0.35)",
+              boxShadow: "0 10px 24px -12px rgba(0,0,0,0.6)",
+            }}
+            onPointerDown={(e) => startMemoDrag(e, a.l.id, a.pos)}
+            onPointerMove={moveMemoDrag}
+            onPointerUp={endMemoDrag}
+          >
+            <button
+              className="nodrag absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full"
+              style={{ color: NEON.muted, background: "#101B31", border: "1px solid rgba(147,160,180,0.4)" }}
+              title="Dismiss"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => toggleMemo(a.l.id)}
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+            <span
+              className={locked ? "" : "cursor-text"}
+              title={locked ? undefined : "Click to edit memo"}
+              onClick={(e) => {
+                if (locked || memoMoved.current) return;
+                setMemoEdit({ id: a.l.id, anchor: e.currentTarget as HTMLElement });
+              }}
+            >
+              {a.l.label}
+            </span>
+          </div>
+        ))}
+      </>
     );
   };
 
@@ -632,8 +705,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           )}
 
           {/* ONE TETRIS PIECE — rows share edges, zero gap; the per-row exposed
-              edges add up to a single continuous outline around the union */}
-          <div className="flex flex-col">
+              edges add up to a single continuous outline around the union.
+              (relative: the memo layer positions in THIS coordinate space) */}
+          <div className="relative flex flex-col">
             {gapSocket(0)}
             {d.lines.map((l, i) => (
               <div key={l.id} className="flex flex-col">
@@ -641,6 +715,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 {gapSocket(i + 1)}
               </div>
             ))}
+            {memoLayer()}
           </div>
           {!locked && !dragLine && (
             <div className="mt-1 flex items-center">

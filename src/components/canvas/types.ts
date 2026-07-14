@@ -57,6 +57,11 @@ export interface JeLine {
   side?: "dr" | "cr";
   /** The line's MEMO (lightbulb). Same field the scenario docs populate. */
   label?: string;
+  /** Floating memo box offset in NODE space (rows-local) — travels with the
+   *  cluster; Lee drags it anywhere and a thin arrow tracks the block (V2). */
+  memoPos?: { x: number; y: number };
+  /** Memo box shown (persisted so an arranged board reloads arranged). */
+  memoOpen?: boolean;
   hidden?: boolean; // stepper hide
   /** Alternate wrong version + one feedback sentence (distractor flip). */
   trap?: { account?: string; dr?: number | null; cr?: number | null; feedback: string };
