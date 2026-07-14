@@ -68,6 +68,7 @@ import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMem
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
+import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
@@ -2377,6 +2378,8 @@ function PresentCanvas() {
         fitView
       >
         {bgCfg.mode === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
+        {/* SKELETON GRID (P4): ghost previews for named decks' undealt slots */}
+        <SkeletonLayer decks={decks} />
         {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
         {chrome && minimap && (
           <MiniMap

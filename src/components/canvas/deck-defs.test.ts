@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { addDeck, deckById, deckMembersOf, duplicateDeck, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
+import { addDeck, deckById, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, removeDeck, shuffledOrder, updateDeck } from "./deck-defs";
 
 describe("deck-defs (named decks, P3)", () => {
   test("newDeckDef defaults: named, sequence, skeletons on", () => {
@@ -47,5 +47,27 @@ describe("deck-defs (named decks, P3)", () => {
     expect(deckById(defs, defs[0].id)?.name).toBe("X");
     expect(deckById(defs, null)).toBeUndefined();
     expect(deckById(undefined, "z")).toBeUndefined();
+  });
+});
+
+describe("skeleton grid layout (P4)", () => {
+  test("gridSlots is near-square, row-major, evenly spaced", () => {
+    const s = gridSlots(4, { originX: 0, originY: 0, cellW: 100, cellH: 100, gapX: 20, gapY: 20 });
+    expect(s).toHaveLength(4);
+    // 4 → 2 cols
+    expect(s[0]).toEqual({ x: 0, y: 0 });
+    expect(s[1]).toEqual({ x: 120, y: 0 });
+    expect(s[2]).toEqual({ x: 0, y: 120 });
+    expect(s[3]).toEqual({ x: 120, y: 120 });
+  });
+  test("gridSlots handles 0 and 1", () => {
+    expect(gridSlots(0, { originX: 0, originY: 0 })).toEqual([]);
+    expect(gridSlots(1, { originX: 5, originY: 7 })).toEqual([{ x: 5, y: 7 }]);
+  });
+  test("shuffledOrder is a permutation (deterministic RNG)", () => {
+    let seed = 3;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const o = shuffledOrder(6, rnd);
+    expect([...o].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 });

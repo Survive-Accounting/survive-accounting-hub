@@ -56,3 +56,43 @@ export function deckById(defs: DeckDef[] | undefined, id: string | undefined | n
 }
 
 export const DECK_RUN_MODES: DeckRunMode[] = ["sequence", "shuffle"];
+
+// ---- skeleton grid (P4) -----------------------------------------------------
+export interface GridOpts {
+  originX: number;
+  originY: number;
+  cols?: number;
+  cellW?: number;
+  cellH?: number;
+  gapX?: number;
+  gapY?: number;
+}
+
+/** A near-square grid of `count` slot positions in reading order (row-major).
+ *  Deterministic — the deck deals items into these fixed spots, and undealt
+ *  slots show a skeleton. Pure so the layout is unit-testable. */
+export function gridSlots(count: number, opts: GridOpts): { x: number; y: number }[] {
+  if (count <= 0) return [];
+  const cols = Math.max(1, opts.cols ?? Math.ceil(Math.sqrt(count)));
+  const cellW = opts.cellW ?? 320;
+  const cellH = opts.cellH ?? 200;
+  const gapX = opts.gapX ?? 40;
+  const gapY = opts.gapY ?? 40;
+  const out: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const r = Math.floor(i / cols);
+    const c = i % cols;
+    out.push({ x: opts.originX + c * (cellW + gapX), y: opts.originY + r * (cellH + gapY) });
+  }
+  return out;
+}
+
+/** Fisher–Yates shuffle of [0..n) with an injectable RNG (deterministic tests). */
+export function shuffledOrder(n: number, rnd: () => number = Math.random): number[] {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}

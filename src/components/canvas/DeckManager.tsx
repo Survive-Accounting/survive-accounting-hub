@@ -6,9 +6,9 @@
 // library layer. Deal-into-grid + memo highlight render in P4.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { Copy, Layers, Plus, Shuffle, SquareStack, Trash2, X } from "lucide-react";
+import { Copy, Grid3x3, Layers, Plus, RotateCcw, Shuffle, SquareStack, Trash2 } from "lucide-react";
 
-import { addDeck, deckMembersOf, duplicateDeck, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
+import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, removeDeck, shuffledOrder, updateDeck } from "./deck-defs";
 import { bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { nextStageOrder } from "./BaseCard";
 import { isContainerType, type DeckDef } from "./types";
@@ -34,6 +34,43 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
         patchDataCmd(rf as unknown as RfLike, n.id, { deckId: deck.id, deckMember: true, stageOrder: order++ }, "add to deck"),
       ),
       `add ${eligible.length} to ${deck.name}`,
+    );
+    if (cmd) bus.dispatch(cmd);
+  };
+
+  type Member = { id: string; position: { x: number; y: number }; data?: { deckId?: string; stageOrder?: number; slotIndex?: number } };
+  const membersOf = (deck: DeckDef) => deckMembersOf(rf.getNodes() as Member[], deck.id);
+
+  /** LAY GRID (P4): arrange the deck's members into a near-square grid, record
+   *  the slots, and tuck every member so the grid starts as skeletons. One step. */
+  const layGrid = (deck: DeckDef) => {
+    const members = membersOf(deck);
+    if (members.length === 0) return;
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const c = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const cols = Math.max(1, Math.ceil(Math.sqrt(members.length)));
+    const slots = gridSlots(members.length, { originX: Math.round(c.x - (cols * 360) / 2), originY: Math.round(c.y - 120), cellW: 320, cellH: 200, gapX: 40, gapY: 40 });
+    const cmd = compositeCmd(
+      members.map((n, i) => patchDataCmd(rf as unknown as RfLike, n.id, { slotIndex: i, deckMember: true, tucked: true, staged: undefined, minimized: undefined, deckPos: slots[i] }, "lay grid")),
+      `lay grid: ${deck.name}`,
+    );
+    if (cmd) bus.dispatch(cmd);
+    setDecks((prev) => updateDeck(prev, deck.id, { slots }));
+  };
+
+  /** Deck RESET: re-skeleton the whole grid (tuck all members back to slots).
+   *  SHUFFLE (run_mode) reassigns which member lands in which slot first. */
+  const resetDeck = (deck: DeckDef) => {
+    const members = membersOf(deck);
+    if (members.length === 0) return;
+    const order = deck.runMode === "shuffle" ? shuffledOrder(members.length) : members.map((_, i) => i);
+    const cmd = compositeCmd(
+      members.map((n, i) => {
+        const slotIdx = order[i];
+        const slot = deck.slots?.[slotIdx] ?? n.position;
+        return patchDataCmd(rf as unknown as RfLike, n.id, { slotIndex: slotIdx, deckMember: true, tucked: true, staged: undefined, minimized: undefined, deckPos: slot }, "reset deck");
+      }),
+      `reset ${deck.name}`,
     );
     if (cmd) bus.dispatch(cmd);
   };
@@ -90,8 +127,10 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
                   <DeckMini title={deck.showSkeletons === false ? "Skeletons off" : "Skeletons on"} active={deck.showSkeletons !== false} onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { showSkeletons: deck.showSkeletons === false }))}>
                     <SquareStack className="h-3 w-3" />
                   </DeckMini>
+                  <DeckMini title="Lay a skeleton grid — arrange members into fixed slots, start tucked" onClick={() => layGrid(deck)}><Grid3x3 className="h-3 w-3" /></DeckMini>
+                  <DeckMini title={deck.runMode === "shuffle" ? "Reset — re-skeleton (shuffle slot order)" : "Reset — re-skeleton the grid"} onClick={() => resetDeck(deck)}><RotateCcw className="h-3 w-3" /></DeckMini>
                   <button className="ml-auto rounded px-1 py-0.5 text-[9.5px] font-semibold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Add the selected cards/memos to this deck" onClick={() => addSelection(deck)}>
-                    + selected
+                    + sel
                   </button>
                   <DeckMini title="Duplicate deck" onClick={() => setDecks((prev) => duplicateDeck(prev, deck.id).defs)}><Copy className="h-3 w-3" /></DeckMini>
                   <DeckMini title="Delete deck" danger onClick={() => del(deck)}><Trash2 className="h-3 w-3" /></DeckMini>
