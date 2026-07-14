@@ -5,10 +5,11 @@
 // reused, never duplicated). The master itself is never mutated otherwise.
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Search, X } from "lucide-react";
 
 import { addCourseAccount, createAccount, listCoa, listCourseAccounts, removeCourseAccount, type CoaRowOut } from "@/lib/canvas.functions";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
+import { groupCoaByType } from "./coa-groups";
 import { NEON } from "./theme";
 
 const ACCOUNT_TYPES = [
@@ -23,6 +24,8 @@ export function ManageAccountsDialog({ courseId, courseName, onClose }: {
 }) {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
+  const [collapsedMaster, setCollapsedMaster] = useState<Set<string>>(new Set());
+  const [collapsedSet, setCollapsedSet] = useState<Set<string>>(new Set());
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<(typeof ACCOUNT_TYPES)[number]>("asset");
   const [newNormal, setNewNormal] = useState<"debit" | "credit">("debit");
@@ -62,6 +65,8 @@ export function ManageAccountsDialog({ courseId, courseName, onClose }: {
 
   const needle = q.trim().toLowerCase();
   const masterRows = (master.data ?? []).filter((r) => !needle || r.canonical_name.toLowerCase().includes(needle));
+  const groupedMaster = useMemo(() => groupCoaByType(masterRows), [masterRows]);
+  const groupedSet = useMemo(() => groupCoaByType(setQuery.data ?? []), [setQuery.data]);
 
   const row = (r: CoaRowOut, action: "add" | "remove") => (
     <div key={r.id} className="flex items-center gap-2 rounded px-1.5 py-1" style={{ border: `1px solid ${NEON.borderSoft}` }}>
@@ -94,6 +99,35 @@ export function ManageAccountsDialog({ courseId, courseName, onClose }: {
     </div>
   );
 
+  // Search always shows matches regardless of collapse state — collapsing is
+  // a browse-time convenience, not something that should hide a hit.
+  const groupSection = (
+    groups: { group: string; rows: CoaRowOut[] }[],
+    action: "add" | "remove",
+    collapsed: Set<string>,
+    setCollapsed: (s: Set<string>) => void,
+  ) =>
+    groups.map(({ group, rows }) => {
+      const isCollapsed = !needle && collapsed.has(group);
+      return (
+        <div key={group}>
+          <button
+            className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[9.5px] font-bold uppercase tracking-wider"
+            style={{ color: NEON.muted }}
+            onClick={() => {
+              const next = new Set(collapsed);
+              if (next.has(group)) next.delete(group); else next.add(group);
+              setCollapsed(next);
+            }}
+          >
+            {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {group} ({rows.length})
+          </button>
+          {!isCollapsed && <div className="mt-0.5 space-y-1 pl-1">{rows.map((r) => row(r, action))}</div>}
+        </div>
+      );
+    });
+
   return (
     <div className="absolute inset-0 z-[70] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
       <div
@@ -124,8 +158,8 @@ export function ManageAccountsDialog({ courseId, courseName, onClose }: {
                 onKeyDown={(e) => e.stopPropagation()}
               />
             </label>
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-              {masterRows.map((r) => row(r, "add"))}
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+              {groupSection(groupedMaster, "add", collapsedMaster, setCollapsedMaster)}
               {master.isLoading && <p className="text-[11px] italic" style={{ color: NEON.muted }}>Loading…</p>}
             </div>
           </div>
@@ -134,8 +168,8 @@ export function ManageAccountsDialog({ courseId, courseName, onClose }: {
             <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>
               {courseName}'s set ({setQuery.data?.length ?? "…"})
             </div>
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-              {(setQuery.data ?? []).map((r) => row(r, "remove"))}
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+              {groupSection(groupedSet, "remove", collapsedSet, setCollapsedSet)}
               {setQuery.data?.length === 0 && (
                 <p className="py-2 text-[11px] italic leading-relaxed" style={{ color: NEON.muted }}>
                   Empty — add accounts from the master list, or create a new one below. The JE picker shows exactly this set.
