@@ -49,6 +49,7 @@ import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
+import { MemoCardNode } from "@/components/canvas/cards/MemoCardNode";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -386,6 +387,7 @@ const nodeTypes = {
   // ELEMENTS: plain — never face-down (elements don't deck)
   heading: HeadingCardNode,
   text: TextElementNode,
+  memo: MemoCardNode,
   paygate: GateNode,
   signupgate: GateNode,
   // BRIDGE placeholders: deckable cards

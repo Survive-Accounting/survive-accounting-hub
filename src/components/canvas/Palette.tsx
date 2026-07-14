@@ -21,6 +21,7 @@ const CARD_BLANKS: BlankSpec[] = [
 const ELEMENT_BLANKS: BlankSpec[] = [
   { kind: "heading", label: "Heading" },
   { kind: "text", label: "Text" },
+  { kind: "memo", label: "Memo" },
   { kind: "paygate", label: "Payment Gate" },
   { kind: "signupgate", label: "Signup Gate" },
 ];

@@ -18,6 +18,7 @@ export type CardKind =
   | "formula"
   | "heading"
   | "text"
+  | "memo"
   | "paygate"
   | "signupgate"
   | "asklee"
@@ -47,6 +48,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   formula: "card",
   heading: "element",
   text: "element",
+  memo: "element",
   paygate: "element",
   signupgate: "element",
   asklee: "bridge",
@@ -323,6 +325,21 @@ export interface BridgeCard extends CardBase {
   kind: "asklee" | "submitproblem" | "shareinvite";
 }
 
+// ---- Memo (memos-as-objects, Phase 1): a FIRST-CLASS floating annotation node.
+//      Standalone or attached to any target via connection arrows (RF edges).
+//      memoKind drives its accent + which memo deck it joins. ELEMENT category:
+//      never in a CARD deck, but collectable into a MEMO deck (Phase 3). ----
+export interface MemoCard extends CardBase {
+  kind: "memo";
+  /** note|calc|trap|tip|cheat — the memo-deck bucket + box accent. */
+  memoKind: MemoKind;
+  /** Optional name shown above the body; the memo's label in a memo deck. */
+  title?: string;
+  body: string;
+  /** Free author tag for memo-deck filtering. */
+  category?: string;
+}
+
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----
 export interface ListRow {
   id: string;
@@ -355,6 +372,7 @@ export type CardData =
   | FormulaCard
   | HeadingCard
   | TextElement
+  | MemoCard
   | GateElement
   | BridgeCard;
 
