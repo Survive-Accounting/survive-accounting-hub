@@ -59,12 +59,15 @@ export interface DeckGroup {
   members: DeckNode[];
 }
 
-/** Deck grouped by lesson, groups in teaching path order, Loose LAST. Every
- *  lesson WITH deck entries appears (even mid-walk exhausted ones). */
+/** Deck grouped by lesson, groups in teaching path order, Loose LAST. EVERY
+ *  lesson appears — including empty ones (0/0): that's where "Import from
+ *  lessons…" lives, and the Wrap-up import targets a lesson whose deck is
+ *  empty by definition. Loose only shows when it has entries. */
 export function lessonGroups(nodes: DeckNode[]): DeckGroup[] {
   const members = deckMembers(nodes);
   const lessons = new Map(nodes.filter((n) => n.type === "lesson").map((n) => [n.id, n]));
   const buckets = new Map<string | null, DeckNode[]>();
+  for (const lid of lessons.keys()) buckets.set(lid, []);
   for (const m of members) {
     const lid = lessonIdOf(m, nodes);
     const key = lid !== null && lessons.has(lid) ? lid : null; // dangling lesson ids read Loose
@@ -83,7 +86,8 @@ export function lessonGroups(nodes: DeckNode[]): DeckGroup[] {
     });
   }
   groups.sort((a, b) => a.pathOrder - b.pathOrder || a.label.localeCompare(b.label));
-  if (buckets.has(null)) groups.push({ lessonId: null, label: "Loose", pathOrder: Number.MAX_SAFE_INTEGER, members: buckets.get(null)! });
+  const loose = buckets.get(null);
+  if (loose && loose.length > 0) groups.push({ lessonId: null, label: "Loose", pathOrder: Number.MAX_SAFE_INTEGER, members: loose });
   return groups;
 }
 

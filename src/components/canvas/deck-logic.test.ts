@@ -69,3 +69,10 @@ describe("nextTuckedCross (the cross-lesson space-walk)", () => {
     expect(nextTucked(FIX)!.id).toBe("a");
   });
 });
+
+describe("lessonGroups — empty lessons included (import targets)", () => {
+  test("a lesson with no entries still gets a group (0 members); empty Loose hides", () => {
+    const gs = lessonGroups([lesson("L1", "Intro", 1), lesson("LW", "Wrap-up", 9), card("a", { deckLessonId: "L1" })]);
+    expect(gs.map((g) => [g.label, g.members.length])).toEqual([["Intro", 1], ["Wrap-up", 0]]);
+  });
+});
