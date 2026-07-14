@@ -60,15 +60,18 @@ export function hopLine(lines: JeLine[], id: string): JeLine[] {
   return moveLine(lines, id, to, Number.MAX_SAFE_INTEGER);
 }
 
-/** Directed hop for the arrow keys: move EXACTLY `id` to `to`. Returns null when
- *  there's nothing to do (no such line / already on that side) so callers don't
- *  dispatch empty undo steps. The A6 regression contract: the SELECTED line is
- *  the one that moves — never a neighbor. */
+/** Directed hop for the arrow keys: flip EXACTLY `id` to `to` IN PLACE — the
+ *  line keeps its index in the array, so the block shifts horizontally where it
+ *  sits and never re-sorts to the bottom. Returns null when there's nothing to
+ *  do (no such line / already on that side) so callers don't dispatch empty
+ *  undo steps. The A6 regression contract still holds: the SELECTED line is the
+ *  one that flips — never a neighbor. Dragging to a socket (moveLine) remains
+ *  the explicit-placement path. */
 export function hopTo(lines: JeLine[], id: string | undefined, to: JeSide): JeLine[] | null {
   if (!id) return null;
   const l = lines.find((x) => x.id === id);
   if (!l || sideOf(l) === to) return null;
-  return moveLine(lines, id, to, Number.MAX_SAFE_INTEGER);
+  return lines.map((x) => (x.id === id ? withSide(x, to) : x));
 }
 
 /** THE INVARIANT: a JE cluster never has fewer than 1 debit + 1 credit block.

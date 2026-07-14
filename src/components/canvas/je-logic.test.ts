@@ -92,13 +92,22 @@ describe("hopLine", () => {
   });
 });
 
-describe("hopTo (A6 regression: arrows act on the SELECTED block)", () => {
+describe("hopTo (A6 regression + V2 in-place contract)", () => {
   const lines = [L("a", "dr"), L("b", "dr"), L("c", "cr")];
-  test("moves exactly the selected id — never a neighbor", () => {
+  test("flips exactly the selected id — never a neighbor", () => {
     const out = hopTo(lines, "a", "cr")!;
-    const g = groupLines(out);
-    expect(g.dr.map((l) => l.id)).toEqual(["b"]); // b (the block below a) did NOT move
-    expect(g.cr.map((l) => l.id)).toEqual(["c", "a"]);
+    expect(sideOf(out.find((l) => l.id === "a")!)).toBe("cr");
+    expect(sideOf(out.find((l) => l.id === "b")!)).toBe("dr"); // b (the block below a) did NOT move
+    const a = out.find((l) => l.id === "a")!;
+    expect(a.cr).toBe(100); // amount travels into the credit column
+    expect(a.dr).toBeNull();
+  });
+  test("PRESERVES the array index — the block shifts in place, never to the bottom", () => {
+    const out = hopTo(lines, "a", "cr")!;
+    expect(out.map((l) => l.id)).toEqual(["a", "b", "c"]); // order untouched
+    const back = hopTo(out, "c", "dr")!;
+    expect(back.map((l) => l.id)).toEqual(["a", "b", "c"]);
+    expect(sideOf(back.find((l) => l.id === "c")!)).toBe("dr");
   });
   test("no selection / unknown id / already on that side → null (no undo step)", () => {
     expect(hopTo(lines, undefined, "cr")).toBeNull();
