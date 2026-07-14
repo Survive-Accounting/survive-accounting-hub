@@ -19,6 +19,13 @@ export function nextStageOrder(nodes: { data: Record<string, unknown> }[]): numb
 
 let Z = 10;
 
+/** The lesson a joining card belongs to: its lesson parent, else null (Loose).
+ *  Regions/zones don't scope decks — lessons are the teaching unit. */
+export function deckLessonFor(rf: { getNode: (id: string) => { type?: string } | undefined }, parentId: string | undefined): string | null {
+  if (!parentId) return null;
+  return rf.getNode(parentId)?.type === "lesson" ? parentId : null;
+}
+
 export function useCardActions(id: string) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
@@ -42,7 +49,8 @@ export function useCardActions(id: string) {
     // z-order is view noise, deliberately NOT on the undo rail
     toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: ++Z } : n))),
     /** Join the deck WITHOUT leaving the canvas (dealt member, end of order).
-     *  ELEMENTS never deck — hard no-op regardless of the caller. */
+     *  A card parented to a LESSON joins that lesson's deck group (PROMPT C);
+     *  loose cards join "Loose". ELEMENTS never deck — hard no-op. */
     addToDeck: () => {
       const node = rf.getNode(id);
       if (!node) return;
@@ -57,6 +65,7 @@ export function useCardActions(id: string) {
           tucked: false,
           stageOrder: nextStageOrder(rf.getNodes()),
           deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
+          deckLessonId: deckLessonFor(rf, node.parentId),
         },
         "add to deck",
       );
@@ -80,6 +89,7 @@ export function useCardActions(id: string) {
           stageOrder: d.deckMember ? d.stageOrder : nextStageOrder(rf.getNodes()),
           deckPos: { x: node.position.x, y: node.position.y },
           deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
+          deckLessonId: d.deckMember ? (d.deckLessonId ?? deckLessonFor(rf, node.parentId)) : deckLessonFor(rf, node.parentId),
         },
         "tuck into deck",
       );

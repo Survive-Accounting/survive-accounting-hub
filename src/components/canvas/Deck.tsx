@@ -1,19 +1,28 @@
 // The DECK — a run-of-show ROSTER, not a black hole. MEMBERSHIP (deckMember)
 // is separate from PRESENCE (dealt on canvas vs tucked away): a card can sit
-// on the canvas and still be part of the deck. Rows show title + kind + a
-// dealt/tucked indicator; clicking a tucked row deals it, a dealt row focuses
-// it; the row × removes MEMBERSHIP only (a tucked card re-deals first — cards
-// never vanish). RESET tucks every member and leaves loose cards alone.
+// on the canvas and still be part of the deck. LESSON-SCOPED (PROMPT C): the
+// roster groups by each entry's lesson (deckLessonId) in teaching path order,
+// Loose last — collapsible, counted, per-group reset, drag entries BETWEEN
+// groups to re-home them, and "Import from lessons…" clones prior lessons'
+// entries into a group (the Wrap-up move; JEs arrive as practice copies).
+// Rows: clicking a tucked row deals it, a dealt row focuses it; the row ×
+// removes MEMBERSHIP only. Pure ordering/grouping logic lives in deck-logic.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronsRight, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsRight, Download, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
 
-import { bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
+import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { CardBack } from "./CardBack";
 import { nextStageOrder } from "./BaseCard";
+import { CardPopover } from "./CardPopover";
+import { deckMembers, isMember, isTucked, lessonGroups, nextTucked, categoryOf, type DeckNode } from "./deck-logic";
+import { blankFrom, JE_PRESETS } from "./je-logic";
 import { CARD_KIND_LABEL } from "./templates";
 import { NEON } from "./theme";
-import { isContainerType, isElementKind, type CardBase, type CardData } from "./types";
+import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type JeCard, type JeLine } from "./types";
+
+// re-exports: the route and older imports keep working
+export { categoryOf, deckMembers, isTucked, nextTucked };
 
 const KIND_DOT: Record<string, string> = {
   je: NEON.pink,
@@ -31,41 +40,49 @@ const KIND_DOT: Record<string, string> = {
   heading: NEON.cyan,
 };
 
-type DeckNode = { id: string; type?: string; parentId?: string; data: Record<string, unknown> };
-
-// ELEMENTS never deck (belt: load-migration strips them; braces: excluded here)
-const isMember = (d: CardBase) => !isElementKind(d.kind) && (!!d.deckMember || !!d.staged || !!d.minimized);
-export const isTucked = (d: CardBase) => (d.deckMember ? !!d.tucked : !!d.staged || !!d.minimized);
-
-/** ALL deck members in deal order. Container path_order (region/zone OR lesson)
- *  wins when set; within a container — and for loose cards — stageOrder rules. */
-export function deckMembers(nodes: DeckNode[]) {
-  const containerPath = new Map<string, number>();
-  for (const n of nodes) {
-    if (isContainerType(n.type)) {
-      const p = (n.data as { pathOrder?: number | null }).pathOrder;
-      if (typeof p === "number") containerPath.set(n.id, p);
+/** IMPORT DECKS (PROMPT C item 2 — the Wrap-up move): clone the source
+ *  lessons' deck entries into `targetLessonId`'s deck. JEs arrive as PRACTICE
+ *  copies (blank attempt, answer key carried); other kinds plain clones.
+ *  Everything lands tucked, parented to the target lesson, appended in order —
+ *  ONE undoable command. */
+export function importLessonDecks(rf: RfLike & { getNodes: () => DeckNode[] }, targetLessonId: string, sourceLessonIds: (string | null)[]): number {
+  const nodes = rf.getNodes();
+  const groups = lessonGroups(nodes);
+  const sources = groups.filter((g) => sourceLessonIds.includes(g.lessonId) && g.lessonId !== targetLessonId);
+  const entries = sources.flatMap((g) => g.members);
+  if (entries.length === 0) return 0;
+  let order = nextStageOrder(nodes as never);
+  const clones = entries.map((src, i) => {
+    const d = structuredClone(src.data) as Record<string, unknown>;
+    if (d.kind === "je") {
+      const je = d as unknown as JeCard;
+      const key = (je.solution?.length ? je.solution : je.lines) as JeLine[];
+      je.mode = "practice";
+      je.settings = { ...JE_PRESETS.practice };
+      je.reviewLock = false;
+      je.helpOpen = false;
+      je.revealUsed = false;
+      je.solution = structuredClone(key);
+      je.lines = blankFrom(key, () => cardId("l"));
     }
-  }
-  const pathOf = (n: { parentId?: string }) => (n.parentId != null && containerPath.has(n.parentId) ? containerPath.get(n.parentId)! : Number.MAX_SAFE_INTEGER);
-  return nodes
-    .filter((n) => !isContainerType(n.type) && isMember(n.data as unknown as CardBase))
-    .sort(
-      (a, b) =>
-        pathOf(a) - pathOf(b) ||
-        ((a.data as unknown as CardBase).stageOrder ?? 0) - ((b.data as unknown as CardBase).stageOrder ?? 0) ||
-        a.id.localeCompare(b.id),
-    );
-}
-
-/** Next card the show key deals: first TUCKED member in order. */
-export function nextTucked(nodes: DeckNode[]) {
-  return deckMembers(nodes).find((n) => isTucked(n.data as unknown as CardBase));
-}
-
-/** Category stamp stored on deck entry (future filtering hook). */
-export function categoryOf(d: CardData): string {
-  return d.kind === "je" ? `je:${(d as { entryType?: string }).entryType ?? "standard"}` : d.kind;
+    const pos = { x: 24 + (i % 4) * 14, y: 48 + i * 12 };
+    d.deckMember = true;
+    d.tucked = true;
+    d.deckLessonId = targetLessonId;
+    d.stageOrder = order++;
+    d.deckPos = pos;
+    d.faceDown = false;
+    return {
+      id: cardId((d.kind as string) ?? "card"),
+      type: src.type,
+      parentId: targetLessonId,
+      position: pos,
+      selected: false,
+      data: d,
+    };
+  });
+  bus.dispatch(addNodesCmd(rf, clones as never[], `import ${clones.length} deck entries`));
+  return clones.length;
 }
 
 export function Deck({
@@ -89,9 +106,49 @@ export function Deck({
   const nodes = useNodes();
   const [collapsed, setCollapsed] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [importFor, setImportFor] = useState<{ lessonId: string; anchor: HTMLElement } | null>(null);
+  const [importPick, setImportPick] = useState<Set<string>>(new Set());
 
   const members = deckMembers(nodes as never);
+  const groups = lessonGroups(nodes as never);
   const tuckedCount = members.filter((n) => isTucked(n.data as unknown as CardBase)).length;
+
+  /** Re-home a dragged entry into another group (drop on its header/body). */
+  const moveToGroup = (lessonId: string | null) => {
+    if (!dragId) return;
+    const c = patchDataCmd(rf as unknown as RfLike, dragId, { deckLessonId: lessonId, stageOrder: nextStageOrder(rf.getNodes()) }, "move deck entry");
+    if (c) bus.dispatch(c);
+    setDragId(null);
+  };
+
+  /** Per-group RESET: tuck that group's dealt members only. */
+  const resetGroup = (lessonId: string | null) => {
+    const g = lessonGroups(rf.getNodes() as never).find((x) => x.lessonId === lessonId);
+    if (!g) return;
+    const c = compositeCmd(
+      g.members
+        .filter((n) => !isTucked(n.data as unknown as CardBase))
+        .map((n) => {
+          const live = rf.getNode(n.id);
+          return patchDataCmd(
+            rf as unknown as RfLike,
+            n.id,
+            {
+              deckMember: true,
+              tucked: true,
+              staged: undefined,
+              minimized: undefined,
+              deckPos: live ? { x: live.position.x, y: live.position.y } : undefined,
+              deckCategory: categoryOf(n.data as unknown as CardData),
+            },
+            "reset",
+          );
+        }),
+      `reset ${g.label} deck`,
+    );
+    if (c) bus.dispatch(c);
+  };
 
   const dealNext = () => {
     const next = nextTucked(rf.getNodes() as never);
@@ -207,48 +264,141 @@ export function Deck({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1.5">
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
         {members.length === 0 && (
           <p className="px-1 py-2 text-[10.5px] italic leading-relaxed" style={{ color: NEON.muted }}>
             Empty. “+” on any card adds it to the deck (it stays put); the tuck button or “s” hides it here. Spacebar deals tucked cards back in order.
           </p>
         )}
-        {members.map((n, i) => {
-          const d = n.data as unknown as CardData;
-          const tucked = isTucked(d as CardBase);
+        {/* LESSON GROUPS (PROMPT C): path order, Loose last; collapsible; drag
+            rows between groups; per-group reset; per-group import. */}
+        {groups.map((g) => {
+          const gkey = g.lessonId ?? "__loose__";
+          const isGroupCollapsed = collapsedGroups.has(gkey);
+          const gTucked = g.members.filter((n) => isTucked(n.data as unknown as CardBase)).length;
           return (
             <div
-              key={n.id}
-              draggable
-              onDragStart={() => setDragId(n.id)}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-              onDrop={(e) => { e.stopPropagation(); reorder(n.id); }}
-              className="group/row flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 transition-colors"
-              style={{ border: `1px solid ${dragId === n.id ? NEON.yellow : NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}
-              onClick={() => (tucked ? onDeal(n.id) : onFocus(n.id))}
-              title={tucked ? "Deal to the canvas" : "On canvas — click to focus"}
+              key={gkey}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => { e.stopPropagation(); moveToGroup(g.lessonId); }}
             >
-              <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8.5px] font-bold" style={{ border: `1px solid ${NEON.yellow}`, color: NEON.yellow }}>
-                {i + 1}
-              </span>
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: KIND_DOT[d.kind] ?? NEON.pink }} />
-              <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium" style={{ opacity: tucked ? 0.75 : 1 }}>
-                {d.title || (d.kind === "je" && (d as { caption?: string }).caption) || CARD_KIND_LABEL[d.kind] || d.kind}
-              </span>
-              {/* presence indicator: tucked = filled gold, dealt = hollow green */}
-              <span
-                className="h-2 w-2 shrink-0 rounded-full"
-                title={tucked ? "tucked in the deck" : "dealt on canvas"}
-                style={tucked ? { background: NEON.yellow } : { border: `1.5px solid ${NEON.green}` }}
-              />
-              <button
-                className="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100"
-                style={{ color: NEON.red }}
-                title="Remove from deck (card stays on canvas)"
-                onClick={(e) => { e.stopPropagation(); onRemoveMembership(n.id); }}
-              >
-                <X className="h-3 w-3" />
-              </button>
+              <div className="flex items-center gap-1 px-0.5">
+                <button
+                  className="flex min-w-0 flex-1 items-center gap-1 text-left text-[9.5px] font-bold uppercase tracking-wider"
+                  style={{ color: g.lessonId ? NEON.yellow : NEON.muted }}
+                  onClick={() => setCollapsedGroups((p) => { const n = new Set(p); if (n.has(gkey)) n.delete(gkey); else n.add(gkey); return n; })}
+                >
+                  {isGroupCollapsed ? <ChevronRight className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
+                  <span className="truncate">{g.label}</span>
+                  <span style={{ color: NEON.muted }}>({gTucked}/{g.members.length})</span>
+                </button>
+                {g.lessonId && (
+                  <button
+                    className="shrink-0"
+                    style={{ color: importFor?.lessonId === g.lessonId ? NEON.yellow : NEON.muted }}
+                    title="Import from lessons… (clone prior lessons' deck entries here; JEs arrive as practice copies)"
+                    onClick={(e) => { setImportPick(new Set()); setImportFor(importFor?.lessonId === g.lessonId ? null : { lessonId: g.lessonId!, anchor: e.currentTarget }); }}
+                  >
+                    <Download className="h-3 w-3" />
+                  </button>
+                )}
+                <button
+                  className="shrink-0"
+                  style={{ color: NEON.muted }}
+                  title={`Reset ${g.label} — tuck its dealt members`}
+                  onClick={() => resetGroup(g.lessonId)}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+              </div>
+              {importFor?.lessonId === g.lessonId && (
+                <CardPopover anchor={importFor.anchor} align="right" onClose={() => setImportFor(null)}>
+                  <div
+                    className="nodrag w-56 rounded-lg p-2 shadow-xl"
+                    style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>
+                      Import decks into {g.label}
+                    </div>
+                    {groups.filter((s) => s.lessonId !== g.lessonId && s.members.length > 0).map((s) => {
+                      const skey = s.lessonId ?? "__loose__";
+                      return (
+                        <label key={skey} className="flex cursor-pointer items-center gap-1.5 py--0.5 text-[10.5px]" style={{ color: NEON.text }}>
+                          <input
+                            type="checkbox"
+                            checked={importPick.has(skey)}
+                            onChange={(e) => setImportPick((p) => { const n = new Set(p); if (e.target.checked) n.add(skey); else n.delete(skey); return n; })}
+                            style={{ accentColor: "#FCA311" }}
+                          />
+                          <span className="min-w-0 flex-1 truncate">{s.label}</span>
+                          <span style={{ color: NEON.muted }}>({s.members.length})</span>
+                        </label>
+                      );
+                    })}
+                    {groups.filter((s) => s.lessonId !== g.lessonId && s.members.length > 0).length === 0 && (
+                      <p className="py-1 text-[10px] italic" style={{ color: NEON.muted }}>No other lessons have deck entries yet.</p>
+                    )}
+                    <button
+                      className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
+                      style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                      disabled={importPick.size === 0}
+                      title="Clones arrive tucked; JEs as blank practice copies with the answer key carried. One undo step."
+                      onClick={() => {
+                        const src = [...importPick].map((k) => (k === "__loose__" ? null : k));
+                        importLessonDecks(rf as never, g.lessonId!, src);
+                        setImportFor(null);
+                      }}
+                    >
+                      import
+                    </button>
+                  </div>
+                </CardPopover>
+              )}
+              {!isGroupCollapsed && (
+                <div className="mt-0.5 space-y-1">
+                  {g.members.map((n) => {
+                    const d = n.data as unknown as CardData;
+                    const tucked = isTucked(d as CardBase);
+                    const globalIdx = members.findIndex((m) => m.id === n.id);
+                    return (
+                      <div
+                        key={n.id}
+                        draggable
+                        onDragStart={() => setDragId(n.id)}
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => { e.stopPropagation(); reorder(n.id); }}
+                        className="group/row flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 transition-colors"
+                        style={{ border: `1px solid ${dragId === n.id ? NEON.yellow : NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}
+                        onClick={() => (tucked ? onDeal(n.id) : onFocus(n.id))}
+                        title={tucked ? "Deal to the canvas" : "On canvas — click to focus"}
+                      >
+                        <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8.5px] font-bold" style={{ border: `1px solid ${NEON.yellow}`, color: NEON.yellow }}>
+                          {globalIdx + 1}
+                        </span>
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: KIND_DOT[d.kind] ?? NEON.pink }} />
+                        <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium" style={{ opacity: tucked ? 0.75 : 1 }}>
+                          {d.title || (d.kind === "je" && (d as { caption?: string }).caption) || CARD_KIND_LABEL[d.kind] || d.kind}
+                        </span>
+                        {/* presence indicator: tucked = filled gold, dealt = hollow green */}
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          title={tucked ? "tucked in the deck" : "dealt on canvas"}
+                          style={tucked ? { background: NEON.yellow } : { border: `1.5px solid ${NEON.green}` }}
+                        />
+                        <button
+                          className="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100"
+                          style={{ color: NEON.red }}
+                          title="Remove from deck (card stays on canvas)"
+                          onClick={(e) => { e.stopPropagation(); onRemoveMembership(n.id); }}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

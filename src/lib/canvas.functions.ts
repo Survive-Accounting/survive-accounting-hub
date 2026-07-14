@@ -572,6 +572,30 @@ export const loadSnapshot = createServerFn({ method: "POST" })
     };
   });
 
+/** DUPLICATE SCENE (PROMPT C): full copy — "<name> (copy)", same folder. The
+ *  master → filming/tutoring copy workflow's first half (Prep for filming is
+ *  the second). */
+export const duplicateScene = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ id: string; name: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tbl = () => supabaseAdmin.from("canvas_scenes" as never) as any;
+    const { data: row, error } = await tbl()
+      .select("name,chapter_id,folder_id,nodes_json,viewport_json,waypoints_json,bg")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) rethrow(error);
+    if (!row) throw new Error(`Scene ${data.id} not found`);
+    const src = row as { name: string; chapter_id: string | null; folder_id: string | null; nodes_json: unknown; viewport_json: unknown; waypoints_json: unknown; bg: string | null };
+    const name = `${src.name} (copy)`;
+    const { data: ins, error: insErr } = await tbl()
+      .insert({ ...src, name, updated_at: new Date().toISOString() })
+      .select("id")
+      .single();
+    if (insErr) rethrow(insErr);
+    return { id: (ins as { id: string }).id, name };
+  });
+
 const deleteSchema = z.object({ id: z.string().uuid() });
 
 export const deleteScene = createServerFn({ method: "POST" })

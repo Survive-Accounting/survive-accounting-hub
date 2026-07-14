@@ -28,7 +28,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
-import { createFolder, deleteFolder, deleteScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { ManageCourseDialog } from "@/components/canvas/ManageCourseDialog";
@@ -53,9 +53,10 @@ import { LegendHud } from "@/components/canvas/LegendHud";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
-import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
+import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
+import { lessonIdOf, nextTuckedCross } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
@@ -798,6 +799,7 @@ function PresentCanvas() {
         tucked: false,
         stageOrder: base + i,
         deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
+        deckLessonId: deckLessonFor(rf, n.parentId),
       }, "add to deck");
     });
     const c = compositeCmd(cmds, "add group to deck");
@@ -818,6 +820,7 @@ function PresentCanvas() {
         stageOrder: d.deckMember ? d.stageOrder : base + i,
         deckPos: { x: n.position.x, y: n.position.y },
         deckCategory: d.kind === "je" ? `je:${entryType ?? "standard"}` : d.kind,
+        deckLessonId: d.deckMember ? (d.deckLessonId ?? deckLessonFor(rf, n.parentId)) : deckLessonFor(rf, n.parentId),
       }, "tuck into deck");
     });
     const c = compositeCmd(cmds, "tuck group into deck");
@@ -882,6 +885,93 @@ function PresentCanvas() {
     if (outside) void rf.fitView({ duration: 250, padding: 0.12 });
   }, [rf]);
 
+  // SPACE-WALK cursor (PROMPT C): the lesson whose deck the show key is
+  // currently walking — follows the last deal; a selected card's lesson wins.
+  const walkLessonRef = useRef<string | null | undefined>(undefined);
+
+  // ---- REGION SCAFFOLD (PROMPT C, the Wednesday accelerator): one dialog
+  // (region name + course) stamps a laid-out cluster — full-width header
+  // banner (heading ELEMENT; its slot doubles as the future animation spot),
+  // one lesson box per ACTIVE chapter left-to-right in path order, and a
+  // final full-width "Course Wrap-up · Cram Decks" lesson. Everything is
+  // ordinary editable nodes after the stamp; ONE undoable command.
+  const [scaffoldOpen, setScaffoldOpen] = useState(false);
+  const [scaffoldName, setScaffoldName] = useState("");
+  const [scaffoldCourseId, setScaffoldCourseId] = useState<string>("");
+  const spawnRegionScaffold = useCallback(() => {
+    const course = (coursesQuery.data ?? []).find((c) => c.id === scaffoldCourseId);
+    if (!course) return;
+    const chapters = course.chapters.filter((ch) => ch.status !== "archived");
+    if (chapters.length === 0) return;
+    const LESSON_W = 460;
+    const LESSON_H = 340;
+    const GAP = 70;
+    const rowW = chapters.length * LESSON_W + (chapters.length - 1) * GAP;
+    // anchor: viewport center, scaffold centered horizontally
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const ox = center.x - rowW / 2;
+    const oy = center.y - 400;
+    const name = scaffoldName.trim() || courseLabel(course);
+    const nodes: CardNode[] = [
+      {
+        id: cardId("heading"),
+        type: "heading",
+        position: { x: ox, y: oy },
+        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: rowW } as unknown as CardNode["data"],
+      },
+      ...chapters.map((ch, i) => ({
+        id: cardId("lesson"),
+        type: "lesson",
+        position: { x: ox + i * (LESSON_W + GAP), y: oy + 140 },
+        data: { label: chapterLabel(ch), w: LESSON_W, h: LESSON_H, pathOrder: i + 1 } as unknown as CardNode["data"],
+      })),
+      {
+        id: cardId("lesson"),
+        type: "lesson",
+        position: { x: ox, y: oy + 140 + LESSON_H + 90 },
+        data: { label: "Course Wrap-up · Cram Decks", w: rowW, h: 300, pathOrder: chapters.length + 1 } as unknown as CardNode["data"],
+      },
+    ] as CardNode[];
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
+    setScaffoldOpen(false);
+    setScaffoldName("");
+    window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
+  }, [rf, coursesQuery.data, scaffoldCourseId, scaffoldName]);
+
+  // ---- PREP FOR FILMING (PROMPT C): hide every card's reveals + tuck every
+  // deck member — ONE undoable command. Run it on a duplicated scene and the
+  // master stays pristine while the copy is show-ready.
+  const prepForFilming = useCallback(() => {
+    const nds = rf.getNodes();
+    const cmds: (ReturnType<typeof patchDataCmd>)[] = [];
+    for (const n of nds) {
+      if (isContainerType(n.type)) continue;
+      const d = n.data as unknown as CardData;
+      const hide = hideAll(d);
+      if (hide) cmds.push(patchDataCmd(rf as unknown as RfLike, n.id, hide as Record<string, unknown>, "hide reveals"));
+      if (!isElementKind(d.kind) && (d.deckMember || d.staged || d.minimized) && !isTucked(d)) {
+        cmds.push(
+          patchDataCmd(
+            rf as unknown as RfLike,
+            n.id,
+            {
+              deckMember: true,
+              tucked: true,
+              staged: undefined,
+              minimized: undefined,
+              deckPos: { x: n.position.x, y: n.position.y },
+              deckCategory: categoryOf(d),
+            },
+            "tuck",
+          ),
+        );
+      }
+    }
+    const c = compositeCmd(cmds, "prep for filming");
+    if (c) bus.dispatch(c);
+  }, [rf]);
+
   // ---- DEAL: card leaves the deck for its REMEMBERED canvas spot (else the next
   // free grid slot), selected on arrival; mount animation = the entrance. One
   // dispatcher command — undo returns it to the deck at its old order.
@@ -889,6 +979,7 @@ function PresentCanvas() {
     (id: string) => {
       const node = rf.getNode(id);
       if (!node) return;
+      walkLessonRef.current = lessonIdOf(node as never, rf.getNodes() as never);
       const d = node.data as unknown as CardData;
       const fw = node.measured?.width ?? (d.kind === "je" ? jeCardWidth : ((d as CardData & { w?: number }).w ?? 300));
       const fh = node.measured?.height ?? 190;
@@ -1842,9 +1933,12 @@ function PresentCanvas() {
       {
         combo: "space",
         group: "Show",
-        description: "Flip face-down card, else reveal next, else deal from the deck",
+        description: "Flip face-down card, else reveal next, else deal — walking lesson → lesson",
         handler: (e) => {
-          // THE SHOW KEY: one key walks the whole lesson.
+          // THE SHOW KEY (PROMPT C): one key walks the whole REGION. Reveal on
+          // the selected card first; else deal the CURRENT lesson's next
+          // tucked entry; when a lesson's deck exhausts, flow into the next
+          // lesson's deck in path order (Loose last).
           e.preventDefault();
           const sel = rf.getNodes().find((n) => n.selected && !isContainerType(n.type));
           if (sel && (sel.data as unknown as CardData).faceDown) {
@@ -1857,7 +1951,10 @@ function PresentCanvas() {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
             if (c) bus.dispatch(c);
           } else {
-            const next = nextTucked(rf.getNodes() as never);
+            const nodes = rf.getNodes();
+            // the selected card's lesson steers the walk; else the last deal's
+            const current = sel ? lessonIdOf(sel as never, nodes as never) : walkLessonRef.current;
+            const next = nextTuckedCross(nodes as never, current);
             if (next) deal(next.id);
           }
         },
@@ -1899,6 +1996,7 @@ function PresentCanvas() {
                   stageOrder: d.deckMember ? d.stageOrder : order++,
                   deckPos: { x: n.position.x, y: n.position.y },
                   deckCategory: categoryOf(d),
+                  deckLessonId: d.deckMember ? (d.deckLessonId ?? deckLessonFor(rf, n.parentId)) : deckLessonFor(rf, n.parentId),
                 },
                 "tuck",
               );
@@ -2226,6 +2324,12 @@ function PresentCanvas() {
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
           <TB title="Add region (zone)" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
           <TB title="Add lesson (heading + cards in a hugging box)" onClick={addLesson}><Frame className="h-3.5 w-3.5" /></TB>
+          <TB
+            title="Add region scaffold — header banner + a lesson per chapter + Wrap-up (layout stamp)"
+            onClick={() => { setScaffoldCourseId(sceneCourseId ?? ""); setScaffoldOpen(true); }}
+          >
+            <MapIcon className="h-3.5 w-3.5" />
+          </TB>
           <div className="relative">
             <TB title="Background & animations" active={bgOpen || bgCfg.mode === "video"} onClick={() => setBgOpen((v) => !v)}>
               {bgCfg.mode === "video" ? <VideoIcon className="h-3.5 w-3.5" /> : <Grid3x3 className="h-3.5 w-3.5" />}
@@ -2350,6 +2454,16 @@ function PresentCanvas() {
                     Manage course
                   </button>
                 </div>
+                {/* PREP FOR FILMING (PROMPT C): duplicate the master first,
+                    then run this on the copy — hide-all + tuck-all, one undo */}
+                <button
+                  className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.45)" }}
+                  title="Hide every card's reveals + tuck all deck members (one undo step). Duplicate the scene first to keep the master."
+                  onClick={() => { prepForFilming(); setSettingsOpen(false); }}
+                >
+                  Prep for filming
+                </button>
                 {/* CLEAR SCENE — the old "+" semantics, now explicit and guarded */}
                 <button
                   className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
@@ -2534,6 +2648,57 @@ function PresentCanvas() {
         </div>
       )}
 
+      {/* REGION SCAFFOLD dialog (PROMPT C) */}
+      {scaffoldOpen && (
+        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setScaffoldOpen(false)}>
+          <div className="w-96 max-w-[92vw] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Add region scaffold</div>
+            <label className="block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
+              region name
+              <input
+                className="mt-0.5 w-full rounded bg-black/30 px-2 py-1 text-[12px] font-normal normal-case outline-none"
+                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                placeholder="defaults to the course name"
+                value={scaffoldName}
+                onChange={(e) => setScaffoldName(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+              />
+            </label>
+            <label className="mt-2 block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
+              course
+              <select
+                className="mt-0.5 w-full rounded bg-black/40 px-1 py-1 text-[11px] font-normal normal-case outline-none"
+                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                value={scaffoldCourseId}
+                onChange={(e) => setScaffoldCourseId(e.target.value)}
+              >
+                <option value="">— pick —</option>
+                {(coursesQuery.data ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>{courseLabel(c)} ({c.chapters.filter((ch) => ch.status !== "archived").length} chapters)</option>
+                ))}
+              </select>
+            </label>
+            <p className="mt-2 text-[10.5px] leading-snug" style={{ color: NEON.muted }}>
+              Stamps a header banner, one lesson per chapter (left → right, path order set), and a full-width
+              “Course Wrap-up · Cram Decks” lesson. Everything is ordinary editable nodes afterwards — one Ctrl+Z removes the stamp.
+            </p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setScaffoldOpen(false)}>
+                cancel
+              </button>
+              <button
+                className="rounded px-2.5 py-1 text-[11.5px] font-bold disabled:opacity-40"
+                style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                disabled={!scaffoldCourseId}
+                onClick={spawnRegionScaffold}
+              >
+                scaffold
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Manage accounts (course COA curation) */}
       {manageAccountsOpen && sceneCourseId && (
         <ManageAccountsDialog
@@ -2679,6 +2844,17 @@ function PresentCanvas() {
                       <option value="">Unfiled</option>
                       {(folders ?? []).map((fo) => <option key={fo.id} value={fo.id ?? ""}>{fo.name}</option>)}
                     </select>
+                    <button
+                      className="text-[9.5px] font-semibold uppercase"
+                      style={{ color: NEON.cyan }}
+                      title="Duplicate scene — full copy, same folder, '(copy)' name"
+                      onClick={async () => {
+                        const res = await duplicateScene({ data: { id: s.id } });
+                        setScenes((xs) => [{ ...s, id: res.id, name: res.name, updated_at: new Date().toISOString() }, ...xs]);
+                      }}
+                    >
+                      dup
+                    </button>
                     <button
                       className="text-[9.5px] font-semibold uppercase"
                       style={{ color: snapsFor === s.id ? NEON.yellow : NEON.muted }}

@@ -71,6 +71,11 @@ export interface CardBase {
   staged?: boolean;
   /** Deck position (lower = dealt earlier). Set on joining; reordered in the panel. */
   stageOrder?: number;
+  /** LESSON-SCOPED DECKS (PROMPT C): the lesson this entry belongs to —
+   *  stamped at join time from the card's lesson parent; null = the "Loose"
+   *  group. The deck panel groups by this; the space-walk advances lesson →
+   *  lesson. Absent (legacy) = derived from parentId on read (lessonIdOf). */
+  deckLessonId?: string | null;
   /** Canvas position remembered when the card entered the deck — deal returns it there. */
   deckPos?: { x: number; y: number };
   /** Category stamp for future deck filtering ("je:adjusting", "schedule", …). */

@@ -61,6 +61,19 @@ Evaluate replacing minimap-driven nav with free scroll-zoom (zoom out to the
 map, dive back in). A UX decision to TEST, not a build — don't rip the
 minimap until the map view proves itself.
 
+## Region visual identity — the Pacioli polyhedra
+Region sigils = the skeletal polyhedra Leonardo da Vinci illustrated for
+Pacioli's De Divina Proportione (public domain, on-brand for the father of
+accounting, Escher-adjacent). One rotating line-art solid per region —
+SVG/CSS animation, no heavy 3D. The world/map view shows regions as floating
+sigils: purchased/free regions in color, locked regions in B&W wireframe
+(gate-as-terrain). Region header = one licensed 2021 animation loop — CONFIRM
+the license covers web/app background use before shipping it. Motion
+hierarchy: world most alive → region header one loop → lessons static with an
+arrival micro-motion → cards functional motion only. Long-game: completing a
+chapter lights one facet of the region's solid — finish the course, complete
+the polyhedron.
+
 ## Calc memos fed by problem text (Solve-It)
 JE lines carry TEXT + CALC memos (PROMPT A, July run) — the calc box renders
 tabular arithmetic ("500,000 × 8% × 6/12 = 20,000", = signs aligned). Next
