@@ -28,10 +28,11 @@ import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
-import { fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
+import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
+import { ManageCourseDialog } from "@/components/canvas/ManageCourseDialog";
 import { NEON } from "@/components/canvas/theme";
 import { blankCard } from "@/components/canvas/templates";
 import { buildLibrary } from "@/components/canvas/library";
@@ -551,6 +552,7 @@ function PresentCanvas() {
   const [sceneCourseId, setSceneCourseId] = useState<string | null>(null);
   const [sceneChapterId, setSceneChapterId] = useState<string | null>(null);
   const [manageAccountsOpen, setManageAccountsOpen] = useState(false);
+  const [manageCourseOpen, setManageCourseOpen] = useState(false);
   const coursesQuery = useQuery({ queryKey: ["course-options"], queryFn: fetchCourseOptions, staleTime: 600_000, retry: 1, networkMode: "always" });
   const sceneCourse = (coursesQuery.data ?? []).find((c) => c.id === sceneCourseId) ?? null;
 
@@ -598,7 +600,7 @@ function PresentCanvas() {
       jeLibrary,
       courseId: sceneCourseId,
       chapterId: sceneChapterId,
-      courseName: sceneCourse ? (sceneCourse.code ?? sceneCourse.course_name ?? "Course") : null,
+      courseName: sceneCourse ? courseLabel(sceneCourse) : null,
       contentResetMissing,
       onManageAccounts: () => setManageAccountsOpen(true),
       previewStudent,
@@ -1721,12 +1723,13 @@ function PresentCanvas() {
           // with a capture listener, so rung 1 covers them inherently.
           e.preventDefault();
           // RUNG 1 — close any open route-level dialog/popover
-          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || settingsOpen || bgOpen) {
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen) {
             setHelpOpen(false);
             setLoadOpen(false);
             setImportPreview(null);
             setConfirmSnap(null);
             setManageAccountsOpen(false);
+            setManageCourseOpen(false);
             setSettingsOpen(false);
             setBgOpen(false);
             return;
@@ -1780,7 +1783,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, settingsOpen, bgOpen],
+    [rf, storeApi, deal, quickSpawn, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen],
   );
   useKeymap(bindings);
 
@@ -2044,7 +2047,7 @@ function PresentCanvas() {
                 >
                   <option value="">— no course set —</option>
                   {(coursesQuery.data ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>{c.code ?? c.course_name ?? c.id.slice(0, 8)}</option>
+                    <option key={c.id} value={c.id}>{courseLabel(c)}</option>
                   ))}
                 </select>
                 {sceneCourse && (
@@ -2056,19 +2059,30 @@ function PresentCanvas() {
                   >
                     <option value="">All chapters</option>
                     {sceneCourse.chapters.map((ch) => (
-                      <option key={ch.id} value={ch.id}>{ch.number != null ? `Ch ${ch.number}` : ""} {ch.name ?? ""}</option>
+                      <option key={ch.id} value={ch.id}>{chapterLabel(ch)}</option>
                     ))}
                   </select>
                 )}
-                <button
-                  className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
-                  style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
-                  disabled={!sceneCourseId}
-                  title={sceneCourseId ? "Curate this course's account list" : "Set the scene course first"}
-                  onClick={() => { setManageAccountsOpen(true); setSettingsOpen(false); }}
-                >
-                  Manage accounts
-                </button>
+                <div className="mt-1.5 flex gap-1.5">
+                  <button
+                    className="flex-1 rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
+                    style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
+                    disabled={!sceneCourseId}
+                    title={sceneCourseId ? "Curate this course's account list" : "Set the scene course first"}
+                    onClick={() => { setManageAccountsOpen(true); setSettingsOpen(false); }}
+                  >
+                    Manage accounts
+                  </button>
+                  <button
+                    className="flex-1 rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
+                    style={{ color: NEON.yellow, border: `1px solid rgba(252,163,17,0.45)` }}
+                    disabled={!sceneCourseId}
+                    title={sceneCourseId ? "Rename this course; add/rename/reorder/archive its chapters" : "Set the scene course first"}
+                    onClick={() => { setManageCourseOpen(true); setSettingsOpen(false); }}
+                  >
+                    Manage course
+                  </button>
+                </div>
                 {/* CLEAR SCENE — the old "+" semantics, now explicit and guarded */}
                 <button
                   className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
@@ -2257,8 +2271,17 @@ function PresentCanvas() {
       {manageAccountsOpen && sceneCourseId && (
         <ManageAccountsDialog
           courseId={sceneCourseId}
-          courseName={sceneCourse ? (sceneCourse.code ?? sceneCourse.course_name ?? "Course") : "Course"}
+          courseName={sceneCourse ? courseLabel(sceneCourse) : "Course"}
           onClose={() => setManageAccountsOpen(false)}
+        />
+      )}
+
+      {/* Manage course (course structure cleanup — rename + chapter CRUD/reorder) */}
+      {manageCourseOpen && sceneCourseId && (
+        <ManageCourseDialog
+          courseId={sceneCourseId}
+          courseName={sceneCourse ? courseLabel(sceneCourse) : "Course"}
+          onClose={() => setManageCourseOpen(false)}
         />
       )}
 

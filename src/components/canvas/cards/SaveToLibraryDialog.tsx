@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 
-import { fetchCourseOptions } from "@/lib/je-api";
+import { chapterLabel, courseLabel, fetchCourseOptions } from "@/lib/je-api";
 import { nextScenarioSort, saveScenarioDoc } from "@/lib/canvas.functions";
 import { docFromJeCard } from "../library";
 import { NEON } from "../theme";
@@ -123,7 +123,7 @@ export function SaveToLibraryDialog({ card, defaultCourseId, defaultChapterId, o
             >
               <option value="">— pick —</option>
               {(coursesQuery.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>{c.code ?? c.course_name ?? c.id.slice(0, 8)}</option>
+                <option key={c.id} value={c.id}>{courseLabel(c)}</option>
               ))}
             </select>
           </label>
@@ -138,7 +138,7 @@ export function SaveToLibraryDialog({ card, defaultCourseId, defaultChapterId, o
             >
               <option value="">— pick —</option>
               {(course?.chapters ?? []).map((ch) => (
-                <option key={ch.id} value={ch.id}>{ch.number != null ? `Ch ${ch.number}` : ""} {ch.name ?? ""}</option>
+                <option key={ch.id} value={ch.id}>{chapterLabel(ch)}</option>
               ))}
             </select>
           </label>
