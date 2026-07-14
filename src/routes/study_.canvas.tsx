@@ -28,7 +28,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Download, Film, Frame, Grid3x3, Home, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
-import { createFolder, deleteScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { createFolder, deleteFolder, deleteScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { ManageCourseDialog } from "@/components/canvas/ManageCourseDialog";
@@ -56,7 +56,7 @@ import { EditableText } from "@/components/canvas/ui";
 import { nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
-import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, type RfLike } from "@/components/canvas/commands";
+import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { addEdgeCmd, lineIdOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
@@ -494,7 +494,18 @@ function PresentCanvas() {
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
   // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
   const lowZoom = useStore((s) => s.transform[2] < 0.75);
-  const [paletteCollapsed, setPaletteCollapsed] = useState(false);
+  // DECLUTTER (PROMPT B): the palette + key live in the left drawer now; the
+  // open panel persists so the workspace reopens the way it was left.
+  const [drawerPanel, setDrawerPanelRaw] = useState<string | null>(() => {
+    try { return localStorage.getItem("sa-canvas-drawer-panel"); } catch { return null; }
+  });
+  const setDrawerPanel = useCallback((key: string | null) => {
+    setDrawerPanelRaw(key);
+    try {
+      if (key) localStorage.setItem("sa-canvas-drawer-panel", key);
+      else localStorage.removeItem("sa-canvas-drawer-panel");
+    } catch { /* ignore */ }
+  }, []);
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
@@ -698,6 +709,120 @@ function PresentCanvas() {
     [rf, clearEdgeGlow],
   );
   const onPaneClick = useCallback(() => clearEdgeGlow(), [clearEdgeGlow]);
+
+  // ---- MULTI-SELECT (PROMPT B): Ctrl+drag = marquee — INCLUDING inside
+  // lesson/region boxes. Containers are nodes, so a drag starting on one would
+  // move it instead of drawing the box; while Ctrl is held a body class turns
+  // their pointer-events off, the gesture falls through to the pane, and RF's
+  // selectionKeyCode (Control) draws the marquee. Ctrl+click toggles singles
+  // (multiSelectionKeyCode). Cards inside containers select normally — the
+  // marquee tests ABSOLUTE positions.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.add("sa-ctrl"); };
+    const up = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.remove("sa-ctrl"); };
+    const blur = () => document.body.classList.remove("sa-ctrl");
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+      document.body.classList.remove("sa-ctrl");
+    };
+  }, []);
+
+  // ---- GROUP CHROME (PROMPT B): a floating action bar above a 2+ selection.
+  // Every action is ONE undoable bus command. Positions track pan/zoom (the
+  // transform subscription re-renders the bar) and drags (liveNodes).
+  const viewTransform = useStore((s) => s.transform);
+  void viewTransform; // subscription only — the bar reads positions per render
+  const selectedCards = liveNodes.filter((n) => n.selected && !isContainerType(n.type) && !(n.data as unknown as CardBase).tucked);
+  const groupBarPos = (() => {
+    if (selectedCards.length < 2) return null;
+    const nds = rf.getNodes();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity;
+    for (const n of selectedCards) {
+      const p = n.parentId ? nds.find((x) => x.id === n.parentId) : null;
+      const ax = (p?.position.x ?? 0) + n.position.x;
+      const ay = (p?.position.y ?? 0) + n.position.y;
+      minX = Math.min(minX, ax);
+      minY = Math.min(minY, ay);
+      maxX = Math.max(maxX, ax + (n.measured?.width ?? 280));
+    }
+    return rf.flowToScreenPosition({ x: (minX + maxX) / 2, y: minY });
+  })();
+
+  const groupCloneAll = useCallback(() => {
+    const nds = rf.getNodes();
+    const sel = nds.filter((n) => n.selected && !isContainerType(n.type));
+    if (sel.length < 2) return;
+    // preserved relative layout: clones land at ABSOLUTE spots, offset below
+    // the selection's bounding box; membership strips (clones arrive loose)
+    let maxY = -Infinity;
+    const absOf = (n: CardNode) => {
+      const p = n.parentId ? nds.find((x) => x.id === n.parentId) : null;
+      return { x: (p?.position.x ?? 0) + n.position.x, y: (p?.position.y ?? 0) + n.position.y };
+    };
+    for (const n of sel) maxY = Math.max(maxY, absOf(n as CardNode).y + (n.measured?.height ?? 170));
+    let minY = Infinity;
+    for (const n of sel) minY = Math.min(minY, absOf(n as CardNode).y);
+    const dy = maxY - minY + 48;
+    const clones = sel.map((n) => {
+      const abs = absOf(n as CardNode);
+      const data = structuredClone(n.data) as Record<string, unknown>;
+      delete data.deckMember; delete data.tucked; delete data.stageOrder; delete data.deckPos; delete data.deckCategory; delete data.faceDown;
+      return { ...n, id: cardId((data.kind as string) ?? "card"), selected: false, parentId: undefined, position: { x: abs.x, y: abs.y + dy }, data };
+    });
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, clones, "clone group"));
+  }, [rf]);
+
+  const groupDeleteAll = useCallback(() => {
+    const ids = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
+    if (ids.length < 2) return;
+    if (ids.length > 3 && !window.confirm(`Delete ${ids.length} selected cards? (Ctrl+Z restores)`)) return;
+    const c = removeNodesCmd(rf as unknown as RfLike, ids, "delete group");
+    if (c) bus.dispatch(c);
+  }, [rf]);
+
+  const groupDeckAll = useCallback(() => {
+    const nds = rf.getNodes();
+    const sel = nds.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+    if (sel.length === 0) return;
+    const base = nextStageOrder(nds);
+    const cmds = sel.map((n, i) => {
+      const kind = (n.data as unknown as CardBase).kind;
+      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
+      return patchDataCmd(rf as unknown as RfLike, n.id, {
+        deckMember: true,
+        tucked: false,
+        stageOrder: base + i,
+        deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind,
+      }, "add to deck");
+    });
+    const c = compositeCmd(cmds, "add group to deck");
+    if (c) bus.dispatch(c);
+  }, [rf]);
+
+  const groupTuckAll = useCallback(() => {
+    const nds = rf.getNodes();
+    const sel = nds.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+    if (sel.length === 0) return;
+    const base = nextStageOrder(nds);
+    const cmds = sel.map((n, i) => {
+      const d = n.data as unknown as CardBase;
+      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
+      return patchDataCmd(rf as unknown as RfLike, n.id, {
+        deckMember: true,
+        tucked: true,
+        stageOrder: d.deckMember ? d.stageOrder : base + i,
+        deckPos: { x: n.position.x, y: n.position.y },
+        deckCategory: d.kind === "je" ? `je:${entryType ?? "standard"}` : d.kind,
+      }, "tuck into deck");
+    });
+    const c = compositeCmd(cmds, "tuck group into deck");
+    if (c) bus.dispatch(c);
+  }, [rf]);
   // while a connection drag is live, EVERY node's dots show (drop targets)
   const connecting = useStore((s) => !!s.connection.inProgress);
 
@@ -1152,34 +1277,53 @@ function PresentCanvas() {
     // queued do() then stripped the just-set parentId — cards never actually
     // rode their zones). The decision below feeds BOTH the store write and the
     // drag command's after-snapshot, so they can't disagree.
+    //
+    // GROUP MOVE (PROMPT B): the SAME container decision runs for EVERY
+    // co-dragged card (multi-select drag), so moving a group into or out of a
+    // lesson reparents the whole group — one setNodes, one drag command.
     const nds = rf.getNodes();
     // lessons FIRST: a card dropped where a lesson overlaps its region joins the lesson
     const containers = [...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
-    const abs = node.parentId
-      ? (() => {
-          const p = nds.find((n) => n.id === node.parentId);
-          return p ? { x: p.position.x + node.position.x, y: p.position.y + node.position.y } : node.position;
-        })()
-      : node.position;
-    const hit = containers.find((z) => {
-      const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
-      const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
-      return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
-    });
-    let decision: { position: { x: number; y: number }; parentId?: string } | null = null;
-    if (hit && node.parentId !== hit.id) {
-      decision = { parentId: hit.id, position: { x: abs.x - hit.position.x, y: abs.y - hit.position.y } };
-    } else if (!hit && node.parentId) {
-      decision = { parentId: undefined, position: abs };
+    const absOf = (n: CardNode) => {
+      if (!n.parentId) return n.position;
+      const p = nds.find((x) => x.id === n.parentId);
+      return p ? { x: p.position.x + n.position.x, y: p.position.y + n.position.y } : n.position;
+    };
+    const hitFor = (abs: { x: number; y: number }) =>
+      containers.find((z) => {
+        const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
+        const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
+        return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
+      });
+    const draggedIds = new Set(dragStart.current?.keys() ?? []);
+    draggedIds.add(node.id);
+    const decisions = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
+    for (const nid of draggedIds) {
+      // the primary carries its snap-settled position from above; others read the store
+      const cur = nid === node.id ? node : rf.getNode(nid);
+      if (!cur || isContainerType(cur.type)) continue;
+      const abs = absOf(cur as CardNode);
+      const hit = hitFor(abs);
+      if (hit && cur.parentId !== hit.id) {
+        decisions.set(nid, { parentId: hit.id, position: { x: abs.x - hit.position.x, y: abs.y - hit.position.y } });
+      } else if (!hit && cur.parentId) {
+        decisions.set(nid, { parentId: undefined, position: abs });
+      }
     }
-    if (decision) {
-      const d = decision;
-      rf.setNodes((cur) => cur.map((n) => (n.id === node.id ? { ...n, parentId: d.parentId, position: { ...d.position } } : n)));
+    if (decisions.size > 0) {
+      rf.setNodes((cur) =>
+        cur.map((n) => {
+          const d = decisions.get(n.id);
+          return d ? { ...n, parentId: d.parentId, position: { ...d.position } } : n;
+        }),
+      );
     }
-    // after-state for the dragged node: the decision (or its snap-settled spot);
-    // co-dragged selection members fall back to rf.getNode inside commitDrag —
-    // XYDrag's own position writes ARE visible by drag-stop.
-    commitDrag(new Map([[node.id, decision ?? { position: { ...node.position }, parentId: node.parentId }]]));
+    // after-state: decisions win; undecided dragged nodes fall back to
+    // rf.getNode inside commitDrag — XYDrag's own position writes ARE visible
+    // by drag-stop. The primary's snap-settled spot rides along explicitly.
+    const settled = new Map(decisions);
+    if (!settled.has(node.id)) settled.set(node.id, { position: { ...node.position }, parentId: node.parentId });
+    commitDrag(settled);
   }, [rf, commitDrag, guideMatches]);
 
   // ---- scenes (JSON blobs cross the server-fn boundary as strings) ----
@@ -1920,7 +2064,7 @@ function PresentCanvas() {
         connectionRadius={28}
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: NEON.cyan, strokeWidth: 2 }}
-        multiSelectionKeyCode="Shift"
+        multiSelectionKeyCode={["Shift", "Control"]}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         proOptions={{ hideAttribution: true }}
@@ -1934,14 +2078,14 @@ function PresentCanvas() {
         panOnScroll={false}
         zoomOnScroll
         zoomOnPinch
-        selectionKeyCode="Shift"
+        selectionKeyCode={["Shift", "Control"]}
         selectionOnDrag={false}
         deleteKeyCode={["Delete", "Backspace"]}
         style={{ background: "transparent" }}
         fitView
       >
         {bgCfg.mode === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
-        {chrome && <LegendHud />}
+        {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
         {chrome && minimap && (
           <MiniMap
             position="bottom-right"
@@ -1954,20 +2098,78 @@ function PresentCanvas() {
         )}
       </ReactFlow>
 
-      {/* BRAND BAR (workspace chrome) — film/clean swap it for the watermark */}
-      {chrome && <BrandBar />}
+      {/* BRAND BAR + DRAWER (workspace chrome) — the drawer is the menu:
+          Cards (palette) and Key (legend) open as panels inside it, keeping
+          the canvas top-left clean. Film/clean swap the bar for the watermark. */}
+      {chrome && (
+        <BrandBar
+          items={[{ key: "cards", label: "Cards" }, { key: "key", label: "Key" }]}
+          activeItem={drawerPanel}
+          onItem={setDrawerPanel}
+        >
+          {drawerPanel === "cards" && (
+            <Palette
+              docked
+              library={activeLibrary}
+              onSpawn={spawn}
+              focus={focusPalette}
+              sceneCourseKey={sceneCourseId}
+            />
+          )}
+          {drawerPanel === "key" && <LegendHud docked />}
+        </BrandBar>
+      )}
       {!chrome && <BrandWatermark />}
 
-      {/* Palette — LIBRARY shows ACTIVE + AUTHORED only (content reset) */}
-      {chrome && (
-        <Palette
-          library={activeLibrary}
-          onSpawn={spawn}
-          collapsed={paletteCollapsed}
-          onToggle={() => setPaletteCollapsed((v) => !v)}
-          focus={focusPalette}
-          sceneCourseKey={sceneCourseId}
-        />
+      {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection */}
+      {chrome && groupBarPos && (
+        <div
+          className="absolute z-[45] flex items-center gap-1 rounded-lg px-1.5 py-1"
+          style={{
+            left: groupBarPos.x,
+            top: groupBarPos.y - 12,
+            transform: "translate(-50%, -100%)",
+            background: NEON.panelSolid,
+            border: `1px solid ${NEON.border}`,
+            boxShadow: "0 10px 28px -12px rgba(0,0,0,0.7)",
+          }}
+        >
+          <span className="px-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>
+            {selectedCards.length} cards
+          </span>
+          <button
+            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+            style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
+            title="Clone all — preserved layout, offset below (one undo step)"
+            onClick={groupCloneAll}
+          >
+            clone
+          </button>
+          <button
+            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+            style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
+            title="Add all to the deck (one undo step)"
+            onClick={groupDeckAll}
+          >
+            deck
+          </button>
+          <button
+            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+            style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
+            title="Tuck all into the deck (one undo step)"
+            onClick={groupTuckAll}
+          >
+            tuck
+          </button>
+          <button
+            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+            style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }}
+            title="Delete all (confirms past 3; one undo step)"
+            onClick={groupDeleteAll}
+          >
+            delete
+          </button>
+        </div>
       )}
 
       {/* The DECK — one holding system (hidden in clean/film mode; spacebar still deals) */}
@@ -2412,6 +2614,28 @@ function PresentCanvas() {
                       )}
                       <span style={{ color: NEON.muted }}>({inFolder.length})</span>
                     </button>
+                    {f.id && (
+                      <button
+                        className="shrink-0 text-[10px]"
+                        style={{ color: NEON.red }}
+                        title={f.course_id ? "Delete folder (course-linked — scenes move to Unfiled)" : "Delete folder (scenes move to Unfiled)"}
+                        onClick={() => {
+                          const warn = f.course_id
+                            ? `"${f.name}" is linked to a course — folder assignments also set scene course context. Delete it anyway? Its ${inFolder.length} scene(s) move to Unfiled (nothing is deleted).`
+                            : `Delete folder "${f.name}"? Its ${inFolder.length} scene(s) move to Unfiled (nothing is deleted).`;
+                          if (!window.confirm(warn)) return;
+                          void deleteFolder({ data: { id: f.id! } })
+                            .then(() => {
+                              void qcFolders();
+                              // repoint the local list too so the rows appear under Unfiled immediately
+                              setScenes((xs) => xs.map((x) => (x.folder_id === f.id ? { ...x, folder_id: null } : x)));
+                            })
+                            .catch((err) => setFoldersError(err instanceof Error ? err.message : String(err)));
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                   {!isCollapsed && (
                     <div className="mt-1 space-y-1 pl-3">

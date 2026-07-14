@@ -9,7 +9,11 @@ import { NEON } from "./theme";
 
 const LS_KEY = "sa-canvas-legend-collapsed";
 
-export function LegendHud() {
+export function LegendHud({ docked = false }: {
+  /** DOCKED (declutter run): fills the drawer's Key panel — always expanded,
+   *  no floating chrome. */
+  docked?: boolean;
+}) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(LS_KEY) === "1"; } catch { return false; }
   });
@@ -22,17 +26,19 @@ export function LegendHud() {
 
   return (
     <div
-      className="absolute bottom-[190px] right-3 z-40 w-56 rounded-xl"
-      style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
+      className={docked ? "w-full" : "absolute bottom-[190px] right-3 z-40 w-56 rounded-xl"}
+      style={docked ? { color: NEON.text } : { background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
     >
-      <button className="flex w-full items-center gap-1.5 px-2.5 py-1.5" onClick={toggle} title={collapsed ? "Expand the key" : "Collapse the key"}>
-        <Shapes className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
-        <span className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.yellow }}>Key</span>
-        <span className="ml-auto" style={{ color: NEON.muted }}>
-          {collapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </span>
-      </button>
-      {!collapsed && (
+      {!docked && (
+        <button className="flex w-full items-center gap-1.5 px-2.5 py-1.5" onClick={toggle} title={collapsed ? "Expand the key" : "Collapse the key"}>
+          <Shapes className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
+          <span className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.yellow }}>Key</span>
+          <span className="ml-auto" style={{ color: NEON.muted }}>
+            {collapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </span>
+        </button>
+      )}
+      {(docked || !collapsed) && (
         <div className="space-y-1.5 px-2.5 pb-2 text-[10.5px] leading-snug">
           {/* structure */}
           <div>

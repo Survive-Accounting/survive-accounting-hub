@@ -70,4 +70,8 @@ export const ARROW_EDGE_CSS = `
 .react-flow__node:hover .line-dot { opacity: 0; }
 .je-row:hover .line-dot, .sa-connecting .line-dot { opacity: 1 !important; }
 .line-dot.connectingto, .line-dot.valid { opacity: 1 !important; transform: scale(1.35); }
+/* Ctrl held (multi-select): container boxes go transparent to the pointer so
+   a Ctrl+drag STARTED INSIDE a lesson/region draws the marquee on the pane
+   instead of dragging the box. Cards stay interactive (Ctrl+click toggles). */
+body.sa-ctrl .react-flow__node-zone, body.sa-ctrl .react-flow__node-lesson { pointer-events: none !important; }
 `;

@@ -167,6 +167,21 @@ export const renameFolder = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Delete a folder — its scenes move to Unfiled (folder_id null), NEVER
+ *  deleted. Seeded course folders can go too; the UI warns before calling. */
+export const deleteFolder = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: moveErr } = await (supabaseAdmin.from("canvas_scenes" as never) as any)
+      .update({ folder_id: null })
+      .eq("folder_id", data.id);
+    if (moveErr) rethrow0088(moveErr);
+    const { error } = await (supabaseAdmin.from("canvas_folders" as never) as any).delete().eq("id", data.id);
+    if (error) rethrow0088(error);
+    return { ok: true };
+  });
+
 const moveSceneSchema = z.object({
   scene_id: z.string().uuid(),
   folder_id: z.string().uuid().nullable(), // null = Unfiled

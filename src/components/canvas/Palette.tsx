@@ -112,20 +112,24 @@ function MoreBlanks({ onSpawn }: { onSpawn: (d: CardData) => void }) {
 export function Palette({
   library,
   onSpawn,
-  collapsed,
+  collapsed = false,
   onToggle,
   focus = false,
   sceneCourseKey = null,
+  docked = false,
 }: {
   /** Pre-filtered by the route: ACTIVE + AUTHORED only (content reset). */
   library: LibraryItem[];
   onSpawn: (data: CardData) => void;
-  collapsed: boolean;
-  onToggle: () => void;
+  collapsed?: boolean;
+  onToggle?: () => void;
   /** ON: BLANK section shows only JE / T-account / Note / Heading. */
   focus?: boolean;
   /** Scene course context — the library's course filter follows it. */
   sceneCourseKey?: string | null;
+  /** DOCKED (declutter run): fills the drawer panel instead of floating
+   *  top-left — no collapse chrome, height from the parent. */
+  docked?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [course, setCourse] = useState<string>("all");
@@ -162,7 +166,7 @@ export function Palette({
     );
   }, [library, q, course, chapter, kind]);
 
-  if (collapsed) {
+  if (!docked && collapsed) {
     return (
       <button
         onClick={onToggle}
@@ -177,15 +181,21 @@ export function Palette({
 
   return (
     <aside
-      className={`absolute left-3 top-14 z-40 flex w-72 flex-col rounded-xl ${libOpen ? "bottom-3" : ""}`}
-      style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
+      className={
+        docked
+          ? "flex h-full min-h-0 w-full flex-col overflow-y-auto"
+          : `absolute left-3 top-14 z-40 flex w-72 flex-col rounded-xl ${libOpen ? "bottom-3" : ""}`
+      }
+      style={docked ? { color: NEON.text } : { background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
     >
-      <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-        <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.pink }}>Cards</span>
-        <button onClick={onToggle} title="Collapse palette" className="ml-auto" style={{ color: NEON.muted }}>
-          <ChevronsLeft className="h-4 w-4" />
-        </button>
-      </div>
+      {!docked && (
+        <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
+          <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.pink }}>Cards</span>
+          <button onClick={onToggle} title="Collapse palette" className="ml-auto" style={{ color: NEON.muted }}>
+            <ChevronsLeft className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* BLANK — three groups: CARDS · ELEMENTS · BRIDGE (+ MORE, collapsed) */}
       <div className="px-3 pt-2">
