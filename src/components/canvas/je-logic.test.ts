@@ -11,8 +11,10 @@ import {
   hasAttempt,
   hopLine,
   hopTo,
+  insertLine,
   moveLine,
   normalizePreset,
+  placeLine,
   sideOf,
   swapLines,
   JE_PRESETS,
@@ -89,6 +91,36 @@ describe("hopLine", () => {
     expect(groupLines(out).cr.map((l) => l.id)).toEqual(["b", "a"]);
     const back = hopLine(out, "a");
     expect(groupLines(back).dr.map((l) => l.id)).toEqual(["a"]);
+  });
+});
+
+describe("placeLine (socket drop — array order is render order)", () => {
+  const lines = [L("a", "dr"), L("b", "dr"), L("c", "cr")];
+  test("inserts at the gap index with the chosen side; amount travels", () => {
+    const out = placeLine(lines, "c", "dr", 0);
+    expect(out.map((l) => l.id)).toEqual(["c", "a", "b"]);
+    const c = out.find((l) => l.id === "c")!;
+    expect(sideOf(c)).toBe("dr");
+    expect(c.dr).toBe(100);
+    expect(c.cr).toBeNull();
+  });
+  test("index clamps; unknown id is a no-op", () => {
+    expect(placeLine(lines, "a", "cr", 99).map((l) => l.id)).toEqual(["b", "c", "a"]);
+    expect(placeLine(lines, "zzz", "dr", 0)).toBe(lines);
+  });
+});
+
+describe("insertLine (add-line nook lands adjacent to its column)", () => {
+  const nl = { id: "n", account: "", dr: null, cr: null };
+  test("after the last same-side line", () => {
+    const out = insertLine([L("a", "dr"), L("b", "cr"), L("c", "dr")], "dr", { ...nl });
+    expect(out.map((l) => l.id)).toEqual(["a", "b", "c", "n"]);
+    const out2 = insertLine([L("a", "dr"), L("b", "cr"), L("c", "dr")], "cr", { ...nl });
+    expect(out2.map((l) => l.id)).toEqual(["a", "b", "n", "c"]);
+  });
+  test("fallbacks: debit → top, credit → bottom", () => {
+    expect(insertLine([L("b", "cr")], "dr", { ...nl }).map((l) => l.id)).toEqual(["n", "b"]);
+    expect(insertLine([L("a", "dr")], "cr", { ...nl }).map((l) => l.id)).toEqual(["a", "n"]);
   });
 });
 

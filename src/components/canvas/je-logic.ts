@@ -74,6 +74,26 @@ export function hopTo(lines: JeLine[], id: string | undefined, to: JeSide): JeLi
   return lines.map((x) => (x.id === id ? withSide(x, to) : x));
 }
 
+/** Explicit socket placement (drag-drop): insert `id` at ARRAY position `index`
+ *  on `side`. Array order is render order (the polyomino contract) — nothing
+ *  else re-sorts. `index` is the gap position AFTER the dragged line's removal. */
+export function placeLine(lines: JeLine[], id: string, side: JeSide, index: number): JeLine[] {
+  const l = lines.find((x) => x.id === id);
+  if (!l) return lines;
+  const rest = lines.filter((x) => x.id !== id);
+  const at = Math.max(0, Math.min(index, rest.length));
+  return [...rest.slice(0, at), withSide(l, side), ...rest.slice(at)];
+}
+
+/** Add-line nook: a new blank line lands adjacent to its column — after the
+ *  LAST same-side line (debits fall back to the top, credits to the bottom). */
+export function insertLine(lines: JeLine[], side: JeSide, nl: JeLine): JeLine[] {
+  let last = -1;
+  lines.forEach((l, i) => { if (sideOf(l) === side) last = i; });
+  const at = last >= 0 ? last + 1 : side === "dr" ? 0 : lines.length;
+  return [...lines.slice(0, at), withSide(nl, side), ...lines.slice(at)];
+}
+
 /** THE INVARIANT: a JE cluster never has fewer than 1 debit + 1 credit block.
  *  Deleting down to zero on a side re-spawns one blank socket there. */
 export function ensureMinLines(lines: JeLine[], mkId: () => string): JeLine[] {

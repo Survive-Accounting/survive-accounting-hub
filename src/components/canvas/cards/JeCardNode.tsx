@@ -28,9 +28,10 @@ import {
   effectiveMode,
   effectiveSettings,
   ensureMinLines,
-  groupLines,
   hasAttempt,
-  moveLine,
+  insertLine,
+  placeLine,
+  sideOf,
   swapLines,
   type JePreset,
   type JeSettings,
@@ -52,6 +53,9 @@ function eff(l: JeLine): JeLine {
 const SOCKET_PULSE_CSS = `
 @keyframes je-socket-pulse { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
 `;
+
+/** Uniform row height — the polyomino contract: every block is one tetris cell. */
+const BLOCK_H = 36;
 
 export function JeCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as JeCard;
@@ -86,8 +90,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const selectLine = (lid: string | null) => rf.updateNodeData(id, { _selLine: lid ?? undefined }); // transient
 
   const effLines = d.lines.map(eff);
-  const g = groupLines(effLines);
   const bal = balanceState(effLines);
+  // THE POLYOMINO: array order IS render order; each row's indent follows its
+  // EFFECTIVE side (traps can cross columns), so the silhouette shows the truth.
+  const inds = effLines.map((l) => (sideOf(l) === "cr" ? ctx.jeIndent : 0));
 
   // ---- REVIEW LOCK (A3): the answer-key state — review-only, no drag/edit ---
   const locked = !!d.reviewLock;
@@ -154,19 +160,21 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const hint = (d.solution ?? d.lines).find((l) => l.label)?.label ?? null;
 
   const addLine = (side: JeSide) =>
-    setLines((lines) => {
-      const nl: JeLine = { id: cardId("l"), account: "", dr: null, cr: null, side, label: "" };
-      return moveLine([...lines, nl], nl.id, side, Number.MAX_SAFE_INTEGER);
-    });
+    setLines((lines) => insertLine(lines, side, { id: cardId("l"), account: "", dr: null, cr: null, side, label: "" }));
 
   /** Delete honors THE INVARIANT: a side never drops below one block — deleting
    *  the last block on a side re-spawns a blank socket there. */
   const deleteLine = (lid: string) =>
     setLines((lines) => ensureMinLines(lines.filter((x) => x.id !== lid), () => cardId("l")));
 
-  const onDropSlot = (side: JeSide, index: number) => {
+  /** Gap drop: place the dragged line at ARRAY gap `gap` on `side` — explicit
+   *  placement; the gap index shifts down when the line came from above it. */
+  const onDropGap = (side: JeSide, gap: number) => {
     if (!dragLine) return;
-    setLines((lines) => moveLine(lines, dragLine, side, index));
+    setLines((lines) => {
+      const orig = lines.findIndex((l) => l.id === dragLine);
+      return placeLine(lines, dragLine, side, orig >= 0 && gap > orig ? gap - 1 : gap);
+    });
     setDragLine(null);
     setHotSocket(null);
   };
@@ -185,64 +193,105 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       return next;
     });
 
-  /** Dashed drop socket between blocks — clearly visible, pulsing, hot on hover. */
-  const socket = (side: JeSide, index: number, label?: string) => {
-    if (!dragLine || !S.showGhosts) return null;
-    const key = `${side}-${index}`;
-    const hot = hotSocket === key;
+  /** Gap drop-socket while dragging a line: a slim row split into DR/CR halves —
+   *  drop chooses BOTH the array position (the gap) and the side. */
+  const gapSocket = (gap: number) => {
+    if (!dragLine) return null;
+    const zone = (side: JeSide) => {
+      const key = `${side}-${gap}`;
+      const hot = hotSocket === key;
+      return (
+        <div
+          className="nodrag grid flex-1 place-items-center rounded border-2 border-dashed text-[9px] font-bold uppercase tracking-wide"
+          style={{
+            borderColor: hot ? NEON.yellow : "rgba(252,163,17,0.55)",
+            color: hot ? NEON.yellow : "rgba(252,163,17,0.75)",
+            background: hot ? "rgba(252,163,17,0.18)" : "rgba(252,163,17,0.06)",
+          }}
+          onDragOver={(e) => { e.preventDefault(); setHotSocket(key); }}
+          onDragLeave={() => setHotSocket((h) => (h === key ? null : h))}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropGap(side, gap); }}
+        >
+          {side}
+        </div>
+      );
+    };
     return (
-      <div
-        className="nodrag grid h-7 place-items-center rounded-lg border-2 border-dashed text-[9.5px] font-bold uppercase tracking-wide"
-        style={{
-          width: blockW,
-          marginLeft: side === "cr" ? ctx.jeIndent : 0,
-          borderColor: hot ? NEON.yellow : "rgba(252,163,17,0.7)",
-          color: hot ? NEON.yellow : "rgba(252,163,17,0.8)",
-          background: hot ? "rgba(252,163,17,0.18)" : "rgba(252,163,17,0.07)",
-          animation: "je-socket-pulse 1.1s ease-in-out infinite",
-        }}
-        onDragOver={(e) => { e.preventDefault(); setHotSocket(key); }}
-        onDragLeave={() => setHotSocket((h) => (h === key ? null : h))}
-        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropSlot(side, index); }}
-      >
-        {label ?? ""}
+      <div className="flex h-6 items-stretch gap-1 py-0.5" style={{ width: ctx.jeIndent + blockW, animation: "je-socket-pulse 1.1s ease-in-out infinite" }}>
+        {zone("dr")}
+        {zone("cr")}
       </div>
     );
   };
 
-  const block = (l: JeLine, side: JeSide) => {
-    const isCr = side === "cr";
+  /** One exposed-edge segment of the union outline. Per-row segments (left/right
+   *  always, top/bottom only where the neighbor row doesn't cover) add up to ONE
+   *  continuous outline around the polyomino — ghost rows draw theirs dashed. */
+  const edgeSeg = (key: string, ghost: boolean, color: string, st: React.CSSProperties, vertical?: boolean) => (
+    <span
+      key={key}
+      className="pointer-events-none absolute z-[3]"
+      style={{
+        ...(vertical
+          ? { width: 0, borderLeft: `1.5px ${ghost ? "dashed" : "solid"} ${color}` }
+          : { height: 0, borderTop: `1.5px ${ghost ? "dashed" : "solid"} ${color}` }),
+        ...st,
+      }}
+    />
+  );
+
+  const row = (l: JeLine, i: number) => {
+    const ind = inds[i];
+    const side: JeSide = ind > 0 ? "cr" : "dr";
     const trapOn = !!l.flipped && !!l.trap;
     const amt = amountOf(eff(l));
     const isSel = selLine === l.id;
     const empty = !eff(l).account;
-    // GUIDED: unfilled template lines render persistently as sockets to fill
+    // GUIDED/PRACTICE: unfilled template lines render as dashed segments of the shape
     const socketStyle = empty && S.showGhosts;
+    const prevInd = i === 0 ? null : inds[i - 1];
+    const nextInd = i === inds.length - 1 ? null : inds[i + 1];
+    const IND = ctx.jeIndent;
+    const edgeColor = socketStyle ? "rgba(252,163,17,0.75)" : selected ? "#FCA311" : PAPER.cardEdge;
+    const edges = [
+      edgeSeg("el", socketStyle, edgeColor, { left: 0, top: 0, bottom: 0 }, true),
+      edgeSeg("er", socketStyle, edgeColor, { right: 0, top: 0, bottom: 0 }, true),
+    ];
+    if (prevInd === null) edges.push(edgeSeg("et", socketStyle, edgeColor, { left: 0, right: 0, top: 0 }));
+    else if (prevInd !== ind)
+      edges.push(
+        ind > prevInd
+          ? edgeSeg("et", socketStyle, edgeColor, { right: 0, width: IND, top: 0 })
+          : edgeSeg("et", socketStyle, edgeColor, { left: 0, width: IND, top: 0 }),
+      );
+    if (nextInd === null) edges.push(edgeSeg("eb", socketStyle, edgeColor, { left: 0, right: 0, bottom: 0 }));
+    else if (nextInd !== ind)
+      edges.push(
+        ind > nextInd
+          ? edgeSeg("eb", socketStyle, edgeColor, { right: 0, width: IND, bottom: 0 })
+          : edgeSeg("eb", socketStyle, edgeColor, { left: 0, width: IND, bottom: 0 }),
+      );
     return (
-      <div key={l.id} className="relative" style={{ marginLeft: isCr ? ctx.jeIndent : 0, width: blockW, opacity: l.hidden ? 0.15 : 1 }}>
+      <div key={l.id} className="relative" style={{ marginLeft: ind, width: blockW, height: BLOCK_H, opacity: l.hidden ? 0.15 : 1 }}>
+        {edges}
         {/* the block — outer edge drags the CLUSTER (no nodrag); inner row is the HTML5 line-drag.
             Clicking ANYWHERE on the block selects it (A6) — the arrows then act on IT. */}
         <div
-          className="group/block relative z-[1] rounded-lg px-1.5 py-1"
+          className="group/block relative z-[1] h-full"
           style={{
-            background: socketStyle ? "rgba(251,249,244,0.06)" : PAPER.card,
-            border: socketStyle
-              ? "2px dashed rgba(252,163,17,0.55)"
-              : `1px solid ${trapOn ? "rgba(194,24,50,0.6)" : isSel ? "#FCA311" : PAPER.cardEdge}`,
-            boxShadow: socketStyle
-              ? isSel
-                ? "0 0 0 2.5px rgba(252,163,17,0.55)"
-                : "none"
+            background: socketStyle ? "rgba(252,163,17,0.05)" : PAPER.card,
+            boxShadow: trapOn
+              ? "inset 0 0 0 2px rgba(194,24,50,0.5)"
               : isSel
-                ? "0 0 0 2.5px rgba(252,163,17,0.55), 0 10px 22px -12px rgba(0,0,0,0.6)"
-                : "0 10px 22px -14px rgba(0,0,0,0.55)",
+                ? "inset 0 0 0 2px rgba(252,163,17,0.6)"
+                : undefined,
           }}
           onClick={() => { if (!locked) selectLine(l.id); }}
           onDragOver={(e) => { if (dragLine && dragLine !== l.id) e.preventDefault(); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropSwap(l.id); }}
         >
           <div
-            className={`nodrag flex items-center gap-1 ${locked ? "" : "cursor-grab active:cursor-grabbing"}`}
+            className={`nodrag flex h-full items-center gap-1 px-1.5 ${locked ? "" : "cursor-grab active:cursor-grabbing"}`}
             draggable={!locked}
             onDragStart={(e) => { if (locked) return; e.dataTransfer.setData("text/plain", l.id); e.dataTransfer.effectAllowed = "move"; setDragLine(l.id); }}
             onDragEnd={() => { setDragLine(null); setHotSocket(null); }}
@@ -402,40 +451,19 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     );
   };
 
-  const renderSide = (side: JeSide) => {
-    const list = side === "dr" ? g.dr : g.cr;
-    return (
-      <>
-        {socket(side, 0)}
-        {list.map((l, i) => {
-          const raw = d.lines.find((x) => x.id === l.id) ?? l;
-          return (
-            <div key={l.id} className="flex flex-col gap-1">
-              {block(raw, side)}
-              {socket(side, i + 1)}
-            </div>
-          );
-        })}
-        {dragLine && S.showGhosts ? (
-          socket(side, list.length + 1, "new line")
-        ) : (
-          !locked && (
-            // add-line "+" sits in the INDENT NOOK: under the leftmost edge of
-            // its own column (A7) — a small chip, not a full-width row
-            <button
-              className="nodrag grid h-5 w-7 place-items-center rounded-md opacity-0 transition-opacity hover:!opacity-100 group-hover/cluster:opacity-40"
-              style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}`, marginLeft: side === "cr" ? ctx.jeIndent : 0 }}
-              title={side === "dr" ? "Add debit line" : "Add credit line"}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); addLine(side); }}
-            >
-              <Plus className="h-3 w-3" />
-            </button>
-          )
-        )}
-      </>
-    );
-  };
+  /** Add-line "+" in the INDENT NOOK: dr under the debit column's left edge,
+   *  cr at the indent (A7). */
+  const nook = (side: JeSide) => (
+    <button
+      className="nodrag grid h-5 w-7 place-items-center rounded-md opacity-0 transition-opacity hover:!opacity-100 group-hover/cluster:opacity-40"
+      style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}` }}
+      title={side === "dr" ? "Add debit line" : "Add credit line"}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); addLine(side); }}
+    >
+      <Plus className="h-3 w-3" />
+    </button>
+  );
 
   const entryType = d.entryType ?? "standard";
 
@@ -577,11 +605,24 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             </CardPopover>
           )}
 
-          {/* the tetris blocks — tightened (A7): blocks sit close */}
-          <div className="flex flex-col gap-1">
-            {renderSide("dr")}
-            {renderSide("cr")}
+          {/* ONE TETRIS PIECE — rows share edges, zero gap; the per-row exposed
+              edges add up to a single continuous outline around the union */}
+          <div className="flex flex-col">
+            {gapSocket(0)}
+            {d.lines.map((l, i) => (
+              <div key={l.id} className="flex flex-col">
+                {row(l, i)}
+                {gapSocket(i + 1)}
+              </div>
+            ))}
           </div>
+          {!locked && !dragLine && (
+            <div className="mt-1 flex items-center">
+              {nook("dr")}
+              <span style={{ width: Math.max(4, ctx.jeIndent - 28) }} />
+              {nook("cr")}
+            </div>
+          )}
 
           {flipFeedback && (
             <div className="mt-2 rounded px-2 py-1 text-[11.5px]" style={{ background: "rgba(194,24,50,0.15)", color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.4)`, width: blockW }}>
