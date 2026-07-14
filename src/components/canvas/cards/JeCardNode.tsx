@@ -34,7 +34,6 @@ import {
   sideOf,
   swapLines,
   type JePreset,
-  type JeSettings,
   type JeSide,
 } from "../je-logic";
 import { cardId, type JeCard, type JeLine } from "../types";
@@ -113,6 +112,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
           settings: { ...JE_PRESETS.practice },
           reviewLock: false,
           helpOpen: false,
+          revealUsed: false,
           solution: structuredClone(key),
           lines: blankFrom(key, () => cardId("l")),
         }
@@ -148,12 +148,13 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
 
   // ---- CARD-FLIP HELP (A2): the tetris-card back doing double duty ----------
   const flipHelp = () => update({ helpOpen: !d.helpOpen });
-  /** Reveal the correct answer: the stored solution wins; else unhide everything. */
+  /** Reveal the correct answer: the stored solution wins; else unhide everything.
+   *  Marks revealUsed — in PRACTICE that's what surfaces the balance chip (V2). */
   const revealCorrect = () =>
     updateFn((prev) => {
       const sol = prev.solution as JeLine[] | undefined;
-      if (sol?.length) return { lines: structuredClone(sol), helpOpen: false };
-      return { lines: ((prev.lines as JeLine[]) ?? []).map((l) => ({ ...l, hidden: false, flipped: false })), helpOpen: false };
+      if (sol?.length) return { lines: structuredClone(sol), helpOpen: false, revealUsed: true };
+      return { lines: ((prev.lines as JeLine[]) ?? []).map((l) => ({ ...l, hidden: false, flipped: false })), helpOpen: false, revealUsed: true };
     });
   const switchToGuided = () => update({ mode: "guided", settings: { ...JE_PRESETS.guided }, helpOpen: false });
   /** First line's memo — the hint. Solution memos win (practice copies blank lines). */
@@ -328,6 +329,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                 <CoaPicker
                   groups={ctx.coa}
                   showChips={S.showNormalChips}
+                  onToggleChips={(v) => update({ settings: { ...(d.settings ?? {}), showNormalChips: v } })}
                   onPick={(name) => { patchLine(l.id, { account: name }); setPickerFor(null); }}
                   onClose={() => setPickerFor(null)}
                 />
@@ -542,16 +544,14 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         <CardPopover anchor={gearAnchor} align="right" onClose={() => setGearAnchor(null)}>
           <GearPanel
             mode={mode}
-            settings={S}
             entryType={entryType}
             onMode={(m) => update({ mode: m, settings: { ...JE_PRESETS[m] } })}
             onEntryType={(t) => update({ entryType: t })}
-            onPatch={(p) => update({ settings: { ...(d.settings ?? {}), ...p } })}
             onReset={() =>
               updateFn((prev) => {
                 const sol = prev.solution as JeLine[] | undefined;
                 const cur = (prev.lines as JeLine[]) ?? [];
-                return { lines: blankFrom(sol?.length ? sol : cur, () => cardId("l")), helpOpen: false };
+                return { lines: blankFrom(sol?.length ? sol : cur, () => cardId("l")), helpOpen: false, revealUsed: false };
               })
             }
             onClose={() => setGearAnchor(null)}
@@ -630,22 +630,25 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             </div>
           )}
 
-          {/* balance pill floats bottom-right of the cluster */}
-          <div className="mt-1.5 flex justify-end">
-            <span
-              className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
-              style={
-                bal.state === "balanced"
-                  ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
-                  : bal.state === "off"
-                    ? { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
-                    : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }
-              }
-              title={bal.state === "unknown" ? "Some amounts are still ??? — balance unknown" : undefined}
-            >
-              {bal.state === "balanced" ? "✓ balanced" : bal.state === "off" ? `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}` : "?"}
-            </span>
-          </div>
+          {/* balance chip — GUIDED always; PRACTICE only after attempt+reveal
+              (feedback, not a live answer-checker while the student works) */}
+          {(mode === "guided" || d.revealUsed) && (
+            <div className="mt-1.5 flex justify-end">
+              <span
+                className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
+                style={
+                  bal.state === "balanced"
+                    ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
+                    : bal.state === "off"
+                      ? { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
+                      : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }
+                }
+                title={bal.state === "unknown" ? "Some amounts are still ??? — balance unknown" : undefined}
+              >
+                {bal.state === "balanced" ? "✓ balanced" : bal.state === "off" ? `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}` : "?"}
+              </span>
+            </div>
+          )}
         </>
       )}
 
@@ -890,15 +893,13 @@ function MemoPopover({ value, onSave, onClose }: { value: string; onSave: (v: st
   );
 }
 
-/** Gear contents (A10): mode · entry type · normal-balance chips · RESET.
- *  Amounts-visible and picker-search are gone — they're always-on now. */
-function GearPanel({ mode, settings, entryType, onMode, onEntryType, onPatch, onReset, onClose }: {
+/** Gear contents (V2): mode · entry type · RESET. Normal-balance chips moved
+ *  into the picker header; amounts-visible and picker-search are always-on. */
+function GearPanel({ mode, entryType, onMode, onEntryType, onReset, onClose }: {
   mode: JePreset;
-  settings: JeSettings;
   entryType: (typeof ENTRY_TYPES)[number];
   onMode: (m: JePreset) => void;
   onEntryType: (t: (typeof ENTRY_TYPES)[number]) => void;
-  onPatch: (p: Partial<JeSettings>) => void;
   onReset: () => void;
   onClose: () => void;
 }) {
@@ -947,10 +948,6 @@ function GearPanel({ mode, settings, entryType, onMode, onEntryType, onPatch, on
           </button>
         ))}
       </div>
-      <label className="flex cursor-pointer items-center gap-1.5 py-0.5 text-[11.5px]" style={{ color: PAPER.ink }}>
-        <input type="checkbox" checked={settings.showNormalChips} onChange={(e) => onPatch({ showNormalChips: e.target.checked })} style={{ accentColor: "#14213D" }} />
-        Normal-balance chips
-      </label>
       <button
         className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
         style={{ color: PAPER.red, border: "1px solid rgba(194,24,50,0.4)", background: "rgba(194,24,50,0.05)" }}

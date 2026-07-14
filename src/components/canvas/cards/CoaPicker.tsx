@@ -10,11 +10,14 @@ import type { CoaGroup } from "../je-logic";
 export function CoaPicker({
   groups,
   showChips,
+  onToggleChips,
   onPick,
   onClose,
 }: {
   groups: CoaGroup[];
   showChips: boolean;
+  /** Normal-balance chips live HERE now (V2) — small toggle in the header. */
+  onToggleChips: (v: boolean) => void;
   onPick: (name: string) => void;
   onClose: () => void;
 }) {
@@ -47,6 +50,18 @@ export function CoaPicker({
             onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
           />
         </label>
+        <button
+          className="shrink-0 rounded px-1 py-0.5 text-[8.5px] font-bold"
+          style={{
+            color: showChips ? PAPER.navy : PAPER.inkMuted,
+            border: `1px solid ${showChips ? "rgba(20,33,61,0.4)" : PAPER.line}`,
+            background: showChips ? "rgba(20,33,61,0.06)" : "transparent",
+          }}
+          title={showChips ? "Hide normal-balance chips" : "Show normal-balance chips (+DR / +CR)"}
+          onClick={() => onToggleChips(!showChips)}
+        >
+          +DR/CR
+        </button>
         <button className="shrink-0 rounded p-0.5" style={{ color: PAPER.inkMuted }} onClick={onClose} title="Close">
           <X className="h-3.5 w-3.5" />
         </button>
