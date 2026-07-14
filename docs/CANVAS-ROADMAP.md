@@ -78,6 +78,15 @@ LESSON → CARD vocabulary in comments/UI copy, but the zone node type, files,
 and scene payloads still say "zone". Finish the rename in one sweep (node
 type alias + loader migration) — don't half-rename.
 
+Course structure cleanup (migration 0089, July run) added a rung ABOVE this
+one: Course → Chapter → Lesson → Card. Chapter is the existing `chapters`
+DB table (course_id, chapter_number, chapter_name) — a syllabus-level grouping,
+now editable (rename/add/reorder/archive) via canvas settings' "Manage
+course". Chapters are NOT lessons: Lesson stays the on-canvas scene-grouping
+element (WORLD/REGION → LESSON → CARD, above). A course's FINAL chapter is
+conventionally its Region-level Check — see Foundations chapter 8, "Course
+Wrap-up · Cram Decks".
+
 ## Solve-It pipeline (September)
 
 ### Textbook registry
