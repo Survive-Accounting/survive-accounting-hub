@@ -51,6 +51,7 @@ import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
+import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type FormulaCard, type JeCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
@@ -60,6 +61,7 @@ import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck
 import { lessonIdOf, nextTuckedCross } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
+import { snakeBounds, snakeLayout, snakePerRow } from "@/components/canvas/snake-layout";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { addEdgeCmd, lineIdOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
@@ -902,41 +904,71 @@ function PresentCanvas() {
     if (!course) return;
     const chapters = course.chapters.filter((ch) => ch.status !== "archived");
     if (chapters.length === 0) return;
+    // SNAKING SCAFFOLD: chapters become lessons laid on a boustrophedon path
+    // (row 0 →, row 1 ←, …) with generous breathing room — a legible snake in
+    // the minimap. The course's final chapter (Foundations = "Course Wrap-up")
+    // lands at the END of the snake naturally; pathOrder follows the snake so
+    // the outline + a future tour ride the same spine.
     const LESSON_W = 460;
     const LESSON_H = 340;
-    const GAP = 70;
-    const rowW = chapters.length * LESSON_W + (chapters.length - 1) * GAP;
-    // anchor: viewport center, scaffold centered horizontally
+    const GAP_X = 130;
+    const GAP_Y = 170;
+    const HEADER_GAP = 60;
+    const perRow = snakePerRow(chapters.length);
+    const layoutOpts = { colW: LESSON_W, rowH: LESSON_H, gapX: GAP_X, gapY: GAP_Y, perRow, originX: 0, originY: 0 };
+    const bounds = snakeBounds(chapters.length, layoutOpts);
+    const HEADER_H = 96;
     const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
     const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
-    const ox = center.x - rowW / 2;
-    const oy = center.y - 400;
+    const ox = center.x - bounds.w / 2;
+    const oy = center.y - (bounds.h + HEADER_H + HEADER_GAP) / 2;
+    const cells = snakeLayout(chapters.length, { ...layoutOpts, originX: ox, originY: oy + HEADER_H + HEADER_GAP });
     const name = scaffoldName.trim() || courseLabel(course);
     const nodes: CardNode[] = [
       {
         id: cardId("heading"),
         type: "heading",
         position: { x: ox, y: oy },
-        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: rowW } as unknown as CardNode["data"],
+        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: bounds.w } as unknown as CardNode["data"],
       },
       ...chapters.map((ch, i) => ({
         id: cardId("lesson"),
         type: "lesson",
-        position: { x: ox + i * (LESSON_W + GAP), y: oy + 140 },
+        position: { x: cells[i].x, y: cells[i].y },
         data: { label: chapterLabel(ch), w: LESSON_W, h: LESSON_H, pathOrder: i + 1 } as unknown as CardNode["data"],
       })),
-      {
-        id: cardId("lesson"),
-        type: "lesson",
-        position: { x: ox, y: oy + 140 + LESSON_H + 90 },
-        data: { label: "Course Wrap-up · Cram Decks", w: rowW, h: 300, pathOrder: chapters.length + 1 } as unknown as CardNode["data"],
-      },
     ] as CardNode[];
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
     setScaffoldOpen(false);
     setScaffoldName("");
     window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
   }, [rf, coursesQuery.data, scaffoldCourseId, scaffoldName]);
+
+  // REFLOW / TIDY (path nav #4): re-run the snaking layout on the region's
+  // lessons (ordered by pathOrder, then reading order) — even spacing, clean
+  // turns, no overlap — as ONE undoable command. Never automatic: manual
+  // placement (and manual resize) is preserved until Lee presses this.
+  const reflowPath = useCallback(() => {
+    const lessons = rf.getNodes().filter((n) => n.type === "lesson" && !n.parentId) as CardNode[];
+    if (lessons.length < 2) return;
+    const po = (n: CardNode) => {
+      const v = (n.data as Record<string, unknown>).pathOrder;
+      return typeof v === "number" ? v : Number.POSITIVE_INFINITY;
+    };
+    const ordered = [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x);
+    const colW = Math.max(...lessons.map((n) => n.measured?.width ?? ((n.data as Record<string, unknown>).w as number) ?? 460));
+    const rowH = Math.max(...lessons.map((n) => n.measured?.height ?? ((n.data as Record<string, unknown>).h as number) ?? 340));
+    const minX = Math.min(...lessons.map((n) => n.position.x));
+    const minY = Math.min(...lessons.map((n) => n.position.y));
+    const perRow = snakePerRow(ordered.length);
+    const cells = snakeLayout(ordered.length, { originX: minX, originY: minY, colW, rowH, gapX: 130, gapY: 170, perRow });
+    const before = new Map(ordered.map((n) => [n.id, { ...n.position }]));
+    const after = new Map(ordered.map((n, i) => [n.id, { x: cells[i].x, y: cells[i].y }]));
+    const apply = (m: Map<string, { x: number; y: number }>) =>
+      rf.setNodes((nds) => nds.map((n) => (m.has(n.id) ? { ...n, position: { ...m.get(n.id)! } } : n)));
+    bus.dispatch({ label: "tidy layout", do: () => apply(after), undo: () => apply(before) });
+    window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
+  }, [rf]);
 
   // ---- PREP FOR FILMING (PROMPT C): hide every card's reveals + tuck every
   // deck member — ONE undoable command. Run it on a duplicated scene and the
@@ -2277,7 +2309,7 @@ function PresentCanvas() {
           the canvas top-left clean. Film/clean swap the bar for the watermark. */}
       {chrome && (
         <BrandBar
-          items={[{ key: "cards", label: "Cards" }, { key: "key", label: "Key" }]}
+          items={[{ key: "cards", label: "Cards" }, { key: "outline", label: "Outline" }, { key: "key", label: "Key" }]}
           activeItem={drawerPanel}
           onItem={setDrawerPanel}
         >
@@ -2290,6 +2322,7 @@ function PresentCanvas() {
               sceneCourseKey={sceneCourseId}
             />
           )}
+          {drawerPanel === "outline" && <OutlinePanel />}
           {drawerPanel === "key" && <LegendHud docked />}
         </BrandBar>
       )}
@@ -2336,10 +2369,13 @@ function PresentCanvas() {
           <TB title="Add region (zone)" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
           <TB title="Add lesson (heading + cards in a hugging box)" onClick={addLesson}><Frame className="h-3.5 w-3.5" /></TB>
           <TB
-            title="Add region scaffold — header banner + a lesson per chapter + Wrap-up (layout stamp)"
+            title="Add region scaffold — full-width header + chapters laid on a snaking path (layout stamp)"
             onClick={() => { setScaffoldCourseId(sceneCourseId ?? ""); setScaffoldOpen(true); }}
           >
             <MapIcon className="h-3.5 w-3.5" />
+          </TB>
+          <TB title="Tidy layout — re-snake the region's lessons (even spacing, clean turns; one undo)" onClick={reflowPath}>
+            <Shrink className="h-3.5 w-3.5" />
           </TB>
           <div className="relative">
             <TB title="Background & animations" active={bgOpen || bgCfg.mode === "video"} onClick={() => setBgOpen((v) => !v)}>
@@ -2690,8 +2726,9 @@ function PresentCanvas() {
               </select>
             </label>
             <p className="mt-2 text-[10.5px] leading-snug" style={{ color: NEON.muted }}>
-              Stamps a header banner, one lesson per chapter (left → right, path order set), and a full-width
-              “Course Wrap-up · Cram Decks” lesson. Everything is ordinary editable nodes afterwards — one Ctrl+Z removes the stamp.
+              Stamps a full-width header + one lesson per chapter laid on a snaking path (row 1 →, row 2 ←, …),
+              path order following the snake, the course’s final chapter at the end. Everything is ordinary
+              editable nodes afterwards — one Ctrl+Z removes the stamp; “Tidy layout” re-snakes later.
             </p>
             <div className="mt-3 flex justify-end gap-2">
               <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setScaffoldOpen(false)}>

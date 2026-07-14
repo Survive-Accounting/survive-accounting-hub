@@ -148,4 +148,19 @@ per-student and does NOT mutate the authored scene. Ties to auth + read-only
 scene mode (already flagged for beta / World v1). NB: the invariant that debits
 always render as a contiguous group above credits (built in the "JE interaction
 + polish" pass) is what makes the stacked-section mobile variant clean — the
-data is already grouped, so option (b) is a layout swap, not a re-model.
+data is already grouped, so option (b) is a layout swap, not a re-model. The
+card-contrast pass (light parchment bodies, dark ink, colour reserved for
+meaning) is the high-contrast look student/mobile wants — build student mode ON
+the light card, don't restyle.
+
+## Path navigation (student side)
+The live OUTLINE panel (authoring, "path navigation" run) becomes STUDENT
+navigation. A "Take a tour" wizard auto-drives the camera along path_order with
+narration stops at each lesson (rides the SAME snake spine the scaffold +
+outline already use — path_order is the one source of truth). Each lesson gets a
+"⌂ back to menu" affordance that flies to the region overview; you-are-here
+(nearest lesson to viewport centre, built this run) orients students as they
+pan. Built on this run's outline + path_order + the boustrophedon layout. NB:
+ONE whiteboard/scene per course (Region); the multi-course "world view" (courses
+as sigils / planets you fly between) is World v1 — separate, later. The tour is
+the in-region traversal; the world view is the cross-region map.
