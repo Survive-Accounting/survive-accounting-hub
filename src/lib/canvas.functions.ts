@@ -567,3 +567,127 @@ export const deleteScene = createServerFn({ method: "POST" })
     if (error) rethrow(error);
     return { ok: true };
   });
+
+// ---- COURSE / CHAPTER ADMIN (course structure cleanup, migration 0089) -----
+// Vocabulary rung: Course → Chapter → Lesson → Card. A course's final chapter
+// is conventionally its Region-level Check ("Course Wrap-up · Cram Decks").
+// "Manage course" (Lee-only, mirrors Manage accounts) lives here: rename a
+// course, and add/rename/reorder/archive its chapters. NOTHING is deleted —
+// archive is the only lifecycle transition; scenario docs and scenes that
+// reference an archived chapter keep resolving it (chapterLabel just marks it
+// "(archived)" so Lee doesn't file new content under one by mistake).
+const MISSING_0089_HINT =
+  "course-structure schema missing — run migration/supabase-migrations/0089_course_structure_cleanup.sql in the Supabase SQL editor";
+
+function rethrow0089(error: { code?: string; message: string }): never {
+  if (isMissingSchema(error, /courses|chapters|status|subtitle|course_name/i)) {
+    throw new Error(MISSING_0089_HINT);
+  }
+  throw new Error(error.message);
+}
+
+export interface ChapterRow {
+  id: string;
+  chapter_number: number;
+  chapter_name: string;
+  subtitle: string | null;
+  status: "active" | "archived";
+}
+
+export const listChaptersAdmin = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => courseIdSchema.parse(d))
+  .handler(async ({ data }): Promise<ChapterRow[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await (supabaseAdmin.from("chapters" as never) as any)
+      .select("id,chapter_number,chapter_name,subtitle,status")
+      .eq("course_id", data.course_id)
+      .order("status", { ascending: true }) // active first
+      .order("chapter_number", { ascending: true });
+    if (error) rethrow0089(error);
+    return (rows ?? []) as ChapterRow[];
+  });
+
+export const renameCourse = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ course_id: z.string().uuid(), course_name: z.string().min(1).max(80) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("courses" as never) as any)
+      .update({ course_name: data.course_name.trim() })
+      .eq("id", data.course_id);
+    if (error) rethrow0089(error);
+    return { ok: true };
+  });
+
+export const createChapter = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ course_id: z.string().uuid(), chapter_name: z.string().min(1).max(120), subtitle: z.string().max(80).nullable().optional() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<ChapterRow> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tbl = () => supabaseAdmin.from("chapters" as never) as any;
+    const { data: top, error: topErr } = await tbl()
+      .select("chapter_number")
+      .eq("course_id", data.course_id)
+      .eq("status", "active")
+      .order("chapter_number", { ascending: false })
+      .limit(1);
+    if (topErr) rethrow0089(topErr);
+    const next = (typeof (top?.[0] as { chapter_number: number } | undefined)?.chapter_number === "number" ? (top![0] as { chapter_number: number }).chapter_number : 0) + 1;
+    const { data: ins, error } = await tbl()
+      .insert({
+        course_id: data.course_id,
+        chapter_number: next,
+        chapter_name: data.chapter_name.trim(),
+        subtitle: data.subtitle ?? null,
+        status: "active",
+        je_only_mode: false,
+        target_lessons: 0,
+        topics_locked: false,
+      })
+      .select("id,chapter_number,chapter_name,subtitle,status")
+      .single();
+    if (error) rethrow0089(error);
+    return ins as ChapterRow;
+  });
+
+export const renameChapter = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), chapter_name: z.string().min(1).max(120), subtitle: z.string().max(80).nullable().optional() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const patch: Record<string, unknown> = { chapter_name: data.chapter_name.trim() };
+    if (data.subtitle !== undefined) patch.subtitle = data.subtitle;
+    const { error } = await (supabaseAdmin.from("chapters" as never) as any).update(patch).eq("id", data.id);
+    if (error) rethrow0089(error);
+    return { ok: true };
+  });
+
+export const setChapterStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["active", "archived"]) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("chapters" as never) as any).update({ status: data.status }).eq("id", data.id);
+    if (error) rethrow0089(error);
+    return { ok: true };
+  });
+
+/** Drag-to-reorder: renumbers the given ACTIVE chapters 1..N in the given
+ *  order. Collision-safe without a real transaction — every id is bumped to a
+ *  distinct negative temp number FIRST (phase 1), then to its final 1..N
+ *  (phase 2), so no two rows ever share a chapter_number even transiently. */
+export const reorderChapters = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ course_id: z.string().uuid(), ordered_ids: z.array(z.string().uuid()).min(1) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tbl = () => supabaseAdmin.from("chapters" as never) as any;
+    for (let i = 0; i < data.ordered_ids.length; i++) {
+      const { error } = await tbl().update({ chapter_number: -(i + 1) }).eq("id", data.ordered_ids[i]).eq("course_id", data.course_id);
+      if (error) rethrow0089(error);
+    }
+    for (let i = 0; i < data.ordered_ids.length; i++) {
+      const { error } = await tbl().update({ chapter_number: i + 1 }).eq("id", data.ordered_ids[i]).eq("course_id", data.course_id);
+      if (error) rethrow0089(error);
+    }
+    return { ok: true };
+  });
