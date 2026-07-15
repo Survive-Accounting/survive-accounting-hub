@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  autoBalance,
   balanceState,
   blankFrom,
   effectiveMode,
@@ -528,5 +529,57 @@ describe("flipSides (JT4)", () => {
     expect(f.filter((l) => sideOf(l) === "dr").map((l) => l.id)).toEqual(["c"]);
     const back = flipSides(f);
     expect(back.filter((l) => sideOf(l) === "dr").map((l) => l.id).sort()).toEqual(["d0", "d1"]);
+  });
+});
+
+describe("autoBalance (guided amount echo, item 1)", () => {
+  const dr = (id: string, amt: number | null): JeLine => ({ id, account: "", dr: amt, cr: null, side: "dr" });
+  const cr = (id: string, amt: number | null): JeLine => ({ id, account: "", dr: null, cr: amt, side: "cr" });
+
+  test("entering one debit auto-fills the sole empty credit, marked echo", () => {
+    const out = autoBalance([dr("d", 10000), cr("c", null)]);
+    const c = out.find((l) => l.id === "c")!;
+    expect(c.cr).toBe(10000);
+    expect(c.echo).toBe(true);
+  });
+
+  test("blank card (both empty) stays blank — nothing determinate", () => {
+    const out = autoBalance([dr("d", null), cr("c", null)]);
+    expect(out.every((l) => l.dr == null && l.cr == null)).toBe(true);
+    expect(out.some((l) => l.echo)).toBe(false);
+  });
+
+  test("hand-typed amounts are never clobbered (two typed → unbalanced, no echo)", () => {
+    const out = autoBalance([dr("d", 10000), cr("c", 8000)]);
+    expect(out.find((l) => l.id === "d")!.dr).toBe(10000);
+    expect(out.find((l) => l.id === "c")!.cr).toBe(8000);
+    expect(out.some((l) => l.echo)).toBe(false);
+  });
+
+  test("adding a 3rd hand-typed line re-derives the one echo cell", () => {
+    // dr 10000 (typed) + dr 3000 (typed) + cr echo → cr recomputes to 13000
+    const out = autoBalance([dr("d1", 10000), dr("d2", 3000), { id: "c", account: "", dr: null, cr: 10000, side: "cr", echo: true }]);
+    const c = out.find((l) => l.id === "c")!;
+    expect(c.cr).toBe(13000);
+    expect(c.echo).toBe(true);
+  });
+
+  test("two open cells on a side → ambiguous, no echo", () => {
+    const out = autoBalance([dr("d", 10000), cr("c1", null), cr("c2", null)]);
+    expect(out.some((l) => l.echo)).toBe(false);
+  });
+
+  test("idempotent — re-running does not change a settled echo", () => {
+    const once = autoBalance([dr("d", 500), cr("c", null)]);
+    const twice = autoBalance(once);
+    expect(twice.find((l) => l.id === "c")!.cr).toBe(500);
+    expect(twice.find((l) => l.id === "c")!.echo).toBe(true);
+  });
+
+  test("non-positive balancing figure is not committed", () => {
+    // debits already exceed credits; the sole open debit can't be a positive echo
+    const out = autoBalance([dr("d1", 1000), dr("d2", null), cr("c", 500)]);
+    expect(out.find((l) => l.id === "d2")!.dr).toBeNull();
+    expect(out.some((l) => l.echo)).toBe(false);
   });
 });

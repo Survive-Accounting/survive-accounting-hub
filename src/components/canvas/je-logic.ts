@@ -182,6 +182,33 @@ export function blankFrom(solution: JeLine[], mkId: () => string): JeLine[] {
   );
 }
 
+/** GUIDED AMOUNT ECHO (item 1) — auto-commit the balancing figure into the SOLE
+ *  open amount, so entering one side fills the other. Purely DERIVED from the
+ *  hand-typed amounts: every prior echo cell is stripped back to empty, then if
+ *  EXACTLY ONE amount is still open (all others hand-typed) and the balancing
+ *  figure is positive, that cell is committed as an `echo` amount. Idempotent —
+ *  safe to run after every mutation. Hand-typed amounts (echo falsy) are never
+ *  touched; a 3rd line just re-derives the one echo cell. Only the GUIDED path
+ *  calls this; PRACTICE never echoes (the student supplies both sides). */
+export function autoBalance(lines: JeLine[]): JeLine[] {
+  // strip derived amounts first — echo is recomputed from scratch each pass
+  const base = lines.map((l) => (l.echo ? { ...l, dr: null, cr: null, echo: undefined } : l));
+  const open = base.filter((l) => !l.hidden && amountOf(l) == null);
+  if (open.length !== 1) return base; // 0 or ≥2 open cells → nothing determinate to fill
+  const t = open[0];
+  const others = base.filter((l) => l.id !== t.id && !l.hidden);
+  if (others.some((l) => amountOf(l) == null)) return base; // belt (can't happen when open===1)
+  const sum = (side: JeSide) => others.filter((l) => sideOf(l) === side).reduce((s, l) => s + (amountOf(l) ?? 0), 0);
+  const tSide = sideOf(t);
+  const need = tSide === "dr" ? sum("cr") - sum("dr") : sum("dr") - sum("cr");
+  if (need <= 0) return base; // the open side is already ≥ the other — no positive figure to commit
+  return base.map((l) =>
+    l.id === t.id
+      ? { ...l, side: tSide, echo: true, dr: tSide === "dr" ? need : null, cr: tSide === "cr" ? need : null }
+      : l,
+  );
+}
+
 /** Balance state honoring the ??? contract: any VISIBLE line with a null amount
  *  → "unknown" (neutral chip); otherwise sum and compare. */
 export function balanceState(lines: JeLine[]): { state: "unknown" | "balanced" | "off"; sumDr: number; sumCr: number } {

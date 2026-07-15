@@ -164,6 +164,10 @@ export interface JeLine {
   /** LEGACY memo visibility — superseded by memos[].open. */
   memoOpen?: boolean;
   hidden?: boolean; // stepper hide
+  /** GUIDED AMOUNT ECHO (item 1): this amount was auto-committed by autoBalance to
+   *  make the entry balance — DERIVED, not hand-typed. Editable (typing clears the
+   *  flag); recomputed when other amounts change. Never set in PRACTICE. */
+  echo?: boolean;
   /** Alternate wrong version + one feedback sentence (distractor flip). */
   trap?: { account?: string; dr?: number | null; cr?: number | null; feedback: string };
   flipped?: boolean; // showing the trap version
