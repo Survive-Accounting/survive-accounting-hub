@@ -10,11 +10,12 @@ import { useEffect, useRef, useState } from "react";
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
 import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, FlipVertical2, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
-import { useCardActions, useCardScale } from "../BaseCard";
+import { CardScaleHandle, useCardActions, useCardScale } from "../BaseCard";
 import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
 import { lineHandleId, memoHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
+import { attachMemo } from "../MemoLightbulb";
 import { PrincipleTagPicker } from "../PrincipleTagPicker";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -130,7 +131,6 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   /** Live memo drag (visual only) — the drop dispatches ONE bus command.
    *  Keyed by line + memo KIND (a line can float a text AND a calc box). */
   const [memoDrag, setMemoDrag] = useState<{ id: string; kind: JeMemo["kind"]; startX: number; startY: number; from: { x: number; y: number }; pos: { x: number; y: number } } | null>(null);
-  const [memoEdit, setMemoEdit] = useState<{ id: string; kind: JeMemo["kind"]; anchor: HTMLElement } | null>(null);
   const [pickerFor, setPickerFor] = useState<{ id: string; anchor: HTMLElement } | null>(null);
   const [gearAnchor, setGearAnchor] = useState<HTMLElement | null>(null);
   const [dateAnchor, setDateAnchor] = useState<HTMLElement | null>(null); // hover date picker (#7)
@@ -646,17 +646,6 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
               )}
             </div>
 
-            {memoEdit?.id === l.id && (
-              <CardPopover anchor={memoEdit.anchor} align="right" onClose={() => setMemoEdit(null)}>
-                <MemoPopover
-                  kind={memoEdit.kind}
-                  memo={memoOf(l, memoEdit.kind)}
-                  onSave={(payload) => { saveMemo(l.id, memoEdit.kind, payload); setMemoEdit(null); }}
-                  onClose={() => setMemoEdit(null)}
-                />
-              </CardPopover>
-            )}
-
             {/* distractor flip */}
             {l.trap && (
               <button
@@ -688,30 +677,28 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             className="nodrag absolute z-[2] flex items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100"
             style={{ left: "100%", top: (BLOCK_H - 20) / 2, paddingLeft: ctx.jeCardWidth + RAIL_GUTTER - (ind + blockW) }}
           >
+            {/* MEMO REWIRE (item 3): text/calc icons now use the MemoLightbulb
+                attach gesture — each spawns an INDEPENDENT memo NODE + red pointer
+                arrow anchored to THIS line's block, one undoable command. No more
+                legacy in-card popover. */}
             {(() => {
-              const tm = memoOf(l, "text");
-              const cm = memoOf(l, "calc");
-              const memoBtn = (kind: JeMemo["kind"], m: JeMemo | undefined, Icon: typeof Lightbulb, addTitle: string) =>
-                (S.lightbulbs || m) && (!locked || m) ? (
+              const memoBtn = (kind: "note" | "calc", Icon: typeof Lightbulb, addTitle: string) =>
+                S.lightbulbs && !locked ? (
                   <button
                     key={kind}
                     className="grid h-5 w-5 place-items-center rounded-full"
-                    style={{ color: m ? PAPER.gold : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${m?.open ? "rgba(138,90,0,0.5)" : PAPER.cardEdge}` }}
-                    title={m ? (m.open ? `Hide ${kind} memo` : `Show ${kind} memo`) : addTitle}
+                    style={{ color: PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${PAPER.cardEdge}` }}
+                    title={addTitle}
                     onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (m) toggleMemo(l.id, kind);
-                      else if (!locked) setMemoEdit({ id: l.id, kind, anchor: e.currentTarget });
-                    }}
+                    onClick={(e) => { e.stopPropagation(); attachMemo(rf, id, lineHandleId(l.id, "r"), { kind }); }}
                   >
                     <Icon className="h-3 w-3" />
                   </button>
                 ) : null;
               return (
                 <>
-                  {memoBtn("text", tm, Lightbulb, "Add memo")}
-                  {memoBtn("calc", cm, Calculator, "Add calc memo")}
+                  {memoBtn("note", Lightbulb, "Attach a memo to this line")}
+                  {memoBtn("calc", Calculator, "Attach a calc memo to this line")}
                 </>
               );
             })()}
@@ -812,14 +799,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             >
               <X className="h-2.5 w-2.5" />
             </button>
-            <span
-              className={`block ${locked ? "" : "cursor-text"}`}
-              title={locked ? undefined : `Click to edit ${a.m.kind} memo`}
-              onClick={(e) => {
-                if (locked || memoMoved.current) return;
-                setMemoEdit({ id: a.l.id, kind: a.m.kind, anchor: e.currentTarget as HTMLElement });
-              }}
-            >
+            <span className="block">{/* legacy in-card leader (inert post-migration; memos are nodes now) */}
               {/* TITLE + semantic-kind chip (Phase 1) — the memo's name + its
                   deck bucket (Note/Tip/Trap/Cheat/Calc), shown when set. */}
               {(a.m.title || (a.m.memoKind && a.m.memoKind !== "note" && a.m.memoKind !== "calc")) && (
@@ -1159,6 +1139,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         </>
       )}
 
+      {/* FILMING SCALE (FF-2 UI) — corner grip + % readout, undoable, persists */}
+      <CardScaleHandle scale={cardScale} onScale={(s) => update({ scale: s })} corner="bl" />
     </div>
   );
 }
