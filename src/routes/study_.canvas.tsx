@@ -52,6 +52,7 @@ import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
 import { MemoCardNode } from "@/components/canvas/cards/MemoCardNode";
 import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
+import { DecksContext } from "@/components/canvas/DecksContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
@@ -722,6 +723,15 @@ function PresentCanvas() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
+  // ITEM 4e — a transient "flash this deck's member cards" pulse (auto-clears).
+  const [deckHighlightId, setDeckHighlightId] = useState<string | null>(null);
+  const deckFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashDeck = useCallback((deckId: string) => {
+    setDeckHighlightId(deckId);
+    if (deckFlashTimer.current) clearTimeout(deckFlashTimer.current);
+    deckFlashTimer.current = setTimeout(() => setDeckHighlightId(null), 1200);
+  }, []);
+  const decksCtx = useMemo(() => ({ decks, highlightId: deckHighlightId, flashDeck }), [decks, deckHighlightId, flashDeck]);
   const [currentFrameId, setCurrentFrameId] = useState<string | null>(null); // FRAMES: the frame the camera is fitted to
   const currentFrameRef = useRef<string | null>(null);
   currentFrameRef.current = currentFrameId;
@@ -2788,6 +2798,7 @@ function PresentCanvas() {
 
   return (
     <CanvasSettingsContext.Provider value={canvasSettings}>
+    <DecksContext.Provider value={decksCtx}>
     <FrameNavContext.Provider value={frameNav}>
     <SpotlightCtx.Provider value={spot}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""}`} style={{ background: NEON.bg }}>
@@ -3678,6 +3689,7 @@ function PresentCanvas() {
     </div>
     </SpotlightCtx.Provider>
     </FrameNavContext.Provider>
+    </DecksContext.Provider>
     </CanvasSettingsContext.Provider>
   );
 }

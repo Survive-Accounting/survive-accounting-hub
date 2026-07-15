@@ -16,6 +16,7 @@ import { lineHandleId, memoHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { attachMemo } from "../MemoLightbulb";
+import { DeckChip, useDecks } from "../DecksContext";
 import { PrincipleTagPicker } from "../PrincipleTagPicker";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -122,6 +123,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const cardScale = useCardScale(id, d as unknown as CardBase);
   const sp = useSpotlight();
   const cardDim = useCardDim(id);
+  // ITEM 4 — deck chip + flash when this JE's deck is clicked in the panel.
+  const { highlightId: deckHighlightId } = useDecks();
+  const deckFlash = !!d.deckId && deckHighlightId === d.deckId;
   const ctx = useCanvasSettings();
   const S = effectiveSettings(d.settings, ctx.jePreset);
   const mode = effectiveMode(d.mode, ctx.jePreset);
@@ -894,16 +898,25 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         // silhouette rides ON this body — its per-row edges still draw the shape.
         background: PAPER.card,
         color: PAPER.ink,
-        border: `1px solid ${selected ? SILVER : PAPER.cardEdge}`,
-        // pop off the dark table; selection adds a silver ring + platinum sheen
-        boxShadow: selected
-          ? `0 0 0 1.5px ${SILVER}, 0 0 22px -6px ${SILVER_SHEEN}, 0 14px 34px -14px rgba(0,0,0,0.6)`
-          : "0 12px 32px -14px rgba(0,0,0,0.55)",
+        border: `1px solid ${deckFlash ? NEON.yellow : selected ? SILVER : PAPER.cardEdge}`,
+        // pop off the dark table; selection adds a silver ring + platinum sheen;
+        // a deck flash (item 4e) overrides with a bright gold ring for ~1.2s
+        boxShadow: deckFlash
+          ? `0 0 0 3px ${NEON.yellow}, 0 0 22px -2px ${NEON.yellow}`
+          : selected
+            ? `0 0 0 1.5px ${SILVER}, 0 0 22px -6px ${SILVER_SHEEN}, 0 14px 34px -14px rgba(0,0,0,0.6)`
+            : "0 12px 32px -14px rgba(0,0,0,0.55)",
         transition: "box-shadow 200ms ease-out, border-color 200ms ease-out",
       }}
     >
       <style>{SOCKET_PULSE_CSS}</style>
       <ConnectionDots />
+
+      {/* DECK CHIP (item 4b) — top-left, hover-revealed; names this JE's deck and
+          is the drag handle to (re)assign it to a named deck. */}
+      <div className={`card-actions absolute -top-6 left-1 z-[2] transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover/cluster:opacity-100"}`}>
+        <DeckChip nodeId={id} deckId={d.deckId} />
+      </div>
 
       {/* FLIP (JT4) — to the LEFT of the cluster, left of the connection dots;
           hover-revealed. Swaps debits ↔ credits (a JE is often the flip of

@@ -10,6 +10,7 @@ import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Calculator, Lightbulb, ShieldAlert, Sparkles, Star } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
+import { DeckChip, useDecks } from "../DecksContext";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { ElementChrome, ElementResizer } from "./elements";
@@ -40,6 +41,8 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
   const { update, toFront } = useCardActions(id);
   const rf = useReactFlow();
   const sp = useSpotlight();
+  const { highlightId: deckHighlightId } = useDecks();
+  const deckFlash = !!d.deckId && deckHighlightId === d.deckId;
   const stp = spotTargetProps(sp, id, MEMO_SELF_TARGET);
   const dim = useCardDim(id);
   const [editing, setEditing] = useState(false);
@@ -70,8 +73,8 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
         padding: "6px 8px",
         color: "rgba(244,246,250,0.92)",
         background: "rgba(16,27,49,0.94)",
-        border: `1px solid ${selected ? GOLD.ink : GOLD.edge}`,
-        boxShadow: selected ? `0 0 18px -6px ${GOLD.ink}` : "0 10px 24px -12px rgba(0,0,0,0.6)",
+        border: `1px solid ${deckFlash ? NEON.yellow : selected ? GOLD.ink : GOLD.edge}`,
+        boxShadow: deckFlash ? `0 0 0 3px ${NEON.yellow}, 0 0 20px -2px ${NEON.yellow}` : selected ? `0 0 18px -6px ${GOLD.ink}` : "0 10px 24px -12px rgba(0,0,0,0.6)",
         ...spotStyle(stp.state),
         ...dim,
       }}
@@ -93,6 +96,8 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
             {d.category}
           </span>
         ) : null}
+        {/* DECK CHIP (item 4b) — hover-revealed; drag onto a memo deck to assign */}
+        <span className="shrink-0 opacity-0 transition-opacity group-hover/el:opacity-100"><DeckChip nodeId={id} deckId={d.deckId} /></span>
       </div>
 
       {/* body — double-click to edit (single click/drag moves the node) */}

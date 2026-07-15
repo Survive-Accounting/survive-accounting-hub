@@ -5,6 +5,7 @@ import { NodeResizer, useReactFlow } from "@xyflow/react";
 import { Lightbulb, Lock, LockOpen, Minus, Pencil, Plus, Copy, Scaling, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { ConnectionDots } from "./ConnectionDots";
+import { DeckChip, useDecks } from "./DecksContext";
 import { attachMemo } from "./MemoLightbulb";
 import { useCardDim } from "./SpotlightContext";
 import { NEON, PAPER } from "./theme";
@@ -201,6 +202,9 @@ export function BaseCard({
   const title = data.title ?? "";
   const scale = useCardScale(id, data);
   const dim = useCardDim(id);
+  // ITEM 4e — pulse a bright ring while this card's deck is clicked in the panel.
+  const { highlightId } = useDecks();
+  const deckFlash = !!data.deckId && highlightId === data.deckId;
 
   return (
     <div
@@ -214,10 +218,13 @@ export function BaseCard({
         transformOrigin: "top left",
         // PAPER card: off-white "textbook flashcard" that pops off the navy table
         background: PAPER.card,
-        border: `1px solid ${selected ? accent : PAPER.cardEdge}`,
-        boxShadow: selected
-          ? `0 0 0 1.5px ${accent}, 0 14px 34px -14px rgba(0,0,0,0.65)`
-          : "0 12px 32px -14px rgba(0,0,0,0.6)",
+        border: `1px solid ${deckFlash ? NEON.yellow : selected ? accent : PAPER.cardEdge}`,
+        boxShadow: deckFlash
+          ? `0 0 0 3px ${NEON.yellow}, 0 0 22px -2px ${NEON.yellow}`
+          : selected
+            ? `0 0 0 1.5px ${accent}, 0 14px 34px -14px rgba(0,0,0,0.65)`
+            : "0 12px 32px -14px rgba(0,0,0,0.6)",
+        transition: "box-shadow 150ms ease",
         color: PAPER.ink,
         ...dim,
       }}
@@ -259,6 +266,8 @@ export function BaseCard({
             onPointerDown={(e) => e.stopPropagation()}
           />
         )}
+        {/* DECK CHIP (item 4b) — names the card's deck + drag source to (re)assign */}
+        <span className="shrink-0 opacity-0 transition-opacity group-hover/shell:opacity-100"><DeckChip nodeId={id} deckId={data.deckId} /></span>
         <div className="card-actions flex items-center gap-0.5">
           {headerRight}
           {/* membership vs presence: loose card joins (stays put); a member tucks away */}

@@ -11,6 +11,7 @@ import { Clapperboard, Copy, Grid3x3, Layers, Plus, RotateCcw, Shuffle, SquareSt
 import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, removeDeck, shuffledOrder, updateDeck } from "./deck-defs";
 import { bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { nextStageOrder } from "./BaseCard";
+import { DECK_DND_MIME, useDecks } from "./DecksContext";
 import { absRectOf } from "./frames";
 import { useFrameNav } from "./FrameNavContext";
 import { isContainerType, type DeckDef } from "./types";
@@ -20,10 +21,25 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
   const rf = useReactFlow();
   const nodes = useNodes();
   const nav = useFrameNav();
+  const { flashDeck } = useDecks();
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null); // deck row a card is hovering over (item 4a)
 
   const create = (payloadType: "cards" | "memos") => setDecks((prev) => addDeck(prev, newDeckDef("", payloadType)));
+
+  /** ITEM 4a — a card/memo dragged from its chip onto this deck row (re)joins it.
+   *  Elements/containers and the wrong payload type are rejected. One undo step. */
+  const assignToDeck = (deck: DeckDef, nodeId: string) => {
+    const n = rf.getNode(nodeId);
+    if (!n || isContainerType(n.type)) return;
+    const isMemo = n.type === "memo";
+    if (deck.payloadType === "memos" ? !isMemo : isMemo) return; // card decks take cards; memo decks take memos
+    const order = nextStageOrder(rf.getNodes() as never);
+    const cmd = patchDataCmd(rf as unknown as RfLike, nodeId, { deckId: deck.id, deckMember: true, stageOrder: order }, `move to ${deck.name}`);
+    if (cmd) bus.dispatch(cmd);
+    flashDeck(deck.id);
+  };
 
   /** Stamp the current selection into a deck (elements/containers skipped for a
    *  CARD deck; only memo nodes for a MEMO deck). ONE undoable command. */
@@ -39,6 +55,7 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
       `add ${eligible.length} to ${deck.name}`,
     );
     if (cmd) bus.dispatch(cmd);
+    flashDeck(deck.id);
   };
 
   type Member = { id: string; position: { x: number; y: number }; data?: { deckId?: string; stageOrder?: number; slotIndex?: number } };
@@ -127,8 +144,18 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
           {decks.map((deck) => {
             const count = deckMembersOf(nodes as { data?: { deckId?: string; stageOrder?: number }; id: string }[], deck.id).length;
             const memo = deck.payloadType === "memos";
+            const slotCount = deck.slots?.length ?? 0;
+            const isDrop = dropTarget === deck.id;
             return (
-              <div key={deck.id} className="rounded-md px-1.5 py-1" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}>
+              <div
+                key={deck.id}
+                className="rounded-md px-1.5 py-1"
+                style={{ border: `1px solid ${isDrop ? NEON.yellow : NEON.borderSoft}`, background: isDrop ? "rgba(252,163,17,0.12)" : "rgba(0,0,0,0.25)", transition: "background 120ms, border-color 120ms" }}
+                // ITEM 4a — drop a dragged card/memo here to (re)assign membership
+                onDragOver={(e) => { if (e.dataTransfer.types.includes(DECK_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dropTarget !== deck.id) setDropTarget(deck.id); } }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget((t) => (t === deck.id ? null : t)); }}
+                onDrop={(e) => { const nodeId = e.dataTransfer.getData(DECK_DND_MIME); setDropTarget(null); if (nodeId) { e.preventDefault(); assignToDeck(deck, nodeId); } }}
+              >
                 <div className="flex items-center gap-1">
                   <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase" style={{ color: memo ? NEON.pinkSoft : NEON.yellow, border: `1px solid ${memo ? "rgba(224,40,74,0.4)" : "rgba(252,163,17,0.4)"}` }}>
                     {memo ? "memo" : "cards"}
@@ -143,14 +170,24 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setRenaming(null); e.stopPropagation(); }}
                     />
                   ) : (
-                    <button className="min-w-0 flex-1 truncate text-left text-[11.5px] font-semibold" style={{ color: NEON.text }} title="Rename" onClick={() => setRenaming(deck.id)}>
+                    // single click HIGHLIGHTS members on canvas (item 4e); double-click renames
+                    <button
+                      className="min-w-0 flex-1 truncate text-left text-[11.5px] font-semibold"
+                      style={{ color: NEON.text }}
+                      title="Click: flash this deck's cards on the canvas · double-click: rename"
+                      onClick={() => flashDeck(deck.id)}
+                      onDoubleClick={() => setRenaming(deck.id)}
+                    >
                       {deck.name}
                     </button>
                   )}
                   {deck.frameId && (
                     <span className="shrink-0 rounded px-1 text-[8px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title={`Attached to frame: ${frameTitleOf(deck.frameId) ?? "?"}`}>◈</span>
                   )}
-                  <span className="shrink-0 text-[9.5px]" style={{ color: NEON.muted }}>{count}</span>
+                  {/* ITEM 4c — unambiguous MEMBER count ("3 cards"), slot count separate */}
+                  <span className="shrink-0 text-[9px] tabular-nums" style={{ color: NEON.muted }} title={`${count} ${memo ? "memos" : "cards"} in this deck${slotCount ? ` · ${slotCount} grid slots` : ""}`}>
+                    {count} {memo ? "memos" : "cards"}{slotCount ? ` · ${slotCount} slots` : ""}
+                  </span>
                 </div>
                 <div className="mt-1 flex items-center gap-1">
                   <DeckMini title={deck.runMode === "shuffle" ? "Shuffle on reset" : "Deal in sequence"} active={deck.runMode === "shuffle"} onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { runMode: deck.runMode === "shuffle" ? "sequence" : "shuffle" }))}>
@@ -168,12 +205,18 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
                   </DeckMini>
                   <DeckMini title={deck.frameId ? "Lay the skeleton grid INSIDE the attached frame" : "Lay a skeleton grid — arrange members into fixed slots, start tucked"} onClick={() => layGrid(deck)}><Grid3x3 className="h-3 w-3" /></DeckMini>
                   <DeckMini title={deck.runMode === "shuffle" ? "Reset — re-skeleton (shuffle slot order)" : "Reset — re-skeleton the grid"} onClick={() => resetDeck(deck)}><RotateCcw className="h-3 w-3" /></DeckMini>
-                  <button className="ml-auto rounded px-1 py-0.5 text-[9.5px] font-semibold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Add the selected cards/memos to this deck" onClick={() => addSelection(deck)}>
-                    + sel
-                  </button>
                   <DeckMini title="Duplicate deck" onClick={() => setDecks((prev) => duplicateDeck(prev, deck.id).defs)}><Copy className="h-3 w-3" /></DeckMini>
                   <DeckMini title="Delete deck" danger onClick={() => del(deck)}><Trash2 className="h-3 w-3" /></DeckMini>
                 </div>
+                {/* ITEM 4d — the add-selection action NAMES its target deck */}
+                <button
+                  className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-0.5 text-[9.5px] font-semibold"
+                  style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }}
+                  title={`Add the canvas selection to “${deck.name}”`}
+                  onClick={() => addSelection(deck)}
+                >
+                  <Plus className="h-2.5 w-2.5" /> Add selected to “{deck.name}”
+                </button>
               </div>
             );
           })}
