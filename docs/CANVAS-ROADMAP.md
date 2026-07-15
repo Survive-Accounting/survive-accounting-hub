@@ -278,6 +278,29 @@ A single je_scenarios doc now renders through TWO lenses on the whiteboard:
   equation + T-account, all in sync, no re-authoring. Statements (BS/IS) are a
   natural lens four via `deriveStatementEffects`.
 
+### Derivation lenses — the source-and-lens model + the queue
+A SCENARIO is the single source of truth; every card is a LENS on it. Same type
+map (account → type incl. contra + normal balance) powers every derivation.
+**Built:** JE (the entry) · Equation card (A = L + E arrows, derived per-line
+from the COA types). **Queued, in order:**
+1. **T-ACCOUNT lens** — postings derive from the JE (debits/credits land in the
+   ledger). Next design session.
+2. **TRIAL BALANCE lens** — each T-account's balance rolls up into a derived TB
+   card (debit/credit columns foot and tie).
+3. **STATEMENT lens** — the IS / BS presets populate from a scenario SET (a
+   lesson's entries), not a single doc.
+4. **MISSTATEMENT lens** — omit an adjusting entry → derive the over/understated
+   effects on assets / expenses / net income / equity. One of the most-tested
+   intro patterns; pure derivation from the same type map; powers a whole Check
+   category in Ch 6.
+5. **CASH-FLOW classification chips** — O / I / F per scenario (Intro 2).
+6. **CLOSING entries** — derive from a lesson's TEMPORARY accounts (revenues,
+   expenses, dividends → close to retained earnings).
+**Rule (all lenses):** derive by default; allow per-component MANUAL OVERRIDE
+with an author-visible "overridden" indicator (some teaching moments want a
+simplification the pure derivation wouldn't produce). This is the pattern the
+equation card already ships.
+
 ## Memos everywhere (SHIPPED: M3)
 The memo object (floating box + pointer arrow, kinds cheat/trap/calc/tip,
 deck-eligible) now attaches to ANY target via one lightbulb gesture: whole
