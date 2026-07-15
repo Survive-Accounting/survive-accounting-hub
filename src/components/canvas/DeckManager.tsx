@@ -6,15 +6,16 @@
 // library layer. Deal-into-grid + memo highlight render in P4.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { Clapperboard, Copy, Grid3x3, Layers, Plus, RotateCcw, Shuffle, SquareStack, Trash2 } from "lucide-react";
+import { Clapperboard, Copy, Grid3x3, Layers, ListChecks, Plus, RotateCcw, Shuffle, Sparkles, SquareStack, Trash2 } from "lucide-react";
 
-import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, removeDeck, shuffledOrder, updateDeck } from "./deck-defs";
-import { bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
+import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedStartHereDecks, shuffledOrder, updateDeck } from "./deck-defs";
+import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { nextStageOrder } from "./BaseCard";
+import { useCanvasSettings } from "./CanvasSettingsContext";
 import { DECK_DND_MIME, useDecks } from "./DecksContext";
 import { absRectOf } from "./frames";
 import { useFrameNav } from "./FrameNavContext";
-import { isContainerType, type DeckDef } from "./types";
+import { cardId, isContainerType, type DeckDef } from "./types";
 import { NEON } from "./theme";
 
 export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void }) {
@@ -22,11 +23,45 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
   const nodes = useNodes();
   const nav = useFrameNav();
   const { flashDeck } = useDecks();
+  const { coa } = useCanvasSettings();
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null); // deck row a card is hovering over (item 4a)
+  const [seedNote, setSeedNote] = useState<string | null>(null); // one-line result after seeding
 
   const create = (payloadType: "cards" | "memos") => setDecks((prev) => addDeck(prev, newDeckDef("", payloadType)));
+
+  /** SEED START HERE (item 5) — stamp the empty authoring roadmap of named decks
+   *  into the scene, wiring each chapter deck to the matching lesson. Idempotent. */
+  const seedStartHere = () => {
+    const lessons = rf.getNodes().filter((n) => n.type === "lesson").map((n) => ({ id: n.id, label: String((n.data as { label?: string }).label ?? "") }));
+    setDecks((prev) => {
+      const { toAdd, attached, unattached } = seedStartHereDecks(prev, lessons);
+      setSeedNote(toAdd.length === 0 ? "already seeded — nothing added" : `added ${toAdd.length} decks · ${attached}/11 chapters matched a lesson${unattached.length ? ` (loose: ${unattached.join(", ")})` : ""}`);
+      return [...prev, ...toAdd];
+    });
+  };
+
+  /** GENERATE NORMAL-BALANCE DRILL (item 6) — one DR/CR CEQ per COA account,
+   *  tucked into this drill deck as skeletons. A CEQ variant, no new card kind. */
+  const generateDrill = (deck: DeckDef) => {
+    const accounts = coa.flatMap((g) => g.accounts.map((a) => ({ name: a.name, normal: a.normal })));
+    if (accounts.length === 0) { setSeedNote("no chart of accounts loaded — set the scene's course first"); return; }
+    if (deckMembersOf(rf.getNodes() as never, deck.id).length > 0) { setSeedNote("drill already generated — delete its cards to regenerate"); return; }
+    const data = normalBalanceCeqData(accounts, () => cardId("ch"));
+    const cols = Math.max(1, Math.ceil(Math.sqrt(data.length)));
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const c = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const slots = gridSlots(data.length, { originX: Math.round(c.x - (cols * 290) / 2), originY: Math.round(c.y - 120), cellW: 260, cellH: 150, gapX: 30, gapY: 30 });
+    const newNodes = data.map((q, i) => ({
+      id: cardId("ceq"), type: "ceq", position: slots[i], selected: false,
+      data: { kind: "ceq", title: "Normal balance", prompt: q.prompt, choices: q.choices, deckId: deck.id, deckMember: true, tucked: true, stageOrder: i, slotIndex: i, deckCategory: "ceq:normal-balance", deckPos: slots[i] } as Record<string, unknown>,
+    }));
+    const cmd = addNodesCmd(rf as unknown as RfLike, newNodes as never, `generate ${newNodes.length} normal-balance drills`);
+    if (cmd) bus.dispatch(cmd);
+    setDecks((prev) => updateDeck(prev, deck.id, { slots }));
+    setSeedNote(`generated ${newNodes.length} DR/CR questions from the course COA`);
+  };
 
   /** ITEM 4a — a card/memo dragged from its chip onto this deck row (re)joins it.
    *  Elements/containers and the wrong payload type are rejected. One undo step. */
@@ -205,6 +240,9 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
                   </DeckMini>
                   <DeckMini title={deck.frameId ? "Lay the skeleton grid INSIDE the attached frame" : "Lay a skeleton grid — arrange members into fixed slots, start tucked"} onClick={() => layGrid(deck)}><Grid3x3 className="h-3 w-3" /></DeckMini>
                   <DeckMini title={deck.runMode === "shuffle" ? "Reset — re-skeleton (shuffle slot order)" : "Reset — re-skeleton the grid"} onClick={() => resetDeck(deck)}><RotateCcw className="h-3 w-3" /></DeckMini>
+                  {deck.filter === NORMAL_BALANCE_DRILL_FILTER && (
+                    <DeckMini title="Generate the normal-balance drill from the course COA (DR/CR CEQ per account)" onClick={() => generateDrill(deck)}><Sparkles className="h-3 w-3" /></DeckMini>
+                  )}
                   <DeckMini title="Duplicate deck" onClick={() => setDecks((prev) => duplicateDeck(prev, deck.id).defs)}><Copy className="h-3 w-3" /></DeckMini>
                   <DeckMini title="Delete deck" danger onClick={() => del(deck)}><Trash2 className="h-3 w-3" /></DeckMini>
                 </div>
@@ -228,6 +266,16 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
               <Plus className="h-3 w-3" /> memo deck
             </button>
           </div>
+          {/* SEED START HERE (item 5) — one click stamps the whole authoring roadmap */}
+          <button
+            className="flex w-full items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase tracking-wide"
+            style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }}
+            title="Create the empty Start Here decks (11 chapters × teaching + Check, Ch 3 normal-balance drill, 4 memo decks) and attach them to their lessons"
+            onClick={seedStartHere}
+          >
+            <ListChecks className="h-3 w-3" /> seed Start Here decks
+          </button>
+          {seedNote && <div className="px-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>{seedNote}</div>}
         </div>
       )}
     </div>
