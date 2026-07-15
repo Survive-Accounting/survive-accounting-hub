@@ -391,22 +391,103 @@ export const saveScenarioDoc = createServerFn({ method: "POST" })
     const slug = `${slugify(data.title)}-${Date.now().toString(36).slice(-4)}`;
     (doc as Record<string, unknown>).slug = slug;
     (doc as Record<string, unknown>).title = data.title;
+    // chapter_id/sort_order still written for pre-0091 compatibility; the tree reads
+    // from scenario_placements when present, so a NEW scenario gets ONE placement
+    // (the current scene's course/chapter). Placement failure is non-fatal pre-0091.
     const payload = { slug, title: data.title, doc, chapter_id: data.chapter_id, sort_order: data.sort_order, status: "active", source: "authored" };
     const { data: ins, error } = await tbl().insert(payload).select("id,slug").single();
     if (error) rethrow0087(error);
-    return { id: (ins as { id: string }).id, slug: (ins as { slug: string }).slug };
+    const newId = (ins as { id: string }).id;
+    await upsertPlacement(supabaseAdmin, newId, data.course_id, data.chapter_id, data.sort_order);
+    return { id: newId, slug: (ins as { slug: string }).slug };
   });
 
-/** Next sort_order within a chapter (authored default: append). */
+/** Upsert ONE placement (scenario in a course-chapter). Idempotent on
+ *  (scenario_id, chapter_id). No-ops (never throws) when 0091 isn't applied so
+ *  save-to-library keeps working on the legacy chapter_id path. */
+async function upsertPlacement(admin: any, scenarioId: string, courseId: string, chapterId: string, sortOrder: number): Promise<void> {
+  const { error } = await (admin.from("scenario_placements" as never) as any)
+    .upsert({ scenario_id: scenarioId, course_id: courseId, chapter_id: chapterId, sort_order: sortOrder }, { onConflict: "scenario_id,chapter_id" });
+  if (error && !isMissingSchema(error, /scenario_placements/i)) throw new Error(error.message);
+}
+
+// ---- SCENARIO PLACEMENTS (0091) — a scenario appears in many course-chapters --
+const placementSchema = z.object({
+  scenario_id: z.string().uuid(),
+  course_id: z.string().uuid(),
+  chapter_id: z.string().uuid(),
+  sort_order: z.number().int().min(0).max(9999).optional(),
+});
+
+/** "Also place in…" — add a scenario to another course-chapter. Validates the
+ *  chapter belongs to the course; appends at the chapter's end unless a sort
+ *  order is given. */
+export const placeScenario = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => placementSchema.parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ch, error: chErr } = await supabaseAdmin.from("chapters").select("id,course_id").eq("id", data.chapter_id).maybeSingle();
+    if (chErr) throw new Error(chErr.message);
+    if (!ch || (ch as { course_id: string }).course_id !== data.course_id) throw new Error("Chapter does not belong to the selected course");
+    let sort = data.sort_order;
+    if (sort == null) {
+      const { data: rows } = await (supabaseAdmin.from("scenario_placements" as never) as any)
+        .select("sort_order").eq("chapter_id", data.chapter_id).order("sort_order", { ascending: false }).limit(1);
+      sort = ((rows?.[0] as { sort_order: number } | undefined)?.sort_order ?? -1) + 1;
+    }
+    await upsertPlacement(supabaseAdmin, data.scenario_id, data.course_id, data.chapter_id, sort);
+    return { ok: true };
+  });
+
+/** Remove one placement (leaves the scenario + its other placements intact). */
+export const unplaceScenario = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ scenario_id: z.string().uuid(), chapter_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("scenario_placements" as never) as any)
+      .delete().eq("scenario_id", data.scenario_id).eq("chapter_id", data.chapter_id);
+    if (error && !isMissingSchema(error, /scenario_placements/i)) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export interface PlacementRow { chapter_id: string; course_id: string | null; sort_order: number; course_name: string | null; chapter_number: number | null; chapter_name: string | null; }
+
+/** A scenario's placements, labelled — the edit-blast-radius list
+ *  ("used in: Start Here Ch 1, Ch 4"). Empty when 0091 isn't applied. */
+export const listScenarioPlacements = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ scenario_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<PlacementRow[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await (supabaseAdmin.from("scenario_placements" as never) as any)
+      .select("chapter_id,course_id,sort_order,chapters(chapter_number,chapter_name,courses(course_name))")
+      .eq("scenario_id", data.scenario_id);
+    if (error) { if (isMissingSchema(error, /scenario_placements/i)) return []; throw new Error(error.message); }
+    return ((rows ?? []) as any[]).map((r) => ({
+      chapter_id: r.chapter_id,
+      course_id: r.course_id ?? null,
+      sort_order: r.sort_order ?? 0,
+      course_name: r.chapters?.courses?.course_name ?? null,
+      chapter_number: r.chapters?.chapter_number ?? null,
+      chapter_name: r.chapters?.chapter_name ?? null,
+    })).sort((a, b) => (a.course_name ?? "").localeCompare(b.course_name ?? "") || (a.chapter_number ?? 0) - (b.chapter_number ?? 0));
+  });
+
+/** Next sort_order within a chapter (authored default: append). Counts
+ *  PLACEMENTS (0091); falls back to the legacy je_scenarios.chapter_id path when
+ *  scenario_placements isn't there yet. */
 export const nextScenarioSort = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ chapter_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<{ next: number }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const pl = await (supabaseAdmin.from("scenario_placements" as never) as any)
+      .select("sort_order").eq("chapter_id", data.chapter_id).order("sort_order", { ascending: false }).limit(1);
+    if (!pl.error) {
+      const top = (pl.data?.[0] as { sort_order: number | null } | undefined)?.sort_order;
+      return { next: (typeof top === "number" ? top : -1) + 1 };
+    }
+    if (!isMissingSchema(pl.error, /scenario_placements/i)) throw new Error(pl.error.message);
     const { data: rows, error } = await (supabaseAdmin.from("je_scenarios" as never) as any)
-      .select("sort_order")
-      .eq("chapter_id", data.chapter_id)
-      .order("sort_order", { ascending: false })
-      .limit(1);
+      .select("sort_order").eq("chapter_id", data.chapter_id).order("sort_order", { ascending: false }).limit(1);
     if (error) rethrow0087(error);
     const top = (rows?.[0] as { sort_order: number | null } | undefined)?.sort_order;
     return { next: (typeof top === "number" ? top : 0) + 1 };

@@ -121,6 +121,32 @@ export interface JeBrowserTree {
 
 const UNASSIGNED_CHAPTER = "__unassigned__";
 
+export interface Placement {
+  scenario_id: string;
+  course_id: string | null;
+  chapter_id: string;
+  sort_order: number;
+}
+
+/** scenario_placements (0091) — a scenario may appear in MANY course-chapters.
+ *  Returns null when the table isn't there yet (pre-0091): callers fall back to
+ *  the legacy je_scenarios.chapter_id single-placement path so the tool keeps
+ *  working on an un-migrated DB. */
+export async function fetchScenarioPlacements(): Promise<Placement[] | null> {
+  const { data, error } = await (supabase.from("scenario_placements" as never) as any)
+    .select("scenario_id,course_id,chapter_id,sort_order");
+  if (error) {
+    if (isMissingSchema(error, /scenario_placements/i)) return null;
+    throw error;
+  }
+  return ((data ?? []) as any[]).map((r) => ({
+    scenario_id: r.scenario_id,
+    course_id: r.course_id ?? null,
+    chapter_id: r.chapter_id,
+    sort_order: typeof r.sort_order === "number" ? r.sort_order : 0,
+  }));
+}
+
 /**
  * One call that returns the whole browse tree AND the flat scenario list. Empty sibling
  * chapters (a chapter in a course that has scenarios, but none of its own yet) are included
@@ -132,12 +158,13 @@ const UNASSIGNED_CHAPTER = "__unassigned__";
  * of sequential round-trips to every cold load for nothing.
  */
 export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
-  const [scenarios, chaptersRes] = await Promise.all([
+  const [scenarios, chaptersRes, placements] = await Promise.all([
     fetchScenarios(),
     supabase
       .from("chapters")
       .select("id,chapter_number,chapter_name,course_id,status,courses(id,code,course_name)" as never)
       .order("chapter_number", { ascending: true }),
+    fetchScenarioPlacements(),
   ]);
   let allChapters: any[];
   if (chaptersRes.error) {
@@ -166,13 +193,27 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
     sort_order: s.sort_order,
   }));
 
-  // scenarios per chapter
+  // scenarios per chapter. With placements (0091) a scenario appears in MANY
+  // chapters — one BrowserScenario COPY per placement, carrying that placement's
+  // sort_order so the picker orders each chapter independently. Pre-0091 (null),
+  // fall back to the legacy je_scenarios.chapter_id single-placement path.
+  const byId = new Map(flat.map((s) => [s.id, s]));
   const scenariosByChapter = new Map<string, BrowserScenario[]>();
-  for (const s of flat) {
-    if (!s.chapter_id) continue;
-    const list = scenariosByChapter.get(s.chapter_id) ?? [];
-    list.push(s);
-    scenariosByChapter.set(s.chapter_id, list);
+  if (placements) {
+    for (const p of placements) {
+      const s = byId.get(p.scenario_id);
+      if (!s) continue;
+      const list = scenariosByChapter.get(p.chapter_id) ?? [];
+      list.push({ ...s, chapter_id: p.chapter_id, sort_order: p.sort_order });
+      scenariosByChapter.set(p.chapter_id, list);
+    }
+  } else {
+    for (const s of flat) {
+      if (!s.chapter_id) continue;
+      const list = scenariosByChapter.get(s.chapter_id) ?? [];
+      list.push(s);
+      scenariosByChapter.set(s.chapter_id, list);
+    }
   }
 
   // Courses that have at least one chapter with scenarios; keep ALL chapters of those courses.

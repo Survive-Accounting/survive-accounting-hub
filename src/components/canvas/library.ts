@@ -80,7 +80,7 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
             const caption = entry.caption || s.title;
             items.push({
               ...base,
-              key: `${s.slug}:${variant.id}:${entry.id}`,
+              key: `${ch.id}:${s.slug}:${variant.id}:${entry.id}`,
               kind: "je",
               label: caption,
               make: () => {
@@ -104,7 +104,7 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
           for (const p of variant.computationPaths ?? []) {
             items.push({
               ...base,
-              key: `${s.slug}:${variant.id}:${p.id}`,
+              key: `${ch.id}:${s.slug}:${variant.id}:${p.id}`,
               kind: "computation",
               label: `${s.title} — ${p.id}`,
               make: () => ({
@@ -121,7 +121,7 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
         (doc.memorize ?? []).forEach((m, i) => {
           items.push({
             ...base,
-            key: `${s.slug}:mem:${i}`,
+            key: `${ch.id}:${s.slug}:mem:${i}`,
             kind: "memorize",
             label: m.body.slice(0, 60),
             make: () => ({ kind: "memorize", title: s.title, itemKind: m.kind, body: m.body }),
@@ -132,7 +132,7 @@ export function buildLibrary(tree: JeBrowserTree): LibraryItem[] {
         (doc.questions ?? []).forEach((q) => {
           items.push({
             ...base,
-            key: `${s.slug}:q:${q.id}`,
+            key: `${ch.id}:${s.slug}:q:${q.id}`,
             kind: "ceq",
             label: q.prompt.slice(0, 60),
             make: () => ({
