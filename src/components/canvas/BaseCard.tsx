@@ -1,9 +1,10 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { NodeResizer, useReactFlow } from "@xyflow/react";
-import { Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-react";
+import { Lightbulb, Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { ConnectionDots } from "./ConnectionDots";
+import { attachMemo } from "./MemoLightbulb";
 import { NEON, PAPER } from "./theme";
 import { cardId, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
 
@@ -152,6 +153,7 @@ export function BaseCard({
   children: React.ReactNode;
 }) {
   const { update, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
+  const rf = useReactFlow();
   const title = data.title ?? "";
   const scale = useCardScale(id, data);
 
@@ -226,6 +228,7 @@ export function BaseCard({
           {!noEditBtn && (
             <IconBtn title="Edit card" active={data.editMode} onClick={() => update({ editMode: !data.editMode })}><Pencil className="h-3 w-3" /></IconBtn>
           )}
+          <IconBtn title="Attach a memo (floating note + arrow)" onClick={() => attachMemo(rf, id, "r")}><Lightbulb className="h-3 w-3" /></IconBtn>
           <IconBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></IconBtn>
           <IconBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></IconBtn>
         </div>

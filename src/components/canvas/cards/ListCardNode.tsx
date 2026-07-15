@@ -11,6 +11,7 @@ import { ArrowDown, ArrowUp, IndentIncrease, Plus, Settings2, Trash2 } from "luc
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
+import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { EditableText } from "../ui";
 import { NEON, PAPER } from "../theme";
 import { cardId, type ListCard, type ListRow } from "../types";
@@ -105,6 +106,23 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         </p>
       )}
 
+      {/* DESCRIPTION (L4): a short paragraph, inline-editable, reveal-able as a step */}
+      {(d.description || editing) && (
+        d.descHidden ? (
+          <div
+            className="nodrag mb-2 grid h-9 cursor-pointer place-items-center rounded"
+            style={{ background: "rgba(59,245,160,0.12)", border: `1px dashed ${PAPER.green}` }}
+            title="Hidden — space (or click) reveals"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); update({ descHidden: false }); }}
+          />
+        ) : (
+          <p className="mb-2 whitespace-pre-wrap text-[12.5px] leading-snug" style={{ color: PAPER.ink }}>
+            <EditableText value={d.description ?? ""} onChange={(v) => update({ description: v })} editing={editing} placeholder="Description paragraph…" multiline />
+          </p>
+        )
+      )}
+
       <ol className="space-y-1">
         {/* PULLED rows (live COA) — read-only, contra items in "Less:" form */}
         {pulledRows.map((r, i) => (
@@ -119,12 +137,14 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         ))}
         {/* MANUAL rows */}
         {d.rows.map((r, i) => (
-          <li key={r.id} className="flex items-center gap-1.5 text-[14px]" style={{ opacity: r.hidden ? 0.15 : 1, paddingLeft: r.indent ? 18 : 0 }}>
+          <li key={r.id} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ opacity: r.hidden ? 0.15 : 1, paddingLeft: r.indent ? 18 : 0 }}>
+            <MemoAnchor subId={r.id} />
             {bullet(pulledRows.length + i)}
             <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
               {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
               <EditableText value={r.text} onChange={(v) => patchRow(r.id, { text: v })} editing={editing} placeholder="Item" />
             </span>
+            <MemoLightbulb targetId={id} handleId={memoAnchorId(r.id)} title="Attach a memo to this item" className="h-5 w-5 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100" style={{ color: PAPER.navy }} />
             {chipEl(r.chip, editing ? () => cycleChip(r) : undefined)}
             {editing && (
               <span className="flex shrink-0">

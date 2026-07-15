@@ -442,6 +442,7 @@ function stepReveal(data: CardData): Partial<CardData> | null {
   }
   if (data.kind === "list") {
     const d = data as ListCard;
+    if (d.descHidden) return { descHidden: false } as Partial<CardData>; // description reveals first (it's above the rows)
     const i = d.rows.findIndex((r) => r.hidden);
     if (i === -1) return null;
     return { rows: d.rows.map((r, j) => (j === i ? { ...r, hidden: false } : r)) } as Partial<CardData>;
@@ -459,7 +460,7 @@ function stepReveal(data: CardData): Partial<CardData> | null {
 function hideAll(data: CardData): Partial<CardData> | null {
   if (data.kind === "je") return { lines: (data as JeCard).lines.map((l) => ({ ...l, hidden: true })) } as Partial<CardData>;
   if (data.kind === "computation") return { steps: (data as ComputationCard).steps.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
-  if (data.kind === "list") return { rows: (data as ListCard).rows.map((r) => ({ ...r, hidden: true })) } as Partial<CardData>;
+  if (data.kind === "list") return { descHidden: !!(data as ListCard).description, rows: (data as ListCard).rows.map((r) => ({ ...r, hidden: true })) } as Partial<CardData>;
   if (data.kind === "formula") return { segments: (data as FormulaCard).segments.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
   if (data.kind === "schedule") {
     const d = data as ScheduleCard;
