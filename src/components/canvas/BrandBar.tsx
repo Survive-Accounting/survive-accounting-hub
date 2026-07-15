@@ -116,9 +116,12 @@ export function BrandBar({ items = [], activeItem = null, onItem, children }: {
 /** Corner watermark for film/clean modes — subtle, ~20px, above the legend
  *  spot. Visible on 1080p, never loud. */
 export function BrandWatermark() {
+  // Film/clean-mode corner watermark: the REAL brand wordmark (white-on-transparent
+  // PNG with the gold dot) reads cleanly on the dark stage. Same corner + subtlety
+  // as the old text mark; ~24px tall so it stays legible without stealing the shot.
   return (
-    <div className="pointer-events-none absolute bottom-3 right-3 z-[45]" style={{ opacity: 0.55, height: 20 }}>
-      <Wordmark size={12} />
+    <div className="pointer-events-none absolute bottom-3 right-3 z-[45]" style={{ opacity: 0.55 }}>
+      <img src="/brand-logo.png" alt="Survive Accounting" style={{ height: 24, width: "auto" }} />
     </div>
   );
 }
