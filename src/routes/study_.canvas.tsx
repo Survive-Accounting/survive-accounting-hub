@@ -54,7 +54,7 @@ import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, GRID, gridLayout, lessonGrid, lessonRollFrame, nextSubIndex, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -67,13 +67,13 @@ import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck
 import { lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
-import { snakeBounds, snakeLayout, snakePerRow } from "@/components/canvas/snake-layout";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
+import { GhostCellsLayer } from "@/components/canvas/GhostCellsLayer";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
@@ -712,6 +712,13 @@ function PresentCanvas() {
   }, [armState]);
   const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
   const [framePickerOpen, setFramePickerOpen] = useState(false); // FG5: grid mini-map jump
+  const [toast, setToast] = useState<string | null>(null); // brief transient notice (frame cap, soft warns)
+  const toastTimer = useRef(0);
+  const flashToast = useCallback((msg: string) => {
+    setToast(msg);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 1800);
+  }, []);
   const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
   useEffect(() => {
     const onResize = () => setVpTick((t) => t + 1);
@@ -1048,94 +1055,69 @@ function PresentCanvas() {
   const [scaffoldOpen, setScaffoldOpen] = useState(false);
   const [scaffoldName, setScaffoldName] = useState("");
   const [scaffoldCourseId, setScaffoldCourseId] = useState<string>("");
+  // ONE lesson cell = a lesson node + its 4 beat frames (Hook · Teach · M/P ·
+  // Check, one sub-frame each at row 0). Reused by the scaffold and by the
+  // ghost-cell "+ add lesson" click, so every cell is stamped identically.
+  const buildLessonCell = useCallback((pos: { x: number; y: number }, label: string, pathOrder: number, check: boolean): CardNode[] => {
+    const cell = lessonCellSize();
+    const lid = cardId("lesson");
+    const lesson = {
+      id: lid, type: "lesson", position: { x: pos.x, y: pos.y },
+      data: { label, w: cell.w, h: cell.h, pathOrder, check } as unknown as CardNode["data"],
+    };
+    const frames = SCAFFOLD_BEATS.map((b, k) => ({
+      id: cardId("frame"), type: "frame", parentId: lid,
+      position: { x: columnX(k), y: rowY(0) }, width: FRAME_W, height: FRAME_H,
+      data: { ...blankFrameData(b.beat, 0) } as unknown as CardNode["data"],
+    }));
+    return [lesson, ...frames] as CardNode[];
+  }, []);
+
   const spawnRegionScaffold = useCallback(() => {
     const course = (coursesQuery.data ?? []).find((c) => c.id === scaffoldCourseId);
     if (!course) return;
-    const chapters = course.chapters.filter((ch) => ch.status !== "archived");
+    const chapters = course.chapters
+      .filter((ch) => ch.status !== "archived")
+      .sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
     if (chapters.length === 0) return;
-    // SNAKING SCAFFOLD: chapters become lessons laid on a boustrophedon path
-    // (row 0 →, row 1 ←, …) with generous breathing room — a legible snake in
-    // the minimap. The course's final chapter (Foundations = "Course Wrap-up")
-    // lands at the END of the snake naturally; pathOrder follows the snake so
-    // the outline + a future tour ride the same spine.
-    // Each lesson is a GRID (FG): 4 beat COLUMNS (Hook · Teach · Model-Practice ·
-    // Check), each starting with one sub-frame at row 0. The snake spaces them.
-    const gsize = gridLayout({ hook: [], teach: [], model_practice: [], check: [] });
-    const LESSON_W = gsize.w;
-    const LESSON_H = gsize.h;
-    const GAP_X = 220;
-    const GAP_Y = 260;
-    const HEADER_GAP = 60;
-    const perRow = snakePerRow(chapters.length);
-    const layoutOpts = { colW: LESSON_W, rowH: LESSON_H, gapX: GAP_X, gapY: GAP_Y, perRow, originX: 0, originY: 0 };
-    const bounds = snakeBounds(chapters.length, layoutOpts);
+    // REGION GRID (supersedes the snake): chapters become fixed-footprint lesson
+    // CELLS laid in a 5-wide reading-order grid with reserved space, so a sub-
+    // frame never overlaps a neighbour. The WRAP-UP chapter is pulled out and
+    // centered below the grid as the destination. Empty slots render as ghost
+    // "+ add lesson" placeholders (an overlay, not nodes).
+    const gridChapters = chapters.filter((ch) => !isWrapUpName(ch.name));
+    const wrapChapter = chapters.find((ch) => isWrapUpName(ch.name)) ?? null;
+    const cell = lessonCellSize();
     const HEADER_H = 96;
+    const HEADER_GAP = 60;
+    const HOME_H = 150;
+    const rl = regionLayout(gridChapters.length, 0, 0, !!wrapChapter, cell);
     const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
     const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
-    const ox = center.x - bounds.w / 2;
-    const oy = center.y - (bounds.h + HEADER_H + HEADER_GAP) / 2;
-    const cells = snakeLayout(chapters.length, { ...layoutOpts, originX: ox, originY: oy + HEADER_H + HEADER_GAP });
+    const fullH = HEADER_H + HEADER_GAP + rl.gridH + (rl.wrapUp ? REGION.wrapGapY + cell.h : 0);
+    const ox = center.x - rl.gridW / 2;
+    const oy = center.y - fullH / 2;
+    const gridTop = oy + HEADER_H + HEADER_GAP;
     const name = scaffoldName.trim() || courseLabel(course);
-    // HOME (L3): no per-lesson home flag anymore — the region's front door is a
-    // Home ELEMENT stamped above the header (welcome heading + an Ask Lee card),
-    // and the top outline entry. Sits clear of the snake.
-    const HOME_H = 150;
     const nodes: CardNode[] = [
-      {
-        id: cardId("heading"),
-        type: "heading",
-        position: { x: ox, y: oy - HOME_H },
-        data: { kind: "heading", text: `Welcome — start here [${name}]`, level: 2 } as unknown as CardNode["data"],
-      },
-      {
-        id: cardId("asklee"),
-        type: "asklee",
-        position: { x: ox + Math.min(560, bounds.w - 300), y: oy - HOME_H + 6 },
-        data: { kind: "asklee" } as unknown as CardNode["data"],
-      },
-      {
-        id: cardId("heading"),
-        type: "heading",
-        position: { x: ox, y: oy },
-        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: bounds.w } as unknown as CardNode["data"],
-      },
-      // FILMSTRIP LESSONS (F2): each active chapter → a lesson band pre-loaded
-      // with 4 empty FRAMES (Hook · Teach · Model-Practice · Check), tagged and
-      // ordered, laid left-to-right. Authoring = walk into each frame and fill it.
-      // The course's FINAL chapter carries the region-level red Check tint.
-      ...chapters.flatMap((ch, i) => {
-        const lid = cardId("lesson");
-        const lesson = {
-          id: lid,
-          type: "lesson",
-          position: { x: cells[i].x, y: cells[i].y },
-          data: {
-            label: chapterLabel(ch),
-            w: LESSON_W,
-            h: LESSON_H,
-            pathOrder: i + 1,
-            check: i === chapters.length - 1,
-          } as unknown as CardNode["data"],
-        };
-        const frames = SCAFFOLD_BEATS.map((b, k) => ({
-          id: cardId("frame"),
-          type: "frame",
-          parentId: lid,
-          position: { x: columnX(k), y: rowY(0) },
-          width: FRAME_W,
-          height: FRAME_H,
-          // NO title (the beat column header names the beat — avoids the
-          // duplicate beat/title overlap the flat model had).
-          data: { ...blankFrameData(b.beat, 0) } as unknown as CardNode["data"],
-        }));
-        return [lesson, ...frames];
-      }),
+      { id: cardId("heading"), type: "heading", position: { x: ox, y: oy - HOME_H },
+        data: { kind: "heading", text: `Welcome — start here [${name}]`, level: 2 } as unknown as CardNode["data"] },
+      { id: cardId("asklee"), type: "asklee", position: { x: ox + Math.min(560, rl.gridW - 300), y: oy - HOME_H + 6 },
+        data: { kind: "asklee" } as unknown as CardNode["data"] },
+      { id: cardId("heading"), type: "heading", position: { x: ox, y: oy },
+        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: rl.gridW } as unknown as CardNode["data"] },
+      // GRID CHAPTERS → cells in reading order (reserved footprint each).
+      ...gridChapters.flatMap((ch, i) => buildLessonCell({ x: ox + rl.cells[i].x, y: gridTop + rl.cells[i].y }, chapterLabel(ch), i + 1, false)),
+      // WRAP-UP → centered below, region-level red Check tint, same 4-beat arc.
+      ...(wrapChapter && rl.wrapUp
+        ? buildLessonCell({ x: ox + rl.wrapUp.x, y: gridTop + rl.wrapUp.y }, chapterLabel(wrapChapter), gridChapters.length + 1, true)
+        : []),
     ] as CardNode[];
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
     setScaffoldOpen(false);
     setScaffoldName("");
     window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
-  }, [rf, coursesQuery.data, scaffoldCourseId, scaffoldName]);
+  }, [rf, coursesQuery.data, scaffoldCourseId, scaffoldName, buildLessonCell]);
 
   // REFLOW / TIDY (path nav #4): re-run the snaking layout on the region's
   // lessons (ordered by pathOrder, then reading order) — even spacing, clean
@@ -1144,34 +1126,41 @@ function PresentCanvas() {
   const reflowPath = useCallback(() => {
     const all = rf.getNodes() as CardNode[];
     const lessons = all.filter((n) => n.type === "lesson" && !n.parentId);
-    const before = new Map<string, { x: number; y: number }>();
-    const after = new Map<string, { x: number; y: number }>();
-    // 1) re-snake the region's lessons by pathOrder (if there are ≥2)
-    if (lessons.length >= 2) {
-      const po = (n: CardNode) => {
-        const v = (n.data as Record<string, unknown>).pathOrder;
-        return typeof v === "number" ? v : Number.POSITIVE_INFINITY;
-      };
+    // Each entry can carry a position AND a footprint normalize (w/h) — a Tidy
+    // migrates pre-grid regions to the reserved-footprint cells too.
+    type Slot = { x: number; y: number; w?: number; h?: number };
+    const before = new Map<string, Slot>();
+    const after = new Map<string, Slot>();
+    const snap = (n: CardNode): Slot => ({ x: n.position.x, y: n.position.y, w: (n.data as Record<string, unknown>).w as number, h: (n.data as Record<string, unknown>).h as number });
+    // 1) re-lay the region's lessons into the reserved 5-wide GRID by pathOrder,
+    //    wrap-up centered below. Anchored at the region's current top-left.
+    if (lessons.length >= 1) {
+      const po = (n: CardNode) => { const v = (n.data as Record<string, unknown>).pathOrder; return typeof v === "number" ? v : Number.POSITIVE_INFINITY; };
+      const labelOf = (n: CardNode) => (n.data as Record<string, unknown>).label as string | undefined;
       const ordered = [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x);
-      const colW = Math.max(...lessons.map((n) => n.measured?.width ?? ((n.data as Record<string, unknown>).w as number) ?? 460));
-      const rowH = Math.max(...lessons.map((n) => n.measured?.height ?? ((n.data as Record<string, unknown>).h as number) ?? 340));
+      const gridLessons = ordered.filter((n) => !isWrapUpName(labelOf(n)));
+      const wrapLesson = ordered.find((n) => isWrapUpName(labelOf(n))) ?? null;
+      const cell = lessonCellSize();
       const minX = Math.min(...lessons.map((n) => n.position.x));
       const minY = Math.min(...lessons.map((n) => n.position.y));
-      const perRow = snakePerRow(ordered.length);
-      const cells = snakeLayout(ordered.length, { originX: minX, originY: minY, colW, rowH, gapX: 220, gapY: 260, perRow });
-      ordered.forEach((n, i) => { before.set(n.id, { ...n.position }); after.set(n.id, { x: cells[i].x, y: cells[i].y }); });
+      const rl = regionLayout(gridLessons.length, minX, minY, !!wrapLesson, cell);
+      gridLessons.forEach((n, i) => { before.set(n.id, snap(n)); after.set(n.id, { ...rl.cells[i], w: cell.w, h: cell.h }); });
+      if (wrapLesson && rl.wrapUp) { before.set(wrapLesson.id, snap(wrapLesson)); after.set(wrapLesson.id, { ...rl.wrapUp, w: cell.w, h: cell.h }); }
     }
-    // 2) re-lay each lesson's FRAMES as the beat GRID (FG): columns = beats,
-    //    rows = sub-frames. Frame positions are lesson-relative, so they ride
-    //    along with the lesson's new spot.
+    // 2) re-lay each lesson's FRAMES as the beat GRID (lesson-relative — they
+    //    ride along with the lesson's new spot).
     const byId = new Map(all.map((n) => [n.id, n]));
     for (const l of lessons) {
       const gl = gridLayout(lessonGrid(all as never, l.id), FRAME_W, FRAME_H);
-      gl.positions.forEach((pos, fid) => { const f = byId.get(fid); if (f) { before.set(fid, { ...f.position }); after.set(fid, pos); } });
+      gl.positions.forEach((pos, fid) => { const f = byId.get(fid); if (f) { before.set(fid, snap(f)); after.set(fid, pos); } });
     }
     if (after.size === 0) return;
-    const apply = (m: Map<string, { x: number; y: number }>) =>
-      rf.setNodes((nds) => nds.map((n) => (m.has(n.id) ? { ...n, position: { ...m.get(n.id)! } } : n)));
+    const apply = (m: Map<string, Slot>) =>
+      rf.setNodes((nds) => nds.map((n) => {
+        const s = m.get(n.id); if (!s) return n;
+        if (s.w == null || s.h == null) return { ...n, position: { x: s.x, y: s.y } };
+        return { ...n, position: { x: s.x, y: s.y }, width: s.w, height: s.h, data: { ...(n.data as Record<string, unknown>), w: s.w, h: s.h } } as CardNode;
+      }));
     bus.dispatch({ label: "tidy layout", do: () => apply(after), undo: () => apply(before) });
     window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
   }, [rf]);
@@ -1304,15 +1293,13 @@ function PresentCanvas() {
 
   /** Create a frame at a grid cell (returns its id). node.width/height MUST be
    *  set (the FrameNode is w/h-full) or RF sizes it to min-content. */
-  const makeFrameAt = useCallback((lessonId: string, beat: Beat, subIndex: number, title = "") => {
+  const makeFrameAt = useCallback((lessonId: string, beat: Beat, subIndex: number, title = ""): string | null => {
+    // CAP (item 4): max RESERVED_ROWS frames per beat — the reserved footprint
+    // holds exactly this many, so we never grow the cell or overlap a neighbour.
+    if (subIndex >= RESERVED_ROWS) return null;
     const fid = cardId("frame");
     const node = { id: fid, type: "frame", parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...blankFrameData(beat, subIndex), title } } as unknown as CardNode;
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, [node], "add frame"));
-    // grow the lesson band so the new sub-frame row is contained (view-only).
-    const needH = rowY(subIndex) + FRAME_H + GRID.padBottom;
-    const lesson = rf.getNode(lessonId);
-    const curH = (lesson?.height ?? (lesson?.data as { h?: number } | undefined)?.h ?? 0) as number;
-    if (lesson && needH > curH) rf.setNodes((nds) => nds.map((n) => (n.id === lessonId ? { ...n, height: needH, data: { ...n.data, h: needH } } : n)));
     return fid;
   }, [rf, gridPos]);
 
@@ -1328,9 +1315,10 @@ function PresentCanvas() {
       if (!f?.parentId) return;
       const beat = beatColOf(f as never);
       const fid = makeFrameAt(f.parentId, beat, nextSubIndex(rf.getNodes() as never, f.parentId, beat));
+      if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; } // cap reached (item 4)
       window.setTimeout(() => enterFrame(fid), 40);
     }
-  }, [rf, enterFrame, makeFrameAt]);
+  }, [rf, enterFrame, makeFrameAt, flashToast]);
 
   /** → / ← — walk beat COLUMNS (same subIndex if it exists, else the beat's first
    *  frame); at a lesson's end, roll into the adjacent lesson (→ next Hook 1, ←
@@ -1361,8 +1349,9 @@ function PresentCanvas() {
     if (!f?.parentId) return;
     const beat = beatColOf(f as never);
     const fid = makeFrameAt(f.parentId, beat, nextSubIndex(rf.getNodes() as never, f.parentId, beat));
+    if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
     window.setTimeout(() => enterFrame(fid), 40);
-  }, [rf, makeFrameAt, enterFrame]);
+  }, [rf, makeFrameAt, enterFrame, flashToast]);
 
   /** ‹ › in the frame header — reorder WITHIN the beat column (swap subIndex +
    *  grid position with the up/down neighbour), one undoable command. */
@@ -2709,13 +2698,23 @@ function PresentCanvas() {
         return <FrameArmCue state={armState} nextLabel={label} showHud={rehearsalHud} />;
       })()}
 
-      {/* Type floor — prep warning, hidden while actually filming */}
-      {lowZoom && !film && (
+      {/* Type floor — prep warning, only INSIDE a frame (composing a shot).
+          Region overview is never a shot, so the badge is just noise there (item 7). */}
+      {lowZoom && !film && currentFrameId && (
         <div
           className="absolute left-1/2 top-14 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold"
           style={{ background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.55)", color: NEON.yellow }}
         >
           zoom &lt; 75% — text may be illegible on camera
+        </div>
+      )}
+      {/* TRANSIENT TOAST — frame-cap notice, soft warns (auto-clears) */}
+      {toast && (
+        <div
+          className="pointer-events-none absolute bottom-24 left-1/2 z-[80] -translate-x-1/2 rounded-full px-3.5 py-1.5 text-[12px] font-semibold"
+          style={{ background: "rgba(11,15,30,0.85)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text, backdropFilter: "blur(6px)" }}
+        >
+          {toast}
         </div>
       )}
       {/* looping video background (low opacity, filming-optional); key remounts on swap */}
@@ -2775,6 +2774,16 @@ function PresentCanvas() {
         {bgCfg.mode === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
         {/* SKELETON GRID (P4): ghost previews for named decks' undealt slots */}
         <SkeletonLayer decks={decks} />
+        {/* GHOST CELLS: empty region-grid slots as "+ add lesson" (authoring only) */}
+        {chrome && (
+          <GhostCellsLayer
+            onAdd={(pos, pathOrder) => {
+              const cellNodes = buildLessonCell(pos, "New lesson", pathOrder, false);
+              bus.dispatch(addNodesCmd(rf as unknown as RfLike, cellNodes, "add lesson"));
+              if (pathOrder > 15) flashToast("16th lesson — grid extended a row"); // soft warn, never block
+            }}
+          />
+        )}
         {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
         {chrome && minimap && (
           <MiniMap
