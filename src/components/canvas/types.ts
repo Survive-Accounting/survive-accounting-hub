@@ -469,16 +469,21 @@ export interface LessonBox {
 
 // ---- Frames (the SHOT tier: WORLD › REGION › LESSON › FRAME › CARD) ----
 // A FRAME is one screen / one shot / one sitting — a bounded 16:9 stage inside a
-// lesson holding cards (parented, like a lesson holds cards). A lesson is an
-// ORDERED LIST OF FRAMES; the beat is a TAG on a frame, not a container.
-export type FrameBeat = "hook" | "teach" | "model_practice" | "check" | "none";
+// lesson holding cards. A lesson's frames form a GRID: the BEAT is a COLUMN
+// (Hook · Teach · Model-Practice · Check), subIndex is the ROW within it.
+/** The 4 beat COLUMNS. (Legacy scenes may carry "none" — folded to hook on load.) */
+export type Beat = "hook" | "teach" | "model_practice" | "check";
+export type FrameBeat = Beat | "none";
 export interface FrameBox {
   title?: string;
   /** 16:9 aspect-locked (h = round(w * 9 / 16)). */
   w: number;
   h: number;
+  /** The beat COLUMN this frame sits in (grid model). */
   beat?: FrameBeat;
-  /** Position within its lesson's frame list (1, 2, 3…). */
+  /** 0-based ROW within its beat column (grid model). */
+  subIndex?: number;
+  /** LEGACY flat index (pre-grid) — migrated to (beat, subIndex) on load. */
   order?: number | null;
   /** BACKGROUND ANIMATION (author-facing filming aid): a looping video from
    *  FRAME_BG_LOOPS plays behind all cards. `bgSrc` is the loop id (empty = the

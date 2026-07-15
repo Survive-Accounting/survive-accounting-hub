@@ -91,6 +91,24 @@ export function migrateDeckFields<T extends { data?: Record<string, unknown> }>(
   });
 }
 
+/** schema_version 4 → 5: FRAME GRID. Flat frames (beat tag + `order` index) become
+ *  grid cells (beat COLUMN + subIndex ROW). Group each lesson's frames by beat
+ *  ("none" → hook), order within a beat by the old `order`, assign subIndex 0..n.
+ *  Idempotent: a scene where every frame already has a numeric subIndex is left
+ *  untouched, so v5 scenes re-open cleanly. */
+export function migrateFrameGrid<T extends { type?: string; parentId?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  const frames = nodes.filter((n) => n.type === "frame");
+  if (frames.length === 0 || frames.every((f) => typeof (f.data as { subIndex?: number } | undefined)?.subIndex === "number")) return nodes;
+  const BEATS = ["hook", "teach", "model_practice", "check"];
+  const beatOf = (f: T) => { const b = (f.data as { beat?: string } | undefined)?.beat; return b && BEATS.includes(b) ? b : "hook"; };
+  const orderOf = (f: T) => { const o = (f.data as { order?: number } | undefined)?.order; return typeof o === "number" ? o : Number.POSITIVE_INFINITY; };
+  const cols = new Map<string, T[]>();
+  for (const f of frames) { const k = `${f.parentId}::${beatOf(f)}`; (cols.get(k) ?? cols.set(k, []).get(k)!).push(f); }
+  const sub = new Map<T, number>();
+  for (const [, list] of cols) { list.sort((a, b) => orderOf(a) - orderOf(b)); list.forEach((f, i) => sub.set(f, i)); }
+  return nodes.map((n) => (sub.has(n) ? { ...n, data: { ...n.data, beat: beatOf(n), subIndex: sub.get(n) } } : n));
+}
+
 /** ELEMENTS never live in the deck (design-elements run). Old scenes may have a
  *  heading with deck membership from the pre-category era — strip it silently
  *  (revealing any tucked element back onto the canvas) and note it in console. */
