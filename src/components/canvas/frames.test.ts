@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, columnX, frame169, framesInBeat, framesInLesson,
-  gridLayout, lessonGrid, lessonRollFrame, nextSubIndex, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type RectNode,
+  absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, columnX, frame169, frameCellLabel, framesInBeat, framesInLesson,
+  frameWalkNext, gridLayout, lessonGrid, lessonRollFrame, nextSubIndex, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type RectNode,
 } from "./frames";
 import { FRAME_H, FRAME_W } from "./types";
 
@@ -62,6 +62,27 @@ describe("↑ / ↓ sub-frame navigation", () => {
   test("↑ prev sub-frame", () => expect(subNeighborFrame(nodes, "h2", -1)?.id).toBe("h1"));
   test("↓ past the last → null (caller creates in authoring)", () => expect(subNeighborFrame(nodes, "h3", 1)).toBeNull());
   test("↑ at subIndex 0 → null", () => expect(subNeighborFrame(nodes, "h1", -1)).toBeNull());
+});
+
+describe("frameWalkNext (space-walk — column-major, stops at lesson end)", () => {
+  const nodes = [
+    L("L1", 1),
+    F("h1", "L1", "hook", 0), F("h2", "L1", "hook", 1),
+    F("t1", "L1", "teach", 0),
+    F("c1", "L1", "check", 0),
+    L("L2", 2), F("l2h", "L2", "hook", 0),
+  ];
+  test("walks column-major within the lesson (Hook 1→Hook 2→Teach 1→Check 1)", () => {
+    expect(frameWalkNext(nodes, "h1")?.id).toBe("h2");
+    expect(frameWalkNext(nodes, "h2")?.id).toBe("t1");
+    expect(frameWalkNext(nodes, "t1")?.id).toBe("c1"); // skips empty model_practice
+  });
+  test("NEVER rolls to the next lesson — null at the lesson's last frame", () =>
+    expect(frameWalkNext(nodes, "c1")).toBeNull());
+  test("frameCellLabel reads beat + 1-based row", () => {
+    expect(frameCellLabel(nodes.find((n) => n.id === "h2"))).toBe("Hook 2");
+    expect(frameCellLabel(nodes.find((n) => n.id === "t1"))).toBe("Teach 1");
+  });
 });
 
 describe("cross-lesson roll (→ next Hook 1 · ← prev lesson's last beat)", () => {

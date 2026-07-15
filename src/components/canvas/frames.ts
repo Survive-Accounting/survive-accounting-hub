@@ -131,6 +131,24 @@ export function lessonRollFrame(nodes: RectNode[], frameId: string, dir: -1 | 1)
   return null;
 }
 
+/** SPACE-WALK: the next frame in COLUMN-MAJOR order within the SAME lesson, or
+ *  null at the lesson's last frame. Space NEVER rolls to the next lesson — that
+ *  stays the manual → roll (the lesson is the video). */
+export function frameWalkNext(nodes: RectNode[], frameId: string): RectNode | null {
+  const f = nodes.find((n) => n.id === frameId);
+  if (!f?.parentId) return null;
+  const seq = framesInLesson(nodes, f.parentId);
+  const i = seq.findIndex((x) => x.id === frameId);
+  return i < 0 || i + 1 >= seq.length ? null : seq[i + 1];
+}
+
+/** Human label for a frame's grid cell, e.g. "Teach 2" (beat + 1-based row) —
+ *  the next-up HUD and rehearsal cues read from this. */
+export function frameCellLabel(node: RectNode | undefined): string {
+  if (!node) return "Frame";
+  return `${BEAT_LABEL[beatColOf(node)]} ${subIndexOf(node) + 1}`;
+}
+
 // ---- layout ----------------------------------------------------------------
 /** Aspect-lock a width to 16:9. */
 export const frame169 = (w: number): { w: number; h: number } => ({ w: Math.round(w), h: Math.round((w * 9) / 16) });

@@ -43,6 +43,15 @@ export function nextTucked(nodes: DeckNode[]) {
   return deckMembers(nodes).find((n) => isTucked(n.data as unknown as CardBase));
 }
 
+/** SPACE-WALK ACROSS FRAMES: the next tucked deck member parented to THIS frame,
+ *  in deal order (stageOrder within the frame). Undefined when the frame's own
+ *  deck is exhausted — the caller then arms the frame transition. */
+export function nextTuckedInFrame(nodes: DeckNode[], frameId: string): DeckNode | undefined {
+  return deckMembers(nodes)
+    .filter((n) => n.parentId === frameId)
+    .find((n) => isTucked(n.data as unknown as CardBase));
+}
+
 /** An entry's lesson: the explicit stamp wins; a member parented to a lesson
  *  falls back to that (pre-stamp entries heal without migration). */
 export function lessonIdOf(n: DeckNode, nodes: DeckNode[]): string | null {

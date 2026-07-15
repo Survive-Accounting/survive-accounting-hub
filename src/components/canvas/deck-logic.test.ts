@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { lessonGroups, lessonIdOf, nextTucked, nextTuckedCross, type DeckNode } from "./deck-logic";
+import { lessonGroups, lessonIdOf, nextTucked, nextTuckedCross, nextTuckedInFrame, type DeckNode } from "./deck-logic";
 
 const lesson = (id: string, label: string, pathOrder: number | null): DeckNode =>
   ({ id, type: "lesson", data: { label, pathOrder } });
@@ -67,6 +67,31 @@ describe("nextTuckedCross (the cross-lesson space-walk)", () => {
 
   test("global nextTucked still honors overall order", () => {
     expect(nextTucked(FIX)!.id).toBe("a");
+  });
+});
+
+describe("nextTuckedInFrame (the frame-scoped space-walk)", () => {
+  const fcard = (id: string, frameId: string, stageOrder: number, tucked = true): DeckNode =>
+    ({ id, type: "note", parentId: frameId, data: { kind: "note", deckMember: true, tucked, stageOrder } });
+  const nodes: DeckNode[] = [
+    lesson("L1", "Intro", 1),
+    fcard("f1a", "F1", 0), fcard("f1b", "F1", 1),
+    fcard("f2a", "F2", 0),
+  ];
+  test("deals the current frame's next tucked member, in stageOrder", () => {
+    expect(nextTuckedInFrame(nodes, "F1")!.id).toBe("f1a");
+  });
+  test("skips already-dealt (untucked) members within the frame", () => {
+    const dealt = nodes.map((n) => (n.id === "f1a" ? { ...n, data: { ...n.data, tucked: false } } : n));
+    expect(nextTuckedInFrame(dealt, "F1")!.id).toBe("f1b");
+  });
+  test("frame exhausted → undefined (caller arms the transition)", () => {
+    const done = nodes.map((n) => (n.parentId === "F1" ? { ...n, data: { ...n.data, tucked: false } } : n));
+    expect(nextTuckedInFrame(done, "F1")).toBeUndefined();
+  });
+  test("scoped to the frame — F2's card never leaks into F1's walk", () => {
+    const done = nodes.map((n) => (n.parentId === "F1" ? { ...n, data: { ...n.data, tucked: false } } : n));
+    expect(nextTuckedInFrame(done, "F2")!.id).toBe("f2a"); // F2 still has its own
   });
 });
 
