@@ -10,7 +10,7 @@ import { ChevronDown, ChevronRight, Clapperboard, Frame, Layers } from "lucide-r
 
 import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
-import { framesInLesson } from "./frames";
+import { BEAT_COLUMNS, beatColOf, framesInLesson } from "./frames";
 import { BEAT_META } from "./cards/FrameNode";
 import { isContainerType, type CardBase, type CardNode, type FrameBox } from "./types";
 
@@ -180,30 +180,44 @@ export function OutlinePanel() {
               </div>
               {!isCol && hasContent && (
                 <div className="ml-4 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
-                  {/* FRAMES (shots), in order, with beat tag — click ENTERS the frame */}
-                  {frames.map((f) => {
-                    const fd = f.data as unknown as FrameBox;
-                    const bm = BEAT_META[fd.beat ?? "none"];
-                    const fcards = cardsByLesson.m.get(f.id) ?? [];
+                  {/* FG5: lesson → BEAT → sub-frames. Beats are the columns; a beat
+                     with no shots is omitted. Each sub-frame's row shows its 1-based
+                     index within the beat; click ENTERS the frame. */}
+                  {BEAT_COLUMNS.map((beat) => {
+                    const beatFrames = frames.filter((f) => beatColOf(f as never) === beat);
+                    if (beatFrames.length === 0) return null;
+                    const bm = BEAT_META[beat];
                     return (
-                      <div key={f.id}>
-                        <button
-                          className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-white/5"
-                          style={{ color: nav.currentFrameId === f.id ? bm.color : NEON.text }}
-                          onClick={() => nav.enter(f.id)}
-                          title="Enter this frame (fit the camera to it)"
-                        >
-                          <Clapperboard className="h-3 w-3 shrink-0 opacity-70" style={{ color: bm.color }} />
-                          {fd.beat && fd.beat !== "none" && (
-                            <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: bm.color, border: `1px solid ${bm.edge}` }}>{bm.label}</span>
-                          )}
-                          <span className="min-w-0 flex-1 truncate">{fd.title || "Frame"}</span>
-                        </button>
-                        {fcards.length > 0 && (
-                          <div className="ml-4 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
-                            {fcards.map(cardRow)}
-                          </div>
-                        )}
+                      <div key={beat}>
+                        <div className="flex items-center gap-1.5 px-1 pt-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: bm.color }}>
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: bm.color }} />
+                          {bm.label}
+                        </div>
+                        <div className="ml-2 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
+                          {beatFrames.map((f, bi) => {
+                            const fd = f.data as unknown as FrameBox;
+                            const fcards = cardsByLesson.m.get(f.id) ?? [];
+                            return (
+                              <div key={f.id}>
+                                <button
+                                  className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-white/5"
+                                  style={{ color: nav.currentFrameId === f.id ? bm.color : NEON.text }}
+                                  onClick={() => nav.enter(f.id)}
+                                  title="Enter this frame (fit the camera to it)"
+                                >
+                                  <Clapperboard className="h-3 w-3 shrink-0 opacity-70" style={{ color: bm.color }} />
+                                  <span className="shrink-0 tabular-nums text-[9px] opacity-60">{bi + 1}</span>
+                                  <span className="min-w-0 flex-1 truncate">{fd.title || `${bm.label} ${bi + 1}`}</span>
+                                </button>
+                                {fcards.length > 0 && (
+                                  <div className="ml-4 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
+                                    {fcards.map(cardRow)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}
