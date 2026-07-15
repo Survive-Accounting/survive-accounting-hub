@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Minimize2, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -50,14 +50,14 @@ import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
 import { MemoCardNode } from "@/components/canvas/cards/MemoCardNode";
-import { FrameNode } from "@/components/canvas/cards/FrameNode";
+import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
-import { absRectOf, adjacentFrame, blankFrameData, filmstripLayout, framesInLesson, nextFrameOrder, SCAFFOLD_BEATS } from "@/components/canvas/frames";
+import { absRectOf, adjacentFrame, blankFrameData, filmstripLayout, framesInLesson, lessonNeighborFrame, nextFrameOrder, SCAFFOLD_BEATS } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, FRAME_H, FRAME_W, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -656,6 +656,14 @@ function PresentCanvas() {
   const [frameTransitions, setFrameTransitions] = useState(true); // F3: animate enter/step (off = instant cut)
   const frameTransitionsRef = useRef(true);
   frameTransitionsRef.current = frameTransitions;
+  const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
+  const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
+  useEffect(() => {
+    const onResize = () => setVpTick((t) => t + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -1199,6 +1207,12 @@ function PresentCanvas() {
     void rf.setViewport({ x, y, zoom }, { duration: frameTransitionsRef.current ? 280 : 0 });
   }, [rf]);
 
+  // Keep the frame pinned to its exact 16:9 fit when the window resizes.
+  useEffect(() => {
+    if (currentFrameRef.current) enterFrame(currentFrameRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vpTick]);
+
   const exitFrame = useCallback(() => {
     const cur = currentFrameRef.current;
     setCurrentFrameId(null);
@@ -1225,6 +1239,24 @@ function PresentCanvas() {
 
   const canStepFrame = useCallback((frameId: string, dir: -1 | 1) => !!adjacentFrame(rf.getNodes() as never, frameId, dir), [rf]);
 
+  /** FF-4: arrows mean frame-navigation only when we're inside a frame AND
+   *  nothing is selected (no node/edge selection, no JE line sub-selection). A
+   *  selection keeps the arrows on their card meanings. */
+  const frameFreeNav = useCallback(() => {
+    if (!currentFrameRef.current) return false;
+    const nodes = rf.getNodes();
+    const sel = nodes.some((n) => n.selected || (n.data as { _selLine?: string })?._selLine) || rf.getEdges().some((e) => e.selected);
+    return !sel;
+  }, [rf]);
+
+  /** FF-4: jump to the neighbouring LESSON's first/last frame (→/← lesson walk). */
+  const stepLesson = useCallback((dir: -1 | 1) => {
+    const cur = currentFrameRef.current;
+    if (!cur) return;
+    const t = lessonNeighborFrame(rf.getNodes() as never, cur, dir);
+    if (t) enterFrame(t.id);
+  }, [rf, enterFrame]);
+
   /** Add a blank frame to a lesson (appended in order), fit into it. */
   const addFrameToLesson = useCallback((lessonId: string) => {
     const nodes = rf.getNodes();
@@ -1241,6 +1273,36 @@ function PresentCanvas() {
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, [node], "add frame"));
     return fid;
   }, [rf]);
+
+  /** FF-1: add a frame AFTER `frameId` in its lesson (mid-authoring split),
+   *  inheriting its beat, renumbering the lesson's frames — one undoable step —
+   *  then enter the new frame. */
+  const addFrameAfter = useCallback((frameId: string) => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return;
+    const lessonId = f.parentId;
+    const list = framesInLesson(rf.getNodes() as never, lessonId);
+    const i = list.findIndex((x) => x.id === frameId);
+    if (i < 0) return;
+    const beat = ((f.data as unknown as FrameBox).beat ?? "none") as FrameBox["beat"];
+    const fid = cardId("frame");
+    const newFrame = {
+      id: fid, type: "frame", parentId: lessonId,
+      position: { x: f.position.x + FRAME_W + 80, y: f.position.y },
+      width: FRAME_W, height: FRAME_H,
+      data: { ...blankFrameData(beat, i + 2), title: "" },
+    } as unknown as CardNode;
+    const newList = [...list.slice(0, i + 1), { id: fid }, ...list.slice(i + 1)];
+    const cmds = [addNodesCmd(rf as unknown as RfLike, [newFrame], "add frame after")];
+    newList.forEach((fr, k) => {
+      if (fr.id === fid) return;
+      const c = patchDataCmd(rf as unknown as RfLike, fr.id, { order: k + 1 }, "renumber frames");
+      if (c) cmds.push(c);
+    });
+    const cmd = compositeCmd(cmds, "add frame after");
+    if (cmd) bus.dispatch(cmd);
+    window.setTimeout(() => enterFrame(fid), 40);
+  }, [rf, enterFrame]);
 
   /** Reorder a frame within its lesson: swap with the -1/+1 neighbour, then
    *  renumber all the lesson's frames 1..n — one undoable command. */
@@ -1413,6 +1475,24 @@ function PresentCanvas() {
         "duplicate card",
       ),
     );
+  }, [rf]);
+
+  /** FF-2: nudge the filming SCALE of every selected card by ±step (clamped
+   *  0.25–1), one undoable command. Reads the EFFECTIVE scale first (so the
+   *  first nudge on a framed 60% card moves from 0.6, not 1). Containers/elements
+   *  are skipped — only cards scale. */
+  const scaleSelected = useCallback((step: number) => {
+    const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+    if (!sel.length) return;
+    const cmds = sel.map((n) => {
+      const d = n.data as unknown as CardBase;
+      const cur = typeof d.scale === "number"
+        ? d.scale
+        : (n.parentId && rf.getNode(n.parentId)?.type === "frame" ? FRAME_CARD_SCALE : 1);
+      return patchDataCmd(rf as unknown as RfLike, n.id, { scale: clampScale(cur + step) }, "scale card");
+    });
+    const cmd = compositeCmd(cmds, step > 0 ? "scale up" : "scale down");
+    if (cmd) bus.dispatch(cmd);
   }, [rf]);
 
   // ---- PASTE ROUTER (cross-tab copy/paste) ----------------------------------
@@ -2370,18 +2450,21 @@ function PresentCanvas() {
             void rf.fitView({ duration: 400, padding: 0.15 });
             return;
           }
-          // RUNG 3.5 — leave a framed shot back to the lesson (FRAMES)
-          if (currentFrameRef.current) { exitFrame(); return; }
-          // RUNG 4 — film/clean → restore FULL chrome
-          if (film || clean) {
-            setFilm(false);
-            setClean(false);
+          // RUNG 4 — FILM mode exits FIRST (FF-3), even inside a frame
+          if (film) { setFilm(false); return; }
+          // RUNG 5 — a selection deselects (FF-4: Esc clears selection first so the
+          // arrows switch to frame-nav); frame-exit waits for the next Esc
+          const anySel = rf.getNodes().some((n) => n.selected) || rf.getEdges().some((e) => e.selected);
+          if (anySel) {
+            clearEdgeGlow();
+            rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false, data: { ...n.data, _selLine: undefined } } : n)));
+            rf.setEdges((eds) => eds.map((ed) => (ed.selected ? { ...ed, selected: false } : ed)));
             return;
           }
-          // RUNG 5 — deselect all (edge endpoint glow clears with it)
-          clearEdgeGlow();
-          rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
-          rf.setEdges((eds) => eds.map((ed) => (ed.selected ? { ...ed, selected: false } : ed)));
+          // RUNG 6 — leave the framed shot back to the lesson (FRAMES)
+          if (currentFrameRef.current) { exitFrame(); return; }
+          // RUNG 7 — clean screen off
+          if (clean) { setClean(false); return; }
         },
       },
       { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
@@ -2393,17 +2476,31 @@ function PresentCanvas() {
       { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("ceq"); } },
       { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("list"); } },
       { combo: "d", group: "Cards", description: "Duplicate the selected card (lands underneath)", handler: () => duplicateSelected() },
+      { combo: ">", group: "Cards", description: "Scale the selected card(s) up (filming size, max 100%)", handler: () => scaleSelected(0.05) },
+      { combo: "<", group: "Cards", description: "Scale the selected card(s) down (filming size, min 25%)", handler: () => scaleSelected(-0.05) },
       {
         combo: "arrowleft",
         group: "JE lines",
-        description: "Hop selected JE line to the debit side",
-        handler: () => hopSelectedLine("dr"),
+        description: "Hop selected JE line to the debit side — or, in a frame with nothing selected, the previous lesson",
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepLesson(-1); } else hopSelectedLine("dr"); },
       },
       {
         combo: "arrowright",
         group: "JE lines",
-        description: "Hop selected JE line to the credit side",
-        handler: () => hopSelectedLine("cr"),
+        description: "Hop selected JE line to the credit side — or, in a frame with nothing selected, the next lesson",
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepLesson(1); } else hopSelectedLine("cr"); },
+      },
+      {
+        combo: "arrowup",
+        group: "Frames",
+        description: "In a frame with nothing selected: previous frame",
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepFrame(-1); } },
+      },
+      {
+        combo: "arrowdown",
+        group: "Frames",
+        description: "In a frame with nothing selected: next frame",
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepFrame(1); } },
       },
       { combo: "]", group: "Frames", description: "Next frame in the lesson (also PageDown)", handler: () => stepFrame(1) },
       { combo: "[", group: "Frames", description: "Previous frame in the lesson (also PageUp)", handler: () => stepFrame(-1) },
@@ -2415,7 +2512,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, exitFrame, enterFrame],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, stepLesson, frameFreeNav, exitFrame, enterFrame],
   );
   useKeymap(bindings);
 
@@ -2523,10 +2620,14 @@ function PresentCanvas() {
         // pan; shift+drag = selection marquee; pinch zoom native. Inner
         // scrollables opt out with `nowheel` (pickers, card bodies) so their
         // scrolling never zooms the canvas.
-        panOnDrag
+        // FILM LOCK (FF-3): film mode inside a frame PINS the stage — no
+        // scroll-zoom, no pane-drag, no dbl-click zoom; only the frame-nav keys
+        // move the camera. Kills accidental zoom-outs mid-take.
+        panOnDrag={!(film && !!currentFrameId)}
         panOnScroll={false}
-        zoomOnScroll
-        zoomOnPinch
+        zoomOnScroll={!(film && !!currentFrameId)}
+        zoomOnPinch={!(film && !!currentFrameId)}
+        zoomOnDoubleClick={!(film && !!currentFrameId)}
         selectionKeyCode={["Shift", "Control"]}
         selectionOnDrag={false}
         deleteKeyCode={["Delete", "Backspace"]}
@@ -2549,17 +2650,54 @@ function PresentCanvas() {
         )}
       </ReactFlow>
 
-      {/* FRAME HUD — while inside a frame: ‹ prev · exit ⌂ · next › (hidden in
-          film/clean; the frame fills the screen there). */}
-      {currentFrameId && chrome && (
+      {/* LETTERBOX (FF-5): inside a frame, solid bars mask the canvas outside the
+          exact 16:9 region the frame fills, so the shot is 16:9 in any window.
+          Film mode → pure black. pointer-events pass through outside film. */}
+      {currentFrameId && (() => {
+        const cw = window.innerWidth, ch = window.innerHeight;
+        const innerW = Math.min(cw, (ch * 16) / 9);
+        const innerH = innerW * 9 / 16;
+        const mx = Math.max(0, Math.round((cw - innerW) / 2));
+        const my = Math.max(0, Math.round((ch - innerH) / 2));
+        const bar = film ? "#000" : "rgba(6,10,20,0.975)";
+        const B = (s: React.CSSProperties) => <div className="pointer-events-none absolute z-[52]" style={{ background: bar, ...s }} />;
+        return (
+          <>
+            {mx > 0 && B({ left: 0, top: 0, bottom: 0, width: mx })}
+            {mx > 0 && B({ right: 0, top: 0, bottom: 0, width: mx })}
+            {my > 0 && B({ top: 0, left: 0, right: 0, height: my })}
+            {my > 0 && B({ bottom: 0, left: 0, right: 0, height: my })}
+          </>
+        );
+      })()}
+
+      {/* FRAME HUD — while inside a frame: ‹ prev · "LESSON · frame — Beat" · next ›
+          (FF-6). Frame title is inline-editable here. Auto-hidden in film/clean
+          unless the frame-header toggle forces it; the tiny film HUD covers film. */}
+      {currentFrameId && chrome && showFrameHeader && (() => {
+        const fnode = rf.getNode(currentFrameId);
+        const fd = fnode?.data as FrameBox | undefined;
+        const lessonTitle = (fnode?.parentId ? (rf.getNode(fnode.parentId)?.data as { label?: string } | undefined)?.label : "") || "Lesson";
+        const beat = fd?.beat ?? "none";
+        const bm = BEAT_META[beat];
+        return (
         <div className="absolute left-1/2 top-3 z-[58] flex -translate-x-1/2 items-center gap-1 rounded-full px-1.5 py-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
-          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous frame ( [ / PageUp )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepFrame(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
-          <span className="px-1 text-[11px] font-semibold" style={{ color: NEON.muted }}>{(rf.getNode(currentFrameId)?.data as { title?: string } | undefined)?.title || "Frame"}</span>
-          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next frame ( ] / PageDown )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepFrame(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
+          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous frame ( [ / PageUp / ↑ )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepFrame(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
+          <span className="flex items-center gap-1.5 px-1 text-[11px] font-semibold" style={{ color: NEON.muted }}>
+            <span className="max-w-[180px] truncate" style={{ color: NEON.muted }}>{lessonTitle}</span>
+            <span style={{ color: NEON.borderSoft }}>·</span>
+            <span className="min-w-[40px] text-[12px] font-bold" style={{ color: "#F4EFE6" }}>
+              <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="Frame" />
+            </span>
+            {beat !== "none" && <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: bm.color, border: `1px solid ${bm.edge}` }}>{bm.label}</span>}
+          </span>
+          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next frame ( ] / PageDown / ↓ )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepFrame(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
+          <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame after this one (inherits the beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
           <button className="grid h-6 w-6 place-items-center rounded-full" title={frameTransitions ? "Smooth camera transitions (click for instant cuts)" : "Instant cuts (click for smooth transitions)"} onClick={() => setFrameTransitions((v) => !v)} style={{ color: frameTransitions ? NEON.cyan : NEON.muted }}><Film className="h-3.5 w-3.5" /></button>
           <button className="ml-0.5 grid h-6 w-6 place-items-center rounded-full" title="Exit frame (Esc)" onClick={exitFrame} style={{ color: NEON.yellow, borderLeft: `1px solid ${NEON.borderSoft}` }}><Minimize2 className="h-3.5 w-3.5" /></button>
         </div>
-      )}
+        );
+      })()}
 
       {/* BRAND BAR + DRAWER (workspace chrome) — the drawer is the menu:
           Cards (palette) and Key (legend) open as panels inside it, keeping
@@ -2675,6 +2813,7 @@ function PresentCanvas() {
             )}
           </div>
           <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
+          {currentFrameId && <TB title={showFrameHeader ? "Hide the frame header while inside a frame" : "Show the frame header (LESSON · frame · beat)"} active={showFrameHeader} onClick={() => setShowFrameHeader((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>}
           <div className="relative">
             <TB title="Canvas settings (JE width, default preset)" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
               <Settings2 className="h-3.5 w-3.5" />

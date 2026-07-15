@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { absRectOf, adjacentFrame, filmstripLayout, frame169, framesInLesson, nextFrameOrder, SCAFFOLD_BEATS, type RectNode } from "./frames";
+import { absRectOf, adjacentFrame, filmstripLayout, frame169, framesInLesson, lessonNeighborFrame, nextFrameOrder, SCAFFOLD_BEATS, type RectNode } from "./frames";
 
 const F = (id: string, parentId: string, order: number, x = 0): RectNode => ({ id, type: "frame", parentId, position: { x, y: 0 }, data: { order } });
+const L = (id: string, pathOrder: number, x = 0): RectNode => ({ id, type: "lesson", position: { x, y: 0 }, data: { pathOrder } });
 
 describe("frames (F1)", () => {
   test("framesInLesson sorts by order, only this lesson's frames", () => {
@@ -21,6 +22,26 @@ describe("frames (F1)", () => {
     expect(adjacentFrame(nodes, "f2", -1)?.id).toBe("f1");
     expect(adjacentFrame(nodes, "f1", -1)).toBeNull(); // edge
     expect(adjacentFrame(nodes, "f3", 1)).toBeNull(); // edge
+  });
+
+  test("lessonNeighborFrame jumps to the next lesson's FIRST / prev lesson's LAST frame (FF-4)", () => {
+    const nodes: RectNode[] = [
+      L("L1", 1), L("L2", 2), L("L3", 3),
+      F("a1", "L1", 1), F("a2", "L1", 2),
+      F("b1", "L2", 1), F("b2", "L2", 2),
+      F("c1", "L3", 1),
+    ];
+    // from a frame in L2, → goes to L3's first frame, ← goes to L1's last frame
+    expect(lessonNeighborFrame(nodes, "b1", 1)?.id).toBe("c1");
+    expect(lessonNeighborFrame(nodes, "b2", -1)?.id).toBe("a2");
+    // edges: prev of L1 / next of L3 = null (region edge)
+    expect(lessonNeighborFrame(nodes, "a1", -1)).toBeNull();
+    expect(lessonNeighborFrame(nodes, "c1", 1)).toBeNull();
+  });
+
+  test("lessonNeighborFrame skips a neighbour with no frames only by returning null at its slot", () => {
+    const nodes: RectNode[] = [L("L1", 1), L("L2", 2), F("a1", "L1", 1)];
+    expect(lessonNeighborFrame(nodes, "a1", 1)).toBeNull(); // L2 has no frames
   });
 
   test("frame169 aspect-locks to 16:9", () => {

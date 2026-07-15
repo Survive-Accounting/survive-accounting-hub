@@ -58,6 +58,25 @@ export function adjacentFrame(nodes: RectNode[], frameId: string, dir: -1 | 1): 
   return i < 0 || j < 0 || j >= list.length ? null : list[j];
 }
 
+/** The first (dir +1, next lesson) / last (dir -1, prev lesson) frame of the
+ *  lesson adjacent to this frame's lesson, ordered by lesson pathOrder. Null at
+ *  the region's edge or if the neighbour has no frames. Powers →/← lesson jumps. */
+export function lessonNeighborFrame(nodes: RectNode[], frameId: string, dir: -1 | 1): RectNode | null {
+  const frame = nodes.find((n) => n.id === frameId);
+  if (!frame?.parentId) return null;
+  const po = (l: RectNode) => {
+    const v = (l.data as { pathOrder?: number | null } | undefined)?.pathOrder;
+    return typeof v === "number" ? v : Number.POSITIVE_INFINITY;
+  };
+  const lessons = nodes.filter((n) => n.type === "lesson" && !n.parentId).sort((a, b) => po(a) - po(b) || a.position.x - b.position.x || a.position.y - b.position.y);
+  const li = lessons.findIndex((l) => l.id === frame.parentId);
+  const lj = li + dir;
+  if (li < 0 || lj < 0 || lj >= lessons.length) return null;
+  const frames = framesInLesson(nodes, lessons[lj].id);
+  if (frames.length === 0) return null;
+  return dir > 0 ? frames[0] : frames[frames.length - 1];
+}
+
 /** Aspect-lock a width to 16:9. */
 export const frame169 = (w: number): { w: number; h: number } => ({ w: Math.round(w), h: Math.round((w * 9) / 16) });
 
