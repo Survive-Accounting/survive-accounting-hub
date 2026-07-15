@@ -54,12 +54,12 @@ import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, adjacentFrame, blankFrameData, filmstripLayout, framesInLesson, lessonNeighborFrame, nextFrameOrder, SCAFFOLD_BEATS } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, framesInBeat, framesInLesson, GRID, gridLayout, lessonGrid, lessonRollFrame, nextSubIndex, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -69,7 +69,7 @@ import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodes
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { snakeBounds, snakeLayout, snakePerRow } from "@/components/canvas/snake-layout";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
@@ -325,6 +325,26 @@ function LessonNode({ id, data, selected }: NodeProps) {
           ))}
         </div>
       )}
+
+      {/* GRID COLUMN HEADERS (FG2): the 4 beats as labelled columns; the Check
+          column keeps its red treatment. Empty beats show a placeholder cell so
+          a beat never renders as a gap. Hidden in film (data-frame-chrome). */}
+      <div data-frame-chrome className="pointer-events-none absolute inset-0 z-0">
+        {BEAT_COLUMNS.map((b, ci) => {
+          const cbm = BEAT_META[b];
+          const col = framesInBeat(nodes as never, id, b);
+          return (
+            <div key={b} className="absolute" style={{ left: columnX(ci), top: GRID.lessonHeaderH, width: FRAME_W }}>
+              <div className="rounded px-1.5 py-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: cbm.color, background: b === "check" ? "rgba(206,17,38,0.10)" : "transparent", display: "inline-block" }}>{cbm.label}</div>
+              {col.length === 0 && (
+                <div className="mt-2 grid place-items-center rounded-lg text-[12px] italic" style={{ width: FRAME_W, height: FRAME_H, border: `1.5px dashed ${cbm.edge}`, background: cbm.tint, color: NEON.muted }}>
+                  empty {cbm.label} — press ↓ inside a frame to add
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {/* THE CALM BAND LABEL — the only thing visible at rest (title + tint). */}
       <div className="relative z-[1] flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em]" style={{ color: tint.ink }}>
@@ -635,6 +655,8 @@ function PresentCanvas() {
   const [minimap, setMinimap] = useState(true);
   const [clean, setClean] = useState(false);
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
+  const filmRef = useRef(film);
+  filmRef.current = film;
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
   // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
   // film / OFF outside; followReveals default on. The controller reads them live.
@@ -667,6 +689,7 @@ function PresentCanvas() {
   const frameTransitionsRef = useRef(true);
   frameTransitionsRef.current = frameTransitions;
   const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
+  const [framePickerOpen, setFramePickerOpen] = useState(false); // FG5: grid mini-map jump
   const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
   useEffect(() => {
     const onResize = () => setVpTick((t) => t + 1);
@@ -998,11 +1021,11 @@ function PresentCanvas() {
     // the minimap. The course's final chapter (Foundations = "Course Wrap-up")
     // lands at the END of the snake naturally; pathOrder follows the snake so
     // the outline + a future tour ride the same spine.
-    // Each lesson is now a FILMSTRIP (F2): a band sized to hold a row of 4 frames
-    // (Hook · Teach · Model-Practice · Check). The snake spaces the strips out.
-    const strip = filmstripLayout(SCAFFOLD_BEATS.length, FRAME_W, FRAME_H);
-    const LESSON_W = strip.w;
-    const LESSON_H = strip.h;
+    // Each lesson is a GRID (FG): 4 beat COLUMNS (Hook · Teach · Model-Practice ·
+    // Check), each starting with one sub-frame at row 0. The snake spaces them.
+    const gsize = gridLayout({ hook: [], teach: [], model_practice: [], check: [] });
+    const LESSON_W = gsize.w;
+    const LESSON_H = gsize.h;
     const GAP_X = 220;
     const GAP_Y = 260;
     const HEADER_GAP = 60;
@@ -1061,10 +1084,12 @@ function PresentCanvas() {
           id: cardId("frame"),
           type: "frame",
           parentId: lid,
-          position: strip.positions[k],
+          position: { x: columnX(k), y: rowY(0) },
           width: FRAME_W,
           height: FRAME_H,
-          data: { ...blankFrameData(b.beat, k + 1), title: b.title } as unknown as CardNode["data"],
+          // NO title (the beat column header names the beat — avoids the
+          // duplicate beat/title overlap the flat model had).
+          data: { ...blankFrameData(b.beat, 0) } as unknown as CardNode["data"],
         }));
         return [lesson, ...frames];
       }),
@@ -1099,16 +1124,13 @@ function PresentCanvas() {
       const cells = snakeLayout(ordered.length, { originX: minX, originY: minY, colW, rowH, gapX: 220, gapY: 260, perRow });
       ordered.forEach((n, i) => { before.set(n.id, { ...n.position }); after.set(n.id, { x: cells[i].x, y: cells[i].y }); });
     }
-    // 2) re-lay each lesson's FRAMES as a left-to-right filmstrip (F2 item 9).
-    //    Frame positions are lesson-relative, so they don't depend on the
-    //    lesson's new spot — the strip rides along.
+    // 2) re-lay each lesson's FRAMES as the beat GRID (FG): columns = beats,
+    //    rows = sub-frames. Frame positions are lesson-relative, so they ride
+    //    along with the lesson's new spot.
+    const byId = new Map(all.map((n) => [n.id, n]));
     for (const l of lessons) {
-      const frames = framesInLesson(all as never, l.id);
-      if (frames.length === 0) continue;
-      const fw = Math.max(...frames.map((f) => (f as CardNode).measured?.width ?? ((f.data as Record<string, unknown>).w as number) ?? FRAME_W));
-      const fh = Math.max(...frames.map((f) => (f as CardNode).measured?.height ?? ((f.data as Record<string, unknown>).h as number) ?? FRAME_H));
-      const strip = filmstripLayout(frames.length, fw, fh);
-      frames.forEach((f, k) => { before.set(f.id, { ...(f as CardNode).position }); after.set(f.id, strip.positions[k]); });
+      const gl = gridLayout(lessonGrid(all as never, l.id), FRAME_W, FRAME_H);
+      gl.positions.forEach((pos, fid) => { const f = byId.get(fid); if (f) { before.set(fid, { ...f.position }); after.set(fid, pos); } });
     }
     if (after.size === 0) return;
     const apply = (m: Map<string, { x: number; y: number }>) =>
@@ -1240,18 +1262,52 @@ function PresentCanvas() {
     }
   }, [rf]);
 
-  const stepFrame = useCallback((dir: -1 | 1) => {
+  /** Lesson-relative grid position for a (beat, subIndex) cell. */
+  const gridPos = useCallback((beat: Beat, subIndex: number) => ({ x: columnX(BEAT_COLUMNS.indexOf(beat)), y: rowY(subIndex) }), []);
+
+  /** Create a frame at a grid cell (returns its id). node.width/height MUST be
+   *  set (the FrameNode is w/h-full) or RF sizes it to min-content. */
+  const makeFrameAt = useCallback((lessonId: string, beat: Beat, subIndex: number, title = "") => {
+    const fid = cardId("frame");
+    const node = { id: fid, type: "frame", parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...blankFrameData(beat, subIndex), title } } as unknown as CardNode;
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, [node], "add frame"));
+    // grow the lesson band so the new sub-frame row is contained (view-only).
+    const needH = rowY(subIndex) + FRAME_H + GRID.padBottom;
+    const lesson = rf.getNode(lessonId);
+    const curH = (lesson?.height ?? (lesson?.data as { h?: number } | undefined)?.h ?? 0) as number;
+    if (lesson && needH > curH) rf.setNodes((nds) => nds.map((n) => (n.id === lessonId ? { ...n, height: needH, data: { ...n.data, h: needH } } : n)));
+    return fid;
+  }, [rf, gridPos]);
+
+  /** ↑ / ↓ — walk sub-frames within the current beat column. Authoring: ↓ past the
+   *  last sub-frame CREATES a new one (same beat) and enters it. Film: no-op. */
+  const stepSub = useCallback((dir: -1 | 1) => {
     const cur = currentFrameRef.current;
     if (!cur) return;
-    const adj = adjacentFrame(rf.getNodes() as never, cur, dir);
-    if (adj) enterFrame(adj.id);
+    const adj = subNeighborFrame(rf.getNodes() as never, cur, dir);
+    if (adj) { enterFrame(adj.id); return; }
+    if (dir > 0 && !filmRef.current) {
+      const f = rf.getNode(cur);
+      if (!f?.parentId) return;
+      const beat = beatColOf(f as never);
+      const fid = makeFrameAt(f.parentId, beat, nextSubIndex(rf.getNodes() as never, f.parentId, beat));
+      window.setTimeout(() => enterFrame(fid), 40);
+    }
+  }, [rf, enterFrame, makeFrameAt]);
+
+  /** → / ← — walk beat COLUMNS (same subIndex if it exists, else the beat's first
+   *  frame); at a lesson's end, roll into the adjacent lesson (→ next Hook 1, ←
+   *  prev lesson's last beat). → alone walks the whole region on camera. */
+  const stepBeat = useCallback((dir: -1 | 1) => {
+    const cur = currentFrameRef.current;
+    if (!cur) return;
+    const t = beatNeighborFrame(rf.getNodes() as never, cur, dir) ?? lessonRollFrame(rf.getNodes() as never, cur, dir);
+    if (t) enterFrame(t.id);
   }, [rf, enterFrame]);
 
-  const canStepFrame = useCallback((frameId: string, dir: -1 | 1) => !!adjacentFrame(rf.getNodes() as never, frameId, dir), [rf]);
+  const canStepBeat = useCallback((frameId: string, dir: -1 | 1) => !!(beatNeighborFrame(rf.getNodes() as never, frameId, dir) || lessonRollFrame(rf.getNodes() as never, frameId, dir)), [rf]);
 
-  /** FF-4: arrows mean frame-navigation only when we're inside a frame AND
-   *  nothing is selected (no node/edge selection, no JE line sub-selection). A
-   *  selection keeps the arrows on their card meanings. */
+  /** Arrows mean frame-navigation only inside a frame AND nothing selected. */
   const frameFreeNav = useCallback(() => {
     if (!currentFrameRef.current) return false;
     const nodes = rf.getNodes();
@@ -1259,80 +1315,39 @@ function PresentCanvas() {
     return !sel;
   }, [rf]);
 
-  /** FF-4: jump to the neighbouring LESSON's first/last frame (→/← lesson walk). */
-  const stepLesson = useCallback((dir: -1 | 1) => {
-    const cur = currentFrameRef.current;
-    if (!cur) return;
-    const t = lessonNeighborFrame(rf.getNodes() as never, cur, dir);
-    if (t) enterFrame(t.id);
-  }, [rf, enterFrame]);
+  /** Lesson "+frame" — appends a Hook sub-frame (grid model). */
+  const addFrameToLesson = useCallback((lessonId: string) => makeFrameAt(lessonId, "hook", nextSubIndex(rf.getNodes() as never, lessonId, "hook")), [rf, makeFrameAt]);
 
-  /** Add a blank frame to a lesson (appended in order), fit into it. */
-  const addFrameToLesson = useCallback((lessonId: string) => {
-    const nodes = rf.getNodes();
-    const order = nextFrameOrder(nodes as never, lessonId);
-    const existing = framesInLesson(nodes as never, lessonId);
-    // append to the right of the last frame (inside the lesson's coord space)
-    const last = existing[existing.length - 1];
-    const pos = last ? { x: last.position.x + (((last.data as Record<string, unknown>).w as number) ?? FRAME_W) + 60, y: last.position.y } : { x: 40, y: 60 };
-    const fid = cardId("frame");
-    // node width/height MUST be set (not just data.w/h) — the FrameNode is h-full
-    // w-full, so without them RF sizes it to min-content (320×180) and the camera
-    // fits a tiny rect. data.w/h stay synced for the parenting hit test + resize.
-    const node = { id: fid, type: "frame", parentId: lessonId, position: pos, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("none", order) } } as unknown as CardNode;
-    bus.dispatch(addNodesCmd(rf as unknown as RfLike, [node], "add frame"));
-    return fid;
-  }, [rf]);
-
-  /** FF-1: add a frame AFTER `frameId` in its lesson (mid-authoring split),
-   *  inheriting its beat, renumbering the lesson's frames — one undoable step —
-   *  then enter the new frame. */
+  /** HUD "+ frame after" — a new sub-frame in the SAME beat, entered. */
   const addFrameAfter = useCallback((frameId: string) => {
     const f = rf.getNode(frameId);
     if (!f?.parentId) return;
-    const lessonId = f.parentId;
-    const list = framesInLesson(rf.getNodes() as never, lessonId);
-    const i = list.findIndex((x) => x.id === frameId);
-    if (i < 0) return;
-    const beat = ((f.data as unknown as FrameBox).beat ?? "none") as FrameBox["beat"];
-    const fid = cardId("frame");
-    const newFrame = {
-      id: fid, type: "frame", parentId: lessonId,
-      position: { x: f.position.x + FRAME_W + 80, y: f.position.y },
-      width: FRAME_W, height: FRAME_H,
-      data: { ...blankFrameData(beat, i + 2), title: "" },
-    } as unknown as CardNode;
-    const newList = [...list.slice(0, i + 1), { id: fid }, ...list.slice(i + 1)];
-    const cmds = [addNodesCmd(rf as unknown as RfLike, [newFrame], "add frame after")];
-    newList.forEach((fr, k) => {
-      if (fr.id === fid) return;
-      const c = patchDataCmd(rf as unknown as RfLike, fr.id, { order: k + 1 }, "renumber frames");
-      if (c) cmds.push(c);
-    });
-    const cmd = compositeCmd(cmds, "add frame after");
-    if (cmd) bus.dispatch(cmd);
+    const beat = beatColOf(f as never);
+    const fid = makeFrameAt(f.parentId, beat, nextSubIndex(rf.getNodes() as never, f.parentId, beat));
     window.setTimeout(() => enterFrame(fid), 40);
-  }, [rf, enterFrame]);
+  }, [rf, makeFrameAt, enterFrame]);
 
-  /** Reorder a frame within its lesson: swap with the -1/+1 neighbour, then
-   *  renumber all the lesson's frames 1..n — one undoable command. */
+  /** ‹ › in the frame header — reorder WITHIN the beat column (swap subIndex +
+   *  grid position with the up/down neighbour), one undoable command. */
   const reorderFrame = useCallback((frameId: string, dir: -1 | 1) => {
     const f = rf.getNode(frameId);
     if (!f?.parentId) return;
-    const list = framesInLesson(rf.getNodes() as never, f.parentId);
-    const i = list.findIndex((x) => x.id === frameId);
+    const beat = beatColOf(f as never);
+    const col = framesInBeat(rf.getNodes() as never, f.parentId, beat);
+    const i = col.findIndex((x) => x.id === frameId);
     const j = i + dir;
-    if (i < 0 || j < 0 || j >= list.length) return;
-    const swapped = [...list];
-    [swapped[i], swapped[j]] = [swapped[j], swapped[i]];
-    const cmd = compositeCmd(
-      swapped.map((fr, k) => patchDataCmd(rf as unknown as RfLike, fr.id, { order: k + 1 }, "reorder frame")),
-      "reorder frame",
-    );
+    if (i < 0 || j < 0 || j >= col.length) return;
+    const cmds = [
+      patchDataCmd(rf as unknown as RfLike, col[i].id, { subIndex: j }, "reorder"),
+      patchDataCmd(rf as unknown as RfLike, col[j].id, { subIndex: i }, "reorder"),
+    ];
+    // grid positions travel with subIndex
+    rf.setNodes((nds) => nds.map((n) => (n.id === col[i].id ? { ...n, position: gridPos(beat, j) } : n.id === col[j].id ? { ...n, position: gridPos(beat, i) } : n)));
+    const cmd = compositeCmd(cmds, "reorder frame");
     if (cmd) bus.dispatch(cmd);
-  }, [rf]);
+  }, [rf, gridPos]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepFrame, canStep: canStepFrame, addFrame: addFrameToLesson, reorder: reorderFrame }), [currentFrameId, enterFrame, exitFrame, stepFrame, canStepFrame, addFrameToLesson, reorderFrame]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, reorder: reorderFrame }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, reorderFrame]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -1853,7 +1868,7 @@ function PresentCanvas() {
         //     additive, so v2 scenes open unchanged.
         // v4: FRAME nodes (16:9 shot tier) + named decks (scene.decks) + memo
         //     nodes — all additive; v≤3 scenes load unchanged (no frames/decks).
-        schema_version: 4,
+        schema_version: 5,
         nodes: sanitizeSceneNodes(rf.getNodes()),
         // edges: strip transient interaction data (_drag/_pulse) — same
         // contract as node _-keys; selected must not round-trip either
@@ -1913,7 +1928,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)));
+      rf.setNodes(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -1942,7 +1957,7 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)));
+            rf.setNodes(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -2234,7 +2249,7 @@ function PresentCanvas() {
         data: {
           id: t.sceneId,
           name: t.name,
-          nodes_json: JSON.stringify({ schema_version: 3, nodes: sanitizeSceneNodes(s.nodes), edges: s.edges, sceneSettings: s.settings }),
+          nodes_json: JSON.stringify({ schema_version: 5, nodes: sanitizeSceneNodes(s.nodes), edges: s.edges, sceneSettings: s.settings }),
           viewport_json: JSON.stringify(s.viewport ?? {}),
           bg: encodeBg(s.bg),
         },
@@ -2295,7 +2310,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind));
+      const nodesAfter = migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
@@ -2516,7 +2531,7 @@ function PresentCanvas() {
         description: "Spotlight+film: flip a spotlit trap · else hop JE line debit · else prev lesson",
         handler: (e) => {
           if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepLesson(-1); } else hopSelectedLine("dr");
+          if (frameFreeNav()) { e.preventDefault(); stepBeat(-1); } else hopSelectedLine("dr");
         },
       },
       {
@@ -2525,7 +2540,7 @@ function PresentCanvas() {
         description: "Spotlight+film: flip a spotlit trap · else hop JE line credit · else next lesson",
         handler: (e) => {
           if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepLesson(1); } else hopSelectedLine("cr");
+          if (frameFreeNav()) { e.preventDefault(); stepBeat(1); } else hopSelectedLine("cr");
         },
       },
       {
@@ -2534,7 +2549,7 @@ function PresentCanvas() {
         description: "Spotlight: move focus up (↑ off the top exits) · else prev frame",
         handler: (e) => {
           if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepFrame(-1); }
+          if (frameFreeNav()) { e.preventDefault(); stepSub(-1); }
         },
       },
       {
@@ -2544,7 +2559,7 @@ function PresentCanvas() {
         handler: (e) => {
           if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1); return; }
           if (spotRef.current?.tryReenter(1)) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepFrame(1); }
+          if (frameFreeNav()) { e.preventDefault(); stepSub(1); }
         },
       },
       { combo: "shift+arrowdown", group: "Spotlight", description: "Extend the spotlight range down", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { range: true }); } } },
@@ -2552,17 +2567,17 @@ function PresentCanvas() {
       { combo: "ctrl+arrowdown", group: "Spotlight", description: "Spotlight jump to the last target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { jump: true }); } } },
       { combo: "ctrl+arrowup", group: "Spotlight", description: "Spotlight jump to the first target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1, { jump: true }); } } },
       { combo: "f2", group: "Spotlight", description: "Edit the spotlit target (authoring only)", handler: (e) => { if (spotRef.current?.active && !film) { e.preventDefault(); spotRef.current.editSpot(); } } },
-      { combo: "]", group: "Frames", description: "Next frame in the lesson (also PageDown)", handler: () => stepFrame(1) },
-      { combo: "[", group: "Frames", description: "Previous frame in the lesson (also PageUp)", handler: () => stepFrame(-1) },
-      { combo: "pagedown", group: "Frames", description: "Next frame", hidden: true, handler: (e) => { e.preventDefault(); stepFrame(1); } },
-      { combo: "pageup", group: "Frames", description: "Previous frame", hidden: true, handler: (e) => { e.preventDefault(); stepFrame(-1); } },
+      { combo: "]", group: "Frames", description: "Next beat → (also PageDown)", handler: () => stepBeat(1) },
+      { combo: "[", group: "Frames", description: "Previous beat ← (also PageUp)", handler: () => stepBeat(-1) },
+      { combo: "pagedown", group: "Frames", description: "Next beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(1); } },
+      { combo: "pageup", group: "Frames", description: "Previous beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(-1); } },
       { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
       { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, stepLesson, frameFreeNav, exitFrame, enterFrame],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame],
   );
   useKeymap(bindings);
 
@@ -2728,24 +2743,46 @@ function PresentCanvas() {
       {currentFrameId && chrome && showFrameHeader && (() => {
         const fnode = rf.getNode(currentFrameId);
         const fd = fnode?.data as FrameBox | undefined;
-        const lessonTitle = (fnode?.parentId ? (rf.getNode(fnode.parentId)?.data as { label?: string } | undefined)?.label : "") || "Lesson";
-        const beat = fd?.beat ?? "none";
+        const lessonId = fnode?.parentId;
+        const lessonTitle = (lessonId ? (rf.getNode(lessonId)?.data as { label?: string } | undefined)?.label : "") || "Lesson";
+        const beat = (fd?.beat ?? "hook") as Beat;
         const bm = BEAT_META[beat];
+        const sub = (fd?.subIndex ?? 0) + 1;
         return (
-        <div className="absolute left-1/2 top-3 z-[58] flex -translate-x-1/2 items-center gap-1 rounded-full px-1.5 py-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
-          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous frame ( [ / PageUp / ↑ )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepFrame(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
+        <div data-frame-chrome className="absolute left-1/2 top-3 z-[58] flex -translate-x-1/2 items-center gap-1 rounded-full px-1.5 py-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
+          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous beat ( ← / [ )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepBeat(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
           <span className="flex items-center gap-1.5 px-1 text-[11px] font-semibold" style={{ color: NEON.muted }}>
-            <span className="max-w-[180px] truncate" style={{ color: NEON.muted }}>{lessonTitle}</span>
+            <span className="max-w-[160px] truncate" style={{ color: NEON.muted }}>{lessonTitle}</span>
             <span style={{ color: NEON.borderSoft }}>·</span>
-            <span className="min-w-[40px] text-[12px] font-bold" style={{ color: "#F4EFE6" }}>
-              <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="Frame" />
+            <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: bm.color, border: `1px solid ${bm.edge}` }}>{bm.label} {sub}</span>
+            <span className="min-w-[24px] text-[12px] font-bold" style={{ color: "#F4EFE6" }}>
+              <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="untitled" />
             </span>
-            {beat !== "none" && <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: bm.color, border: `1px solid ${bm.edge}` }}>{bm.label}</span>}
           </span>
-          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next frame ( ] / PageDown / ↓ )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepFrame(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
-          <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame after this one (inherits the beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
-          <button className="grid h-6 w-6 place-items-center rounded-full" title={frameTransitions ? "Smooth camera transitions (click for instant cuts)" : "Instant cuts (click for smooth transitions)"} onClick={() => setFrameTransitions((v) => !v)} style={{ color: frameTransitions ? NEON.cyan : NEON.muted }}><Film className="h-3.5 w-3.5" /></button>
+          <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next beat ( → / ] )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepBeat(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
+          <button className="grid h-6 w-6 place-items-center rounded-full" title="Jump to a cell (this lesson's grid)" onClick={() => setFramePickerOpen((v) => !v)} style={{ color: framePickerOpen ? NEON.cyan : NEON.text }}><Grid3x3 className="h-3.5 w-3.5" /></button>
+          <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a sub-frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
           <button className="ml-0.5 grid h-6 w-6 place-items-center rounded-full" title="Exit frame (Esc)" onClick={exitFrame} style={{ color: NEON.yellow, borderLeft: `1px solid ${NEON.borderSoft}` }}><Minimize2 className="h-3.5 w-3.5" /></button>
+          {/* FG5: frame-picker mini-map — the current lesson's grid of cells */}
+          {framePickerOpen && lessonId && (
+            <div className="absolute left-1/2 top-9 -translate-x-1/2 rounded-lg p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 14px 34px -14px rgba(0,0,0,0.7)" }}>
+              <div className="flex gap-1">
+                {BEAT_COLUMNS.map((b) => {
+                  const col = framesInBeat(rf.getNodes() as never, lessonId, b);
+                  const cbm = BEAT_META[b];
+                  return (
+                    <div key={b} className="flex flex-col items-center gap-1">
+                      <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
+                      {col.length === 0 && <span className="grid h-6 w-9 place-items-center rounded text-[8px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
+                      {col.map((f, ri) => (
+                        <button key={f.id} className="grid h-6 w-9 place-items-center rounded text-[9px] font-bold" style={{ border: `1px solid ${f.id === currentFrameId ? cbm.color : NEON.borderSoft}`, background: f.id === currentFrameId ? `${cbm.color}22` : "transparent", color: NEON.text }} title={`${cbm.label} ${ri + 1}`} onClick={() => { enterFrame(f.id); setFramePickerOpen(false); }}>{ri + 1}</button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
         );
       })()}

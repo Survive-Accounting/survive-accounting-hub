@@ -149,4 +149,7 @@ export const FILM_MODE_CSS = `
   .film-mode .card-actions { display: none !important; }
   .film-mode .react-flow__resize-control { display: none !important; }
   .film-mode .zone-actions { display: none !important; }
+  /* FG4: a frame's own chrome (header, beat chip, title, nav chevrons) never
+     renders over a take — the shot is the cards only. */
+  .film-mode [data-frame-chrome] { display: none !important; }
 `;

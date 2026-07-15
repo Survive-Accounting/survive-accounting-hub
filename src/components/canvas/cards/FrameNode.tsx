@@ -13,12 +13,10 @@ import { useCardActions } from "../BaseCard";
 import { bus } from "../commands";
 import { ConnectionDots } from "../ConnectionDots";
 import { useFrameNav } from "../FrameNavContext";
-import { frame169 } from "../frames";
+import { BEAT_COLUMNS, columnX, frame169, framesInBeat, rowY } from "../frames";
 import { EditableText } from "../ui";
 import { NEON } from "../theme";
-import { FRAME_BG_DEFAULT_OPACITY, FRAME_BG_LOOPS, type FrameBeat, type FrameBox } from "../types";
-
-const BEAT_ORDER: FrameBeat[] = ["none", "hook", "teach", "model_practice", "check"];
+import { FRAME_BG_DEFAULT_OPACITY, FRAME_BG_LOOPS, type Beat, type FrameBeat, type FrameBox } from "../types";
 export const BEAT_META: Record<FrameBeat, { label: string; color: string; tint: string; edge: string }> = {
   none: { label: "Frame", color: NEON.muted, tint: "rgba(147,160,180,0.035)", edge: "rgba(147,160,180,0.3)" },
   hook: { label: "Hook", color: "#8CC0EE", tint: "rgba(79,163,227,0.05)", edge: "rgba(79,163,227,0.35)" },
@@ -51,7 +49,17 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     else v.pause();
   }, [d.bgPlaying, d.bgSrc]);
 
-  const cycleBeat = () => update({ beat: BEAT_ORDER[(BEAT_ORDER.indexOf(beat) + 1) % BEAT_ORDER.length] });
+  /** Cycle the frame to the NEXT beat COLUMN — lands at the end of that column
+   *  (new subIndex) and repositions to the grid cell. */
+  const cycleBeat = () => {
+    const cur = (beat === "none" ? "hook" : beat) as Beat;
+    const next = BEAT_COLUMNS[(BEAT_COLUMNS.indexOf(cur) + 1) % BEAT_COLUMNS.length];
+    const me = rf.getNode(id);
+    if (!me?.parentId) { update({ beat: next, subIndex: 0 }); return; }
+    const sub = framesInBeat(rf.getNodes() as never, me.parentId, next).length;
+    update({ beat: next, subIndex: sub });
+    rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { x: columnX(BEAT_COLUMNS.indexOf(next)), y: rowY(sub) } } : n)));
+  };
 
   /** Delete the frame but KEEP its cards (spec): reparent children to the frame's
    *  lesson (offset by the frame's position so they stay put), then drop the
@@ -137,15 +145,17 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         }}
       />
 
-      {/* HEADER — click to ENTER; carries the title + beat + nav chrome */}
+      {/* HEADER — click to ENTER; carries the beat·row chip, title + nav chrome.
+          data-frame-chrome so FILM mode hides it completely (FG4). */}
       <div
+        data-frame-chrome
         className="flex items-center gap-1.5 px-2 py-1"
         style={{ borderBottom: `1px solid ${meta.edge}` }}
         onClick={(e) => { e.stopPropagation(); nav.enter(id); }}
         title="Enter this frame (fit the camera to it)"
       >
         <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: meta.color, border: `1px solid ${meta.edge}` }}>
-          {meta.label}
+          {meta.label} {(d.subIndex ?? 0) + 1}
         </span>
         <span className="min-w-0 flex-1 text-[12px] font-bold" style={{ color: "#F4EFE6" }} onClick={(e) => e.stopPropagation()}>
           <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="Frame title" />
