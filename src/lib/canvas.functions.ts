@@ -402,13 +402,26 @@ export const saveScenarioDoc = createServerFn({ method: "POST" })
     return { id: newId, slug: (ins as { slug: string }).slug };
   });
 
+// FAIL-LOUD: the error message the client detects (prefix) to toast the missing
+// migration. Server fns can't toast; they throw this and the caller surfaces it.
+const MISSING_0091 = "MISSING_MIGRATION:0091_scenario_placements.sql — run it in the Supabase SQL editor; scenario placements are disabled until then.";
+function throwIfMissing0091(error: { code?: string; message: string } | null): void {
+  if (!error) return;
+  if (isMissingSchema(error, /scenario_placements/i)) {
+    // eslint-disable-next-line no-console
+    console.error(`[canvas] ${MISSING_0091}`);
+    throw new Error(MISSING_0091);
+  }
+  throw new Error(error.message);
+}
+
 /** Upsert ONE placement (scenario in a course-chapter). Idempotent on
- *  (scenario_id, chapter_id). No-ops (never throws) when 0091 isn't applied so
- *  save-to-library keeps working on the legacy chapter_id path. */
+ *  (scenario_id, chapter_id). FAILS LOUD when 0091 isn't applied (was a silent
+ *  no-op that hid the whole placements feature). */
 async function upsertPlacement(admin: any, scenarioId: string, courseId: string, chapterId: string, sortOrder: number): Promise<void> {
   const { error } = await (admin.from("scenario_placements" as never) as any)
     .upsert({ scenario_id: scenarioId, course_id: courseId, chapter_id: chapterId, sort_order: sortOrder }, { onConflict: "scenario_id,chapter_id" });
-  if (error && !isMissingSchema(error, /scenario_placements/i)) throw new Error(error.message);
+  throwIfMissing0091(error);
 }
 
 // ---- SCENARIO PLACEMENTS (0091) — a scenario appears in many course-chapters --
@@ -446,7 +459,7 @@ export const unplaceScenario = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await (supabaseAdmin.from("scenario_placements" as never) as any)
       .delete().eq("scenario_id", data.scenario_id).eq("chapter_id", data.chapter_id);
-    if (error && !isMissingSchema(error, /scenario_placements/i)) throw new Error(error.message);
+    throwIfMissing0091(error);
     return { ok: true };
   });
 
@@ -461,7 +474,7 @@ export const listScenarioPlacements = createServerFn({ method: "POST" })
     const { data: rows, error } = await (supabaseAdmin.from("scenario_placements" as never) as any)
       .select("chapter_id,course_id,sort_order,chapters(chapter_number,chapter_name,courses(course_name))")
       .eq("scenario_id", data.scenario_id);
-    if (error) { if (isMissingSchema(error, /scenario_placements/i)) return []; throw new Error(error.message); }
+    throwIfMissing0091(error);
     return ((rows ?? []) as any[]).map((r) => ({
       chapter_id: r.chapter_id,
       course_id: r.course_id ?? null,

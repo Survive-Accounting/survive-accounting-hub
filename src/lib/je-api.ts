@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchChartOfAccounts } from "@/lib/ceq-api";
 import type { AccountMeta, AccountType, ScenarioDoc } from "@/lib/je-engine";
 import { isMissingSchema } from "@/lib/pg-errors";
+import { reportMissingMigration } from "@/lib/missing-migration";
 
 // ---- Scenarios ----
 
@@ -136,7 +137,7 @@ export async function fetchPrincipleTags(): Promise<PrincipleTag[]> {
   const { data, error } = await (supabase.from("principles" as never) as any)
     .select("id,name,kind,slug").order("sort", { ascending: true });
   if (error) {
-    if (isMissingSchema(error, /principles/i)) return [];
+    if (isMissingSchema(error, /principles/i)) { reportMissingMigration("0093_principles_and_tags.sql"); return []; }
     throw error;
   }
   return ((data ?? []) as any[]).map((r) => ({ id: r.id, name: r.name, kind: r.kind, slug: r.slug }));
@@ -157,7 +158,7 @@ export async function fetchScenarioPlacements(): Promise<Placement[] | null> {
   const { data, error } = await (supabase.from("scenario_placements" as never) as any)
     .select("scenario_id,course_id,chapter_id,sort_order");
   if (error) {
-    if (isMissingSchema(error, /scenario_placements/i)) return null;
+    if (isMissingSchema(error, /scenario_placements/i)) { reportMissingMigration("0091_scenario_placements.sql"); return null; }
     throw error;
   }
   return ((data ?? []) as any[]).map((r) => ({
