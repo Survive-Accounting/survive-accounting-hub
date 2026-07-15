@@ -142,6 +142,17 @@ export function frameWalkNext(nodes: RectNode[], frameId: string): RectNode | nu
   return i < 0 || i + 1 >= seq.length ? null : seq[i + 1];
 }
 
+/** SPACE-WALK REVERSE (item 3): the PREVIOUS frame in column-major order within
+ *  the same lesson, or null at the lesson's first frame. Shift+Space never rolls
+ *  back to the previous lesson — mirror of frameWalkNext. */
+export function frameWalkPrev(nodes: RectNode[], frameId: string): RectNode | null {
+  const f = nodes.find((n) => n.id === frameId);
+  if (!f?.parentId) return null;
+  const seq = framesInLesson(nodes, f.parentId);
+  const i = seq.findIndex((x) => x.id === frameId);
+  return i <= 0 ? null : seq[i - 1];
+}
+
 /** Human label for a frame's grid cell, e.g. "Teach 2" (beat + 1-based row) —
  *  the next-up HUD and rehearsal cues read from this. */
 export function frameCellLabel(node: RectNode | undefined): string {

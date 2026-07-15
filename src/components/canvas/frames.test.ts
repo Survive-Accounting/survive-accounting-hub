@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, columnX, frame169, frameCellLabel, framesInBeat, framesInLesson,
-  frameWalkNext, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout,
+  frameWalkNext, frameWalkPrev, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout,
   RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type RectNode,
 } from "./frames";
 import { FRAME_H, FRAME_W } from "./types";
@@ -80,6 +80,12 @@ describe("frameWalkNext (space-walk — column-major, stops at lesson end)", () 
   });
   test("NEVER rolls to the next lesson — null at the lesson's last frame", () =>
     expect(frameWalkNext(nodes, "c1")).toBeNull());
+  test("frameWalkPrev is the exact reverse — null at the lesson's first frame", () => {
+    expect(frameWalkPrev(nodes, "c1")?.id).toBe("t1");
+    expect(frameWalkPrev(nodes, "t1")?.id).toBe("h2");
+    expect(frameWalkPrev(nodes, "h2")?.id).toBe("h1");
+    expect(frameWalkPrev(nodes, "h1")).toBeNull(); // never rolls to the previous lesson
+  });
   test("frameCellLabel reads beat + 1-based row", () => {
     expect(frameCellLabel(nodes.find((n) => n.id === "h2"))).toBe("Hook 2");
     expect(frameCellLabel(nodes.find((n) => n.id === "t1"))).toBe("Teach 1");

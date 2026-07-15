@@ -2,7 +2,7 @@
 // click ripple (expanding ring on every pointer-down). Sized and contrasted to survive
 // 1080p YouTube compression on the dark background. Mounted only while film mode is on.
 import { useEffect, useRef, useState } from "react";
-import { ChevronsRight } from "lucide-react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { NEON } from "./theme";
 
 /** ARM CUE (space-walk) — Lee's teleprompter tell that the current frame is
@@ -11,24 +11,33 @@ import { NEON } from "./theme";
  *  future student view, which won't mount this, stays clean. Two states:
  *   • "ready" — a gently pulsing → on the leading (right) edge + soft edge glow.
  *   • "end"   — a red "end of lesson" bookend; space never advances past it.
- *  The optional rehearsal HUD adds a "next: Teach 2" pill (off by default). */
-export function FrameArmCue({ state, nextLabel, showHud }: { state: "ready" | "end"; nextLabel: string; showHud: boolean }) {
-  const end = state === "end";
-  const glow = end ? NEON.red : NEON.yellow;
+ *  The optional rehearsal HUD adds a "next: Teach 2" pill (off by default).
+ *  Shift+Space (item 3) mirrors this to the LEFT edge: "ready-back" pulses a ←
+ *  toward the previous frame; "start" is a bookend — Shift+Space never steps
+ *  before the lesson's first frame. */
+export type ArmState = "ready" | "end" | "ready-back" | "start";
+export function FrameArmCue({ state, nextLabel, showHud }: { state: ArmState; nextLabel: string; showHud: boolean }) {
+  const back = state === "ready-back" || state === "start";
+  const bookend = state === "end" || state === "start";
+  const glow = bookend ? NEON.red : NEON.yellow;
+  const edge = back ? "left-0" : "right-0";
+  const gradTo = back ? "to right" : "to left";
   return (
     <div className="pointer-events-none fixed inset-0 z-[68]">
-      {/* leading-edge glow bar (right = toward the next frame) */}
+      {/* leading-edge glow bar — right toward the next frame, left toward the prev */}
       <div
-        className="absolute right-0 top-0 h-full"
-        style={{ width: 90, background: `linear-gradient(to left, ${glow}, transparent)`, opacity: 0.16, animation: "sa-arm-pulse 1.5s ease-in-out infinite" }}
+        className={`absolute top-0 h-full ${edge}`}
+        style={{ width: 90, background: `linear-gradient(${gradTo}, ${glow}, transparent)`, opacity: 0.16, animation: "sa-arm-pulse 1.5s ease-in-out infinite" }}
       />
-      {/* the tell: a pulsing chevron (ready) or a stop bookend (end), mid-right */}
-      <div className="absolute right-6 top-1/2 -translate-y-1/2" style={{ animation: "sa-arm-pulse 1.5s ease-in-out infinite" }}>
-        {end ? (
+      {/* the tell: a pulsing chevron (ready) or a stop bookend (end/start) */}
+      <div className={`absolute top-1/2 -translate-y-1/2 ${back ? "left-6" : "right-6"}`} style={{ animation: "sa-arm-pulse 1.5s ease-in-out infinite" }}>
+        {bookend ? (
           <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: "rgba(11,15,30,0.55)", border: `1.5px solid ${glow}` }}>
             <span className="h-4 w-1 rounded" style={{ background: glow }} />
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: glow }}>End</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: glow }}>{state === "start" ? "Start" : "End"}</span>
           </div>
+        ) : back ? (
+          <ChevronsLeft className="h-9 w-9" style={{ color: glow, filter: `drop-shadow(0 0 6px ${glow})` }} />
         ) : (
           <ChevronsRight className="h-9 w-9" style={{ color: glow, filter: `drop-shadow(0 0 6px ${glow})` }} />
         )}
@@ -36,7 +45,7 @@ export function FrameArmCue({ state, nextLabel, showHud }: { state: "ready" | "e
       {/* rehearsal HUD (off by default) — the next-up read, top-center */}
       {showHud && (
         <div className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "rgba(11,15,30,0.7)", border: `1px solid ${glow}`, color: glow }}>
-          next: {nextLabel}
+          {back ? "back" : "next"}: {nextLabel}
         </div>
       )}
       <style>{`@keyframes sa-arm-pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }`}</style>

@@ -54,7 +54,7 @@ import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -64,7 +64,7 @@ import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
-import { lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
+import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
@@ -80,7 +80,7 @@ import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
-import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FrameArmCue } from "@/components/canvas/FilmOverlays";
+import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
@@ -479,6 +479,45 @@ function stepReveal(data: CardData): Partial<CardData> | null {
   return null;
 }
 
+/** SPACE-WALK REVERSE (item 3): re-hide the LAST reveal — the structural inverse
+ *  of stepReveal. Hides the last currently-VISIBLE hideable item (list rows undo
+ *  bottom→top, then the description last, mirroring the forward order). Returns
+ *  null when nothing is visible-and-hideable, so Shift+Space falls through to
+ *  untuck / step-back. (An un-prepped card that has never been hidden will hide
+ *  its last item here — the honest inverse; forward Space restores it.) */
+function stepRevealBack(data: CardData): Partial<CardData> | null {
+  if (data.kind === "je") {
+    const d = data as JeCard;
+    for (let i = d.lines.length - 1; i >= 0; i--) if (!d.lines[i].hidden) return { lines: d.lines.map((l, j) => (j === i ? { ...l, hidden: true } : l)) } as Partial<CardData>;
+    return null;
+  }
+  if (data.kind === "computation") {
+    const d = data as ComputationCard;
+    for (let i = d.steps.length - 1; i >= 0; i--) if (!d.steps[i].hidden) return { steps: d.steps.map((s, j) => (j === i ? { ...s, hidden: true } : s)) } as Partial<CardData>;
+    return null;
+  }
+  if (data.kind === "schedule") {
+    const d = data as ScheduleCard;
+    for (let r = d.rows.length - 1; r >= 0; r--)
+      for (let c = d.rows[r].length - 1; c >= 0; c--)
+        if (d.rows[r][c].v !== "" && !d.rows[r][c].hidden)
+          return { rows: d.rows.map((row, ri) => row.map((cl, ci) => (ri === r && ci === c ? { ...cl, hidden: true } : cl))) } as Partial<CardData>;
+    return null;
+  }
+  if (data.kind === "list") {
+    const d = data as ListCard;
+    for (let i = d.rows.length - 1; i >= 0; i--) if (!d.rows[i].hidden) return { rows: d.rows.map((r, j) => (j === i ? { ...r, hidden: true } : r)) } as Partial<CardData>;
+    if (d.description && !d.descHidden) return { descHidden: true } as Partial<CardData>; // description hides LAST (it revealed first)
+    return null;
+  }
+  if (data.kind === "formula") {
+    const d = data as FormulaCard;
+    for (let i = d.segments.length - 1; i >= 0; i--) if (!d.segments[i].hidden) return { segments: d.segments.map((s, j) => (j === i ? { ...s, hidden: true } : s)) } as Partial<CardData>;
+    return null;
+  }
+  return null;
+}
+
 /** Prep for filming: hide every hideable element on a card (stepper then walks them). */
 function hideAll(data: CardData): Partial<CardData> | null {
   if (data.kind === "je") return { lines: (data as JeCard).lines.map((l) => ({ ...l, hidden: true })) } as Partial<CardData>;
@@ -696,8 +735,8 @@ function PresentCanvas() {
   const spaceAdvancesFramesRef = useRef(true);
   spaceAdvancesFramesRef.current = spaceAdvancesFrames;
   const [rehearsalHud, setRehearsalHud] = useState(false); // next-up "next: Teach 2" pill (rehearsal only)
-  const [armState, setArmState] = useState<null | "ready" | "end">(null);
-  const armStateRef = useRef<null | "ready" | "end">(null);
+  const [armState, setArmState] = useState<null | ArmState>(null);
+  const armStateRef = useRef<null | ArmState>(null);
   armStateRef.current = armState;
   const disarm = useCallback(() => setArmState(null), []);
   // Armed transitions DISARM on any input other than the advancing space: a
@@ -2472,16 +2511,65 @@ function PresentCanvas() {
           // (c/d/e) FRAME EXHAUSTED. Toggle off → space stays at the frame edge.
           if (!spaceAdvancesFramesRef.current) return;
           const nextFrame = frameWalkNext(nodes as never, frameId);
-          if (armStateRef.current === null) {
-            setArmState(nextFrame ? "ready" : "end"); // ARM only — camera stays put
+          if (armStateRef.current !== "ready") {
+            setArmState(nextFrame ? "ready" : "end"); // ARM forward (also re-arms if a back-arm was pending)
             return;
           }
-          if (armStateRef.current === "end" || !nextFrame) return; // never advance past the lesson
+          if (!nextFrame) return; // never advance past the lesson
           // (d) armed + space → transition, then seed the walk in the new frame
           enterFrame(nextFrame.id);
           const kids = rf.getNodes().filter((n) => n.parentId === nextFrame.id && !isContainerType(n.type) && !isTucked(n.data as never));
           const firstRevealable = kids.find((k) => stepReveal(k.data as unknown as CardData) !== null);
           rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === firstRevealable?.id) ? { ...n, selected: n.id === firstRevealable?.id } : n)));
+          setArmState(null);
+        },
+      },
+      {
+        combo: "shift+space",
+        group: "Show",
+        description: "Step BACK: un-reveal / un-deal within the frame; at the frame's start, arm then step back a frame",
+        handler: (e) => {
+          // THE REVERSE SHOW KEY (item 3) — the exact inverse of space, precedence
+          // reversed: (a) re-hide the selected card's last reveal → (b) re-tuck the
+          // last-dealt deck item → (c/d/e) at the frame's START, arm then step BACK
+          // one column-major frame (arm-then-move, mirroring forward). Never steps
+          // before the lesson's first frame (← is the manual roll).
+          e.preventDefault();
+          const nodes = rf.getNodes();
+          const sel = nodes.find((n) => n.selected && !isContainerType(n.type));
+          // (a) un-reveal the last-revealed item on the selected card
+          if (sel) {
+            const patch = stepRevealBack(sel.data as unknown as CardData);
+            if (patch) {
+              const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "un-reveal step");
+              if (c) bus.dispatch(c);
+              disarm(); return;
+            }
+          }
+          // (b) re-tuck — the LAST-DEALT of the current FRAME's deck, else cross-lesson
+          const frameId = currentFrameRef.current;
+          const retuck = (rid: string) => { const c = patchDataCmd(rf as unknown as RfLike, rid, { tucked: true }, "un-deal card"); if (c) bus.dispatch(c); };
+          if (frameId) {
+            const last = lastDealtInFrame(nodes as never, frameId);
+            if (last) { retuck(last.id); disarm(); return; }
+          } else {
+            const last = lastDealtCross(nodes as never);
+            if (last) { retuck(last.id); disarm(); return; }
+            return; // no frame context + nothing dealt → nothing to reverse
+          }
+          // (c/d/e) FRAME AT ITS START. Toggle off → shift+space stays at the edge.
+          if (!spaceAdvancesFramesRef.current) return;
+          const prevFrame = frameWalkPrev(nodes as never, frameId);
+          if (armStateRef.current !== "ready-back") {
+            setArmState(prevFrame ? "ready-back" : "start"); // ARM back (also re-arms if a forward-arm was pending)
+            return;
+          }
+          if (!prevFrame) return; // never step before the lesson's first frame
+          // (d) armed + shift+space → step back, select the LAST card in the prev frame
+          enterFrame(prevFrame.id);
+          const kids = rf.getNodes().filter((n) => n.parentId === prevFrame.id && !isContainerType(n.type) && !isTucked(n.data as never));
+          const lastCard = kids[kids.length - 1];
+          rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === lastCard?.id) ? { ...n, selected: n.id === lastCard?.id } : n)));
           setArmState(null);
         },
       },
@@ -2721,8 +2809,9 @@ function PresentCanvas() {
       {/* SPACE-WALK ARM CUE — Lee's tell that the frame is exhausted and the next
           space will transition. Filming chrome (fixed overlay, not lesson DOM). */}
       {armState && currentFrameId && (() => {
-        const nextF = frameWalkNext(rf.getNodes() as never, currentFrameId);
-        const label = armState === "end" || !nextF ? "end of lesson" : frameCellLabel(nextF as never);
+        const back = armState === "ready-back" || armState === "start";
+        const target = back ? frameWalkPrev(rf.getNodes() as never, currentFrameId) : frameWalkNext(rf.getNodes() as never, currentFrameId);
+        const label = armState === "end" ? "end of lesson" : armState === "start" ? "start of lesson" : !target ? (back ? "start of lesson" : "end of lesson") : frameCellLabel(target as never);
         return <FrameArmCue state={armState} nextLabel={label} showHud={rehearsalHud} />;
       })()}
 

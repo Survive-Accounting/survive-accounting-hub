@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { lessonGroups, lessonIdOf, nextTucked, nextTuckedCross, nextTuckedInFrame, type DeckNode } from "./deck-logic";
+import { lastDealtCross, lastDealtInFrame, lessonGroups, lessonIdOf, nextTucked, nextTuckedCross, nextTuckedInFrame, type DeckNode } from "./deck-logic";
 
 const lesson = (id: string, label: string, pathOrder: number | null): DeckNode =>
   ({ id, type: "lesson", data: { label, pathOrder } });
@@ -154,5 +154,33 @@ describe("deckMembers — deal order (container path first, then stageOrder)", (
     ];
     // L1 (path 1) deals before L2 (path 2) regardless of stageOrder
     expect(deckMembers(nodes).map((n) => n.id)).toEqual(["x", "y"]);
+  });
+});
+
+describe("lastDealtInFrame / lastDealtCross (Shift+Space reverse — item 3)", () => {
+  const fcard = (id: string, frame: string, order: number, tucked: boolean): DeckNode =>
+    ({ id, type: "je", parentId: frame, data: { kind: "je", deckMember: true, tucked, stageOrder: order } });
+
+  test("lastDealtInFrame returns the highest-order DEALT (not tucked) member of the frame", () => {
+    const nodes = [fcard("a", "F1", 0, false), fcard("b", "F1", 1, false), fcard("c", "F1", 2, true)];
+    expect(lastDealtInFrame(nodes, "F1")?.id).toBe("b"); // c is still tucked; b was the last dealt
+  });
+
+  test("lastDealtInFrame is undefined when the frame has no dealt members", () => {
+    const nodes = [fcard("a", "F1", 0, true), fcard("b", "F1", 1, true)];
+    expect(lastDealtInFrame(nodes, "F1")).toBeUndefined();
+  });
+
+  test("reverse of deal: it un-deals in the exact reverse order Space dealt", () => {
+    // deal order was a, b (nextTuckedInFrame ascending). reverse pops b then a.
+    let nodes = [fcard("a", "F1", 0, false), fcard("b", "F1", 1, false)];
+    expect(lastDealtInFrame(nodes, "F1")?.id).toBe("b");
+    nodes = [fcard("a", "F1", 0, false), fcard("b", "F1", 1, true)]; // b re-tucked
+    expect(lastDealtInFrame(nodes, "F1")?.id).toBe("a");
+  });
+
+  test("lastDealtCross returns the most-recently-dealt member globally", () => {
+    const nodes = [fcard("a", "F1", 0, false), fcard("b", "F2", 5, false), fcard("c", "F2", 9, true)];
+    expect(lastDealtCross(nodes)?.id).toBe("b");
   });
 });

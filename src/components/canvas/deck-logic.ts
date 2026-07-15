@@ -52,6 +52,21 @@ export function nextTuckedInFrame(nodes: DeckNode[], frameId: string): DeckNode 
     .find((n) => isTucked(n.data as unknown as CardBase));
 }
 
+/** SPACE-WALK REVERSE (item 3): the LAST-DEALT member parented to THIS frame —
+ *  the highest-order member that is NOT tucked — so Shift+Space re-tucks deals in
+ *  the exact reverse of the order Space dealt them. Undefined when the frame has
+ *  no dealt members left (the caller then arms the reverse frame step). */
+export function lastDealtInFrame(nodes: DeckNode[], frameId: string): DeckNode | undefined {
+  const dealt = deckMembers(nodes).filter((n) => n.parentId === frameId && !isTucked(n.data as unknown as CardBase));
+  return dealt.length ? dealt[dealt.length - 1] : undefined;
+}
+
+/** Non-frame reverse walk: the most-recently-dealt member in global deal order. */
+export function lastDealtCross(nodes: DeckNode[]): DeckNode | undefined {
+  const dealt = deckMembers(nodes).filter((n) => !isTucked(n.data as unknown as CardBase));
+  return dealt.length ? dealt[dealt.length - 1] : undefined;
+}
+
 /** An entry's lesson: the explicit stamp wins; a member parented to a lesson
  *  falls back to that (pre-stamp entries heal without migration). */
 export function lessonIdOf(n: DeckNode, nodes: DeckNode[]): string | null {

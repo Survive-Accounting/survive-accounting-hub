@@ -31,6 +31,15 @@ const SHORTS_CUES = [
 ];
 
 /** A Lee-facing collapsible section in the Key panel (own persisted open state). */
+/** A little keycap glyph for the Space-walk section. */
+function KeyCap({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="shrink-0 rounded px-1 text-[9.5px] font-bold not-italic" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.3)" }}>
+      {children}
+    </kbd>
+  );
+}
+
 function KeySection({ id, icon, title, children }: { id: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
   const key = `sa-canvas-legend-${id}`;
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(key) !== "0"; } catch { return true; } });
@@ -132,6 +141,15 @@ export function LegendHud({ docked = false }: {
               {SHORTS_CUES.map((c, i) => (
                 <li key={i} className="italic" style={{ color: NEON.cyan }}>“{c}”</li>
               ))}
+            </ul>
+          </KeySection>
+
+          {/* SPACE-WALK (item 3) — the one-key performance, forward + reverse. The
+              full binding list lives in the "?" overlay; this is the at-a-glance. */}
+          <KeySection id="spacewalk" icon={<MessageCircleQuestion className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />} title="Space-walk">
+            <ul className="space-y-0.5" style={{ color: NEON.text }}>
+              <li className="flex gap-1.5"><KeyCap>Space</KeyCap><span style={{ color: NEON.muted }}>reveal → deal → arm → next frame</span></li>
+              <li className="flex gap-1.5"><KeyCap>⇧ Space</KeyCap><span style={{ color: NEON.muted }}>un-reveal → un-deal → back a frame</span></li>
             </ul>
           </KeySection>
         </div>
