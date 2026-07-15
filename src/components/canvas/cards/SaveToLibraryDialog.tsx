@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions } from "@/lib/je-api";
-import { nextScenarioSort, saveScenarioDoc } from "@/lib/canvas.functions";
+import { listScenarioPlacements, nextScenarioSort, saveScenarioDoc } from "@/lib/canvas.functions";
 import { docFromJeCard } from "../library";
 import { NEON } from "../theme";
 import type { JeCard } from "../types";
@@ -30,8 +30,20 @@ export function SaveToLibraryDialog({ card, defaultCourseId, defaultChapterId, o
   const [mode, setMode] = useState<"update" | "new">(card.scenarioId ? "update" : "new");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmMulti, setConfirmMulti] = useState(false); // update >1 placement → confirm first
 
   const course = useMemo(() => (coursesQuery.data ?? []).find((c) => c.id === courseId) ?? null, [coursesQuery.data, courseId]);
+
+  // A bound card's existing placements — the BLAST RADIUS. Updating the scenario
+  // changes its content in every one of these at once.
+  const placementsQuery = useQuery({
+    queryKey: ["scenario-placements", card.scenarioId],
+    queryFn: () => listScenarioPlacements({ data: { scenario_id: card.scenarioId! } }),
+    enabled: !!card.scenarioId,
+    staleTime: 60_000,
+    networkMode: "always",
+  });
+  const placements = placementsQuery.data ?? [];
 
   // sort_order default: next in the chosen chapter
   useEffect(() => {
@@ -44,6 +56,11 @@ export function SaveToLibraryDialog({ card, defaultCourseId, defaultChapterId, o
   }, [chapterId]);
 
   const save = async () => {
+    // Editing a scenario placed in >1 chapter changes ALL of them — confirm once.
+    if (mode === "update" && card.scenarioId && placements.length > 1 && !confirmMulti) {
+      setConfirmMulti(true);
+      return;
+    }
     setErr(null);
     setBusy(true);
     try {
@@ -93,11 +110,23 @@ export function SaveToLibraryDialog({ card, defaultCourseId, defaultChapterId, o
                   border: `1px solid ${mode === m ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`,
                   background: mode === m ? "rgba(252,163,17,0.12)" : "transparent",
                 }}
-                onClick={() => setMode(m)}
+                onClick={() => { setMode(m); setConfirmMulti(false); }}
               >
                 {m === "update" ? "Update linked scenario" : "Save as new"}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* BLAST RADIUS — where this bound scenario is placed. Updating changes them all. */}
+        {mode === "update" && card.scenarioId && placements.length > 0 && (
+          <div className="mb-2 rounded px-2 py-1.5 text-[10px]" style={{ border: `1px solid ${confirmMulti ? "rgba(255,92,122,0.5)" : NEON.borderSoft}`, background: confirmMulti ? "rgba(255,92,122,0.08)" : "transparent" }}>
+            <div className="font-bold uppercase tracking-wider" style={{ color: confirmMulti ? NEON.red : NEON.muted }}>
+              {confirmMulti ? `Updating changes ALL ${placements.length} placements:` : `Used in ${placements.length} place${placements.length > 1 ? "s" : ""}:`}
+            </div>
+            <div className="mt-0.5" style={{ color: NEON.text }}>
+              {placements.map((p) => `${p.course_name ?? "?"} ${p.chapter_number != null ? `Ch ${p.chapter_number}` : (p.chapter_name ?? "")}`).join(" · ")}
+            </div>
           </div>
         )}
 
@@ -168,7 +197,7 @@ export function SaveToLibraryDialog({ card, defaultCourseId, defaultChapterId, o
             disabled={!canSave}
             onClick={() => void save()}
           >
-            {busy ? "saving…" : mode === "update" && card.scenarioId ? "update scenario" : "save scenario"}
+            {busy ? "saving…" : confirmMulti ? `update all ${placements.length} →` : mode === "update" && card.scenarioId ? "update scenario" : "save scenario"}
           </button>
         </div>
       </div>
