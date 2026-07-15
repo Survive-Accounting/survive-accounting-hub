@@ -152,4 +152,22 @@ export const FILM_MODE_CSS = `
   /* FG4: a frame's own chrome (header, beat chip, title, nav chevrons) never
      renders over a take — the shot is the cards only. */
   .film-mode [data-frame-chrome] { display: none !important; }
+  /* FILM = STRUCTURE INERT, CONTENT LIVE. Every design/structure node
+     (frame, lesson, region/zone, heading, text, gate) goes pointer-events:none
+     so it can't be selected, dragged, resized, or hovered — clicks fall through
+     to the canvas and the composed stage never nudges. React Flow renders child
+     nodes as DOM SIBLINGS (not nested), so a frame/lesson going inert does NOT
+     disable the CARDS inside it — cards stay fully live (select, drag, edit,
+     reveal, flip, spotlight, deal). Exiting film restores everything (no
+     persisted state — purely a mode gate). The camera bubble is a separate
+     overlay, not a node, so it stays draggable. */
+  .film-mode .react-flow__node-frame,
+  .film-mode .react-flow__node-lesson,
+  .film-mode .react-flow__node-zone,
+  .film-mode .react-flow__node-heading,
+  .film-mode .react-flow__node-text,
+  .film-mode .react-flow__node-paygate,
+  .film-mode .react-flow__node-signupgate {
+    pointer-events: none !important;
+  }
 `;

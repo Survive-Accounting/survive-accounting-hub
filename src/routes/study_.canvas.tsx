@@ -846,6 +846,21 @@ function PresentCanvas() {
     }
   }, [liveNodes, rf]);
 
+  // FILM = STRUCTURE INERT: when film mode turns on, drop any lingering
+  // selection on a structure/design node (frame, lesson, zone, heading, text,
+  // gate) so no stray selection ring sits on the composed stage. Cards keep
+  // their selection. The CSS gate (pointer-events:none in .film-mode) blocks NEW
+  // structure selection/drag; this just cleans what was already selected. Purely
+  // a mode gate — nothing here persists, and exiting film restores everything.
+  const isStructureType = (t: string | undefined): boolean =>
+    isContainerType(t) || t === "heading" || t === "text" || t === "paygate" || t === "signupgate";
+  useEffect(() => {
+    if (!film) return;
+    if (rf.getNodes().some((n) => n.selected && isStructureType(n.type))) {
+      rf.setNodes((nds) => nds.map((n) => (n.selected && isStructureType(n.type) ? { ...n, selected: false } : n)));
+    }
+  }, [film, rf]);
+
   // ---- CONNECTIONS (V2 + PROMPT A): hover dots on every card/lesson, plus
   // per-LINE dots on JE blocks (ln:<lineId>:l|r handles — edges anchored to a
   // line travel with its block through hops/reorders). Drag dot → live line →
