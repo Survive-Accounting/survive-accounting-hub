@@ -102,12 +102,9 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         </CardPopover>
       )}
 
-      {(d.definition || editing) && (
-        <p className="mb-1.5 text-[12px] italic" style={{ color: PAPER.inkMuted }}>
-          <EditableText value={d.definition ?? ""} onChange={(v) => update({ definition: v })} editing={editing} placeholder="One-line definition" />
-        </p>
-      )}
-
+      {/* Item 6: the one-line "definition" was a duplicate inline title — the
+          title lives ONLY in the top bar now; the description sits directly
+          under the bar. (d.definition kept in the type for old scenes; unused.) */}
       {/* DESCRIPTION (L4): a short paragraph, inline-editable, reveal-able as a step */}
       {(d.description || editing) && (
         d.descHidden ? (
