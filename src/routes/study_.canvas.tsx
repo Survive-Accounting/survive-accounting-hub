@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -74,6 +74,7 @@ import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
 import { GhostCellsLayer } from "@/components/canvas/GhostCellsLayer";
+import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
@@ -719,6 +720,13 @@ function PresentCanvas() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 1800);
   }, []);
+  // FAIL-LOUD: a dark feature's table missing → a visible toast naming the
+  // migration (the data layer also console.errors). Held longer than a flash.
+  useEffect(() => onMissingMigration((m) => {
+    setToast(`Missing migration — run ${m} in Supabase`);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 6000);
+  }), []);
   const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
   useEffect(() => {
     const onResize = () => setVpTick((t) => t + 1);
@@ -961,9 +969,10 @@ function PresentCanvas() {
   // lesson/region boxes. Containers are nodes, so a drag starting on one would
   // move it instead of drawing the box; while Ctrl is held a body class turns
   // their pointer-events off, the gesture falls through to the pane, and RF's
-  // selectionKeyCode (Control) draws the marquee. Ctrl+click toggles singles
-  // (multiSelectionKeyCode). Cards inside containers select normally — the
-  // marquee tests ABSOLUTE positions.
+  // selectionKeyCode (Control) draws the marquee (ctrl+DRAG). Ctrl+CLICK is
+  // SPOTLIGHT now (SpotlightContext) — multiSelectionKeyCode is ["Shift"] only so
+  // RF no longer eats the ctrl+click; shift-click multi-selects. Cards inside
+  // containers select normally — the marquee tests ABSOLUTE positions.
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.add("sa-ctrl"); };
     const up = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.remove("sa-ctrl"); };
@@ -1404,9 +1413,26 @@ function PresentCanvas() {
 
   // Focus-zoom tracking — the Esc ladder's rung 3 exits it exactly once.
   const zoomedRef = useRef(false);
+  // FOCUS ZOOM INSIDE FILM LOCK (item 1): double-click pushes the camera toward
+  // one card, but REMEMBERS the framed shot. In film + inside a frame we capture
+  // the exact fitted viewport; ← (the back button) and Esc snap back to it — no
+  // free panning while pushed (the film lock already disables panOnDrag).
+  const [framePushView, setFramePushView] = useState<{ x: number; y: number; zoom: number } | null>(null);
+  const framePushRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  framePushRef.current = framePushView;
+  const returnFromPush = useCallback(() => {
+    const v = framePushRef.current;
+    if (!v) return false;
+    zoomedRef.current = false;
+    setFramePushView(null);
+    void rf.setViewport(v, { duration: 400 });
+    return true;
+  }, [rf]);
   const focusNode = useCallback(
     (id: string) => {
       zoomedRef.current = true;
+      // remember the framed view to snap back to (temporary push, not a re-frame)
+      if (filmRef.current && currentFrameRef.current) setFramePushView(rf.getViewport());
       void rf.fitView({ nodes: [{ id }], duration: 400, padding: 0.4 });
     },
     [rf],
@@ -2544,8 +2570,10 @@ function PresentCanvas() {
           }
           // RUNG 2.5 — SPOTLIGHT exits first (SL2), before focus-zoom/film/frame
           if (spotRef.current?.active) { spotRef.current.exit(); return; }
-          // RUNG 3 — exit focus zoom
+          // RUNG 3 — exit focus zoom. A film-lock PUSH snaps back to the exact
+          // framed view; a normal focus-zoom fits the whole board (item 1).
           if (zoomedRef.current) {
+            if (returnFromPush()) return;
             zoomedRef.current = false;
             void rf.fitView({ duration: 400, padding: 0.15 });
             return;
@@ -2630,7 +2658,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush],
   );
   useKeymap(bindings);
 
@@ -2708,6 +2736,18 @@ function PresentCanvas() {
           zoom &lt; 75% — text may be illegible on camera
         </div>
       )}
+      {/* FOCUS-PUSH BACK (item 1) — while pushed into a card inside a framed
+          shot, one click snaps back to the exact framed view. */}
+      {framePushView && (
+        <button
+          onClick={returnFromPush}
+          className="absolute left-4 top-14 z-[80] flex items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-semibold"
+          style={{ background: "rgba(11,15,30,0.85)", border: `1px solid ${NEON.yellow}`, color: NEON.yellow, backdropFilter: "blur(6px)" }}
+          title="Back to the framed shot (Esc)"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> back to frame
+        </button>
+      )}
       {/* TRANSIENT TOAST — frame-cap notice, soft warns (auto-clears) */}
       {toast && (
         <div
@@ -2747,7 +2787,7 @@ function PresentCanvas() {
         connectionRadius={28}
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: NEON.cyan, strokeWidth: 2 }}
-        multiSelectionKeyCode={["Shift", "Control"]}
+        multiSelectionKeyCode={["Shift"]}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         proOptions={{ hideAttribution: true }}
