@@ -3,11 +3,49 @@
 // localStorage), hidden in film mode + clean screen. Compact by design: legible
 // at a glance, no scrolling.
 import { useState } from "react";
-import { Boxes, ChevronDown, ChevronUp, Clapperboard, Flag, Home, Layers3, MessageCircleQuestion, Shapes, SquareDashed, StickyNote, TrafficCone } from "lucide-react";
+import { Boxes, ChevronDown, ChevronRight, ChevronUp, Clapperboard, Film, Flag, Home, Layers3, MessageCircleQuestion, Scissors, Shapes, SquareDashed, StickyNote, TrafficCone } from "lucide-react";
 
 import { NEON } from "./theme";
 
 const LS_KEY = "sa-canvas-legend-collapsed";
+
+// Lee's on-camera reminders — text only, so they stay one edit away from Lee.
+const FILMING_PRINCIPLES = [
+  "No preambles — jump in.",
+  "Build the space-walk first, rehearse it, then roll.",
+  "One unedited take. Accept the imperfection — it sells.",
+  "Have fun, smile, be extremely helpful.",
+  "Never shame a student for not knowing something.",
+  'Never say "obviously," "simply," or "just."',
+  "End on the student's next action, not on yourself.",
+  'Same outro every time: "Hope this helped and best of luck on your exam."',
+  "≤5 minutes is still good and worth posting.",
+];
+const SHORTS_CUES = [
+  "Highly recommend memorizing this.",
+  "This is where the exam gets you.",
+  "Tons of students misunderstand ___. Let's clear it up.",
+  "This is the ultimate cheat code for ___.",
+  "Let's make ___ way easier.",
+  "Now we're cooking with gas.", // marks the end of a big tip
+];
+
+/** A Lee-facing collapsible section in the Key panel (own persisted open state). */
+function KeySection({ id, icon, title, children }: { id: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  const key = `sa-canvas-legend-${id}`;
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(key) !== "0"; } catch { return true; } });
+  const toggle = () => setOpen((v) => { try { localStorage.setItem(key, v ? "0" : "1"); } catch { /* ignore */ } return !v; });
+  return (
+    <div className="border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+      <button className="flex w-full items-center gap-1" onClick={toggle}>
+        {icon}
+        <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>{title}</span>
+        <span className="ml-auto" style={{ color: NEON.muted }}>{open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</span>
+      </button>
+      {open && <div className="mt-0.5">{children}</div>}
+    </div>
+  );
+}
 
 export function LegendHud({ docked = false }: {
   /** DOCKED (declutter run): fills the drawer's Key panel — always expanded,
@@ -78,6 +116,24 @@ export function LegendHud({ docked = false }: {
             <div className="flex items-center gap-1.5"><TrafficCone className="h-3 w-3 shrink-0" style={{ color: "#E8B84B" }} /> <b>Gate</b><span style={{ color: NEON.muted }}>— free/paid boundary</span></div>
             <div className="flex items-center gap-1.5"><Clapperboard className="h-3 w-3 shrink-0" style={{ color: NEON.text }} /> <b>Studio</b><span style={{ color: NEON.muted }}>— Solo · Solved · Live</span></div>
           </div>
+
+          {/* LEE-FACING filming reminders — below the vocabulary, collapsible. */}
+          <KeySection id="filming" icon={<Film className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />} title="Filming principles">
+            <ul className="space-y-0.5" style={{ color: NEON.text }}>
+              {FILMING_PRINCIPLES.map((p, i) => (
+                <li key={i} className="flex gap-1.5"><span className="shrink-0" style={{ color: NEON.muted }}>·</span><span>{p}</span></li>
+              ))}
+            </ul>
+          </KeySection>
+
+          <KeySection id="shorts" icon={<Scissors className="h-3 w-3 shrink-0" style={{ color: NEON.cyan }} />} title="Shorts cues">
+            <div className="mb-0.5" style={{ color: NEON.muted }}>say these on camera — they mark the clip</div>
+            <ul className="space-y-0.5">
+              {SHORTS_CUES.map((c, i) => (
+                <li key={i} className="italic" style={{ color: NEON.cyan }}>“{c}”</li>
+              ))}
+            </ul>
+          </KeySection>
         </div>
       )}
     </div>
