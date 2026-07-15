@@ -2,7 +2,47 @@
 // click ripple (expanding ring on every pointer-down). Sized and contrasted to survive
 // 1080p YouTube compression on the dark background. Mounted only while film mode is on.
 import { useEffect, useRef, useState } from "react";
+import { ChevronsRight } from "lucide-react";
 import { NEON } from "./theme";
+
+/** ARM CUE (space-walk) — Lee's teleprompter tell that the current frame is
+ *  EXHAUSTED and the next space will transition. Rendered as FILMING CHROME: a
+ *  fixed overlay (pointer-events-none), never part of the lesson DOM — so a
+ *  future student view, which won't mount this, stays clean. Two states:
+ *   • "ready" — a gently pulsing → on the leading (right) edge + soft edge glow.
+ *   • "end"   — a red "end of lesson" bookend; space never advances past it.
+ *  The optional rehearsal HUD adds a "next: Teach 2" pill (off by default). */
+export function FrameArmCue({ state, nextLabel, showHud }: { state: "ready" | "end"; nextLabel: string; showHud: boolean }) {
+  const end = state === "end";
+  const glow = end ? NEON.red : NEON.yellow;
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[68]">
+      {/* leading-edge glow bar (right = toward the next frame) */}
+      <div
+        className="absolute right-0 top-0 h-full"
+        style={{ width: 90, background: `linear-gradient(to left, ${glow}, transparent)`, opacity: 0.16, animation: "sa-arm-pulse 1.5s ease-in-out infinite" }}
+      />
+      {/* the tell: a pulsing chevron (ready) or a stop bookend (end), mid-right */}
+      <div className="absolute right-6 top-1/2 -translate-y-1/2" style={{ animation: "sa-arm-pulse 1.5s ease-in-out infinite" }}>
+        {end ? (
+          <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: "rgba(11,15,30,0.55)", border: `1.5px solid ${glow}` }}>
+            <span className="h-4 w-1 rounded" style={{ background: glow }} />
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: glow }}>End</span>
+          </div>
+        ) : (
+          <ChevronsRight className="h-9 w-9" style={{ color: glow, filter: `drop-shadow(0 0 6px ${glow})` }} />
+        )}
+      </div>
+      {/* rehearsal HUD (off by default) — the next-up read, top-center */}
+      {showHud && (
+        <div className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "rgba(11,15,30,0.7)", border: `1px solid ${glow}`, color: glow }}>
+          next: {nextLabel}
+        </div>
+      )}
+      <style>{`@keyframes sa-arm-pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }`}</style>
+    </div>
+  );
+}
 
 export function CursorSpotlight() {
   const ref = useRef<HTMLDivElement>(null);
