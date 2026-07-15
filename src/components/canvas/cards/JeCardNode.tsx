@@ -15,6 +15,7 @@ import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../Spotlig
 import { lineHandleId, memoHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
+import { PrincipleTagPicker } from "../PrincipleTagPicker";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import type { LibraryItem } from "../library";
@@ -1013,6 +1014,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
             onSaveToLibrary={() => setSaveToLibOpen(true)}
             onClose={() => setGearAnchor(null)}
           />
+          <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+            <div className="mb-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Principle tags</div>
+            <PrincipleTagPicker value={d.principleTags ?? []} onChange={(tags) => update({ principleTags: tags })} />
+          </div>
         </CardPopover>
       )}
       {saveToLibOpen && (

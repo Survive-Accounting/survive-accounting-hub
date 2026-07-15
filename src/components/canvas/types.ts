@@ -73,6 +73,10 @@ export interface CardBase {
   staged?: boolean;
   /** Deck position (lower = dealt earlier). Set on joining; reordered in the panel. */
   stageOrder?: number;
+  /** PRINCIPLE TAGS (0093) — principle slugs Lee attaches manually while
+   *  authoring (e.g. "revenue-recognition"). Cards AND memos carry them; the
+   *  Ch 9 filter pulls every node tagged a principle. Never auto-assigned. */
+  principleTags?: string[];
   /** LESSON-SCOPED DECKS (PROMPT C): the lesson this entry belongs to —
    *  stamped at join time from the card's lesson parent; null = the "Loose"
    *  group. The deck panel groups by this; the space-walk advances lesson →

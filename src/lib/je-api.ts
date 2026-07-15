@@ -121,6 +121,27 @@ export interface JeBrowserTree {
 
 const UNASSIGNED_CHAPTER = "__unassigned__";
 
+export interface PrincipleTag {
+  id: string;
+  name: string;
+  kind: "assumption" | "principle";
+  slug: string;
+}
+
+/** The taggable principles vocabulary (0093 `principles` table — distinct from
+ *  the /je `je_principles` reference read by fetchPrinciples). 4 assumptions + 4
+ *  principles. Returns [] when the table isn't there yet (pre-0093) so tag
+ *  pickers render an empty, non-crashing state. */
+export async function fetchPrincipleTags(): Promise<PrincipleTag[]> {
+  const { data, error } = await (supabase.from("principles" as never) as any)
+    .select("id,name,kind,slug").order("sort", { ascending: true });
+  if (error) {
+    if (isMissingSchema(error, /principles/i)) return [];
+    throw error;
+  }
+  return ((data ?? []) as any[]).map((r) => ({ id: r.id, name: r.name, kind: r.kind, slug: r.slug }));
+}
+
 export interface Placement {
   scenario_id: string;
   course_id: string | null;

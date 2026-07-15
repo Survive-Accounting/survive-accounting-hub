@@ -17,6 +17,7 @@ import { calcRows } from "../je-logic";
 import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
 import { MEMO_SELF_TARGET } from "../spotlight";
 import { NEON } from "../theme";
+import { PrincipleTagPicker } from "../PrincipleTagPicker";
 import type { MemoCard, MemoKind } from "../types";
 
 /** memoKind → accent + icon + label. On-brand: gold notes, green tips, red traps,
@@ -140,6 +141,7 @@ function MemoNodeEditor({
   const [body, setBody] = useState(memo.body ?? "");
   const [category, setCategory] = useState(memo.category ?? "");
   const [mk, setMk] = useState<MemoKind>(memo.memoKind ?? "note");
+  const [principleTags, setPrincipleTags] = useState<string[]>(memo.principleTags ?? []);
   const calc = mk === "calc";
   return (
     <div
@@ -189,11 +191,15 @@ function MemoNodeEditor({
         onChange={(e) => setCategory(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
       />
+      <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+        <div className="mb-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Principle tags</div>
+        <PrincipleTagPicker value={principleTags} onChange={setPrincipleTags} />
+      </div>
       <div className="mt-1.5 flex justify-end">
         <button
           className="rounded px-2 py-0.5 text-[10.5px] font-semibold"
           style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)" }}
-          onClick={() => onSave({ title: title.trim() || undefined, body, category: category.trim() || undefined, memoKind: mk })}
+          onClick={() => onSave({ title: title.trim() || undefined, body, category: category.trim() || undefined, memoKind: mk, principleTags })}
         >
           save
         </button>
