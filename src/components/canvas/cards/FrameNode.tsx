@@ -16,7 +16,10 @@ import { useFrameNav } from "../FrameNavContext";
 import { BEAT_COLUMNS, columnX, frame169, framesInBeat, rowY } from "../frames";
 import { EditableText } from "../ui";
 import { NEON } from "../theme";
-import { FRAME_BG_DEFAULT_OPACITY, FRAME_BG_LOOPS, type Beat, type FrameBeat, type FrameBox } from "../types";
+import { FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, type Beat, type FrameBeat, type FrameBgAnchor, type FrameBox } from "../types";
+
+/** 9-point anchor grid, row-major for a 3×3 button pad. */
+const BG_ANCHORS: FrameBgAnchor[] = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
 export const BEAT_META: Record<FrameBeat, { label: string; color: string; tint: string; edge: string }> = {
   none: { label: "Frame", color: NEON.muted, tint: "rgba(147,160,180,0.035)", edge: "rgba(147,160,180,0.3)" },
   hook: { label: "Hook", color: "#8CC0EE", tint: "rgba(79,163,227,0.05)", edge: "rgba(79,163,227,0.35)" },
@@ -40,6 +43,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
 
   const bgLoop = d.bgSrc ? FRAME_BG_LOOPS.find((l) => l.id === d.bgSrc) : undefined;
   const bgOpacity = d.bgOpacity ?? FRAME_BG_DEFAULT_OPACITY;
+  const bgFit = d.bgFit ?? "cover";
+  const bgZoom = d.bgZoom ?? FRAME_BG_DEFAULT_ZOOM;
+  const bgAnchor = d.bgAnchor ?? "center";
+  const bgAnchorCss = FRAME_BG_ANCHOR_CSS[bgAnchor];
   // Drive the <video> from the persisted bgPlaying flag (play before a take, pause
   // on action). muted+playsInline so browsers allow programmatic play.
   useEffect(() => {
@@ -111,21 +118,32 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     >
       {/* BACKGROUND ANIMATION — a trimmed loop plays behind every card at the
           author-set opacity; pointer-events-none so the stage still enters on
-          double-click. Keyed by src so switching loops remounts the element. */}
+          double-click. Wrapper CLIPS (overflow-hidden) so zoom overflow crops
+          inside the 16:9 stage. fit (cover/contain) + zoom (scale) + anchor
+          (object-position AND transform-origin) let Lee compose the focal
+          content without re-cutting the file. Keyed by src so switching remounts. */}
       {bgLoop && (
-        <video
-          ref={videoRef}
-          key={bgLoop.id}
-          className="pointer-events-none absolute inset-0 h-full w-full rounded-lg object-cover"
-          style={{ opacity: bgOpacity }}
-          muted
-          loop
-          playsInline
-          preload="auto"
-        >
-          <source src={`${bgLoop.base}.webm`} type="video/webm" />
-          <source src={`${bgLoop.base}.mp4`} type="video/mp4" />
-        </video>
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+          <video
+            ref={videoRef}
+            key={bgLoop.id}
+            className="h-full w-full"
+            style={{
+              opacity: bgOpacity,
+              objectFit: bgFit,
+              objectPosition: bgAnchorCss,
+              transform: `scale(${bgZoom / 100})`,
+              transformOrigin: bgAnchorCss,
+            }}
+            muted
+            loop
+            playsInline
+            preload="auto"
+          >
+            <source src={`${bgLoop.base}.webm`} type="video/webm" />
+            <source src={`${bgLoop.base}.mp4`} type="video/mp4" />
+          </video>
+        </div>
       )}
       <ConnectionDots color={meta.color} />
       {/* aspect-LOCKED 16:9 resize (handles on hover) */}
@@ -179,7 +197,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           nowheel so the slider works; stops propagation so clicks don't enter. */}
       {bgMenu && (
         <div
-          className="nodrag nowheel absolute right-2 top-9 z-[6] w-52 rounded-lg p-2 text-[11px]"
+          className="nodrag nowheel absolute right-2 top-9 z-[6] w-56 rounded-lg p-2 text-[11px]"
           style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}
           onPointerDown={stop}
           onClick={(e) => e.stopPropagation()}
@@ -196,6 +214,41 @@ export function FrameNode({ id, data, selected }: NodeProps) {
             <span style={{ color: NEON.muted }}>Opacity</span>
             <input type="range" min={0} max={100} value={Math.round(bgOpacity * 100)} disabled={!bgLoop} className="flex-1 accent-current" onChange={(e) => update({ bgOpacity: Number(e.target.value) / 100 })} />
             <span className="w-8 text-right tabular-nums" style={{ color: NEON.text }}>{Math.round(bgOpacity * 100)}%</span>
+          </div>
+
+          {/* FRAMING — fit (fill/fit) · zoom · 9-point anchor. Compose without re-cutting. */}
+          <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft, opacity: bgLoop ? 1 : 0.4, pointerEvents: bgLoop ? "auto" : "none" }}>
+            <div className="mb-1 font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Framing</div>
+            <div className="flex items-center gap-2">
+              <span style={{ color: NEON.muted }}>Scale</span>
+              <div className="flex overflow-hidden rounded" style={{ border: `1px solid ${NEON.borderSoft}` }}>
+                {(["cover", "contain"] as const).map((f) => (
+                  <button key={f} className="px-2 py-0.5 font-semibold" style={{ background: bgFit === f ? meta.color : "transparent", color: bgFit === f ? "#0B1322" : NEON.text }} onClick={() => update({ bgFit: f })}>{f === "cover" ? "Fill" : "Fit"}</button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <span style={{ color: NEON.muted }}>Zoom</span>
+              <input type="range" min={50} max={200} value={Math.round(bgZoom)} className="flex-1 accent-current" onChange={(e) => update({ bgZoom: Number(e.target.value) })} />
+              <span className="w-9 text-right tabular-nums" style={{ color: NEON.text }}>{Math.round(bgZoom)}%</span>
+            </div>
+            <div className="mt-2 flex items-start gap-2">
+              <span className="pt-0.5" style={{ color: NEON.muted }}>Anchor</span>
+              <div className="grid grid-cols-3 gap-0.5" style={{ width: 60 }}>
+                {BG_ANCHORS.map((a) => (
+                  <button
+                    key={a}
+                    title={a.replace("-", " ")}
+                    className="grid h-4 w-4 place-items-center rounded-sm"
+                    style={{ background: bgAnchor === a ? meta.color : "transparent", border: `1px solid ${bgAnchor === a ? meta.color : NEON.borderSoft}` }}
+                    onClick={() => update({ bgAnchor: a })}
+                  >
+                    <span className="h-1 w-1 rounded-full" style={{ background: bgAnchor === a ? "#0B1322" : NEON.muted }} />
+                  </button>
+                ))}
+              </div>
+              <button className="ml-auto self-start rounded px-1.5 py-0.5 text-[10px]" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={() => update({ bgFit: "cover", bgZoom: FRAME_BG_DEFAULT_ZOOM, bgAnchor: "center" })}>Reset</button>
+            </div>
           </div>
         </div>
       )}

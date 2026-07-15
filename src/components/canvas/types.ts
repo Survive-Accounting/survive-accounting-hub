@@ -492,12 +492,32 @@ export interface FrameBox {
   bgSrc?: string;
   bgOpacity?: number;
   bgPlaying?: boolean;
+  /** BACKGROUND FRAMING (compose without re-cutting the file): `bgFit` = fill
+   *  (cover) vs fit (contain); `bgZoom` % (scale, default 100) pushes focal content
+   *  bigger; `bgAnchor` is a 9-point anchor that pins both object-position AND the
+   *  zoom origin, so anchor=top + zoom keeps the wordmark in the top third and
+   *  crops the bottom. Persist per frame. */
+  bgFit?: "cover" | "contain";
+  bgZoom?: number;
+  bgAnchor?: FrameBgAnchor;
 }
+export type FrameBgAnchor =
+  | "top-left" | "top" | "top-right"
+  | "left" | "center" | "right"
+  | "bottom-left" | "bottom" | "bottom-right";
 /** Frame default size — 16:9, sized so 4 fit in a lesson filmstrip while staying
  *  legible: entering a frame zooms it to fill 1080p (a ~420px JE renders large). */
 export const FRAME_W = 800;
 export const FRAME_H = 450; // 16:9
 export const FRAME_BG_DEFAULT_OPACITY = 0.35;
+export const FRAME_BG_DEFAULT_ZOOM = 100; // percent (100 = native fit)
+/** 9-point anchor → CSS position keyword (used for BOTH object-position and the
+ *  zoom transform-origin, so a zoomed loop grows away from the anchored edge). */
+export const FRAME_BG_ANCHOR_CSS: Record<FrameBgAnchor, string> = {
+  "top-left": "left top", top: "center top", "top-right": "right top",
+  left: "left center", center: "center center", right: "right center",
+  "bottom-left": "left bottom", bottom: "center bottom", "bottom-right": "right bottom",
+};
 /** The trimmed, audio-stripped loop library (public/anim/*.webm|mp4). `id` is what
  *  `FrameBox.bgSrc` stores; the FrameNode picks webm first, mp4 fallback. */
 export const FRAME_BG_LOOPS: { id: string; label: string; base: string }[] = [
