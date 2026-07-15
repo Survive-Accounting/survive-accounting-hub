@@ -11,6 +11,7 @@ import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps 
 import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, FlipVertical2, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
 import { useCardActions, useCardScale } from "../BaseCard";
+import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
 import { lineHandleId, memoHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
@@ -116,6 +117,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const updateInternals = useUpdateNodeInternals();
   const { update, updateFn, remove, toFront, addToDeck, tuck } = useCardActions(id);
   const cardScale = useCardScale(id, d as unknown as CardBase);
+  const sp = useSpotlight();
+  const cardDim = useCardDim(id);
   const ctx = useCanvasSettings();
   const S = effectiveSettings(d.settings, ctx.jePreset);
   const mode = effectiveMode(d.mode, ctx.jePreset);
@@ -489,8 +492,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       );
     // gold ring: this line is an endpoint of the clicked arrow (PROMPT A)
     const isGlow = glowLine === l.id;
+    const stp = spotTargetProps(sp, id, l.id);
     return (
-      <div key={l.id} className="je-row relative" style={{ marginLeft: ind, width: blockW, height: BLOCK_H, opacity: l.hidden ? 0.15 : 1 }}>
+      <div key={l.id} {...stp.props} className="je-row relative" style={{ ...spotStyle(stp.state), transformOrigin: "left center", marginLeft: ind, width: blockW, height: BLOCK_H, opacity: l.hidden ? 0.15 : stp.state === "dim" ? 0.85 : 1 }}>
         {edges}
         {/* LINE-LEVEL CONNECTION DOTS (PROMPT A): edges anchor to the LINE id,
             so they follow this block through hops/reorders and save/load. */}
@@ -881,6 +885,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         // FILMING SCALE (FF-2): shrink the whole cluster for a framed shot.
         transform: cardScale !== 1 ? `scale(${cardScale})` : undefined,
         transformOrigin: "top left",
+        ...cardDim,
         // LIGHT CARD (contrast pass): the JE is now a PAPER body — an off-white
         // "flashcard" that pops off the navy table, matching the T-account
         // standard (BaseCard). Dark ink is the default; colour is reserved for

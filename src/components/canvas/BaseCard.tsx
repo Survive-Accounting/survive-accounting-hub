@@ -5,6 +5,7 @@ import { Lightbulb, Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { ConnectionDots } from "./ConnectionDots";
 import { attachMemo } from "./MemoLightbulb";
+import { useCardDim } from "./SpotlightContext";
 import { NEON, PAPER } from "./theme";
 import { cardId, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
 
@@ -156,6 +157,7 @@ export function BaseCard({
   const rf = useReactFlow();
   const title = data.title ?? "";
   const scale = useCardScale(id, data);
+  const dim = useCardDim(id);
 
   return (
     <div
@@ -174,6 +176,7 @@ export function BaseCard({
           ? `0 0 0 1.5px ${accent}, 0 14px 34px -14px rgba(0,0,0,0.65)`
           : "0 12px 32px -14px rgba(0,0,0,0.6)",
         color: PAPER.ink,
+        ...dim,
       }}
     >
       {/* hover connection dots — drag from one to grow an arrow (V2) */}

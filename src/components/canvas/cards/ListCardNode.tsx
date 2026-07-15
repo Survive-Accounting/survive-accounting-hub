@@ -12,6 +12,7 @@ import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
+import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
 import { EditableText } from "../ui";
 import { NEON, PAPER } from "../theme";
 import { cardId, type ListCard, type ListRow } from "../types";
@@ -22,6 +23,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as ListCard;
   const { update, updateFn } = useCardActions(id);
   const ctx = useCanvasSettings();
+  const sp = useSpotlight();
   const editing = !!d.editMode;
   const [gear, setGear] = useState<HTMLElement | null>(null);
 
@@ -136,8 +138,10 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           </li>
         ))}
         {/* MANUAL rows */}
-        {d.rows.map((r, i) => (
-          <li key={r.id} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ opacity: r.hidden ? 0.15 : 1, paddingLeft: r.indent ? 18 : 0 }}>
+        {d.rows.map((r, i) => {
+          const st = spotTargetProps(sp, id, r.id);
+          return (
+          <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1, paddingLeft: r.indent ? 18 : 0 }}>
             <MemoAnchor subId={r.id} />
             {bullet(pulledRows.length + i)}
             <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
@@ -155,7 +159,8 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
               </span>
             )}
           </li>
-        ))}
+          );
+        })}
       </ol>
 
       {editing && (

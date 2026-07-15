@@ -76,6 +76,13 @@ export const ARROW_EDGE_CSS = `
   animation: sa-edge-march 1.6s linear infinite;
   filter: drop-shadow(0 0 4px rgba(174,185,201,0.75));
 }
+/* SPOTLIT edge (SL7): a spotlit memo glows its pointer arrow warm, with the box. */
+.react-flow__edge.spotlit-edge .react-flow__edge-path {
+  stroke: #FCA311 !important;
+  stroke-width: 3px;
+  filter: drop-shadow(0 0 5px rgba(252,163,17,0.85));
+  transition: stroke 150ms ease, filter 150ms ease;
+}
 .react-flow__node:hover .line-dot { opacity: 0; }
 .je-row:hover .line-dot, .sa-connecting .line-dot { opacity: 1 !important; }
 .line-dot.connectingto, .line-dot.valid { opacity: 1 !important; transform: scale(1.35); }

@@ -52,6 +52,8 @@ import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
 import { MemoCardNode } from "@/components/canvas/cards/MemoCardNode";
 import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
+import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
+import { revealedTargetId } from "@/components/canvas/spotlight";
 import { absRectOf, adjacentFrame, blankFrameData, filmstripLayout, framesInLesson, lessonNeighborFrame, nextFrameOrder, SCAFFOLD_BEATS } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
@@ -634,6 +636,13 @@ function PresentCanvas() {
   const [clean, setClean] = useState(false);
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
+  // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
+  // film / OFF outside; followReveals default on. The controller reads them live.
+  const [spotFocusDim, setSpotFocusDim] = useState<FocusDimMode>("auto");
+  const [spotFollowReveals, setSpotFollowReveals] = useState(true);
+  const spot = useSpotlightController({ film, focusDimMode: spotFocusDim, followReveals: spotFollowReveals });
+  const spotRef = useRef(spot);
+  spotRef.current = spot;
   // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
   const lowZoom = useStore((s) => s.transform[2] < 0.75);
   // DECLUTTER (PROMPT B): the palette + key live in the left drawer now; the
@@ -2330,6 +2339,23 @@ function PresentCanvas() {
     [rf],
   );
 
+  /** FILM-mode distractor flip on the SPOTLIT JE line (SL6): toggles the trap
+   *  version so it lands with the eye already on it. Returns false if the spotlit
+   *  target isn't a JE line with a trap (caller falls through to the side-hop). */
+  const spotTrapFlip = useCallback((): boolean => {
+    const sp = spotRef.current;
+    if (!sp?.active || !sp.spot) return false;
+    const cardId = sp.spot.cardId;
+    const tid = sp.focusTargetId();
+    const node = rf.getNode(cardId);
+    const lines = node?.data && (node.data as unknown as JeCard).lines;
+    const line = tid && lines ? lines.find((l) => l.id === tid) : undefined;
+    if (!node || node.type !== "je" || !line?.trap) return false;
+    const c = patchDataCmd(rf as unknown as RfLike, cardId, { lines: lines!.map((l) => (l.id === tid ? { ...l, flipped: !l.flipped } : l)) }, "flip trap (spotlight)");
+    if (c) bus.dispatch(c);
+    return true;
+  }, [rf]);
+
   // ---- hotkeys: every binding lives in the registry; "?" renders the cheat sheet ----
   const bindings = useMemo<KeyBinding[]>(
     () => [
@@ -2353,6 +2379,9 @@ function PresentCanvas() {
           if (sel && patch) {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
             if (c) bus.dispatch(c);
+            // SL5 — Spotlight follows the reveal: jump attention to the new target
+            const tid = revealedTargetId(sel.data as unknown as CardData, patch as Partial<CardData>);
+            if (tid) spotRef.current?.onReveal(sel.id, tid);
           } else {
             const nodes = rf.getNodes();
             // the selected card's lesson steers the walk; else the last deal's
@@ -2445,6 +2474,8 @@ function PresentCanvas() {
             st.cancelConnection();
             return;
           }
+          // RUNG 2.5 — SPOTLIGHT exits first (SL2), before focus-zoom/film/frame
+          if (spotRef.current?.active) { spotRef.current.exit(); return; }
           // RUNG 3 — exit focus zoom
           if (zoomedRef.current) {
             zoomedRef.current = false;
@@ -2482,27 +2513,45 @@ function PresentCanvas() {
       {
         combo: "arrowleft",
         group: "JE lines",
-        description: "Hop selected JE line to the debit side — or, in a frame with nothing selected, the previous lesson",
-        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepLesson(-1); } else hopSelectedLine("dr"); },
+        description: "Spotlight+film: flip a spotlit trap · else hop JE line debit · else prev lesson",
+        handler: (e) => {
+          if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
+          if (frameFreeNav()) { e.preventDefault(); stepLesson(-1); } else hopSelectedLine("dr");
+        },
       },
       {
         combo: "arrowright",
         group: "JE lines",
-        description: "Hop selected JE line to the credit side — or, in a frame with nothing selected, the next lesson",
-        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepLesson(1); } else hopSelectedLine("cr"); },
+        description: "Spotlight+film: flip a spotlit trap · else hop JE line credit · else next lesson",
+        handler: (e) => {
+          if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
+          if (frameFreeNav()) { e.preventDefault(); stepLesson(1); } else hopSelectedLine("cr");
+        },
       },
       {
         combo: "arrowup",
-        group: "Frames",
-        description: "In a frame with nothing selected: previous frame",
-        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepFrame(-1); } },
+        group: "Spotlight",
+        description: "Spotlight: move focus up (↑ off the top exits) · else prev frame",
+        handler: (e) => {
+          if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1); return; }
+          if (frameFreeNav()) { e.preventDefault(); stepFrame(-1); }
+        },
       },
       {
         combo: "arrowdown",
-        group: "Frames",
-        description: "In a frame with nothing selected: next frame",
-        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepFrame(1); } },
+        group: "Spotlight",
+        description: "Spotlight: move focus down · re-enter after an exit · else next frame",
+        handler: (e) => {
+          if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1); return; }
+          if (spotRef.current?.tryReenter(1)) { e.preventDefault(); return; }
+          if (frameFreeNav()) { e.preventDefault(); stepFrame(1); }
+        },
       },
+      { combo: "shift+arrowdown", group: "Spotlight", description: "Extend the spotlight range down", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { range: true }); } } },
+      { combo: "shift+arrowup", group: "Spotlight", description: "Extend the spotlight range up", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1, { range: true }); } } },
+      { combo: "ctrl+arrowdown", group: "Spotlight", description: "Spotlight jump to the last target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { jump: true }); } } },
+      { combo: "ctrl+arrowup", group: "Spotlight", description: "Spotlight jump to the first target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1, { jump: true }); } } },
+      { combo: "f2", group: "Spotlight", description: "Edit the spotlit target (authoring only)", handler: (e) => { if (spotRef.current?.active && !film) { e.preventDefault(); spotRef.current.editSpot(); } } },
       { combo: "]", group: "Frames", description: "Next frame in the lesson (also PageDown)", handler: () => stepFrame(1) },
       { combo: "[", group: "Frames", description: "Previous frame in the lesson (also PageUp)", handler: () => stepFrame(-1) },
       { combo: "pagedown", group: "Frames", description: "Next frame", hidden: true, handler: (e) => { e.preventDefault(); stepFrame(1); } },
@@ -2513,7 +2562,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, stepLesson, frameFreeNav, exitFrame, enterFrame],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepFrame, stepLesson, frameFreeNav, exitFrame, enterFrame],
   );
   useKeymap(bindings);
 
@@ -2556,6 +2605,7 @@ function PresentCanvas() {
   return (
     <CanvasSettingsContext.Provider value={canvasSettings}>
     <FrameNavContext.Provider value={frameNav}>
+    <SpotlightCtx.Provider value={spot}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""}`} style={{ background: NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
       <style>{CARD_CURSOR_CSS}</style>
@@ -2853,6 +2903,20 @@ function PresentCanvas() {
                 <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: focusPalette ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={focusPalette} onChange={(e) => setFocusPalette(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Focus palette <span className="opacity-60">(trims CARDS to JE · T · Note)</span>
+                </label>
+                {/* SPOTLIGHT (performance cursor) toggles */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Spotlight</div>
+                <div className="mt-0.5 flex items-center justify-between text-[10px]" style={{ color: NEON.muted }}>
+                  <span>Focus-dim</span>
+                  <div className="flex gap-0.5">
+                    {(["auto", "on", "off"] as FocusDimMode[]).map((m) => (
+                      <button key={m} className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: spotFocusDim === m ? "#0B1322" : NEON.text, background: spotFocusDim === m ? NEON.yellow : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setSpotFocusDim(m)}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: spotFollowReveals ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={spotFollowReveals} onChange={(e) => setSpotFollowReveals(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Spotlight follows reveals
                 </label>
                 {/* SCENE COURSE CONTEXT (content reset): pickers scope to this */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: sceneCourseId ? NEON.yellow : NEON.muted }}>Scene course</div>
@@ -3355,6 +3419,7 @@ function PresentCanvas() {
         </div>
       )}
     </div>
+    </SpotlightCtx.Provider>
     </FrameNavContext.Provider>
     </CanvasSettingsContext.Provider>
   );

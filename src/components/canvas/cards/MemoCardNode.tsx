@@ -5,8 +5,8 @@
 // memoKind (note|calc|trap|tip|cheat), an optional name, a category tag, and a
 // body — all fully editable after creation (double-click). Because it's an
 // ordinary node it persists for free and is collectable into a MEMO deck (P3).
-import { useState } from "react";
-import { type NodeProps } from "@xyflow/react";
+import { useEffect, useState } from "react";
+import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Calculator, Lightbulb, ShieldAlert, Sparkles, Star } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
@@ -14,6 +14,8 @@ import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { ElementChrome, ElementResizer } from "./elements";
 import { calcRows } from "../je-logic";
+import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
+import { MEMO_SELF_TARGET } from "../spotlight";
 import { NEON } from "../theme";
 import type { MemoCard, MemoKind } from "../types";
 
@@ -32,8 +34,19 @@ export const MEMO_KIND_OPTIONS: MemoKind[] = ["note", "tip", "trap", "cheat", "c
 export function MemoCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as MemoCard;
   const { update, toFront } = useCardActions(id);
+  const rf = useReactFlow();
+  const sp = useSpotlight();
+  const stp = spotTargetProps(sp, id, MEMO_SELF_TARGET);
+  const dim = useCardDim(id);
   const [editing, setEditing] = useState(false);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  // SL7 — spotlighting a memo glows the box AND its pointer arrow(s) together.
+  useEffect(() => {
+    const glow = stp.state === "spot" || stp.state === "range";
+    const ids = rf.getEdges().filter((e) => e.source === id || e.target === id).map((e) => e.id);
+    for (const eid of ids) document.querySelector(`.react-flow__edge[data-id="${eid}"]`)?.classList.toggle("spotlit-edge", glow);
+    return () => { for (const eid of ids) document.querySelector(`.react-flow__edge[data-id="${eid}"]`)?.classList.remove("spotlit-edge"); };
+  }, [stp.state, id, rf]);
   const mk = d.memoKind ?? "note";
   const accent = MEMO_ACCENTS[mk] ?? MEMO_ACCENTS.note;
   const Icon = accent.Icon;
@@ -41,7 +54,8 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
 
   return (
     <div
-      onPointerDownCapture={toFront}
+      data-spot-target={MEMO_SELF_TARGET}
+      onPointerDownCapture={(e) => { toFront(); if ((e.ctrlKey || e.metaKey) && sp) { e.preventDefault(); e.stopPropagation(); sp.start(id, MEMO_SELF_TARGET); } }}
       className="group/el animate-in fade-in relative rounded-md duration-150"
       style={{
         width: d.w ?? 200,
@@ -51,6 +65,8 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
         background: "rgba(16,27,49,0.94)",
         border: `1px solid ${selected ? accent.ink : accent.edge}`,
         boxShadow: selected ? `0 0 18px -6px ${accent.ink}` : "0 10px 24px -12px rgba(0,0,0,0.6)",
+        ...spotStyle(stp.state),
+        ...dim,
       }}
     >
       <ConnectionDots color={accent.ink} />

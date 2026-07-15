@@ -14,6 +14,7 @@ import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { coaLookup, deriveEquationArrows, EQ_ARROW_GLYPH, EQ_DIR_CYCLE } from "../equation-derive";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
+import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
 import { JeScenarioPicker } from "./JeScenarioPicker";
 import type { LibraryItem } from "../library";
 import { EditableText } from "../ui";
@@ -34,6 +35,7 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as FormulaCard;
   const { update, updateFn } = useCardActions(id);
   const ctx = useCanvasSettings();
+  const sp = useSpotlight();
   const [gear, setGear] = useState<HTMLElement | null>(null);
   const [picker, setPicker] = useState<HTMLElement | null>(null);
 
@@ -115,8 +117,9 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
       else patchSeg(s.id, { arrow: nextDir(s.arrow), overridden: !!derivedDir && nextDir(s.arrow) !== derivedDir });
     };
 
+    const stp = spotTargetProps(sp, id, s.id);
     return (
-      <div className="relative flex flex-col items-center gap-0.5" style={{ minWidth: 72 }}>
+      <div {...stp.props} className="relative flex flex-col items-center gap-0.5" style={{ minWidth: 72, ...spotStyle(stp.state), ...(stp.state === "dim" ? { opacity: 0.85 } : {}) }}>
         <MemoAnchor subId={s.id} />
         <MemoLightbulb targetId={id} handleId={memoAnchorId(s.id)} title="Attach a memo to this component" className="absolute -left-1 -top-1 z-[2] h-4 w-4 opacity-0 transition-opacity group-hover/seg:opacity-100" style={{ color: PAPER.navy, background: "#FBF9F4", border: `1px solid ${PAPER.line}` }} />
         <div className="text-[9.5px] font-semibold uppercase tracking-wide" style={{ color: PAPER.inkMuted }}>
@@ -278,8 +281,9 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
               </div>
             ) : (
               <div
+                {...spotTargetProps(sp, id, s.id).props}
                 className="group/seg relative rounded-md px-2 py-1 text-center"
-                style={{ border: `1px solid ${PAPER.line}`, background: "rgba(20,33,61,0.03)", minWidth: 84 }}
+                style={{ border: `1px solid ${PAPER.line}`, background: "rgba(20,33,61,0.03)", minWidth: 84, ...spotStyle(spotTargetProps(sp, id, s.id).state) }}
               >
                 <MemoAnchor subId={s.id} />
                 <MemoLightbulb targetId={id} handleId={memoAnchorId(s.id)} title="Attach a memo to this segment" className="absolute -left-1.5 -top-1.5 z-[2] h-4 w-4 opacity-0 transition-opacity group-hover/seg:opacity-100" style={{ color: PAPER.navy, background: "#FBF9F4", border: `1px solid ${PAPER.line}` }} />
