@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import {
   absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, columnX, frame169, frameCellLabel, framesInBeat, framesInLesson,
-  frameWalkNext, gridLayout, lessonGrid, lessonRollFrame, nextSubIndex, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type RectNode,
+  frameWalkNext, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout,
+  RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type RectNode,
 } from "./frames";
 import { FRAME_H, FRAME_W } from "./types";
 
@@ -95,6 +96,45 @@ describe("cross-lesson roll (→ next Hook 1 · ← prev lesson's last beat)", (
   test("region edges → null", () => {
     expect(lessonRollFrame(nodes, "a-h", -1)).toBeNull();
     expect(lessonRollFrame(nodes, "b-t", 1)).toBeNull();
+  });
+});
+
+describe("region grid (reserved-space map)", () => {
+  test("gridLayout reserves the full RESERVED_ROWS height regardless of sub-frames", () => {
+    const empty = gridLayout({ hook: [], teach: [], model_practice: [], check: [] });
+    const full = gridLayout({ hook: [F("a", "L", "hook", 0), F("b", "L", "hook", 1), F("c", "L", "hook", 2)], teach: [], model_practice: [], check: [] });
+    expect(empty.h).toBe(full.h); // adding sub-frames NEVER grows the cell
+    expect(RESERVED_ROWS).toBe(5);
+  });
+  test("lessonCellSize is the fixed 4-beat × 5-row footprint", () => {
+    const c = lessonCellSize();
+    expect(c.w).toBeGreaterThan(FRAME_W * 4);
+    expect(c.h).toBe(gridLayout({ hook: [], teach: [], model_practice: [], check: [] }).h);
+  });
+  test("regionLayout lays cells row-major, 5 wide, min 3 rows, ghosts fill", () => {
+    const cell = { w: 1000, h: 800 };
+    const rl = regionLayout(11, 0, 0, true, cell);
+    expect(rl.cols).toBe(5);
+    expect(rl.rows).toBe(3); // 11 → still 3 rows
+    expect(rl.totalSlots).toBe(15);
+    expect(rl.filled).toBe(11); // 11 filled, 4 ghost
+    // slot 5 (index 5) wraps to row 1, col 0
+    expect(rl.cells[5]).toEqual({ x: 0, y: cell.h + REGION.gutterY });
+    // wrap-up centered below the grid
+    expect(rl.wrapUp!.x).toBe((rl.gridW - cell.w) / 2);
+    expect(rl.wrapUp!.y).toBe(rl.gridH + REGION.wrapGapY);
+  });
+  test("a 16th cell SOFT-extends to a 4th row (never blocks)", () => {
+    const rl = regionLayout(16, 0, 0, false, { w: 1000, h: 800 });
+    expect(rl.rows).toBe(4);
+    expect(rl.totalSlots).toBe(20);
+    expect(rl.wrapUp).toBeNull();
+  });
+  test("isWrapUpName matches the destination chapter", () => {
+    expect(isWrapUpName("Course Wrap-up")).toBe(true);
+    expect(isWrapUpName("Wrap up")).toBe(true);
+    expect(isWrapUpName("Journal Entries")).toBe(false);
+    expect(isWrapUpName(null)).toBe(false);
   });
 });
 

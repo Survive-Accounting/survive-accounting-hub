@@ -157,6 +157,12 @@ export const frame169 = (w: number): { w: number; h: number } => ({ w: Math.roun
  *  then the frame cells. */
 export const GRID = { lessonHeaderH: 60, colHeaderH: 34, padX: 30, padTop: 16, padBottom: 30, colGap: 70, rowGap: 56 };
 
+/** RESERVED FOOTPRINT: a lesson cell is ALWAYS sized for the full 5 frame rows
+ *  (base + up to 4 sub-frames), whether or not sub-frames exist. Space is
+ *  pre-allocated so adding a sub-frame never pushes or overlaps the cell below.
+ *  This is the max frames per beat (the ↓ cap, Lee's self-imposed discipline). */
+export const RESERVED_ROWS = 5;
+
 /** The x of each beat column (lesson-relative). */
 export function columnX(colIndex: number, frameW = FRAME_W): number {
   return GRID.padX + colIndex * (frameW + GRID.colGap);
@@ -175,16 +181,66 @@ export function gridLayout(grid: Record<Beat, RectNode[]>, frameW = FRAME_W, fra
   columns: { beat: Beat; x: number }[];
 } {
   const positions = new Map<string, { x: number; y: number }>();
-  let maxRows = 1;
   const columns = BEAT_COLUMNS.map((beat, ci) => {
     const x = columnX(ci, frameW);
     grid[beat].forEach((f, ri) => positions.set(f.id, { x, y: rowY(ri, frameH) }));
-    maxRows = Math.max(maxRows, grid[beat].length || 1); // empty column still reserves 1 placeholder row
     return { beat, x };
   });
   const w = GRID.padX * 2 + BEAT_COLUMNS.length * frameW + (BEAT_COLUMNS.length - 1) * GRID.colGap;
-  const h = GRID.lessonHeaderH + GRID.colHeaderH + GRID.padTop + maxRows * (frameH + GRID.rowGap) - GRID.rowGap + GRID.padBottom;
+  // RESERVED FOOTPRINT — always tall enough for RESERVED_ROWS, so a sub-frame
+  // never grows the cell or overlaps its neighbour below (region-grid contract).
+  const h = GRID.lessonHeaderH + GRID.colHeaderH + GRID.padTop + RESERVED_ROWS * (frameH + GRID.rowGap) - GRID.rowGap + GRID.padBottom;
   return { positions, w, h, columns };
+}
+
+// ---- region grid (reserved-space map) --------------------------------------
+/** Region layout geometry: a lesson cell is a fixed footprint; cells lay in a
+ *  5-wide reading-order grid (wrap down) with generous gutters; the wrap-up cell
+ *  sits centered BELOW the grid. */
+export const REGION = { cols: 5, minRows: 3, gutterX: 220, gutterY: 260, wrapGapY: 320 };
+
+/** The fixed lesson-cell footprint (4 beats × RESERVED_ROWS). */
+export function lessonCellSize(frameW = FRAME_W, frameH = FRAME_H): { w: number; h: number } {
+  const g = gridLayout({ hook: [], teach: [], model_practice: [], check: [] }, frameW, frameH);
+  return { w: g.w, h: g.h };
+}
+
+export interface RegionLayout {
+  cells: { x: number; y: number }[]; // every grid SLOT (filled first, then ghosts), reading order
+  totalSlots: number;
+  filled: number;
+  cols: number;
+  rows: number;
+  gridW: number;
+  gridH: number;
+  wrapUp: { x: number; y: number } | null; // centered below the grid (null if no wrap-up)
+}
+
+/** Lay `nGrid` lesson cells in the reserved 5-wide grid from (originX, originY),
+ *  padding to at least minRows×cols slots (ghost cells fill the rest). A 16th+
+ *  cell extends to more rows (soft — warn, never block). If `hasWrapUp`, the
+ *  wrap-up sits centered below the grid. */
+export function regionLayout(nGrid: number, originX: number, originY: number, hasWrapUp: boolean, cell = lessonCellSize()): RegionLayout {
+  const cols = REGION.cols;
+  const rows = Math.max(REGION.minRows, Math.ceil(nGrid / cols));
+  const totalSlots = cols * rows;
+  const cells: { x: number; y: number }[] = [];
+  for (let i = 0; i < totalSlots; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    cells.push({ x: originX + col * (cell.w + REGION.gutterX), y: originY + row * (cell.h + REGION.gutterY) });
+  }
+  const gridW = cols * cell.w + (cols - 1) * REGION.gutterX;
+  const gridH = rows * cell.h + (rows - 1) * REGION.gutterY;
+  const wrapUp = hasWrapUp ? { x: originX + (gridW - cell.w) / 2, y: originY + gridH + REGION.wrapGapY } : null;
+  return { cells, totalSlots, filled: nGrid, cols, rows, gridW, gridH, wrapUp };
+}
+
+/** The wrap-up chapter is the LAST one whose name reads "wrap-up" (fallback: the
+ *  highest-ordered chapter). Pulled out of the grid, centered below as the
+ *  destination. */
+export function isWrapUpName(name: string | null | undefined): boolean {
+  return !!name && /wrap.?up/i.test(name);
 }
 
 // ---- construction ----------------------------------------------------------
