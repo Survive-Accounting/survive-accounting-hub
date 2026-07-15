@@ -1,13 +1,56 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
+import { useRef, useState } from "react";
 import { NodeResizer, useReactFlow } from "@xyflow/react";
-import { Lightbulb, Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-react";
+import { Lightbulb, Lock, LockOpen, Minus, Pencil, Plus, Copy, Scaling, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { ConnectionDots } from "./ConnectionDots";
 import { attachMemo } from "./MemoLightbulb";
 import { useCardDim } from "./SpotlightContext";
 import { NEON, PAPER } from "./theme";
-import { cardId, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
+import { cardId, clampScale, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
+
+/** FILMING SCALE control (FF-2 UI) — the engine (useCardScale + clampScale) was
+ *  live but headless. A corner grip + % readout: drag down-right to grow, up-left
+ *  to shrink, clamped 25–100%. Each drag coalesces into ONE undo step (update()
+ *  bursts on `d:<id>:scale`). Reused by BaseCard and the custom JE cluster so it
+ *  covers ALL card kinds. */
+export function CardScaleHandle({ scale, onScale, corner = "br" }: { scale: number; onScale: (s: number) => void; corner?: "br" | "bl" }) {
+  const [dragging, setDragging] = useState(false);
+  const start = useRef({ x: 0, y: 0, s: 1 });
+  const down = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    start.current = { x: e.clientX, y: e.clientY, s: scale };
+    setDragging(true);
+    const move = (ev: PointerEvent) => {
+      const d = ev.clientX - start.current.x + (ev.clientY - start.current.y);
+      onScale(clampScale(start.current.s + d / 300)); // ~300 screen-px = full range
+    };
+    const up = () => { setDragging(false); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const pct = Math.round(scale * 100);
+  return (
+    <div className={`nodrag absolute bottom-1 z-[6] flex items-center gap-1 ${corner === "br" ? "right-7" : "left-1"}`} onPointerDown={(e) => e.stopPropagation()}>
+      <span
+        className={`rounded px-1 text-[9px] font-bold tabular-nums transition-opacity ${dragging ? "opacity-100" : "opacity-0 group-hover/shell:opacity-80 group-hover/cluster:opacity-80"}`}
+        style={{ background: "rgba(251,249,244,0.92)", border: `1px solid ${PAPER.cardEdge}`, color: PAPER.inkMuted }}
+      >
+        {pct}%
+      </span>
+      <button
+        title={`Scale ${pct}% — drag to resize this card on camera`}
+        onPointerDown={down}
+        className={`grid h-5 w-5 place-items-center rounded transition-opacity ${dragging ? "opacity-100" : "opacity-0 group-hover/shell:opacity-70 group-hover/cluster:opacity-70 hover:!opacity-100"}`}
+        style={{ color: PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${PAPER.cardEdge}`, cursor: "nwse-resize" }}
+      >
+        <Scaling className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
 
 /** FF-2 filming scale for a card: explicit `data.scale` wins; otherwise a card
  *  parented to a FRAME defaults to the shot scale (~60%), everything else 1. */
@@ -248,6 +291,8 @@ export function BaseCard({
       >
         {data.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
       </button>
+      {/* FILMING SCALE (FF-2 UI) — corner grip + % readout, undoable, persists */}
+      <CardScaleHandle scale={scale} onScale={(s) => update({ scale: s })} />
     </div>
   );
 }
