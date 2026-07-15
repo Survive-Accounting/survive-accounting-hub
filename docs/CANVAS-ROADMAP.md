@@ -299,6 +299,20 @@ ONE whiteboard/scene per course (Region); the multi-course "world view" (courses
 as sigils / planets you fly between) is World v1 — separate, later. The tour is
 the in-region traversal; the world view is the cross-region map.
 
+## Region GRID layout (SHIPPED — supersedes the snaking path)
+The scaffold + Tidy now stamp a REGION GRID, not a boustrophedon snake: fixed-
+footprint lesson CELLS (4 beat columns × 5 reserved frame rows — space is pre-
+allocated so a sub-frame never pushes or overlaps a neighbour) laid 5-wide in
+reading order (left→right, wrap down) with generous gutters. Empty slots render
+as dashed "+ add lesson" ghost cells (authoring-only overlay, not nodes); the
+final "Course Wrap-up" chapter is pulled out and centered BELOW the grid as the
+destination. Caps: ↓ makes up to 5 frames per beat (then a "max 5" toast); a
+16th lesson soft-extends to a 4th row (warn, never block). The grid reads better
+as a map and makes the reserved-space contract trivial. `path_order` remains the
+one source of truth for the outline + a future tour (which now rides the grid's
+reading order rather than the snake spine). The old snake helpers
+(snake-layout.ts) are retired from the region scaffold.
+
 ## Lenses — one scenario doc, many cards (SHIPPED: equation lens)
 A single je_scenarios doc now renders through TWO lenses on the whiteboard:
 - **JE card** = the ENTRY (debits/credits) — the existing tetris cluster.
