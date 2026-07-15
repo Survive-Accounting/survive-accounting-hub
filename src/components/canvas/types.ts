@@ -295,18 +295,45 @@ export interface LegendCard extends CardBase {
   cornerChip: string; // editable corner stat (default "DR = CR")
 }
 
+// ---- Equation lens (A = L + E arrows) — see equation-derive.ts -----------------
+/** Which equation bucket a formula segment represents (drives derivation). */
+export type EqComponent = "assets" | "liabilities" | "equity";
+/** A component's direction: ↑ up · ↓ down · ↑↓ both · — none. */
+export type EqDir = "up" | "down" | "both" | "none";
+
 // ---- Formula (horizontal chain: [Beginning inv] + [Purchases] = [Goods avail] …) ----
 export interface FormulaSegment {
   id: string;
   label: string; // "Beginning inventory"
   value: string; // shown bold; "" renders the ??? placeholder
   hidden?: boolean; // stepper reveal
+  /** ARROWS MODE: the A/L/E bucket this segment IS. Set → derivable + gradeable.
+   *  Absent → a plain segment (numbers only; shows — in arrows mode). */
+  component?: EqComponent;
+  /** The answer arrow (manual, or auto-derived when the card is scenario-bound). */
+  arrow?: EqDir;
+  /** Arrow was manually set to differ from the bound scenario's derived value. */
+  overridden?: boolean;
+  /** PRACTICE: the student's set arrow (undefined = still blank). */
+  attempt?: EqDir;
+  /** Per-memo attachments (M3) — floating boxes with pointer leaders. */
+  memos?: JeMemo[];
 }
 export interface FormulaCard extends CardBase {
   kind: "formula";
   segments: FormulaSegment[];
   /** One operator between each pair of segments (length = segments.length - 1). */
   operators: string[];
+  /** NUMBERS (values) vs ARROWS (direction glyphs) lens. Default numbers. */
+  display?: "numbers" | "arrows";
+  /** ARROWS practice: components start blank, student sets, reveal grades. */
+  arrowMode?: "guided" | "practice";
+  /** PRACTICE: reveal pressed — grade each component's attempt vs its arrow. */
+  graded?: boolean;
+  /** Bound library scenario (je_scenarios) — auto-derives component arrows. */
+  scenarioId?: string;
+  /** Per-card memo attachments (M3) — whole-card floating boxes. */
+  memos?: JeMemo[];
 }
 
 // ---- Heading (big display text: section titles on the whiteboard) ----
@@ -369,6 +396,10 @@ export interface ListCard extends CardBase {
   kind: "list";
   /** One-word/one-line definition under the title. */
   definition?: string;
+  /** DESCRIPTION (L4): a short paragraph under the title, inline-editable,
+   *  reveal-able as its own stepper step (descHidden). */
+  description?: string;
+  descHidden?: boolean;
   rows: ListRow[];
   /** Chips off by default (Foundations teaches the 5 types before DR/CR). */
   showChips: boolean;
