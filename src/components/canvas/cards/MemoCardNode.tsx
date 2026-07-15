@@ -32,6 +32,9 @@ export const MEMO_ACCENTS: Record<MemoKind, { edge: string; ink: string; label: 
 
 export const MEMO_KIND_OPTIONS: MemoKind[] = ["note", "tip", "trap", "cheat", "calc"];
 
+/** Item 5 — the four category tags that replaced the kind buttons (+ free text). */
+export const MEMO_CATEGORIES = ["STEPS", "EXAM TRAPS", "CHEAT CODES", "OTHER TIPS"] as const;
+
 export function MemoCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as MemoCard;
   const { update, toFront } = useCardActions(id);
@@ -49,9 +52,12 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
     return () => { for (const eid of ids) document.querySelector(`.react-flow__edge[data-id="${eid}"]`)?.classList.remove("spotlit-edge"); };
   }, [stp.state, id, rf]);
   const mk = d.memoKind ?? "note";
-  const accent = MEMO_ACCENTS[mk] ?? MEMO_ACCENTS.note;
-  const Icon = accent.Icon;
   const calc = mk === "calc";
+  // Item 3: memo nodes are a SINGLE look now — dark body, GOLD border, icon only
+  // (no kind chip). Kind collapsed to note|calc; the old trap/tip/cheat became
+  // category tags. calc keeps its Calculator icon.
+  const GOLD = { edge: "rgba(252,163,17,0.55)", ink: "#F5D48F" };
+  const Icon = calc ? Calculator : Lightbulb;
 
   return (
     <div
@@ -64,27 +70,29 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
         padding: "6px 8px",
         color: "rgba(244,246,250,0.92)",
         background: "rgba(16,27,49,0.94)",
-        border: `1px solid ${selected ? accent.ink : accent.edge}`,
-        boxShadow: selected ? `0 0 18px -6px ${accent.ink}` : "0 10px 24px -12px rgba(0,0,0,0.6)",
+        border: `1px solid ${selected ? GOLD.ink : GOLD.edge}`,
+        boxShadow: selected ? `0 0 18px -6px ${GOLD.ink}` : "0 10px 24px -12px rgba(0,0,0,0.6)",
         ...spotStyle(stp.state),
         ...dim,
       }}
     >
-      <ConnectionDots color={accent.ink} />
+      <ConnectionDots color={GOLD.ink} />
       <ElementChrome id={id} posLock={d.posLock} selected={selected} />
       <ElementResizer id={id} selected={selected} minWidth={140} minHeight={48} />
 
-      {/* header: kind chip + optional title */}
+      {/* header: icon only (+ optional title / category tag) — no kind chip */}
       <div className="mb-0.5 flex items-center gap-1">
-        <Icon className="h-3 w-3 shrink-0" style={{ color: accent.ink }} />
+        <Icon className="h-3 w-3 shrink-0" style={{ color: GOLD.ink }} />
         {d.title ? (
-          <span className="min-w-0 flex-1 truncate text-[11px] font-bold" style={{ color: accent.ink }}>{d.title}</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] font-bold" style={{ color: GOLD.ink }}>{d.title}</span>
         ) : (
           <span className="min-w-0 flex-1" />
         )}
-        <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: accent.ink, border: `1px solid ${accent.edge}` }}>
-          {accent.label}
-        </span>
+        {d.category ? (
+          <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: GOLD.ink, border: `1px solid ${GOLD.edge}` }}>
+            {d.category}
+          </span>
+        ) : null}
       </div>
 
       {/* body — double-click to edit (single click/drag moves the node) */}
@@ -113,8 +121,10 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
         )}
       </div>
 
+      {/* editor opens BELOW the memo node (which already sits to the RIGHT of the
+          JE) — clear of the entry (item 5). */}
       {editing && anchor && (
-        <CardPopover anchor={anchor} side="left" onClose={() => setEditing(false)}>
+        <CardPopover anchor={anchor} align="right" onClose={() => setEditing(false)}>
           <MemoNodeEditor
             memo={d}
             onSave={(patch) => { update(patch as Record<string, unknown>); setEditing(false); }}
@@ -140,9 +150,8 @@ function MemoNodeEditor({
   const [title, setTitle] = useState(memo.title ?? "");
   const [body, setBody] = useState(memo.body ?? "");
   const [category, setCategory] = useState(memo.category ?? "");
-  const [mk, setMk] = useState<MemoKind>(memo.memoKind ?? "note");
   const [principleTags, setPrincipleTags] = useState<string[]>(memo.principleTags ?? []);
-  const calc = mk === "calc";
+  const calc = (memo.memoKind ?? "note") === "calc"; // kind is set at creation; the editor no longer changes it
   return (
     <div
       className="nodrag w-60 rounded-lg p-2 shadow-xl"
@@ -157,37 +166,37 @@ function MemoNodeEditor({
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
       />
-      <div className="mb-1 flex flex-wrap gap-1">
-        {MEMO_KIND_OPTIONS.map((k) => {
-          const active = mk === k;
-          const a = MEMO_ACCENTS[k];
-          return (
-            <button
-              key={k}
-              className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide"
-              style={{ color: active ? a.ink : NEON.muted, background: active ? "rgba(255,255,255,0.06)" : "transparent", border: `1px solid ${active ? a.edge : NEON.borderSoft}` }}
-              onClick={() => setMk(k)}
-            >
-              {a.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* Item 5: kind buttons removed; no calc placeholder text. */}
       <textarea
         rows={calc ? 4 : 3}
         autoFocus
         className="w-full resize-none rounded bg-black/30 px-1.5 py-1 leading-snug outline-none"
         style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}`, fontSize: calc ? 11 : 11.5, fontFamily: calc ? "ui-monospace, Menlo, Consolas, monospace" : undefined }}
         value={body}
-        placeholder={calc ? "500,000 × 8% × 6/12 = 20,000\n(one step per line — = signs align)" : "The memo…"}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Escape") onClose(); e.stopPropagation(); }}
       />
+      {/* CATEGORY (item 5): four preset tags + optional free text. */}
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {MEMO_CATEGORIES.map((c) => {
+          const active = category === c;
+          return (
+            <button
+              key={c}
+              className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+              style={{ color: active ? "#0B1322" : NEON.muted, background: active ? NEON.yellow : "transparent", border: `1px solid ${active ? NEON.yellow : NEON.borderSoft}` }}
+              onClick={() => setCategory(active ? "" : c)}
+            >
+              {c}
+            </button>
+          );
+        })}
+      </div>
       <input
         className="mt-1 w-full rounded bg-black/30 px-1.5 py-0.5 text-[10.5px] outline-none"
         style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
         value={category}
-        placeholder="Category tag (optional)"
+        placeholder="…or a custom tag"
         onChange={(e) => setCategory(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
       />
@@ -199,7 +208,7 @@ function MemoNodeEditor({
         <button
           className="rounded px-2 py-0.5 text-[10.5px] font-semibold"
           style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)" }}
-          onClick={() => onSave({ title: title.trim() || undefined, body, category: category.trim() || undefined, memoKind: mk, principleTags })}
+          onClick={() => onSave({ title: title.trim() || undefined, body, category: category.trim() || undefined, principleTags })}
         >
           save
         </button>
