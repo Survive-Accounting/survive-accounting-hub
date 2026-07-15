@@ -47,9 +47,12 @@ function cleanValue(key: TokenKey, v: string): string {
 
 const TOKEN_RE = /\{(first_name|university|professor|course_code|exam_date)\}/g;
 
-/** Substitute tokens → React nodes. Unset values render the raw token dimmed. */
+/** Substitute tokens → React nodes. A token ALWAYS resolves to a real value: the
+ *  preview student's, else the built-in EXAMPLE (so a raw `{first_name}` never
+ *  renders on camera during a take — this is a filming tool). */
 export function renderTokens(text: string, student: PreviewStudent): ReactNode[] {
   const out: ReactNode[] = [];
+  const ex = defaultPreviewStudent();
   let last = 0;
   let m: RegExpExecArray | null;
   const re = new RegExp(TOKEN_RE.source, "g");
@@ -57,25 +60,18 @@ export function renderTokens(text: string, student: PreviewStudent): ReactNode[]
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index));
     const key = m[1] as TokenKey;
-    const val = cleanValue(key, student[key] ?? "");
-    out.push(
-      val ? (
-        <span key={`t${i++}`}>{val}</span>
-      ) : (
-        <span key={`t${i++}`} style={{ opacity: 0.35, fontStyle: "italic" }} title="Unset preview value — edit the Preview student in canvas settings">
-          {m[0]}
-        </span>
-      ),
-    );
+    const val = cleanValue(key, (student[key] || ex[key]) ?? "");
+    out.push(<span key={`t${i++}`}>{val || m[0]}</span>);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
 }
 
-/** Plain-string substitution (title attributes, measurements). Unset → token kept. */
+/** Plain-string substitution (title attributes, measurements). Unset → EXAMPLE. */
 export function substituteTokens(text: string, student: PreviewStudent): string {
-  return text.replace(TOKEN_RE, (tok, key: TokenKey) => cleanValue(key, student[key] ?? "") || tok);
+  const ex = defaultPreviewStudent();
+  return text.replace(TOKEN_RE, (tok, key: TokenKey) => cleanValue(key, student[key] || ex[key]) || tok);
 }
 
 /** The {x} insert menu — token list with example values. */
