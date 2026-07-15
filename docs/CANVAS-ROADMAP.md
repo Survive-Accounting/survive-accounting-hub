@@ -49,8 +49,9 @@ SHORTS PIPELINE (post-filming, per lesson):
    (Check recap), the shorts library, and the wrap-up. Improvised gold gets
    caught, not lost in a 20-min video.
 4. TWO CUTS, not one: SOCIAL cut = hook in first 2s (trap/payoff first) → card
-   moment → outro bump ("The whole foundations course is free — Start Here at
-   surviveaccounting.com" — name the free thing, never generic "tools"). PLAYLIST
+   moment → outro bump ("Start free at surviveaccounting.com" — name the free
+   thing, never generic "tools"; the gate is inside Start Here now, so it's
+   "start free," NOT "the whole course is free"). PLAYLIST
    cut = no hook, just the moment; lives in Course Wrap-up as the exam-eve
    highlights reel (20× 30s of every trap and cheat code — the best cram artifact
    in the product).
@@ -144,10 +145,44 @@ July run). Generalize the mechanism so every card kind flips: CEQ shows the
 answer + feedback, computation reveals steps, memorize shows the body. Same
 dispatcher command, same gate-in-practice contract.
 
-## Gate rendering (free/paid boundary)
+## Gate rendering (free/paid boundary) — SUPERSEDES the prior note
 GATE = a marker dropped between lessons. Free region renders with a B&W
 tint, paid in full color; the boundary carries a border treatment from Lee's
 photo frames + a Join button. Ties into Free/paid territory + World v1.
+
+**The gate stays INSIDE Start Here, at adjusting entries — NOT at the region
+boundary.** (Start Here does NOT go fully free yet; that happens LATER, once
+Intro 1/2 + IA1/2 are filled out and Start Here becomes the funnel rather than
+the product.) Foundations is now **11 chapters** — the old "Trial Balances &
+Adjusting Entries" splits into Ch 6 Trial Balance + Ch 7 Adjusting Entries:
+
+- **Free** — Ch 1 A=L+E · Ch 2 The Cycle · Ch 3 Accounts & DR/CR ·
+  Ch 4 Journal Entries · Ch 5 Receivables, Payables & Posting ·
+  **Ch 6 TRIAL BALANCE (the summit** — the free run ends on "it balances," the
+  payoff of everything before it).
+- **Paid** — Ch 7 Adjusting Entries (the cliff) · Ch 8 Financial Statements ·
+  Ch 9 Closing Entries · Ch 10 Important Principles · Ch 11 Course Wrap-up.
+
+Paid territory renders in color / B&W preview per the gate-as-terrain design;
+the cliff is visible from the free side. RATIONALE: five free chapters still
+contain the conversion event (building a JE for the first time); gating at
+adjusting entries puts the wall where the pain is.
+
+> NB: migration 0092 seeded the pre-split 10-chapter Foundations (combined
+> "Trial Balances & Adjusting Entries" at Ch 6, Wrap-up at Ch 10). Landing this
+> 11-chapter structure needs a follow-up migration to split Ch 6 → Ch 6 Trial
+> Balance + Ch 7 Adjusting Entries and renumber 7→8 … 10→11 (collision-safe,
+> like 0089). Not run in the Key-panel/roadmap task.
+
+### Pricing — ONE SKU
+Your course, **$150**, includes all of Start Here. There is **no standalone
+Start Here SKU**. Greek chapter licenses **$100/member (floor $80)** for the
+same product, group payer. No bundles, no combinatorics.
+
+### Copy fixes (required)
+- Shorts outro → **"Start free at surviveaccounting.com"** (NOT "the whole
+  foundations course is free").
+- Waitlist perk → **"the basics, free."**
 
 ## Zone → REGION rename (follow-up)
 B1 added LESSON as a second grouping tier and adopted the WORLD → REGION →
