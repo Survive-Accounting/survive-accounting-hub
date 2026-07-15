@@ -28,6 +28,7 @@ import { JE_FONT, NEON, PAPER } from "../theme";
 import {
   JE_PRESETS,
   amountOf,
+  autoBalance,
   balanceState,
   blankFrom,
   calcRows,
@@ -170,9 +171,28 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   // DR/CR INVARIANT (#1): every mutation sees grouped input and writes grouped
   // output, so the flat lines array is ALWAYS [debits…, credits…] in entry
   // order — the render below can never draw an interleaved silhouette.
+  // GUIDED AMOUNT ECHO (item 1): every line mutation flows through here, so this
+  // is the one place to re-derive the balancing echo. autoBalance is pure +
+  // idempotent (it strips prior echoes and recomputes from the hand-typed
+  // amounts), so running it on ALL guided mutations keeps the opposite side
+  // filled without ever clobbering a typed figure. PRACTICE never echoes.
   const setLines = (mk: (lines: JeLine[]) => JeLine[]) =>
-    updateFn((prev) => ({ lines: orderLines(mk(orderLines((prev.lines as JeLine[]) ?? []))) }));
+    updateFn((prev) => {
+      const next = orderLines(mk(orderLines((prev.lines as JeLine[]) ?? [])));
+      return { lines: mode === "guided" && !locked ? autoBalance(next) : next };
+    });
   const patchLine = (lid: string, patch: Partial<JeLine>) => setLines((lines) => lines.map((l) => (l.id === lid ? { ...l, ...patch } : l)));
+  /** Commit an amount onto a line. A REAL change clears the echo flag (the figure
+   *  becomes hand-typed, protected from re-derivation); tabbing THROUGH an
+   *  unchanged echo cell keeps it derived so later lines still recompute it. */
+  const commitAmount = (lineId: string, side: JeSide, v: number | null) =>
+    setLines((ls) =>
+      ls.map((l) => {
+        if (l.id !== lineId) return l;
+        const echoNext = v === amountOf(l) ? l.echo : undefined;
+        return side === "dr" ? { ...l, dr: v, cr: null, side, echo: echoNext } : { ...l, cr: v, dr: null, side, echo: echoNext };
+      }),
+    );
   const selectLine = (lid: string | null) => rf.updateNodeData(id, { _selLine: lid ?? undefined }); // transient
 
   // ONE canonical order for everything that renders or indexes by position
@@ -204,7 +224,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       commitVal === undefined ? ls : ls.map((l) => {
         if (l.id !== lineId) return l;
         const s = sideOf(l);
-        return s === "dr" ? { ...l, dr: commitVal, cr: null, side: s } : { ...l, cr: commitVal, dr: null, side: s };
+        const echoNext = commitVal === amountOf(l) ? l.echo : undefined; // tab-through keeps echo; a real edit is hand-typed
+        return s === "dr" ? { ...l, dr: commitVal, cr: null, side: s, echo: echoNext } : { ...l, cr: commitVal, dr: null, side: s, echo: echoNext };
       });
     if (commitVal !== undefined) setLines(applyAmt);
     const L = applyAmt(orderLines(d.lines)); // the walk sees the pending commit
@@ -224,7 +245,8 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
       const committed = commitVal === undefined ? ls : ls.map((x) => {
         if (x.id !== lineId) return x;
         const s = sideOf(x);
-        return s === "dr" ? { ...x, dr: commitVal, cr: null, side: s } : { ...x, cr: commitVal, dr: null, side: s };
+        const echoNext = commitVal === amountOf(x) ? x.echo : undefined;
+        return s === "dr" ? { ...x, dr: commitVal, cr: null, side: s, echo: echoNext } : { ...x, cr: commitVal, dr: null, side: s, echo: echoNext };
       });
       const i = committed.findIndex((x) => x.id === lineId);
       const nl: JeLine = { id: nid, account: "", dr: null, cr: null, side };
@@ -453,13 +475,11 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
     // TAB AUTHORING (#2): does the keyboard currently drive THIS block's fields?
     const authAcct = authoring && authoring.lineId === l.id && authoring.which === "account" ? authoring.seq : undefined;
     const authAmt = authoring && authoring.lineId === l.id && authoring.which === "amount" ? authoring.seq : undefined;
-    // AMOUNT ECHO (#3): the SOLE empty credit amount ghosts the balancing figure
-    // (total debits − other credits). Dim suggestion only — accepted on Tab/Enter
-    // off an empty field, overridden by typing; never auto-committed.
-    const sumDr = effLines.filter((x) => sideOf(x) === "dr").reduce((s, x) => s + (amountOf(x) ?? 0), 0);
-    const sumCrOther = effLines.filter((x) => sideOf(x) === "cr" && x.id !== l.id).reduce((s, x) => s + (amountOf(x) ?? 0), 0);
-    const soleCredit = side === "cr" && effLines.filter((x) => sideOf(x) === "cr").length === 1;
-    const ghostAmt = !locked && soleCredit && amt == null && sumDr > 0 ? sumDr - sumCrOther : null;
+    // AMOUNT ECHO (item 1): superseded the dim ghost suggestion — in GUIDED the
+    // balancing figure is AUTO-COMMITTED into the sole open amount by autoBalance
+    // (see setLines), so it's a real editable value, not a hint. `l.echo` marks a
+    // cell the tool filled so it renders subtly (italic/muted) — still committed.
+    const isEcho = !!l.echo && amt != null;
     // ACTIONABLE = an empty account slot the user can still fill (not locked).
     // Amber is reserved for exactly this — filled content never wears amber.
     const actionable = empty && !locked;
@@ -635,13 +655,13 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
                   value={amt}
                   placeholder="???"
                   clickToEdit
+                  className={isEcho ? "italic opacity-70" : ""}
                   emptyClassName={`${amtEmpty && selected ? "je-fill-pulse " : ""}border-b border-dashed px-0.5`}
                   emptyStyle={{ color: "rgba(138,90,0,0.85)", borderColor: `rgba(252,163,17,${selected ? 0.8 : 0.55})` }}
                   openSeq={authAmt}
                   onFieldTab={(back, val) => advanceField(l.id, "amount", back, val)}
                   onEnter={(val) => addBlockBelow(l.id, val)}
-                  ghost={ghostAmt}
-                  onChange={(v) => patchLine(l.id, side === "dr" ? { dr: v, cr: null, side } : { cr: v, dr: null, side })}
+                  onChange={(v) => commitAmount(l.id, side, v)}
                 />
               )}
             </div>
@@ -1121,18 +1141,22 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
 
           {/* balance chip — GUIDED always; PRACTICE only after attempt+reveal.
               UNKNOWN renders NOTHING (PROMPT A item 2: the old "?" pill at the
-              cluster's bottom-right was pure noise — chrome-consolidation era). */}
+              cluster's bottom-right was pure noise — chrome-consolidation era).
+              BALANCED reads as a bare ✓ (item 2 — the word "balanced" was
+              redundant; balanceState already requires BOTH sides fully valued);
+              OFF keeps the signed Δ so the miss is legible. */}
           {(mode === "guided" || d.revealUsed) && bal.state !== "unknown" && (
             <div className="mt-1.5 flex justify-end">
               <span
-                className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums"
+                className={`rounded-full py-0.5 text-[10.5px] font-bold tabular-nums ${bal.state === "balanced" ? "px-1.5" : "px-2"}`}
+                title={bal.state === "balanced" ? "Debits equal credits" : "Debits do not equal credits"}
                 style={
                   bal.state === "balanced"
                     ? { color: NEON.green, border: `1px solid rgba(59,245,160,0.6)`, background: "rgba(59,245,160,0.1)" }
                     : { color: "#FF8B9E", border: `1px solid rgba(194,24,50,0.5)`, background: "rgba(194,24,50,0.12)" }
                 }
               >
-                {bal.state === "balanced" ? "✓ balanced" : `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}`}
+                {bal.state === "balanced" ? "✓" : `Δ ${fmtNum(Math.abs(bal.sumDr - bal.sumCr))} ${bal.sumDr - bal.sumCr > 0 ? "DR" : "CR"}`}
               </span>
             </div>
           )}
