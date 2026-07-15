@@ -54,7 +54,7 @@ import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
 import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, framesInBeat, framesInLesson, GRID, gridLayout, lessonGrid, lessonRollFrame, nextSubIndex, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, GRID, gridLayout, lessonGrid, lessonRollFrame, nextSubIndex, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -64,7 +64,7 @@ import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
-import { lessonIdOf, nextTuckedCross } from "@/components/canvas/deck-logic";
+import { lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { snakeBounds, snakeLayout, snakePerRow } from "@/components/canvas/snake-layout";
@@ -79,7 +79,7 @@ import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
-import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS } from "@/components/canvas/FilmOverlays";
+import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FrameArmCue } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
@@ -688,6 +688,28 @@ function PresentCanvas() {
   const [frameTransitions, setFrameTransitions] = useState(true); // F3: animate enter/step (off = instant cut)
   const frameTransitionsRef = useRef(true);
   frameTransitionsRef.current = frameTransitions;
+  // SPACE-WALK ACROSS FRAMES: space advances to the next frame once the current
+  // one is exhausted, but only after ARMING (a guard press) so a mid-take space
+  // never jumps the camera. armState is transient (never persisted).
+  const [spaceAdvancesFrames, setSpaceAdvancesFrames] = useState(true); // toggle: off = space stays in-frame
+  const spaceAdvancesFramesRef = useRef(true);
+  spaceAdvancesFramesRef.current = spaceAdvancesFrames;
+  const [rehearsalHud, setRehearsalHud] = useState(false); // next-up "next: Teach 2" pill (rehearsal only)
+  const [armState, setArmState] = useState<null | "ready" | "end">(null);
+  const armStateRef = useRef<null | "ready" | "end">(null);
+  armStateRef.current = armState;
+  const disarm = useCallback(() => setArmState(null), []);
+  // Armed transitions DISARM on any input other than the advancing space: a
+  // click anywhere, or any non-space key (arrow nav, Esc, mode keys). Capture
+  // phase so it runs BEFORE the keymap's own space handler advances the frame.
+  useEffect(() => {
+    if (!armState) return;
+    const onPointer = () => setArmState(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key !== " " && e.key !== "Spacebar") setArmState(null); };
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => { window.removeEventListener("pointerdown", onPointer, true); window.removeEventListener("keydown", onKey, true); };
+  }, [armState]);
   const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
   const [framePickerOpen, setFramePickerOpen] = useState(false); // FG5: grid mini-map jump
   const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
@@ -1893,13 +1915,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -1957,6 +1979,8 @@ function PresentCanvas() {
       if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
       if (typeof nj.sceneSettings?.focusPalette === "boolean") setFocusPalette(nj.sceneSettings.focusPalette);
       setFrameTransitions((nj.sceneSettings as { frameTransitions?: boolean } | undefined)?.frameTransitions !== false); // default on
+      setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames !== false); // default on
+      setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -2392,33 +2416,58 @@ function PresentCanvas() {
       {
         combo: "space",
         group: "Show",
-        description: "Flip face-down card, else reveal next, else deal — walking lesson → lesson",
+        description: "Reveal / deal within the frame; when exhausted, arm then advance to the next frame",
         handler: (e) => {
-          // THE SHOW KEY (PROMPT C): one key walks the whole REGION. Reveal on
-          // the selected card first; else deal the CURRENT lesson's next
-          // tucked entry; when a lesson's deck exhausts, flow into the next
-          // lesson's deck in path order (Loose last).
+          // THE SHOW KEY — one key performs the whole lesson. Ordered precedence:
+          //   (a) selected card has hidden reveals → reveal next (flip first)
+          //   (b) the current FRAME's deck has tucked items → deal next into slot
+          //   (c) frame exhausted → ARM the transition (no camera move) + arm cue
+          //   (d) armed + space → advance to the next COLUMN-MAJOR frame, disarmed
+          //   (e) at the lesson's last frame → arm shows "end of lesson"; never
+          //       advances past (→ is the manual roll to the next lesson).
+          // Any reveal/deal DISARMS. Not inside a frame → the old cross-lesson walk.
           e.preventDefault();
-          const sel = rf.getNodes().find((n) => n.selected && !isContainerType(n.type));
+          const nodes = rf.getNodes();
+          const sel = nodes.find((n) => n.selected && !isContainerType(n.type));
+          // (a) flip / reveal on the selected card
           if (sel && (sel.data as unknown as CardData).faceDown) {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, { faceDown: false }, "flip card");
             if (c) bus.dispatch(c);
-            return;
+            disarm(); return;
           }
           const patch = sel ? stepReveal(sel.data as unknown as CardData) : null;
           if (sel && patch) {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
             if (c) bus.dispatch(c);
-            // SL5 — Spotlight follows the reveal: jump attention to the new target
             const tid = revealedTargetId(sel.data as unknown as CardData, patch as Partial<CardData>);
             if (tid) spotRef.current?.onReveal(sel.id, tid);
+            disarm(); return;
+          }
+          // (b) deal — the current FRAME's deck if we're in one, else cross-lesson
+          const frameId = currentFrameRef.current;
+          if (frameId) {
+            const next = nextTuckedInFrame(nodes as never, frameId);
+            if (next) { deal(next.id); disarm(); return; }
           } else {
-            const nodes = rf.getNodes();
-            // the selected card's lesson steers the walk; else the last deal's
             const current = sel ? lessonIdOf(sel as never, nodes as never) : walkLessonRef.current;
             const next = nextTuckedCross(nodes as never, current);
-            if (next) deal(next.id);
+            if (next) { deal(next.id); disarm(); return; }
+            return; // no frame context + nothing to deal → no transition to arm
           }
+          // (c/d/e) FRAME EXHAUSTED. Toggle off → space stays at the frame edge.
+          if (!spaceAdvancesFramesRef.current) return;
+          const nextFrame = frameWalkNext(nodes as never, frameId);
+          if (armStateRef.current === null) {
+            setArmState(nextFrame ? "ready" : "end"); // ARM only — camera stays put
+            return;
+          }
+          if (armStateRef.current === "end" || !nextFrame) return; // never advance past the lesson
+          // (d) armed + space → transition, then seed the walk in the new frame
+          enterFrame(nextFrame.id);
+          const kids = rf.getNodes().filter((n) => n.parentId === nextFrame.id && !isContainerType(n.type) && !isTucked(n.data as never));
+          const firstRevealable = kids.find((k) => stepReveal(k.data as unknown as CardData) !== null);
+          rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === firstRevealable?.id) ? { ...n, selected: n.id === firstRevealable?.id } : n)));
+          setArmState(null);
         },
       },
       {
@@ -2592,7 +2641,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame],
+    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm],
   );
   useKeymap(bindings);
 
@@ -2651,6 +2700,14 @@ function PresentCanvas() {
       )}
       {/* Camera bubble — screen-fixed; deliberately OUTSIDE chrome gating (it IS filming) */}
       {camera && <CameraBubble onClose={() => setCamera(false)} />}
+
+      {/* SPACE-WALK ARM CUE — Lee's tell that the frame is exhausted and the next
+          space will transition. Filming chrome (fixed overlay, not lesson DOM). */}
+      {armState && currentFrameId && (() => {
+        const nextF = frameWalkNext(rf.getNodes() as never, currentFrameId);
+        const label = armState === "end" || !nextF ? "end of lesson" : frameCellLabel(nextF as never);
+        return <FrameArmCue state={armState} nextLabel={label} showHud={rehearsalHud} />;
+      })()}
 
       {/* Type floor — prep warning, hidden while actually filming */}
       {lowZoom && !film && (
@@ -2969,6 +3026,16 @@ function PresentCanvas() {
                 <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: spotFollowReveals ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={spotFollowReveals} onChange={(e) => setSpotFollowReveals(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Spotlight follows reveals
+                </label>
+                {/* SPACE-WALK (film performance) toggles */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Filming</div>
+                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: spaceAdvancesFrames ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={spaceAdvancesFrames} onChange={(e) => setSpaceAdvancesFrames(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Space advances frames <span className="opacity-60">(arm-then-go; off = stay in frame)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: rehearsalHud ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={rehearsalHud} onChange={(e) => setRehearsalHud(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Rehearsal HUD <span className="opacity-60">(next-up when armed)</span>
                 </label>
                 {/* SCENE COURSE CONTEXT (content reset): pickers scope to this */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: sceneCourseId ? NEON.yellow : NEON.muted }}>Scene course</div>
