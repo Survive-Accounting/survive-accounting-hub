@@ -61,7 +61,7 @@ export function BrandBar({ items = [], activeItem = null, onItem, children }: {
           {drawerOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </button>
         <div className="pointer-events-none absolute inset-x-0 flex justify-center">
-          <Wordmark />
+          <img src="/brand-logo.png" alt="Survive Accounting" style={{ height: 18, width: "auto" }} />
         </div>
       </div>
 
