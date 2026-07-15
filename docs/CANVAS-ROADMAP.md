@@ -263,3 +263,25 @@ pan. Built on this run's outline + path_order + the boustrophedon layout. NB:
 ONE whiteboard/scene per course (Region); the multi-course "world view" (courses
 as sigils / planets you fly between) is World v1 — separate, later. The tour is
 the in-region traversal; the world view is the cross-region map.
+
+## Lenses — one scenario doc, many cards (SHIPPED: equation lens)
+A single je_scenarios doc now renders through TWO lenses on the whiteboard:
+- **JE card** = the ENTRY (debits/credits) — the existing tetris cluster.
+- **Equation card** (formula card, ARROWS display) = the EFFECT on A = L + E:
+  each component shows ↑ ↓ ↑↓ — instead of a value, settable by click OR
+  auto-derived from a bound library scenario (`equation-derive.ts`,
+  `deriveEquationArrows` — gross per-bucket direction; contra handled via type;
+  revenue/expense fold into Equity via retained earnings). Practice mode blanks
+  the components and grades the student's arrows.
+- **T-ACCOUNT is LENS THREE** (parked): same pattern — bind the same doc, render
+  the ledger view (`deriveLedger` already exists in je-engine). One doc → JE +
+  equation + T-account, all in sync, no re-authoring. Statements (BS/IS) are a
+  natural lens four via `deriveStatementEffects`.
+
+## Memos everywhere (SHIPPED: M3)
+The memo object (floating box + pointer arrow, kinds cheat/trap/calc/tip,
+deck-eligible) now attaches to ANY target via one lightbulb gesture: whole
+cards, formula/equation COMPONENTS, and list ITEMS (`MemoLightbulb` +
+`MemoAnchor`, an RF edge memo→handle that follows on drag). Exam-trap memos on
+tricky A=L+E scenarios are the immediate use; they also feed the memo decks (=
+the shorts library). Next: memo affordance on T-account cells + schedule rows.
