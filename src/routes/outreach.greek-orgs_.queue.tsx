@@ -57,7 +57,7 @@ const fullRenderUrl = (ein: string, objectId: string) =>
 type PriorityGroup = {
   key: string;
   label: string;
-  match: (ch: GreekChapter, campusName: string) => boolean;
+  match: (ch: GreekChapter, campus: GreekCampus | null) => boolean;
   order: "org" | "campus"; // sort within the group
 };
 const PRIORITY_GROUPS: PriorityGroup[] = [
@@ -65,7 +65,7 @@ const PRIORITY_GROUPS: PriorityGroup[] = [
     key: "ole-miss",
     label: "All Ole Miss",
     order: "org",
-    match: (_ch, campusName) => campusName === "University of Mississippi",
+    match: (_ch, campus) => campus?.name === "University of Mississippi",
   },
   {
     key: "kkg",
@@ -91,7 +91,19 @@ const PRIORITY_GROUPS: PriorityGroup[] = [
     order: "campus",
     match: (ch) => /phi kappa tau/i.test(ch.national_org),
   },
+  {
+    // Whole SEC roster (IFC/Panhellenic — the queue already hides NPHC/MGC).
+    key: "sec",
+    label: "All SEC",
+    order: "campus",
+    match: (_ch, campus) => campus?.active_roster === "sec",
+  },
 ];
+
+// The queue works Panhellenic + IFC house corps only — NPHC/MGC/other are hidden
+// everywhere (batches, counts, ad-hoc campus). Councils are normalized in the DB.
+const PANHEL_IFC = new Set(["ifc", "panhellenic"]);
+const isPanhelOrIfc = (ch: GreekChapter) => !!ch.council && PANHEL_IFC.has(ch.council);
 
 interface QueueItem {
   chapterId: string;
@@ -123,8 +135,10 @@ function Queue() {
   // Chapters matching a selection (priority group OR ad-hoc campus), then the
   // pending filter, sorted for a sensible working order.
   function chaptersFor(sel: { group?: PriorityGroup | null; campusId?: string | null }) {
-    let rows = chapters.filter((ch) => ch.greek_org_id);
-    if (sel.group) rows = rows.filter((ch) => sel.group!.match(ch, campusName(ch)));
+    // Panhellenic + IFC only — NPHC/MGC/other are filtered out of every batch.
+    let rows = chapters.filter((ch) => ch.greek_org_id && isPanhelOrIfc(ch));
+    if (sel.group)
+      rows = rows.filter((ch) => sel.group!.match(ch, campusById.get(ch.campus_id ?? "") ?? null));
     else if (sel.campusId) rows = rows.filter((ch) => ch.campus_id === sel.campusId);
     const order = sel.group?.order ?? "org";
     return rows.sort((a, b) =>
@@ -219,7 +233,8 @@ function Queue() {
         </div>
         <p className="mb-4 text-xs text-muted-foreground">
           Pick a priority batch, then work one chapter per screen. Enter = confirm & next, S = skip.
-          The number is how many are still pending in that batch.
+          The number is how many are still pending in that batch. Showing Panhellenic + IFC only —
+          NPHC/MGC chapters are hidden.
         </p>
 
         <div className="space-y-4 rounded-lg border border-border p-4">

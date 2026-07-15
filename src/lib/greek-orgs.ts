@@ -11,6 +11,7 @@ export interface GreekCampus {
   state: string | null;
   city: string | null;
   fsl_url: string | null;
+  active_roster: string | null; // "sec" for the SEC roster; null/other for research-only imports
 }
 
 /** A per-campus chapter row joined to the national org name (client-side). */
@@ -174,7 +175,7 @@ async function selectAllPaged<T>(
 // fetches — but the registry/queues must see it.
 export async function fetchGreekCampuses(): Promise<GreekCampus[]> {
   const { data, error } = await (supabase.from("campuses" as never) as any)
-    .select("id, name, state, city, fsl_url")
+    .select("id, name, state, city, fsl_url, active_roster")
     .or("active_roster.eq.sec,is_research_only.eq.true")
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
