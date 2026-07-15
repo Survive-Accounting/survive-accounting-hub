@@ -5,7 +5,16 @@ import { Lock, LockOpen, Minus, Pencil, Plus, Copy, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { ConnectionDots } from "./ConnectionDots";
 import { NEON, PAPER } from "./theme";
-import { cardId, isElementKind, type CardBase } from "./types";
+import { cardId, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
+
+/** FF-2 filming scale for a card: explicit `data.scale` wins; otherwise a card
+ *  parented to a FRAME defaults to the shot scale (~60%), everything else 1. */
+export function useCardScale(id: string, data: CardBase): number {
+  const rf = useReactFlow();
+  if (typeof data.scale === "number") return data.scale;
+  const p = rf.getNode(id)?.parentId;
+  return p && rf.getNode(p)?.type === "frame" ? FRAME_CARD_SCALE : 1;
+}
 
 /** Next stageOrder = one past the current max (append to the end of the show). */
 export function nextStageOrder(nodes: { data: Record<string, unknown> }[]): number {
@@ -144,6 +153,7 @@ export function BaseCard({
 }) {
   const { update, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const title = data.title ?? "";
+  const scale = useCardScale(id, data);
 
   return (
     <div
@@ -153,6 +163,8 @@ export function BaseCard({
         width: fixedWidth ?? data.w ?? undefined,
         height: data.h ?? undefined,
         minWidth: 220,
+        transform: scale !== 1 ? `scale(${scale})` : undefined,
+        transformOrigin: "top left",
         // PAPER card: off-white "textbook flashcard" that pops off the navy table
         background: PAPER.card,
         border: `1px solid ${selected ? accent : PAPER.cardEdge}`,

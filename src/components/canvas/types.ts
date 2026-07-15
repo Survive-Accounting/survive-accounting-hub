@@ -96,7 +96,15 @@ export interface CardBase {
   deckId?: string;
   /** Assigned skeleton-grid slot index within its named deck (P4). */
   slotIndex?: number;
+  /** FILMING SCALE (FF-2): visual size multiplier 0.25–1. Absent = 1 loose,
+   *  ~0.6 inside a frame (the shot default, applied on render, not persisted
+   *  until the user nudges it). Purely presentational — geometry is unchanged. */
+  scale?: number;
 }
+
+/** Clamp/step a filming scale to the 25–100% band (FF-2). */
+export const FRAME_CARD_SCALE = 0.6;
+export const clampScale = (s: number): number => Math.max(0.25, Math.min(1, Math.round(s * 100) / 100));
 
 // ---- JE ----
 /** A line's floating annotation (PROMPT A): TEXT (lightbulb, prose "why") or

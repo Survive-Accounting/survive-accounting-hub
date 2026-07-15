@@ -11,11 +11,11 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import { GripHorizontal, Lock, LockOpen, Trash2 } from "lucide-react";
 
-import { useCardActions } from "../BaseCard";
+import { useCardActions, useCardScale } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
 import { NOTE_COLORS } from "../theme";
 import { uploadImageFile } from "./ImageCardNode";
-import type { NoteCard } from "../types";
+import type { CardBase, NoteCard } from "../types";
 
 const FONT_STEPS = [12, 15, 18, 22, 28];
 
@@ -36,6 +36,7 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as NoteCard;
   const rf = useReactFlow();
   const { update, remove, toFront } = useCardActions(id);
+  const scale = useCardScale(id, d as unknown as CardBase);
   const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
   const fontSize = d.fontSize ?? 15;
   const lastHtml = useRef<string | null>(null);
@@ -98,6 +99,8 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
           : "0 10px 24px -14px rgba(0,0,0,0.5)",
         color: c.ink,
         fontFamily: "'Comic Sans MS', 'Segoe Print', cursive",
+        transform: scale !== 1 ? `scale(${scale})` : undefined,
+        transformOrigin: "top left",
       }}
     >
       <ConnectionDots />

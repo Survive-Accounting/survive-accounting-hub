@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
 import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, FlipVertical2, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
-import { useCardActions } from "../BaseCard";
+import { useCardActions, useCardScale } from "../BaseCard";
 import { lineHandleId, memoHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
 import { CardPopover } from "../CardPopover";
@@ -50,7 +50,7 @@ import {
   type JePreset,
   type JeSide,
 } from "../je-logic";
-import { cardId, type JeCard, type JeLine, type JeMemo, type MemoKind } from "../types";
+import { cardId, type CardBase, type JeCard, type JeLine, type JeMemo, type MemoKind } from "../types";
 
 const ENTRY_TYPES = ["standard", "adjusting", "closing"] as const;
 const BADGE: Record<(typeof ENTRY_TYPES)[number], string> = { standard: "JE", adjusting: "ADJ", closing: "CL" };
@@ -115,6 +115,7 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const rf = useReactFlow();
   const updateInternals = useUpdateNodeInternals();
   const { update, updateFn, remove, toFront, addToDeck, tuck } = useCardActions(id);
+  const cardScale = useCardScale(id, d as unknown as CardBase);
   const ctx = useCanvasSettings();
   const S = effectiveSettings(d.settings, ctx.jePreset);
   const mode = effectiveMode(d.mode, ctx.jePreset);
@@ -877,6 +878,9 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         // nothing touches the border. Uniform, so selecting never reflows.
         boxSizing: "content-box",
         padding: 12,
+        // FILMING SCALE (FF-2): shrink the whole cluster for a framed shot.
+        transform: cardScale !== 1 ? `scale(${cardScale})` : undefined,
+        transformOrigin: "top left",
         // LIGHT CARD (contrast pass): the JE is now a PAPER body — an off-white
         // "flashcard" that pops off the navy table, matching the T-account
         // standard (BaseCard). Dark ink is the default; colour is reserved for
