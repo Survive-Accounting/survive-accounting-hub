@@ -5,9 +5,9 @@
 // frames wear the red gate tint. Click the header (or double-click the stage) to
 // ENTER: the camera fits the frame exactly (frame bounds = viewport). ‹ › walk
 // the lesson's frames; Esc / ⌂ exits.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Maximize2, Tag, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Film, Maximize2, Pause, Play, Tag, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { bus } from "../commands";
@@ -16,7 +16,7 @@ import { useFrameNav } from "../FrameNavContext";
 import { frame169 } from "../frames";
 import { EditableText } from "../ui";
 import { NEON } from "../theme";
-import type { FrameBeat, FrameBox } from "../types";
+import { FRAME_BG_DEFAULT_OPACITY, FRAME_BG_LOOPS, type FrameBeat, type FrameBox } from "../types";
 
 const BEAT_ORDER: FrameBeat[] = ["none", "hook", "teach", "model_practice", "check"];
 export const BEAT_META: Record<FrameBeat, { label: string; color: string; tint: string; edge: string }> = {
@@ -33,10 +33,23 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const rf = useReactFlow();
   const nav = useFrameNav();
   const [hover, setHover] = useState(false);
+  const [bgMenu, setBgMenu] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const beat = d.beat ?? "none";
   const meta = BEAT_META[beat];
   const showChrome = hover || selected;
   const isCurrent = nav.currentFrameId === id;
+
+  const bgLoop = d.bgSrc ? FRAME_BG_LOOPS.find((l) => l.id === d.bgSrc) : undefined;
+  const bgOpacity = d.bgOpacity ?? FRAME_BG_DEFAULT_OPACITY;
+  // Drive the <video> from the persisted bgPlaying flag (play before a take, pause
+  // on action). muted+playsInline so browsers allow programmatic play.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (d.bgPlaying) void v.play().catch(() => {});
+    else v.pause();
+  }, [d.bgPlaying, d.bgSrc]);
 
   const cycleBeat = () => update({ beat: BEAT_ORDER[(BEAT_ORDER.indexOf(beat) + 1) % BEAT_ORDER.length] });
 
@@ -88,6 +101,24 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         boxShadow: isCurrent ? `0 0 0 2px ${meta.color}, 0 0 26px -8px ${meta.color}` : selected ? `0 0 20px -10px ${meta.color}` : "none",
       }}
     >
+      {/* BACKGROUND ANIMATION — a trimmed loop plays behind every card at the
+          author-set opacity; pointer-events-none so the stage still enters on
+          double-click. Keyed by src so switching loops remounts the element. */}
+      {bgLoop && (
+        <video
+          ref={videoRef}
+          key={bgLoop.id}
+          className="pointer-events-none absolute inset-0 h-full w-full rounded-lg object-cover"
+          style={{ opacity: bgOpacity }}
+          muted
+          loop
+          playsInline
+          preload="auto"
+        >
+          <source src={`${bgLoop.base}.webm`} type="video/webm" />
+          <source src={`${bgLoop.base}.mp4`} type="video/mp4" />
+        </video>
+      )}
       <ConnectionDots color={meta.color} />
       {/* aspect-LOCKED 16:9 resize (handles on hover) */}
       <NodeResizer
@@ -120,6 +151,12 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="Frame title" />
         </span>
         <span className={`flex items-center gap-0.5 transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+          {bgLoop && (
+            <button className={btn} style={{ color: d.bgPlaying ? meta.color : NEON.text }} title={d.bgPlaying ? "Pause the background loop" : "Play the background loop"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); update({ bgPlaying: !d.bgPlaying }); }}>
+              {d.bgPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+            </button>
+          )}
+          <button className={btn} style={{ color: bgLoop ? meta.color : NEON.text }} title="Background animation" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>
           <button className={btn} style={{ color: nav.canStep(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder)" disabled={!nav.canStep(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: nav.canStep(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder)" disabled={!nav.canStep(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: meta.color }} title="Cycle beat tag (Hook · Teach · Model-Practice · Check)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); cycleBeat(); }}><Tag className="h-3 w-3" /></button>
@@ -127,6 +164,31 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: NEON.red }} title="Delete frame (its cards go loose in the lesson)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); deleteFrame(); }}><X className="h-3.5 w-3.5" /></button>
         </span>
       </div>
+
+      {/* BACKGROUND PICKER — loop chooser + opacity slider (author-facing). nodrag/
+          nowheel so the slider works; stops propagation so clicks don't enter. */}
+      {bgMenu && (
+        <div
+          className="nodrag nowheel absolute right-2 top-9 z-[6] w-52 rounded-lg p-2 text-[11px]"
+          style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}
+          onPointerDown={stop}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
+          <div className="mb-1 font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Background loop</div>
+          <div className="flex flex-wrap gap-1">
+            <button className="rounded px-2 py-1 font-semibold" style={{ background: !d.bgSrc ? meta.color : "transparent", color: !d.bgSrc ? "#0B1322" : NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => update({ bgSrc: undefined, bgPlaying: false })}>None</button>
+            {FRAME_BG_LOOPS.map((l) => (
+              <button key={l.id} className="rounded px-2 py-1 font-semibold" style={{ background: d.bgSrc === l.id ? meta.color : "transparent", color: d.bgSrc === l.id ? "#0B1322" : NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => update({ bgSrc: l.id, bgOpacity: d.bgOpacity ?? FRAME_BG_DEFAULT_OPACITY })}>{l.label}</button>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span style={{ color: NEON.muted }}>Opacity</span>
+            <input type="range" min={0} max={100} value={Math.round(bgOpacity * 100)} disabled={!bgLoop} className="flex-1 accent-current" onChange={(e) => update({ bgOpacity: Number(e.target.value) / 100 })} />
+            <span className="w-8 text-right tabular-nums" style={{ color: NEON.text }}>{Math.round(bgOpacity * 100)}%</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

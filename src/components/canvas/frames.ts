@@ -1,7 +1,7 @@
 // FRAME helpers (pure) — the SHOT tier. A frame is a 16:9 stage parented to a
 // lesson; cards parent to the frame. Camera "enter" fits a frame's ABSOLUTE
 // rect exactly; prev/next walk the lesson's ordered frames. No React/RF here.
-import { FRAME_H, FRAME_W, type FrameBox } from "./types";
+import { FRAME_BG_DEFAULT_OPACITY, FRAME_H, FRAME_W, type FrameBox } from "./types";
 
 export interface RectNode {
   id: string;
@@ -81,7 +81,10 @@ export function lessonNeighborFrame(nodes: RectNode[], frameId: string, dir: -1 
 export const frame169 = (w: number): { w: number; h: number } => ({ w: Math.round(w), h: Math.round((w * 9) / 16) });
 
 export function blankFrameData(beat: FrameBox["beat"] = "none", order?: number): FrameBox {
-  return { title: "", w: FRAME_W, h: FRAME_H, beat, order: order ?? null };
+  // Hook frames get the background SLOT primed (default opacity set, src empty)
+  // so a scaffolded opener is one pick away from a moving backdrop.
+  const bg = beat === "hook" ? { bgOpacity: FRAME_BG_DEFAULT_OPACITY, bgPlaying: false } : {};
+  return { title: "", w: FRAME_W, h: FRAME_H, beat, order: order ?? null, ...bg };
 }
 
 /** The four beats a scaffolded lesson pre-loads, in walk order. */

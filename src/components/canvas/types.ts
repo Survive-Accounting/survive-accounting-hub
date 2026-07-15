@@ -449,11 +449,26 @@ export interface FrameBox {
   beat?: FrameBeat;
   /** Position within its lesson's frame list (1, 2, 3…). */
   order?: number | null;
+  /** BACKGROUND ANIMATION (author-facing filming aid): a looping video from
+   *  FRAME_BG_LOOPS plays behind all cards. `bgSrc` is the loop id (empty = the
+   *  slot is ready but unset); `bgOpacity` 0–1 (slider); `bgPlaying` = the frame's
+   *  hover play/pause (Lee plays before a take, pauses on action). Persist in scene. */
+  bgSrc?: string;
+  bgOpacity?: number;
+  bgPlaying?: boolean;
 }
 /** Frame default size — 16:9, sized so 4 fit in a lesson filmstrip while staying
  *  legible: entering a frame zooms it to fill 1080p (a ~420px JE renders large). */
 export const FRAME_W = 800;
 export const FRAME_H = 450; // 16:9
+export const FRAME_BG_DEFAULT_OPACITY = 0.35;
+/** The trimmed, audio-stripped loop library (public/anim/*.webm|mp4). `id` is what
+ *  `FrameBox.bgSrc` stores; the FrameNode picks webm first, mp4 fallback. */
+export const FRAME_BG_LOOPS: { id: string; label: string; base: string }[] = [
+  { id: "car", label: "Car", base: "/anim/car-intro" },
+  { id: "dream", label: "Dream", base: "/anim/dream-intro" },
+  { id: "space", label: "Space", base: "/anim/space-intro" },
+];
 
 /** Grouping-tier nodes (region/zone + lesson + frame) — never cards: excluded
  *  from the deck, quick-copy, snap guides, grid placement, and auto-fit. */
