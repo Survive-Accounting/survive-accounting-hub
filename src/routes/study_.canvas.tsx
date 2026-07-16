@@ -69,7 +69,7 @@ import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuck
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
@@ -2029,7 +2029,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))));
+      rf.setNodes(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -2060,7 +2060,7 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))));
+            rf.setNodes(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -2413,7 +2413,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)));
+      const nodesAfter = migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());

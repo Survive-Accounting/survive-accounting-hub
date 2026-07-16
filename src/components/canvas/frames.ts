@@ -258,7 +258,9 @@ export function isWrapUpName(name: string | null | undefined): boolean {
 export function blankFrameData(beat: Beat = "hook", subIndex = 0): FrameBox {
   // Hook frames get the background SLOT primed (default opacity set, src empty).
   const bg = beat === "hook" ? { bgOpacity: FRAME_BG_DEFAULT_OPACITY, bgPlaying: false } : {};
-  return { title: "", w: FRAME_W, h: FRAME_H, beat, subIndex, ...bg };
+  // FRAMES SHIP LOCKED (item 2) — they stop getting dragged by accident; the
+  // frame hover-chrome lock toggles it.
+  return { title: "", w: FRAME_W, h: FRAME_H, beat, subIndex, posLock: true, ...bg };
 }
 
 /** The four beats a scaffolded lesson pre-loads — one frame per column. */

@@ -352,6 +352,10 @@ export interface HeadingCard extends CardBase {
    *  {course_code} {exam_date} — stored raw, rendered substituted. */
   text: string;
   level: 1 | 2; // H1 ~48px / H2 ~28px at zoom 1
+  /** TITLE POP (item 5): a dark scrim + strong text-shadow behind the text so a
+   *  lesson title reads over a bright background loop. Scaffold-v2 hook titles
+   *  ship with this on. */
+  scrim?: boolean;
 }
 
 // ---- Text element (freeform markdown-lite block; ELEMENT category) ----
@@ -491,6 +495,18 @@ export interface FrameBox {
   beat?: FrameBeat;
   /** 0-based ROW within its beat column (grid model). */
   subIndex?: number;
+  /** POSITION LOCK (item 2): frames ship LOCKED (no drag) so they stop getting
+   *  nudged; the frame hover-chrome lock toggles it. Load migrates undefined→true. */
+  posLock?: boolean;
+  /** DIRECTOR NOTE (scaffold v2): Lee's on-set reminder for this shot — filming
+   *  chrome, hidden in film, never student-facing. */
+  note?: string;
+  /** LAUNCH TRANSITION (item 9): this frame plays the punchy zoom-push when the
+   *  space-walk advances OUT of it (the "Ready to cram?" → Check liftoff). */
+  launch?: boolean;
+  /** INTERSTITIAL (item 9): a scaffold-inserted breath frame (Ready to cram?) —
+   *  tagged so re-stamps don't duplicate it. */
+  interstitial?: boolean;
   /** LEGACY flat index (pre-grid) — migrated to (beat, subIndex) on load. */
   order?: number | null;
   /** BACKGROUND ANIMATION (author-facing filming aid): a looping video from

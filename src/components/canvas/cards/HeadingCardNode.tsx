@@ -6,7 +6,7 @@
 // renders as a smaller bracketed sub-label.
 import { useRef, useState } from "react";
 import { type NodeProps } from "@xyflow/react";
-import { Braces, Copy, GripVertical, Lock, LockOpen, X } from "lucide-react";
+import { Braces, Contrast, Copy, GripVertical, Lock, LockOpen, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -83,6 +83,9 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         >
           H{d.level}
         </button>
+        <HBtn title={d.scrim ? "Scrim on — dark halo for bright backgrounds (click to turn off)" : "Add a dark scrim so the title reads over bright loops"} onClick={() => update({ scrim: !d.scrim })}>
+          <Contrast className="h-3 w-3" style={d.scrim ? { color: NEON.yellow } : undefined} />
+        </HBtn>
         <HBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></HBtn>
         <HBtn title={d.posLock ? "Unlock position" : "Lock in place (edits still work)"} onClick={() => update({ posLock: !d.posLock })}>
           {d.posLock ? <Lock className="h-3 w-3" style={{ color: NEON.yellow }} /> : <LockOpen className="h-3 w-3" />}
@@ -134,15 +137,24 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         </div>
       ) : (
         <div
-          className="cursor-move whitespace-nowrap leading-tight"
+          className="relative cursor-move whitespace-nowrap leading-tight"
           title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
           onDoubleClick={() => setEditing(true)}
         >
-          <span style={{ color: d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)", fontFamily: DISPLAY_FONT, fontSize: size, fontStyle: d.text ? undefined : "italic" }}>
+          {/* SCRIM (item 5): a soft dark halo BEHIND the glyphs so the title pops
+              over bright loops — a blurred dark pad plus a heavy text-shadow. */}
+          {d.scrim && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-[1] rounded-xl"
+              style={{ background: "radial-gradient(ellipse at center, rgba(6,10,20,0.72) 0%, rgba(6,10,20,0.5) 55%, transparent 100%)", filter: "blur(3px)" }}
+            />
+          )}
+          <span style={{ color: d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)", fontFamily: DISPLAY_FONT, fontSize: size, fontStyle: d.text ? undefined : "italic", textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.95)" : undefined }}>
             {main ? renderTokens(main, ctx.previewStudent) : "Heading"}
           </span>
           {sub && (
-            <span style={{ color: NEON.muted, fontFamily: DISPLAY_FONT, fontSize: Math.round(size * 0.55), marginLeft: 10 }}>
+            <span style={{ color: NEON.muted, fontFamily: DISPLAY_FONT, fontSize: Math.round(size * 0.55), marginLeft: 10, textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9)" : undefined }}>
               [{renderTokens(sub, ctx.previewStudent)}]
             </span>
           )}

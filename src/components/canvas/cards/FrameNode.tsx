@@ -7,7 +7,7 @@
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Film, Maximize2, Pause, Play, Tag, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Film, Lock, LockOpen, Maximize2, Pause, Play, Tag, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { bus } from "../commands";
@@ -188,6 +188,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: nav.canStep(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder)" disabled={!nav.canStep(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: nav.canStep(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder)" disabled={!nav.canStep(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: meta.color }} title="Cycle beat tag (Hook · Teach · Model-Practice · Check)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); cycleBeat(); }}><Tag className="h-3 w-3" /></button>
+          {/* LOCK (item 2): frames ship locked so they stop getting nudged. */}
+          <button className={btn} style={{ color: d.posLock ? meta.color : NEON.text }} title={d.posLock ? "Frame locked (no accidental drags) — click to unlock" : "Lock the frame in place"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); update({ posLock: !d.posLock }); }}>
+            {d.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+          </button>
           <button className={btn} style={{ color: NEON.text }} title="Enter frame" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.enter(id); }}><Maximize2 className="h-3 w-3" /></button>
           <button className={btn} style={{ color: NEON.red }} title="Delete frame (its cards go loose in the lesson)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); deleteFrame(); }}><X className="h-3.5 w-3.5" /></button>
         </span>

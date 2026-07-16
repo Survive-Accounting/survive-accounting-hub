@@ -109,6 +109,19 @@ export function migrateFrameGrid<T extends { type?: string; parentId?: string; d
   return nodes.map((n) => (sub.has(n) ? { ...n, data: { ...n.data, beat: beatOf(n), subIndex: sub.get(n) } } : n));
 }
 
+/** FRAMES SHIP LOCKED (item 2): migrate existing scenes so every frame whose
+ *  posLock is unset becomes locked on load (they kept getting dragged). A frame
+ *  the author explicitly unlocked keeps posLock:false and is left alone. */
+export function migrateFrameLocks<T extends { type?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  let changed = false;
+  const out = nodes.map((n) => {
+    if (n.type !== "frame" || (n.data as { posLock?: boolean } | undefined)?.posLock !== undefined) return n;
+    changed = true;
+    return { ...n, data: { ...n.data, posLock: true } };
+  });
+  return changed ? out : nodes;
+}
+
 /** ELEMENTS never live in the deck (design-elements run). Old scenes may have a
  *  heading with deck membership from the pre-category era — strip it silently
  *  (revealing any tucked element back onto the canvas) and note it in console. */
