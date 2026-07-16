@@ -357,3 +357,15 @@ cards, formula/equation COMPONENTS, and list ITEMS (`MemoLightbulb` +
 `MemoAnchor`, an RF edge memo→handle that follows on drag). Exam-trap memos on
 tricky A=L+E scenarios are the immediate use; they also feed the memo decks (=
 the shorts library). Next: memo affordance on T-account cells + schedule rows.
+
+## Vertical scaffold clone (9:16) — ROADMAP
+"Duplicate lesson as 9:16" stamps a PORTRAIT variant of a lesson's frames using
+the frame aspect-variant system (the horizontal 16:9 stays the master):
+- **top third** = the Survive / animation band (background loop lives here),
+- **camera zone** directly beneath (Lee on-cam, presenter framing),
+- **cards centered** in the lower two-thirds.
+Same beat grid, same decks — only the frame aspect + card layout differ, derived
+from the master so edits to the horizontal propagate. Interim plan (until this
+ships): Lee composes shots CENTER-WEIGHTED and reuses one layout for both aspect
+ratios — a centered stack reads acceptably in both 16:9 and 9:16, so the
+horizontal scaffold doubles as the vertical source with no extra authoring.
