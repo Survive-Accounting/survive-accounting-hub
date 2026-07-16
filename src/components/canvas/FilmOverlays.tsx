@@ -195,7 +195,18 @@ export const CARD_CURSOR_CSS = `
 /** CSS that removes at-rest card chrome in film mode. Interactions keep working —
  *  drag (header), dbl-click edit, hotkeys — only passive affordances disappear. */
 export const FILM_MODE_CSS = `
+  /* AUTHORING CHROME SWEEP (Effect-Rubric #6): every authoring affordance is
+     hidden on a take — the shot is teaching content only. .card-actions covers
+     header buttons/chrome grids; .sa-chrome is the general hook for stragglers
+     that live OUTSIDE a card-actions row (deck chip, scale % readout, pos-lock
+     grip, DERIVED/override badges, component role pickers); connection dots and
+     resize controls hide by their own classes. Audited leaks that this closes:
+     deck chip, CardScaleHandle %, BaseCard pos-lock button, ConnectionDots,
+     formula derived/override badge + component picker. */
   .film-mode .card-actions { display: none !important; }
+  .film-mode .sa-chrome { display: none !important; }
+  .film-mode .conn-dot,
+  .film-mode .react-flow__handle { display: none !important; }
   .film-mode .react-flow__resize-control { display: none !important; }
   .film-mode .zone-actions { display: none !important; }
   /* FG4: a frame's own chrome (header, beat chip, title, nav chevrons) never

@@ -146,13 +146,13 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
         )}
         {/* author-only derived/overridden indicator (edit or selected) */}
         {(editing || selected) && !practice && derivedDir && (
-          <span className="rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: overridden ? "#C77D0A" : "#1F9D57", border: `1px solid ${overridden ? "#C77D0A" : "#1F9D57"}66` }}>
+          <span className="sa-chrome rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: overridden ? "#C77D0A" : "#1F9D57", border: `1px solid ${overridden ? "#C77D0A" : "#1F9D57"}66` }}>
             {overridden ? "override" : "derived"}
           </span>
         )}
         {/* component role picker (edit) */}
         {editing && (
-          <div className="flex gap-0.5">
+          <div className="sa-chrome flex gap-0.5">
             {COMPONENTS.map((c) => (
               <button
                 key={c.key}

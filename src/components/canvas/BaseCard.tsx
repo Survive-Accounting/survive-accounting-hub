@@ -35,7 +35,7 @@ export function CardScaleHandle({ scale, onScale, corner = "br" }: { scale: numb
   };
   const pct = Math.round(scale * 100);
   return (
-    <div className={`nodrag absolute bottom-1 z-[6] flex items-center gap-1 ${corner === "br" ? "right-7" : "left-1"}`} onPointerDown={(e) => e.stopPropagation()}>
+    <div className={`sa-chrome nodrag absolute bottom-1 z-[6] flex items-center gap-1 ${corner === "br" ? "right-7" : "left-1"}`} onPointerDown={(e) => e.stopPropagation()}>
       <span
         className={`rounded px-1 text-[9px] font-bold tabular-nums transition-opacity ${dragging ? "opacity-100" : "opacity-0 group-hover/shell:opacity-80 group-hover/cluster:opacity-80"}`}
         style={{ background: "rgba(251,249,244,0.92)", border: `1px solid ${PAPER.cardEdge}`, color: PAPER.inkMuted }}
@@ -297,7 +297,7 @@ export function BaseCard({
         title={data.posLock ? "Unlock position" : "Lock in place — no accidental drags (edits still work)"}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); update({ posLock: !data.posLock }); }}
-        className={`nodrag absolute bottom-1 right-1 z-[5] grid h-5 w-5 place-items-center rounded transition-opacity ${data.posLock ? "opacity-90" : "opacity-0 group-hover/shell:opacity-70 hover:!opacity-100"}`}
+        className={`sa-chrome nodrag absolute bottom-1 right-1 z-[5] grid h-5 w-5 place-items-center rounded transition-opacity ${data.posLock ? "opacity-90" : "opacity-0 group-hover/shell:opacity-70 hover:!opacity-100"}`}
         style={{ color: data.posLock ? "#8A5A00" : PAPER.inkMuted, background: "rgba(251,249,244,0.9)", border: `1px solid ${PAPER.cardEdge}` }}
       >
         {data.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}

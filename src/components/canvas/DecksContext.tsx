@@ -45,7 +45,7 @@ export function DeckChip({ nodeId, deckId }: { nodeId: string; deckId?: string }
       onDragStart={(e) => { e.dataTransfer.setData(DECK_DND_MIME, nodeId); e.dataTransfer.effectAllowed = "move"; e.stopPropagation(); }}
       onPointerDown={(e) => e.stopPropagation()}
       title={deck ? `In deck “${deck.name}” — drag onto another deck to move` : "Loose card — drag onto a deck to add it"}
-      className="nodrag inline-flex max-w-[92px] shrink-0 cursor-grab items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide active:cursor-grabbing"
+      className="sa-chrome nodrag inline-flex max-w-[92px] shrink-0 cursor-grab items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide active:cursor-grabbing"
       style={{ color, border: `1px solid ${color}66`, background: deck ? `${color}14` : "transparent", opacity: deck ? 1 : 0.6 }}
     >
       <Layers className="h-2.5 w-2.5 shrink-0" />

@@ -84,7 +84,7 @@ export function MemoLightbulb({ targetId, handleId, title = "Attach a memo", cla
   const rf = useReactFlow();
   return (
     <button
-      className={`nodrag grid place-items-center rounded ${className ?? ""}`}
+      className={`sa-chrome nodrag grid place-items-center rounded ${className ?? ""}`}
       title={title}
       style={style}
       onPointerDown={(e) => e.stopPropagation()}
