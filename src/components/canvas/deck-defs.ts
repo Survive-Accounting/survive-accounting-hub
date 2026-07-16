@@ -79,6 +79,16 @@ export const START_HERE_MEMO_DECKS: { name: string; category: string }[] = [
 ];
 
 export interface SeedLesson { id: string; label: string }
+/** A course chapter as the seed sees it (item 6 — derived from the live course,
+ *  not hardcoded). `number` may be null for untidied chapters. */
+export interface SeedChapter { number: number | null; name: string }
+
+/** The chapters the seed builds decks for: the course's REAL chapters when a
+ *  course is loaded, else the Foundations fallback list (Start Here offline). */
+export function seedChapters(courseChapters: SeedChapter[] | null | undefined): SeedChapter[] {
+  if (courseChapters && courseChapters.length > 0) return courseChapters;
+  return START_HERE_CHAPTERS.map((name, i) => ({ number: i + 1, name }));
+}
 
 /** The lesson id for chapter N: match a lesson whose label carries "Ch N" / a
  *  leading number N, else one containing the chapter's short name. Null = no
@@ -93,9 +103,19 @@ export function matchLessonForChapter(lessons: SeedLesson[], n: number, short: s
   return lessons.find((l) => l.label.toLowerCase().includes(s))?.id ?? null;
 }
 
-/** Build the empty Start Here decks that don't already exist (by name). Returns
- *  the new defs to append + how many attached to a lesson vs left loose. */
-export function seedStartHereDecks(existing: DeckDef[], lessons: SeedLesson[]): { toAdd: DeckDef[]; attached: number; unattached: string[] } {
+/** The chapter that should carry the normal-balance drill: the one whose name
+ *  covers accounts / debits & credits, else null (drill goes loose). */
+export function drillChapterNumber(chapters: SeedChapter[]): number | null {
+  // whole-word so "Accounting" (the discipline) doesn't false-match the accounts chapter
+  const hit = chapters.find((c) => /\baccounts\b|\bdebits?\b|\bcredits?\b|normal balance|dr\s*\/\s*cr/i.test(c.name));
+  return hit?.number ?? null;
+}
+
+/** Build the empty Start Here decks that don't already exist (by name), derived
+ *  from the course's REAL chapters (item 6 — no longer a hardcoded list; pass
+ *  seedChapters(courseChapters) which falls back to Foundations offline). Returns
+ *  the new defs + how many attached to a lesson vs left loose. */
+export function seedStartHereDecks(existing: DeckDef[], chapters: SeedChapter[], lessons: SeedLesson[]): { toAdd: DeckDef[]; attached: number; unattached: string[] } {
   const have = new Set(existing.map((d) => d.name.trim().toLowerCase()));
   const toAdd: DeckDef[] = [];
   let attached = 0;
@@ -106,14 +126,18 @@ export function seedStartHereDecks(existing: DeckDef[], lessons: SeedLesson[]): 
     toAdd.push({ ...base, ...patch, name });
     have.add(name.trim().toLowerCase());
   };
-  START_HERE_CHAPTERS.forEach((short, i) => {
-    const n = i + 1;
-    const lessonId = matchLessonForChapter(lessons, n, short);
-    if (lessonId) attached++; else unattached.push(`Ch ${n}`);
-    mk(`Ch ${n} · ${short}`, { lessonId });
-    mk(`Ch ${n} · Check`, { lessonId });
-    if (n === 3) mk("Ch 3 · Normal Balances", { lessonId, runMode: "shuffle", filter: NORMAL_BALANCE_DRILL_FILTER });
+  const drillN = drillChapterNumber(chapters);
+  chapters.forEach((c, i) => {
+    const n = c.number ?? i + 1;
+    const label = `Ch ${n}`;
+    const lessonId = matchLessonForChapter(lessons, n, c.name);
+    if (lessonId) attached++; else unattached.push(label);
+    mk(`${label} · ${c.name}`, { lessonId });
+    mk(`${label} · Check`, { lessonId });
+    if (n === drillN) mk(`${label} · Normal Balances`, { lessonId, runMode: "shuffle", filter: NORMAL_BALANCE_DRILL_FILTER });
   });
+  // no chapter matched the accounts/DR-CR heuristic → still offer the drill, loose
+  if (drillN === null) mk("Normal Balances", { lessonId: null, runMode: "shuffle", filter: NORMAL_BALANCE_DRILL_FILTER });
   for (const md of START_HERE_MEMO_DECKS) mk(md.name, { payloadType: "memos", filter: md.category, lessonId: null });
   return { toAdd, attached, unattached };
 }

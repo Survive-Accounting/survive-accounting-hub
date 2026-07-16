@@ -5,10 +5,13 @@
 // live in the scene (persisted); the canvas_decks table (0090) is the reusable
 // library layer. Deal-into-grid + memo highlight render in P4.
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNodes, useReactFlow } from "@xyflow/react";
+
+import { fetchJeBrowserTree } from "@/lib/je-api";
 import { Clapperboard, Copy, Grid3x3, Layers, ListChecks, Plus, RotateCcw, Shuffle, Sparkles, SquareStack, Trash2 } from "lucide-react";
 
-import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedStartHereDecks, shuffledOrder, updateDeck } from "./deck-defs";
+import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedChapters, seedStartHereDecks, shuffledOrder, updateDeck, type SeedChapter } from "./deck-defs";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { nextStageOrder } from "./BaseCard";
 import { useCanvasSettings } from "./CanvasSettingsContext";
@@ -23,7 +26,14 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
   const nodes = useNodes();
   const nav = useFrameNav();
   const { flashDeck } = useDecks();
-  const { coa } = useCanvasSettings();
+  const { coa, courseId } = useCanvasSettings();
+  // ITEM 6: the scene course's REAL chapters (active, in order) drive the seed —
+  // no longer a hardcoded list. The tree query is shared/cached (300s staleTime).
+  const tree = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1, networkMode: "always" });
+  const courseChapters: SeedChapter[] = (tree.data?.courses.find((c) => c.id === courseId)?.chapters ?? [])
+    .filter((c) => c.id !== "__unassigned__" && c.status !== "archived" && c.chapter_name)
+    .sort((a, b) => (a.chapter_number ?? 999) - (b.chapter_number ?? 999))
+    .map((c) => ({ number: c.chapter_number, name: c.chapter_name as string }));
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null); // deck row a card is hovering over (item 4a)
@@ -35,9 +45,10 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
    *  into the scene, wiring each chapter deck to the matching lesson. Idempotent. */
   const seedStartHere = () => {
     const lessons = rf.getNodes().filter((n) => n.type === "lesson").map((n) => ({ id: n.id, label: String((n.data as { label?: string }).label ?? "") }));
+    const chs = seedChapters(courseChapters); // item 6: the course's REAL chapters, else the Foundations fallback
     setDecks((prev) => {
-      const { toAdd, attached, unattached } = seedStartHereDecks(prev, lessons);
-      setSeedNote(toAdd.length === 0 ? "already seeded — nothing added" : `added ${toAdd.length} decks · ${attached}/11 chapters matched a lesson${unattached.length ? ` (loose: ${unattached.join(", ")})` : ""}`);
+      const { toAdd, attached, unattached } = seedStartHereDecks(prev, chs, lessons);
+      setSeedNote(toAdd.length === 0 ? "already seeded — nothing added" : `added ${toAdd.length} decks · ${attached}/${chs.length} chapters matched a lesson${unattached.length ? ` (loose: ${unattached.join(", ")})` : ""}`);
       return [...prev, ...toAdd];
     });
   };

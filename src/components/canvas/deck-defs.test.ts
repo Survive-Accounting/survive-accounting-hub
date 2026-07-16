@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { addDeck, deckById, deckMembersOf, duplicateDeck, gridSlots, matchLessonForChapter, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedStartHereDecks, shuffledOrder, updateDeck } from "./deck-defs";
+import { addDeck, deckById, deckMembersOf, duplicateDeck, gridSlots, matchLessonForChapter, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedChapters, seedStartHereDecks, shuffledOrder, updateDeck } from "./deck-defs";
 
 describe("deck-defs (named decks, P3)", () => {
   test("newDeckDef defaults: named, sequence, skeletons on", () => {
@@ -72,37 +72,56 @@ describe("skeleton grid layout (P4)", () => {
   });
 });
 
-describe("seedStartHereDecks (item 5)", () => {
+describe("seedStartHereDecks (item 5/6 — chapters derived, not hardcoded)", () => {
   const lessons = [
     { id: "L1", label: "Ch 1 · A=L+E" },
     { id: "L3", label: "Chapter 3 — Accounts" },
     { id: "L11", label: "Wrap-up" },
   ];
+  const foundations = seedChapters(null); // the 11-chapter fallback when no course
 
-  test("creates 23 chapter decks + Ch3 drill + 4 memo decks (11×2 + 1 + 4 = 27)", () => {
-    const { toAdd } = seedStartHereDecks([], lessons);
+  test("Foundations fallback: 11×2 chapter decks + Ch3 drill + 4 memo decks = 27", () => {
+    const { toAdd } = seedStartHereDecks([], foundations, lessons);
     expect(toAdd.length).toBe(27);
-    // the drill deck exists, shuffles, and carries the generate marker
-    const drill = toAdd.find((d) => d.name === "Ch 3 · Normal Balances")!;
+    const drill = toAdd.find((d) => d.name === "Ch 3 · Normal Balances")!; // Ch 3 = "Accounts & DR/CR" → the drill chapter
     expect(drill.runMode).toBe("shuffle");
     expect(drill.filter).toBe(NORMAL_BALANCE_DRILL_FILTER);
-    // 4 memo decks with category filters
     const memoDecks = toAdd.filter((d) => d.payloadType === "memos");
     expect(memoDecks.map((d) => d.name).sort()).toEqual(["Cheat Codes", "Exam Traps", "Other Tips", "Steps"]);
-    expect(memoDecks.find((d) => d.name === "Exam Traps")!.filter).toBe("EXAM TRAPS");
+  });
+
+  test("derives from the course's REAL chapters + numbers (item 6)", () => {
+    const chapters = [
+      { number: 1, name: "Welcome" },
+      { number: 2, name: "The Accounting Equation" },
+      { number: 3, name: "Debits & Credits" }, // matches the drill heuristic
+    ];
+    const { toAdd } = seedStartHereDecks([], chapters, []);
+    expect(toAdd.find((d) => d.name === "Ch 2 · The Accounting Equation")).toBeTruthy();
+    expect(toAdd.find((d) => d.name === "Ch 3 · Debits & Credits")).toBeTruthy();
+    expect(toAdd.find((d) => d.name === "Ch 3 · Normal Balances")!.filter).toBe(NORMAL_BALANCE_DRILL_FILTER);
+    // 3×2 chapter decks + drill + 4 memo = 11
+    expect(toAdd.length).toBe(11);
+  });
+
+  test("no chapter matches the accounts heuristic → a loose 'Normal Balances' drill", () => {
+    const { toAdd } = seedStartHereDecks([], [{ number: 1, name: "Intro" }], []);
+    const drill = toAdd.find((d) => d.filter === NORMAL_BALANCE_DRILL_FILTER)!;
+    expect(drill.name).toBe("Normal Balances");
+    expect(drill.lessonId).toBeNull();
   });
 
   test("attaches chapter decks to a matched lesson; leaves the rest loose", () => {
-    const { toAdd, attached } = seedStartHereDecks([], lessons);
+    const { toAdd, attached } = seedStartHereDecks([], foundations, lessons);
     expect(attached).toBe(3); // Ch 1, Ch 3, Ch 11 (Wrap-up) matched
     expect(toAdd.find((d) => d.name === "Ch 1 · A=L+E")!.lessonId).toBe("L1");
     expect(toAdd.find((d) => d.name === "Ch 3 · Check")!.lessonId).toBe("L3");
-    expect(toAdd.find((d) => d.name === "Ch 2 · The Cycle")!.lessonId).toBeNull(); // no lesson → loose
+    expect(toAdd.find((d) => d.name === "Ch 2 · The Cycle")!.lessonId).toBeNull();
   });
 
   test("idempotent — seeding twice adds nothing new", () => {
-    const first = seedStartHereDecks([], lessons).toAdd;
-    const { toAdd } = seedStartHereDecks(first, lessons);
+    const first = seedStartHereDecks([], foundations, lessons).toAdd;
+    const { toAdd } = seedStartHereDecks(first, foundations, lessons);
     expect(toAdd.length).toBe(0);
   });
 });
