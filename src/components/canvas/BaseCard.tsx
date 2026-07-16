@@ -9,6 +9,7 @@ import { DeckChip, useDecks } from "./DecksContext";
 import { attachMemo } from "./MemoLightbulb";
 import { useCardDim } from "./SpotlightContext";
 import { NEON, PAPER } from "./theme";
+import { nextZ } from "./zorder";
 import { cardId, clampScale, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
 
 /** FILMING SCALE control (FF-2 UI) — the engine (useCardScale + clampScale) was
@@ -72,7 +73,6 @@ export function nextStageOrder(nodes: { data: Record<string, unknown> }[]): numb
   return max + 1;
 }
 
-let Z = 10;
 
 /** The lesson a joining card belongs to: its lesson parent, else null (Loose).
  *  Regions/zones don't scope decks — lessons are the teaching unit. */
@@ -101,8 +101,10 @@ export function useCardActions(id: string) {
       const c = removeNodesCmd(rfl, [id], "delete card");
       if (c) bus.dispatch(c);
     },
-    // z-order is view noise, deliberately NOT on the undo rail
-    toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: ++Z } : n))),
+    // z-order is view noise, deliberately NOT on the undo rail. INTERACTION
+    // RAISES within the node's tier (container < frame < element < card < memo),
+    // so touching a card lifts it above its peers but never above a memo.
+    toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: nextZ(n.type, (n.data as { kind?: string })?.kind) } : n))),
     /** Join the deck WITHOUT leaving the canvas (dealt member, end of order).
      *  A card parented to a LESSON joins that lesson's deck group (PROMPT C);
      *  loose cards join "Loose". ELEMENTS never deck — hard no-op. */
@@ -160,7 +162,7 @@ export function useCardActions(id: string) {
       bus.dispatch(
         addNodesCmd(
           rfl,
-          [{ ...node, id: nid, selected: false, position: { x: node.position.x + offset.x, y: node.position.y + offset.y }, zIndex: ++Z, data: structuredClone(node.data) }],
+          [{ ...node, id: nid, selected: false, position: { x: node.position.x + offset.x, y: node.position.y + offset.y }, zIndex: nextZ(node.type, kind), data: structuredClone(node.data) }],
           "duplicate card",
         ),
       );

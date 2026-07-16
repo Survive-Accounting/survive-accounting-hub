@@ -70,6 +70,7 @@ import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodes
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateZTiers, nextZ } from "@/components/canvas/zorder";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
@@ -930,6 +931,19 @@ function PresentCanvas() {
         }),
       );
     }
+  }, [liveNodes, rf]);
+
+  // Z-ORDER: any node that lacks a zIndex is BRAND NEW (spawned, cloned, dealt,
+  // generated, pasted, or a fresh memo) — give it the top of its tier so it lands
+  // ON TOP of its peers and is grabbable, never buried. nextZ is monotonic +
+  // tiered (container < frame < element < card < memo), so this also keeps memos
+  // above their host cards. One assignment per node, then it's no longer
+  // undefined — self-terminating.
+  useEffect(() => {
+    const fresh = liveNodes.filter((n) => n.zIndex === undefined);
+    if (fresh.length === 0) return;
+    const ids = new Set(fresh.map((n) => n.id));
+    rf.setNodes((nds) => nds.map((n) => (ids.has(n.id) ? { ...n, zIndex: nextZ(n.type, (n.data as { kind?: string })?.kind) } : n)));
   }, [liveNodes, rf]);
 
   // FILM = STRUCTURE INERT: when film mode turns on, drop any lingering
@@ -2031,7 +2045,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))));
+      rf.setNodes(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -2062,7 +2076,7 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))));
+            rf.setNodes(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -2415,7 +2429,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))));
+      const nodesAfter = migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
