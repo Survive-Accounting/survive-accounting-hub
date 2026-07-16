@@ -11,7 +11,7 @@ import { bus } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
-import { NEON, NOTE_COLORS, PAPER } from "../theme";
+import { DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { renderTokens, TokenMenu } from "../variables";
 import type { BridgeCard, GateElement, TextElement } from "../types";
 
@@ -166,7 +166,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
             autoFocus
             rows={Math.max(3, d.body.split("\n").length + 1)}
             className="nodrag nowheel w-full resize-none rounded bg-black/30 px-1.5 py-1 text-[13px] leading-relaxed outline-none"
-            style={{ color: "#F4F6FA" }}
+            style={{ color: "#F4F6FA", fontFamily: DISPLAY_FONT }}
             defaultValue={d.body}
             placeholder={"Write… (**bold**, *italic*, - bullets, {first_name})"}
             onBlur={(e) => { if (!tokenMenu) { update({ body: e.target.value }); setEditing(false); } }}
@@ -201,7 +201,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
       ) : (
         <div
           className="cursor-text text-[13px] leading-relaxed"
-          style={{ color: d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: "'Inter', system-ui, sans-serif" }}
+          style={{ color: d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT }}
           title="Click to edit"
           onClick={() => setEditing(true)}
         >
