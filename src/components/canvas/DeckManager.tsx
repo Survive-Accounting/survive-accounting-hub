@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNodes, useReactFlow } from "@xyflow/react";
 
 import { fetchJeBrowserTree } from "@/lib/je-api";
+import { effectCardData } from "./equation-derive";
 import { Clapperboard, Copy, Grid3x3, Layers, ListChecks, Plus, RotateCcw, Shuffle, Sparkles, SquareStack, Trash2 } from "lucide-react";
 
 import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedChapters, seedStartHereDecks, shuffledOrder, updateDeck, type SeedChapter } from "./deck-defs";
@@ -26,14 +27,14 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
   const nodes = useNodes();
   const nav = useFrameNav();
   const { flashDeck } = useDecks();
-  const { coa, courseId } = useCanvasSettings();
+  const { coa, courseId, jeLibrary } = useCanvasSettings();
   // ITEM 6: the scene course's REAL chapters (active, in order) drive the seed —
   // no longer a hardcoded list. The tree query is shared/cached (300s staleTime).
   const tree = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1, networkMode: "always" });
-  const courseChapters: SeedChapter[] = (tree.data?.courses.find((c) => c.id === courseId)?.chapters ?? [])
+  const courseChaptersFull = (tree.data?.courses.find((c) => c.id === courseId)?.chapters ?? [])
     .filter((c) => c.id !== "__unassigned__" && c.status !== "archived" && c.chapter_name)
-    .sort((a, b) => (a.chapter_number ?? 999) - (b.chapter_number ?? 999))
-    .map((c) => ({ number: c.chapter_number, name: c.chapter_name as string }));
+    .sort((a, b) => (a.chapter_number ?? 999) - (b.chapter_number ?? 999));
+  const courseChapters: SeedChapter[] = courseChaptersFull.map((c) => ({ number: c.chapter_number, name: c.chapter_name as string }));
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null); // deck row a card is hovering over (item 4a)
@@ -72,6 +73,40 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
     if (cmd) bus.dispatch(cmd);
     setDecks((prev) => updateDeck(prev, deck.id, { slots }));
     setSeedNote(`generated ${newNodes.length} DR/CR questions from the course COA`);
+  };
+
+  /** GENERATE EFFECT CARDS (ER7) — for a chapter deck ("Ch N · …"), spawn one
+   *  effect card per PLACED scenario of that chapter, each BOUND + blank +
+   *  arrows lens, in placement order, tucked into the deck. Both presets. This
+   *  builds a whole chapter's effect-teaching deck in one click. */
+  const generateEffectCards = (deck: DeckDef, preset: "ale" | "re") => {
+    const m = /\bch(?:apter)?\.?\s*(\d+)/i.exec(deck.name);
+    const n = m ? Number(m[1]) : null;
+    const chapter = n != null ? courseChaptersFull.find((c) => c.chapter_number === n) : undefined;
+    if (!chapter) { setSeedNote(`couldn't map "${deck.name}" to a course chapter`); return; }
+    const scenarios = jeLibrary
+      .filter((it) => it.kind === "je" && it.chapterId === chapter.id && it.status !== "archived")
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    if (scenarios.length === 0) { setSeedNote(`no placed scenarios in ${deck.name} to generate from`); return; }
+    if (deckMembersOf(rf.getNodes() as never, deck.id).length > 0) { setSeedNote("deck already has cards — clear it to regenerate"); return; }
+    const coaMap = coa.flatMap((g) => g.accounts);
+    const cols = Math.max(1, Math.ceil(Math.sqrt(scenarios.length)));
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const cen = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const slots = gridSlots(scenarios.length, { originX: Math.round(cen.x - (cols * 330) / 2), originY: Math.round(cen.y - 140), cellW: 300, cellH: 170, gapX: 30, gapY: 30 });
+    const newNodes = scenarios.map((it, i) => {
+      const made = it.make() as { solution?: unknown; lines?: unknown; caption?: string };
+      const lines = (made.solution ?? made.lines ?? []) as never[];
+      const eff = effectCardData(it.scenarioId, lines, coaMap, preset, () => cardId("fs"));
+      return {
+        id: cardId("formula"), type: "formula", position: slots[i], selected: false,
+        data: { ...eff, title: made.caption ?? it.label, deckId: deck.id, deckMember: true, tucked: true, stageOrder: i, slotIndex: i, deckCategory: `effect:${preset}`, deckPos: slots[i] } as Record<string, unknown>,
+      };
+    });
+    const cmd = addNodesCmd(rf as unknown as RfLike, newNodes as never, `generate ${newNodes.length} effect cards`);
+    if (cmd) bus.dispatch(cmd);
+    setDecks((prev) => updateDeck(prev, deck.id, { slots }));
+    setSeedNote(`generated ${newNodes.length} ${preset === "re" ? "Rev/Exp" : "A=L+E"} effect cards for ${deck.name}`);
   };
 
   /** ITEM 4a — a card/memo dragged from its chip onto this deck row (re)joins it.
@@ -257,6 +292,15 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
                   <DeckMini title="Duplicate deck" onClick={() => setDecks((prev) => duplicateDeck(prev, deck.id).defs)}><Copy className="h-3 w-3" /></DeckMini>
                   <DeckMini title="Delete deck" danger onClick={() => del(deck)}><Trash2 className="h-3 w-3" /></DeckMini>
                 </div>
+                {/* ER7 — generate one BOUND blank effect card per placed scenario of
+                    this chapter, into this deck, in placement order (both presets). */}
+                {deck.payloadType === "cards" && deck.filter !== NORMAL_BALANCE_DRILL_FILTER && /\bch(?:apter)?\.?\s*\d+/i.test(deck.name) && !/·\s*Check\s*$/i.test(deck.name) && (
+                  <div className="mt-1 flex items-center gap-1">
+                    <span className="text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>effect cards</span>
+                    <button className="flex-1 rounded px-1 py-0.5 text-[9px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} title={`Generate one A=L+E effect card per placed scenario in ${deck.name}`} onClick={() => generateEffectCards(deck, "ale")}>A = L + E</button>
+                    <button className="flex-1 rounded px-1 py-0.5 text-[9px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title={`Generate one Revenues/Expenses effect card per placed scenario in ${deck.name}`} onClick={() => generateEffectCards(deck, "re")}>Rev / Exp</button>
+                  </div>
+                )}
                 {/* ITEM 4d — the add-selection action NAMES its target deck */}
                 <button
                   className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-0.5 text-[9.5px] font-semibold"

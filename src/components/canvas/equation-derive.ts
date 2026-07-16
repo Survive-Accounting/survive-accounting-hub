@@ -130,6 +130,40 @@ export function deriveEquationArrows(lines: LineLike[], coa: CoaAccount[] | Map<
   return { assets: all.assets, liabilities: all.liabilities, equity: all.equity };
 }
 
+const PRESET_COMPONENTS: Record<EqPreset, { label: string; component: EqComponent }[]> = {
+  ale: [
+    { label: "Assets", component: "assets" },
+    { label: "Liabilities", component: "liabilities" },
+    { label: "Equity", component: "equity" },
+  ],
+  re: [
+    { label: "Revenues", component: "revenues" },
+    { label: "Expenses", component: "expenses" },
+  ],
+};
+
+/** ER7 — the FormulaCard data for one BOUND, BLANK, arrows-lens effect card: each
+ *  component's answer arrow is derived from the scenario's lines (preset-aware)
+ *  and stored, but every segment ships HIDDEN so the card is blank until the
+ *  space-walk reveals it. Pure — the caller wraps it into a node. */
+export function effectCardData(
+  scenarioId: string,
+  lines: LineLike[],
+  coa: CoaAccount[] | Map<string, CoaAccount>,
+  preset: EqPreset,
+  mkId: () => string,
+): { kind: "formula"; scenarioId: string; preset: EqPreset; display: "arrows"; operators: string[]; segments: { id: string; label: string; value: string; component: EqComponent; arrow: EqDir; hidden: true }[] } {
+  const arr = deriveArrows(lines, coa, preset);
+  return {
+    kind: "formula",
+    scenarioId,
+    preset,
+    display: "arrows",
+    operators: preset === "re" ? [] : ["=", "+"],
+    segments: PRESET_COMPONENTS[preset].map((c) => ({ id: mkId(), label: c.label, value: "", component: c.component, arrow: arr[c.component], hidden: true as const })),
+  };
+}
+
 /** Flatten grouped COA (ctx.coa) to a name → account lookup for the lib. */
 export function coaLookup(groups: { accounts: CoaAccount[] }[]): Map<string, CoaAccount> {
   const m = new Map<string, CoaAccount>();

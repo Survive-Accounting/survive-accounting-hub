@@ -156,3 +156,28 @@ describe("Effect Rubric package — presets + rubric", () => {
     expect(arr).toMatchObject({ assets: "up", liabilities: "none", equity: "up" });
   });
 });
+
+describe("effectCardData (ER7 — bound blank effect card)", () => {
+  const { effectCardData } = require("./equation-derive");
+  const services = [
+    { account: "Accounts Receivable", side: "dr" as const, dr: 500, cr: null },
+    { account: "Service Revenue", side: "cr" as const, dr: null, cr: 500 },
+  ];
+  let n = 0;
+  test("ale: 3 hidden components with derived arrows + = / + operators, bound", () => {
+    const d = effectCardData("sc-1", services, COA, "ale", () => `s${n++}`);
+    expect(d.kind).toBe("formula");
+    expect(d.scenarioId).toBe("sc-1");
+    expect(d.display).toBe("arrows");
+    expect(d.operators).toEqual(["=", "+"]);
+    expect(d.segments.map((s: { component: string; arrow: string; hidden: boolean }) => [s.component, s.arrow, s.hidden]))
+      .toEqual([["assets", "up", true], ["liabilities", "none", true], ["equity", "up", true]]);
+  });
+  test("re: 2 components, NO operators, Revenues↑", () => {
+    const d = effectCardData("sc-1", services, COA, "re", () => `s${n++}`);
+    expect(d.operators).toEqual([]);
+    expect(d.segments.map((s: { component: string; arrow: string }) => [s.component, s.arrow]))
+      .toEqual([["revenues", "up"], ["expenses", "none"]]);
+    expect(d.segments.every((s: { hidden: boolean }) => s.hidden)).toBe(true); // blank until revealed
+  });
+});
