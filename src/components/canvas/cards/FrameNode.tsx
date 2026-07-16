@@ -7,7 +7,7 @@
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Film, Lock, LockOpen, Maximize2, Pause, Play, Tag, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Film, Lock, LockOpen, Maximize2, Pause, Play, StickyNote, Tag, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { bus } from "../commands";
@@ -35,6 +35,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const nav = useFrameNav();
   const [hover, setHover] = useState(false);
   const [bgMenu, setBgMenu] = useState(false);
+  const [noteEdit, setNoteEdit] = useState(false); // director note editor open
   const videoRef = useRef<HTMLVideoElement>(null);
   const beat = d.beat ?? "none";
   const meta = BEAT_META[beat];
@@ -188,6 +189,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: nav.canStep(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder)" disabled={!nav.canStep(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: nav.canStep(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder)" disabled={!nav.canStep(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: meta.color }} title="Cycle beat tag (Hook · Teach · Model-Practice · Check)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); cycleBeat(); }}><Tag className="h-3 w-3" /></button>
+          {/* DIRECTOR NOTE (item 8): Lee's on-set reminder — filming chrome, hidden in film. */}
+          <button className={btn} style={{ color: d.note ? meta.color : NEON.text }} title={d.note ? "Edit the director note" : "Add a director note (what to do on this shot)"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setNoteEdit((v) => !v); }}>
+            <StickyNote className="h-3 w-3" />
+          </button>
           {/* LOCK (item 2): frames ship locked so they stop getting nudged. */}
           <button className={btn} style={{ color: d.posLock ? meta.color : NEON.text }} title={d.posLock ? "Frame locked (no accidental drags) — click to unlock" : "Lock the frame in place"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); update({ posLock: !d.posLock }); }}>
             {d.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
@@ -254,6 +259,38 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               <button className="ml-auto self-start rounded px-1.5 py-0.5 text-[10px]" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={() => update({ bgFit: "cover", bgZoom: FRAME_BG_DEFAULT_ZOOM, bgAnchor: "center" })}>Reset</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* DIRECTOR NOTE strip (item 8) — bottom of the stage, FILMING CHROME
+          (data-frame-chrome → film mode hides it). Amber sticky-note look so it
+          reads as an instruction, never student content. */}
+      {(d.note || noteEdit) && (
+        <div
+          data-frame-chrome
+          className="nodrag nowheel absolute inset-x-2 bottom-2 z-[5] rounded-md px-2 py-1"
+          style={{ background: "rgba(20,16,4,0.82)", border: "1px solid rgba(252,163,17,0.5)", boxShadow: "0 6px 18px -8px rgba(0,0,0,0.7)" }}
+          onPointerDown={stop}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => { e.stopPropagation(); setNoteEdit(true); }}
+        >
+          <div className="mb-0.5 flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-widest" style={{ color: "#F5D48F" }}>
+            <StickyNote className="h-2.5 w-2.5" /> director note
+          </div>
+          {noteEdit ? (
+            <textarea
+              autoFocus
+              rows={2}
+              className="w-full resize-none rounded bg-black/30 px-1 py-0.5 text-[11px] leading-snug outline-none"
+              style={{ color: "#FCE9C6", border: "1px solid rgba(252,163,17,0.4)" }}
+              defaultValue={d.note ?? ""}
+              placeholder="What to do on this shot…"
+              onBlur={(e) => { update({ note: e.target.value.trim() || undefined }); setNoteEdit(false); }}
+              onKeyDown={(e) => { if (e.key === "Escape") setNoteEdit(false); e.stopPropagation(); }}
+            />
+          ) : (
+            <div className="cursor-text whitespace-pre-wrap text-[11px] leading-snug" style={{ color: "#FCE9C6" }} title="Double-click to edit">{d.note}</div>
+          )}
         </div>
       )}
     </div>

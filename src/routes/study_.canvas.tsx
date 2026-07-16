@@ -55,7 +55,7 @@ import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas
 import { DecksContext } from "@/components/canvas/DecksContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, SCAFFOLD_NOTES, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -1126,7 +1126,9 @@ function PresentCanvas() {
     const frames = SCAFFOLD_BEATS.map((b, k) => ({
       id: cardId("frame"), type: "frame", parentId: lid,
       position: { x: columnX(k), y: rowY(0) }, width: FRAME_W, height: FRAME_H,
-      data: { ...blankFrameData(b.beat, 0) } as unknown as CardNode["data"],
+      // DIRECTOR NOTES (item 8): the Teach + Model/Practice openers ship with
+      // Lee's on-set reminders (filming chrome; hidden in film).
+      data: { ...blankFrameData(b.beat, 0), note: SCAFFOLD_NOTES[b.beat] } as unknown as CardNode["data"],
     }));
     return [lesson, ...frames] as CardNode[];
   }, []);

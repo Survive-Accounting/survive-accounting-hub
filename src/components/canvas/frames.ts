@@ -270,3 +270,10 @@ export const SCAFFOLD_BEATS: { beat: Beat; title: string }[] = [
   { beat: "model_practice", title: "Model · Practice" },
   { beat: "check", title: "Check" },
 ];
+
+/** DIRECTOR NOTES (item 8) stamped on the scaffold's beat openers — Lee's on-set
+ *  reminder for each shot. Filming chrome (hidden in film). */
+export const SCAFFOLD_NOTES: Partial<Record<Beat, string>> = {
+  teach: "Kill THE misconception. Open on the hardest CEQ — nearly full screen, centered.",
+  model_practice: "Model the next hardest 3-5. Narrate your reasoning slowly.",
+};
