@@ -12,7 +12,7 @@ import { ArrowLeftRight, Check, Link2, Link2Off, Plus, Settings2, X } from "luci
 import { BaseCard, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
-import { coaLookup, deriveEquationArrows, EQ_ARROW_GLYPH, EQ_DIR_CYCLE } from "../equation-derive";
+import { coaLookup, deriveArrows, EQ_ARROW_GLYPH, EQ_DIR_CYCLE, rubricOf } from "../equation-derive";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
 import { JeScenarioPicker } from "./JeScenarioPicker";
@@ -23,11 +23,17 @@ import { cardId, type EqComponent, type EqDir, type FormulaCard, type FormulaSeg
 
 const OPERATORS = ["+", "−", "=", "×", "÷"] as const;
 const ARROW_COLOR: Record<EqDir, string> = { up: "#1F9D57", down: PAPER.red, both: "#C77D0A", none: PAPER.inkMuted };
-const COMPONENTS: { key: EqComponent; label: string }[] = [
+const ALE_COMPONENTS: { key: EqComponent; label: string }[] = [
   { key: "assets", label: "A" },
   { key: "liabilities", label: "L" },
   { key: "equity", label: "E" },
 ];
+const RE_COMPONENTS: { key: EqComponent; label: string }[] = [
+  { key: "revenues", label: "Rev" },
+  { key: "expenses", label: "Exp" },
+];
+const componentsFor = (preset: "ale" | "re") => (preset === "re" ? RE_COMPONENTS : ALE_COMPONENTS);
+const RUBRIC_COLOR: Record<"+" | "-", string> = { "+": "#1F9D57", "-": PAPER.red };
 const nextDir = (cur: EqDir | undefined): EqDir =>
   cur === undefined ? "up" : EQ_DIR_CYCLE[(EQ_DIR_CYCLE.indexOf(cur) + 1) % EQ_DIR_CYCLE.length];
 
@@ -39,15 +45,20 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
   const [gear, setGear] = useState<HTMLElement | null>(null);
   const [picker, setPicker] = useState<HTMLElement | null>(null);
 
-  const arrows = d.display === "arrows";
+  const lens = d.display ?? "numbers"; // numbers | arrows | rubric
+  const arrows = lens === "arrows";
+  const rubric = lens === "rubric";
+  const preset = d.preset ?? "ale"; // ale (A=L+E) | re (Revenues/Expenses)
   const practice = d.arrowMode === "practice";
   const editing = !!d.editMode;
 
-  // LIVE derivation from the bound scenario (if any) — powers auto-arrows on bind
-  // and the derived/overridden indicator for the author.
+  // LIVE derivation from the bound scenario (if any), PRESET-AWARE (ER4) — powers
+  // auto-arrows on bind + the derived/overridden indicator. The rubric lens is
+  // NOT scenario-bound (static per account type), so it ignores this.
   const boundItem = d.scenarioId ? ctx.jeLibrary.find((it) => it.scenarioId === d.scenarioId) : undefined;
+  const boundCaption = boundItem ? (boundItem.make() as JeCard).caption : null; // ER3: the scenario stem
   const derived = boundItem
-    ? deriveEquationArrows(((boundItem.make() as JeCard).solution ?? (boundItem.make() as JeCard).lines) ?? [], coaLookup(ctx.coa))
+    ? deriveArrows(((boundItem.make() as JeCard).solution ?? (boundItem.make() as JeCard).lines) ?? [], coaLookup(ctx.coa), preset)
     : null;
 
   const patchSeg = (sid: string, p: Partial<FormulaSegment>) =>
@@ -86,12 +97,27 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
       ],
       operators: ["=", "+"],
       display: "arrows",
+      preset: "ale",
     });
 
-  /** Bind a library scenario → auto-derive each component's arrow (override clears). */
+  /** ER4 — the Revenues / Expenses preset: two components, NO equation operators
+   *  (income-statement lens, kept separate from A=L+E in the student's mind). */
+  const setupRevExp = () =>
+    update({
+      segments: [
+        { id: cardId("fs"), label: "Revenues", value: "", component: "revenues" },
+        { id: cardId("fs"), label: "Expenses", value: "", component: "expenses" },
+      ],
+      operators: [],
+      display: "arrows",
+      preset: "re",
+    });
+
+  /** Bind a library scenario → auto-derive each component's arrow (override clears),
+   *  PRESET-AWARE so the R/E card derives Revenues↑ where A=L+E derives E↑. */
   const bind = (it: LibraryItem) => {
     const made = it.make() as JeCard;
-    const arr = deriveEquationArrows((made.solution ?? made.lines) ?? [], coaLookup(ctx.coa));
+    const arr = deriveArrows((made.solution ?? made.lines) ?? [], coaLookup(ctx.coa), preset);
     updateFn((prev) => ({
       scenarioId: it.scenarioId,
       segments: ((prev.segments as FormulaSegment[]) ?? []).map((s) => (s.component ? { ...s, arrow: arr[s.component], overridden: false } : s)),
@@ -100,7 +126,7 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
   };
 
   const hasComponents = d.segments.some((s) => s.component);
-  const canReveal = practice && d.segments.filter((s) => s.component).every((s) => s.attempt !== undefined);
+  const canReveal = practice && d.segments.filter((s) => s.component).every((s) => (rubric ? s.drAttempt !== undefined && s.crAttempt !== undefined : s.attempt !== undefined));
 
   // ---- ARROW component cell -------------------------------------------------
   const arrowCell = (s: FormulaSegment) => {
@@ -150,13 +176,13 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
             {overridden ? "override" : "derived"}
           </span>
         )}
-        {/* component role picker (edit) */}
+        {/* component role picker (edit) — preset-aware set (A/L/E or Rev/Exp) */}
         {editing && (
           <div className="sa-chrome flex gap-0.5">
-            {COMPONENTS.map((c) => (
+            {componentsFor(preset).map((c) => (
               <button
                 key={c.key}
-                className="grid h-4 w-4 place-items-center rounded text-[9px] font-bold"
+                className="grid h-4 w-7 place-items-center rounded text-[9px] font-bold"
                 style={{ color: comp === c.key ? "#0B1322" : PAPER.inkMuted, background: comp === c.key ? NEON.yellow : "transparent", border: `1px solid ${PAPER.line}` }}
                 title={`Mark as ${c.key}`}
                 onPointerDown={(e) => e.stopPropagation()}
@@ -166,6 +192,63 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
               </button>
             ))}
           </div>
+        )}
+      </div>
+    );
+  };
+
+  // ---- RUBRIC component cell (ER5): what a DEBIT / a CREDIT does to this
+  //      component, STATIC from its account type. Practice → the student sets
+  //      each side (+/-), reveal grades. Not scenario-bound. -------------------
+  const rubricCell = (s: FormulaSegment) => {
+    const comp = s.component;
+    const key = rubricOf(comp ?? "assets"); // {dr,cr}
+    const graded = practice && d.graded;
+    const sideCell = (side: "dr" | "cr") => {
+      const answer = key[side];
+      const attempt = side === "dr" ? s.drAttempt : s.crAttempt;
+      const shown = practice ? attempt : answer;
+      const ok = graded && attempt === answer;
+      const cycle = (): "+" | "-" => (attempt === "+" ? "-" : "+"); // blank → +
+      return (
+        <button
+          key={side}
+          className="nodrag grid h-11 w-9 place-items-center rounded-md text-[24px] font-black leading-none"
+          style={{
+            color: shown ? RUBRIC_COLOR[shown] : PAPER.inkFaint,
+            background: graded ? (ok ? "rgba(31,157,87,0.12)" : "rgba(194,24,50,0.10)") : "rgba(20,33,61,0.03)",
+            border: `1.5px solid ${graded ? (ok ? "#1F9D57" : PAPER.red) : PAPER.line}`,
+          }}
+          title={`${side.toUpperCase()} side`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); if (!practice || d.graded) return; patchSeg(s.id, side === "dr" ? { drAttempt: cycle() } : { crAttempt: cycle() }); }}
+        >
+          {shown ?? "·"}
+        </button>
+      );
+    };
+    const stp = spotTargetProps(sp, id, s.id);
+    return (
+      <div {...stp.props} className="relative flex flex-col items-center gap-0.5" style={{ minWidth: 84, ...spotStyle(stp.state), ...(stp.state === "dim" ? { opacity: 0.85 } : {}) }}>
+        <MemoAnchor subId={s.id} />
+        <MemoLightbulb targetId={id} handleId={memoAnchorId(s.id)} title="Attach a memo to this component" className="absolute -left-1 -top-1 z-[2] h-4 w-4 opacity-0 transition-opacity group-hover/seg:opacity-100" style={{ color: PAPER.navy, background: "#FBF9F4", border: `1px solid ${PAPER.line}` }} />
+        <div className="text-[9.5px] font-semibold uppercase tracking-wide" style={{ color: PAPER.inkMuted }}>
+          <EditableText value={s.label} onChange={(v) => patchSeg(s.id, { label: v })} editing={editing} placeholder={comp ?? "label"} />
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="flex flex-col items-center">
+            <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: PAPER.inkMuted }}>DR</span>
+            {sideCell("dr")}
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: PAPER.inkMuted }}>CR</span>
+            {sideCell("cr")}
+          </div>
+        </div>
+        {graded && (
+          <span className="flex items-center gap-0.5 text-[10px] font-bold" style={{ color: (s.drAttempt === key.dr && s.crAttempt === key.cr) ? "#1F9D57" : PAPER.red }}>
+            {(s.drAttempt === key.dr && s.crAttempt === key.cr) ? <Check className="h-3 w-3" /> : <>✗ {key.dr}/{key.cr}</>}
+          </span>
         )}
       </div>
     );
@@ -181,13 +264,13 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
       headerRight={
         <>
           <button
-            title={arrows ? "Show numbers" : "Show A = L + E arrows"}
+            title={`Lens: ${lens} — click to cycle Numbers → Arrows → Rubric`}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); update({ display: arrows ? "numbers" : "arrows" }); }}
-            className="nodrag grid h-5 w-5 place-items-center rounded"
-            style={{ color: arrows ? NEON.yellow : NEON.muted }}
+            onClick={(e) => { e.stopPropagation(); update({ display: lens === "numbers" ? "arrows" : lens === "arrows" ? "rubric" : "numbers" }); }}
+            className="nodrag grid h-5 w-auto place-items-center rounded px-1 text-[9px] font-bold uppercase"
+            style={{ color: lens !== "numbers" ? NEON.yellow : NEON.muted }}
           >
-            <ArrowLeftRight className="h-3 w-3" />
+            {lens === "rubric" ? "+/−" : <ArrowLeftRight className="h-3 w-3" />}
           </button>
           <button
             title="Formula settings"
@@ -203,7 +286,7 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
     >
       {gear && (
         <CardPopover anchor={gear} side="left" onClose={() => setGear(null)}>
-          <FormulaSettings d={d} onUpdate={update} onSetup={setupEquation} onBind={() => { setPicker(gear); setGear(null); }} onUnbind={() => update({ scenarioId: undefined })} boundLabel={boundItem?.label ?? null} onClose={() => setGear(null)} />
+          <FormulaSettings d={d} onUpdate={update} onSetup={setupEquation} onSetupRE={setupRevExp} onBind={() => { setPicker(gear); setGear(null); }} onUnbind={() => update({ scenarioId: undefined })} boundLabel={boundItem?.label ?? null} onClose={() => setGear(null)} />
         </CardPopover>
       )}
       {picker && (
@@ -220,22 +303,39 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
         </CardPopover>
       )}
 
-      {arrows && !hasComponents && (
-        <button
-          className="nodrag mb-2 inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold"
-          style={{ color: PAPER.navy, border: `1px dashed ${PAPER.line}` }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={setupEquation}
-        >
-          <Plus className="h-3 w-3" /> Set up A = L + E
-        </button>
+      {/* ER3 — the bound scenario's caption (the stem students read), film-legible */}
+      {boundCaption && (
+        <div className="-mt-1 mb-1.5 text-[12px] font-semibold leading-snug" style={{ color: PAPER.navy }}>
+          {boundCaption}
+        </div>
       )}
 
-      {arrows && practice && hasComponents && (
+      {(arrows || rubric) && !hasComponents && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          <button
+            className="nodrag inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold"
+            style={{ color: PAPER.navy, border: `1px dashed ${PAPER.line}` }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={setupEquation}
+          >
+            <Plus className="h-3 w-3" /> A = L + E
+          </button>
+          <button
+            className="nodrag inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold"
+            style={{ color: PAPER.navy, border: `1px dashed ${PAPER.line}` }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={setupRevExp}
+          >
+            <Plus className="h-3 w-3" /> Revenues / Expenses
+          </button>
+        </div>
+      )}
+
+      {(arrows || rubric) && practice && hasComponents && (
         <div className="mb-1.5 flex items-center gap-2 text-[10px]">
-          <span style={{ color: PAPER.inkMuted }}>{d.graded ? "Graded — reset to try again" : "Set each arrow, then Reveal"}</span>
+          <span style={{ color: PAPER.inkMuted }}>{d.graded ? "Graded — reset to try again" : rubric ? "Set +/- per side, then Reveal" : "Set each arrow, then Reveal"}</span>
           {d.graded ? (
-            <button className="nodrag rounded px-1.5 py-0.5 font-bold uppercase" style={{ color: PAPER.navy, border: `1px solid ${PAPER.line}` }} onPointerDown={(e) => e.stopPropagation()} onClick={() => updateFn((prev) => ({ graded: false, segments: (prev.segments as FormulaSegment[]).map((s) => ({ ...s, attempt: undefined })) }))}>reset</button>
+            <button className="nodrag rounded px-1.5 py-0.5 font-bold uppercase" style={{ color: PAPER.navy, border: `1px solid ${PAPER.line}` }} onPointerDown={(e) => e.stopPropagation()} onClick={() => updateFn((prev) => ({ graded: false, segments: (prev.segments as FormulaSegment[]).map((s) => ({ ...s, attempt: undefined, drAttempt: undefined, crAttempt: undefined })) }))}>reset</button>
           ) : (
             <button className="nodrag rounded px-1.5 py-0.5 font-bold uppercase disabled:opacity-40" style={{ color: "#0B1322", background: canReveal ? NEON.yellow : "transparent", border: `1px solid ${PAPER.line}` }} disabled={!canReveal} onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ graded: true })}>reveal</button>
           )}
@@ -245,7 +345,8 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
       <div className="flex flex-wrap items-center gap-1.5">
         {d.segments.map((s, i) => (
           <div key={s.id} className="flex items-center gap-1.5">
-            {i > 0 && (
+            {/* R/E preset carries NO equation operators (income lens, ER4) */}
+            {i > 0 && preset !== "re" && (
               <button
                 className="nodrag grid h-6 w-6 shrink-0 place-items-center rounded-full text-[15px] font-black"
                 style={{ color: PAPER.navy, border: `1px solid ${PAPER.line}` }}
@@ -257,13 +358,39 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
               </button>
             )}
             {s.hidden ? (
+              // ER1 state 1 — HIDDEN = a WAITING slot (empty, no glyph): a soft
+              // pulsing amber placeholder that reads "coming", never "no effect".
               <div
-                className="nodrag grid h-11 w-24 cursor-pointer place-items-center rounded-md"
-                style={{ background: "rgba(252,163,17,0.16)", border: "1px dashed rgba(138,90,0,0.45)" }}
-                title="Hidden — space (or click) reveals"
+                className="nodrag relative flex flex-col items-center gap-0.5"
+                style={{ minWidth: (arrows || rubric) ? 72 : 84 }}
+                title="Waiting — space (or click) reveals the effect"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); patchSeg(s.id, { hidden: false }); }}
-              />
+              >
+                {(arrows || rubric) && (
+                  <div className="text-[9.5px] font-semibold uppercase tracking-wide" style={{ color: PAPER.inkMuted }}>{s.label || s.component}</div>
+                )}
+                <div
+                  className="grid h-11 w-full cursor-pointer place-items-center rounded-md"
+                  style={{ background: "rgba(252,163,17,0.14)", border: "1.5px dashed rgba(138,90,0,0.5)", animation: "eq-wait 1.6s ease-in-out infinite" }}
+                />
+                <style>{`@keyframes eq-wait { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }`}</style>
+              </div>
+            ) : rubric ? (
+              <div className="group/seg relative">
+                {d.segments.length > 1 && editing && (
+                  <button
+                    className="nodrag absolute -right-1.5 -top-1.5 z-[2] grid h-4 w-4 place-items-center rounded-full opacity-0 transition-opacity group-hover/seg:opacity-100"
+                    style={{ color: PAPER.red, background: "#FBF9F4", border: "1px solid rgba(194,24,50,0.35)" }}
+                    title="Remove segment"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); removeSegment(s.id); }}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
+                {rubricCell(s)}
+              </div>
             ) : arrows ? (
               <div className="group/seg relative">
                 {d.segments.length > 1 && editing && (
@@ -322,11 +449,13 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
   );
 }
 
-/** FORMULA SETTINGS popover — lens, arrows mode, scenario bind. */
-function FormulaSettings({ d, onUpdate, onSetup, onBind, onUnbind, boundLabel, onClose }: {
+/** FORMULA SETTINGS popover — lens (Numbers/Arrows/Rubric), preset, practice
+ *  mode, scenario bind. */
+function FormulaSettings({ d, onUpdate, onSetup, onSetupRE, onBind, onUnbind, boundLabel, onClose }: {
   d: FormulaCard;
   onUpdate: (p: Partial<FormulaCard>) => void;
   onSetup: () => void;
+  onSetupRE: () => void;
   onBind: () => void;
   onUnbind: () => void;
   boundLabel: string | null;
@@ -334,40 +463,51 @@ function FormulaSettings({ d, onUpdate, onSetup, onBind, onUnbind, boundLabel, o
 }) {
   const row = "flex items-center justify-between gap-2 py-0.5 text-[11.5px]";
   const toggle = (on: boolean) => ({ color: on ? NEON.yellow : NEON.muted, background: on ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${on ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` });
-  const arrows = d.display === "arrows";
+  const lens = d.display ?? "numbers";
+  const derivable = lens === "arrows"; // rubric is static (account-type), not scenario-derived
+  const gradeable = lens === "arrows" || lens === "rubric";
+  const hasComp = d.segments.some((s) => s.component);
   return (
     <div className="nodrag w-60 rounded-lg p-2 shadow-xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onPointerDown={(e) => e.stopPropagation()}>
-      <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Formula settings</div>
+      <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Effect card settings</div>
+      {/* ER5 — lens picker: Numbers | Arrows | Rubric */}
       <div className={row}>
         <span>Lens</span>
-        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(arrows)} onClick={() => onUpdate({ display: arrows ? "numbers" : "arrows" })}>{arrows ? "arrows" : "numbers"}</button>
+        <div className="flex gap-0.5">
+          {(["numbers", "arrows", "rubric"] as const).map((l) => (
+            <button key={l} className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={toggle(lens === l)} onClick={() => onUpdate({ display: l })}>{l === "rubric" ? "+/−" : l}</button>
+          ))}
+        </div>
       </div>
       <div className={row}>
         <span>Edit</span>
         <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.editMode)} onClick={() => onUpdate({ editMode: !d.editMode })}>{d.editMode ? "on" : "off"}</button>
       </div>
-      {arrows && (
-        <>
-          <div className={row}>
-            <span>Arrows mode</span>
-            <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(d.arrowMode === "practice")} onClick={() => onUpdate({ arrowMode: d.arrowMode === "practice" ? "guided" : "practice", graded: false })}>{d.arrowMode === "practice" ? "practice" : "guided"}</button>
-          </div>
-          <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
-            <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Bind to scenario</div>
-            {boundLabel ? (
-              <div className="flex items-center justify-between gap-1">
-                <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: NEON.text }}>{boundLabel}</span>
-                <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.red }} title="Unlink scenario" onClick={onUnbind}><Link2Off className="h-3.5 w-3.5" /></button>
-              </div>
-            ) : (
-              <button className="flex w-full items-center gap-1 rounded px-1.5 py-1 text-[11px] font-semibold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={onBind}><Link2 className="h-3 w-3" /> Pick a scenario…</button>
-            )}
-            <p className="mt-1 text-[9.5px] leading-snug" style={{ color: NEON.muted }}>Auto-derives A/L/E arrows. Manual clicks override (badge shows which).</p>
-          </div>
-        </>
+      {gradeable && (
+        <div className={row}>
+          <span>Mode</span>
+          <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(d.arrowMode === "practice")} onClick={() => onUpdate({ arrowMode: d.arrowMode === "practice" ? "guided" : "practice", graded: false })}>{d.arrowMode === "practice" ? "practice" : "guided"}</button>
+        </div>
       )}
-      {arrows && !d.segments.some((s) => s.component) && (
-        <button className="mt-1.5 flex w-full items-center gap-1 rounded px-1.5 py-1 text-[11px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { onSetup(); onClose(); }}><Plus className="h-3 w-3" /> Set up A = L + E</button>
+      {derivable && (
+        <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+          <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Bind to scenario</div>
+          {boundLabel ? (
+            <div className="flex items-center justify-between gap-1">
+              <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: NEON.text }}>{boundLabel}</span>
+              <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.red }} title="Unlink scenario" onClick={onUnbind}><Link2Off className="h-3.5 w-3.5" /></button>
+            </div>
+          ) : (
+            <button className="flex w-full items-center gap-1 rounded px-1.5 py-1 text-[11px] font-semibold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={onBind}><Link2 className="h-3 w-3" /> Pick a scenario…</button>
+          )}
+          <p className="mt-1 text-[9.5px] leading-snug" style={{ color: NEON.muted }}>Auto-derives each component's arrow (preset-aware). Manual clicks override.</p>
+        </div>
+      )}
+      {!hasComp && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          <button className="flex flex-1 items-center justify-center gap-1 rounded px-1.5 py-1 text-[10.5px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { onSetup(); onClose(); }}><Plus className="h-3 w-3" /> A = L + E</button>
+          <button className="flex flex-1 items-center justify-center gap-1 rounded px-1.5 py-1 text-[10.5px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { onSetupRE(); onClose(); }}><Plus className="h-3 w-3" /> Rev / Exp</button>
+        </div>
       )}
       <div className="mt-1.5 flex justify-end">
         <button className="rounded px-2 py-0.5 text-[10.5px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={onClose}>done</button>

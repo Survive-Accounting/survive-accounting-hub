@@ -304,10 +304,16 @@ export interface LegendCard extends CardBase {
 }
 
 // ---- Equation lens (A = L + E arrows) — see equation-derive.ts -----------------
-/** Which equation bucket a formula segment represents (drives derivation). */
-export type EqComponent = "assets" | "liabilities" | "equity";
+/** Which bucket a formula segment represents (drives derivation). ale preset
+ *  uses assets/liabilities/equity (rev/exp fold into equity); the re preset uses
+ *  revenues/expenses (income-statement lens). */
+export type EqComponent = "assets" | "liabilities" | "equity" | "revenues" | "expenses";
 /** A component's direction: ↑ up · ↓ down · ↑↓ both · — none. */
 export type EqDir = "up" | "down" | "both" | "none";
+/** Effect-card preset: A=L+E (balance sheet) or Revenues/Expenses (income). */
+export type EqPreset = "ale" | "re";
+/** A DEBIT/CREDIT sign for the Rubric lens. */
+export type RubricSign = "+" | "-";
 
 // ---- Formula (horizontal chain: [Beginning inv] + [Purchases] = [Goods avail] …) ----
 export interface FormulaSegment {
@@ -324,6 +330,10 @@ export interface FormulaSegment {
   overridden?: boolean;
   /** PRACTICE: the student's set arrow (undefined = still blank). */
   attempt?: EqDir;
+  /** RUBRIC lens (ER5) PRACTICE: the student's set +/- for the debit / credit
+   *  side (undefined = still blank). Graded vs the static rubric of the type. */
+  drAttempt?: RubricSign;
+  crAttempt?: RubricSign;
   /** Per-memo attachments (M3) — floating boxes with pointer leaders. */
   memos?: JeMemo[];
 }
@@ -332,8 +342,10 @@ export interface FormulaCard extends CardBase {
   segments: FormulaSegment[];
   /** One operator between each pair of segments (length = segments.length - 1). */
   operators: string[];
-  /** NUMBERS (values) vs ARROWS (direction glyphs) lens. Default numbers. */
-  display?: "numbers" | "arrows";
+  /** NUMBERS (values) · ARROWS (↑↓ effect) · RUBRIC (+/- per DR/CR) lens. */
+  display?: "numbers" | "arrows" | "rubric";
+  /** Effect-card preset (ER4): ale = A=L+E, re = Revenues/Expenses. Default ale. */
+  preset?: EqPreset;
   /** ARROWS practice: components start blank, student sets, reveal grades. */
   arrowMode?: "guided" | "practice";
   /** PRACTICE: reveal pressed — grade each component's attempt vs its arrow. */

@@ -14,15 +14,29 @@
 // to show A↑↓, not net-to-none. Revenue/expense fold into Equity (via retained
 // earnings — treated as E for this lens): revenue CR → E↑, expense DR → E↓.
 import type { CoaAccount } from "./je-logic";
-import type { EqComponent, EqDir } from "./types";
+import type { EqComponent, EqDir, EqPreset, RubricSign } from "./types";
 
 export type { EqComponent, EqDir } from "./types";
 
 export const EQ_DIR_CYCLE: EqDir[] = ["up", "down", "both", "none"];
 export const EQ_ARROW_GLYPH: Record<EqDir, string> = { up: "↑", down: "↓", both: "↑↓", none: "—" };
 
-/** account_type → which equation bucket it belongs to (null = unclassifiable). */
-export function equationBucketOf(type: string | undefined | null): EqComponent | null {
+/** account_type → which bucket it belongs to for a given PRESET (ER4). ale folds
+ *  revenue/expense into equity; re surfaces them as revenues/expenses and drops
+ *  balance-sheet accounts (null). null = not shown on this preset's card. */
+export function equationBucketOf(type: string | undefined | null, preset: EqPreset = "ale"): EqComponent | null {
+  if (preset === "re") {
+    switch (type) {
+      case "revenue":
+      case "contra_revenue":
+        return "revenues";
+      case "expense":
+      case "contra_expense":
+        return "expenses";
+      default:
+        return null; // assets/liabilities/equity don't appear on the income lens
+    }
+  }
   switch (type) {
     case "asset":
     case "contra_asset":
@@ -36,10 +50,19 @@ export function equationBucketOf(type: string | undefined | null): EqComponent |
     case "revenue":
     case "contra_revenue":
     case "expense":
-      return "equity"; // R/E lens: revenue & expense move equity
+    case "contra_expense":
+      return "equity"; // A=L+E lens: revenue & expense move equity
     default:
       return null;
   }
+}
+
+/** The STATIC rubric of a component (ER5) — what a DEBIT does and what a CREDIT
+ *  does, from the account type. NOT scenario-bound. Assets/Expenses are
+ *  debit-normal (debit +); Liabilities/Equity/Revenues credit-normal (credit +). */
+export function rubricOf(component: EqComponent): { dr: RubricSign; cr: RubricSign } {
+  const debitNormal = component === "assets" || component === "expenses";
+  return debitNormal ? { dr: "+", cr: "-" } : { dr: "-", cr: "+" };
 }
 
 interface LineLike {
@@ -57,39 +80,38 @@ export function sideOfLine(line: LineLike): "dr" | "cr" | null {
   return null;
 }
 
-/** GROSS effect of one posting on its bucket's total. Assets: debit ↑ / credit ↓;
- *  liabilities & equity: credit ↑ / debit ↓. */
+/** GROSS effect of one posting on its bucket's total. Debit-normal buckets
+ *  (assets, expenses): debit ↑ / credit ↓; credit-normal (liabilities, equity,
+ *  revenues): credit ↑ / debit ↓. */
 function bucketDir(bucket: EqComponent, side: "dr" | "cr"): "up" | "down" {
-  if (bucket === "assets") return side === "dr" ? "up" : "down";
+  const debitNormal = bucket === "assets" || bucket === "expenses";
+  if (debitNormal) return side === "dr" ? "up" : "down";
   return side === "cr" ? "up" : "down";
 }
 
-export interface EquationArrows {
-  assets: EqDir;
-  liabilities: EqDir;
-  equity: EqDir;
-}
+export interface EquationArrows { assets: EqDir; liabilities: EqDir; equity: EqDir }
 
 /** The effect one line has, for click-through / labeling ("Cash DR → A↑"). */
-export function lineEquationEffect(line: LineLike, coa: Map<string, CoaAccount>): { bucket: EqComponent; dir: "up" | "down" } | null {
+export function lineEquationEffect(line: LineLike, coa: Map<string, CoaAccount>, preset: EqPreset = "ale"): { bucket: EqComponent; dir: "up" | "down" } | null {
   const acct = (line.account ?? "").trim();
   if (!acct) return null;
-  const bucket = equationBucketOf(coa.get(acct)?.type);
+  const bucket = equationBucketOf(coa.get(acct)?.type, preset);
   const side = sideOfLine(line);
   if (!bucket || !side) return null;
   return { bucket, dir: bucketDir(bucket, side) };
 }
 
-/** Aggregate a scenario's lines into a gross arrow per component. */
-export function deriveEquationArrows(lines: LineLike[], coa: CoaAccount[] | Map<string, CoaAccount>): EquationArrows {
+const ALL_COMPONENTS: EqComponent[] = ["assets", "liabilities", "equity", "revenues", "expenses"];
+
+/** Aggregate a scenario's lines into a gross arrow per component, PRESET-AWARE
+ *  (ER4): the same revenue credit derives E↑ on the ale card and Revenues↑ on
+ *  the re card. Returns every bucket (unhit → "none"). */
+export function deriveArrows(lines: LineLike[], coa: CoaAccount[] | Map<string, CoaAccount>, preset: EqPreset = "ale"): Record<EqComponent, EqDir> {
   const map = coa instanceof Map ? coa : new Map(coa.map((a) => [a.name, a]));
-  const seen: Record<EqComponent, { up: boolean; down: boolean }> = {
-    assets: { up: false, down: false },
-    liabilities: { up: false, down: false },
-    equity: { up: false, down: false },
-  };
+  const seen: Record<EqComponent, { up: boolean; down: boolean }> =
+    Object.fromEntries(ALL_COMPONENTS.map((c) => [c, { up: false, down: false }])) as Record<EqComponent, { up: boolean; down: boolean }>;
   for (const line of lines) {
-    const eff = lineEquationEffect(line, map);
+    const eff = lineEquationEffect(line, map, preset);
     if (eff) seen[eff.bucket][eff.dir] = true;
   }
   const resolve = (b: EqComponent): EqDir => {
@@ -99,7 +121,13 @@ export function deriveEquationArrows(lines: LineLike[], coa: CoaAccount[] | Map<
     if (s.down) return "down";
     return "none";
   };
-  return { assets: resolve("assets"), liabilities: resolve("liabilities"), equity: resolve("equity") };
+  return Object.fromEntries(ALL_COMPONENTS.map((c) => [c, resolve(c)])) as Record<EqComponent, EqDir>;
+}
+
+/** Back-compat: JUST the A=L+E arrows (ale preset, 3 keys). */
+export function deriveEquationArrows(lines: LineLike[], coa: CoaAccount[] | Map<string, CoaAccount>): EquationArrows {
+  const all = deriveArrows(lines, coa, "ale");
+  return { assets: all.assets, liabilities: all.liabilities, equity: all.equity };
 }
 
 /** Flatten grouped COA (ctx.coa) to a name → account lookup for the lib. */

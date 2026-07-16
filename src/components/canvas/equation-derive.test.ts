@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { coaLookup, deriveEquationArrows, equationBucketOf, lineEquationEffect, sideOfLine } from "./equation-derive";
+import { coaLookup, deriveArrows, deriveEquationArrows, equationBucketOf, lineEquationEffect, rubricOf, sideOfLine } from "./equation-derive";
 import type { CoaAccount } from "./je-logic";
 
 const A = (name: string, type: string, normal: "debit" | "credit"): CoaAccount => ({ name, type, normal });
@@ -102,4 +102,57 @@ describe("lineEquationEffect — per-line click-through", () => {
   test("Accounts Payable CR → liabilities up", () =>
     expect(lineEquationEffect(cr("Accounts Payable"), map)).toEqual({ bucket: "liabilities", dir: "up" }));
   test("blank account → null", () => expect(lineEquationEffect({ account: "" }, map)).toBeNull());
+});
+
+describe("Effect Rubric package — presets + rubric", () => {
+  // ER2: the canonical diagnosis case — "Performing services on credit"
+  const servicesOnCredit = [
+    { account: "Accounts Receivable", side: "dr" as const, dr: 500, cr: null },
+    { account: "Service Revenue", side: "cr" as const, dr: null, cr: 500 },
+  ];
+
+  test("ER2: A=L+E derives A↑ L— E↑ (revenue folds into equity)", () => {
+    const arr = deriveArrows(servicesOnCredit, COA, "ale");
+    expect(arr.assets).toBe("up");
+    expect(arr.liabilities).toBe("none");
+    expect(arr.equity).toBe("up");
+  });
+
+  test("ER4: the SAME scenario on the R/E preset derives Revenues↑ (not equity)", () => {
+    const arr = deriveArrows(servicesOnCredit, COA, "re");
+    expect(arr.revenues).toBe("up");
+    expect(arr.expenses).toBe("none");
+    // balance-sheet buckets don't participate on the income lens
+    expect(arr.assets).toBe("none");
+  });
+
+  test("ER4: paying an expense in cash — ale E↓ ; re Expenses↑", () => {
+    const lines = [
+      { account: "Rent Expense", side: "dr" as const, dr: 300, cr: null },
+      { account: "Cash", side: "cr" as const, dr: null, cr: 300 },
+    ];
+    expect(deriveArrows(lines, COA, "ale").equity).toBe("down"); // expense debit lowers equity
+    expect(deriveArrows(lines, COA, "re").expenses).toBe("up");   // expense itself goes up
+    expect(deriveArrows(lines, COA, "ale").assets).toBe("down");  // cash out
+  });
+
+  test("equationBucketOf is preset-aware", () => {
+    expect(equationBucketOf("revenue", "ale")).toBe("equity");
+    expect(equationBucketOf("revenue", "re")).toBe("revenues");
+    expect(equationBucketOf("expense", "re")).toBe("expenses");
+    expect(equationBucketOf("asset", "re")).toBeNull(); // not on the income lens
+  });
+
+  test("ER5: rubric signs are static per account type", () => {
+    expect(rubricOf("assets")).toEqual({ dr: "+", cr: "-" });
+    expect(rubricOf("liabilities")).toEqual({ dr: "-", cr: "+" });
+    expect(rubricOf("equity")).toEqual({ dr: "-", cr: "+" });
+    expect(rubricOf("revenues")).toEqual({ dr: "-", cr: "+" });
+    expect(rubricOf("expenses")).toEqual({ dr: "+", cr: "-" });
+  });
+
+  test("back-compat deriveEquationArrows still returns A=L+E", () => {
+    const arr = deriveEquationArrows(servicesOnCredit, COA);
+    expect(arr).toMatchObject({ assets: "up", liabilities: "none", equity: "up" });
+  });
 });
