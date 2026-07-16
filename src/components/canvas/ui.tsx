@@ -3,6 +3,19 @@
 // doesn't treat typing/scrolling as canvas gestures.
 import { useEffect, useRef, useState } from "react";
 
+/** F2 GLOBAL EDIT (item 4): the route stamps a transient `_editSeq` timestamp on
+ *  a node's data to say "open your inline editor now". Each editable node calls
+ *  this with that value + its own open fn. Skips the mount fire so a persisted
+ *  stale seq never auto-opens; fires only on a fresh change. */
+export function useEditSignal(seq: number | undefined, open: () => void): void {
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (seq !== undefined) open();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seq]);
+}
+
 export function fmtNum(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "";
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -23,17 +36,30 @@ interface EditableTextProps {
   className?: string;
   multiline?: boolean;
   autoFocus?: boolean;
+  /** F2 GLOBAL EDIT (item 4): a changing openSeq opens + focuses this field ONCE,
+   *  then it self-manages (blur closes) — same directive pattern as EditableNumber. */
+  openSeq?: number;
 }
 
-export function EditableText({ value, onChange, editing, placeholder, className, multiline, autoFocus }: EditableTextProps) {
+export function EditableText({ value, onChange, editing, placeholder, className, multiline, autoFocus, openSeq }: EditableTextProps) {
   const [local, setLocal] = useState(value);
   const [open, setOpen] = useState(!!autoFocus);
+  const ref = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   useEffect(() => setLocal(value), [value]);
+  useEffect(() => {
+    if (openSeq === undefined) return;
+    setOpen(true);
+    let tries = 0, raf = 0;
+    const grab = () => { const el = ref.current; if (el) { el.focus(); el.select(); } else if (tries++ < 10) raf = requestAnimationFrame(grab); };
+    raf = requestAnimationFrame(grab);
+    return () => cancelAnimationFrame(raf);
+  }, [openSeq]);
   const active = editing || open;
 
   if (active) {
     const commit = () => { onChange(local); setOpen(false); };
     const common = {
+      ref: ref as React.Ref<HTMLInputElement & HTMLTextAreaElement>,
       className: `nodrag nowheel w-full rounded bg-black/5 px-1.5 py-0.5 text-inherit outline-none ring-1 ring-[rgba(20,33,61,0.30)] focus:ring-[rgba(194,24,50,0.55)] ${className ?? ""}`,
       value: local,
       placeholder,

@@ -2745,7 +2745,16 @@ function PresentCanvas() {
       { combo: "shift+arrowup", group: "Spotlight", description: "Extend the spotlight range up", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1, { range: true }); } } },
       { combo: "ctrl+arrowdown", group: "Spotlight", description: "Spotlight jump to the last target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { jump: true }); } } },
       { combo: "ctrl+arrowup", group: "Spotlight", description: "Spotlight jump to the first target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1, { jump: true }); } } },
-      { combo: "f2", group: "Spotlight", description: "Edit the spotlit target (authoring only)", handler: (e) => { if (spotRef.current?.active && !film) { e.preventDefault(); spotRef.current.editSpot(); } } },
+      // F2 GLOBAL EDIT (item 4): one binding — edit the spotlit target if a
+      // spotlight is active, else stamp a transient _editSeq on the SELECTED node
+      // so its own editor opens (per-kind: heading/text/memo/list/JE line/frame
+      // title all watch it via useEditSignal / openSeq). Film mode is a no-op.
+      { combo: "f2", group: "Edit", description: "Edit the selected element (heading · text · JE line · list · memo · frame title)", handler: (e) => {
+        if (film) return;
+        if (spotRef.current?.active) { e.preventDefault(); spotRef.current.editSpot(); return; }
+        const sel = rf.getNodes().find((n) => n.selected);
+        if (sel) { e.preventDefault(); rf.updateNodeData(sel.id, { _editSeq: Date.now() }); }
+      } },
       { combo: "]", group: "Frames", description: "Next beat → (also PageDown)", handler: () => stepBeat(1) },
       { combo: "[", group: "Frames", description: "Previous beat ← (also PageUp)", handler: () => stepBeat(-1) },
       { combo: "pagedown", group: "Frames", description: "Next beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(1); } },

@@ -176,7 +176,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           {meta.label} {(d.subIndex ?? 0) + 1}
         </span>
         <span className="min-w-0 flex-1 text-[12px] font-bold" style={{ color: "#F4EFE6" }} onClick={(e) => e.stopPropagation()}>
-          <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="Frame title" />
+          <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="Frame title" openSeq={(data as { _editSeq?: number })._editSeq} />
         </span>
         <span className={`flex items-center gap-0.5 transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`}>
           {bgLoop && (

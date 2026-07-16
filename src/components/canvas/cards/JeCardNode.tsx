@@ -24,7 +24,7 @@ import type { LibraryItem } from "../library";
 import { CoaPicker } from "./CoaPicker";
 import { JeScenarioPicker } from "./JeScenarioPicker";
 import { SaveToLibraryDialog } from "./SaveToLibraryDialog";
-import { EditableNumber, fmtNum } from "../ui";
+import { EditableNumber, fmtNum, useEditSignal } from "../ui";
 import { JE_FONT, NEON, PAPER } from "../theme";
 import {
   JE_PRESETS,
@@ -146,6 +146,14 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
   const [titleEditing, setTitleEditing] = useState(false); // free-text description
   const [saveToLibOpen, setSaveToLibOpen] = useState(false); // author from canvas
   const selLine = (data as Record<string, unknown>)._selLine as string | undefined;
+  // F2 GLOBAL EDIT (item 4): edit the selected LINE's account, else the description.
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => {
+    if (d.reviewLock) return;
+    const first = orderLines(d.lines)[0];
+    const lid = selLine ?? first?.id;
+    if (lid) setAuthoring({ lineId: lid, which: "account", seq: Date.now() });
+    else setTitleEditing(true);
+  });
 
   // A6: a stale _selLine outliving the card's selection made ←/→ move "the block
   // below the selected one" — clear it whenever the NODE deselects.

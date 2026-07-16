@@ -13,6 +13,7 @@ import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { ElementResizer } from "./elements";
+import { useEditSignal } from "../ui";
 import { DISPLAY_FONT, NEON } from "../theme";
 import { renderTokens, TokenMenu } from "../variables";
 import type { HeadingCard } from "../types";
@@ -34,6 +35,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   const [editing, setEditing] = useState(false);
   const [tokenMenu, setTokenMenu] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
 
   // QUICK RESIZE: box height drives the font (min readable size)
   const base = d.level === 1 ? 48 : 28;

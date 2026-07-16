@@ -5,7 +5,7 @@
 // memoKind (note|calc|trap|tip|cheat), an optional name, a category tag, and a
 // body — all fully editable after creation (double-click). Because it's an
 // ordinary node it persists for free and is collectable into a MEMO deck (P3).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Calculator, Lightbulb, ShieldAlert, Sparkles, Star } from "lucide-react";
 
@@ -15,6 +15,7 @@ import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { ElementChrome, ElementResizer } from "./elements";
 import { calcRows } from "../je-logic";
+import { useEditSignal } from "../ui";
 import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
 import { MEMO_SELF_TARGET } from "../spotlight";
 import { NEON } from "../theme";
@@ -47,6 +48,8 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
   const dim = useCardDim(id);
   const [editing, setEditing] = useState(false);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => { setAnchor(bodyRef.current); setEditing(true); }); // F2 global edit (item 4)
   // SL7 — spotlighting a memo glows the box AND its pointer arrow(s) together.
   useEffect(() => {
     const glow = stp.state === "spot" || stp.state === "range";
@@ -102,6 +105,7 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
 
       {/* body — double-click to edit (single click/drag moves the node) */}
       <div
+        ref={bodyRef}
         className="cursor-move whitespace-pre-wrap leading-snug"
         title="Double-click to edit · drag to move"
         onDoubleClick={(e) => { setAnchor(e.currentTarget); setEditing(true); }}

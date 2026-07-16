@@ -13,7 +13,7 @@ import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
-import { EditableText } from "../ui";
+import { EditableText, useEditSignal } from "../ui";
 import { NEON, PAPER } from "../theme";
 import { cardId, type ListCard, type ListRow } from "../types";
 
@@ -25,6 +25,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
   const ctx = useCanvasSettings();
   const sp = useSpotlight();
   const editing = !!d.editMode;
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => update({ editMode: true })); // F2 global edit (item 4) — opens row editors
   const [gear, setGear] = useState<HTMLElement | null>(null);
 
   const patchRow = (rid: string, p: Partial<ListRow>) =>

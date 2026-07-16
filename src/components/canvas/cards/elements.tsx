@@ -12,6 +12,7 @@ import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
+import { useEditSignal } from "../ui";
 import { renderTokens, TokenMenu } from "../variables";
 import type { BridgeCard, GateElement, TextElement } from "../types";
 
@@ -134,6 +135,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
   const [tokenMenu, setTokenMenu] = useState<HTMLElement | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
 
   return (
     <div
