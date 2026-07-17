@@ -34,6 +34,11 @@ export interface CanvasSettings {
   /** Template-variable substitution source ({first_name} …) — the PREVIEW
    *  student until live resolution ships with auth/World v1. */
   previewStudent: PreviewStudent;
+  /** GLOBAL DIRECTOR NOTES keyed by beat (hook/teach/model_practice/check) — a
+   *  note set on one beat's frame shows on THAT beat's frame in every lesson.
+   *  Persists globally (localStorage) + travels with the scene. */
+  beatNotes: Record<string, string>;
+  setBeatNote: (beat: string, text: string) => void;
   setJeCardWidth: (n: number) => void;
   setJeIndent: (n: number) => void;
   setJePreset: (p: JePreset) => void;
@@ -57,6 +62,8 @@ export const CanvasSettingsContext = createContext<CanvasSettings>({
   contentResetMissing: false,
   onManageAccounts: () => {},
   previewStudent: defaultPreviewStudent(),
+  beatNotes: {},
+  setBeatNote: () => {},
   setJeCardWidth: () => {},
   setJeIndent: () => {},
   setJePreset: () => {},

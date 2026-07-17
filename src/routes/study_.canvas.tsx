@@ -56,7 +56,7 @@ import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas
 import { DecksContext } from "@/components/canvas/DecksContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, SCAFFOLD_NOTES, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -996,6 +996,20 @@ function PresentCanvas() {
   const jeLibrary = useMemo(() => library.filter((it) => it.kind === "je"), [library]); // description picker (A12)
   // palette LIBRARY default: active + authored only (archived stays queryable via the picker toggle)
   const activeLibrary = useMemo(() => library.filter((i) => i.status === "active" && i.source === "authored"), [library]);
+  // GLOBAL DIRECTOR NOTES (per beat) — set once, shown on that beat's frame in
+  // every lesson. localStorage is the source of truth (truly global across
+  // scenes); also saved into the scene payload so it travels on export/import.
+  const [beatNotes, setBeatNotes] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("sa-canvas-beat-notes") || "{}"); } catch { return {}; }
+  });
+  const setBeatNote = useCallback((beat: string, text: string) => {
+    setBeatNotes((prev) => {
+      const next = { ...prev };
+      if (text) next[beat] = text; else delete next[beat];
+      try { localStorage.setItem("sa-canvas-beat-notes", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
   const canvasSettings = useMemo<CanvasSettings>(
     () => ({
       jeCardWidth,
@@ -1011,11 +1025,13 @@ function PresentCanvas() {
       contentResetMissing,
       onManageAccounts: () => setManageAccountsOpen(true),
       previewStudent,
+      beatNotes,
+      setBeatNote,
       setJeCardWidth,
       setJeIndent,
       setJePreset,
     }),
-    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary, sceneCourseId, sceneChapterId, sceneCourse, contentResetMissing, previewStudent],
+    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary, sceneCourseId, sceneChapterId, sceneCourse, contentResetMissing, previewStudent, beatNotes, setBeatNote],
   );
 
   // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
@@ -1257,9 +1273,9 @@ function PresentCanvas() {
     const frames = SCAFFOLD_BEATS.map((b, k) => ({
       id: cardId("frame"), type: "frame", parentId: lid,
       position: { x: columnX(k), y: rowY(0) }, width: FRAME_W, height: FRAME_H,
-      // DIRECTOR NOTES (item 8): the Teach + Model/Practice openers ship with
-      // Lee's on-set reminders (filming chrome; hidden in film).
-      data: { ...blankFrameData(b.beat, 0), note: SCAFFOLD_NOTES[b.beat] } as unknown as CardNode["data"],
+      // No seeded notes — director notes are GLOBAL per beat now (Lee sets them;
+      // one note shows on that beat's frame in every lesson). See beatNotes.
+      data: { ...blankFrameData(b.beat, 0) } as unknown as CardNode["data"],
     }));
     // HOOK · FRAME 1 — the lesson TITLE, prefilled. A resizable/positionable
     // heading so Lee frames it wherever the intro shot needs it.
@@ -2280,13 +2296,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2353,6 +2369,7 @@ function PresentCanvas() {
       setFramePath((nj.sceneSettings as { framePath?: boolean } | undefined)?.framePath === true); // default off
       { const pc = (nj.sceneSettings as { prompterCorner?: string } | undefined)?.prompterCorner; setPrompterCorner(pc === "tl" || pc === "tr" ? pc : "tc"); } // teleprompter corner, default top-center
       { const cl = (nj.sceneSettings as { introClipLength?: number } | undefined)?.introClipLength; if (typeof cl === "number" && cl > 0) setIntroClipLength(cl); setAutoTrimIntros((nj.sceneSettings as { autoTrimIntros?: boolean } | undefined)?.autoTrimIntros !== false); } // auto-trim default on
+      { const bn = (nj.sceneSettings as { beatNotes?: Record<string, string> } | undefined)?.beatNotes; if (bn && typeof bn === "object") setBeatNotes((prev) => ({ ...prev, ...bn })); } // global director notes travel with the scene, merged over the local set
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);

@@ -10,6 +10,7 @@ import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
 import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize2, Pause, Play, StickyNote, Tag, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
+import { useCanvasSettings } from "../CanvasSettingsContext";
 import { bus } from "../commands";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
@@ -44,6 +45,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const beat = d.beat ?? "none";
   const meta = BEAT_META[beat];
+  const settings = useCanvasSettings();
+  // GLOBAL director note for THIS beat — one note, shown on every frame of the
+  // beat (across all lessons). Set by Lee; no default seeding.
+  const note = settings.beatNotes?.[beat] ?? "";
   const showChrome = hover || selected;
   const isCurrent = nav.currentFrameId === id;
 
@@ -202,8 +207,9 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: nav.canStep(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder)" disabled={!nav.canStep(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: nav.canStep(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder)" disabled={!nav.canStep(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: meta.color }} title="Cycle beat tag (Hook · Teach · Model-Practice · Check)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); cycleBeat(); }}><Tag className="h-3 w-3" /></button>
-          {/* DIRECTOR NOTE (item 8): Lee's on-set reminder — filming chrome, hidden in film. */}
-          <button className={btn} style={{ color: d.note ? meta.color : NEON.text }} title={d.note ? "Edit the director note" : "Add a director note (what to do on this shot)"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setNoteEdit((v) => !v); }}>
+          {/* DIRECTOR NOTE — GLOBAL per beat: the note shows on every frame of this
+              beat, in every lesson. Filming chrome, hidden in film. */}
+          <button className={btn} style={{ color: note ? meta.color : NEON.text }} title={note ? `Edit the ${meta.label} director note (shown on every ${meta.label} frame)` : `Add a director note for every ${meta.label} frame`} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setNoteEdit((v) => !v); }}>
             <StickyNote className="h-3 w-3" />
           </button>
           {/* LOCK (item 2): frames ship locked so they stop getting nudged. */}
@@ -290,10 +296,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* DIRECTOR NOTE strip (item 8) — bottom of the stage, FILMING CHROME
-          (data-frame-chrome → film mode hides it). Amber sticky-note look so it
-          reads as an instruction, never student content. */}
-      {(d.note || noteEdit) && (
+      {/* DIRECTOR NOTE strip — GLOBAL per beat. Bottom of the stage, FILMING
+          CHROME (data-frame-chrome → film mode hides it). Amber sticky-note look
+          so it reads as an instruction, never student content. */}
+      {beat !== "none" && (note || noteEdit) && (
         <div
           data-frame-chrome
           className="nodrag nowheel absolute inset-x-2 bottom-2 z-[5] rounded-md px-2 py-1"
@@ -303,7 +309,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           onDoubleClick={(e) => { e.stopPropagation(); setNoteEdit(true); }}
         >
           <div className="mb-0.5 flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-widest" style={{ color: "#F5D48F" }}>
-            <StickyNote className="h-2.5 w-2.5" /> director note
+            <StickyNote className="h-2.5 w-2.5" /> director note · every {meta.label} frame
           </div>
           {noteEdit ? (
             <textarea
@@ -311,13 +317,13 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               rows={2}
               className="w-full resize-none rounded bg-black/30 px-1 py-0.5 text-[11px] leading-snug outline-none"
               style={{ color: "#FCE9C6", border: "1px solid rgba(252,163,17,0.4)" }}
-              defaultValue={d.note ?? ""}
-              placeholder="What to do on this shot…"
-              onBlur={(e) => { update({ note: e.target.value.trim() || undefined }); setNoteEdit(false); }}
+              defaultValue={note}
+              placeholder={`Note for every ${meta.label} frame…`}
+              onBlur={(e) => { settings.setBeatNote(beat, e.target.value.trim()); setNoteEdit(false); }}
               onKeyDown={(e) => { if (e.key === "Escape") setNoteEdit(false); e.stopPropagation(); }}
             />
           ) : (
-            <div className="cursor-text whitespace-pre-wrap text-[11px] leading-snug" style={{ color: "#FCE9C6" }} title="Double-click to edit">{d.note}</div>
+            <div className="cursor-text whitespace-pre-wrap text-[11px] leading-snug" style={{ color: "#FCE9C6" }} title="Double-click to edit">{note}</div>
           )}
         </div>
       )}
