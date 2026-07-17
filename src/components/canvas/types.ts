@@ -576,6 +576,10 @@ export interface FrameBox {
   script?: FrameScript;
   /** TAKE BOARD: unfilmed (absent) | filmed | retake. Authoring chrome only. */
   filmStatus?: FilmStatus;
+  /** PUBLISH PIPELINE: this frame's keeper take is the lesson's INTRO (filmed with
+   *  the radio chain, never body-processed). Hook f1 by convention; the flag lets
+   *  Lee override. Auphonic loudness-matches it to the body without reprocessing. */
+  introTake?: boolean;
   /** The beat COLUMN this frame sits in (grid model). */
   beat?: FrameBeat;
   /** 0-based ROW within its beat column (grid model). */

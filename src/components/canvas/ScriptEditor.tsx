@@ -37,11 +37,13 @@ function focusNextField(cur: HTMLElement) {
 
 const BEAT_LABEL: Record<Beat, string> = { hook: "Hook", teach: "Teach", model_practice: "Model · Practice", check: "Check" };
 
-export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell }: {
+export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, lessonControl }: {
   courseName: string;
   currentFrameId?: string | null;
   onClose: () => void;
   statusCell?: (frameId: string, status: import("./types").FilmStatus) => React.ReactNode;
+  /** Per-lesson control in the header (the Publish button + status). */
+  lessonControl?: (lessonId: string) => React.ReactNode;
 }) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
@@ -277,6 +279,8 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell }
                   <h3 className="text-[12.5px] font-black uppercase tracking-wide" style={{ color: l.lessonId === currentLessonId ? NEON.yellow : NEON.text }}>{l.label}</h3>
                   <span className="text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>{l.scripted}/{l.total} scripted{statusCell ? ` · ${l.filmed}/${l.total} filmed` : ""}</span>
                   {unlinkedCount > 0 && <span className="rounded px-1 text-[8.5px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.yellow}66` }}>{unlinkedCount} to build</span>}
+                  <span className="flex-1" />
+                  {lessonControl?.(l.lessonId)}
                 </div>
                 {open && beatsWithVisibleFrames.map(({ beat, frames, hasAny }) => (
                   (frames.length > 0 || (!filterActive && !hasAny)) && (

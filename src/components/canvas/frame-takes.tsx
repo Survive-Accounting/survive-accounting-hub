@@ -288,17 +288,30 @@ export function TakesPanel({ frameId, onClose }: { frameId: string; onClose: () 
   );
 }
 
-/** Take-board cell for the Script editor rows: chip + takes count + upload. */
+/** Take-board cell for the Script editor rows: intro flag + chip + takes + upload. */
 export function TakeBoardCell({ frameId, status }: { frameId: string; status: FilmStatus }) {
   const { takesFor, upload } = useFrameTakes();
+  const rf = useReactFlow();
+  const rfl = rf as unknown as RfLike;
   const fileRef = useRef<HTMLInputElement>(null);
   const n = takesFor(frameId).length;
+  const isIntro = !!(rf.getNode(frameId)?.data as { introTake?: boolean } | undefined)?.introTake;
+  const toggleIntro = () => { const c = patchDataCmd(rfl, frameId, { introTake: !isIntro }, "intro flag"); if (c) bus.dispatch(c); };
   return (
     <span
       className="flex shrink-0 items-center gap-1"
       onDragOver={(e) => { e.preventDefault(); }}
       onDrop={(e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) void upload(frameId, f); }}
     >
+      {/* INTRO flag — this frame's keeper is the lesson's intro (never body-processed) */}
+      <button
+        className="grid h-5 w-5 place-items-center rounded text-[8px] font-black"
+        title={isIntro ? "Intro take — Auphonic loudness-matches it without reprocessing (click to unset)" : "Mark this frame's keeper as the lesson INTRO"}
+        style={{ color: isIntro ? "#0B1322" : NEON.muted, background: isIntro ? NEON.yellow : "transparent", border: `1px solid ${isIntro ? NEON.yellow : NEON.borderSoft}` }}
+        onClick={() => toggleIntro()}
+      >
+        IN
+      </button>
       {n > 0 && <span className="text-[9px] tabular-nums" style={{ color: NEON.muted }}>{n} take{n === 1 ? "" : "s"}</span>}
       <FilmStatusChip frameId={frameId} status={status} small />
       <button

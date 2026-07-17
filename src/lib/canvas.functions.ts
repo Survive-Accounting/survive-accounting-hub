@@ -870,6 +870,8 @@ export interface FrameTakeRow {
   passthrough: string | null;
   status: "uploading" | "processing" | "ready" | "errored";
   keeper: boolean;
+  width?: number | null;
+  height?: number | null;
   created_at: string;
 }
 
@@ -892,7 +894,9 @@ export const createFrameTakeUpload = createServerFn({ method: "POST" })
       method: "POST",
       body: JSON.stringify({
         cors_origin: "*",
-        new_asset_settings: { playback_policy: ["public"], passthrough, video_quality: "basic" },
+        // mp4_support: the publish pipeline concatenates keeper takes via a Mux
+        // multi-input asset, which needs each take's static MP4 rendition as input.
+        new_asset_settings: { playback_policy: ["public"], passthrough, video_quality: "basic", mp4_support: "standard" },
       }),
     });
     const { data: row, error: insErr } = await tbl()
@@ -926,8 +930,12 @@ export const resolveFrameTake = createServerFn({ method: "POST" })
     const asset = await muxApi(`/video/v1/assets/${assetId}`);
     const playbackId = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
     const status = asset.status === "ready" ? "ready" : asset.status === "errored" ? "errored" : "processing";
+    // capture the video track's stored resolution for the publish drift-check (0095)
+    const vtrack = (asset.tracks ?? []).find((t: { type?: string }) => t.type === "video");
+    const width = (vtrack?.max_width as number | undefined) ?? null;
+    const height = (vtrack?.max_height as number | undefined) ?? null;
     const { data: upd, error: uErr } = await tbl()
-      .update({ mux_asset_id: assetId, mux_playback_id: playbackId, status })
+      .update({ mux_asset_id: assetId, mux_playback_id: playbackId, status, width, height })
       .eq("id", take.id)
       .select("*")
       .single();

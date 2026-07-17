@@ -26,6 +26,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
+import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
@@ -145,6 +146,11 @@ const TSlugRoute = TSlugRouteImport.update({
 const StudyFoundationsRoute = StudyFoundationsRouteImport.update({
   id: '/study_/foundations',
   path: '/study/foundations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudyDashboardRoute = StudyDashboardRouteImport.update({
+  id: '/study_/dashboard',
+  path: '/study/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudyCanvasRoute = StudyCanvasRouteImport.update({
@@ -368,6 +374,7 @@ export interface FileRoutesByFullPath {
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study/canvas': typeof StudyCanvasRoute
+  '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -421,6 +428,7 @@ export interface FileRoutesByTo {
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study/canvas': typeof StudyCanvasRoute
+  '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
@@ -476,6 +484,7 @@ export interface FileRoutesById {
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study_/canvas': typeof StudyCanvasRoute
+  '/study_/dashboard': typeof StudyDashboardRoute
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -532,6 +541,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/outreach/video-archive'
     | '/study/canvas'
+    | '/study/dashboard'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach/'
@@ -585,6 +595,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/outreach/video-archive'
     | '/study/canvas'
+    | '/study/dashboard'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach'
@@ -639,6 +650,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/outreach/video-archive'
     | '/study_/canvas'
+    | '/study_/dashboard'
     | '/study_/foundations'
     | '/t/$slug'
     | '/outreach/'
@@ -673,6 +685,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   OShortRefRoute: typeof OShortRefRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
+  StudyDashboardRoute: typeof StudyDashboardRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
@@ -800,6 +813,13 @@ declare module '@tanstack/react-router' {
       path: '/study/foundations'
       fullPath: '/study/foundations'
       preLoaderRoute: typeof StudyFoundationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/study_/dashboard': {
+      id: '/study_/dashboard'
+      path: '/study/dashboard'
+      fullPath: '/study/dashboard'
+      preLoaderRoute: typeof StudyDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/study_/canvas': {
@@ -1161,6 +1181,7 @@ const rootRouteChildren: RootRouteChildren = {
   WelcomeRoute: WelcomeRoute,
   OShortRefRoute: OShortRefRoute,
   StudyCanvasRoute: StudyCanvasRoute,
+  StudyDashboardRoute: StudyDashboardRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,

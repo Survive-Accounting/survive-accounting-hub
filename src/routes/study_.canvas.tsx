@@ -86,6 +86,7 @@ import { FrameTakesProvider, MuxBanner, TakeBoardCell } from "@/components/canva
 import { RecorderSpike } from "@/components/canvas/RecorderSpike";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { hubLayout, plateForCourse } from "@/components/canvas/hub-layout";
+import { LessonPublishControl } from "@/components/canvas/lesson-publish";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
@@ -3701,6 +3702,7 @@ function PresentCanvas() {
           currentFrameId={currentFrameId}
           onClose={() => setScriptOpen(false)}
           statusCell={(fid, status) => <TakeBoardCell frameId={fid} status={status} />}
+          lessonControl={(lessonId) => <LessonPublishControl lessonId={lessonId} courseName={sceneCourse ? courseLabel(sceneCourse) : null} />}
         />
       )}
 
