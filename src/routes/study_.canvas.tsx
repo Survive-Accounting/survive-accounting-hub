@@ -78,6 +78,7 @@ import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
 import { GhostCellsLayer } from "@/components/canvas/GhostCellsLayer";
 import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
 import { CueSheet } from "@/components/canvas/CueSheet";
+import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
@@ -957,7 +958,9 @@ function PresentCanvas() {
   // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
   // legacy staged/minimized read as tucked until the load-time migration clears
   // them. ELEMENTS are never off-canvas — self-heals any stray membership.
-  const offCanvas = (d: CardData) => !isElementKind(d.kind) && isTucked(d);
+  // cueHidden (Cue Sheet Phase 2): a memo in a cue-driven frame is hidden until
+  // its memo cue fires; RF hides the node AND its pointer arrow (hidden endpoint).
+  const offCanvas = (d: CardData) => (!isElementKind(d.kind) && isTucked(d)) || !!(d as { cueHidden?: boolean }).cueHidden;
   // LOCKS: posLock (B2, any card — position frozen, edits fine) and the JE
   // reviewLock (A3 — superset: also freezes edits inside the card face) both
   // pin the node by syncing React Flow's draggable flag off.
@@ -1301,6 +1304,12 @@ function PresentCanvas() {
       const d = n.data as unknown as CardData;
       const hide = hideAll(d);
       if (hide) cmds.push(patchDataCmd(rf as unknown as RfLike, n.id, hide as Record<string, unknown>, "hide reveals"));
+      // Cue Sheet Phase 2: a memo inside a CUE-DRIVEN frame hides until its cue
+      // fires (derived-order frames leave memos visible — unchanged behavior).
+      if (d.kind === "memo" && !(d as { cueHidden?: boolean }).cueHidden) {
+        const co = (n.parentId ? (rf.getNode(n.parentId)?.data as { cueOrder?: string[] }) : undefined)?.cueOrder;
+        if (co && co.length) cmds.push(patchDataCmd(rf as unknown as RfLike, n.id, { cueHidden: true }, "hide memo (cue)"));
+      }
       if (!isElementKind(d.kind) && (d.deckMember || d.staged || d.minimized) && !isTucked(d)) {
         cmds.push(
           patchDataCmd(
@@ -1368,6 +1377,59 @@ function PresentCanvas() {
     },
     [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit],
   );
+
+  /** CUE SHEET PHASE 2 — perform the frame's NEXT (dir=1) / undo its LAST (dir=-1)
+   *  cue from the explicit cueOrder. Returns "handled" (a content cue ran → the
+   *  key handler returns), "boundary" (forward: next is Advance; reverse: at the
+   *  start → the caller runs its arm/advance or arm-back), or "none" (this frame
+   *  isn't cue-driven → fall through to the derived precedence, unchanged). */
+  const performFrameCue = useCallback((frameId: string, dir: 1 | -1): "handled" | "boundary" | "none" => {
+    const nodes = rf.getNodes();
+    const co = (rf.getNode(frameId)?.data as { cueOrder?: string[] } | undefined)?.cueOrder;
+    if (!co || co.length === 0) return "none";
+    const children = nodes.filter((n) => n.parentId === frameId);
+    const cards = children.filter((n) => !isContainerType(n.type) && (n.data as { kind?: string }).kind !== "memo");
+    const memos = children.filter((n) => (n.data as { kind?: string }).kind === "memo");
+    const hasNext = !!frameWalkNext(nodes as never, frameId);
+    const cues = orderedCues(deriveFrameCues(cards as never, memos as never, rf.getEdges() as never, hasNext), co);
+    const dataOf = (id: string) => rf.getNode(id)?.data as CardData | undefined;
+    const state: CueState = {
+      isDealt: (id) => { const d = dataOf(id); return !!d && !isTucked(d as never); },
+      revealCount: (id) => { const d = dataOf(id); return d ? currentRevealCount(d) : 0; },
+      memoVisible: (id) => { const d = dataOf(id) as { cueHidden?: boolean } | undefined; return !!d && !d.cueHidden; },
+    };
+    const rfl = rf as unknown as RfLike;
+    const select = (id?: string) => { if (id) rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === id) ? { ...n, selected: n.id === id } : n))); };
+    const dispatch = (c: ReturnType<typeof patchDataCmd>) => { if (c) bus.dispatch(c); };
+
+    if (dir > 0) {
+      const idx = nextCueIndex(cues, state);
+      if (idx < 0) return "boundary";
+      const cue = cues[idx];
+      if (cue.kind === "advance") return "boundary";
+      if (cue.kind === "deal" && cue.cardId) { deal(cue.cardId); disarm(); return "handled"; }
+      if (cue.kind === "reveal" && cue.cardId) {
+        const d = dataOf(cue.cardId);
+        if (d) { dispatch(patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, cue.revealCount ?? 0) as Record<string, unknown>, "reveal (cue)")); select(cue.cardId); spotRef.current?.onReveal(cue.cardId, cue.cardId); }
+        disarm(); return "handled";
+      }
+      if (cue.kind === "memo" && cue.memoId) { dispatch(patchDataCmd(rfl, cue.memoId, { cueHidden: false }, "reveal memo (cue)")); spotRef.current?.onReveal(cue.memoId, cue.memoId); disarm(); return "handled"; }
+      return "handled";
+    }
+    // reverse — undo the LAST done, non-advance cue
+    let li = -1;
+    for (let i = cues.length - 1; i >= 0; i--) { const c = cues[i]; if (c.kind !== "advance" && cueIsDone(c, state)) { li = i; break; } }
+    if (li < 0) return "boundary";
+    const cue = cues[li];
+    if (cue.kind === "deal" && cue.cardId) { dispatch(patchDataCmd(rfl, cue.cardId, { tucked: true }, "un-deal (cue)")); disarm(); return "handled"; }
+    if (cue.kind === "reveal" && cue.cardId) {
+      const d = dataOf(cue.cardId);
+      if (d) { dispatch(patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, Math.max(0, (cue.revealCount ?? 1) - 1)) as Record<string, unknown>, "un-reveal (cue)")); select(cue.cardId); }
+      disarm(); return "handled";
+    }
+    if (cue.kind === "memo" && cue.memoId) { dispatch(patchDataCmd(rfl, cue.memoId, { cueHidden: true }, "hide memo (cue)")); disarm(); return "handled"; }
+    return "handled";
+  }, [rf, deal, disarm]);
 
   // ---- FRAMES: enter/exit/step camera (the frame's bounds = the viewport) ----
   const enterFrame = useCallback((frameId: string) => {
@@ -2618,6 +2680,25 @@ function PresentCanvas() {
           //       advances past (→ is the manual roll to the next lesson).
           // Any reveal/deal DISARMS. Not inside a frame → the old cross-lesson walk.
           e.preventDefault();
+          // CUE-DRIVEN (Phase 2): a frame with an explicit cueOrder runs its cues
+          // in that exact order; ONLY such frames take this path — every other
+          // frame keeps the derived precedence below, byte-for-byte unchanged.
+          const cueF = currentFrameRef.current;
+          if (cueF && (rf.getNode(cueF)?.data as { cueOrder?: string[] } | undefined)?.cueOrder?.length) {
+            const res = performFrameCue(cueF, 1);
+            if (res === "handled") return;
+            // "boundary" — all content done → arm, then advance (same as derived)
+            if (!spaceAdvancesFramesRef.current) return;
+            const nf = frameWalkNext(rf.getNodes() as never, cueF);
+            if (armStateRef.current !== "ready") { setArmState(nf ? "ready" : "end"); return; }
+            if (!nf) return;
+            enterFrame(nf.id);
+            const kids2 = rf.getNodes().filter((n) => n.parentId === nf.id && !isContainerType(n.type) && !isTucked(n.data as never));
+            const firstRevealable2 = kids2.find((k) => stepReveal(k.data as unknown as CardData) !== null);
+            rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === firstRevealable2?.id) ? { ...n, selected: n.id === firstRevealable2?.id } : n)));
+            setArmState(null);
+            return;
+          }
           const nodes = rf.getNodes();
           const sel = nodes.find((n) => n.selected && !isContainerType(n.type));
           // (a) flip / reveal on the selected card
@@ -2672,6 +2753,24 @@ function PresentCanvas() {
           // one column-major frame (arm-then-move, mirroring forward). Never steps
           // before the lesson's first frame (← is the manual roll).
           e.preventDefault();
+          // CUE-DRIVEN reverse (Phase 2): a cueOrder frame un-does its cues in
+          // reverse; non-cue frames keep the derived reverse walk below.
+          const cueFB = currentFrameRef.current;
+          if (cueFB && (rf.getNode(cueFB)?.data as { cueOrder?: string[] } | undefined)?.cueOrder?.length) {
+            const res = performFrameCue(cueFB, -1);
+            if (res === "handled") return;
+            // "boundary" — at the frame's start → arm back, then step back a frame
+            if (!spaceAdvancesFramesRef.current) return;
+            const pf = frameWalkPrev(rf.getNodes() as never, cueFB);
+            if (armStateRef.current !== "ready-back") { setArmState(pf ? "ready-back" : "start"); return; }
+            if (!pf) return;
+            enterFrame(pf.id);
+            const kidsB = rf.getNodes().filter((n) => n.parentId === pf.id && !isContainerType(n.type) && !isTucked(n.data as never));
+            const lastCardB = kidsB[kidsB.length - 1];
+            rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === lastCardB?.id) ? { ...n, selected: n.id === lastCardB?.id } : n)));
+            setArmState(null);
+            return;
+          }
           const nodes = rf.getNodes();
           const sel = nodes.find((n) => n.selected && !isContainerType(n.type));
           // (a) un-reveal the last-revealed item on the selected card
@@ -2892,7 +2991,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush],
   );
   useKeymap(bindings);
 
