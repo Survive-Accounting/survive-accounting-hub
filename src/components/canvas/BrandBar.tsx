@@ -1,10 +1,10 @@
-// BRAND BAR + DRAWER (workspace chrome) — a slim (~44px) dark top bar: Survive
-// Accounting wordmark centered, hamburger top-LEFT opening the left drawer.
-// The drawer is the workspace MENU (declutter run): Cards (the palette) and
-// Key (the legend) open as panels inside it — the canvas top-left stays clean.
-// Open state + active panel persist. Deliberately NOT the red homepage navbar —
-// this is the workspace, not marketing. In film/clean modes the bar hides and
-// a small corner WATERMARK takes over; the Esc ladder restores the full bar.
+// BRAND BAR + DRAWER (workspace chrome) — NO top bar (it blocked controls in
+// full screen). Instead a floating toggle sits at the BOTTOM-RIGHT and opens the
+// left dashboard drawer. The drawer is the workspace MENU (declutter run): Cards
+// (the palette), Outline, and Key (the legend) open as panels inside it, and its
+// own header carries the wordmark — so branding lives in the drawer, not across
+// the top of the canvas. Open state + active panel persist. In film/clean modes
+// the toggle hides and a small corner WATERMARK takes over.
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
@@ -48,26 +48,24 @@ export function BrandBar({ items = [], activeItem = null, onItem, children }: {
 
   return (
     <>
-      <div
-        className="absolute inset-x-0 top-0 z-[55] flex h-11 items-center px-3"
-        style={{ background: NEON.bg2, borderBottom: `1px solid ${NEON.borderSoft}` }}
+      {/* floating toggle — BOTTOM-RIGHT (no top bar; it blocked full-screen controls) */}
+      <button
+        className="absolute bottom-3 right-3 z-[56] grid h-10 w-10 place-items-center rounded-full transition-colors"
+        style={{
+          background: NEON.bg2,
+          border: `1px solid ${drawerOpen ? "rgba(252,163,17,0.55)" : NEON.borderSoft}`,
+          color: drawerOpen ? NEON.yellow : NEON.muted,
+          boxShadow: "0 10px 30px -12px rgba(0,0,0,0.7)",
+        }}
+        title={drawerOpen ? "Close menu" : "Menu"}
+        onClick={toggle}
       >
-        <button
-          className="grid h-8 w-8 place-items-center rounded-md"
-          style={{ color: NEON.muted }}
-          title={drawerOpen ? "Close menu" : "Menu"}
-          onClick={toggle}
-        >
-          {drawerOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </button>
-        <div className="pointer-events-none absolute inset-x-0 flex justify-center">
-          <img src="/brand-logo.png" alt="Survive Accounting" style={{ height: 18, width: "auto" }} />
-        </div>
-      </div>
+        {drawerOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+      </button>
 
-      {/* left drawer — the workspace menu (Cards / Key panels live here) */}
+      {/* left drawer — the workspace menu (Cards / Outline / Key panels live here) */}
       <div
-        className={`absolute bottom-0 left-0 top-11 z-[54] flex flex-col transition-all duration-200 ease-out ${panelOpen ? "w-80" : "w-64"}`}
+        className={`absolute bottom-0 left-0 top-0 z-[54] flex flex-col transition-all duration-200 ease-out ${panelOpen ? "w-80" : "w-64"}`}
         style={{
           background: NEON.bg2,
           borderRight: `1px solid ${NEON.borderSoft}`,
@@ -75,8 +73,11 @@ export function BrandBar({ items = [], activeItem = null, onItem, children }: {
           boxShadow: drawerOpen ? "12px 0 40px -20px rgba(0,0,0,0.7)" : "none",
         }}
       >
-        <div className="px-4 py-3" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
           <Wordmark size={15} />
+          <button className="grid h-6 w-6 place-items-center rounded-md" style={{ color: NEON.muted }} title="Close menu" onClick={toggle}>
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
         {items.length === 0 ? (
           <div className="grid place-items-center px-4 py-10">
