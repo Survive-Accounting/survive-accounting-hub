@@ -59,3 +59,40 @@ if a file is misnamed. You never touch asset IDs.
 The Script editor doubles as the take board: per-lesson `scripted N/M` and
 `filmed N/M` counters, a status chip + take count + upload button per frame
 row. When every row is green, the lesson is in the can.
+
+## Audio + assembly pipeline
+
+The path from per-frame keeper takes to a published lesson. **Decided.**
+
+**1. Record — EQ at the source.** OBS records each frame with the radio-voice EQ
+chain baked in *at record time*. This is deliberate: Auphonic can't do
+section-based EQ — it's whole-file adaptive processing — so the voice tone has
+to be right on the way in, not fixed later.
+
+**2. Stitch the lesson — ffmpeg concat (BUILD THIS).** The Take Board holds the
+per-frame clips; "Stitch lesson" concatenates the KEEPER takes **in frame order**
+into one lesson file. Because every clip is same-source (same camera, same OBS
+settings, one sitting), this is a plain `ffmpeg` concat — instant, no
+re-encode, no editor. This is the assembly step to build; there is no editing
+marathon.
+
+**3. Loudness — Auphonic.** Run the stitched lesson through Auphonic for loudness
+targeting and **cross-location consistency**. This is the real reason to use it:
+Lee films at home AND at the office — two different rooms that must sound like
+one show. (Not for EQ — see step 1.)
+
+**4. Publish — Mux + manual YouTube.** Push to Mux for the platform. Upload to
+YouTube **manually** — keep hands-on control of titles / descriptions /
+thumbnails per the searchable-title strategy. **Skip Auphonic auto-publishing.**
+
+### Descript — NOT NEEDED
+
+Descript's core value is extracting clips from footage. Our shorts are
+**re-filmed** vertical from the scene, not cut from the horizontal take, so
+there's nothing to extract. The rest doesn't move the needle for us:
+
+- **Transcripts** come from Mux.
+- **Captions** are free on every platform.
+- **Filler-word removal** contradicts the one-unedited-take principle.
+
+Revisit only if the re-film approach for shorts ever fails.
