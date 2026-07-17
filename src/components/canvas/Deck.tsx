@@ -9,10 +9,9 @@
 // removes MEMBERSHIP only. Pure ordering/grouping logic lives in deck-logic.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronDown, ChevronRight, ChevronsRight, Download, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
 
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
-import { CardBack } from "./CardBack";
 import { nextStageOrder } from "./BaseCard";
 import { CardPopover } from "./CardPopover";
 import { deckMembers, isMember, isTucked, lessonGroups, nextTucked, categoryOf, type DeckNode } from "./deck-logic";
@@ -87,6 +86,8 @@ export function importLessonDecks(rf: RfLike & { getNodes: () => DeckNode[] }, t
 }
 
 export function Deck({
+  open,
+  onClose,
   onDeal,
   onFocus,
   onRemoveMembership,
@@ -97,6 +98,9 @@ export function Deck({
   decks,
   setDecks,
 }: {
+  /** Toolbar-controlled: the panel shows only when open (no top-right badge). */
+  open: boolean;
+  onClose: () => void;
   onDeal: (id: string) => void;
   onFocus: (id: string) => void;
   onRemoveMembership: (id: string) => void;
@@ -109,7 +113,6 @@ export function Deck({
 }) {
   const rf = useReactFlow();
   const nodes = useNodes();
-  const [collapsed, setCollapsed] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [importFor, setImportFor] = useState<{ lessonId: string; anchor: HTMLElement } | null>(null);
@@ -214,22 +217,11 @@ export function Deck({
     setDragId(null);
   };
 
-  if (collapsed) {
-    return (
-      <button
-        onClick={() => setCollapsed(false)}
-        title={`Deck (${members.length})`}
-        className="absolute right-3 top-14 z-40 overflow-hidden rounded-lg"
-        style={{ border: `1px solid ${NEON.border}` }}
-      >
-        <CardBack small width={38} height={53} label={`${members.length}`} />
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <aside
-      className="absolute right-3 top-14 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"
+      className="absolute bottom-16 right-3 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"
       style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => reorder(null)}
@@ -239,8 +231,8 @@ export function Deck({
         <span className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.yellow }}>
           Deck <span style={{ color: NEON.muted }}>({tuckedCount}/{members.length})</span>
         </span>
-        <button onClick={() => setCollapsed(true)} title="Collapse" className="ml-auto" style={{ color: NEON.muted }}>
-          <ChevronsRight className="h-3.5 w-3.5" />
+        <button onClick={onClose} title="Close deck" className="ml-auto" style={{ color: NEON.muted }}>
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 

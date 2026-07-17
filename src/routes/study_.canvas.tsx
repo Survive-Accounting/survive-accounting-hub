@@ -11,7 +11,6 @@ import {
   BackgroundVariant,
   ConnectionLineType,
   ConnectionMode,
-  MiniMap,
   NodeResizer,
   ReactFlow,
   ReactFlowProvider,
@@ -66,6 +65,7 @@ import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
+import { LessonNavigator } from "@/components/canvas/LessonNavigator";
 import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
@@ -776,7 +776,7 @@ function PresentCanvas() {
   const [bgOpen, setBgOpen] = useState(false); // background picker popover (removed from toolbar; dot grid forced)
   const [fileMenuOpen, setFileMenuOpen] = useState(false); // File menu (Save/Load/Export/…) upward dropdown
   const [addCardOpen, setAddCardOpen] = useState(false);   // Add Card menu — card-kind picker upward dropdown
-  const [minimap, setMinimap] = useState(true);
+  const [deckOpen, setDeckOpen] = useState(false); // Deck panel (toolbar-controlled; no top-right badge)
   const [clean, setClean] = useState(false);
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
   const filmRef = useRef(film);
@@ -3338,16 +3338,7 @@ function PresentCanvas() {
         {/* CINEMA: giant SURVIVE wordmark laid across the scaffolding, behind the nodes */}
         {chrome && backstage === "cinema" && <SurviveBackdrop />}
         {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
-        {chrome && minimap && (
-          <MiniMap
-            position="bottom-right"
-            pannable
-            zoomable
-            style={{ background: NEON.bg2, border: `1px solid ${NEON.borderSoft}`, borderRadius: 10 }}
-            maskColor="rgba(11,19,34,0.75)"
-            nodeColor={() => "#FBF9F4"}
-          />
-        )}
+        {/* Minimap removed — the bottom LessonNavigator shows one lesson at a time instead */}
       </ReactFlow>
 
       {/* LETTERBOX (FF-5): inside a frame, solid bars mask the canvas outside the
@@ -3455,9 +3446,11 @@ function PresentCanvas() {
           own subscriptions so pan/zoom doesn't re-render the route */}
       {chrome && <GroupChromeBar />}
 
-      {/* The DECK — one holding system (hidden in clean/film mode; spacebar still deals) */}
+      {/* The DECK — one holding system (opened from the toolbar; spacebar still deals) */}
       {chrome && (
         <Deck
+          open={deckOpen}
+          onClose={() => setDeckOpen(false)}
           onDeal={deal}
           onFocus={focusNode}
           onRemoveMembership={removeMembership}
@@ -3469,6 +3462,9 @@ function PresentCanvas() {
           setDecks={setDecks}
         />
       )}
+
+      {/* LESSON NAVIGATOR — bottom pager (one lesson at a time; expand for frames) */}
+      {chrome && <LessonNavigator />}
 
       {/* Toolbar */}
       {chrome && (
@@ -3518,6 +3514,8 @@ function PresentCanvas() {
               </>
             )}
           </div>
+          {/* DECK — the run-of-show roster (replaces the top-right badge) */}
+          <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); }} />
           <TB
             title="Add region scaffold — full-width header + chapters laid on a snaking path (layout stamp)"
             onClick={() => { setScaffoldCourseId(sceneCourseId ?? ""); setScaffoldOpen(true); }}
@@ -3528,7 +3526,6 @@ function PresentCanvas() {
           <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
           <TB title="Recorder spike (EXPERIMENT — cam+mic in the browser; OBS remains the filming flow)" active={spikeOpen} onClick={() => setSpikeOpen((v) => !v)}><FlaskConical className="h-3.5 w-3.5" /></TB>
-          <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
           {currentFrameId && <TB title={showFrameHeader ? "Hide the frame header while inside a frame" : "Show the frame header (LESSON · frame · beat)"} active={showFrameHeader} onClick={() => setShowFrameHeader((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>}
           <div className="relative">
             <TB title="Canvas settings (JE width, default preset)" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
