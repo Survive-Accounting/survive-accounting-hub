@@ -78,6 +78,9 @@ export interface LessonVideoRow {
   passthrough: string | null;
   mux_body_asset_id: string | null;
   mux_body_playback_id: string | null;
+  intro_playback_id: string | null;
+  trimmed_intro_asset_id: string | null;
+  trimmed_intro_playback_id: string | null;
   auphonic_uuid: string | null;
   mux_asset_id: string | null;
   playback_id: string | null;
@@ -91,6 +94,9 @@ const tbl = async () => {
 };
 
 const keeperSchema = z.object({ frameId: z.string(), playbackId: z.string().min(6), dim: z.object({ w: z.number(), h: z.number() }).nullable().optional() });
+// the intro can carry a TRIM window (from the auto-trim); publish realizes it via
+// a Mux ingest-trim so Auphonic gets the trimmed intro.
+const introSchema = keeperSchema.extend({ trim: z.object({ start: z.number(), length: z.number() }).nullable().optional() });
 
 // ---- PUBLISH ----------------------------------------------------------------
 // The client has already ordered the body keepers (publish-pipeline) and confirmed
@@ -101,7 +107,7 @@ export const publishLesson = createServerFn({ method: "POST" })
       lessonId: z.string().min(1).max(120),
       courseName: z.string().nullable(),
       lessonLabel: z.string().nullable(),
-      intro: keeperSchema.nullable(), // the intro take (Hook f1)
+      intro: introSchema.nullable(), // the intro take (Hook f1), maybe trimmed
       body: z.array(keeperSchema).min(1), // ordered body keepers (ex-intro)
     }).parse(d),
   )
@@ -136,8 +142,24 @@ export const publishLesson = createServerFn({ method: "POST" })
       }),
     });
 
-    // Persist intro on the row so RESOLVE is stateless (it derives the Auphonic
-    // intro input from intro_playback_id).
+    // TRIMMED INTRO (auto-trim): a Mux ingest-trim of the raw intro take, so
+    // Auphonic gets the intro cut to the music's real length. Absent trim → the
+    // raw intro is used as-is (via intro_playback_id).
+    let trimmedIntroAssetId: string | null = null;
+    if (data.intro?.trim) {
+      const ti = await muxApi("/video/v1/assets", {
+        method: "POST",
+        body: JSON.stringify({
+          input: [{ url: muxMp4(data.intro.playbackId), start_time: data.intro.trim.start, end_time: data.intro.trim.start + data.intro.trim.length }],
+          playback_policy: ["public"],
+          mp4_support: "standard",
+          passthrough: `${passthrough}-intro`,
+        }),
+      });
+      trimmedIntroAssetId = ti.id;
+    }
+
+    // Persist intro on the row so RESOLVE is stateless.
     const { data: row, error: insErr } = await t()
       .insert({
         lesson_id: data.lessonId,
@@ -148,6 +170,7 @@ export const publishLesson = createServerFn({ method: "POST" })
         passthrough,
         mux_body_asset_id: bodyAsset.id,
         intro_playback_id: data.intro?.playbackId ?? null,
+        trimmed_intro_asset_id: trimmedIntroAssetId,
       } as Record<string, unknown>)
       .select("id")
       .single();
@@ -184,7 +207,16 @@ export const resolveLessonPublish = createServerFn({ method: "POST" })
         if (asset.status !== "ready") return row; // still stitching
         const bodyPb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id;
         if (!bodyPb) return fail("Mux body asset has no public playback id.");
-        const introUrl = row.intro_playback_id ? muxMp4(row.intro_playback_id) : null;
+        // resolve the intro url — the TRIMMED intro asset if there is one (wait for it)
+        let introUrl: string | null = row.intro_playback_id ? muxMp4(row.intro_playback_id) : null;
+        const tiId = (row as LessonVideoRow).trimmed_intro_asset_id;
+        if (tiId) {
+          const ti = await muxApi(`/video/v1/assets/${tiId}`);
+          if (ti.status === "errored") return fail(`Trimmed intro failed: ${ti.errors?.messages?.join("; ") ?? "unknown"}`);
+          if (ti.status !== "ready") return row; // still trimming
+          const tiPb = ti.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? ti.playback_ids?.[0]?.id;
+          if (tiPb) { introUrl = muxMp4(tiPb); await save({ trimmed_intro_playback_id: tiPb }); }
+        }
         const outroUrl = requireEnv("OUTRO_STING_URL");
         const prod = await auphonic("productions.json", {
           method: "POST",

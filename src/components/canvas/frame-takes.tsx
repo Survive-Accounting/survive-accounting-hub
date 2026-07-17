@@ -8,13 +8,45 @@
 // surfaces as a banner string (muxError) the route renders — never silent.
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { Check, Loader2, RefreshCw, Star, Upload, Video, X } from "lucide-react";
+import { Check, Loader2, RefreshCw, Scissors, Star, Upload, Video, X } from "lucide-react";
 
-import { createFrameTakeUpload, listFrameTakes, resolveFrameTake, setTakeKeeper, type FrameTakeRow } from "@/lib/canvas.functions";
+import { createFrameTakeUpload, listFrameTakes, resolveFrameTake, setTakeKeeper, setTakeTrim, type FrameTakeRow } from "@/lib/canvas.functions";
 import { bus, patchDataCmd, type RfLike } from "./commands";
+import { computeTrim, isPublishable, trimLabel, WARNING_TEXT } from "./intro-trim";
 import { takePassthrough } from "./take-naming";
 import { NEON } from "./theme";
 import type { FilmStatus } from "./types";
+
+// ---- browser audio analysis (onset + duration) — no server bytes, no ffmpeg ---
+/** Reliable media duration via a throwaway <video> element. */
+function mediaDuration(file: File): Promise<number> {
+  return new Promise((res) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => { const d = v.duration; URL.revokeObjectURL(v.src); res(Number.isFinite(d) ? d : 0); };
+    v.onerror = () => { URL.revokeObjectURL(v.src); res(0); };
+    v.src = URL.createObjectURL(file);
+  });
+}
+/** First audio onset (seconds), sustained ~30ms above a threshold, or null if the
+ *  file is silent / fades in / can't be decoded. Best-effort (Web Audio). */
+async function detectOnset(file: File, threshold = 0.02): Promise<number | null> {
+  try {
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AC();
+    const audio = await ctx.decodeAudioData(await file.arrayBuffer());
+    const data = audio.getChannelData(0);
+    const sr = audio.sampleRate;
+    const need = Math.max(1, Math.floor(sr * 0.03));
+    let cnt = 0, onset: number | null = null;
+    for (let i = 0; i < data.length; i++) {
+      if (Math.abs(data[i]) > threshold) { if (++cnt >= need) { onset = Math.max(0, (i - need) / sr); break; } }
+      else cnt = 0;
+    }
+    await ctx.close();
+    return onset;
+  } catch { return null; }
+}
 
 // ---- status chrome -----------------------------------------------------------
 export const FILM_STATUS_META: Record<FilmStatus, { label: string; color: string; bg: string }> = {
@@ -36,6 +68,14 @@ interface FrameTakesApi {
   muxError: string | null;
   clearMuxError: () => void;
   refresh: () => Promise<void>;
+  /** INTRO AUTO-TRIM: the configured intro clip length (seconds). */
+  introClipLength: number;
+  /** Re-derive a take's trim from the current clip length (keeps the onset). */
+  retrimTake: (take: FrameTakeRow) => Promise<void>;
+  /** Revert a take to the raw (clears the trim window). */
+  revertTake: (take: FrameTakeRow) => Promise<void>;
+  /** Re-trim every intro-frame take from its raw (config-length change). */
+  retrimAllIntros: () => Promise<void>;
 }
 
 const FrameTakesContext = createContext<FrameTakesApi>({
@@ -47,10 +87,14 @@ const FrameTakesContext = createContext<FrameTakesApi>({
   muxError: null,
   clearMuxError: () => {},
   refresh: async () => {},
+  introClipLength: 6,
+  retrimTake: async () => {},
+  revertTake: async () => {},
+  retrimAllIntros: async () => {},
 });
 export const useFrameTakes = () => useContext(FrameTakesContext);
 
-export function FrameTakesProvider({ courseName, children }: { courseName: string | null; children: React.ReactNode }) {
+export function FrameTakesProvider({ courseName, introClipLength = 6, autoTrimIntros = true, children }: { courseName: string | null; introClipLength?: number; autoTrimIntros?: boolean; children: React.ReactNode }) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
   const [takes, setTakes] = useState<Map<string, FrameTakeRow[]>>(new Map());
@@ -111,10 +155,28 @@ export function FrameTakesProvider({ courseName, children }: { courseName: strin
     void run();
   }, []);
 
+  /** Merge a fresh take row into state (e.g. after a trim write). */
+  const mergeRow = useCallback((row: FrameTakeRow) => {
+    setTakes((prev) => {
+      const m = new Map(prev);
+      m.set(row.frame_id, (m.get(row.frame_id) ?? []).map((t) => (t.id === row.id ? row : t)));
+      return m;
+    });
+  }, []);
+
+  /** Detect the onset + duration, compute the trim window, persist it. */
+  const deriveTrim = useCallback(async (takeId: string, frameId: string, file: File) => {
+    const duration = await mediaDuration(file);
+    const onset = await detectOnset(file);
+    const { trimStart, trimmedDuration, warning } = computeTrim(onset, duration, introClipLength);
+    const row = await setTakeTrim({ data: { takeId, onset_s: onset ?? trimStart, raw_duration_s: duration, trimmed_duration_s: trimmedDuration, trim_warning: warning } });
+    mergeRow(row);
+  }, [introClipLength, mergeRow]);
+
   const upload = useCallback(async (frameId: string, file: File) => {
     const node = rf.getNode(frameId);
     if (!node) return;
-    const d = node.data as { beat?: string; subIndex?: number };
+    const d = node.data as { beat?: string; subIndex?: number; introTake?: boolean };
     // lesson label from the frame's parent; course from the SURVIVE tree is not
     // needed — the scene name carries it; keep the stem deterministic from labels.
     const lesson = node.parentId ? (rf.getNode(node.parentId)?.data as { label?: string } | undefined)?.label ?? null : null;
@@ -123,17 +185,43 @@ export function FrameTakesProvider({ courseName, children }: { courseName: strin
     setUploading((u) => [...u.filter((x) => x.frameId !== frameId), { frameId, pct: "uploading" }]);
     try {
       const { uploadUrl, takeId } = await createFrameTakeUpload({ data: { frameId, passthrough } });
+      // AUTO-TRIM INTRO TAKES: on an intro-flagged frame, analyse the audio (in the
+      // browser — the file is right here) and store a non-destructive trim window.
+      const trimP = d.introTake && autoTrimIntros ? deriveTrim(takeId, frameId, file).catch(() => {}) : null;
       const put = await fetch(uploadUrl, { method: "PUT", body: file });
       if (!put.ok) throw new Error(`Mux upload PUT failed (${put.status})`);
       // upload landed → the frame is FILMED (retake/unfilmed are manual flips)
       setFrameStatus(frameId, "filmed");
       setUploading((u) => u.map((x) => (x.frameId === frameId ? { ...x, pct: "processing" } : x)));
       pollTake(takeId);
+      void trimP;
     } catch (e) {
       setUploading((u) => u.filter((x) => x.frameId !== frameId));
       setMuxError(e instanceof Error ? e.message : String(e));
     }
-  }, [rf, pollTake, setFrameStatus]);
+  }, [rf, pollTake, setFrameStatus, courseName, autoTrimIntros, deriveTrim]);
+
+  /** Re-derive a take's trim from the CURRENT clip length (keeps the onset). */
+  const retrimTake = useCallback(async (take: FrameTakeRow) => {
+    if (take.raw_duration_s == null) return; // never analysed / no data
+    const { trimStart, trimmedDuration, warning } = computeTrim(take.onset_s ?? null, take.raw_duration_s, introClipLength);
+    try { mergeRow(await setTakeTrim({ data: { takeId: take.id, onset_s: take.onset_s ?? trimStart, raw_duration_s: take.raw_duration_s, trimmed_duration_s: trimmedDuration, trim_warning: warning } })); }
+    catch (e) { setMuxError(e instanceof Error ? e.message : String(e)); }
+  }, [introClipLength, mergeRow]);
+
+  /** Clear a take's trim → PUBLISH uses the raw take. */
+  const revertTake = useCallback(async (take: FrameTakeRow) => {
+    try { mergeRow(await setTakeTrim({ data: { takeId: take.id, onset_s: null, raw_duration_s: null, trimmed_duration_s: null, trim_warning: null } })); }
+    catch (e) { setMuxError(e instanceof Error ? e.message : String(e)); }
+  }, [mergeRow]);
+
+  /** Batch: re-derive every intro-frame take from raw (after a clip-length change). */
+  const retrimAllIntros = useCallback(async () => {
+    const introFrames = new Set(rf.getNodes().filter((n) => n.type === "frame" && (n.data as { introTake?: boolean }).introTake).map((n) => n.id));
+    const targets: FrameTakeRow[] = [];
+    for (const [fid, rows] of takes) if (introFrames.has(fid)) for (const r of rows) if (r.raw_duration_s != null) targets.push(r);
+    for (const t of targets) await retrimTake(t);
+  }, [rf, takes, retrimTake]);
 
   const markKeeper = useCallback(async (take: FrameTakeRow) => {
     try {
@@ -164,6 +252,10 @@ export function FrameTakesProvider({ courseName, children }: { courseName: strin
         muxError,
         clearMuxError: () => setMuxError(null),
         refresh,
+        introClipLength,
+        retrimTake,
+        revertTake,
+        retrimAllIntros,
       }}
     >
       {children}
@@ -231,7 +323,7 @@ export function TakeVideo({ playbackId, height = 120 }: { playbackId: string; he
 
 /** The frame's takes panel — latest take plays; prior takes listed w/ KEEPER. */
 export function TakesPanel({ frameId, onClose }: { frameId: string; onClose: () => void }) {
-  const { takesFor, markKeeper, refresh } = useFrameTakes();
+  const { takesFor, markKeeper, refresh, retrimTake, revertTake, introClipLength } = useFrameTakes();
   const takes = takesFor(frameId);
   const playable = takes.filter((t) => t.mux_playback_id && t.status === "ready");
   const keeper = playable.find((t) => t.keeper);
@@ -260,28 +352,46 @@ export function TakesPanel({ frameId, onClose }: { frameId: string; onClose: () 
       )}
       {takes.length > 0 && (
         <ul className="mt-1.5 max-h-32 space-y-0.5 overflow-auto">
-          {takes.map((t) => (
-            <li key={t.id} className="flex items-center gap-1 rounded px-1 py-0.5" style={{ background: current?.id === t.id ? "rgba(252,163,17,0.1)" : "transparent" }}>
-              <button
-                className="min-w-0 flex-1 truncate text-left"
-                style={{ color: t.status === "ready" ? NEON.text : NEON.muted }}
-                title={t.passthrough ?? undefined}
-                onClick={() => setSelected(t.id)}
-              >
-                take {t.take_n} · {t.status}{t.keeper ? " · keeper" : ""}
-              </button>
-              {t.status === "ready" && (
+          {takes.map((t) => {
+            const trimmed = t.trimmed_duration_s != null && t.raw_duration_s != null;
+            return (
+            <li key={t.id} className="rounded px-1 py-0.5" style={{ background: current?.id === t.id ? "rgba(252,163,17,0.1)" : "transparent" }}>
+              <div className="flex items-center gap-1">
                 <button
-                  className="grid h-4 w-4 shrink-0 place-items-center"
-                  title={t.keeper ? "Unmark keeper" : "Mark KEEPER (the take that ships)"}
-                  style={{ color: t.keeper ? NEON.yellow : NEON.muted }}
-                  onClick={() => void markKeeper(t)}
+                  className="min-w-0 flex-1 truncate text-left"
+                  style={{ color: t.status === "ready" ? NEON.text : NEON.muted }}
+                  title={t.passthrough ?? undefined}
+                  onClick={() => setSelected(t.id)}
                 >
-                  <Star className="h-3 w-3" fill={t.keeper ? "currentColor" : "none"} />
+                  take {t.take_n} · {t.status}{t.keeper ? " · keeper" : ""}
                 </button>
+                {t.status === "ready" && (
+                  <button
+                    className="grid h-4 w-4 shrink-0 place-items-center"
+                    title={t.keeper ? "Unmark keeper" : "Mark KEEPER (the take that ships)"}
+                    style={{ color: t.keeper ? NEON.yellow : NEON.muted }}
+                    onClick={() => void markKeeper(t)}
+                  >
+                    <Star className="h-3 w-3" fill={t.keeper ? "currentColor" : "none"} />
+                  </button>
+                )}
+              </div>
+              {/* INTRO AUTO-TRIM: raw → trimmed + warnings + revert / re-trim */}
+              {trimmed && (
+                <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-1 text-[9px]">
+                  <Scissors className="h-2.5 w-2.5" style={{ color: NEON.cyan }} />
+                  <span style={{ color: NEON.muted }}>{trimLabel(t.raw_duration_s!, t.trimmed_duration_s!)}</span>
+                  {t.trim_warning && (
+                    <span className="rounded px-1 font-bold" style={{ color: t.trim_warning === "too_short" ? NEON.red : NEON.yellow, border: `1px solid ${t.trim_warning === "too_short" ? NEON.red : NEON.yellow}66` }}>
+                      {WARNING_TEXT[t.trim_warning]}
+                    </span>
+                  )}
+                  <button className="underline" style={{ color: NEON.cyan }} title={`Re-trim to the current ${introClipLength}s clip length`} onClick={() => void retrimTake(t)}>re-trim</button>
+                  <button className="underline" style={{ color: NEON.muted }} title="Revert to the raw take (publish uses the full clip)" onClick={() => void revertTake(t)}>revert</button>
+                </div>
               )}
             </li>
-          ))}
+          ); })}
         </ul>
       )}
     </div>
@@ -324,6 +434,24 @@ export function TakeBoardCell({ frameId, status }: { frameId: string; status: Fi
       </button>
       <input ref={fileRef} type="file" accept="video/*,.mkv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(frameId, f); e.target.value = ""; }} />
     </span>
+  );
+}
+
+/** "Re-trim all intros" — re-derives every intro take from raw at the current
+ *  clip length (for the settings popover; must live under the provider). */
+export function RetrimAllIntrosButton() {
+  const { retrimAllIntros } = useFrameTakes();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      className="mt-1 inline-flex w-full items-center justify-center gap-1 rounded px-1.5 py-1 text-[9.5px] font-semibold"
+      style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }}
+      title="Re-derive every intro take's trim from the raw clip at the current length"
+      onClick={async () => { setBusy(true); try { await retrimAllIntros(); } finally { setBusy(false); } }}
+      disabled={busy}
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Scissors className="h-3 w-3" />} re-trim all intros
+    </button>
   );
 }
 

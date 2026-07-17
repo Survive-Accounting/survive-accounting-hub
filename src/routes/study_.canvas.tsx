@@ -82,7 +82,7 @@ import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
-import { FrameTakesProvider, MuxBanner, TakeBoardCell } from "@/components/canvas/frame-takes";
+import { FrameTakesProvider, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
 import { RecorderSpike } from "@/components/canvas/RecorderSpike";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { hubLayout, plateForCourse } from "@/components/canvas/hub-layout";
@@ -852,6 +852,8 @@ function PresentCanvas() {
   const [spikeOpen, setSpikeOpen] = useState(false); // PHASE 3 EXPERIMENT: in-browser recorder spike (never the main flow)
   const [prompter, setPrompter] = useState(false); // TELEPROMPTER: hidden by default (incl. film); `p` toggles
   const [prompterCorner, setPrompterCorner] = useState<PrompterCorner>("tc"); // camera eyeline corner (persisted)
+  const [introClipLength, setIntroClipLength] = useState(6.0); // AUTO-TRIM: intro clip length (s)
+  const [autoTrimIntros, setAutoTrimIntros] = useState(true); // AUTO-TRIM: on by default
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -2220,13 +2222,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2292,6 +2294,7 @@ function PresentCanvas() {
       setFilmCheckGlow((nj.sceneSettings as { filmCheckGlow?: boolean } | undefined)?.filmCheckGlow !== false); // default on
       setFramePath((nj.sceneSettings as { framePath?: boolean } | undefined)?.framePath === true); // default off
       { const pc = (nj.sceneSettings as { prompterCorner?: string } | undefined)?.prompterCorner; setPrompterCorner(pc === "tl" || pc === "tr" ? pc : "tc"); } // teleprompter corner, default top-center
+      { const cl = (nj.sceneSettings as { introClipLength?: number } | undefined)?.introClipLength; if (typeof cl === "number" && cl > 0) setIntroClipLength(cl); setAutoTrimIntros((nj.sceneSettings as { autoTrimIntros?: boolean } | undefined)?.autoTrimIntros !== false); } // auto-trim default on
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -3102,7 +3105,7 @@ function PresentCanvas() {
     <DecksContext.Provider value={decksCtx}>
     <FrameNavContext.Provider value={frameNav}>
     <SpotlightCtx.Provider value={spot}>
-    <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null}>
+    <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`} style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
       {/* TAKE BOARD: loud banner when Mux env vars / frame_takes table are missing */}
@@ -3485,6 +3488,17 @@ function PresentCanvas() {
                   <input type="checkbox" checked={focusPalette} onChange={(e) => setFocusPalette(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Focus palette <span className="opacity-60">(trims CARDS to JE · T · Note)</span>
                 </label>
+                {/* INTRO AUTO-TRIM (publish pipeline) */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Intro auto-trim</div>
+                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: autoTrimIntros ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={autoTrimIntros} onChange={(e) => setAutoTrimIntros(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Auto-trim intro takes
+                </label>
+                <label className="mt-1 flex items-center justify-between text-[10px]" style={{ color: NEON.muted }}>
+                  <span>Intro clip length (s)</span>
+                  <input type="number" min={1} max={30} step={0.5} value={introClipLength} onChange={(e) => setIntroClipLength(Math.max(1, Number(e.target.value) || 6))} className="w-14 rounded px-1.5 py-0.5 text-right tabular-nums outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} />
+                </label>
+                <RetrimAllIntrosButton />
                 {/* SPOTLIGHT (performance cursor) toggles */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Spotlight</div>
                 <div className="mt-0.5 flex items-center justify-between text-[10px]" style={{ color: NEON.muted }}>

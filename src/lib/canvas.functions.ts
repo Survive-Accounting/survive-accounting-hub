@@ -872,6 +872,11 @@ export interface FrameTakeRow {
   keeper: boolean;
   width?: number | null;
   height?: number | null;
+  /** INTRO AUTO-TRIM (0096) — non-destructive trim window on an intro take. */
+  onset_s?: number | null;
+  raw_duration_s?: number | null;
+  trimmed_duration_s?: number | null;
+  trim_warning?: "too_short" | "onset_not_detected" | null;
   created_at: string;
 }
 
@@ -968,4 +973,25 @@ export const setTakeKeeper = createServerFn({ method: "POST" })
     const { error: setErr } = await tbl().update({ keeper: data.keeper }).eq("id", data.takeId);
     if (setErr) rethrowTakes(setErr);
     return { ok: true };
+  });
+
+/** INTRO AUTO-TRIM (0096): write a take's trim window (non-destructive). null
+ *  values on every field = revert to raw. Returns the fresh row. */
+export const setTakeTrim = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    takeId: z.string().uuid(),
+    onset_s: z.number().nullable(),
+    raw_duration_s: z.number().nullable(),
+    trimmed_duration_s: z.number().nullable(),
+    trim_warning: z.enum(["too_short", "onset_not_detected"]).nullable(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<FrameTakeRow> => {
+    const tbl = await takesTbl();
+    const { data: upd, error } = await tbl()
+      .update({ onset_s: data.onset_s, raw_duration_s: data.raw_duration_s, trimmed_duration_s: data.trimmed_duration_s, trim_warning: data.trim_warning })
+      .eq("id", data.takeId)
+      .select("*")
+      .single();
+    if (error) rethrowTakes(error);
+    return upd as FrameTakeRow;
   });

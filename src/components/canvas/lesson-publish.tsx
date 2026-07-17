@@ -77,16 +77,23 @@ export function LessonPublishControl({ lessonId, courseName }: { lessonId: strin
       if (missing.length > 0) { setError(`Can't publish — these frames have no ready keeper take: ${missingLabel(missing)}.`); setBusy(false); return; }
       const introTake = intro ? keeperFor(intro.id) : null;
 
+      // intro trim: block on too_short; otherwise pass the trim window (raw take row)
+      const introRow = intro ? takesFor(intro.id).find((t) => t.keeper && t.status === "ready") : undefined;
+      if (introRow?.trim_warning === "too_short") { setError(`Can't publish — the intro take is too short (${(introRow.raw_duration_s ?? 0).toFixed(1)}s < clip length). Re-film a longer intro.`); setBusy(false); return; }
+      const introTrim = introRow && introRow.trimmed_duration_s != null
+        ? { start: introRow.onset_s ?? 0, length: introRow.trimmed_duration_s } // too_short already returned above
+        : null;
+
       const { publishId, version } = await publishLesson({
         data: {
           lessonId,
           courseName,
           lessonLabel,
-          intro: introTake ? { frameId: intro!.id, playbackId: introTake.muxPlaybackId!, dim: introTake.dim } : null,
+          intro: introTake ? { frameId: intro!.id, playbackId: introTake.muxPlaybackId!, dim: introTake.dim, trim: introTrim } : null,
           body: keepers.map((k) => ({ frameId: k.frame.id, playbackId: k.take.muxPlaybackId!, dim: k.take.dim })),
         },
       });
-      setRow({ id: publishId, lesson_id: lessonId, version, stage: "concat", error: null, course_name: courseName, lesson_label: lessonLabel, passthrough: null, mux_body_asset_id: null, mux_body_playback_id: null, intro_playback_id: null, auphonic_uuid: null, mux_asset_id: null, playback_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as LessonVideoRow);
+      setRow({ id: publishId, lesson_id: lessonId, version, stage: "concat", error: null, course_name: courseName, lesson_label: lessonLabel, passthrough: null, mux_body_asset_id: null, mux_body_playback_id: null, intro_playback_id: null, trimmed_intro_asset_id: null, trimmed_intro_playback_id: null, auphonic_uuid: null, mux_asset_id: null, playback_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as LessonVideoRow);
       startPoll(publishId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
