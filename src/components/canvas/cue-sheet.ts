@@ -12,6 +12,7 @@ export interface Cue {
   id: string;
   kind: CueKind;
   cardId?: string;
+  memoId?: string; // memo cues: the memo NODE id (cardId holds the memo's target card)
   label: string; // primary ("Deal", "Reveal", "Memo", "Advance")
   target: string; // what it acts on ("Owner invests cash", "slip 3", …)
   /** reveal cues only: how many of this card's steps are visible AFTER this cue. */
@@ -142,10 +143,48 @@ export function deriveFrameCues(cards: CardNodeLike[], memos: MemoNodeLike[], ed
     if (c.data.deckMember) cues.push({ id: `deal:${c.id}`, kind: "deal", cardId: c.id, label: "Deal", target: cardName(c.data) });
     const steps = hideableLabels(c.data);
     steps.forEach((s, i) => cues.push({ id: `rev:${c.id}:${i}`, kind: "reveal", cardId: c.id, label: "Reveal", target: s, revealCount: i + 1 }));
-    for (const m of memoByTarget.get(c.id) ?? []) cues.push({ id: `memo:${m.id}`, kind: "memo", cardId: c.id, label: "Memo", target: m.data.title || m.data.body?.slice(0, 24) || "note" });
+    for (const m of memoByTarget.get(c.id) ?? []) cues.push({ id: `memo:${m.id}`, kind: "memo", cardId: c.id, memoId: m.id, label: "Memo", target: m.data.title || m.data.body?.slice(0, 24) || "note" });
   }
   // memos with no resolved target land at the end
-  for (const m of memoByTarget.get("") ?? []) cues.push({ id: `memo:${m.id}`, kind: "memo", label: "Memo", target: m.data.title || "note" });
+  for (const m of memoByTarget.get("") ?? []) cues.push({ id: `memo:${m.id}`, kind: "memo", memoId: m.id, label: "Memo", target: m.data.title || "note" });
   if (hasNextFrame) cues.push({ id: "advance", kind: "advance", label: "Advance", target: "next frame" });
   return cues;
+}
+
+/** PHASE 2: apply an explicit cue order. Cues whose id is in `order` come first in
+ *  that order (existing cues only — stale ids drop); every remaining derived cue
+ *  appends in its derived position (new cards/reveals auto-land at the end). No
+ *  order (or empty) ⇒ the derived list unchanged. */
+export function orderedCues(derived: Cue[], order?: string[]): Cue[] {
+  if (!order || order.length === 0) return derived;
+  const byId = new Map(derived.map((c) => [c.id, c]));
+  const seen = new Set<string>();
+  const out: Cue[] = [];
+  for (const id of order) {
+    const c = byId.get(id);
+    if (c && !seen.has(id)) { out.push(c); seen.add(id); }
+  }
+  for (const c of derived) if (!seen.has(c.id)) out.push(c);
+  return out;
+}
+
+/** State readers for done/next — supplied live from the canvas nodes. */
+export interface CueState {
+  isDealt: (cardId: string) => boolean;
+  revealCount: (cardId: string) => number;
+  memoVisible: (memoId: string) => boolean;
+}
+
+/** A cue is DONE when its effect is already on the canvas (used by both the panel's
+ *  "next" chip and the cue-driven space ladder). `advance` is never auto-done. */
+export function cueIsDone(c: Cue, s: CueState): boolean {
+  if (c.kind === "deal") return !!c.cardId && s.isDealt(c.cardId);
+  if (c.kind === "reveal") return !!c.cardId && s.revealCount(c.cardId) >= (c.revealCount ?? 0);
+  if (c.kind === "memo") return !!c.memoId && s.memoVisible(c.memoId);
+  return false;
+}
+
+/** Index of the next cue Space will perform (first not-done), or -1 if all done. */
+export function nextCueIndex(cues: Cue[], s: CueState): number {
+  return cues.findIndex((c) => !cueIsDone(c, s));
 }

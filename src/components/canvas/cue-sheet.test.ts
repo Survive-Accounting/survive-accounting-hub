@@ -79,3 +79,46 @@ describe("frameCardOrder + deriveFrameCues", () => {
     expect(cues.map((c) => c.kind)).toEqual(["reveal"]);
   });
 });
+
+import { cueIsDone, nextCueIndex, orderedCues, type Cue, type CueState } from "./cue-sheet";
+
+describe("orderedCues (Phase 2 — explicit order + derived fallback)", () => {
+  const derived: Cue[] = [
+    { id: "deal:a", kind: "deal", cardId: "a", label: "Deal", target: "A" },
+    { id: "rev:a:0", kind: "reveal", cardId: "a", label: "Reveal", target: "a1", revealCount: 1 },
+    { id: "memo:m", kind: "memo", memoId: "m", cardId: "a", label: "Memo", target: "trap" },
+    { id: "rev:a:1", kind: "reveal", cardId: "a", label: "Reveal", target: "a2", revealCount: 2 },
+  ];
+  test("no order → derived unchanged", () => {
+    expect(orderedCues(derived, undefined).map((c) => c.id)).toEqual(["deal:a", "rev:a:0", "memo:m", "rev:a:1"]);
+    expect(orderedCues(derived, []).map((c) => c.id)).toEqual(["deal:a", "rev:a:0", "memo:m", "rev:a:1"]);
+  });
+  test("interleave a memo BETWEEN two reveals; explicit ids lead, rest append", () => {
+    // Lee drags the memo to sit between rev0 and rev1, and only lists a partial order
+    const order = ["deal:a", "rev:a:0", "memo:m"];
+    expect(orderedCues(derived, order).map((c) => c.id)).toEqual(["deal:a", "rev:a:0", "memo:m", "rev:a:1"]);
+  });
+  test("reorder reveals across cards; stale ids drop, new cues append", () => {
+    const order = ["rev:a:1", "GONE", "deal:a"]; // rev:a:1 first, unknown id ignored
+    expect(orderedCues(derived, order).map((c) => c.id)).toEqual(["rev:a:1", "deal:a", "rev:a:0", "memo:m"]);
+  });
+});
+
+describe("cueIsDone / nextCueIndex", () => {
+  const cues: Cue[] = [
+    { id: "deal:a", kind: "deal", cardId: "a", label: "Deal", target: "A" },
+    { id: "rev:a:0", kind: "reveal", cardId: "a", label: "Reveal", target: "a1", revealCount: 1 },
+    { id: "memo:m", kind: "memo", memoId: "m", cardId: "a", label: "Memo", target: "trap" },
+    { id: "advance", kind: "advance", label: "Advance", target: "next frame" },
+  ];
+  const state = (dealt: boolean, rc: number, memoVis: boolean): CueState => ({ isDealt: () => dealt, revealCount: () => rc, memoVisible: () => memoVis });
+  test("done tracks canvas state; advance never auto-done", () => {
+    expect(cues.map((c) => cueIsDone(c, state(true, 1, true)))).toEqual([true, true, true, false]);
+    expect(cues.map((c) => cueIsDone(c, state(false, 0, false)))).toEqual([false, false, false, false]);
+  });
+  test("nextCueIndex = first not-done", () => {
+    expect(nextCueIndex(cues, state(true, 0, false))).toBe(1); // dealt, nothing revealed → reveal is next
+    expect(nextCueIndex(cues, state(true, 1, false))).toBe(2); // reveal done → memo next
+    expect(nextCueIndex(cues, state(true, 1, true))).toBe(3);  // all content done → advance next
+  });
+});

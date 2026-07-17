@@ -67,6 +67,10 @@ export interface CardBase {
   deckMember?: boolean;
   /** Member presence: true = tucked away in the deck, false/absent = dealt. */
   tucked?: boolean;
+  /** CUE SHEET PHASE 2: hidden-until-cued. Set on a memo in a cue-driven frame so
+   *  its memo cue reveals it at its sequenced spot (offCanvas hides cueHidden
+   *  nodes; RF hides their arrows too). Only used in cue mode — never in derived. */
+  cueHidden?: boolean;
   /** LEGACY (schema_version 1): both meant "in deck + hidden". Migrated to
    *  deckMember+tucked on load; never written by new saves. */
   minimized?: boolean;
@@ -523,6 +527,11 @@ export interface FrameBox {
   /** INTERSTITIAL (item 9): a scaffold-inserted breath frame (Ready to cram?) —
    *  tagged so re-stamps don't duplicate it. */
   interstitial?: boolean;
+  /** CUE SHEET PHASE 2: an explicit ordered list of cue ids the space-walk
+   *  performs before falling back to the DERIVED order. Present ⇒ this frame is in
+   *  cue-driven mode (Lee reordered/interleaved its sequence). Absent ⇒ the
+   *  derived precedence (deal-order + reveal-order) runs, exactly as before. */
+  cueOrder?: string[];
   /** LEGACY flat index (pre-grid) — migrated to (beat, subIndex) on load. */
   order?: number | null;
   /** BACKGROUND ANIMATION (author-facing filming aid): a looping video from
