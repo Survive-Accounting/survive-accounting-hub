@@ -67,7 +67,13 @@ export function EditableText({ value, onChange, editing, placeholder, className,
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setLocal(e.target.value),
       onBlur: commit,
       onKeyDown: (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !multiline) { e.preventDefault(); commit(); }
+        if (e.key === "Enter") {
+          // LV2 item 6: SHIFT+ENTER = line break (multiline only — let the textarea
+          // insert it); plain ENTER commits, consistent across every inline editor.
+          if (e.shiftKey) { if (!multiline) e.preventDefault(); e.stopPropagation(); return; }
+          e.preventDefault();
+          commit();
+        }
         if (e.key === "Escape") { setLocal(value); setOpen(false); }
         e.stopPropagation(); // don't trigger canvas hotkeys while typing
       },

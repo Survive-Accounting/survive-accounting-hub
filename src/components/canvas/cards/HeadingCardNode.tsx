@@ -106,7 +106,8 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
             placeholder="Heading [optional sub]"
             onBlur={(e) => { if (!tokenMenu) { update({ text: e.target.value }); setEditing(false); } }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); update({ text: (e.target as HTMLInputElement).value }); setEditing(false); }
+              // LV2 item 6: plain Enter commits; Shift+Enter is reserved for line breaks (no commit).
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); update({ text: (e.target as HTMLInputElement).value }); setEditing(false); }
               if (e.key === "Escape") setEditing(false);
               e.stopPropagation();
             }}

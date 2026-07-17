@@ -263,7 +263,8 @@ export function GateNode({ id, data, selected }: NodeProps) {
             defaultValue={d.label}
             onBlur={(e) => { update({ label: e.target.value }); setEditing(false); }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { update({ label: (e.target as HTMLInputElement).value }); setEditing(false); }
+              // LV2 item 6: plain Enter commits; Shift+Enter reserved for line breaks.
+              if (e.key === "Enter" && !e.shiftKey) { update({ label: (e.target as HTMLInputElement).value }); setEditing(false); }
               if (e.key === "Escape") setEditing(false);
               e.stopPropagation();
             }}
