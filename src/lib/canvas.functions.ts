@@ -824,3 +824,140 @@ export const reorderChapters = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+// ---- FRAME TAKES (Phase 2 take board) ---------------------------------------
+// One row per OBS clip uploaded to Mux for a frame. Mux DIRECT UPLOAD flow:
+// createFrameTakeUpload → client PUTs the file to the returned URL →
+// resolveFrameTake polls upload → asset → playback id. passthrough metadata
+// ("SH-L01-hook-f2-t1") keeps the Mux library organized — Lee never touches
+// asset IDs. Requires MUX_TOKEN_ID + MUX_TOKEN_SECRET (API access token —
+// separate from the MUX_SIGNING_* playback keys above); absent → fail loud
+// naming the vars so the canvas shows the banner.
+
+const MISSING_TAKES_HINT =
+  "frame_takes table missing — apply migration/supabase-migrations/0094_frame_takes.sql in the Supabase SQL editor";
+export const MUX_UPLOAD_VARS = "MUX_TOKEN_ID + MUX_TOKEN_SECRET";
+const MUX_CREDS_HINT = `Mux upload not configured — set ${MUX_UPLOAD_VARS} in Vercel env (Mux dashboard → Settings → Access Tokens).`;
+
+function rethrowTakes(error: { code?: string; message: string }): never {
+  if (isMissingSchema(error, /frame_takes/i)) throw new Error(MISSING_TAKES_HINT);
+  throw new Error(error.message);
+}
+
+function muxAuthHeader(): string {
+  const id = process.env.MUX_TOKEN_ID;
+  const secret = process.env.MUX_TOKEN_SECRET;
+  if (!id || !secret) throw new Error(MUX_CREDS_HINT);
+  return `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`;
+}
+
+async function muxApi(path: string, init?: RequestInit): Promise<any> {
+  const res = await fetch(`https://api.mux.com${path}`, {
+    ...init,
+    headers: { Authorization: muxAuthHeader(), "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Mux ${path} → ${res.status}: ${JSON.stringify(body?.error ?? body).slice(0, 300)}`);
+  return body?.data;
+}
+
+export interface FrameTakeRow {
+  id: string;
+  frame_id: string;
+  take_n: number;
+  mux_asset_id: string;
+  mux_playback_id: string | null;
+  passthrough: string | null;
+  status: "uploading" | "processing" | "ready" | "errored";
+  keeper: boolean;
+  created_at: string;
+}
+
+const takesTbl = async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return () => supabaseAdmin.from("frame_takes" as never) as any;
+};
+
+/** Start a direct upload for a frame's next take. Returns the PUT URL. */
+export const createFrameTakeUpload = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ frameId: z.string().min(1).max(120), passthrough: z.string().min(1).max(160) }).parse(d))
+  .handler(async ({ data }): Promise<{ uploadUrl: string; takeId: string; takeN: number; passthrough: string }> => {
+    muxAuthHeader(); // creds gate FIRST — fail loud before touching the DB
+    const tbl = await takesTbl();
+    const { data: prior, error: qErr } = await tbl().select("take_n").eq("frame_id", data.frameId).order("take_n", { ascending: false }).limit(1);
+    if (qErr) rethrowTakes(qErr);
+    const takeN = ((prior?.[0]?.take_n as number | undefined) ?? 0) + 1;
+    const passthrough = `${data.passthrough}-t${takeN}`;
+    const upload = await muxApi("/video/v1/uploads", {
+      method: "POST",
+      body: JSON.stringify({
+        cors_origin: "*",
+        new_asset_settings: { playback_policy: ["public"], passthrough, video_quality: "basic" },
+      }),
+    });
+    const { data: row, error: insErr } = await tbl()
+      .insert({ frame_id: data.frameId, take_n: takeN, mux_upload_id: upload.id, passthrough, status: "uploading" })
+      .select("id")
+      .single();
+    if (insErr) rethrowTakes(insErr);
+    return { uploadUrl: upload.url as string, takeId: row.id as string, takeN, passthrough };
+  });
+
+/** Poll a take: upload → asset → playback id. Returns the fresh row. */
+export const resolveFrameTake = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ takeId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<FrameTakeRow> => {
+    const tbl = await takesTbl();
+    const { data: row, error } = await tbl().select("*").eq("id", data.takeId).single();
+    if (error) rethrowTakes(error);
+    const take = row as FrameTakeRow & { mux_upload_id?: string | null };
+    if (take.status === "ready" || take.status === "errored") return take;
+    let assetId = take.mux_asset_id || null;
+    if (!assetId && take.mux_upload_id) {
+      const upload = await muxApi(`/video/v1/uploads/${take.mux_upload_id}`);
+      if (upload.status === "errored" || upload.status === "cancelled" || upload.status === "timed_out") {
+        const { data: upd } = await tbl().update({ status: "errored" }).eq("id", take.id).select("*").single();
+        return (upd ?? { ...take, status: "errored" }) as FrameTakeRow;
+      }
+      assetId = upload.asset_id ?? null;
+      if (!assetId) return take; // file still uploading
+    }
+    if (!assetId) return take;
+    const asset = await muxApi(`/video/v1/assets/${assetId}`);
+    const playbackId = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+    const status = asset.status === "ready" ? "ready" : asset.status === "errored" ? "errored" : "processing";
+    const { data: upd, error: uErr } = await tbl()
+      .update({ mux_asset_id: assetId, mux_playback_id: playbackId, status })
+      .eq("id", take.id)
+      .select("*")
+      .single();
+    if (uErr) rethrowTakes(uErr);
+    return upd as FrameTakeRow;
+  });
+
+/** All takes for the given frames (the scene's frame ids), newest take first. */
+export const listFrameTakes = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ frameIds: z.array(z.string().min(1)).max(500) }).parse(d))
+  .handler(async ({ data }): Promise<FrameTakeRow[]> => {
+    if (data.frameIds.length === 0) return [];
+    const tbl = await takesTbl();
+    const { data: rows, error } = await tbl().select("*").in("frame_id", data.frameIds).order("take_n", { ascending: false });
+    if (error) rethrowTakes(error);
+    return (rows ?? []) as FrameTakeRow[];
+  });
+
+/** Mark ONE take the frame's KEEPER (clears the flag on its siblings). */
+export const setTakeKeeper = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ takeId: z.string().uuid(), keeper: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const tbl = await takesTbl();
+    const { data: row, error } = await tbl().select("frame_id").eq("id", data.takeId).single();
+    if (error) rethrowTakes(error);
+    if (data.keeper) {
+      const { error: clrErr } = await tbl().update({ keeper: false }).eq("frame_id", row.frame_id);
+      if (clrErr) rethrowTakes(clrErr);
+    }
+    const { error: setErr } = await tbl().update({ keeper: data.keeper }).eq("id", data.takeId);
+    if (setErr) rethrowTakes(setErr);
+    return { ok: true };
+  });

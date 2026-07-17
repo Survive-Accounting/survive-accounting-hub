@@ -7,11 +7,12 @@
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Film, Lock, LockOpen, Maximize2, Pause, Play, StickyNote, Tag, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize2, Pause, Play, StickyNote, Tag, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { bus } from "../commands";
 import { ConnectionDots } from "../ConnectionDots";
+import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
 import { BEAT_COLUMNS, columnX, frame169, framesInBeat, rowY } from "../frames";
 import { EditableText } from "../ui";
@@ -36,6 +37,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const [hover, setHover] = useState(false);
   const [bgMenu, setBgMenu] = useState(false);
   const [noteEdit, setNoteEdit] = useState(false); // director note editor open
+  const [takesOpen, setTakesOpen] = useState(false); // TAKE BOARD: per-frame takes panel
+  const { upload, takesFor } = useFrameTakes();
+  const drop = useFileDrop((f) => void upload(id, f)); // drop an OBS clip → Mux
+  const takeCount = takesFor(id).length;
   const videoRef = useRef<HTMLVideoElement>(null);
   const beat = d.beat ?? "none";
   const meta = BEAT_META[beat];
@@ -110,6 +115,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onDoubleClick={() => nav.enter(id)}
+      {...drop.props}
       style={{
         minWidth: 320,
         minHeight: 180,
@@ -177,6 +183,8 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: meta.color, border: `1px solid ${meta.edge}` }}>
           {meta.label} {(d.subIndex ?? 0) + 1}
         </span>
+        {/* TAKE BOARD: film status chip (authoring chrome — header hides in film) */}
+        <FilmStatusChip frameId={id} status={d.filmStatus ?? "unfilmed"} small />
         <span className="min-w-0 flex-1 text-[12px] font-bold" style={{ color: "#F4EFE6" }} onClick={(e) => e.stopPropagation()}>
           <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="Frame title" openSeq={(data as { _editSeq?: number })._editSeq} />
         </span>
@@ -187,6 +195,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
             </button>
           )}
           <button className={btn} style={{ color: bgLoop ? meta.color : NEON.text }} title="Background animation" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>
+          {/* TAKE BOARD: review the frame's uploaded takes (latest plays inline) */}
+          <button className={btn} style={{ color: takeCount ? meta.color : NEON.text }} title={takeCount ? `Takes (${takeCount}) — review the latest clip` : "Takes — drop an OBS clip on the frame to upload"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setTakesOpen((v) => !v); }}>
+            <Clapperboard className="h-3 w-3" />
+          </button>
           <button className={btn} style={{ color: nav.canStep(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder)" disabled={!nav.canStep(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: nav.canStep(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder)" disabled={!nav.canStep(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: meta.color }} title="Cycle beat tag (Hook · Teach · Model-Practice · Check)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); cycleBeat(); }}><Tag className="h-3 w-3" /></button>
@@ -260,6 +272,21 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               <button className="ml-auto self-start rounded px-1.5 py-0.5 text-[10px]" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={() => update({ bgFit: "cover", bgZoom: FRAME_BG_DEFAULT_ZOOM, bgAnchor: "center" })}>Reset</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAKE BOARD: drop-target overlay while a file drags over the stage */}
+      {drop.over && (
+        <div data-frame-chrome className="pointer-events-none absolute inset-0 z-[8] grid place-items-center rounded-lg" style={{ background: "rgba(11,19,34,0.72)", border: `2px dashed ${meta.color}` }}>
+          <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: meta.color }}>
+            <Upload className="h-4 w-4" /> Drop the OBS clip — upload take {takeCount + 1}
+          </div>
+        </div>
+      )}
+      {/* TAKE BOARD: the frame's takes panel (authoring only — filming chrome) */}
+      {takesOpen && (
+        <div data-frame-chrome>
+          <TakesPanel frameId={id} onClose={() => setTakesOpen(false)} />
         </div>
       )}
 

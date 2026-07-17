@@ -36,7 +36,7 @@ export function ScriptEditor({ courseName, onClose, statusCell }: {
   courseName: string;
   onClose: () => void;
   /** Phase 2 slot: the take-board cell rendered at the right of each frame row. */
-  statusCell?: (frameId: string) => React.ReactNode;
+  statusCell?: (frameId: string, status: import("./types").FilmStatus) => React.ReactNode;
 }) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
@@ -130,7 +130,7 @@ export function ScriptEditor({ courseName, onClose, statusCell }: {
                         <div className="mb-1 flex items-center gap-1.5">
                           <span className="rounded px-1 text-[9px] font-bold tabular-nums" style={{ color: NEON.yellow, border: FIELD_BORDER }}>F{f.n}</span>
                           <span className="min-w-0 flex-1 truncate text-[11px] font-semibold" style={{ color: NEON.text }}>{f.title || "untitled frame"}</span>
-                          {statusCell?.(f.frameId)}
+                          {statusCell?.(f.frameId, f.filmStatus)}
                         </div>
                         <div className="grid gap-1">
                           <input

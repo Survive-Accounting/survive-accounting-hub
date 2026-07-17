@@ -82,6 +82,7 @@ import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
+import { FrameTakesProvider, MuxBanner, TakeBoardCell } from "@/components/canvas/frame-takes";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
@@ -3070,8 +3071,11 @@ function PresentCanvas() {
     <DecksContext.Provider value={decksCtx}>
     <FrameNavContext.Provider value={frameNav}>
     <SpotlightCtx.Provider value={spot}>
+    <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`} style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
+      {/* TAKE BOARD: loud banner when Mux env vars / frame_takes table are missing */}
+      {chrome && <MuxBanner />}
       {/* CINEMA BACKSTAGE (authoring only) — dark-red animated studio behind the canvas.
           Honour the scene's chosen loop if it set one, else the colourful dream glow. */}
       {chrome && backstage === "cinema" && <BackstageStage video={bgCfg.mode === "video" ? bgCfg.video : "dream-intro.mp4"} />}
@@ -3660,7 +3664,13 @@ function PresentCanvas() {
       {chrome && cueSheetOpen && currentFrameId && <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} />}
 
       {/* SCRIPT EDITOR — the whole course script in one modal (authoring only) */}
-      {chrome && scriptOpen && <ScriptEditor courseName={(sceneCourse ? courseLabel(sceneCourse) : null) ?? sceneName ?? "Course"} onClose={() => setScriptOpen(false)} />}
+      {chrome && scriptOpen && (
+        <ScriptEditor
+          courseName={(sceneCourse ? courseLabel(sceneCourse) : null) ?? sceneName ?? "Course"}
+          onClose={() => setScriptOpen(false)}
+          statusCell={(fid, status) => <TakeBoardCell frameId={fid} status={status} />}
+        />
+      )}
 
       {/* TELEPROMPTER — author-only, works in authoring AND film; `p` toggles.
           Never a student surface: it's an overlay on Lee's filming canvas. */}
@@ -4019,6 +4029,7 @@ function PresentCanvas() {
         </div>
       )}
     </div>
+    </FrameTakesProvider>
     </SpotlightCtx.Provider>
     </FrameNavContext.Provider>
     </DecksContext.Provider>
