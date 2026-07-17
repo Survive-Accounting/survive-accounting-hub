@@ -3,6 +3,7 @@
 // same scene structure the outline does: lessons (path order) › beat columns
 // (Hook · Teach · Model/Practice · Check) › frames (row order). Never
 // hand-maintained; a frame's script lives ON the frame (FrameBox.script).
+import { markLabel } from "./card-marks";
 import { BEAT_COLUMNS, BEAT_LABEL, beatColOf, subIndexOf } from "./frames";
 import type { Beat, FilmStatus, FrameScript } from "./types";
 
@@ -51,7 +52,14 @@ const pathOrderOf = (n: ScriptNode): number => {
 const lessonLabelOf = (n: ScriptNode): string => (n.data.label as string) || "Lesson";
 
 export const hasScript = (s: FrameScript | undefined): boolean =>
-  !!s && !!((s.entry ?? "").trim() || (s.beats ?? "").trim() || (s.exit ?? "").trim());
+  !!s && !!((s.entry ?? "").trim() || (s.beats ?? "").trim() || (s.exit ?? "").trim() || (s.marks?.length ?? 0) > 0);
+
+/** Card marks as a round-trippable line ("Cards: @List — note · @Memo"). */
+function marksLine(s: FrameScript | undefined): string | null {
+  const marks = s?.marks ?? [];
+  if (marks.length === 0) return null;
+  return "Cards: " + marks.map((m) => `@${markLabel(m.kind)}${m.note ? ` — ${m.note}` : ""}`).join(" · ");
+}
 
 export const filmStatusOf = (d: Record<string, unknown>): FilmStatus => {
   const v = d.filmStatus;
@@ -135,6 +143,8 @@ export function courseScriptMarkdown(tree: ScriptLessonGroup[], courseName: stri
           lines.push("");
         }
         if ((s.exit ?? "").trim()) lines.push(`> _${s.exit!.trim()}_`, "");
+        const ml = marksLine(s);
+        if (ml) lines.push(ml, "");
       }
     }
   }

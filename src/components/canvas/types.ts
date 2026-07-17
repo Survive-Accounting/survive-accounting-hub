@@ -527,6 +527,9 @@ export interface LessonBox {
   /** BEAT GUIDES (L2): show the Hook · Teach · Model-Practice · Check dividers
    *  inside the band (soft guides, not containers). */
   beats?: boolean;
+  /** SCRIPT EDITOR V2: this lesson's collapse state in the script modal. Absent =
+   *  default (only the current lesson expanded). Persists in the scene. */
+  scriptOpen?: boolean;
   // NOTE: the old per-lesson `home` flag was dropped (L3) — Home is now just the
   // top outline entry + a Home element (welcome heading + Ask Lee) in the region.
 }
@@ -538,6 +541,19 @@ export interface LessonBox {
 /** The 4 beat COLUMNS. (Legacy scenes may carry "none" — folded to hook on load.) */
 export type Beat = "hook" | "teach" | "model_practice" | "check";
 export type FrameBeat = Beat | "none";
+/** CARD MARKS (script editor V2): the cards Lee INTENDS to build in this frame —
+ *  planning intent, NOT a card. Typed as "@Kind" in the beats field; each carries
+ *  an optional note and can be LINKED to a real card once built. `kind` is a card
+ *  kind plus the two non-node marks "deck" / "background". Order = array index. */
+export type MarkKind = CardKind | "deck" | "background";
+export interface CardMark {
+  id: string;
+  kind: MarkKind;
+  /** Free note right after the mark ("— COA-bound, Assets"). */
+  note?: string;
+  /** Once built, the id of the card on this frame this mark refers to (else null). */
+  linkedCardId?: string | null;
+}
 /** SCRIPT (script editor): what Lee SAYS in this frame — the teleprompter's
  *  source. entry = the opening line, beats = the talking points (multiline,
  *  bullets), exit = the closing line / handoff into the next frame. */
@@ -545,6 +561,8 @@ export interface FrameScript {
   entry?: string;
   beats?: string;
   exit?: string;
+  /** CARD MARKS (V2): the build checklist for this frame. */
+  marks?: CardMark[];
 }
 /** TAKE BOARD: the frame's filming state. Absent = unfilmed. */
 export type FilmStatus = "unfilmed" | "filmed" | "retake";

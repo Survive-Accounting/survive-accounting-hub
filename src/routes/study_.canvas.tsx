@@ -3698,6 +3698,7 @@ function PresentCanvas() {
       {chrome && scriptOpen && (
         <ScriptEditor
           courseName={(sceneCourse ? courseLabel(sceneCourse) : null) ?? sceneName ?? "Course"}
+          currentFrameId={currentFrameId}
           onClose={() => setScriptOpen(false)}
           statusCell={(fid, status) => <TakeBoardCell frameId={fid} status={status} />}
         />
