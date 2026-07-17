@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -81,6 +81,8 @@ import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
 import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
+import { ScriptEditor } from "@/components/canvas/ScriptEditor";
+import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
@@ -842,6 +844,9 @@ function PresentCanvas() {
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
   const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
+  const [scriptOpen, setScriptOpen] = useState(false); // SCRIPT EDITOR: the course-script modal
+  const [prompter, setPrompter] = useState(false); // TELEPROMPTER: hidden by default (incl. film); `p` toggles
+  const [prompterCorner, setPrompterCorner] = useState<PrompterCorner>("tc"); // camera eyeline corner (persisted)
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -2183,13 +2188,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2254,6 +2259,7 @@ function PresentCanvas() {
       setFilmEntrancePop((nj.sceneSettings as { filmEntrancePop?: boolean } | undefined)?.filmEntrancePop !== false); // default on
       setFilmCheckGlow((nj.sceneSettings as { filmCheckGlow?: boolean } | undefined)?.filmCheckGlow !== false); // default on
       setFramePath((nj.sceneSettings as { framePath?: boolean } | undefined)?.framePath === true); // default off
+      { const pc = (nj.sceneSettings as { prompterCorner?: string } | undefined)?.prompterCorner; setPrompterCorner(pc === "tl" || pc === "tr" ? pc : "tc"); } // teleprompter corner, default top-center
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -2940,8 +2946,9 @@ function PresentCanvas() {
         },
       },
       { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
-      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on && currentFrameRef.current) enterFrame(currentFrameRef.current); return on; }) },
+      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
       { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
+      { combo: "p", group: "Modes", description: "Teleprompter — the current frame's script (authoring + film)", handler: () => setPrompter((v) => { const on = !v; if (on && !currentFrameRef.current) flashToast("Enter a frame — the prompter reads the current frame's script"); return on; }) },
       { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
       { combo: "t", group: "Quick-spawn", description: "T-account at cursor", handler: () => quickSpawn("taccount") },
       { combo: "n", group: "Quick-spawn", description: "Note at cursor", handler: () => quickSpawn("note") },
@@ -3399,6 +3406,8 @@ function PresentCanvas() {
           </div>
           <TB title="Film-order path — number the frames in a lesson by walk order (authoring)" active={framePath} onClick={() => setFramePath((v) => !v)}><Milestone className="h-3.5 w-3.5" /></TB>
           <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
+          <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
+          <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
           <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
           {currentFrameId && <TB title={showFrameHeader ? "Hide the frame header while inside a frame" : "Show the frame header (LESSON · frame · beat)"} active={showFrameHeader} onClick={() => setShowFrameHeader((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>}
           <div className="relative">
@@ -3649,6 +3658,20 @@ function PresentCanvas() {
 
       {/* AC4: CUE SHEET — the entered frame's derived space-walk sequence (authoring) */}
       {chrome && cueSheetOpen && currentFrameId && <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} />}
+
+      {/* SCRIPT EDITOR — the whole course script in one modal (authoring only) */}
+      {chrome && scriptOpen && <ScriptEditor courseName={(sceneCourse ? courseLabel(sceneCourse) : null) ?? sceneName ?? "Course"} onClose={() => setScriptOpen(false)} />}
+
+      {/* TELEPROMPTER — author-only, works in authoring AND film; `p` toggles.
+          Never a student surface: it's an overlay on Lee's filming canvas. */}
+      {prompter && (
+        <TeleprompterOverlay
+          frameId={currentFrameId}
+          corner={prompterCorner}
+          onCorner={setPrompterCorner}
+          onClose={() => setPrompter(false)}
+        />
+      )}
 
 
       {/* snap/composition guides — brand-gold lines while a drag aligns. Weight

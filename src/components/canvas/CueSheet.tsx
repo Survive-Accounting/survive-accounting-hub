@@ -115,6 +115,25 @@ export function CueSheet({ frameId, onClose }: { frameId: string; onClose: () =>
         <span className="text-[9.5px]" style={{ color: NEON.muted }}>{cues.length}</span>
         <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Close" onClick={onClose}><X className="h-3 w-3" /></button>
       </div>
+      {/* SCRIPT (script editor) — what Lee SAYS in this frame, above what happens */}
+      {(() => {
+        const s = (frame?.data as { script?: { entry?: string; beats?: string; exit?: string } } | undefined)?.script;
+        const beats = (s?.beats ?? "").split("\n").map((b) => b.trim().replace(/^[-*•]\s+/, "")).filter(Boolean);
+        if (!s || (!(s.entry ?? "").trim() && beats.length === 0 && !(s.exit ?? "").trim())) return null;
+        return (
+          <div className="border-b px-2.5 py-1.5" style={{ borderColor: NEON.borderSoft }}>
+            <div className="mb-0.5 text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.cyan }}>Script</div>
+            {(s.entry ?? "").trim() && <p className="text-[11px] font-semibold leading-snug" style={{ color: "#FFD98A" }}>{s.entry}</p>}
+            {beats.map((b, i) => (
+              <p key={i} className="flex gap-1 text-[10.5px] leading-snug" style={{ color: NEON.text }}>
+                <span className="mt-[6px] h-[3px] w-[3px] shrink-0 rounded-full" style={{ background: NEON.yellow }} />
+                {b}
+              </p>
+            ))}
+            {(s.exit ?? "").trim() && <p className="text-[10.5px] italic leading-snug" style={{ color: NEON.cyan }}>→ {s.exit}</p>}
+          </div>
+        );
+      })()}
       <div className="min-h-0 flex-1 overflow-auto p-1.5">
         {cues.length === 0 && <div className="px-2 py-3 text-center text-[10.5px]" style={{ color: NEON.muted }}>No cues yet — add cards to this frame.</div>}
         <ol className="space-y-0.5">

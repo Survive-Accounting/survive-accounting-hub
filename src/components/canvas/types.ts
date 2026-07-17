@@ -528,11 +528,26 @@ export interface LessonBox {
 /** The 4 beat COLUMNS. (Legacy scenes may carry "none" — folded to hook on load.) */
 export type Beat = "hook" | "teach" | "model_practice" | "check";
 export type FrameBeat = Beat | "none";
+/** SCRIPT (script editor): what Lee SAYS in this frame — the teleprompter's
+ *  source. entry = the opening line, beats = the talking points (multiline,
+ *  bullets), exit = the closing line / handoff into the next frame. */
+export interface FrameScript {
+  entry?: string;
+  beats?: string;
+  exit?: string;
+}
+/** TAKE BOARD: the frame's filming state. Absent = unfilmed. */
+export type FilmStatus = "unfilmed" | "filmed" | "retake";
+
 export interface FrameBox {
   title?: string;
   /** 16:9 aspect-locked (h = round(w * 9 / 16)). */
   w: number;
   h: number;
+  /** SCRIPT: entry line / beats / exit line (teleprompter + script modal). */
+  script?: FrameScript;
+  /** TAKE BOARD: unfilmed (absent) | filmed | retake. Authoring chrome only. */
+  filmStatus?: FilmStatus;
   /** The beat COLUMN this frame sits in (grid model). */
   beat?: FrameBeat;
   /** 0-based ROW within its beat column (grid model). */
