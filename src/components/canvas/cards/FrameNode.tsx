@@ -159,9 +159,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         </div>
       )}
       <ConnectionDots color={meta.color} />
-      {/* aspect-LOCKED 16:9 resize (handles on hover) */}
+      {/* FRAMES ARE STATIC — resize handles disabled (the frame is a fixed 16:9
+          stage; size/position never change, only the cards inside move). */}
       <NodeResizer
-        isVisible={showChrome}
+        isVisible={false}
         keepAspectRatio
         minWidth={320}
         minHeight={180}

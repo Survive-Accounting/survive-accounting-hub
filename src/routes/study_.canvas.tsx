@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, FlaskConical, FileText, Frame, Grid3x3, Layers, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Eye, Film, Flag, FlaskConical, FileText, Frame, Grid3x3, Layers, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -369,9 +369,8 @@ function LessonNode({ id, data, selected }: NodeProps) {
         ) : (
           <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Lesson" />
         )}
-        {/* LESSON MEDIA — intro/outro clip upload + preview by the title (always
-            visible: the dropped/empty state is the whole point). */}
-        <LessonMediaBar lessonId={id} />
+        {/* LESSON MEDIA (intro/outro upload + preview) now lives in the Frame Header
+            panel (toolbar) — reachable while locked into frames. */}
         {/* CHROME — hover/selected only (L1); pointer-events off while hidden so
             invisible controls can't be clicked. */}
         <span className={`flex items-center gap-1 transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`}>
@@ -865,6 +864,7 @@ function PresentCanvas() {
     return () => { window.removeEventListener("pointerdown", onPointer, true); window.removeEventListener("keydown", onKey, true); };
   }, [arrowArm]);
   const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
+  const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [framePickerOpen, setFramePickerOpen] = useState(false); // FG5: grid mini-map jump
   const [toast, setToast] = useState<string | null>(null); // brief transient notice (frame cap, soft warns)
   const toastTimer = useRef(0);
@@ -1044,17 +1044,19 @@ function PresentCanvas() {
   // reviewLock (A3 — superset: also freezes edits inside the card face) both
   // pin the node by syncing React Flow's draggable flag off.
   const dragFrozen = (d: CardData) => !!(d as CardBase).posLock || !!(d as { reviewLock?: boolean }).reviewLock;
+  // FRAMES ARE STATIC: never draggable (cards move WITHIN a frame, not the frame).
+  const nodeFrozen = (n: { type?: string; data: unknown }) => n.type === "frame" || dragFrozen(n.data as CardData);
   useEffect(() => {
     const stale = liveNodes.some((n) => {
       const d = n.data as unknown as CardData;
-      return !!n.hidden !== offCanvas(d) || (n.hidden && n.selected) || (n.draggable === false) !== dragFrozen(d);
+      return !!n.hidden !== offCanvas(d) || (n.hidden && n.selected) || (n.draggable === false) !== nodeFrozen(n);
     });
     if (stale) {
       rf.setNodes((nds) =>
         nds.map((n) => {
           const d = n.data as unknown as CardData;
           const off = offCanvas(d);
-          const frozen = dragFrozen(d);
+          const frozen = nodeFrozen(n);
           // off-canvas cards are also DESELECTED — otherwise the show key would step the
           // reveals of an invisible staged card instead of summoning the next one.
           if (!!n.hidden !== off || (off && n.selected) || (n.draggable === false) !== frozen) {
@@ -3526,7 +3528,30 @@ function PresentCanvas() {
           <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
           <TB title="Recorder spike (EXPERIMENT — cam+mic in the browser; OBS remains the filming flow)" active={spikeOpen} onClick={() => setSpikeOpen((v) => !v)}><FlaskConical className="h-3.5 w-3.5" /></TB>
-          {currentFrameId && <TB title={showFrameHeader ? "Hide the frame header while inside a frame" : "Show the frame header (LESSON · frame · beat)"} active={showFrameHeader} onClick={() => setShowFrameHeader((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>}
+          {/* BIRDS-EYE — the ONLY way out to the whole-course grid (else stay framed) */}
+          <TB title="Birds-eye view — zoom out to the whole course (pick a frame/lesson to dive back in)" onClick={() => { exitFrame(); window.setTimeout(() => void rf.fitView({ duration: 400, padding: 0.15 }), 300); }}><Eye className="h-3.5 w-3.5" /></TB>
+          {/* FRAME HEADER panel — on-camera header toggle + THIS lesson's intro/outro/preview */}
+          <div className="relative">
+            <TB title="Frame header — header HUD + this lesson's intro / outro / preview" active={frameHeaderOpen} onClick={() => setFrameHeaderOpen((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>
+            {frameHeaderOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFrameHeaderOpen(false)} />
+                <div className="absolute bottom-9 left-1/2 z-50 w-72 -translate-x-1/2 rounded-xl p-2.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  <div className="mb-1.5 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Frame header</div>
+                  <div className="flex items-center justify-between gap-2 py-0.5 text-[11.5px]" style={{ color: NEON.text }}>
+                    <span>On-camera header (LESSON · frame · beat)</span>
+                    <button className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={{ color: showFrameHeader ? NEON.yellow : NEON.muted, border: `1px solid ${showFrameHeader ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setShowFrameHeader((v) => !v)}>{showFrameHeader ? "on" : "off"}</button>
+                  </div>
+                  <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+                    <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Lesson media · intro / outro / preview</div>
+                    {(() => { const lid = currentFrameId ? (rf.getNode(currentFrameId)?.parentId ?? null) : null; return lid
+                      ? <LessonMediaBar lessonId={lid} />
+                      : <p className="text-[10.5px] leading-snug" style={{ color: NEON.muted }}>Enter a frame first — the intro/outro attach to that frame's lesson.</p>; })()}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <div className="relative">
             <TB title="Canvas settings (JE width, default preset)" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
               <Settings2 className="h-3.5 w-3.5" />

@@ -41,6 +41,12 @@ export function LessonNavigator() {
   );
 
   const fitLesson = (l: NavNode) => { const r = absRectOf(l as never, byId as never); void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: 320, padding: 0.12 }); };
+  const framesOfLesson = (lessonId: string) => nodes.filter((n) => n.type === "frame" && n.parentId === lessonId).sort(
+    (a, b) => BEAT_COLUMNS.indexOf(beatColOf(a as never)) - BEAT_COLUMNS.indexOf(beatColOf(b as never)) || subIndexOf(a as never) - subIndexOf(b as never),
+  );
+  // NAVIGATING TO A LESSON = enter its FIRST frame (fall back to fitting the
+  // lesson band only if it somehow has no frames).
+  const enterLesson = (l: NavNode) => { const fs = framesOfLesson(l.id); if (fs[0]) nav.enter(fs[0].id); else fitLesson(l); };
 
   // FOLLOW the camera: entering a frame in another lesson syncs the pager.
   useEffect(() => {
@@ -52,17 +58,17 @@ export function LessonNavigator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nav.currentFrameId]);
 
-  // DEFAULT to one lesson at a time: fit lesson 1 once, on first appearance.
+  // ON LOAD: open the course's FIRST frame (locked into frames, not the grid).
   useEffect(() => {
     if (didInit.current || lessons.length === 0) return;
     didInit.current = true;
-    if (!nav.currentFrameId) window.setTimeout(() => fitLesson(lessons[0]), 350);
+    if (!nav.currentFrameId) window.setTimeout(() => enterLesson(lessons[0]), 700);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessons.length]);
 
   if (lessons.length === 0) return null;
 
-  const goLesson = (d: -1 | 1) => { const ni = Math.max(0, Math.min(lessons.length - 1, cur + d)); setIdx(ni); nav.exit(); fitLesson(lessons[ni]); };
+  const goLesson = (d: -1 | 1) => { const ni = Math.max(0, Math.min(lessons.length - 1, cur + d)); setIdx(ni); enterLesson(lessons[ni]); };
 
   return (
     <div className="absolute bottom-[4.5rem] left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
@@ -87,7 +93,7 @@ export function LessonNavigator() {
       )}
       <div className="flex items-center gap-1 rounded-full px-1 py-1" style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}>
         <button className="grid h-6 w-6 place-items-center rounded-full transition-colors disabled:opacity-40" style={{ color: NEON.text }} disabled={cur === 0} onClick={() => goLesson(-1)} title="Previous lesson"><ChevronLeft className="h-4 w-4" /></button>
-        <button className="flex items-center gap-1.5 px-2 text-[11.5px] font-bold" style={{ color: NEON.text }} onClick={() => { setExpanded((v) => !v); fitLesson(lesson); }} title="Show this lesson · click to list its frames">
+        <button className="flex items-center gap-1.5 px-2 text-[11.5px] font-bold" style={{ color: NEON.text }} onClick={() => { setExpanded((v) => !v); enterLesson(lesson); }} title="Enter this lesson's first frame · click to list its frames">
           <span className="text-[9px] tabular-nums" style={{ color: NEON.muted }}>{cur + 1}/{lessons.length}</span>
           <span className="max-w-[38vw] truncate">{(lesson.data.label as string) || "Lesson"}</span>
           <ChevronUp className="h-3 w-3" style={{ transform: expanded ? "none" : "rotate(180deg)", color: NEON.muted }} />

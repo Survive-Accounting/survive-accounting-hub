@@ -499,8 +499,9 @@ export function LessonMediaBar({ lessonId }: { lessonId: string }) {
         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) void upload(id, f); }}
       >
         <button
-          className="inline-flex items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide"
-          style={{ color: ready ? "#0B1322" : busy ? NEON.cyan : NEON.muted, background: ready ? "#7EF3C0" : "transparent", border: `1px solid ${ready ? "#7EF3C0" : NEON.borderSoft}` }}
+          className="inline-flex items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide transition-opacity"
+          // greyed until a clip is added; lights up green ✓ once ready
+          style={{ color: ready ? "#0B1322" : busy ? NEON.cyan : NEON.muted, background: ready ? "#7EF3C0" : "transparent", border: `1px solid ${ready ? "#7EF3C0" : NEON.borderSoft}`, opacity: ready || busy ? 1 : 0.5 }}
           title={ready ? `${label} clip uploaded — drop again to replace` : `Drop or click to upload the ${label.toLowerCase()} clip`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); (e.currentTarget.nextSibling as HTMLInputElement)?.click(); }}
