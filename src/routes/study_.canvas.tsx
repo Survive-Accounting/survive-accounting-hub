@@ -46,6 +46,7 @@ import { VideoCardNode } from "@/components/canvas/cards/VideoCardNode";
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
 import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
 import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
+import { OutlineCardNode } from "@/components/canvas/cards/OutlineCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
 import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
@@ -422,6 +423,7 @@ const nodeTypes = {
   image: withFaceDown(ImageCardNode),
   legend: withFaceDown(LegendCardNode),
   formula: withFaceDown(FormulaCardNode),
+  outline: withFaceDown(OutlineCardNode),
   // ELEMENTS: plain — never face-down (elements don't deck)
   heading: HeadingCardNode,
   text: TextElementNode,
@@ -1202,7 +1204,21 @@ function PresentCanvas() {
       // Lee's on-set reminders (filming chrome; hidden in film).
       data: { ...blankFrameData(b.beat, 0), note: SCAFFOLD_NOTES[b.beat] } as unknown as CardNode["data"],
     }));
-    return [lesson, ...frames] as CardNode[];
+    // COURSE OUTLINE (item 5): the staircase rides in every lesson as the Hook's
+    // SECOND frame (subIndex 1). It's DERIVED — courseId null so it reads the scene
+    // course, you-are-here auto-detects from THIS lesson's label. Not seeded content.
+    const outlineFrameId = cardId("frame");
+    const outlineFrame = {
+      id: outlineFrameId, type: "frame", parentId: lid,
+      position: { x: columnX(0), y: rowY(1) }, width: FRAME_W, height: FRAME_H,
+      data: { ...blankFrameData("hook", 1), title: "Outline" } as unknown as CardNode["data"],
+    };
+    const outlineCard = {
+      id: cardId("outline"), type: "outline", parentId: outlineFrameId,
+      position: { x: 130, y: 72 },
+      data: blankCard("outline") as unknown as CardNode["data"],
+    };
+    return [lesson, ...frames, outlineFrame, outlineCard] as CardNode[];
   }, []);
 
   const spawnRegionScaffold = useCallback(() => {

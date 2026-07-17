@@ -46,6 +46,7 @@ const MORE_BLANKS: BlankSpec[] = [
   { kind: "video", label: "Video (Mux)" },
   { kind: "image", label: "Image" },
   { kind: "legend", label: "Legend card" },
+  { kind: "outline", label: "Course outline" },
 ];
 
 const KIND_FILTERS: (CardKind | "all")[] = ["all", "je", "schedule", "computation", "taccount", "ceq", "memorize"];

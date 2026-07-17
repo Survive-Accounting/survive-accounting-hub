@@ -19,6 +19,7 @@ export type CardKind =
   | "heading"
   | "text"
   | "memo"
+  | "outline"
   | "paygate"
   | "signupgate"
   | "asklee"
@@ -45,6 +46,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   list: "card",
   image: "card",
   legend: "card",
+  outline: "card",
   formula: "card",
   heading: "element",
   text: "element",
@@ -460,7 +462,27 @@ export type CardData =
   | TextElement
   | MemoCard
   | GateElement
+  | OutlineCard
   | BridgeCard;
+
+// ---- Course Outline (the staircase) — DERIVED from a course's lessons ----------
+/** A manual you-are-here override + a paid-gate override live here; everything
+ *  else (lesson order, titles, count) is derived live from the course tree, never
+ *  typed. `freeThrough` is the free/paid boundary (N free lessons) until a real
+ *  per-chapter gate field exists. */
+export interface OutlineCard extends CardBase {
+  kind: "outline";
+  /** Course to render; falls back to the scene's course when absent. */
+  courseId?: string | null;
+  /** Free/paid gate: lessons 1..freeThrough are free (full colour), the rest paid. */
+  freeThrough?: number;
+  /** Staircase controls. */
+  origin?: "bl" | "br" | "tl" | "tr";
+  rise?: number; // 0.15..0.92 — the ascent
+  layout?: "staircase" | "grid";
+  /** YOU-ARE-HERE: 1-based lesson to emphasise; absent = auto-detect from the frame. */
+  hereOverride?: number | null;
+}
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
 

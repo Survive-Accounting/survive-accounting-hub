@@ -57,6 +57,18 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
         ],
         operators: ["+", "="],
       };
+    case "outline":
+      return {
+        kind: "outline",
+        courseId: null, // derives from the scene's course
+        freeThrough: 8,
+        origin: "bl",
+        rise: 0.6,
+        layout: "staircase",
+        hereOverride: null,
+        w: 900,
+        h: 506, // ~16:9
+      };
     case "legend":
       return {
         kind: "legend",
@@ -194,6 +206,7 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   list: "List",
   image: "Image",
   legend: "Legend card",
+  outline: "Course outline",
   formula: "Formula",
   heading: "Heading",
   text: "Text",
