@@ -109,7 +109,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
       data-beat={beat}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      onDoubleClick={(e) => { e.stopPropagation(); nav.enter(id); }}
+      onDoubleClick={() => nav.enter(id)}
       style={{
         minWidth: 320,
         minHeight: 180,
