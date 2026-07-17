@@ -562,9 +562,9 @@ function hideAll(data: CardData): Partial<CardData> | null {
 // adjustable opacity. Encoded into the scene's existing `bg` text column as
 // "flat" | "grid" | "video|<file>|<opacity 0-100>" so old scenes keep loading.
 const BG_VIDEOS = [
-  { file: "car intro (1).mp4", label: "Car" },
-  { file: "dream intro (1).mp4", label: "Dream" },
-  { file: "space intro (1).mp4", label: "Space" },
+  { file: "car-intro.mp4", label: "Car" },
+  { file: "dream-intro.mp4", label: "Dream" },
+  { file: "space-intro.mp4", label: "Space" },
 ] as const;
 
 interface BgConfig {
@@ -3042,8 +3042,9 @@ function PresentCanvas() {
     <SpotlightCtx.Provider value={spot}>
     <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`} style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
-      {/* CINEMA BACKSTAGE (authoring only) — dark-red animated studio behind the canvas */}
-      {chrome && backstage === "cinema" && <BackstageStage video={bgCfg.video} />}
+      {/* CINEMA BACKSTAGE (authoring only) — dark-red animated studio behind the canvas.
+          Honour the scene's chosen loop if it set one, else the colourful dream glow. */}
+      {chrome && backstage === "cinema" && <BackstageStage video={bgCfg.mode === "video" ? bgCfg.video : "dream-intro.mp4"} />}
       <style>{CARD_CURSOR_CSS}</style>
       <style>{CONNECTION_DOTS_CSS}</style>
       <style>{ARROW_EDGE_CSS}</style>
