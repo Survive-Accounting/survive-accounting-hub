@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, Map as MapIcon, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -76,6 +76,8 @@ import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
 import { GhostCellsLayer } from "@/components/canvas/GhostCellsLayer";
+import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
+import { CueSheet } from "@/components/canvas/CueSheet";
 import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
@@ -703,6 +705,17 @@ function GroupChromeBar() {
   );
 }
 
+// BACKSTAGE (AC1) — the authoring-only pane background. Film + frame interiors
+// keep the dark stage; this only dresses the area OUTSIDE frames while composing.
+// "dark" reproduces the current dotted navy; "light" is the calmer new default.
+type BackstageMode = "dark" | "light" | "gray";
+const BACKSTAGE_BG: Record<BackstageMode, string> = {
+  dark: `${NEON.bg} radial-gradient(rgba(147,160,180,0.16) 1px, transparent 1px) 0 0 / 28px 28px`,
+  light: "linear-gradient(160deg, #EEF1F6 0%, #E4E8F0 55%, #DADFEA 100%)",
+  gray: "#9AA1AD",
+};
+const BACKSTAGE_LABEL: Record<BackstageMode, string> = { dark: "Dark dotted", light: "Light gradient", gray: "Plain gray" };
+
 // Composition-guide render treatment by weight — brand gold, strongest at the
 // frame center, faintest at the fifths; the title-safe margin renders dashed.
 function guideStyle(weight: GuideWeight): { thick: number; solid: string; dash: string; opacity: number } {
@@ -817,6 +830,11 @@ function PresentCanvas() {
   }, []);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
+  const [backstage, setBackstage] = useState<BackstageMode>("light"); // AC1: authoring-only pane background (film keeps the dark stage)
+  const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
+  const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
+  const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
+  const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -2083,13 +2101,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2150,6 +2168,10 @@ function PresentCanvas() {
       setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames !== false); // default on
       setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
       setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
+      { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "dark" || bs === "gray" ? bs : "light"); } // default light
+      setFilmEntrancePop((nj.sceneSettings as { filmEntrancePop?: boolean } | undefined)?.filmEntrancePop !== false); // default on
+      setFilmCheckGlow((nj.sceneSettings as { filmCheckGlow?: boolean } | undefined)?.filmCheckGlow !== false); // default on
+      setFramePath((nj.sceneSettings as { framePath?: boolean } | undefined)?.framePath === true); // default off
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -2915,7 +2937,7 @@ function PresentCanvas() {
     <DecksContext.Provider value={decksCtx}>
     <FrameNavContext.Provider value={frameNav}>
     <SpotlightCtx.Provider value={spot}>
-    <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""}`} style={{ background: NEON.bg }}>
+    <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""}`} style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
       <style>{CARD_CURSOR_CSS}</style>
       <style>{CONNECTION_DOTS_CSS}</style>
@@ -3038,6 +3060,8 @@ function PresentCanvas() {
             }}
           />
         )}
+        {/* AC2/AC3: per-lesson ghost sub-frame slots + toggleable numbered film-order path */}
+        {chrome && <FrameGridOverlay showPath={framePath} onAddFrame={(lessonId, beat, sub) => { makeFrameAt(lessonId, beat, sub); }} />}
         {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
         {chrome && minimap && (
           <MiniMap
@@ -3235,6 +3259,8 @@ function PresentCanvas() {
               </div>
             )}
           </div>
+          <TB title="Film-order path — number the frames in a lesson by walk order (authoring)" active={framePath} onClick={() => setFramePath((v) => !v)}><Milestone className="h-3.5 w-3.5" /></TB>
+          <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
           <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
           {currentFrameId && <TB title={showFrameHeader ? "Hide the frame header while inside a frame" : "Show the frame header (LESSON · frame · beat)"} active={showFrameHeader} onClick={() => setShowFrameHeader((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>}
           <div className="relative">
@@ -3300,10 +3326,32 @@ function PresentCanvas() {
                   <input type="checkbox" checked={rehearsalHud} onChange={(e) => setRehearsalHud(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Rehearsal HUD <span className="opacity-60">(next-up when armed)</span>
                 </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: filmEntrancePop ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={filmEntrancePop} onChange={(e) => setFilmEntrancePop(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Entrance pop <span className="opacity-60">(dealt card scale-pop, film)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: filmCheckGlow ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={filmCheckGlow} onChange={(e) => setFilmCheckGlow(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Check glow <span className="opacity-60">(hotter red Check gate, film)</span>
+                </label>
                 <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: compositionGuides ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={compositionGuides} onChange={(e) => setCompositionGuides(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Composition guides <span className="opacity-60">(center/thirds/fifths in a frame; hold Alt to bypass)</span>
                 </label>
+                {/* AC1: backstage background — authoring only; film keeps the dark stage */}
+                <div className="mt-1.5 text-[10px]" style={{ color: NEON.muted }}>Backstage <span className="opacity-60">(authoring only)</span></div>
+                <div className="mt-0.5 flex gap-1">
+                  {(["light", "dark", "gray"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setBackstage(m)}
+                      className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-semibold"
+                      style={{ color: backstage === m ? NEON.yellow : NEON.muted, background: backstage === m ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${backstage === m ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }}
+                    >
+                      {BACKSTAGE_LABEL[m]}
+                    </button>
+                  ))}
+                </div>
                 {/* SCENE COURSE CONTEXT (content reset): pickers scope to this */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: sceneCourseId ? NEON.yellow : NEON.muted }}>Scene course</div>
                 <select
@@ -3460,6 +3508,9 @@ function PresentCanvas() {
 
       {/* "?" cheat sheet — rendered from the keymap registry */}
       {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
+
+      {/* AC4: CUE SHEET — the entered frame's derived space-walk sequence (authoring) */}
+      {chrome && cueSheetOpen && currentFrameId && <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} />}
 
       {/* snap/composition guides — brand-gold lines while a drag aligns. Weight
           sets the treatment: frame CENTER strongest → FIFTHS lightest; SAFE dashed. */}

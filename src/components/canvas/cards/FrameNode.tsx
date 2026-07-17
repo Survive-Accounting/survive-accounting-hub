@@ -106,6 +106,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   return (
     <div
       className="group/frame relative h-full w-full rounded-lg"
+      data-beat={beat}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onDoubleClick={(e) => { e.stopPropagation(); nav.enter(id); }}

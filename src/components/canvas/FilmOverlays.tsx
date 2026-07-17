@@ -214,6 +214,15 @@ export const FILM_MODE_CSS = `
   /* FG4: a frame's own chrome (header, beat chip, title, nav chevrons) never
      renders over a take — the shot is the cards only. */
   .film-mode [data-frame-chrome] { display: none !important; }
+  /* AC5 film polish (both toggleable via body classes on the root):
+     (a) dealt-card ENTRANCE POP — a crisp scale-pop with a touch of overshoot.
+     Animates the independent \`scale\` property so it COMPOSES with a card's own
+     transform:scale() (framed cards sit at ~60%) instead of wiping it. Fires on
+     the node's mount, i.e. exactly when a tucked card is dealt. */
+  @keyframes sa-deal-pop { 0% { scale: 0.82; opacity: 0; } 60% { scale: 1.05; opacity: 1; } 100% { scale: 1; opacity: 1; } }
+  .film-mode.sa-entrance-pop .react-flow__node > * { animation: sa-deal-pop 180ms cubic-bezier(0.22,1,0.36,1) both; }
+  /* (b) CHECK GATE GLOW — the red Check frame reads hotter on camera. */
+  .film-mode.sa-check-glow [data-beat="check"] { box-shadow: 0 0 0 2px rgba(206,17,38,0.65), 0 0 42px -6px rgba(206,17,38,0.75) !important; }
   /* FILM = STRUCTURE INERT, CONTENT LIVE. Every design/structure node
      (frame, lesson, region/zone, heading, text, gate) goes pointer-events:none
      so it can't be selected, dragged, resized, or hovered — clicks fall through
