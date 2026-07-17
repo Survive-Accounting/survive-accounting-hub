@@ -429,6 +429,9 @@ export interface ListRow {
   /** CONTRA FORM (P2): indent + prepend "Less: " — statement form for contra
    *  items (Equipment / Less: Accumulated Depreciation). */
   indent?: boolean;
+  /** YOU-ARE-HERE: baked-in spotlight for the lesson-outline list — the current
+   *  lesson's row renders emphasized (gold accent) so intros read "here we are". */
+  youAreHere?: boolean;
 }
 export interface ListCard extends CardBase {
   kind: "list";

@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, FlaskConical, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, FlaskConical, FileText, Frame, Grid3x3, Layers, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -34,7 +34,7 @@ import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { ManageCourseDialog } from "@/components/canvas/ManageCourseDialog";
 import { NEON } from "@/components/canvas/theme";
-import { blankCard } from "@/components/canvas/templates";
+import { blankCard, formulaAle } from "@/components/canvas/templates";
 import { buildLibrary } from "@/components/canvas/library";
 import { Palette } from "@/components/canvas/Palette";
 import { JeCardNode } from "@/components/canvas/cards/JeCardNode";
@@ -583,7 +583,26 @@ interface BgConfig {
   video: string; // file inside /anim
   opacity: number; // 0..1
 }
-const BG_DEFAULT: BgConfig = { mode: "flat", video: BG_VIDEOS[2].file, opacity: 0.16 };
+const BG_DEFAULT: BgConfig = { mode: "grid", video: BG_VIDEOS[2].file, opacity: 0.16 };
+
+// ADD CARD menu — the card kinds Lee spawns while filming (Palette still has the
+// full library in the drawer). "formula" routes through formulaAle() for A=L+E.
+const ADD_CARD_KINDS: { kind: Parameters<typeof blankCard>[0]; label: string; preset?: Parameters<typeof blankCard>[1] }[] = [
+  { kind: "heading", label: "Heading" },
+  { kind: "text", label: "Text" },
+  { kind: "list", label: "List" },
+  { kind: "je", label: "Journal Entry" },
+  { kind: "taccount", label: "T-Account" },
+  { kind: "note", label: "Note" },
+  { kind: "computation", label: "Computation" },
+  { kind: "formula", label: "A = L + E" },
+  { kind: "legend", label: "Legend" },
+  { kind: "schedule", label: "Table", preset: "generic" },
+  { kind: "ceq", label: "Question" },
+  { kind: "memorize", label: "Memorize" },
+  { kind: "image", label: "Image" },
+  { kind: "video", label: "Video" },
+];
 
 const encodeBg = (c: BgConfig) => (c.mode === "video" ? `video|${c.video}|${Math.round(c.opacity * 100)}` : c.mode);
 function decodeBg(s: string | null | undefined): BgConfig | null {
@@ -754,7 +773,9 @@ function PresentCanvas() {
   // needs to react (tray, minimize sync).
   const liveNodes = useNodes();
   const [bgCfg, setBgCfg] = useState<BgConfig>(BG_DEFAULT);
-  const [bgOpen, setBgOpen] = useState(false); // background picker popover
+  const [bgOpen, setBgOpen] = useState(false); // background picker popover (removed from toolbar; dot grid forced)
+  const [fileMenuOpen, setFileMenuOpen] = useState(false); // File menu (Save/Load/Export/…) upward dropdown
+  const [addCardOpen, setAddCardOpen] = useState(false);   // Add Card menu — card-kind picker upward dropdown
   const [minimap, setMinimap] = useState(true);
   const [clean, setClean] = useState(false);
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
@@ -1226,7 +1247,7 @@ function PresentCanvas() {
   // ONE lesson cell = a lesson node + its 4 beat frames (Hook · Teach · M/P ·
   // Check, one sub-frame each at row 0). Reused by the scaffold and by the
   // ghost-cell "+ add lesson" click, so every cell is stamped identically.
-  const buildLessonCell = useCallback((pos: { x: number; y: number }, label: string, pathOrder: number, check: boolean): CardNode[] => {
+  const buildLessonCell = useCallback((pos: { x: number; y: number }, label: string, pathOrder: number, check: boolean, allLabels: string[] = []): CardNode[] => {
     const cell = lessonCellSize();
     const lid = cardId("lesson");
     const lesson = {
@@ -1240,21 +1261,32 @@ function PresentCanvas() {
       // Lee's on-set reminders (filming chrome; hidden in film).
       data: { ...blankFrameData(b.beat, 0), note: SCAFFOLD_NOTES[b.beat] } as unknown as CardNode["data"],
     }));
-    // COURSE OUTLINE (item 5): the staircase rides in every lesson as the Hook's
-    // SECOND frame (subIndex 1). It's DERIVED — courseId null so it reads the scene
-    // course, you-are-here auto-detects from THIS lesson's label. Not seeded content.
+    // HOOK · FRAME 1 — the lesson TITLE, prefilled. A resizable/positionable
+    // heading so Lee frames it wherever the intro shot needs it.
+    const titleCard = {
+      id: cardId("heading"), type: "heading", parentId: frames[0].id,
+      position: { x: 110, y: 150 },
+      data: { kind: "heading", text: label, level: 1, scrim: true } as unknown as CardNode["data"],
+    };
+    // HOOK · FRAME 2 — the COURSE OUTLINE as a plain LIST of every lesson, with
+    // THIS lesson's row marked "you are here" (auto-spotlight). Prefilled so the
+    // intro's "here's where we're going" beat is one card, no authoring.
     const outlineFrameId = cardId("frame");
     const outlineFrame = {
       id: outlineFrameId, type: "frame", parentId: lid,
       position: { x: columnX(0), y: rowY(1) }, width: FRAME_W, height: FRAME_H,
       data: { ...blankFrameData("hook", 1), title: "Outline" } as unknown as CardNode["data"],
     };
-    const outlineCard = {
-      id: cardId("outline"), type: "outline", parentId: outlineFrameId,
+    const labels = allLabels.length ? allLabels : [label];
+    const outlineList = {
+      id: cardId("list"), type: "list", parentId: outlineFrameId,
       position: { x: 130, y: 72 },
-      data: blankCard("outline") as unknown as CardNode["data"],
+      data: {
+        kind: "list", title: "Lessons", showChips: false,
+        rows: labels.map((t) => ({ id: cardId("r"), text: t, youAreHere: t === label })),
+      } as unknown as CardNode["data"],
     };
-    return [lesson, ...frames, outlineFrame, outlineCard] as CardNode[];
+    return [lesson, ...frames, titleCard, outlineFrame, outlineList] as CardNode[];
   }, []);
 
   const spawnRegionScaffold = useCallback(() => {
@@ -1308,6 +1340,8 @@ function PresentCanvas() {
       fitRect = null;
     }
 
+    // Every lesson's Hook-2 outline list shows the WHOLE course (grid + wrap-up).
+    const allLabels = [...gridChapters.map(chapterLabel), ...(wrapChapter ? [chapterLabel(wrapChapter)] : [])];
     const nodes: CardNode[] = [
       { id: cardId("heading"), type: "heading", position: { x: homeX, y: homeY },
         data: { kind: "heading", text: `Welcome — start here [${name}]`, level: 2 } as unknown as CardNode["data"] },
@@ -1315,10 +1349,10 @@ function PresentCanvas() {
         data: { kind: "asklee" } as unknown as CardNode["data"] },
       ...regionHeader,
       // GRID CHAPTERS → cells in reading order (reserved footprint each).
-      ...gridChapters.flatMap((ch, i) => buildLessonCell({ x: ox + rl.cells[i].x, y: gridTop + rl.cells[i].y }, chapterLabel(ch), i + 1, false)),
+      ...gridChapters.flatMap((ch, i) => buildLessonCell({ x: ox + rl.cells[i].x, y: gridTop + rl.cells[i].y }, chapterLabel(ch), i + 1, false, allLabels)),
       // WRAP-UP → centered below, region-level red Check tint, same 4-beat arc.
       ...(wrapChapter && rl.wrapUp
-        ? buildLessonCell({ x: ox + rl.wrapUp.x, y: gridTop + rl.wrapUp.y }, chapterLabel(wrapChapter), gridChapters.length + 1, true)
+        ? buildLessonCell({ x: ox + rl.wrapUp.x, y: gridTop + rl.wrapUp.y }, chapterLabel(wrapChapter), gridChapters.length + 1, true, allLabels)
         : []),
     ] as CardNode[];
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
@@ -3267,14 +3301,16 @@ function PresentCanvas() {
         style={{ background: "transparent" }}
         fitView
       >
-        {bgCfg.mode === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
+        {bgCfg.mode !== "video" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
         {/* SKELETON GRID (P4): ghost previews for named decks' undealt slots */}
         <SkeletonLayer decks={decks} />
         {/* GHOST CELLS: empty region-grid slots as "+ add lesson" (authoring only) */}
         {chrome && (
           <GhostCellsLayer
             onAdd={(pos, pathOrder) => {
-              const cellNodes = buildLessonCell(pos, "New lesson", pathOrder, false);
+              // the outline list on the new lesson shows every existing lesson + itself
+              const existing = rf.getNodes().filter((n) => n.type === "lesson").map((n) => String((n.data as { label?: string }).label ?? "")).filter(Boolean);
+              const cellNodes = buildLessonCell(pos, "New lesson", pathOrder, false, [...existing, "New lesson"]);
               bus.dispatch(addNodesCmd(rf as unknown as RfLike, cellNodes, "add lesson"));
               if (pathOrder > 15) flashToast("16th lesson — grid extended a row"); // soft warn, never block
             }}
@@ -3430,64 +3466,47 @@ function PresentCanvas() {
             onKeyDown={(e) => e.stopPropagation()}
             title="Scene name"
           />
-          <TB title="Save" onClick={() => void doSave()}><Save className="h-3.5 w-3.5" /></TB>
-          <TB title="Save as new scene" onClick={() => void doSave(true)}><FilePlus2 className="h-3.5 w-3.5" /></TB>
-          <TB title="Load scene" onClick={() => void openLoad()}><FolderOpen className="h-3.5 w-3.5" /></TB>
-          <TB title="Export scene (.json + outline.md)" onClick={exportScene}><Download className="h-3.5 w-3.5" /></TB>
-          <TB title="Import scene from file" onClick={() => importRef.current?.click()}><Upload className="h-3.5 w-3.5" /></TB>
+          {/* FILE — save / load / export / import / new tab (upward dropdown) */}
+          <div className="relative">
+            <MenuButton icon={<FileText className="h-3.5 w-3.5" />} label="File" open={fileMenuOpen} onClick={() => { setFileMenuOpen((v) => !v); setAddCardOpen(false); }} />
+            {fileMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFileMenuOpen(false)} />
+                <div className="absolute bottom-9 left-0 z-50 w-44 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  <MenuRow icon={<Save className="h-3.5 w-3.5" />} label="Save" onClick={() => { setFileMenuOpen(false); void doSave(); }} />
+                  <MenuRow icon={<FilePlus2 className="h-3.5 w-3.5" />} label="Save as new" onClick={() => { setFileMenuOpen(false); void doSave(true); }} />
+                  <MenuRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="Load scene" onClick={() => { setFileMenuOpen(false); void openLoad(); }} />
+                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+                  <MenuRow icon={<Download className="h-3.5 w-3.5" />} label="Export (.json + .md)" onClick={() => { setFileMenuOpen(false); exportScene(); }} />
+                  <MenuRow icon={<Upload className="h-3.5 w-3.5" />} label="Import from file" onClick={() => { setFileMenuOpen(false); importRef.current?.click(); }} />
+                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+                  <MenuRow icon={<Plus className="h-3.5 w-3.5" />} label="New tab" onClick={() => { setFileMenuOpen(false); newTab(); }} />
+                </div>
+              </>
+            )}
+          </div>
           <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />
-          <TB title="New tab (blank scene — clears nothing)" onClick={newTab}><Plus className="h-3.5 w-3.5" /></TB>
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
-          <TB title="Add region (zone)" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
-          <TB title="Add lesson (heading + cards in a hugging box)" onClick={addLesson}><Frame className="h-3.5 w-3.5" /></TB>
+          {/* ADD CARD — card-kind picker (upward). Replaces Add region / Add lesson. */}
+          <div className="relative">
+            <MenuButton icon={<Plus className="h-3.5 w-3.5" />} label="Card" open={addCardOpen} onClick={() => { setAddCardOpen((v) => !v); setFileMenuOpen(false); }} />
+            {addCardOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setAddCardOpen(false)} />
+                <div className="absolute bottom-9 left-0 z-50 grid w-64 grid-cols-2 gap-0.5 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  {ADD_CARD_KINDS.map((c) => (
+                    <BgOption key={c.label} label={c.label} active={false} onClick={() => { setAddCardOpen(false); spawn(c.kind === "formula" ? formulaAle() : blankCard(c.kind, c.preset)); }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <TB
             title="Add region scaffold — full-width header + chapters laid on a snaking path (layout stamp)"
             onClick={() => { setScaffoldCourseId(sceneCourseId ?? ""); setScaffoldOpen(true); }}
           >
-            <MapIcon className="h-3.5 w-3.5" />
+            <LayoutTemplate className="h-3.5 w-3.5" />
           </TB>
-          <TB title="Tidy layout — re-snake the region's lessons (even spacing, clean turns; one undo)" onClick={reflowPath}>
-            <Shrink className="h-3.5 w-3.5" />
-          </TB>
-          <div className="relative">
-            <TB title="Background & animations" active={bgOpen || bgCfg.mode === "video"} onClick={() => setBgOpen((v) => !v)}>
-              {bgCfg.mode === "video" ? <VideoIcon className="h-3.5 w-3.5" /> : <Grid3x3 className="h-3.5 w-3.5" />}
-            </TB>
-            {bgOpen && (
-              <div
-                className="absolute bottom-9 left-1/2 z-50 w-44 -translate-x-1/2 rounded-xl p-2"
-                style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}
-              >
-                <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Background</div>
-                <BgOption label="Flat" active={bgCfg.mode === "flat"} onClick={() => { setBgCfg({ ...bgCfg, mode: "flat" }); setBgOpen(false); }} />
-                <BgOption label="Dot grid" active={bgCfg.mode === "grid"} onClick={() => { setBgCfg({ ...bgCfg, mode: "grid" }); setBgOpen(false); }} />
-                <div className="mb-1 mt-2 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Animations</div>
-                {BG_VIDEOS.map((v) => (
-                  <BgOption
-                    key={v.file}
-                    label={v.label}
-                    active={bgCfg.mode === "video" && bgCfg.video === v.file}
-                    onClick={() => setBgCfg({ ...bgCfg, mode: "video", video: v.file })}
-                  />
-                ))}
-                {bgCfg.mode === "video" && (
-                  <label className="mt-2 block px-1 text-[10px]" style={{ color: NEON.muted }}>
-                    opacity · {Math.round(bgCfg.opacity * 100)}%
-                    <input
-                      type="range"
-                      min={4}
-                      max={60}
-                      value={Math.round(bgCfg.opacity * 100)}
-                      onChange={(e) => setBgCfg({ ...bgCfg, opacity: Number(e.target.value) / 100 })}
-                      className="mt-0.5 w-full"
-                      style={{ accentColor: NEON.yellow }}
-                    />
-                  </label>
-                )}
-              </div>
-            )}
-          </div>
-          <TB title="Film-order path — number the frames in a lesson by walk order (authoring)" active={framePath} onClick={() => setFramePath((v) => !v)}><Milestone className="h-3.5 w-3.5" /></TB>
           <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
           <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
@@ -4144,6 +4163,37 @@ function TB({ children, onClick, title, active }: { children: React.ReactNode; o
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "transparent")}
     >
       {children}
+    </button>
+  );
+}
+
+/** Labeled toolbar button that opens a dropdown (File, Add Card). */
+function MenuButton({ icon, label, open, onClick }: { icon: React.ReactNode; label: string; open: boolean; onClick: () => void }) {
+  return (
+    <button
+      title={label}
+      onClick={onClick}
+      className="flex h-7 items-center gap-1 rounded-md px-2 text-[12px] font-semibold transition-colors"
+      style={{ color: NEON.text, background: open ? "rgba(252,163,17,0.16)" : "transparent", border: "1px solid transparent" }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = NEON.border)}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = open ? NEON.border : "transparent")}
+    >
+      {icon} {label}
+    </button>
+  );
+}
+
+/** One icon+label row inside a toolbar dropdown menu. */
+function MenuRow({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12px] font-medium transition-colors"
+      style={{ color: NEON.text }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(252,163,17,0.12)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      onClick={onClick}
+    >
+      <span style={{ color: NEON.muted }}>{icon}</span> {label}
     </button>
   );
 }
