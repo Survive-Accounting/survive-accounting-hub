@@ -4,7 +4,7 @@
 // Compact + high-contrast so it reads from across the room; a corner picker
 // (top-left / top-center / top-right) parks it under wherever the webcam sits.
 // Follows frame navigation automatically (it renders whatever frame is current).
-import { AlignCenter, AlignLeft, AlignRight, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ExternalLink, X } from "lucide-react";
 import { useNodes } from "@xyflow/react";
 
 import { frameCellLabel } from "./frames";
@@ -27,11 +27,12 @@ const CORNERS: { k: PrompterCorner; icon: typeof AlignLeft; label: string }[] = 
 
 /** Live wrapper — subscribes to the node store so script edits (and frame
  *  navigation) update the prompter in place. Renders nothing without a frame. */
-export function TeleprompterOverlay({ frameId, corner, onCorner, onClose }: {
+export function TeleprompterOverlay({ frameId, corner, onCorner, onClose, onPopOut }: {
   frameId: string | null;
   corner: PrompterCorner;
   onCorner: (c: PrompterCorner) => void;
   onClose: () => void;
+  onPopOut?: () => void;
 }) {
   const nodes = useNodes();
   if (!frameId) return null;
@@ -39,15 +40,16 @@ export function TeleprompterOverlay({ frameId, corner, onCorner, onClose }: {
   if (!frame) return null;
   const d = frame.data as unknown as FrameBox;
   const label = `${frameCellLabel(frame as never)}${d.title ? ` — ${d.title}` : ""}`;
-  return <Teleprompter script={d.script} frameLabel={label} corner={corner} onCorner={onCorner} onClose={onClose} />;
+  return <Teleprompter script={d.script} frameLabel={label} corner={corner} onCorner={onCorner} onClose={onClose} onPopOut={onPopOut} />;
 }
 
-export function Teleprompter({ script, frameLabel, corner, onCorner, onClose }: {
+export function Teleprompter({ script, frameLabel, corner, onCorner, onClose, onPopOut }: {
   script: FrameScript | undefined;
   frameLabel: string;
   corner: PrompterCorner;
   onCorner: (c: PrompterCorner) => void;
   onClose: () => void;
+  onPopOut?: () => void;
 }) {
   const beats = (script?.beats ?? "")
     .split("\n")
@@ -80,6 +82,11 @@ export function Teleprompter({ script, frameLabel, corner, onCorner, onClose }: 
             <Icon className="h-2.5 w-2.5" />
           </button>
         ))}
+        {onPopOut && (
+          <button className="grid h-4 w-4 place-items-center rounded" title="Pop out to a second window (off-stage for OBS)" style={{ color: "rgba(255,255,255,0.35)" }} onClick={onPopOut}>
+            <ExternalLink className="h-2.5 w-2.5" />
+          </button>
+        )}
         <button className="grid h-4 w-4 place-items-center rounded" title="Hide (p)" style={{ color: "rgba(255,255,255,0.35)" }} onClick={onClose}>
           <X className="h-2.5 w-2.5" />
         </button>

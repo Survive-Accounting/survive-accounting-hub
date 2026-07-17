@@ -9,7 +9,7 @@
 // the frame to the derived order.
 import { useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronDown, ChevronUp, GripVertical, Layers, ListOrdered, MousePointerClick, RotateCcw, StickyNote, X } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, GripVertical, Layers, ListOrdered, MousePointerClick, RotateCcw, StickyNote, X } from "lucide-react";
 
 import { bus, type RfLike } from "./commands";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type Cue, type CueState } from "./cue-sheet";
@@ -27,7 +27,7 @@ const KIND_META: Record<Cue["kind"], { icon: typeof Layers; color: string; verb:
   advance: { icon: ChevronDown, color: NEON.muted, verb: "Advance" },
 };
 
-export function CueSheet({ frameId, onClose }: { frameId: string; onClose: () => void }) {
+export function CueSheet({ frameId, onClose, onPopOut, inPopout }: { frameId: string; onClose: () => void; onPopOut?: () => void; inPopout?: boolean }) {
   const rf = useReactFlow();
   const nodes = useNodes() as unknown as AnyNode[];
   const edges = useEdges() as unknown as { id: string; source: string; target: string }[];
@@ -103,8 +103,8 @@ export function CueSheet({ frameId, onClose }: { frameId: string; onClose: () =>
 
   return (
     <div
-      className="absolute bottom-4 right-4 z-40 flex max-h-[70vh] w-72 flex-col rounded-xl"
-      style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 20px 50px -18px rgba(0,0,0,0.75)" }}
+      className={inPopout ? "flex h-full w-full flex-col" : "absolute bottom-4 right-4 z-40 flex max-h-[70vh] w-72 flex-col rounded-xl"}
+      style={inPopout ? { background: NEON.bg, color: NEON.text } : { background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 20px 50px -18px rgba(0,0,0,0.75)" }}
     >
       <div className="flex items-center gap-1.5 border-b px-2.5 py-1.5" style={{ borderColor: NEON.borderSoft }}>
         <ListOrdered className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
@@ -113,7 +113,8 @@ export function CueSheet({ frameId, onClose }: { frameId: string; onClose: () =>
         <span className="flex-1" />
         {isCustom && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Reset to the derived order" onClick={() => writeOrder(null)}><RotateCcw className="h-3 w-3" /></button>}
         <span className="text-[9.5px]" style={{ color: NEON.muted }}>{cues.length}</span>
-        <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Close" onClick={onClose}><X className="h-3 w-3" /></button>
+        {onPopOut && !inPopout && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Pop out to a second window (off-stage for OBS)" onClick={onPopOut}><ExternalLink className="h-3 w-3" /></button>}
+        {!inPopout && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Close" onClick={onClose}><X className="h-3 w-3" /></button>}
       </div>
       {/* SCRIPT (script editor) — what Lee SAYS in this frame, above what happens */}
       {(() => {

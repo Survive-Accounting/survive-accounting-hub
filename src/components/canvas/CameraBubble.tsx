@@ -176,8 +176,10 @@ export function CameraBubble({ onClose }: { onClose: () => void }) {
         <span className="mx-auto block h-[2px] w-3/5 rounded-full" style={{ background: NEON.yellow }} />
       </div>
 
-      {/* controls — appear on hover, hidden while at rest (clean on camera) */}
-      <div className="absolute -top-8 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover:opacity-100"
+      {/* controls — appear on hover, hidden while at rest (clean on camera). The
+          sa-chrome class also hides them in FILM mode so a stray hover never
+          reveals the device picker on the recording. */}
+      <div className="sa-chrome absolute -top-8 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover:opacity-100"
         style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
         onPointerDown={(e) => e.stopPropagation()}
       >
@@ -205,7 +207,7 @@ export function CameraBubble({ onClose }: { onClose: () => void }) {
 
       {/* corner resize handle */}
       <div
-        className="absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize opacity-0 transition-opacity group-hover:opacity-100"
+        className="sa-chrome absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize opacity-0 transition-opacity group-hover:opacity-100"
         style={{ background: `linear-gradient(135deg, transparent 50%, ${NEON.yellow} 50%)`, borderBottomRightRadius: prefs.shape === "circle" ? 9999 : 22 }}
         onPointerDown={onPointerDown("resize")}
         title="Resize"

@@ -9,7 +9,7 @@
 // removes MEMBERSHIP only. Pure ordering/grouping logic lives in deck-logic.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronDown, ChevronRight, Download, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, ExternalLink, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
 
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { nextStageOrder } from "./BaseCard";
@@ -88,6 +88,8 @@ export function importLessonDecks(rf: RfLike & { getNodes: () => DeckNode[] }, t
 export function Deck({
   open,
   onClose,
+  onPopOut,
+  inPopout,
   onDeal,
   onFocus,
   onRemoveMembership,
@@ -101,6 +103,8 @@ export function Deck({
   /** Toolbar-controlled: the panel shows only when open (no top-right badge). */
   open: boolean;
   onClose: () => void;
+  onPopOut?: () => void;
+  inPopout?: boolean;
   onDeal: (id: string) => void;
   onFocus: (id: string) => void;
   onRemoveMembership: (id: string) => void;
@@ -221,8 +225,8 @@ export function Deck({
 
   return (
     <aside
-      className="absolute bottom-16 right-3 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"
-      style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
+      className={inPopout ? "flex h-full w-full flex-col" : "absolute bottom-16 right-3 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"}
+      style={inPopout ? { background: NEON.bg, color: NEON.text } : { background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => reorder(null)}
     >
@@ -231,9 +235,10 @@ export function Deck({
         <span className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.yellow }}>
           Deck <span style={{ color: NEON.muted }}>({tuckedCount}/{members.length})</span>
         </span>
-        <button onClick={onClose} title="Close deck" className="ml-auto" style={{ color: NEON.muted }}>
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <span className="ml-auto flex items-center gap-1">
+          {onPopOut && !inPopout && <button onClick={onPopOut} title="Pop out to a second window (off-stage for OBS)" style={{ color: NEON.muted }}><ExternalLink className="h-3.5 w-3.5" /></button>}
+          {!inPopout && <button onClick={onClose} title="Close deck" style={{ color: NEON.muted }}><X className="h-3.5 w-3.5" /></button>}
+        </span>
       </div>
 
       {/* actions */}

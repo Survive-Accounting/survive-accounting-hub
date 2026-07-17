@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Eye, Film, Flag, FlaskConical, FileText, Frame, Grid3x3, Layers, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Grid3x3, Layers, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -66,6 +66,7 @@ import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canv
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
 import { LessonNavigator } from "@/components/canvas/LessonNavigator";
+import { PanelPopout, PopoutPlaceholder, TeleprompterPopout, openPopoutWindow } from "@/components/canvas/PanelPopout";
 import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
@@ -97,6 +98,10 @@ import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
+
+// Panels that can be popped out to the director's second-monitor window.
+type PopKey = "teleprompter" | "cuesheet" | "deck";
+const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck"];
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -776,6 +781,16 @@ function PresentCanvas() {
   const [fileMenuOpen, setFileMenuOpen] = useState(false); // File menu (Save/Load/Export/…) upward dropdown
   const [addCardOpen, setAddCardOpen] = useState(false);   // Add Card menu — card-kind picker upward dropdown
   const [deckOpen, setDeckOpen] = useState(false); // Deck panel (toolbar-controlled; no top-right badge)
+  // PANEL POPOUTS — the director's monitor. A popped panel renders into a
+  // separate browser window (off-stage for OBS Window Capture) via createPortal,
+  // same React tree so the bus / frame-nav / deck all keep working live.
+  const [popWins, setPopWins] = useState<Partial<Record<PopKey, Window>>>({});
+  const popWinsRef = useRef<Partial<Record<PopKey, Window>>>({});
+  popWinsRef.current = popWins;
+  const [popRestore] = useState<PopKey[]>(() => { try { return (JSON.parse(localStorage.getItem("sa-canvas-popouts") || "[]") as PopKey[]).filter((k) => POP_KEYS.includes(k)); } catch { return []; } });
+  const [popRestoreDismissed, setPopRestoreDismissed] = useState(false);
+  const savePopMemory = (wins: Partial<Record<PopKey, Window>>) => { try { localStorage.setItem("sa-canvas-popouts", JSON.stringify(Object.keys(wins))); } catch { /* ignore */ } };
+  const isPopped = (key: PopKey) => !!popWins[key];
   const [clean, setClean] = useState(false);
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
   const filmRef = useRef(film);
@@ -872,6 +887,17 @@ function PresentCanvas() {
     setToast(msg);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 1800);
+  }, []);
+  // Pop a panel out to its own window (must run from the click gesture so the
+  // browser doesn't block window.open). returnPop drops it from state — the
+  // PanelPopout cleanup closes the actual window.
+  const openPop = useCallback((key: PopKey, w = 640, h = 900) => {
+    const win = openPopoutWindow(key, w, h);
+    if (!win) { flashToast("Popup blocked — allow popups for this site to pop out a panel"); return; }
+    setPopWins((p) => { const n = { ...p, [key]: win }; savePopMemory(n); return n; });
+  }, [flashToast]);
+  const returnPop = useCallback((key: PopKey) => {
+    setPopWins((p) => { const n = { ...p }; delete n[key]; savePopMemory(n); return n; });
   }, []);
   // FAIL-LOUD: a dark feature's table missing → a visible toast naming the
   // migration (the data layer also console.errors). Held longer than a flash.
@@ -3063,7 +3089,7 @@ function PresentCanvas() {
         },
       },
       { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
-      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
+      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
       { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
       { combo: "p", group: "Modes", description: "Teleprompter — the current frame's script (authoring + film)", handler: () => setPrompter((v) => { const on = !v; if (on && !currentFrameRef.current) flashToast("Enter a frame — the prompter reads the current frame's script"); return on; }) },
       { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
@@ -3453,8 +3479,33 @@ function PresentCanvas() {
           own subscriptions so pan/zoom doesn't re-render the route */}
       {chrome && <GroupChromeBar />}
 
-      {/* The DECK — one holding system (opened from the toolbar; spacebar still deals) */}
-      {chrome && (
+      {/* RESTORE POPOUTS — browsers can't auto-reopen windows on reload, so if a
+          prior session had panels popped we offer a one-click restore (from this
+          gesture) rather than silently dropping them. */}
+      {chrome && popRestore.length > 0 && !popRestoreDismissed && Object.keys(popWins).length === 0 && (
+        <div className="absolute left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-1.5 text-[12px]" style={{ background: NEON.panel, border: `1px solid ${NEON.border}`, color: NEON.text, backdropFilter: "blur(8px)" }}>
+          <ExternalLink className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
+          <span>Restore {popRestore.length} popped-out panel{popRestore.length > 1 ? "s" : ""}?</span>
+          <button
+            className="rounded px-2 py-0.5 font-semibold"
+            style={{ background: NEON.yellow, color: "#0B1322" }}
+            onClick={() => {
+              for (const key of popRestore) {
+                if (key === "teleprompter") { setPrompter(true); openPop(key, 720, 540); }
+                else if (key === "cuesheet") { setCueSheetOpen(true); openPop(key); }
+                else if (key === "deck") { setDeckOpen(true); openPop(key); }
+              }
+              setPopRestoreDismissed(true);
+            }}
+          >Restore</button>
+          <button className="rounded px-1.5 py-0.5" style={{ color: NEON.muted }} onClick={() => { setPopRestoreDismissed(true); try { localStorage.removeItem("sa-canvas-popouts"); } catch { /* ignore */ } }}>Dismiss</button>
+        </div>
+      )}
+
+      {/* The DECK — one holding system (opened from the toolbar; spacebar still
+          deals). Popped out it deals through the SAME command bus, so a card
+          dealt from the 2nd-monitor window lands on the canvas exactly as usual. */}
+      {chrome && !isPopped("deck") && (
         <Deck
           open={deckOpen}
           onClose={() => setDeckOpen(false)}
@@ -3467,7 +3518,29 @@ function PresentCanvas() {
           setHideFdLabels={setHideFdLabels}
           decks={decks}
           setDecks={setDecks}
+          onPopOut={() => openPop("deck")}
         />
+      )}
+      {deckOpen && isPopped("deck") && (
+        <PanelPopout win={popWins.deck!} title="Deck" onReturn={() => returnPop("deck")}>
+          <Deck
+            open
+            inPopout
+            onClose={() => setDeckOpen(false)}
+            onDeal={deal}
+            onFocus={focusNode}
+            onRemoveMembership={removeMembership}
+            dealFaceDown={dealFaceDown}
+            setDealFaceDown={setDealFaceDown}
+            hideFdLabels={hideFdLabels}
+            setHideFdLabels={setHideFdLabels}
+            decks={decks}
+            setDecks={setDecks}
+          />
+        </PanelPopout>
+      )}
+      {chrome && deckOpen && isPopped("deck") && (
+        <PopoutPlaceholder title="Deck" onReturn={() => returnPop("deck")} style={{ top: 12, right: 12 }} />
       )}
 
       {/* LESSON NAVIGATOR — bottom pager (one lesson at a time; expand for frames) */}
@@ -3814,8 +3887,20 @@ function PresentCanvas() {
       {/* "?" cheat sheet — rendered from the keymap registry */}
       {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
 
-      {/* AC4: CUE SHEET — the entered frame's derived space-walk sequence (authoring) */}
-      {chrome && cueSheetOpen && currentFrameId && <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} />}
+      {/* AC4: CUE SHEET — the entered frame's derived space-walk sequence (authoring).
+          Popped out it lives in a 2nd-monitor window (ungated by chrome → stays
+          live in film); in-canvas we leave a placeholder chip to bring it back. */}
+      {cueSheetOpen && currentFrameId && isPopped("cuesheet") && (
+        <PanelPopout win={popWins.cuesheet!} title="Cue sheet" onReturn={() => returnPop("cuesheet")}>
+          <CueSheet frameId={currentFrameId} inPopout onClose={() => setCueSheetOpen(false)} />
+        </PanelPopout>
+      )}
+      {chrome && cueSheetOpen && currentFrameId && !isPopped("cuesheet") && (
+        <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} onPopOut={() => openPop("cuesheet")} />
+      )}
+      {chrome && cueSheetOpen && isPopped("cuesheet") && (
+        <PopoutPlaceholder title="Cue sheet" onReturn={() => returnPop("cuesheet")} style={{ top: 12, right: 12 }} />
+      )}
 
       {/* SCRIPT EDITOR — the whole course script in one modal (authoring only) */}
       {chrome && scriptOpen && (
@@ -3832,14 +3917,25 @@ function PresentCanvas() {
       {chrome && spikeOpen && <RecorderSpike onClose={() => setSpikeOpen(false)} />}
 
       {/* TELEPROMPTER — author-only, works in authoring AND film; `p` toggles.
-          Never a student surface: it's an overlay on Lee's filming canvas. */}
-      {prompter && (
+          Never a student surface: it's an overlay on Lee's filming canvas.
+          Popped out → the reason this whole feature exists: a big-type reader on
+          the 2nd monitor near the lens, off-stage for OBS, live-following nav. */}
+      {prompter && isPopped("teleprompter") && (
+        <PanelPopout win={popWins.teleprompter!} title="Teleprompter" onReturn={() => returnPop("teleprompter")}>
+          <TeleprompterPopout frameId={currentFrameId} />
+        </PanelPopout>
+      )}
+      {prompter && !isPopped("teleprompter") && (
         <TeleprompterOverlay
           frameId={currentFrameId}
           corner={prompterCorner}
           onCorner={setPrompterCorner}
           onClose={() => setPrompter(false)}
+          onPopOut={() => openPop("teleprompter", 720, 540)}
         />
+      )}
+      {chrome && prompter && isPopped("teleprompter") && (
+        <PopoutPlaceholder title="Teleprompter" onReturn={() => returnPop("teleprompter")} style={{ top: 12, left: "50%", transform: "translateX(-50%)" }} />
       )}
 
 
