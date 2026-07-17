@@ -386,3 +386,20 @@ a driver and a lesson **performs itself**:
   makes a canvas worth a professor's whole lecture.
 NOT before Lee's own courses ship — this is the wedge AFTER the core product is
 proven, not a detour from it.
+
+## Lock It In gating — the fork (decide AFTER Start Here ships; do NOT build yet)
+
+- **Model A (current):** gate at Ch 8; Chs 9–13 paid; Lock It In is paid
+  because it IS Ch 13. Simple, already wired (paygate cards, freeThrough on
+  the Course Outline card).
+- **Model B (floated):** videos widely free; WATCH-THROUGH unlocks Lock It
+  In; the platform interactivity is the paid product. Costs: requires auth +
+  watch-tracking before it can even be tested, and has a pedagogical hole —
+  free students never learn adjusting/closing, so the full-cycle capstone is
+  undoable for exactly the people it's supposed to convert.
+- **CANDIDATE SIMPLIFICATION — free MINI LOCK-IN at the gate:** finishing
+  Chs 1–8 unlocks a fast cram of exactly the free half (journalize → post →
+  trial balance), ending on the pitch that the FULL Lock It In runs the whole
+  cycle on the paid side. The completion moment becomes the conversion moment
+  (same success-not-struggle rule as the Bridge cards / completion promo in
+  docs/VIDEO-FUNNEL-AND-PRICING.md).

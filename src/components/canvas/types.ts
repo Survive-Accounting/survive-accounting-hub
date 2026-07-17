@@ -378,6 +378,10 @@ export interface HeadingCard extends CardBase {
    *  lesson title reads over a bright background loop. Scaffold-v2 hook titles
    *  ship with this on. */
   scrim?: boolean;
+  /** TYPEWRITER ENTRANCE (item 11): in FILM mode, the text types itself in
+   *  (~600ms) when its frame is entered — the lesson-title reveal. Per-element
+   *  toggle; no effect outside film. */
+  typewriter?: boolean;
 }
 
 // ---- Text element (freeform markdown-lite block; ELEMENT category) ----

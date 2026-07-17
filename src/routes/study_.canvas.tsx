@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, FlaskConical, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -83,6 +83,7 @@ import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
 import { FrameTakesProvider, MuxBanner, TakeBoardCell } from "@/components/canvas/frame-takes";
+import { RecorderSpike } from "@/components/canvas/RecorderSpike";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
@@ -846,6 +847,7 @@ function PresentCanvas() {
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
   const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
   const [scriptOpen, setScriptOpen] = useState(false); // SCRIPT EDITOR: the course-script modal
+  const [spikeOpen, setSpikeOpen] = useState(false); // PHASE 3 EXPERIMENT: in-browser recorder spike (never the main flow)
   const [prompter, setPrompter] = useState(false); // TELEPROMPTER: hidden by default (incl. film); `p` toggles
   const [prompterCorner, setPrompterCorner] = useState<PrompterCorner>("tc"); // camera eyeline corner (persisted)
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
@@ -3412,6 +3414,7 @@ function PresentCanvas() {
           <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
           <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
+          <TB title="Recorder spike (EXPERIMENT — cam+mic in the browser; OBS remains the filming flow)" active={spikeOpen} onClick={() => setSpikeOpen((v) => !v)}><FlaskConical className="h-3.5 w-3.5" /></TB>
           <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
           {currentFrameId && <TB title={showFrameHeader ? "Hide the frame header while inside a frame" : "Show the frame header (LESSON · frame · beat)"} active={showFrameHeader} onClick={() => setShowFrameHeader((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>}
           <div className="relative">
@@ -3671,6 +3674,9 @@ function PresentCanvas() {
           statusCell={(fid, status) => <TakeBoardCell frameId={fid} status={status} />}
         />
       )}
+
+      {/* PHASE 3 EXPERIMENT — in-browser recorder spike (report-only; OBS stays) */}
+      {chrome && spikeOpen && <RecorderSpike onClose={() => setSpikeOpen(false)} />}
 
       {/* TELEPROMPTER — author-only, works in authoring AND film; `p` toggles.
           Never a student surface: it's an overlay on Lee's filming canvas. */}

@@ -5,13 +5,14 @@
 // ({first_name} …) rendered from the Preview student; a trailing "[sub]"
 // renders as a smaller bracketed sub-label.
 import { useRef, useState } from "react";
-import { type NodeProps } from "@xyflow/react";
-import { Braces, Contrast, Copy, GripVertical, Lock, LockOpen, X } from "lucide-react";
+import { useReactFlow, type NodeProps } from "@xyflow/react";
+import { Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
+import { useFrameNav } from "../FrameNavContext";
 import { ElementResizer } from "./elements";
 import { useEditSignal } from "../ui";
 import { DISPLAY_FONT, NEON } from "../theme";
@@ -20,6 +21,14 @@ import type { HeadingCard } from "../types";
 
 const UNDERLINE_CSS = `
 @keyframes heading-underline-in { from { width: 0; } to { width: 100%; } }
+`;
+
+/** TYPEWRITER (item 11) — film-mode only: the text types itself in (~600ms,
+ *  stepped clip reveal) when the heading's frame is entered. Scoped under
+ *  .film-mode so authoring never plays it. */
+const TYPEWRITER_CSS = `
+@keyframes sa-typewrite { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2% 0 0); } }
+.film-mode .sa-typewrite { animation: sa-typewrite 600ms steps(22, end) both; }
 `;
 
 /** Split "MAIN [sub]" — sub is optional and must be the trailing bracket. */
@@ -32,7 +41,14 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as HeadingCard;
   const { update, remove, toFront, duplicate } = useCardActions(id);
   const ctx = useCanvasSettings();
+  const rf = useReactFlow();
+  const nav = useFrameNav();
   const [editing, setEditing] = useState(false);
+  // TYPEWRITER (item 11): re-mount the text span when THIS heading's frame is
+  // entered, so the film-mode animation replays exactly once per frame entry.
+  const parentId = rf.getNode(id)?.parentId;
+  const inCurrentFrame = !!parentId && nav.currentFrameId === parentId;
+  const typeKey = d.typewriter && inCurrentFrame ? `tw-${nav.currentFrameId}` : "tw-static";
   const [tokenMenu, setTokenMenu] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
@@ -57,6 +73,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
       }}
     >
       <style>{UNDERLINE_CSS}</style>
+      {d.typewriter && <style>{TYPEWRITER_CSS}</style>}
       <ConnectionDots />
       <ElementResizer id={id} selected={selected} minWidth={160} minHeight={40} />
 
@@ -87,6 +104,10 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         </button>
         <HBtn title={d.scrim ? "Scrim on — dark halo for bright backgrounds (click to turn off)" : "Add a dark scrim so the title reads over bright loops"} onClick={() => update({ scrim: !d.scrim })}>
           <Contrast className="h-3 w-3" style={d.scrim ? { color: NEON.yellow } : undefined} />
+        </HBtn>
+        {/* TYPEWRITER (item 11): plays on frame entry in FILM mode, ~600ms */}
+        <HBtn title={d.typewriter ? "Typewriter entrance on — types in when its frame is entered in film (click to turn off)" : "Typewriter entrance — the title types itself in on frame entry (film mode)"} onClick={() => update({ typewriter: !d.typewriter })}>
+          <Keyboard className="h-3 w-3" style={d.typewriter ? { color: NEON.yellow } : undefined} />
         </HBtn>
         <HBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></HBtn>
         <HBtn title={d.posLock ? "Unlock position" : "Lock in place (edits still work)"} onClick={() => update({ posLock: !d.posLock })}>
@@ -140,7 +161,8 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         </div>
       ) : (
         <div
-          className="relative cursor-move whitespace-nowrap leading-tight"
+          key={typeKey}
+          className={`relative cursor-move whitespace-nowrap leading-tight${d.typewriter ? " sa-typewrite" : ""}`}
           title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
           onDoubleClick={() => setEditing(true)}
         >
