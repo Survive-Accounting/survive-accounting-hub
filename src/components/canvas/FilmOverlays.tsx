@@ -209,6 +209,8 @@ export const FILM_MODE_CSS = `
   .film-mode .react-flow__handle { display: none !important; }
   .film-mode .react-flow__resize-control { display: none !important; }
   .film-mode .zone-actions { display: none !important; }
+  /* Legend V2 (item 4): the collection number is an authoring aid — off camera. */
+  .film-mode .legend-collnum { display: none !important; }
   /* FG4: a frame's own chrome (header, beat chip, title, nav chevrons) never
      renders over a take — the shot is the cards only. */
   .film-mode [data-frame-chrome] { display: none !important; }

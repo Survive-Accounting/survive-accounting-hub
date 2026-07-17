@@ -60,7 +60,7 @@ import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/c
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type JeCard, type JeLine, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -69,7 +69,7 @@ import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuck
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateJeMemos, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { migrateZTiers, nextZ } from "@/components/canvas/zorder";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
@@ -478,6 +478,14 @@ function stepReveal(data: CardData): Partial<CardData> | null {
     if (i === -1) return null;
     return { segments: d.segments.map((s, j) => (j === i ? { ...s, hidden: false } : s)) } as Partial<CardData>;
   }
+  if (data.kind === "legend") {
+    // STORY SLIPS reveal one at a time; the flavor line lands LAST (item 3).
+    const d = data as LegendCard;
+    const i = (d.slips ?? []).findIndex((s) => s.hidden);
+    if (i !== -1) return { slips: d.slips.map((s, j) => (j === i ? { ...s, hidden: false } : s)) } as Partial<CardData>;
+    if (d.flavorHidden) return { flavorHidden: false } as Partial<CardData>;
+    return null;
+  }
   return null;
 }
 
@@ -517,6 +525,13 @@ function stepRevealBack(data: CardData): Partial<CardData> | null {
     for (let i = d.segments.length - 1; i >= 0; i--) if (!d.segments[i].hidden) return { segments: d.segments.map((s, j) => (j === i ? { ...s, hidden: true } : s)) } as Partial<CardData>;
     return null;
   }
+  if (data.kind === "legend") {
+    // reverse of the reveal: hide the flavor FIRST (it revealed last), then slips bottom→top
+    const d = data as LegendCard;
+    if (d.flavor && !d.flavorHidden) return { flavorHidden: true } as Partial<CardData>;
+    for (let i = (d.slips ?? []).length - 1; i >= 0; i--) if (!d.slips[i].hidden) return { slips: d.slips.map((s, j) => (j === i ? { ...s, hidden: true } : s)) } as Partial<CardData>;
+    return null;
+  }
   return null;
 }
 
@@ -526,6 +541,10 @@ function hideAll(data: CardData): Partial<CardData> | null {
   if (data.kind === "computation") return { steps: (data as ComputationCard).steps.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
   if (data.kind === "list") return { descHidden: !!(data as ListCard).description, rows: (data as ListCard).rows.map((r) => ({ ...r, hidden: true })) } as Partial<CardData>;
   if (data.kind === "formula") return { segments: (data as FormulaCard).segments.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
+  if (data.kind === "legend") {
+    const d = data as LegendCard;
+    return { slips: (d.slips ?? []).map((s) => ({ ...s, hidden: true })), flavorHidden: !!d.flavor } as Partial<CardData>;
+  }
   if (data.kind === "schedule") {
     const d = data as ScheduleCard;
     return { rows: d.rows.map((row) => row.map((cl) => ({ ...cl, hidden: cl.v !== "" ? true : cl.hidden }))) } as Partial<CardData>;
@@ -2114,7 +2133,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))));
+      rf.setNodes(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -2146,7 +2165,7 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))));
+            rf.setNodes(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);

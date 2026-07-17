@@ -122,6 +122,25 @@ export function migrateFrameLocks<T extends { type?: string; data?: Record<strin
   return changed ? out : nodes;
 }
 
+/** LEGEND V2: pre-V2 cards stored `facts: string[]`; V2 renders ordered STORY
+ *  SLIPS. Convert each fact → a slip (visible, i.e. hidden:false) on load so old
+ *  Pacioli/company cards keep their text and gain the space-walk reveal. Runs
+ *  only when `slips` is absent (idempotent). */
+let _slipSeq = 0;
+export function migrateLegendSlips<T extends { data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  let changed = false;
+  const out = nodes.map((n) => {
+    const d = n.data as (Record<string, unknown> & { kind?: string; slips?: unknown; facts?: unknown }) | undefined;
+    if (!d || d.kind !== "legend" || Array.isArray(d.slips)) return n;
+    changed = true;
+    const facts = Array.isArray(d.facts) ? (d.facts as unknown[]).map(String) : [];
+    const src = facts.length ? facts : [""];
+    const slips = src.map((text) => ({ id: `slip-${Date.now().toString(36)}-${_slipSeq++}`, text, hidden: false }));
+    return { ...n, data: { ...d, slips } };
+  });
+  return changed ? out : nodes;
+}
+
 /** ELEMENTS never live in the deck (design-elements run). Old scenes may have a
  *  heading with deck membership from the pre-category era — strip it silently
  *  (revealing any tucked element back onto the canvas) and note it in console. */

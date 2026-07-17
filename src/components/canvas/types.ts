@@ -291,16 +291,20 @@ export interface ImageCard extends CardBase {
 }
 
 // ---- Legend (trading card: Pacioli, companies, key concepts — the collectible) ----
+/** One STORY SLIP (V2): a 1–2 sentence beat the space-walk reveals in order. */
+export interface LegendSlip { id: string; text: string; hidden?: boolean }
 export interface LegendCard extends CardBase {
   kind: "legend";
   name: string;
-  year: string; // gold chip next to the name ("1494")
+  year: string; // CONTEXT chip (year / ticker / "Founded 1976" / empty)
   imageUrl: string; // portrait window (canvas-media)
   typeLine: string; // "Legend · Father of accounting"
-  facts: string[]; // 1–3 fact lines in the cream rules box
-  flavor: string; // italic flavor line
-  setLabel: string; // footer ("Legends · 001")
-  cornerChip: string; // editable corner stat (default "DR = CR")
+  slips: LegendSlip[]; // ordered STORY SLIPS — each a reveal step (space-walk)
+  flavor: string; // italic closer — reveals LAST, after all slips
+  flavorHidden?: boolean; // reveal gate for the flavor line
+  setLabel: string; // collection number ("Legends · 001") — authoring only, hidden in film
+  facts?: string[]; // LEGACY (pre-V2) — migrated to slips on load
+  cornerChip?: string; // LEGACY — the DR=CR stat, removed from the V2 render
 }
 
 // ---- Equation lens (A = L + E arrows) — see equation-derive.ts -----------------

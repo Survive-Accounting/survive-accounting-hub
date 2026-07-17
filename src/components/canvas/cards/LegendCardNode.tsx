@@ -4,20 +4,24 @@
 // uploads into canvas-media. Chromeless like the note card — hover actions only.
 import { useState } from "react";
 import { type NodeProps } from "@xyflow/react";
-import { Copy, ImagePlus, Lock, LockOpen, Minus, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, ImagePlus, Lock, LockOpen, Minus, Plus, Trash2, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
-import { EditableText } from "../ui";
+import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
+import { EditableText, useEditSignal } from "../ui";
 import { uploadImageFile } from "./ImageCardNode";
-import type { LegendCard } from "../types";
+import { cardId, type LegendCard, type LegendSlip } from "../types";
 
 const FRAME = { frame: "#0B0F1E", field: "#14213D", gold: "#E8B84B", red: "#CE1126", cream: "#F4EFE6" };
 
 export function LegendCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as LegendCard;
   const { update, updateFn, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
+  const sp = useSpotlight();
+  const editing = !!d.editMode;
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => update({ editMode: !d.editMode }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -34,8 +38,21 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
     }
   };
 
-  const patchFact = (i: number, v: string) =>
-    updateFn((prev) => ({ facts: ((prev.facts as string[]) ?? []).map((f, j) => (j === i ? v : f)) }));
+  // STORY SLIPS (V2): ordered reveal beats. Edit shows all; presentation shows
+  // only revealed slips (the space-walk flips `hidden`).
+  const slips: LegendSlip[] = d.slips ?? [];
+  const patchSlip = (sid: string, text: string) =>
+    updateFn((prev) => ({ slips: ((prev.slips as LegendSlip[]) ?? []).map((s) => (s.id === sid ? { ...s, text } : s)) }));
+  const addSlip = () => updateFn((prev) => ({ slips: [...((prev.slips as LegendSlip[]) ?? []), { id: cardId("slip"), text: "" }] }));
+  const removeSlip = (sid: string) => updateFn((prev) => ({ slips: ((prev.slips as LegendSlip[]) ?? []).filter((s) => s.id !== sid) }));
+  const moveSlip = (i: number, dir: -1 | 1) =>
+    updateFn((prev) => {
+      const next = [...((prev.slips as LegendSlip[]) ?? [])];
+      const j = i + dir;
+      if (j < 0 || j >= next.length) return {};
+      [next[i], next[j]] = [next[j], next[i]];
+      return { slips: next };
+    });
 
   const w = d.w ?? 264;
 
@@ -93,12 +110,16 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
           <span className="min-w-0 flex-1 truncate text-[13px] font-black tracking-wide" style={{ color: FRAME.cream }}>
             <EditableText value={d.name} onChange={(v) => update({ name: v })} placeholder="Name" />
           </span>
-          <span
-            className="shrink-0 rounded-full px-1.5 py-px text-[9px] font-bold tabular-nums"
-            style={{ color: FRAME.frame, background: FRAME.gold }}
-          >
-            <EditableText value={d.year} onChange={(v) => update({ year: v })} placeholder="year" />
-          </span>
+          {/* CONTEXT CHIP (V2): free text — year, ticker, "Founded 1976", or empty.
+              Subtle gold-outline label (not a filled year pill). Hidden on camera when empty. */}
+          {(d.year || editing) && (
+            <span
+              className="shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider"
+              style={{ color: FRAME.gold, border: `1px solid rgba(232,184,75,0.5)` }}
+            >
+              <EditableText value={d.year} onChange={(v) => update({ year: v })} placeholder="context" />
+            </span>
+          )}
         </div>
 
         {/* portrait window */}
@@ -141,60 +162,65 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
           <EditableText value={d.typeLine} onChange={(v) => update({ typeLine: v })} placeholder="Legend · Father of accounting" />
         </div>
 
-        {/* cream rules box: 1–3 facts + flavor */}
+        {/* cream box: STORY SLIPS (V2) revealed by the space-walk + flavor closer */}
         <div className="mx-2 mb-1.5 mt-1.5 rounded px-2 py-1.5" style={{ background: FRAME.cream, color: "#232838" }}>
-          {d.facts.map((f, i) => (
-            <div key={i} className="group/fact relative flex items-start gap-1 py-0.5 text-[10.5px] leading-snug">
-              {/* per-SLIP memo anchor — a memo can point at THIS fact, not just the card */}
-              <MemoAnchor subId={`f${i}`} />
-              <span className="min-w-0 flex-1">
-                <EditableText value={f} onChange={(v) => patchFact(i, v)} placeholder={`Fact ${i + 1}`} />
-              </span>
-              <MemoLightbulb
-                targetId={id}
-                handleId={memoAnchorId(`f${i}`)}
-                title="Attach a memo to this fact"
-                className="mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover/fact:opacity-70"
-                style={{ color: "#232838" }}
-              />
-              {d.facts.length > 1 && (
-                <button
-                  className="nodrag mt-0.5 shrink-0 opacity-0 transition-opacity group-hover/fact:opacity-60"
-                  style={{ color: FRAME.red }}
-                  title="Remove fact"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => updateFn((prev) => ({ facts: ((prev.facts as string[]) ?? []).filter((_, j) => j !== i) }))}
-                >
-                  <Trash2 className="h-2.5 w-2.5" />
-                </button>
-              )}
-            </div>
-          ))}
-          {d.facts.length < 3 && (
+          {slips.map((s, i) => {
+            if (!editing && s.hidden) return null; // presentation: unrevealed slips are blank
+            const st = spotTargetProps(sp, id, s.id);
+            return (
+              <div
+                key={s.id}
+                {...st.props}
+                className="group/slip animate-in fade-in slide-in-from-bottom-1 relative flex items-start gap-1.5 py-0.5 text-[11px] leading-snug duration-200"
+                style={{ ...spotStyle(st.state), opacity: editing && s.hidden ? 0.4 : st.state === "dim" ? 0.85 : 1 }}
+              >
+                {/* per-SLIP memo anchor — a memo can point at THIS slip */}
+                <MemoAnchor subId={s.id} />
+                <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: FRAME.gold }} />
+                <span className="min-w-0 flex-1 whitespace-pre-wrap">
+                  <EditableText value={s.text} onChange={(v) => patchSlip(s.id, v)} editing={editing} placeholder={`Slip ${i + 1}`} multiline />
+                </span>
+                <MemoLightbulb
+                  targetId={id}
+                  handleId={memoAnchorId(s.id)}
+                  title="Attach a memo to this slip"
+                  className="mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover/slip:opacity-70"
+                  style={{ color: "#232838" }}
+                />
+                {editing && (
+                  <span className="flex shrink-0 opacity-0 transition-opacity group-hover/slip:opacity-100">
+                    <button className="nodrag grid h-4 w-4 place-items-center" title="Up" onPointerDown={(e) => e.stopPropagation()} onClick={() => moveSlip(i, -1)} style={{ color: "#4A5065" }}><ArrowUp className="h-2.5 w-2.5" /></button>
+                    <button className="nodrag grid h-4 w-4 place-items-center" title="Down" onPointerDown={(e) => e.stopPropagation()} onClick={() => moveSlip(i, 1)} style={{ color: "#4A5065" }}><ArrowDown className="h-2.5 w-2.5" /></button>
+                    {slips.length > 1 && (
+                      <button className="nodrag grid h-4 w-4 place-items-center" title="Remove slip" onPointerDown={(e) => e.stopPropagation()} onClick={() => removeSlip(s.id)} style={{ color: FRAME.red }}><Trash2 className="h-2.5 w-2.5" /></button>
+                    )}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+          {editing && (
             <button
-              className="nodrag inline-flex items-center gap-0.5 text-[9px] font-semibold opacity-50 hover:opacity-100"
+              className="nodrag mt-1 inline-flex items-center gap-0.5 text-[9px] font-semibold opacity-50 hover:opacity-100"
               style={{ color: "#232838" }}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => updateFn((prev) => ({ facts: [...((prev.facts as string[]) ?? []), ""] }))}
+              onClick={addSlip}
             >
-              <Plus className="h-2.5 w-2.5" /> fact
+              <Plus className="h-2.5 w-2.5" /> slip
             </button>
           )}
-          <div className="mt-1 border-t pt-1 text-[9.5px] italic leading-snug" style={{ borderColor: "rgba(35,40,56,0.25)", color: "#4A5065" }}>
-            <EditableText value={d.flavor} onChange={(v) => update({ flavor: v })} placeholder="“Flavor line…”" multiline />
-          </div>
+          {/* FLAVOR closer — reveals LAST (item 3). Blank until revealed in presentation. */}
+          {(editing || (d.flavor && !d.flavorHidden)) && (
+            <div className="mt-1 border-t pt-1 text-[9.5px] italic leading-snug" style={{ borderColor: "rgba(35,40,56,0.25)", color: "#4A5065" }}>
+              <EditableText value={d.flavor} onChange={(v) => update({ flavor: v })} editing={editing} placeholder="“Flavor line…”" multiline />
+            </div>
+          )}
         </div>
 
-        {/* footer: set label + corner chip */}
-        <div className="flex items-center px-2 pb-1.5">
+        {/* footer: collection number — authoring only, HIDDEN in film (item 4). No DR=CR chip (item 3). */}
+        <div className="legend-collnum flex items-center px-2 pb-1.5">
           <span className="min-w-0 flex-1 truncate text-[8.5px] tracking-wide" style={{ color: "rgba(244,239,230,0.5)" }}>
             <EditableText value={d.setLabel} onChange={(v) => update({ setLabel: v })} placeholder="Legends · 001" />
-          </span>
-          <span
-            className="shrink-0 rounded px-1.5 py-px text-[9px] font-bold"
-            style={{ color: FRAME.gold, border: `1px solid rgba(232,184,75,0.5)` }}
-          >
-            <EditableText value={d.cornerChip} onChange={(v) => update({ cornerChip: v })} placeholder="DR = CR" />
           </span>
         </div>
       </div>

@@ -64,10 +64,9 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
         year: "",
         imageUrl: "",
         typeLine: "",
-        facts: [""],
+        slips: [{ id: cardId("slip"), text: "" }],
         flavor: "",
         setLabel: "Legends · 001",
-        cornerChip: "DR = CR",
       };
     case "list":
       return {

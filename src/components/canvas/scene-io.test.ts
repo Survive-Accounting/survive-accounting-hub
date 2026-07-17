@@ -173,3 +173,33 @@ describe("scene load pipeline — legacy scene heals; v3 scene is stable", () =>
     expect(e.markerEnd.type).toBe("arrowclosed");
   });
 });
+
+import { migrateLegendSlips } from "./scene-io";
+
+describe("migrateLegendSlips (Legend V2 facts → story slips)", () => {
+  const legend = (data: Record<string, unknown>) => ({ id: "lg", type: "legend", data: { kind: "legend", ...data } });
+
+  test("converts facts[] to visible slips (idempotent, preserves text + order)", () => {
+    const [n] = migrateLegendSlips([legend({ facts: ["Born 1447", "Wrote Summa", ""] })]) as { data: { slips: { id: string; text: string; hidden?: boolean }[] } }[];
+    expect(n.data.slips.map((s) => s.text)).toEqual(["Born 1447", "Wrote Summa", ""]);
+    expect(n.data.slips.every((s) => s.hidden === false)).toBe(true); // visible after migration (were never hidden)
+    expect(new Set(n.data.slips.map((s) => s.id)).size).toBe(3); // unique ids
+  });
+
+  test("empty/absent facts → a single blank slip (never zero slips)", () => {
+    const [a] = migrateLegendSlips([legend({})]) as { data: { slips: unknown[] } }[];
+    expect(a.data.slips).toHaveLength(1);
+    const [b] = migrateLegendSlips([legend({ facts: [] })]) as { data: { slips: unknown[] } }[];
+    expect(b.data.slips).toHaveLength(1);
+  });
+
+  test("cards that already have slips are untouched (returns same array ref)", () => {
+    const nodes = [legend({ slips: [{ id: "s1", text: "kept", hidden: true }] })];
+    expect(migrateLegendSlips(nodes)).toBe(nodes);
+  });
+
+  test("non-legend nodes pass through untouched", () => {
+    const nodes = [{ id: "j", type: "je", data: { kind: "je" } }];
+    expect(migrateLegendSlips(nodes)).toBe(nodes);
+  });
+});
