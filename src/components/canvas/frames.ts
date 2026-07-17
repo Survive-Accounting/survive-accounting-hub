@@ -277,3 +277,97 @@ export const SCAFFOLD_NOTES: Partial<Record<Beat, string>> = {
   teach: "Kill THE misconception. Open on the hardest CEQ — nearly full screen, centered.",
   model_practice: "Model the next hardest 3-5. Narrate your reasoning slowly.",
 };
+
+// ---- COMPOSITION GUIDES (pure) --------------------------------------------
+// While Lee drags a card INSIDE a frame, help him compose the SHOT: show the
+// frame's center, rule-of-thirds, and fifths lines (plus a title-safe margin and
+// sibling-card centers), and softly snap the card onto whichever line it's
+// closest to. All math is in FRAME-LOCAL coordinates (a child's position is
+// relative to its frame), so the caller passes local rects and renders the
+// returned line positions by offsetting to the frame's absolute origin.
+
+/** Guide weight = both the compositional strength AND the render treatment
+ *  (center strongest → thickest/brightest; fifth lightest). */
+export type GuideWeight = "center" | "third" | "fifth" | "card" | "safe";
+export interface Guide { pos: number; weight: GuideWeight }
+export interface CompositionGuides { v: Guide[]; h: Guide[]; snapX: number | null; snapY: number | null }
+
+/** Default title-safe inset as a FRACTION of the frame's short-ish dimension —
+ *  ~5% action-safe, the broadcast convention. The caller passes px. */
+export const SAFE_INSET_FRAC = 0.05;
+
+// Strongest (lowest rank) wins when several lines are within threshold at once.
+const WEIGHT_RANK: Record<GuideWeight, number> = { center: 0, card: 1, third: 2, safe: 3, fifth: 4 };
+
+type Cand = { pos: number; weight: GuideWeight; align: "center" | "start" | "end" };
+
+/** One axis: given the frame size, the dragged node's [start,size] and the
+ *  siblings' [start,size] on this axis, return the matched guide lines and the
+ *  single best snapped `start` (null if nothing within threshold). */
+function axisGuides(
+  frameSize: number,
+  nodeStart: number,
+  nodeSize: number,
+  siblings: { start: number; size: number }[],
+  th: number,
+  safeInset: number | null,
+): { lines: Guide[]; snap: number | null } {
+  const cands: Cand[] = [
+    { pos: frameSize / 2, weight: "center", align: "center" },
+    { pos: frameSize / 3, weight: "third", align: "center" },
+    { pos: (2 * frameSize) / 3, weight: "third", align: "center" },
+    { pos: frameSize / 5, weight: "fifth", align: "center" },
+    { pos: (2 * frameSize) / 5, weight: "fifth", align: "center" },
+    { pos: (3 * frameSize) / 5, weight: "fifth", align: "center" },
+    { pos: (4 * frameSize) / 5, weight: "fifth", align: "center" },
+  ];
+  if (safeInset != null && safeInset > 0) {
+    cands.push({ pos: safeInset, weight: "safe", align: "start" });
+    cands.push({ pos: frameSize - safeInset, weight: "safe", align: "end" });
+  }
+  for (const s of siblings) cands.push({ pos: s.start + s.size / 2, weight: "card", align: "center" });
+
+  const nodeCenter = nodeStart + nodeSize / 2;
+  const nodeEnd = nodeStart + nodeSize;
+  const lines: Guide[] = [];
+  let best: { rank: number; abs: number; start: number } | null = null;
+  for (const c of cands) {
+    const alignPoint = c.align === "center" ? nodeCenter : c.align === "start" ? nodeStart : nodeEnd;
+    const delta = c.pos - alignPoint;
+    if (Math.abs(delta) > th) continue;
+    lines.push({ pos: c.pos, weight: c.weight });
+    const rank = WEIGHT_RANK[c.weight];
+    const abs = Math.abs(delta);
+    if (!best || rank < best.rank || (rank === best.rank && abs < best.abs)) {
+      best = { rank, abs, start: nodeStart + delta };
+    }
+  }
+  // dedupe lines at the same position, keeping the strongest weight
+  const byPos = new Map<number, Guide>();
+  for (const g of lines) {
+    const cur = byPos.get(g.pos);
+    if (!cur || WEIGHT_RANK[g.weight] < WEIGHT_RANK[cur.weight]) byPos.set(g.pos, g);
+  }
+  return { lines: [...byPos.values()], snap: best ? best.start : null };
+}
+
+/** Frame composition guides for a dragged card. `frame` and `node`/`siblings`
+ *  rects are FRAME-LOCAL (node.position as stored). `altBypass` keeps the guides
+ *  visible but suppresses the snap (hold Alt to place freely). */
+export function frameCompositionGuides(
+  frame: { w: number; h: number },
+  node: { x: number; y: number; w: number; h: number },
+  siblings: { x: number; y: number; w: number; h: number }[],
+  opts?: { threshold?: number; safeInset?: number | null; altBypass?: boolean },
+): CompositionGuides {
+  const th = opts?.threshold ?? 6;
+  const safeInset = opts?.safeInset === undefined ? Math.round(Math.min(frame.w, frame.h) * SAFE_INSET_FRAC) : opts.safeInset;
+  const vx = axisGuides(frame.w, node.x, node.w, siblings.map((s) => ({ start: s.x, size: s.w })), th, safeInset);
+  const hy = axisGuides(frame.h, node.y, node.h, siblings.map((s) => ({ start: s.y, size: s.h })), th, safeInset);
+  return {
+    v: vx.lines,
+    h: hy.lines,
+    snapX: opts?.altBypass ? null : vx.snap,
+    snapY: opts?.altBypass ? null : hy.snap,
+  };
+}

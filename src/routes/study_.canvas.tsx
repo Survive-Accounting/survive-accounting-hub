@@ -55,7 +55,7 @@ import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas
 import { DecksContext } from "@/components/canvas/DecksContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, SCAFFOLD_NOTES, subIndexOf, subNeighborFrame } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, SCAFFOLD_NOTES, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -684,6 +684,19 @@ function GroupChromeBar() {
   );
 }
 
+// Composition-guide render treatment by weight — brand gold, strongest at the
+// frame center, faintest at the fifths; the title-safe margin renders dashed.
+function guideStyle(weight: GuideWeight): { thick: number; solid: string; dash: string; opacity: number } {
+  const G = "252,163,17";
+  switch (weight) {
+    case "center": return { thick: 2, solid: `rgba(${G},0.95)`, dash: "none", opacity: 1 };
+    case "card": return { thick: 1, solid: `rgba(${G},0.85)`, dash: "none", opacity: 1 };
+    case "third": return { thick: 1, solid: `rgba(${G},0.6)`, dash: "none", opacity: 1 };
+    case "safe": return { thick: 0, solid: "transparent", dash: `1px dashed rgba(${G},0.5)`, opacity: 1 };
+    case "fifth": return { thick: 1, solid: `rgba(${G},0.38)`, dash: "none", opacity: 1 };
+  }
+}
+
 function PresentCanvas() {
   const rf = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
@@ -784,6 +797,7 @@ function PresentCanvas() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
+  const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -1761,7 +1775,10 @@ function PresentCanvas() {
   // ---- SNAP GUIDES: edge/center matches vs nearby cards while dragging; the
   // drop settles onto a guide within threshold (no mid-drag position fighting).
   const SNAP_TH = 6; // flow units
-  const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+  // Guides carry a WEIGHT so composition lines render at different strengths
+  // (frame center strongest → fifths lightest); positions are in SCREEN px.
+  type ScreenGuide = { pos: number; weight: GuideWeight };
+  const [guides, setGuides] = useState<{ v: ScreenGuide[]; h: ScreenGuide[] }>({ v: [], h: [] });
   const guideMatches = useCallback(
     (node: CardNode) => {
       const w = node.measured?.width ?? 300;
@@ -1792,16 +1809,54 @@ function PresentCanvas() {
     },
     [rf],
   );
+  // dimensions + absolute origin of a node (measured wins, then explicit, then data)
+  type RfNodeLike = { id: string; type?: string; parentId?: string; position: { x: number; y: number }; measured?: { width?: number; height?: number }; width?: number; height?: number; data?: Record<string, unknown>; hidden?: boolean };
+  const dimW = useCallback((n: RfNodeLike) => (n.measured?.width ?? n.width ?? ((n.data?.w as number | undefined)) ?? 300), []);
+  const dimH = useCallback((n: RfNodeLike) => (n.measured?.height ?? n.height ?? ((n.data?.h as number | undefined)) ?? 170), []);
+  const absOrigin = useCallback((n: RfNodeLike) => {
+    let x = n.position.x, y = n.position.y;
+    let p = n.parentId ? rf.getNode(n.parentId) : undefined;
+    let g = 0;
+    while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? rf.getNode(p.parentId) : undefined; }
+    return { x, y };
+  }, [rf]);
+  const frameSiblingRects = useCallback((frameId: string, exceptId: string) =>
+    rf.getNodes()
+      .filter((n) => n.parentId === frameId && n.id !== exceptId && !isContainerType(n.type) && !n.hidden)
+      .map((n) => ({ x: n.position.x, y: n.position.y, w: dimW(n), h: dimH(n) })),
+    [rf, dimW, dimH]);
+  // COMPOSITION GUIDES (item 1) — a card dragged INSIDE a frame gets the frame's
+  // center/thirds/fifths/safe lines + sibling-center matches in frame-local space.
+  const frameGuidesFor = useCallback((node: RfNodeLike, parent: RfNodeLike, altBypass: boolean) => {
+    return frameCompositionGuides(
+      { w: dimW(parent), h: dimH(parent) },
+      { x: node.position.x, y: node.position.y, w: dimW(node), h: dimH(node) },
+      frameSiblingRects(parent.id, node.id),
+      { altBypass },
+    );
+  }, [dimW, dimH, frameSiblingRects]);
   const onNodeDrag = useCallback(
-    (_e: unknown, node: CardNode) => {
-      if (isContainerType(node.type) || node.parentId) { setGuides({ v: [], h: [] }); return; }
+    (e: unknown, node: CardNode) => {
+      if (isContainerType(node.type)) { setGuides({ v: [], h: [] }); return; }
+      const parent = node.parentId ? rf.getNode(node.parentId) : undefined;
+      if (parent?.type === "frame") {
+        if (!compositionGuides || filmRef.current) { setGuides({ v: [], h: [] }); return; }
+        const g = frameGuidesFor(node, parent, !!(e as MouseEvent | undefined)?.altKey);
+        const fo = absOrigin(parent);
+        setGuides({
+          v: g.v.map((l) => ({ pos: rf.flowToScreenPosition({ x: fo.x + l.pos, y: 0 }).x, weight: l.weight })),
+          h: g.h.map((l) => ({ pos: rf.flowToScreenPosition({ x: 0, y: fo.y + l.pos }).y, weight: l.weight })),
+        });
+        return;
+      }
+      if (node.parentId) { setGuides({ v: [], h: [] }); return; }
       const m = guideMatches(node);
       setGuides({
-        v: m.vx.map((gx) => rf.flowToScreenPosition({ x: gx, y: 0 }).x),
-        h: m.vy.map((gy) => rf.flowToScreenPosition({ x: 0, y: gy }).y),
+        v: m.vx.map((gx) => ({ pos: rf.flowToScreenPosition({ x: gx, y: 0 }).x, weight: "card" as GuideWeight })),
+        h: m.vy.map((gy) => ({ pos: rf.flowToScreenPosition({ x: 0, y: gy }).y, weight: "card" as GuideWeight })),
       });
     },
-    [rf, guideMatches],
+    [rf, guideMatches, compositionGuides, frameGuidesFor, absOrigin],
   );
 
   /** Runs AFTER container parenting settles: diff the snapshots, dispatch ONE move
@@ -1831,12 +1886,26 @@ function PresentCanvas() {
 
   // ---- container membership: drop a card inside a LESSON (finer tier wins)
   // or a zone/region → parent it (it then moves with the box natively) ----
-  const onNodeDragStop = useCallback((_e: unknown, node: CardNode) => {
+  const onNodeDragStop = useCallback((e: unknown, node: CardNode) => {
     setGuides({ v: [], h: [] });
     // restore smoothstep routing on every edge the drag simplified
-    rf.setEdges((eds) => eds.map((e) => (e.data?._drag ? { ...e, data: { ...e.data, _drag: undefined } } : e)));
+    rf.setEdges((eds) => eds.map((ed) => (ed.data?._drag ? { ...ed, data: { ...ed.data, _drag: undefined } } : ed)));
     // regions + lessons stay top-level; FRAMES fall through — they parent INTO a lesson
     if (node.type === "zone" || node.type === "lesson") { commitDrag(); return; }
+    // COMPOSITION SNAP (item 1) — a card dropped inside a frame settles onto the
+    // nearest frame line (center/thirds/fifths/safe/sibling-center); Alt bypasses.
+    // Keeps parentId=frame so the parenting math below reads the snapped local pos.
+    if (node.parentId && compositionGuides && !filmRef.current) {
+      const parent = rf.getNode(node.parentId);
+      if (parent?.type === "frame") {
+        const g = frameGuidesFor(node, parent, !!(e as MouseEvent | undefined)?.altKey);
+        if (g.snapX != null || g.snapY != null) {
+          const np = { x: g.snapX ?? node.position.x, y: g.snapY ?? node.position.y };
+          rf.setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: np } : n)));
+          node = { ...node, position: np };
+        }
+      }
+    }
     // settle onto a matched guide (within threshold) before parenting/commit
     if (!node.parentId) {
       const m = guideMatches(node);
@@ -1969,7 +2038,7 @@ function PresentCanvas() {
     requestAnimationFrame(() => {
       for (const nid of draggedIds) updateNodeInternals(nid);
     });
-  }, [rf, commitDrag, guideMatches, updateNodeInternals]);
+  }, [rf, commitDrag, guideMatches, updateNodeInternals, compositionGuides, frameGuidesFor]);
 
   // ---- scenes (JSON blobs cross the server-fn boundary as strings) ----
   const serialize = useCallback(() => {
@@ -1995,13 +2064,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2061,6 +2130,7 @@ function PresentCanvas() {
       setFrameTransitions((nj.sceneSettings as { frameTransitions?: boolean } | undefined)?.frameTransitions !== false); // default on
       setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames !== false); // default on
       setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
+      setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -3211,6 +3281,10 @@ function PresentCanvas() {
                   <input type="checkbox" checked={rehearsalHud} onChange={(e) => setRehearsalHud(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Rehearsal HUD <span className="opacity-60">(next-up when armed)</span>
                 </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: compositionGuides ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={compositionGuides} onChange={(e) => setCompositionGuides(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Composition guides <span className="opacity-60">(center/thirds/fifths in a frame; hold Alt to bypass)</span>
+                </label>
                 {/* SCENE COURSE CONTEXT (content reset): pickers scope to this */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: sceneCourseId ? NEON.yellow : NEON.muted }}>Scene course</div>
                 <select
@@ -3368,13 +3442,14 @@ function PresentCanvas() {
       {/* "?" cheat sheet — rendered from the keymap registry */}
       {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
 
-      {/* snap guides — gold hairlines while a drag aligns with a neighbor */}
-      {guides.v.map((x) => (
-        <div key={`gv${x}`} className="pointer-events-none absolute z-[45]" style={{ left: x, top: 0, bottom: 0, width: 1, background: "rgba(252,163,17,0.75)" }} />
-      ))}
-      {guides.h.map((y) => (
-        <div key={`gh${y}`} className="pointer-events-none absolute z-[45]" style={{ top: y, left: 0, right: 0, height: 1, background: "rgba(252,163,17,0.75)" }} />
-      ))}
+      {/* snap/composition guides — brand-gold lines while a drag aligns. Weight
+          sets the treatment: frame CENTER strongest → FIFTHS lightest; SAFE dashed. */}
+      {guides.v.map((g, i) => { const s = guideStyle(g.weight); return (
+        <div key={`gv${i}-${g.pos}`} className="pointer-events-none absolute z-[45]" style={{ left: g.pos, top: 0, bottom: 0, width: s.thick, background: s.solid, borderLeft: s.dash, opacity: s.opacity }} />
+      ); })}
+      {guides.h.map((g, i) => { const s = guideStyle(g.weight); return (
+        <div key={`gh${i}-${g.pos}`} className="pointer-events-none absolute z-[45]" style={{ top: g.pos, left: 0, right: 0, height: s.thick, background: s.solid, borderTop: s.dash, opacity: s.opacity }} />
+      ); })}
 
       {/* snapshot restore confirm */}
       {confirmSnap && (

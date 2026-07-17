@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, columnX, frame169, frameCellLabel, framesInBeat, framesInLesson,
   frameWalkNext, frameWalkPrev, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout,
-  RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type RectNode,
+  RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, frameCompositionGuides, type RectNode,
 } from "./frames";
 import { FRAME_H, FRAME_W } from "./types";
 
@@ -166,5 +166,68 @@ describe("layout", () => {
     const card: RectNode = { id: "c", type: "je", parentId: "f", position: { x: 10, y: 20 }, data: { w: 200, h: 120 } };
     const byId = new Map([lesson, frame, card].map((n) => [n.id, n]));
     expect(absRectOf(card, byId)).toEqual({ x: 150, y: 180, w: 200, h: 120 });
+  });
+});
+
+describe("frameCompositionGuides — compose the shot", () => {
+  const F = { w: FRAME_W, h: FRAME_H }; // 800 x 450 → center (400,225)
+  const node = (x: number, y: number) => ({ x, y, w: 100, h: 60 });
+
+  test("center snap: card center within 6px of frame center snaps both axes", () => {
+    // node w=100,h=60 → to center, start would be (350,195). Drag to (347,198): dx=-3, dy=+3.
+    const g = frameCompositionGuides(F, node(347, 198), [], { safeInset: null });
+    expect(g.snapX).toBe(350);
+    expect(g.snapY).toBe(195);
+    expect(g.v.some((l) => l.pos === 400 && l.weight === "center")).toBe(true);
+    expect(g.h.some((l) => l.pos === 225 && l.weight === "center")).toBe(true);
+  });
+
+  test("rule of thirds: center aligns to a third line", () => {
+    // vertical third at 800/3≈266.67; node center there → start≈216.67
+    const g = frameCompositionGuides(F, node(216, 0), [], { safeInset: null });
+    expect(g.v.some((l) => l.weight === "third")).toBe(true);
+    expect(g.snapX).toBeCloseTo(216.67, 1);
+  });
+
+  test("fifths are offered and snap, lighter weight", () => {
+    // vertical fifth at 160; node center 160 → start 110
+    const g = frameCompositionGuides(F, node(111, 0), [], { safeInset: null });
+    expect(g.v.some((l) => l.pos === 160 && l.weight === "fifth")).toBe(true);
+    expect(g.snapX).toBe(110);
+  });
+
+  test("center outranks a coincident weaker line", () => {
+    // both center (400) and a sibling whose center is ~397 are near; center should win the snap
+    const g = frameCompositionGuides(F, node(348, 0), [{ x: 347, y: 0, w: 100, h: 60 }], { safeInset: null });
+    expect(g.snapX).toBe(350); // lands on frame center, not the sibling
+  });
+
+  test("sibling-card center alignment produces a card guide + snap", () => {
+    // no frame line near, but a sibling centered at 250 (start 200,w100). node center→250 ⇒ start 200
+    const g = frameCompositionGuides(F, node(202, 0), [{ x: 200, y: 999, w: 100, h: 60 }], { safeInset: null });
+    expect(g.v.some((l) => l.pos === 250 && l.weight === "card")).toBe(true);
+    expect(g.snapX).toBe(200);
+  });
+
+  test("Alt bypass keeps guides visible but drops the snap", () => {
+    const g = frameCompositionGuides(F, node(347, 198), [], { safeInset: null, altBypass: true });
+    expect(g.snapX).toBeNull();
+    expect(g.snapY).toBeNull();
+    expect(g.v.length).toBeGreaterThan(0); // still shows the line
+  });
+
+  test("safe-area edges snap the card's EDGE (not center) when inset is given", () => {
+    // safeInset 40 → left safe line at 40; node left edge near 40 snaps start to 40
+    const g = frameCompositionGuides(F, node(43, 0), [], { safeInset: 40 });
+    expect(g.v.some((l) => l.pos === 40 && l.weight === "safe")).toBe(true);
+    expect(g.snapX).toBe(40);
+  });
+
+  test("nothing within threshold → no guides, no snap", () => {
+    const g = frameCompositionGuides(F, node(123, 77), [], { safeInset: null });
+    expect(g.v).toEqual([]);
+    expect(g.h).toEqual([]);
+    expect(g.snapX).toBeNull();
+    expect(g.snapY).toBeNull();
   });
 });
