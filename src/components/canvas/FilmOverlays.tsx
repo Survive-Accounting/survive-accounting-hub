@@ -207,7 +207,9 @@ export const FILM_MODE_CSS = `
   .film-mode .sa-chrome { display: none !important; }
   .film-mode .conn-dot,
   .film-mode .react-flow__handle { display: none !important; }
-  .film-mode .react-flow__resize-control { display: none !important; }
+  /* RESIZE STAYS LIVE IN FILM (improvise while filming): a selected card keeps its
+     NodeResizer handles so Lee can nudge size/position mid-take. They only show
+     on the selected card, so an unselected shot is still clean. */
   .film-mode .zone-actions { display: none !important; }
   /* Legend V2 (item 4): the collection number is an authoring aid — off camera. */
   .film-mode .legend-collnum { display: none !important; }
@@ -252,4 +254,9 @@ export const FILM_MODE_CSS = `
   .film-mode .react-flow__node-signupgate {
     pointer-events: none !important;
   }
+  /* FRAME FULLY LOCKED IN FILM: the frame node AND all its own descendants
+     (letterbox, bg loop, chrome) go inert, so grabbing anywhere on the frame can
+     never pick it up mid-take — only the CARDS (DOM siblings, not descendants)
+     stay draggable. Move the cards, never the frame. */
+  .film-mode .react-flow__node-frame * { pointer-events: none !important; }
 `;

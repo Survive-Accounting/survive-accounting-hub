@@ -819,6 +819,27 @@ function PresentCanvas() {
     window.addEventListener("keydown", onKey, true);
     return () => { window.removeEventListener("pointerdown", onPointer, true); window.removeEventListener("keydown", onKey, true); };
   }, [armState]);
+  // ARROW-KEY FRAME NAV — DOUBLE-TAP ARM: the arrow keys move between frames only
+  // when nothing is selected (frameFreeNav). A first press ARMS the direction
+  // (a glowing edge light below/right/etc.); a second press in the same direction
+  // actually navigates. Any other input disarms. Spotlight movement always wins.
+  const [arrowArm, setArrowArm] = useState<null | "up" | "down" | "left" | "right">(null);
+  const arrowArmRef = useRef<null | "up" | "down" | "left" | "right">(null);
+  arrowArmRef.current = arrowArm;
+  const armOrStep = useCallback((dir: "up" | "down" | "left" | "right", step: () => void) => {
+    if (arrowArmRef.current !== dir) { setArrowArm(dir); return; }
+    setArrowArm(null); step();
+  }, []);
+  // disarm the arrow nav on anything but a matching arrow re-press
+  useEffect(() => {
+    if (!arrowArm) return;
+    const KEY: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+    const onPointer = () => setArrowArm(null);
+    const onKey = (e: KeyboardEvent) => { if (KEY[e.key] !== arrowArm) setArrowArm(null); };
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => { window.removeEventListener("pointerdown", onPointer, true); window.removeEventListener("keydown", onKey, true); };
+  }, [arrowArm]);
   const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
   const [framePickerOpen, setFramePickerOpen] = useState(false); // FG5: grid mini-map jump
   const [toast, setToast] = useState<string | null>(null); // brief transient notice (frame cap, soft warns)
@@ -2998,7 +3019,7 @@ function PresentCanvas() {
         description: "Spotlight+film: flip a spotlit trap · else hop JE line debit · else prev lesson",
         handler: (e) => {
           if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepBeat(-1); } else hopSelectedLine("dr");
+          if (frameFreeNav()) { e.preventDefault(); armOrStep("left", () => stepBeat(-1)); } else hopSelectedLine("dr");
         },
       },
       {
@@ -3007,7 +3028,7 @@ function PresentCanvas() {
         description: "Spotlight+film: flip a spotlit trap · else hop JE line credit · else next lesson",
         handler: (e) => {
           if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepBeat(1); } else hopSelectedLine("cr");
+          if (frameFreeNav()) { e.preventDefault(); armOrStep("right", () => stepBeat(1)); } else hopSelectedLine("cr");
         },
       },
       {
@@ -3016,7 +3037,7 @@ function PresentCanvas() {
         description: "Spotlight: move focus up (↑ off the top exits) · else prev frame",
         handler: (e) => {
           if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepSub(-1); }
+          if (frameFreeNav()) { e.preventDefault(); armOrStep("up", () => stepSub(-1)); }
         },
       },
       {
@@ -3026,7 +3047,7 @@ function PresentCanvas() {
         handler: (e) => {
           if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1); return; }
           if (spotRef.current?.tryReenter(1)) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepSub(1); }
+          if (frameFreeNav()) { e.preventDefault(); armOrStep("down", () => stepSub(1)); }
         },
       },
       { combo: "shift+arrowdown", group: "Spotlight", description: "Extend the spotlight range down", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { range: true }); } } },
@@ -3053,7 +3074,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
   );
   useKeymap(bindings);
 
@@ -3136,6 +3157,27 @@ function PresentCanvas() {
         return <FrameArmCue state={armState} nextLabel={label} showHud={rehearsalHud} />;
       })()}
 
+      {/* ARROW-NAV ARM LIGHT — a glowing edge on the side of the pending move
+          (↓ below = new frame · → right = new beat). Press the same arrow again
+          to go; any other input disarms. */}
+      {arrowArm && currentFrameId && (
+        <>
+        <style>{`@keyframes sa-arm-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }`}</style>
+        <div
+          className="pointer-events-none fixed z-[66]"
+          style={{
+            ...(arrowArm === "down" ? { left: 0, right: 0, bottom: 0, height: 6 }
+              : arrowArm === "up" ? { left: 0, right: 0, top: 0, height: 6 }
+              : arrowArm === "right" ? { top: 0, bottom: 0, right: 0, width: 6 }
+              : { top: 0, bottom: 0, left: 0, width: 6 }),
+            background: NEON.yellow,
+            boxShadow: `0 0 22px 4px ${NEON.yellow}`,
+            animation: "sa-arm-pulse 1s ease-in-out infinite",
+          }}
+        />
+        </>
+      )}
+
       {/* Type floor — prep warning, only INSIDE a frame (composing a shot).
           Region overview is never a shot, so the badge is just noise there (item 7). */}
       {lowZoom && !film && currentFrameId && (
@@ -3216,7 +3258,7 @@ function PresentCanvas() {
         zoomOnScroll={!(film && !!currentFrameId)}
         zoomOnPinch={!(film && !!currentFrameId)}
         zoomOnDoubleClick={false}
-        selectionKeyCode={["Shift", "Control"]}
+        selectionKeyCode={["Shift"]}
         selectionOnDrag={false}
         deleteKeyCode={["Delete", "Backspace"]}
         style={{ background: "transparent" }}

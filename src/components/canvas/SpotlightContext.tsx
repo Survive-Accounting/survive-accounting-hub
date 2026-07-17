@@ -156,7 +156,10 @@ export function spotTargetProps(sp: SpotlightApi | null, cardId: string, targetI
     props: {
       "data-spot-target": targetId,
       onPointerDownCapture: (e: React.PointerEvent) => {
-        if ((e.ctrlKey || e.metaKey) && sp) { e.preventDefault(); e.stopPropagation(); sp.start(cardId, targetId); }
+        // Ctrl/Cmd+click a target → spotlight it. stopImmediatePropagation on the
+        // NATIVE event so React Flow's own pointer listeners (drag / selection box)
+        // never see the click — otherwise the spotlight would fight a node drag.
+        if ((e.ctrlKey || e.metaKey) && sp) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.start(cardId, targetId); }
       },
     },
   };
