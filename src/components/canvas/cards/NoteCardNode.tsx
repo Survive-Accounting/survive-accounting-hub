@@ -13,6 +13,7 @@ import { GripHorizontal, Lock, LockOpen, Trash2 } from "lucide-react";
 
 import { useCardActions, useCardScale } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
+import { MemoLightbulb } from "../MemoLightbulb";
 import { NOTE_COLORS } from "../theme";
 import { uploadImageFile } from "./ImageCardNode";
 import type { CardBase, NoteCard } from "../types";
@@ -119,6 +120,8 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
             title={nc.name}
           />
         ))}
+        {/* MEMOS ON EVERY CARD — whole-card memo (floating note + arrow) */}
+        <MemoLightbulb targetId={id} handleId="r" className="nodrag ml-0.5 h-3.5 w-3.5" style={{ color: c.ink, opacity: 0.6 }} />
         <button
           className="nodrag ml-0.5"
           style={{ color: c.ink, opacity: d.posLock ? 1 : 0.45 }}

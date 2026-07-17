@@ -8,6 +8,7 @@ import { Copy, ImagePlus, Lock, LockOpen, Minus, Plus, Trash2, X } from "lucide-
 
 import { useCardActions } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
+import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { EditableText } from "../ui";
 import { uploadImageFile } from "./ImageCardNode";
 import type { LegendCard } from "../types";
@@ -55,6 +56,13 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
 
       {/* hover actions (film mode hides via .card-actions) */}
       <div className="card-actions absolute right-1.5 top-1.5 z-10 flex gap-0.5 opacity-0 transition-opacity group-hover/legend:opacity-100">
+        {/* MEMOS ON EVERY CARD — whole-card memo (floating note + arrow to the card) */}
+        <MemoLightbulb
+          targetId={id}
+          handleId="r"
+          className="h-5 w-5"
+          style={{ color: FRAME.cream, background: "rgba(11,15,30,0.8)", border: `1px solid rgba(232,184,75,0.35)` }}
+        />
         {([
           d.deckMember ? (["Tuck into deck (s)", Minus, tuck] as const) : (["Add to deck", Plus, addToDeck] as const),
           ["Duplicate", Copy, duplicate] as const,
@@ -136,10 +144,19 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
         {/* cream rules box: 1–3 facts + flavor */}
         <div className="mx-2 mb-1.5 mt-1.5 rounded px-2 py-1.5" style={{ background: FRAME.cream, color: "#232838" }}>
           {d.facts.map((f, i) => (
-            <div key={i} className="group/fact flex items-start gap-1 py-0.5 text-[10.5px] leading-snug">
+            <div key={i} className="group/fact relative flex items-start gap-1 py-0.5 text-[10.5px] leading-snug">
+              {/* per-SLIP memo anchor — a memo can point at THIS fact, not just the card */}
+              <MemoAnchor subId={`f${i}`} />
               <span className="min-w-0 flex-1">
                 <EditableText value={f} onChange={(v) => patchFact(i, v)} placeholder={`Fact ${i + 1}`} />
               </span>
+              <MemoLightbulb
+                targetId={id}
+                handleId={memoAnchorId(`f${i}`)}
+                title="Attach a memo to this fact"
+                className="mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover/fact:opacity-70"
+                style={{ color: "#232838" }}
+              />
               {d.facts.length > 1 && (
                 <button
                   className="nodrag mt-0.5 shrink-0 opacity-0 transition-opacity group-hover/fact:opacity-60"
