@@ -62,9 +62,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
         kind: "outline",
         courseId: null, // derives from the scene's course
         freeThrough: 8,
-        origin: "bl",
-        rise: 0.6,
-        layout: "staircase",
+        layout: "snake",
+        stepsPerRow: null, // auto-fit
         hereOverride: null,
         w: 900,
         h: 506, // ~16:9

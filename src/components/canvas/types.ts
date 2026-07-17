@@ -480,12 +480,18 @@ export interface OutlineCard extends CardBase {
   courseId?: string | null;
   /** Free/paid gate: lessons 1..freeThrough are free (full colour), the rest paid. */
   freeThrough?: number;
-  /** Staircase controls. */
-  origin?: "bl" | "br" | "tl" | "tr";
-  rise?: number; // 0.15..0.92 — the ascent
-  layout?: "staircase" | "grid";
+  /** SNAKE layout (V2): steps flow L→R, wrap and reverse (boustrophedon), auto-
+   *  fitting steps-per-row to the card width + lesson count; `grid` is the
+   *  fallback. `staircase` is legacy (older scenes) — read as `snake`. */
+  layout?: "snake" | "grid" | "staircase";
+  /** Manual steps-per-row; null/absent = auto-fit. */
+  stepsPerRow?: number | null;
   /** YOU-ARE-HERE: 1-based lesson to emphasise; absent = auto-detect from the frame. */
   hereOverride?: number | null;
+  /** Legacy diagonal controls (ignored by the snake renderer; kept so pre-V2
+   *  scenes still parse). */
+  origin?: "bl" | "br" | "tl" | "tr";
+  rise?: number;
 }
 
 export type CardNode = Node<CardData & Record<string, unknown>>;
