@@ -3796,7 +3796,7 @@ function PresentCanvas() {
           courseName={(sceneCourse ? courseLabel(sceneCourse) : null) ?? sceneName ?? "Course"}
           currentFrameId={currentFrameId}
           onClose={() => setScriptOpen(false)}
-          statusCell={(fid, status) => <TakeBoardCell frameId={fid} status={status} />}
+          statusCell={(fid) => <TakeBoardCell frameId={fid} />}
           lessonControl={(lessonId) => <LessonPublishControl lessonId={lessonId} courseName={sceneCourse ? courseLabel(sceneCourse) : null} />}
         />
       )}

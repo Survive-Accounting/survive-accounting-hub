@@ -566,6 +566,9 @@ export interface FrameScript {
   exit?: string;
   /** CARD MARKS (V2): the build checklist for this frame. */
   marks?: CardMark[];
+  /** JOURNAL: free-text workshop space (rich HTML — bold + bullets) where Lee
+   *  riffs on ideas for the frame. Never rendered on camera. */
+  journal?: string;
 }
 /** TAKE BOARD: the frame's filming state. Absent = unfilmed. */
 export type FilmStatus = "unfilmed" | "filmed" | "retake";

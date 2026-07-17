@@ -14,7 +14,7 @@
 // a save (edits ride the undoable command bus, coalesced).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronDown, ChevronRight, Download, Filter, Link2, Link2Off, Plus, ScrollText, Trash2, X } from "lucide-react";
+import { Bold, ChevronDown, ChevronRight, Download, Filter, Link2, Link2Off, List, NotebookPen, Plus, ScrollText, Trash2, X } from "lucide-react";
 
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, type RfLike } from "./commands";
 import { blankFrameData, BEAT_COLUMNS, beatColOf, columnX, framesInBeat, nextSubIndex, RESERVED_ROWS, rowY, subIndexOf } from "./frames";
@@ -36,6 +36,9 @@ function focusNextField(cur: HTMLElement) {
 }
 
 const BEAT_LABEL: Record<Beat, string> = { hook: "Hook", teach: "Teach", model_practice: "Model · Practice", check: "Check" };
+// Hook frames get default names (shown until Lee renames): Intro · Outline · Teaser.
+const HOOK_NAMES = ["Intro", "Outline", "Teaser"];
+const defaultFrameName = (beat: Beat, n: number) => (beat === "hook" ? (HOOK_NAMES[n - 1] ?? "") : "");
 
 export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, lessonControl }: {
   courseName: string;
@@ -53,6 +56,12 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
 
   const [filter, setFilter] = useState("");
   const [unlinkedOnly, setUnlinkedOnly] = useState(false);
+  // BEAT + JOURNAL toggles — LOCAL, so both reset to CLOSED every time the editor
+  // opens (clean index you drill into). Keys: `${lessonId}:${beat}` / frameId.
+  const [openBeats, setOpenBeats] = useState<Set<string>>(new Set());
+  const [openJournals, setOpenJournals] = useState<Set<string>>(new Set());
+  const toggleBeat = (key: string) => setOpenBeats((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleJournal = (fid: string) => setOpenJournals((s) => { const n = new Set(s); n.has(fid) ? n.delete(fid) : n.add(fid); return n; });
   const [picker, setPicker] = useState<{ frameId: string; ta: HTMLTextAreaElement; rect: DOMRect } | null>(null);
   const [pickerQuery, setPickerQuery] = useState("");
   const [linkFor, setLinkFor] = useState<{ frameId: string; markId: string; rect: DOMRect } | null>(null);
@@ -90,6 +99,10 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
     const c = patchDataFnCmd(rfl, frameId, (prev) => ({ script: { ...((prev.script as FrameScript) ?? {}), [key]: value } }), "edit script", `d:${frameId}:script:${key}`);
     if (c) bus.dispatch(c);
   };
+  // frame NAME (editable) — coalesced keystrokes; hook frames default 1=Intro, 2=Outline, 3=Teaser.
+  const patchFrameTitle = (frameId: string, title: string) => { const c = patchDataFnCmd(rfl, frameId, () => ({ title }), "frame name", `d:${frameId}:title`); if (c) bus.dispatch(c); };
+  // JOURNAL (rich HTML) — the frame's workshop space.
+  const patchJournal = (frameId: string, journal: string) => { const c = patchDataFnCmd(rfl, frameId, (prev) => ({ script: { ...((prev.script as FrameScript) ?? {}), journal } }), "edit journal", `d:${frameId}:journal`); if (c) bus.dispatch(c); };
   const patchMarks = (frameId: string, fn: (marks: CardMark[]) => CardMark[], burst?: string) => {
     const c = patchDataFnCmd(rfl, frameId, (prev) => { const s = (prev.script as FrameScript) ?? {}; return { script: { ...s, marks: fn(s.marks ?? []) } }; }, "edit card marks", burst);
     if (c) bus.dispatch(c);
@@ -282,13 +295,21 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                   <span className="flex-1" />
                   {lessonControl?.(l.lessonId)}
                 </div>
-                {open && beatsWithVisibleFrames.map(({ beat, frames, hasAny }) => (
+                {open && beatsWithVisibleFrames.map(({ beat, frames, hasAny }) => {
+                  const beatKey = `${l.lessonId}:${beat}`;
+                  const beatOpen = filterActive || openBeats.has(beatKey);
+                  return (
                   (frames.length > 0 || (!filterActive && !hasAny)) && (
                     <div key={beat} className="mb-2 ml-6">
                       <div className="mb-1 flex items-center gap-1.5">
-                        <span className="text-[9.5px] font-bold uppercase tracking-widest" style={{ color: NEON.cyan }}>{BEAT_LABEL[beat]}</span>
+                        <button className="grid h-4 w-4 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => toggleBeat(beatKey)} disabled={filterActive} title={beatOpen ? "Collapse" : "Expand"}>
+                          {beatOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        </button>
+                        <button className="text-[9.5px] font-bold uppercase tracking-widest" style={{ color: NEON.cyan }} onClick={() => toggleBeat(beatKey)} disabled={filterActive}>{BEAT_LABEL[beat]}</button>
+                        <span className="text-[9px] tabular-nums" style={{ color: NEON.muted }}>{frames.length}</span>
                         <button className="inline-flex items-center gap-0.5 rounded px-1 text-[9px] font-semibold" style={{ color: NEON.muted, border: FIELD_BORDER }} title={`Add a frame to ${BEAT_LABEL[beat]} (max ${RESERVED_ROWS})`} onClick={() => addFrameEnd(l.lessonId, beat)}><Plus className="h-2.5 w-2.5" /> frame</button>
                       </div>
+                      {beatOpen && (
                       <div className="space-y-1.5">
                         {frames.map((f) => {
                           const marks = f.script.marks ?? [];
@@ -296,7 +317,15 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                             <div key={f.frameId} className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${hasScript(f.script) ? "rgba(126,243,192,0.25)" : NEON.borderSoft}` }}>
                               <div className="mb-1 flex items-center gap-1.5">
                                 <span className="rounded px-1 text-[9px] font-bold tabular-nums" style={{ color: NEON.yellow, border: FIELD_BORDER }}>F{f.n}</span>
-                                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold" style={{ color: NEON.text }}>{f.title || "untitled frame"}</span>
+                                <input
+                                  className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-[11px] font-semibold outline-none focus:ring-1"
+                                  style={{ color: NEON.text }}
+                                  defaultValue={f.title || defaultFrameName(beat, f.n)}
+                                  placeholder={defaultFrameName(beat, f.n) || "frame name"}
+                                  title="Frame name"
+                                  onChange={(e) => patchFrameTitle(f.frameId, e.target.value)}
+                                  onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); (e.currentTarget as HTMLInputElement).blur(); } }}
+                                />
                                 {statusCell?.(f.frameId, f.filmStatus)}
                                 <span className="flex shrink-0 items-center">
                                   <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Move up" onClick={() => moveFrame(f.frameId, -1)}>▲</button>
@@ -323,7 +352,7 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                                   return (
                                     <span key={m.id} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px]" style={{ background: linked ? "rgba(126,243,192,0.1)" : "rgba(252,163,17,0.1)", border: `1px solid ${linked ? "rgba(126,243,192,0.4)" : "rgba(252,163,17,0.4)"}` }}>
                                       <b style={{ color: linked ? "#7EF3C0" : NEON.yellow }}>@{markLabel(m.kind)}</b>
-                                      <input value={m.note ?? ""} onChange={(e) => setNote(f.frameId, m.id, e.target.value)} placeholder="note" className="w-20 bg-transparent text-[10px] outline-none" style={{ color: NEON.text }} />
+                                      <input value={m.note ?? ""} onChange={(e) => setNote(f.frameId, m.id, e.target.value)} placeholder="note" title={m.note || "note"} className="w-20 bg-transparent text-[10px] outline-none" style={{ color: NEON.text }} />
                                       {linked ? (
                                         <button className="grid h-4 w-4 place-items-center" style={{ color: "#7EF3C0" }} title="Linked — click to unlink" onClick={() => linkMark(f.frameId, m.id, null)}><Link2 className="h-3 w-3" /></button>
                                       ) : (
@@ -334,13 +363,27 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                                   );
                                 })}
                               </div>
+                              {/* JOURNAL — free-text workshop space (bold + bullets); never on camera */}
+                              <div className="mt-1.5">
+                                <button
+                                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                                  style={{ color: (f.script.journal ?? "").trim() ? NEON.yellow : NEON.muted, border: `1px solid ${(f.script.journal ?? "").trim() ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }}
+                                  title="Free-text space to riff on ideas for this frame (bold + bullets)"
+                                  onClick={() => toggleJournal(f.frameId)}
+                                >
+                                  <NotebookPen className="h-2.5 w-2.5" /> Journal{(f.script.journal ?? "").replace(/<[^>]*>/g, "").trim() ? " •" : ""}
+                                </button>
+                                {openJournals.has(f.frameId) && <JournalEditor html={f.script.journal ?? ""} onChange={(h) => patchJournal(f.frameId, h)} />}
+                              </div>
                             </div>
                           );
                         })}
                       </div>
+                      )}
                     </div>
                   )
-                ))}
+                  );
+                })}
               </section>
             );
           })}
@@ -384,6 +427,36 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+/** JOURNAL — a lightweight rich-text scratchpad (bold + bullet list) per frame.
+ *  contentEditable + execCommand keeps it dependency-free; stores innerHTML. */
+function JournalEditor({ html, onChange }: { html: string; onChange: (h: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // seed innerHTML ONCE (React must not re-render into it or the caret jumps)
+  useEffect(() => { if (ref.current && ref.current.innerHTML !== html) ref.current.innerHTML = html; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  const exec = (cmd: string) => { ref.current?.focus(); document.execCommand(cmd, false); onChange(ref.current?.innerHTML ?? ""); };
+  const btn = "grid h-5 w-5 place-items-center rounded";
+  return (
+    <div className="mt-1 rounded-lg" style={{ background: FIELD_BG, border: FIELD_BORDER }}>
+      <div className="flex items-center gap-0.5 border-b px-1 py-0.5" style={{ borderColor: NEON.borderSoft }}>
+        <button className={btn} style={{ color: NEON.text }} title="Bold (Ctrl+B)" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")}><Bold className="h-3 w-3" /></button>
+        <button className={btn} style={{ color: NEON.text }} title="Bullet list" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("insertUnorderedList")}><List className="h-3 w-3" /></button>
+        <span className="ml-1 text-[8.5px] uppercase tracking-wider" style={{ color: NEON.muted }}>workshop — never on camera</span>
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        className="sa-journal min-h-[52px] max-h-56 overflow-auto px-2 py-1.5 text-[11.5px] leading-snug outline-none"
+        style={{ color: NEON.text }}
+        data-placeholder="Riff on ideas for this frame…"
+        onInput={(e) => onChange(e.currentTarget.innerHTML)}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+      <style>{`.sa-journal ul{list-style:disc;padding-left:1.2em;margin:0}.sa-journal:empty::before{content:attr(data-placeholder);color:${NEON.muted};opacity:.7}`}</style>
     </div>
   );
 }

@@ -414,31 +414,35 @@ export function TakesPanel({ frameId, onClose }: { frameId: string; onClose: () 
 }
 
 /** Take-board cell for the Script editor rows: intro flag + chip + takes + upload. */
-export function TakeBoardCell({ frameId, status }: { frameId: string; status: FilmStatus }) {
+/** DERIVED film status — driven by the takes, not a manual toggle:
+ *  no takes = unfilmed · takes but none kept = pending · a keeper = filmed. */
+const DERIVED_STATUS_META = {
+  unfilmed: { label: "unfilmed", color: "#9AA6B8", bg: "rgba(147,160,180,0.14)", border: "rgba(147,160,180,0.4)" },
+  pending: { label: "pending", color: "#FCA311", bg: "rgba(252,163,17,0.16)", border: "rgba(252,163,17,0.5)" },
+  filmed: { label: "filmed", color: "#7EF3C0", bg: "rgba(59,245,160,0.14)", border: "rgba(126,243,192,0.5)" },
+} as const;
+
+export function TakeBoardCell({ frameId }: { frameId: string }) {
   const { takesFor, upload } = useFrameTakes();
-  const rf = useReactFlow();
-  const rfl = rf as unknown as RfLike;
   const fileRef = useRef<HTMLInputElement>(null);
-  const n = takesFor(frameId).length;
-  const isIntro = !!(rf.getNode(frameId)?.data as { introTake?: boolean } | undefined)?.introTake;
-  const toggleIntro = () => { const c = patchDataCmd(rfl, frameId, { introTake: !isIntro }, "intro flag"); if (c) bus.dispatch(c); };
+  const takes = takesFor(frameId);
+  const n = takes.length;
+  const kept = takes.some((t) => t.keeper);
+  const status: keyof typeof DERIVED_STATUS_META = n === 0 ? "unfilmed" : kept ? "filmed" : "pending";
+  const meta = DERIVED_STATUS_META[status];
   return (
     <span
       className="flex shrink-0 items-center gap-1"
       onDragOver={(e) => { e.preventDefault(); }}
       onDrop={(e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) void upload(frameId, f); }}
     >
-      {/* INTRO flag — this frame's keeper is the lesson's intro (never body-processed) */}
-      <button
-        className="grid h-5 w-5 place-items-center rounded text-[8px] font-black"
-        title={isIntro ? "Intro take — Auphonic loudness-matches it without reprocessing (click to unset)" : "Mark this frame's keeper as the lesson INTRO"}
-        style={{ color: isIntro ? "#0B1322" : NEON.muted, background: isIntro ? NEON.yellow : "transparent", border: `1px solid ${isIntro ? NEON.yellow : NEON.borderSoft}` }}
-        onClick={() => toggleIntro()}
+      <span
+        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+        style={{ color: meta.color, background: meta.bg, border: `1px solid ${meta.border}` }}
+        title={status === "unfilmed" ? "No clip uploaded yet" : status === "pending" ? `${n} take${n === 1 ? "" : "s"} uploaded — none kept yet` : `Keeper marked (${n} take${n === 1 ? "" : "s"})`}
       >
-        IN
-      </button>
-      {n > 0 && <span className="text-[9px] tabular-nums" style={{ color: NEON.muted }}>{n} take{n === 1 ? "" : "s"}</span>}
-      <FilmStatusChip frameId={frameId} status={status} small />
+        {meta.label}{n > 0 && <span className="tabular-nums opacity-80">· {n}</span>}
+      </span>
       <button
         className="grid h-5 w-5 place-items-center rounded"
         style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }}
