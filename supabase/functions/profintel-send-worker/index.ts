@@ -76,16 +76,39 @@ Deno.serve(async (req) => {
     .select("id,to_email,subject,body")
     .eq("status", "scheduled")
     .eq("ready", true)
+    .is("stopped_at", null) // don't send a row that's itself been marked opt-out
     .lte("scheduled_at", nowIso)
     .not("to_email", "is", null)
     .order("scheduled_at", { ascending: true })
     .limit(Math.min(BATCH, remaining));
 
-  let sent = 0, failed = 0;
+  // Opt-out suppression: a professor who replied STOP (marked stopped_at on ANY of
+  // their sends) must never be emailed again. Build the opted-out email set and
+  // cancel any due row addressed to one of them instead of sending.
+  const { data: stoppedRows } = await admin
+    .from("profintel_sends")
+    .select("to_email")
+    .not("stopped_at", "is", null)
+    .not("to_email", "is", null);
+  const optedOut = new Set(
+    ((stoppedRows ?? []) as Array<{ to_email: string | null }>)
+      .map((r) => (r.to_email ?? "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  let sent = 0, failed = 0, skipped = 0;
   for (const s of (due ?? []) as Array<{ id: string; to_email: string | null; subject: string | null; body: string | null }>) {
     if (!s.to_email || !EMAIL_RE.test(s.to_email)) {
       await admin.from("profintel_sends").update({ status: "error", send_error: "invalid email" }).eq("id", s.id);
       failed++;
+      continue;
+    }
+    if (optedOut.has(s.to_email.trim().toLowerCase())) {
+      await admin
+        .from("profintel_sends")
+        .update({ status: "canceled", send_error: "recipient opted out (STOP)" })
+        .eq("id", s.id);
+      skipped++;
       continue;
     }
     // Claim the row first (idempotency): flip to 'sent' before the network call so
@@ -131,5 +154,5 @@ Deno.serve(async (req) => {
   // Anchor the warmup ramp to the first day a real email actually goes out.
   if (sent > 0 && !settings.warmup_start_date) settingsPatch.warmup_start_date = today;
   await admin.from("profintel_settings").update(settingsPatch).eq("id", 1);
-  return new Response(JSON.stringify({ ok: true, sent, failed, sentToday, cap }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ ok: true, sent, failed, skipped, sentToday, cap }), { headers: { "Content-Type": "application/json" } });
 });
