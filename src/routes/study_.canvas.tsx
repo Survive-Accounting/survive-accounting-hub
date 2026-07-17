@@ -77,6 +77,8 @@ import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/Connect
 import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
 import { GhostCellsLayer } from "@/components/canvas/GhostCellsLayer";
 import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
+import { BackstageStage } from "@/components/canvas/BackstageStage";
+import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
@@ -709,13 +711,15 @@ function GroupChromeBar() {
 // BACKSTAGE (AC1) — the authoring-only pane background. Film + frame interiors
 // keep the dark stage; this only dresses the area OUTSIDE frames while composing.
 // "dark" reproduces the current dotted navy; "light" is the calmer new default.
-type BackstageMode = "dark" | "light" | "gray";
+type BackstageMode = "cinema" | "dark" | "light" | "gray";
 const BACKSTAGE_BG: Record<BackstageMode, string> = {
+  // CINEMA: a deep dark-red base; BackstageStage paints the animated studio over it.
+  cinema: "radial-gradient(130% 120% at 50% 38%, #45101c 0%, #2a0910 48%, #150406 100%)",
   dark: `${NEON.bg} radial-gradient(rgba(147,160,180,0.16) 1px, transparent 1px) 0 0 / 28px 28px`,
   light: "linear-gradient(160deg, #EEF1F6 0%, #E4E8F0 55%, #DADFEA 100%)",
   gray: "#9AA1AD",
 };
-const BACKSTAGE_LABEL: Record<BackstageMode, string> = { dark: "Dark dotted", light: "Light gradient", gray: "Plain gray" };
+const BACKSTAGE_LABEL: Record<BackstageMode, string> = { cinema: "Cinema", dark: "Dark dotted", light: "Light gradient", gray: "Plain gray" };
 
 // Composition-guide render treatment by weight — brand gold, strongest at the
 // frame center, faintest at the fifths; the title-safe margin renders dashed.
@@ -831,7 +835,7 @@ function PresentCanvas() {
   }, []);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
-  const [backstage, setBackstage] = useState<BackstageMode>("light"); // AC1: authoring-only pane background (film keeps the dark stage)
+  const [backstage, setBackstage] = useState<BackstageMode>("cinema"); // AC1: authoring-only pane background (film keeps the dark stage)
   const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
@@ -2230,7 +2234,7 @@ function PresentCanvas() {
       setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames !== false); // default on
       setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
       setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
-      { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "dark" || bs === "gray" ? bs : "light"); } // default light
+      { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "dark" || bs === "gray" || bs === "light" ? bs : "cinema"); } // default cinema
       setFilmEntrancePop((nj.sceneSettings as { filmEntrancePop?: boolean } | undefined)?.filmEntrancePop !== false); // default on
       setFilmCheckGlow((nj.sceneSettings as { filmCheckGlow?: boolean } | undefined)?.filmCheckGlow !== false); // default on
       setFramePath((nj.sceneSettings as { framePath?: boolean } | undefined)?.framePath === true); // default off
@@ -3036,8 +3040,10 @@ function PresentCanvas() {
     <DecksContext.Provider value={decksCtx}>
     <FrameNavContext.Provider value={frameNav}>
     <SpotlightCtx.Provider value={spot}>
-    <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""}`} style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}>
+    <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`} style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}>
       <style>{FILM_MODE_CSS}</style>
+      {/* CINEMA BACKSTAGE (authoring only) — dark-red animated studio behind the canvas */}
+      {chrome && backstage === "cinema" && <BackstageStage video={bgCfg.video} />}
       <style>{CARD_CURSOR_CSS}</style>
       <style>{CONNECTION_DOTS_CSS}</style>
       <style>{ARROW_EDGE_CSS}</style>
@@ -3092,8 +3098,9 @@ function PresentCanvas() {
           {toast}
         </div>
       )}
-      {/* looping video background (low opacity, filming-optional); key remounts on swap */}
-      {bgCfg.mode === "video" && (
+      {/* looping video background (low opacity, filming-optional); key remounts on swap.
+          In the cinema backstage BackstageStage owns the animation, so skip this one. */}
+      {bgCfg.mode === "video" && !(chrome && backstage === "cinema") && (
         <video
           key={bgCfg.video}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
@@ -3161,6 +3168,8 @@ function PresentCanvas() {
         )}
         {/* AC2/AC3: per-lesson ghost sub-frame slots + toggleable numbered film-order path */}
         {chrome && <FrameGridOverlay showPath={framePath} onAddFrame={(lessonId, beat, sub) => { makeFrameAt(lessonId, beat, sub); }} />}
+        {/* CINEMA: giant SURVIVE wordmark laid across the scaffolding, behind the nodes */}
+        {chrome && backstage === "cinema" && <SurviveBackdrop />}
         {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
         {chrome && minimap && (
           <MiniMap
@@ -3440,7 +3449,7 @@ function PresentCanvas() {
                 {/* AC1: backstage background — authoring only; film keeps the dark stage */}
                 <div className="mt-1.5 text-[10px]" style={{ color: NEON.muted }}>Backstage <span className="opacity-60">(authoring only)</span></div>
                 <div className="mt-0.5 flex gap-1">
-                  {(["light", "dark", "gray"] as const).map((m) => (
+                  {(["cinema", "light", "dark", "gray"] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => setBackstage(m)}

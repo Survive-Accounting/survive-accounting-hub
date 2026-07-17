@@ -211,6 +211,17 @@ export const FILM_MODE_CSS = `
   .film-mode .zone-actions { display: none !important; }
   /* Legend V2 (item 4): the collection number is an authoring aid — off camera. */
   .film-mode .legend-collnum { display: none !important; }
+  /* CINEMA BACKSTAGE (authoring): frames float OUT of the animated red stage with
+     deep dimensional shadow + a lifted rim, so each reads as a solid plate emerging
+     from the depth below. Applied to the frame node's beat surface. */
+  .sa-cinema .react-flow__node:has(> [data-beat]) {
+    filter: drop-shadow(0 26px 40px rgba(0,0,0,0.7)) drop-shadow(0 6px 14px rgba(0,0,0,0.55));
+  }
+  .sa-cinema [data-beat] {
+    box-shadow: 0 2px 0 0 rgba(255,255,255,0.06) inset, 0 -18px 40px -20px rgba(0,0,0,0.8) inset, 0 40px 80px -24px rgba(0,0,0,0.85) !important;
+  }
+  /* a hair more contrast on the frame edge so it separates from the crimson field */
+  .sa-cinema [data-beat] { border-width: 2px !important; }
   /* FG4: a frame's own chrome (header, beat chip, title, nav chevrons) never
      renders over a take — the shot is the cards only. */
   .film-mode [data-frame-chrome] { display: none !important; }
