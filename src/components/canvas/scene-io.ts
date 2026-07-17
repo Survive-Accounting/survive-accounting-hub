@@ -9,6 +9,49 @@
 // sanitizeSceneNodes strips all of it; it runs on SAVE and on LOAD (so scenes
 // saved before this fix heal on their next load).
 
+/** INTRO CARDS (default on load): every lesson's Hook frame 1 gets a title
+ *  heading (the lesson name, over the animation) and Hook frame 2 gets the
+ *  course-outline LIST (every lesson in order, this one flagged "you are here").
+ *  Idempotent — seeds a frame once (marks `introSeeded`), skips frames that
+ *  already hold a heading/list, and never re-adds after you delete one. Runs on
+ *  load so existing courses (scaffolded before this) pick them up too. MUST run
+ *  after migrateFrameGrid (needs frames' beat / subIndex). */
+type IntroNode = { id: string; type?: string; parentId?: string; position?: { x: number; y: number }; data: Record<string, unknown> };
+const introId = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
+export function migrateIntroCards<T extends IntroNode>(nodes: T[]): T[] {
+  const lessons = nodes.filter((n) => n.type === "lesson");
+  if (lessons.length === 0) return nodes;
+  const ordered = [...lessons].sort(
+    (a, b) => ((a.data.pathOrder as number) ?? 1e9) - ((b.data.pathOrder as number) ?? 1e9) || (a.position?.y ?? 0) - (b.position?.y ?? 0) || (a.position?.x ?? 0) - (b.position?.x ?? 0),
+  );
+  const labels = ordered.map((l) => (l.data.label as string) || "Lesson");
+  const seeded = new Set<string>();
+  const additions: T[] = [];
+  for (const lesson of ordered) {
+    const label = (lesson.data.label as string) || "Lesson";
+    const hooks = nodes
+      .filter((n) => n.type === "frame" && n.parentId === lesson.id && n.data.beat === "hook")
+      .sort((a, b) => ((a.data.subIndex as number) ?? 0) - ((b.data.subIndex as number) ?? 0));
+    const f1 = hooks.find((f) => ((f.data.subIndex as number) ?? 0) === 0);
+    const f2 = hooks.find((f) => ((f.data.subIndex as number) ?? 0) === 1);
+    if (f1 && !f1.data.introSeeded) {
+      seeded.add(f1.id);
+      if (!nodes.some((n) => n.parentId === f1.id && n.type === "heading")) {
+        additions.push({ id: introId("heading"), type: "heading", parentId: f1.id, position: { x: 110, y: 150 }, data: { kind: "heading", text: label, level: 1, scrim: true } } as unknown as T);
+      }
+    }
+    if (f2 && !f2.data.introSeeded) {
+      seeded.add(f2.id);
+      if (!nodes.some((n) => n.parentId === f2.id && n.type === "list")) {
+        additions.push({ id: introId("list"), type: "list", parentId: f2.id, position: { x: 130, y: 72 }, data: { kind: "list", title: "Lessons", showChips: false, rows: labels.map((t) => ({ id: introId("r"), text: t, youAreHere: t === label })) } } as unknown as T);
+      }
+    }
+  }
+  if (seeded.size === 0) return nodes;
+  const marked = nodes.map((n) => (seeded.has(n.id) ? ({ ...n, data: { ...n.data, introSeeded: true } } as T) : n));
+  return [...marked, ...additions];
+}
+
 export function sanitizeSceneNodes<T extends { data?: Record<string, unknown>; selected?: boolean; dragging?: boolean }>(
   nodes: T[],
 ): T[] {

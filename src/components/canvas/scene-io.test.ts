@@ -3,7 +3,43 @@
 // cards saved selected reload as a drag-group).
 import { describe, expect, test } from "bun:test";
 
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, sanitizeSceneNodes } from "./scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateIntroCards, sanitizeSceneNodes } from "./scene-io";
+
+describe("migrateIntroCards", () => {
+  const scene = () => [
+    { id: "L1", type: "lesson", position: { x: 0, y: 0 }, data: { label: "Ch 1", pathOrder: 1 } },
+    { id: "L2", type: "lesson", position: { x: 0, y: 0 }, data: { label: "Ch 2", pathOrder: 2 } },
+    { id: "L1-h0", type: "frame", parentId: "L1", position: { x: 0, y: 0 }, data: { beat: "hook", subIndex: 0 } },
+    { id: "L1-h1", type: "frame", parentId: "L1", position: { x: 0, y: 0 }, data: { beat: "hook", subIndex: 1 } },
+    { id: "L2-h0", type: "frame", parentId: "L2", position: { x: 0, y: 0 }, data: { beat: "hook", subIndex: 1 } },
+  ];
+
+  test("seeds a title heading in Hook-1 and an outline list in Hook-2, marking frames introSeeded", () => {
+    const out = migrateIntroCards(scene());
+    const heading = out.find((n) => n.type === "heading" && n.parentId === "L1-h0");
+    expect((heading!.data as { text: string }).text).toBe("Ch 1");
+    const list = out.find((n) => n.type === "list" && n.parentId === "L1-h1");
+    const rows = (list!.data as { rows: { text: string; youAreHere?: boolean }[] }).rows;
+    expect(rows.map((r) => r.text)).toEqual(["Ch 1", "Ch 2"]);
+    expect(rows.find((r) => r.youAreHere)!.text).toBe("Ch 1");
+    expect(out.find((n) => n.id === "L1-h0")!.data.introSeeded).toBe(true);
+  });
+
+  test("idempotent — a second pass adds nothing", () => {
+    const first = migrateIntroCards(scene());
+    const second = migrateIntroCards(first);
+    expect(second.length).toBe(first.length);
+  });
+
+  test("never adds a duplicate when a heading/list already exists", () => {
+    const withCards = [
+      ...scene(),
+      { id: "own-h", type: "heading", parentId: "L1-h0", position: { x: 0, y: 0 }, data: { kind: "heading", text: "mine" } },
+    ];
+    const out = migrateIntroCards(withCards);
+    expect(out.filter((n) => n.type === "heading" && n.parentId === "L1-h0").length).toBe(1);
+  });
+});
 
 const isElement = (k: string | undefined) => k === "heading" || k === "text" || k === "paygate" || k === "signupgate";
 

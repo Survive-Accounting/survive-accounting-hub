@@ -70,7 +70,7 @@ import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuck
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { migrateZTiers, nextZ } from "@/components/canvas/zorder";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
@@ -882,9 +882,14 @@ function PresentCanvas() {
   }), []);
   const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
   useEffect(() => {
-    const onResize = () => setVpTick((t) => t + 1);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    // Fullscreen EXIT resizes the window but the letterbox reads window.inner*
+    // at render — so re-tick on resize AND fullscreenchange, plus a delayed tick
+    // to catch the settled dimensions after the browser's fullscreen transition.
+    const bump = () => setVpTick((t) => t + 1);
+    const onFs = () => { bump(); window.setTimeout(bump, 120); window.setTimeout(bump, 320); };
+    window.addEventListener("resize", bump);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => { window.removeEventListener("resize", bump); document.removeEventListener("fullscreenchange", onFs); };
   }, []);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
@@ -2348,7 +2353,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))));
+      rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -2387,7 +2392,7 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))));
+            rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -2740,7 +2745,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))));
+      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
