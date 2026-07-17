@@ -82,7 +82,7 @@ import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
-import { FrameTakesProvider, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
+import { FrameTakesProvider, LessonMediaBar, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
 import { RecorderSpike } from "@/components/canvas/RecorderSpike";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { hubLayout, plateForCourse } from "@/components/canvas/hub-layout";
@@ -369,6 +369,9 @@ function LessonNode({ id, data, selected }: NodeProps) {
         ) : (
           <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Lesson" />
         )}
+        {/* LESSON MEDIA — intro/outro clip upload + preview by the title (always
+            visible: the dropped/empty state is the whole point). */}
+        <LessonMediaBar lessonId={id} />
         {/* CHROME — hover/selected only (L1); pointer-events off while hidden so
             invisible controls can't be clicked. */}
         <span className={`flex items-center gap-1 transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`}>

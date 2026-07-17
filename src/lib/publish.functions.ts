@@ -81,6 +81,7 @@ export interface LessonVideoRow {
   intro_playback_id: string | null;
   trimmed_intro_asset_id: string | null;
   trimmed_intro_playback_id: string | null;
+  outro_playback_id: string | null;
   auphonic_uuid: string | null;
   mux_asset_id: string | null;
   playback_id: string | null;
@@ -107,16 +108,17 @@ export const publishLesson = createServerFn({ method: "POST" })
       lessonId: z.string().min(1).max(120),
       courseName: z.string().nullable(),
       lessonLabel: z.string().nullable(),
-      intro: introSchema.nullable(), // the intro take (Hook f1), maybe trimmed
-      body: z.array(keeperSchema).min(1), // ordered body keepers (ex-intro)
+      intro: introSchema.nullable(), // the intro clip (lesson upload or Hook f1), maybe trimmed
+      outro: z.object({ playbackId: z.string().min(6) }).nullable().optional(), // lesson outro clip
+      body: z.array(keeperSchema).min(1), // ordered body keepers
     }).parse(d),
   )
   .handler(async ({ data }): Promise<{ publishId: string; version: number }> => {
-    // env gates first — fail loud before any DB / API work
+    // env gates first — fail loud before any DB / API work. The OUTRO is a lesson
+    // upload now (OUTRO_STING_URL is only a fallback), so it's not required here.
     muxAuth();
     requireEnv("AUPHONIC_API_KEY");
     requireEnv("AUPHONIC_PRESET_UUID"); // the "Survive Lesson" preset's uuid
-    requireEnv("OUTRO_STING_URL");
 
     // resolution-drift guard (OBS settings must not change mid-lesson)
     const dims = [data.intro?.dim, ...data.body.map((b) => b.dim)].filter(Boolean) as { w: number; h: number }[];
@@ -171,6 +173,7 @@ export const publishLesson = createServerFn({ method: "POST" })
         mux_body_asset_id: bodyAsset.id,
         intro_playback_id: data.intro?.playbackId ?? null,
         trimmed_intro_asset_id: trimmedIntroAssetId,
+        outro_playback_id: data.outro?.playbackId ?? null,
       } as Record<string, unknown>)
       .select("id")
       .single();
@@ -217,7 +220,8 @@ export const resolveLessonPublish = createServerFn({ method: "POST" })
           const tiPb = ti.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? ti.playback_ids?.[0]?.id;
           if (tiPb) { introUrl = muxMp4(tiPb); await save({ trimmed_intro_playback_id: tiPb }); }
         }
-        const outroUrl = requireEnv("OUTRO_STING_URL");
+        // OUTRO: the lesson upload if present, else the shared sting fallback (may be absent).
+        const outroUrl = (row as LessonVideoRow).outro_playback_id ? muxMp4((row as LessonVideoRow).outro_playback_id!) : (process.env.OUTRO_STING_URL ?? null);
         const prod = await auphonic("productions.json", {
           method: "POST",
           body: JSON.stringify({
@@ -226,7 +230,7 @@ export const resolveLessonPublish = createServerFn({ method: "POST" })
             multi_input_files: [
               ...(introUrl ? [{ input_file: introUrl, type: "intro" }] : []),
               { input_file: muxMp4(bodyPb), type: "multitrack", id: "body" },
-              { input_file: outroUrl, type: "outro" },
+              ...(outroUrl ? [{ input_file: outroUrl, type: "outro" }] : []),
             ],
             output_files: [{ format: "video", ending: "mp4" }],
             // loudness match only; NEVER cut fillers/silence (one-take principle)
@@ -275,6 +279,43 @@ export const resolveLessonPublish = createServerFn({ method: "POST" })
     } catch (e) {
       return fail(e instanceof Error ? e.message : String(e));
     }
+  });
+
+// ---- PREVIEW (pre-production) ------------------------------------------------
+// "Generate preview" — stitch intro + body frames + outro into ONE Mux asset,
+// NO Auphonic (pre-loudness). Lee eyeballs the assembly before committing to a
+// full publish. Ephemeral: no DB row; the client holds the asset id + polls.
+export const previewLesson = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      intro: z.object({ playbackId: z.string().min(6), trim: z.object({ start: z.number(), length: z.number() }).nullable().optional() }).nullable(),
+      body: z.array(z.string().min(6)).min(1), // ordered body keeper playback ids
+      outro: z.string().min(6).nullable(),
+    }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ assetId: string }> => {
+    muxAuth();
+    const inputs: Record<string, unknown>[] = [];
+    if (data.intro) inputs.push(data.intro.trim
+      ? { url: muxMp4(data.intro.playbackId), start_time: data.intro.trim.start, end_time: data.intro.trim.start + data.intro.trim.length }
+      : { url: muxMp4(data.intro.playbackId) });
+    for (const pb of data.body) inputs.push({ url: muxMp4(pb) });
+    if (data.outro) inputs.push({ url: muxMp4(data.outro) });
+    const asset = await muxApi("/video/v1/assets", {
+      method: "POST",
+      body: JSON.stringify({ input: inputs, playback_policy: ["public"], passthrough: "preview" }),
+    });
+    return { assetId: asset.id };
+  });
+
+export const resolvePreview = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ assetId: z.string().min(6) }).parse(d))
+  .handler(async ({ data }): Promise<{ status: "processing" | "ready" | "errored"; playbackId: string | null; error: string | null }> => {
+    const asset = await muxApi(`/video/v1/assets/${data.assetId}`);
+    if (asset.status === "errored") return { status: "errored", playbackId: null, error: asset.errors?.messages?.join("; ") ?? "preview failed" };
+    if (asset.status !== "ready") return { status: "processing", playbackId: null, error: null };
+    const pb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+    return { status: "ready", playbackId: pb, error: null };
   });
 
 // ---- reads ------------------------------------------------------------------

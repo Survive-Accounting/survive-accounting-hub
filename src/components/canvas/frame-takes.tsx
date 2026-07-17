@@ -11,11 +11,13 @@ import { useReactFlow } from "@xyflow/react";
 import { Check, Loader2, RefreshCw, Scissors, Star, Upload, Video, X } from "lucide-react";
 
 import { createFrameTakeUpload, listFrameTakes, resolveFrameTake, setTakeKeeper, setTakeTrim, type FrameTakeRow } from "@/lib/canvas.functions";
+import { previewLesson, resolvePreview } from "@/lib/publish.functions";
 import { bus, patchDataCmd, type RfLike } from "./commands";
 import { computeTrim, isPublishable, trimLabel, WARNING_TEXT } from "./intro-trim";
+import { bodyFrames, type PubFrame } from "./publish-pipeline";
 import { takePassthrough } from "./take-naming";
 import { NEON } from "./theme";
-import type { FilmStatus } from "./types";
+import type { Beat, FilmStatus } from "./types";
 
 // ---- browser audio analysis (onset + duration) — no server bytes, no ffmpeg ---
 /** Reliable media duration via a throwaway <video> element. */
@@ -103,7 +105,11 @@ export function FrameTakesProvider({ courseName, introClipLength = 6, autoTrimIn
   const pollTimers = useRef<Map<string, number>>(new Map());
 
   const refresh = useCallback(async () => {
-    const frameIds = rf.getNodes().filter((n) => n.type === "frame").map((n) => n.id);
+    const ns = rf.getNodes();
+    // real frames + the synthetic lesson-level intro/outro clip ids (uploaded by
+    // the lesson title — "intro:<lessonId>" / "outro:<lessonId>").
+    const lessonMedia = ns.filter((n) => n.type === "lesson").flatMap((l) => [`intro:${l.id}`, `outro:${l.id}`]);
+    const frameIds = [...ns.filter((n) => n.type === "frame").map((n) => n.id), ...lessonMedia];
     if (frameIds.length === 0) { setTakes(new Map()); return; }
     try {
       const rows = await listFrameTakes({ data: { frameIds } });
@@ -174,24 +180,33 @@ export function FrameTakesProvider({ courseName, introClipLength = 6, autoTrimIn
   }, [introClipLength, mergeRow]);
 
   const upload = useCallback(async (frameId: string, file: File) => {
-    const node = rf.getNode(frameId);
-    if (!node) return;
-    const d = node.data as { beat?: string; subIndex?: number; introTake?: boolean };
-    // lesson label from the frame's parent; course from the SURVIVE tree is not
-    // needed — the scene name carries it; keep the stem deterministic from labels.
-    const lesson = node.parentId ? (rf.getNode(node.parentId)?.data as { label?: string } | undefined)?.label ?? null : null;
-    const passthrough = takePassthrough(courseName, lesson, d.beat ?? "frame", d.subIndex ?? 0);
+    // LESSON-LEVEL intro/outro clips ("intro:<lessonId>" / "outro:<lessonId>",
+    // uploaded by the lesson title) have no frame node — derive from the lesson.
+    const media = /^(intro|outro):(.+)$/.exec(frameId);
+    let lesson: string | null, beat: string, subIndex: number, isIntro: boolean;
+    if (media) {
+      lesson = (rf.getNode(media[2])?.data as { label?: string } | undefined)?.label ?? null;
+      beat = media[1]; subIndex = 0; isIntro = media[1] === "intro";
+    } else {
+      const node = rf.getNode(frameId);
+      if (!node) return;
+      const d = node.data as { beat?: string; subIndex?: number; introTake?: boolean };
+      // lesson label from the frame's parent; the scene name carries the course.
+      lesson = node.parentId ? (rf.getNode(node.parentId)?.data as { label?: string } | undefined)?.label ?? null : null;
+      beat = d.beat ?? "frame"; subIndex = d.subIndex ?? 0; isIntro = !!d.introTake;
+    }
+    const passthrough = takePassthrough(courseName, lesson, beat, subIndex);
     setMuxError(null);
     setUploading((u) => [...u.filter((x) => x.frameId !== frameId), { frameId, pct: "uploading" }]);
     try {
       const { uploadUrl, takeId } = await createFrameTakeUpload({ data: { frameId, passthrough } });
-      // AUTO-TRIM INTRO TAKES: on an intro-flagged frame, analyse the audio (in the
-      // browser — the file is right here) and store a non-destructive trim window.
-      const trimP = d.introTake && autoTrimIntros ? deriveTrim(takeId, frameId, file).catch(() => {}) : null;
+      // AUTO-TRIM INTRO: on an intro frame OR a lesson intro clip, analyse the audio
+      // (in the browser) and store a non-destructive trim window.
+      const trimP = isIntro && autoTrimIntros ? deriveTrim(takeId, frameId, file).catch(() => {}) : null;
       const put = await fetch(uploadUrl, { method: "PUT", body: file });
       if (!put.ok) throw new Error(`Mux upload PUT failed (${put.status})`);
-      // upload landed → the frame is FILMED (retake/unfilmed are manual flips)
-      setFrameStatus(frameId, "filmed");
+      // upload landed → a real frame flips to FILMED (lesson media has no node)
+      if (!media) setFrameStatus(frameId, "filmed");
       setUploading((u) => u.map((x) => (x.frameId === frameId ? { ...x, pct: "processing" } : x)));
       pollTake(takeId);
       void trimP;
@@ -452,6 +467,102 @@ export function RetrimAllIntrosButton() {
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Scissors className="h-3 w-3" />} re-trim all intros
     </button>
+  );
+}
+
+/** LESSON MEDIA BAR — intro / outro upload spots + a "generate preview" button,
+ *  shown by the lesson title. The intro/outro are LESSON-level clips (not frame
+ *  takes) stored under synthetic ids ("intro:<lessonId>" / "outro:<lessonId>").
+ *  Preview stitches intro + body-frame keepers (in order, skipping frames with no
+ *  keeper) + outro into ONE Mux asset — pre-Auphonic, so Lee can eyeball it. */
+export function LessonMediaBar({ lessonId }: { lessonId: string }) {
+  const { takesFor, upload, uploading } = useFrameTakes();
+  const rf = useReactFlow();
+  const introId = `intro:${lessonId}`, outroId = `outro:${lessonId}`;
+  const introTake = takesFor(introId).find((t) => t.status === "ready") ?? takesFor(introId)[0];
+  const outroTake = takesFor(outroId).find((t) => t.status === "ready") ?? takesFor(outroId)[0];
+  const [preview, setPreview] = useState<{ status: "processing" | "ready" | "errored"; playbackId?: string | null; error?: string | null } | null>(null);
+  const pollRef = useRef<number | null>(null);
+  useEffect(() => () => { if (pollRef.current) window.clearTimeout(pollRef.current); }, []);
+
+  const slot = (id: string, take: FrameTakeRow | undefined, label: string) => {
+    const busy = uploading.some((u) => u.frameId === id);
+    const ready = take?.status === "ready";
+    return (
+      <span
+        className="nodrag zone-actions inline-flex items-center"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) void upload(id, f); }}
+      >
+        <button
+          className="inline-flex items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide"
+          style={{ color: ready ? "#0B1322" : busy ? NEON.cyan : NEON.muted, background: ready ? "#7EF3C0" : "transparent", border: `1px solid ${ready ? "#7EF3C0" : NEON.borderSoft}` }}
+          title={ready ? `${label} clip uploaded — drop again to replace` : `Drop or click to upload the ${label.toLowerCase()} clip`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); (e.currentTarget.nextSibling as HTMLInputElement)?.click(); }}
+        >
+          {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : ready ? <Check className="h-2.5 w-2.5" /> : <Upload className="h-2.5 w-2.5" />}
+          {label}
+        </button>
+        <input type="file" accept="video/*,.mkv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(id, f); e.target.value = ""; }} />
+      </span>
+    );
+  };
+
+  const pollPreview = (assetId: string, attempt = 0) => {
+    resolvePreview({ data: { assetId } }).then((r) => {
+      setPreview(r);
+      if (r.status !== "ready" && r.status !== "errored" && attempt < 120) pollRef.current = window.setTimeout(() => pollPreview(assetId, attempt + 1), 4000);
+    }).catch((e) => setPreview({ status: "errored", playbackId: null, error: e instanceof Error ? e.message : String(e) }));
+  };
+
+  const genPreview = async () => {
+    // body = the lesson's frames (column-major) that have a ready keeper, skipping
+    // any frame without one (the intro-making frames Lee leaves empty).
+    const frames: PubFrame[] = rf.getNodes().filter((n) => n.type === "frame" && n.parentId === lessonId).map((n) => {
+      const d = n.data as { beat?: string; subIndex?: number };
+      return { id: n.id, beat: (d.beat === "none" ? "hook" : d.beat ?? "hook") as Beat, subIndex: d.subIndex ?? 0 };
+    });
+    const readyKeeper = (fid: string) => takesFor(fid).find((t) => t.keeper && t.status === "ready" && t.mux_playback_id)?.mux_playback_id ?? null;
+    const body = bodyFrames(frames, null).map((f) => readyKeeper(f.id)).filter((x): x is string => !!x);
+    if (body.length === 0) { setPreview({ status: "errored", error: "No frames have a ready keeper take yet — mark keepers first." }); return; }
+    const introPb = introTake?.status === "ready" ? introTake.mux_playback_id : null;
+    const introTrim = introTake && introTake.trimmed_duration_s != null && introTake.trim_warning !== "too_short"
+      ? { start: introTake.onset_s ?? 0, length: introTake.trimmed_duration_s } : null;
+    const outroPb = outroTake?.status === "ready" ? outroTake.mux_playback_id : null;
+    setPreview({ status: "processing" });
+    try {
+      const { assetId } = await previewLesson({ data: { intro: introPb ? { playbackId: introPb, trim: introTrim } : null, body, outro: outroPb } });
+      pollPreview(assetId);
+    } catch (e) { setPreview({ status: "errored", playbackId: null, error: e instanceof Error ? e.message : String(e) }); }
+  };
+
+  return (
+    <span className="nodrag zone-actions relative inline-flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+      {slot(introId, introTake, "Intro")}
+      {slot(outroId, outroTake, "Outro")}
+      <button
+        className="inline-flex items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide"
+        style={{ color: NEON.yellow, border: `1px solid ${NEON.yellow}66` }}
+        title="Generate a pre-production preview: intro + frames (in order) + outro, no Auphonic"
+        onClick={(e) => { e.stopPropagation(); void genPreview(); }}
+      >
+        {preview?.status === "processing" ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Video className="h-2.5 w-2.5" />} preview
+      </button>
+      {preview && (
+        <div className="nodrag nowheel absolute left-0 top-7 z-[8] w-72 rounded-lg p-2 text-[11px]" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }} onPointerDown={(e) => e.stopPropagation()}>
+          <div className="mb-1 flex items-center gap-1">
+            <span className="font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Preview</span>
+            <span style={{ color: NEON.muted }}>{preview.status}</span>
+            <span className="flex-1" />
+            <button className="grid h-4 w-4 place-items-center" title="Close" onClick={() => setPreview(null)} style={{ color: NEON.muted }}><X className="h-3 w-3" /></button>
+          </div>
+          {preview.status === "ready" && preview.playbackId ? <TakeVideo playbackId={preview.playbackId} />
+            : preview.status === "errored" ? <p className="py-1" style={{ color: NEON.red }}>{preview.error}</p>
+            : <p className="py-2 text-center" style={{ color: NEON.muted }}>Stitching the preview — this plays when Mux finishes.</p>}
+        </div>
+      )}
+    </span>
   );
 }
 

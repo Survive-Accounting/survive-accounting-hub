@@ -11,7 +11,7 @@ import { AlertTriangle, ExternalLink, Film, Loader2, Rocket } from "lucide-react
 
 import { listLessonVideos, publishLesson, resolveLessonPublish, type LessonVideoRow } from "@/lib/publish.functions";
 import { useFrameTakes } from "./frame-takes";
-import { bodyFrames, collectKeepers, introFrame, keeperOf, missingLabel, type PubFrame, type PubTake } from "./publish-pipeline";
+import { bodyFrames, introFrame, keeperOf, type PubFrame, type PubTake } from "./publish-pipeline";
 import { NEON } from "./theme";
 import type { Beat, FrameBox } from "./types";
 
@@ -71,29 +71,39 @@ export function LessonPublishControl({ lessonId, courseName }: { lessonId: strin
         const takes = takesFor(frameId).map((t) => ({ frameId, keeper: t.keeper, muxPlaybackId: t.mux_playback_id, status: t.status, dim: t.width && t.height ? { w: t.width, h: t.height } : null }));
         return keeperOf(takes);
       };
-      const intro = introFrame(frames);
-      const body = bodyFrames(frames, intro?.id ?? null);
-      const { keepers, missing } = collectKeepers(body, keeperFor);
-      if (missing.length > 0) { setError(`Can't publish — these frames have no ready keeper take: ${missingLabel(missing)}.`); setBusy(false); return; }
-      const introTake = intro ? keeperFor(intro.id) : null;
+      // INTRO / OUTRO = the LESSON-LEVEL clips uploaded by the title. Fall back to
+      // the Hook-f1 frame keeper for the intro (legacy) only if no clip was uploaded.
+      const introClip = takesFor(`intro:${lessonId}`).find((t) => t.status === "ready" && t.mux_playback_id);
+      const outroClip = takesFor(`outro:${lessonId}`).find((t) => t.status === "ready" && t.mux_playback_id);
 
-      // intro trim: block on too_short; otherwise pass the trim window (raw take row)
-      const introRow = intro ? takesFor(intro.id).find((t) => t.keeper && t.status === "ready") : undefined;
-      if (introRow?.trim_warning === "too_short") { setError(`Can't publish — the intro take is too short (${(introRow.raw_duration_s ?? 0).toFixed(1)}s < clip length). Re-film a longer intro.`); setBusy(false); return; }
-      const introTrim = introRow && introRow.trimmed_duration_s != null
-        ? { start: introRow.onset_s ?? 0, length: introRow.trimmed_duration_s } // too_short already returned above
-        : null;
+      let introPlayback: string | null = null, introTrim: { start: number; length: number } | null = null, introFrameId: string | null = null;
+      if (introClip?.mux_playback_id) {
+        if (introClip.trim_warning === "too_short") { setError(`Can't publish — the intro clip is too short (${(introClip.raw_duration_s ?? 0).toFixed(1)}s). Upload a longer intro.`); setBusy(false); return; }
+        introPlayback = introClip.mux_playback_id;
+        introTrim = introClip.trimmed_duration_s != null ? { start: introClip.onset_s ?? 0, length: introClip.trimmed_duration_s } : null;
+      } else {
+        const hookIntro = introFrame(frames);
+        const t = hookIntro ? keeperFor(hookIntro.id) : null;
+        if (t?.muxPlaybackId) { introPlayback = t.muxPlaybackId; introFrameId = hookIntro!.id; }
+      }
+
+      // BODY = the lesson's frames with a ready keeper, in order — SKIP frames with
+      // no keeper (Lee leaves the intro-making frames empty). Exclude the Hook-f1
+      // intro frame only when it's serving as the intro (no uploaded clip).
+      const body = bodyFrames(frames, introFrameId).map((f) => ({ f, t: keeperFor(f.id) })).filter((x): x is { f: PubFrame; t: PubTake } => !!x.t);
+      if (body.length === 0) { setError("No frames have a ready keeper take yet — mark keepers first."); setBusy(false); return; }
 
       const { publishId, version } = await publishLesson({
         data: {
           lessonId,
           courseName,
           lessonLabel,
-          intro: introTake ? { frameId: intro!.id, playbackId: introTake.muxPlaybackId!, dim: introTake.dim, trim: introTrim } : null,
-          body: keepers.map((k) => ({ frameId: k.frame.id, playbackId: k.take.muxPlaybackId!, dim: k.take.dim })),
+          intro: introPlayback ? { frameId: introFrameId ?? `intro:${lessonId}`, playbackId: introPlayback, dim: null, trim: introTrim } : null,
+          outro: outroClip?.mux_playback_id ? { playbackId: outroClip.mux_playback_id } : null,
+          body: body.map((x) => ({ frameId: x.f.id, playbackId: x.t.muxPlaybackId!, dim: x.t.dim })),
         },
       });
-      setRow({ id: publishId, lesson_id: lessonId, version, stage: "concat", error: null, course_name: courseName, lesson_label: lessonLabel, passthrough: null, mux_body_asset_id: null, mux_body_playback_id: null, intro_playback_id: null, trimmed_intro_asset_id: null, trimmed_intro_playback_id: null, auphonic_uuid: null, mux_asset_id: null, playback_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as LessonVideoRow);
+      setRow({ id: publishId, lesson_id: lessonId, version, stage: "concat", error: null, course_name: courseName, lesson_label: lessonLabel, passthrough: null, mux_body_asset_id: null, mux_body_playback_id: null, intro_playback_id: null, trimmed_intro_asset_id: null, trimmed_intro_playback_id: null, outro_playback_id: null, auphonic_uuid: null, mux_asset_id: null, playback_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as LessonVideoRow);
       startPoll(publishId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
