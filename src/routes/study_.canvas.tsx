@@ -26,7 +26,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Maximize2, Milestone, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, Film, Flag, Frame, Grid3x3, Layers, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Save, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -80,7 +80,6 @@ import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
 import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
-import { NavigatorEmblem } from "@/components/canvas/NavigatorEmblem";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
@@ -841,7 +840,6 @@ function PresentCanvas() {
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
   const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
-  const [fsPrompt, setFsPrompt] = useState(false); // dive-into-frame → offer browser fullscreen
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
@@ -3034,7 +3032,6 @@ function PresentCanvas() {
       // container early-return below — otherwise dbl-click does nothing.
       if (node.type === "frame") {
         enterFrame(node.id);
-        if (typeof document !== "undefined" && !document.fullscreenElement) setFsPrompt(true);
         return;
       }
       if (isContainerType(node.type)) return;
@@ -3227,54 +3224,46 @@ function PresentCanvas() {
         const bm = BEAT_META[beat];
         const sub = (fd?.subIndex ?? 0) + 1;
         return (
-        <div data-frame-chrome className="absolute left-1/2 top-3 z-[58] flex max-w-[92vw] -translate-x-1/2 gap-3 rounded-2xl p-2.5" style={{ background: "linear-gradient(180deg, rgba(16,22,40,0.96), rgba(9,13,26,0.96))", border: `1px solid rgba(232,184,75,0.28)`, color: NEON.text, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
-          {/* LEFT — the brass navigator crest in its big circular frame */}
-          <button
-            title="Frame Navigator"
-            onClick={exitFrame}
-            className="relative grid h-[78px] w-[78px] shrink-0 place-items-center self-start rounded-full"
-            style={{ background: "radial-gradient(60% 60% at 50% 40%, #1a1122, #0a0710)", border: "2px solid rgba(232,184,75,0.6)", boxShadow: "0 0 26px -6px rgba(232,184,75,0.55), inset 0 0 20px rgba(0,0,0,0.7)" }}
-          >
-            <NavigatorEmblem size={64} />
-          </button>
-
-          {/* RIGHT — lesson name (prominent, never cut) + controls + always-on grid */}
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <div className="flex items-baseline gap-2">
-              <span className="whitespace-nowrap text-[17px] font-black tracking-wide" style={{ color: "#FBEFD6", textShadow: "0 0 18px rgba(232,184,75,0.35)" }}>{lessonTitle}</span>
-              <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: bm.color, border: `1px solid ${bm.edge}`, background: `${bm.color}14` }}>{bm.label} {sub}</span>
-              <span className="whitespace-nowrap text-[13px] font-bold" style={{ color: "#F4EFE6" }}>
-                <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="untitled frame" />
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous beat ( ← / [ )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepBeat(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
-              <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next beat ( → / ] )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepBeat(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
-              <span className="mx-0.5 h-4 w-px" style={{ background: NEON.borderSoft }} />
-              <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a sub-frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
-              <button className="grid h-6 w-6 place-items-center rounded-full" title="Exit frame (Esc)" onClick={exitFrame} style={{ color: NEON.yellow }}><Minimize2 className="h-3.5 w-3.5" /></button>
-            </div>
-
-            {/* FRAMES GRID — always visible, fixed box; click a cell to jump */}
-            {lessonId && (
-              <div className="flex gap-1.5 rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}` }}>
-                {BEAT_COLUMNS.map((b) => {
-                  const col = framesInBeat(rf.getNodes() as never, lessonId, b);
-                  const cbm = BEAT_META[b];
-                  return (
-                    <div key={b} className="flex flex-col items-center gap-1">
-                      <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
-                      {col.length === 0 && <span className="grid h-6 w-10 place-items-center rounded text-[8px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
-                      {col.map((f, ri) => (
-                        <button key={f.id} className="grid h-6 w-10 place-items-center rounded text-[10px] font-bold transition-transform hover:scale-105" style={{ border: `1px solid ${f.id === currentFrameId ? cbm.color : NEON.borderSoft}`, background: f.id === currentFrameId ? `${cbm.color}2e` : "rgba(255,255,255,0.02)", color: f.id === currentFrameId ? cbm.color : NEON.text, boxShadow: f.id === currentFrameId ? `0 0 12px -2px ${cbm.color}` : "none" }} title={`${cbm.label} ${ri + 1}`} onClick={() => enterFrame(f.id)}>{ri + 1}</button>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+        <div data-frame-chrome className="absolute left-1/2 top-3 z-[58] flex max-w-[92vw] -translate-x-1/2 flex-col gap-1.5 rounded-2xl p-2.5" style={{ background: "linear-gradient(180deg, rgba(16,22,40,0.96), rgba(9,13,26,0.96))", border: `1px solid rgba(232,184,75,0.28)`, color: NEON.text, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
+          {/* lesson name (prominent, never cut) + beat chip + hide */}
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-[17px] font-black tracking-wide" style={{ color: "#FBEFD6", textShadow: "0 0 18px rgba(232,184,75,0.35)" }}>{lessonTitle}</span>
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: bm.color, border: `1px solid ${bm.edge}`, background: `${bm.color}14` }}>{bm.label} {sub}</span>
+            <span className="flex-1" />
+            <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
           </div>
+
+          {/* frame title — underneath the lesson name */}
+          <div className="whitespace-nowrap text-[13px] font-bold" style={{ color: "#F4EFE6" }}>
+            <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="untitled frame" />
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous beat ( ← / [ )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepBeat(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
+            <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next beat ( → / ] )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepBeat(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
+            <span className="mx-0.5 h-4 w-px" style={{ background: NEON.borderSoft }} />
+            <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a sub-frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
+            <button className="grid h-6 w-6 place-items-center rounded-full" title="Exit frame (Esc)" onClick={exitFrame} style={{ color: NEON.yellow }}><Minimize2 className="h-3.5 w-3.5" /></button>
+          </div>
+
+          {/* FRAMES GRID — always visible, fixed box; click a cell to jump */}
+          {lessonId && (
+            <div className="flex gap-1.5 rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}` }}>
+              {BEAT_COLUMNS.map((b) => {
+                const col = framesInBeat(rf.getNodes() as never, lessonId, b);
+                const cbm = BEAT_META[b];
+                return (
+                  <div key={b} className="flex flex-col items-center gap-1">
+                    <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
+                    {col.length === 0 && <span className="grid h-6 w-10 place-items-center rounded text-[8px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
+                    {col.map((f, ri) => (
+                      <button key={f.id} className="grid h-6 w-10 place-items-center rounded text-[10px] font-bold transition-transform hover:scale-105" style={{ border: `1px solid ${f.id === currentFrameId ? cbm.color : NEON.borderSoft}`, background: f.id === currentFrameId ? `${cbm.color}2e` : "rgba(255,255,255,0.02)", color: f.id === currentFrameId ? cbm.color : NEON.text, boxShadow: f.id === currentFrameId ? `0 0 12px -2px ${cbm.color}` : "none" }} title={`${cbm.label} ${ri + 1}`} onClick={() => enterFrame(f.id)}>{ri + 1}</button>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         );
       })()}
@@ -3645,15 +3634,6 @@ function PresentCanvas() {
       {/* AC4: CUE SHEET — the entered frame's derived space-walk sequence (authoring) */}
       {chrome && cueSheetOpen && currentFrameId && <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} />}
 
-      {/* FULLSCREEN PROMPT — offered when you DIVE into a frame and aren't fullscreen */}
-      {fsPrompt && currentFrameId && typeof document !== "undefined" && !document.fullscreenElement && (
-        <div className="absolute bottom-24 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-full px-3 py-1.5 text-[12px]" style={{ background: "rgba(11,15,30,0.92)", border: `1px solid ${NEON.yellow}`, color: NEON.text, boxShadow: "0 14px 34px -14px rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-          <Maximize2 className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
-          <span>Go fullscreen for the dive?</span>
-          <button className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: NEON.yellow, color: "#0B1322" }} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => {}); setFsPrompt(false); }}>Fullscreen</button>
-          <button className="rounded-full px-2 py-0.5 text-[11px]" style={{ color: NEON.muted }} onClick={() => setFsPrompt(false)}>Not now</button>
-        </div>
-      )}
 
       {/* snap/composition guides — brand-gold lines while a drag aligns. Weight
           sets the treatment: frame CENTER strongest → FIFTHS lightest; SAFE dashed. */}
