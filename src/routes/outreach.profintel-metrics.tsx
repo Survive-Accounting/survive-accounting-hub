@@ -10,15 +10,19 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BarChart3, Loader2, Mail, Power } from "lucide-react";
+import { BarChart3, Ban, Copy, Loader2, Mail, Plus, Power, Trash2 } from "lucide-react";
 
 import {
+  addReplySnippet,
+  deleteReplySnippet,
   effectiveDailyCap,
   familiesForMatches,
   fetchCampusFamilyMaps,
   getProfintelSettings,
+  listReplySnippets,
   listSends,
   markReplied,
+  markStopped,
   updateProfintelSettings,
   warmupStatus,
   type ProfIntelSend,
@@ -65,21 +69,11 @@ function has(s: ProfIntelSend, k: string): string | null {
   const v = (s as unknown as Record<string, unknown>)[k];
   return typeof v === "string" ? v : null;
 }
-/** Numeric field reader (open_count / click_count), 0 when absent. */
-function num(s: ProfIntelSend, k: string): number {
-  const v = (s as unknown as Record<string, unknown>)[k];
-  return typeof v === "number" ? v : 0;
-}
-/** Engagement score for follow-up prioritization: replies count most, then
- *  clicks, then repeat opens. Lets you sort out who's actually interested. */
+/** Engagement score for follow-up prioritization. Replies float to the top; STOPs
+ *  (opt-outs) sink to the bottom. Opens/clicks aren't tracked, so they don't factor. */
 function engagement(s: ProfIntelSend): number {
-  return (
-    (has(s, "replied_at") ? 100 : 0) +
-    (has(s, "clicked_at") ? 20 : 0) +
-    num(s, "click_count") * 5 +
-    (has(s, "opened_at") ? 5 : 0) +
-    Math.max(0, num(s, "open_count") - 1) * 2
-  );
+  if (has(s, "stopped_at")) return -1000;
+  return has(s, "replied_at") ? 100 : 0;
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -109,6 +103,48 @@ function ProfIntelMetrics() {
   });
   const familyMaps = familyMapsQuery.data ?? {};
   const [timeSort, setTimeSort] = useState<TimeSort>(null);
+
+  // Reusable reply snippets (copied when answering from the inbox).
+  const snippetsQuery = useQuery({
+    queryKey: ["profintel-reply-snippets"],
+    queryFn: listReplySnippets,
+  });
+  const snippets = snippetsQuery.data ?? [];
+  const [snipName, setSnipName] = useState("");
+  const [snipBody, setSnipBody] = useState("");
+  const [snipBusy, setSnipBusy] = useState(false);
+
+  async function copySnippet(body: string) {
+    try {
+      await navigator.clipboard.writeText(body);
+      toast.success("Copied — paste it into your reply.");
+    } catch {
+      toast.error("Copy failed (clipboard blocked).");
+    }
+  }
+  async function addSnippet() {
+    if (!snipName.trim() || !snipBody.trim()) return toast.error("Give the snippet a name and text.");
+    setSnipBusy(true);
+    try {
+      await addReplySnippet(snipName, snipBody);
+      setSnipName("");
+      setSnipBody("");
+      snippetsQuery.refetch();
+      toast.success("Snippet saved.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save snippet.");
+    } finally {
+      setSnipBusy(false);
+    }
+  }
+  async function removeSnippet(id: string) {
+    try {
+      await deleteReplySnippet(id);
+      snippetsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete.");
+    }
+  }
 
   async function toggleSending() {
     if (!settings) return;
@@ -140,27 +176,32 @@ function ProfIntelMetrics() {
     }
   }
 
+  async function toggleStopped(s: ProfIntelSend) {
+    try {
+      await markStopped(s.id, !has(s, "stopped_at"));
+      sendsQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update.");
+    }
+  }
+
   const m = useMemo(() => {
     const counts = { draft: 0, scheduled: 0, sent: 0, canceled: 0 } as Record<string, number>;
-    const blank = () => ({ sent: 0, opened: 0, clicked: 0, replied: 0 });
+    const blank = () => ({ sent: 0, replied: 0, stopped: 0 });
     const variants: Record<"A" | "B", ReturnType<typeof blank>> = { A: blank(), B: blank() };
-    let opened = 0,
-      replied = 0,
-      clicked = 0;
+    let replied = 0,
+      stopped = 0;
     for (const s of sends) {
       counts[s.status] = (counts[s.status] ?? 0) + 1;
-      const isOpen = !!has(s, "opened_at");
       const isReply = !!has(s, "replied_at");
-      const isClick = !!has(s, "clicked_at");
-      if (isOpen) opened += 1;
+      const isStop = !!has(s, "stopped_at");
       if (isReply) replied += 1;
-      if (isClick) clicked += 1;
+      if (isStop) stopped += 1;
       const v = s.variant === "A" || s.variant === "B" ? s.variant : null;
       if (v && s.status === "sent") {
         variants[v].sent += 1;
-        if (isOpen) variants[v].opened += 1;
-        if (isClick) variants[v].clicked += 1;
         if (isReply) variants[v].replied += 1;
+        if (isStop) variants[v].stopped += 1;
       }
     }
     const sent = counts.sent ?? 0;
@@ -168,15 +209,15 @@ function ProfIntelMetrics() {
     return {
       counts,
       sent,
-      opened,
       replied,
-      clicked,
-      openPct: pct(opened),
+      stopped,
       replyPct: pct(replied),
-      clickPct: pct(clicked),
+      stopPct: pct(stopped),
       variants,
       abActive: variants.A.sent + variants.B.sent > 0,
-      tracked: sent > 0 && (opened > 0 || replied > 0 || clicked > 0),
+      // Reply + Stop are manual marks in the log (no open/click tracking), so
+      // rates are meaningful the moment anything has sent.
+      tracked: sent > 0,
     };
   }, [sends]);
 
@@ -248,21 +289,16 @@ function ProfIntelMetrics() {
         </div>
       )}
 
-      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-6">
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Emails sent" value={String(m.sent)} />
         <Stat label="Scheduled" value={String(m.counts.scheduled ?? 0)} />
         <Stat label="Drafts" value={String(m.counts.draft ?? 0)} />
-        <Stat label="Open rate" value={m.openPct} sub={m.sent ? `${m.opened} opened` : undefined} />
-        <Stat
-          label="Click rate"
-          value={m.clickPct}
-          sub={m.sent ? `${m.clicked} clicked` : undefined}
-        />
         <Stat
           label="Reply rate"
           value={m.replyPct}
           sub={m.sent ? `${m.replied} replied` : undefined}
         />
+        <Stat label="Stop rate" value={m.stopPct} sub={m.sent ? `${m.stopped} opted out` : undefined} />
       </div>
 
       {/* A/B comparison — only once split sends exist. */}
@@ -273,9 +309,8 @@ function ProfIntelMetrics() {
               <tr>
                 <th className="px-3 py-2 text-left">A/B variant</th>
                 <th className="px-3 py-2 text-right">Sent</th>
-                <th className="px-3 py-2 text-right">Open %</th>
-                <th className="px-3 py-2 text-right">Click %</th>
                 <th className="px-3 py-2 text-right">Reply %</th>
+                <th className="px-3 py-2 text-right">Stop %</th>
               </tr>
             </thead>
             <tbody>
@@ -286,9 +321,8 @@ function ProfIntelMetrics() {
                   <tr key={v} className="border-t border-border">
                     <td className="px-3 py-2 font-medium">Variant {v}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{d.sent}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{p(d.opened)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{p(d.clicked)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{p(d.replied)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{p(d.stopped)}</td>
                   </tr>
                 );
               })}
@@ -299,9 +333,9 @@ function ProfIntelMetrics() {
 
       {!m.tracked && (
         <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Open / Click / Reply rates populate once real sending + tracking are turned on
-          (drafts-only for now). Click % also needs click tracking enabled on the Resend domain.
-          Sent counts and the log below are live.
+          Reply / Stop rates populate once real emails start sending (drafts-only for now). Both are
+          marked by hand from the log below — there's no open/click tracking. Sent counts and the
+          log are live.
         </div>
       )}
 
@@ -346,9 +380,8 @@ function ProfIntelMetrics() {
                     )}
                   </button>
                 </th>
-                <th className="px-3 py-2 text-left">Opened</th>
-                <th className="px-3 py-2 text-center">Clicks</th>
                 <th className="px-3 py-2 text-left">Replied</th>
+                <th className="px-3 py-2 text-left">Stopped</th>
               </tr>
             </thead>
             <tbody>
@@ -406,29 +439,6 @@ function ProfIntelMetrics() {
                     )}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{fmtWhen(s.scheduled_at)}</td>
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {fmtWhen(has(s, "opened_at"))}
-                    {num(s, "open_count") > 1 && (
-                      <span
-                        className="ml-1 text-emerald-700"
-                        title={`${num(s, "open_count")} opens`}
-                      >
-                        ×{num(s, "open_count")}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-center tabular-nums">
-                    {has(s, "clicked_at") ? (
-                      <span
-                        className="font-medium text-emerald-700"
-                        title={has(s, "last_clicked_url") ?? "clicked"}
-                      >
-                        {num(s, "click_count") || 1}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
                   <td className="px-3 py-2 tabular-nums">
                     <button
                       type="button"
@@ -444,12 +454,96 @@ function ProfIntelMetrics() {
                           : "—"}
                     </button>
                   </td>
+                  <td className="px-3 py-2 tabular-nums">
+                    <button
+                      type="button"
+                      onClick={() => toggleStopped(s)}
+                      className={`inline-flex items-center gap-1 hover:underline ${has(s, "stopped_at") ? "text-red-600" : "text-muted-foreground"}`}
+                      title={has(s, "stopped_at") ? "Click to unmark STOP" : "Mark as opted out (STOP)"}
+                      disabled={s.status !== "sent"}
+                    >
+                      {has(s, "stopped_at") ? (
+                        <>
+                          <Ban className="h-3 w-3" />
+                          {fmtWhen(has(s, "stopped_at"))}
+                        </>
+                      ) : s.status === "sent" ? (
+                        "mark"
+                      ) : (
+                        "—"
+                      )}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Reply snippets — reusable canned replies to copy into the inbox. */}
+      <details className="mt-6 rounded-lg border border-border">
+        <summary className="cursor-pointer select-none px-4 py-2 text-sm font-medium">
+          Reply snippets ({snippets.length})
+        </summary>
+        <div className="space-y-3 border-t border-border p-4">
+          <p className="text-xs text-muted-foreground">
+            Save canned replies here, then copy one into your email when a professor replies.
+            Answering from your own inbox threads automatically. <code>{"{first_name}"}</code> is a
+            manual placeholder — swap in the name before you send.
+          </p>
+          {snippets.length > 0 && (
+            <ul className="space-y-2">
+              {snippets.map((s) => (
+                <li key={s.id} className="rounded-md border border-border bg-card/60 p-2">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{s.name}</span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => copySnippet(s.body)}
+                      >
+                        <Copy className="mr-1 h-3.5 w-3.5" /> Copy
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-red-600"
+                        onClick={() => removeSnippet(s.id)}
+                        title="Delete snippet"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <pre className="whitespace-pre-wrap break-words font-sans text-[11px] text-muted-foreground">
+                    {s.body}
+                  </pre>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="space-y-2 rounded-md border border-dashed border-border p-2">
+            <input
+              value={snipName}
+              onChange={(e) => setSnipName(e.target.value)}
+              placeholder="Snippet name (e.g. Thanks for flagging)"
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+            />
+            <textarea
+              value={snipBody}
+              onChange={(e) => setSnipBody(e.target.value)}
+              placeholder="Reply text…"
+              className="min-h-[90px] w-full rounded-md border border-input bg-background px-2 py-1 text-[13px]"
+            />
+            <Button size="sm" className="h-8" disabled={snipBusy} onClick={addSnippet}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Save snippet
+            </Button>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

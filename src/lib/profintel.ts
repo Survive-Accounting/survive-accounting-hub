@@ -41,6 +41,7 @@ export interface ProfIntelSend {
   sent_at?: string | null;
   opened_at?: string | null;
   replied_at?: string | null;
+  stopped_at?: string | null;
   open_count?: number | null;
   variant?: string | null;
   clicked_at?: string | null;
@@ -873,7 +874,7 @@ const SEND_BASE_COLS =
   "id, campus_id, lead_id, to_name, to_email, school, course_matches, subject, body, ready, scheduled_at, status, created_at";
 const SEND_EXT_COLS =
   SEND_BASE_COLS +
-  ", profintel_score, sent_at, opened_at, replied_at, open_count, variant, clicked_at, click_count, last_clicked_url";
+  ", profintel_score, sent_at, opened_at, replied_at, stopped_at, open_count, variant, clicked_at, click_count, last_clicked_url";
 
 export async function listSends(opts?: { campusId?: string }): Promise<ProfIntelSend[]> {
   const run = async (cols: string) => {
@@ -959,6 +960,57 @@ export async function updateProfintelSettings(
 export async function markReplied(id: string, replied: boolean): Promise<void> {
   const { error } = await (supabase.from("profintel_sends" as never) as any)
     .update({ replied_at: replied ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/** Manual STOP / opt-out marker — a professor who replied STOP. Counted in the
+ *  "Stop rate" and pushed to the bottom of the follow-up ordering. */
+export async function markStopped(id: string, stopped: boolean): Promise<void> {
+  const { error } = await (supabase.from("profintel_sends" as never) as any)
+    .update({ stopped_at: stopped ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// --- Reply snippets (reusable canned replies Lee copies from his inbox) ---------
+export interface ReplySnippet {
+  id: string;
+  name: string;
+  body: string;
+  sort: number;
+}
+
+export async function listReplySnippets(): Promise<ReplySnippet[]> {
+  const { data, error } = await (supabase.from("profintel_reply_snippets" as never) as any)
+    .select("id, name, body, sort")
+    .order("sort", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ReplySnippet[];
+}
+
+export async function addReplySnippet(name: string, body: string): Promise<void> {
+  const { error } = await (supabase.from("profintel_reply_snippets" as never) as any).insert({
+    name: name.trim(),
+    body,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function updateReplySnippet(
+  id: string,
+  patch: Partial<Pick<ReplySnippet, "name" | "body" | "sort">>,
+): Promise<void> {
+  const { error } = await (supabase.from("profintel_reply_snippets" as never) as any)
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteReplySnippet(id: string): Promise<void> {
+  const { error } = await (supabase.from("profintel_reply_snippets" as never) as any)
+    .delete()
     .eq("id", id);
   if (error) throw new Error(error.message);
 }
