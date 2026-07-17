@@ -85,6 +85,7 @@ import { ScriptEditor } from "@/components/canvas/ScriptEditor";
 import { FrameTakesProvider, MuxBanner, TakeBoardCell } from "@/components/canvas/frame-takes";
 import { RecorderSpike } from "@/components/canvas/RecorderSpike";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
+import { hubLayout, plateForCourse } from "@/components/canvas/hub-layout";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
@@ -1248,20 +1249,44 @@ function PresentCanvas() {
     const HEADER_GAP = 60;
     const HOME_H = 150;
     const rl = regionLayout(gridChapters.length, 0, 0, !!wrapChapter, cell);
-    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
-    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
-    const fullH = HEADER_H + HEADER_GAP + rl.gridH + (rl.wrapUp ? REGION.wrapGapY + cell.h : 0);
-    const ox = center.x - rl.gridW / 2;
-    const oy = center.y - fullH / 2;
-    const gridTop = oy + HEADER_H + HEADER_GAP;
     const name = scaffoldName.trim() || courseLabel(course);
+
+    // WHERE THE REGION LANDS: inside the course's HUB PLATE (Start Here today; the
+    // four future plates once lit) so the scaffold nests in its box under the
+    // SURVIVE ACCOUNTING crown instead of floating over the hub. Unknown courses
+    // fall back to the viewport centre (old behaviour).
+    const slot = plateForCourse(course.course_name ?? name);
+    let ox: number, gridTop: number, homeX: number, homeY: number;
+    let regionHeader: CardNode[];
+    let fitRect: { x: number; y: number; w: number; h: number } | null;
+    if (slot === "start") {
+      const hub = hubLayout();
+      ox = hub.regionOrigin.x;
+      gridTop = hub.regionOrigin.y;
+      homeX = hub.homeOrigin.x;
+      homeY = hub.homeOrigin.y;
+      regionHeader = []; // the hub crown IS the region header — no duplicate
+      fitRect = hub.startPlate;
+    } else {
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+      const fullH = HEADER_H + HEADER_GAP + rl.gridH + (rl.wrapUp ? REGION.wrapGapY + cell.h : 0);
+      ox = center.x - rl.gridW / 2;
+      const oy = center.y - fullH / 2;
+      gridTop = oy + HEADER_H + HEADER_GAP;
+      homeX = ox;
+      homeY = oy - HOME_H;
+      regionHeader = [{ id: cardId("heading"), type: "heading", position: { x: ox, y: oy },
+        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: rl.gridW } as unknown as CardNode["data"] }];
+      fitRect = null;
+    }
+
     const nodes: CardNode[] = [
-      { id: cardId("heading"), type: "heading", position: { x: ox, y: oy - HOME_H },
+      { id: cardId("heading"), type: "heading", position: { x: homeX, y: homeY },
         data: { kind: "heading", text: `Welcome — start here [${name}]`, level: 2 } as unknown as CardNode["data"] },
-      { id: cardId("asklee"), type: "asklee", position: { x: ox + Math.min(560, rl.gridW - 300), y: oy - HOME_H + 6 },
+      { id: cardId("asklee"), type: "asklee", position: { x: homeX + Math.min(560, rl.gridW - 300), y: homeY + 6 },
         data: { kind: "asklee" } as unknown as CardNode["data"] },
-      { id: cardId("heading"), type: "heading", position: { x: ox, y: oy },
-        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: rl.gridW } as unknown as CardNode["data"] },
+      ...regionHeader,
       // GRID CHAPTERS → cells in reading order (reserved footprint each).
       ...gridChapters.flatMap((ch, i) => buildLessonCell({ x: ox + rl.cells[i].x, y: gridTop + rl.cells[i].y }, chapterLabel(ch), i + 1, false)),
       // WRAP-UP → centered below, region-level red Check tint, same 4-beat arc.
@@ -1272,7 +1297,10 @@ function PresentCanvas() {
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
     setScaffoldOpen(false);
     setScaffoldName("");
-    window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
+    window.setTimeout(() => {
+      if (fitRect) void rf.fitBounds({ x: fitRect.x, y: fitRect.y, width: fitRect.w, height: fitRect.h }, { duration: 500, padding: 0.06 });
+      else void rf.fitView({ duration: 300, padding: 0.15 });
+    }, 60);
   }, [rf, coursesQuery.data, scaffoldCourseId, scaffoldName, buildLessonCell]);
 
   // REFLOW / TIDY (path nav #4): re-run the snaking layout on the region's
