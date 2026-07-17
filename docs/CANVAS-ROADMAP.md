@@ -369,3 +369,20 @@ from the master so edits to the horizontal propagate. Interim plan (until this
 ships): Lee composes shots CENTER-WEIGHTED and reuses one layout for both aspect
 ratios — a centered stack reads acceptably in both 16:9 and 9:16, so the
 horizontal scaffold doubles as the vertical source with no extra authoring.
+
+## Professor mode — the instructor product (ROADMAP; seeded by the Cue Sheet)
+The Cue Sheet (AC4) is the seed of an instructor-facing product. A frame's whole
+space-walk sequence is now a derived, ordered list of cues (deals → reveals →
+memos → advance) that can EXECUTE the frame to any point. Turn that read-out into
+a driver and a lesson **performs itself**:
+- **Auto-play for students** — the cue list plays on a timer / on click, so a
+  scene becomes a self-running lesson (no instructor needed).
+- **Lecture tool for professors** — a professor drives the same cue ladder live
+  in class; the deck + reveal mechanics ARE their slides, already sequenced.
+- **Beachhead = free instructor licenses.** Give professors the performing-canvas
+  free; their students land in the paid Survive funnel. The Cue Sheet's Phase 2
+  (an explicit per-frame cue order the space ladder consults — interleave a memo
+  between two reveals, reorder reveals across cards) is the authoring depth that
+  makes a canvas worth a professor's whole lecture.
+NOT before Lee's own courses ship — this is the wedge AFTER the core product is
+proven, not a detour from it.
