@@ -7,13 +7,14 @@
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize2, Pause, Play, StickyNote, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize2, Pause, Play, Smartphone, StickyNote, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "../commands";
 import { blankCard } from "../templates";
 import { FRAME_TEMPLATES, placeTemplate, type FrameTemplate } from "../frame-templates";
+import { baseTextPxForKind, phoneChecks, PHONE_LANDSCAPE, type PhoneEl } from "../phone-check";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
@@ -22,7 +23,7 @@ import { EditableText } from "../ui";
 import { NEON } from "../theme";
 import { WorldBackground } from "../WorldBackground";
 import { WORLDS, worldById } from "../worlds";
-import { cardId, FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, FRAME_H, FRAME_W, type FrameBeat, type FrameBgAnchor, type FrameBox, type LessonBox } from "../types";
+import { cardId, FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, FRAME_CARD_SCALE, FRAME_H, FRAME_W, type FrameBeat, type FrameBgAnchor, type FrameBox, type LessonBox } from "../types";
 
 /** 9-point anchor grid, row-major for a 3×3 button pad. */
 const BG_ANCHORS: FrameBgAnchor[] = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
@@ -88,6 +89,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const nav = useFrameNav();
   const [hover, setHover] = useState(false);
   const [bgMenu, setBgMenu] = useState(false);
+  const [phoneCheck, setPhoneCheck] = useState(false); // phone-landscape advisory overlay
   const [noteEdit, setNoteEdit] = useState(false); // director note editor open
   const [takesOpen, setTakesOpen] = useState(false); // TAKE BOARD: per-frame takes panel
   const { upload, takesFor } = useFrameTakes();
@@ -109,6 +111,27 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const worldPreset = worldById(worldId);
   const worldInten = d.world ? d.worldIntensity : lessonData?.worldDefaultIntensity;
   const worldMot = d.world ? d.worldMotion : lessonData?.worldDefaultMotion;
+
+  // PHONE-LANDSCAPE CHECK (Phase 6) — advisory only. Build lightweight element
+  // rects from the frame's child card nodes (position + size × card scale) and run
+  // the pure checks. Never blocks; never writes.
+  const estCardH = (k: string) => (k === "heading" ? 70 : k === "note" || k === "memo" || k === "text" ? 120 : k === "list" ? 210 : 180);
+  const phoneEls: PhoneEl[] = phoneCheck
+    ? rf.getNodes().filter((n) => n.parentId === id).map((n) => {
+        const cd = n.data as { kind?: string; w?: number; h?: number; scale?: number };
+        const kind = cd.kind ?? n.type ?? "card";
+        const cs = typeof cd.scale === "number" ? cd.scale : FRAME_CARD_SCALE;
+        return {
+          id: n.id, kind, label: kind,
+          x: n.position.x, y: n.position.y,
+          w: (n.width ?? cd.w ?? 240) * cs,
+          h: (n.height ?? cd.h ?? estCardH(kind)) * cs,
+          textPx: baseTextPxForKind(kind) * cs,
+        } as PhoneEl;
+      })
+    : [];
+  const phoneFlags = phoneCheck ? phoneChecks({ frameW: d.w ?? FRAME_W, frameH: d.h ?? FRAME_H, elements: phoneEls }) : [];
+  const phoneWarnCount = phoneFlags.filter((f) => f.level === "warn").length;
 
   const bgLoop = d.bgSrc ? FRAME_BG_LOOPS.find((l) => l.id === d.bgSrc) : undefined;
   const bgOpacity = d.bgOpacity ?? FRAME_BG_DEFAULT_OPACITY;
@@ -308,7 +331,8 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               {d.bgPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
             </button>
           )}
-          <button data-bg-toggle className={btn} style={{ color: bgLoop ? meta.color : NEON.text }} title="Background animation" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>
+          <button data-bg-toggle className={btn} style={{ color: bgLoop || d.world || lessonData?.worldDefault ? meta.color : NEON.text }} title="Frame visuals — world, background loop, layout template" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>
+          <button className={btn} style={{ color: phoneCheck ? (phoneWarnCount ? "#FF8B9E" : "#7EF3C0") : NEON.text }} title="Phone-landscape check — flags text/edges that won't read on a phone" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setPhoneCheck((v) => !v); }}><Smartphone className="h-3 w-3" /></button>
           {/* TAKE BOARD: review the frame's uploaded takes (latest plays inline) */}
           <button className={btn} style={{ color: takeCount ? meta.color : NEON.text }} title={takeCount ? `Takes (${takeCount}) — review the latest clip` : "Takes — drop an OBS clip on the frame to upload"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setTakesOpen((v) => !v); }}>
             <Clapperboard className="h-3 w-3" />
@@ -449,6 +473,35 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               ))}
             </div>
             <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Spawns editable cards at safe spots. Add on top of what's here.</p>
+          </div>
+        </div>
+      )}
+
+      {/* PHONE-LANDSCAPE CHECK (Phase 6) — advisory overlay: the phone-safe region
+          + a non-blocking list of warnings. data-frame-chrome so film hides it;
+          stores nothing. */}
+      {phoneCheck && (
+        <div data-frame-chrome className="pointer-events-none absolute inset-0 z-[7]">
+          <div className="absolute rounded" style={{ inset: "5%", border: "1.5px dashed rgba(126,243,192,0.55)" }} />
+          <div className="absolute left-2 top-9 max-w-[74%] rounded-md p-1.5 text-[9px]" style={{ background: "rgba(6,10,20,0.86)", border: `1px solid ${meta.edge}`, color: NEON.text, pointerEvents: "auto" }} onPointerDown={stop} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-0.5 flex items-center gap-1 font-bold uppercase tracking-wider">
+              <Smartphone className="h-2.5 w-2.5" style={{ color: "#7EF3C0" }} />
+              <span style={{ color: "#7EF3C0" }}>Phone check</span>
+              <span style={{ color: NEON.muted }}>{PHONE_LANDSCAPE.w}×{PHONE_LANDSCAPE.h} · advisory</span>
+            </div>
+            {phoneFlags.length === 0 ? (
+              <div style={{ color: NEON.muted }}>Reads fine on a phone 👍</div>
+            ) : (
+              <>
+                {phoneFlags.slice(0, 6).map((f, i) => (
+                  <div key={i} className="flex gap-1 leading-tight">
+                    <span style={{ color: f.level === "warn" ? "#FF8B9E" : NEON.muted }}>{f.level === "warn" ? "⚠" : "·"}</span>
+                    <span>{f.message}</span>
+                  </div>
+                ))}
+                {phoneFlags.length > 6 && <div style={{ color: NEON.muted }}>+{phoneFlags.length - 6} more</div>}
+              </>
+            )}
           </div>
         </div>
       )}
