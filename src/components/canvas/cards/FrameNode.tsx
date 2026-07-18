@@ -11,14 +11,16 @@ import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
-import { bus } from "../commands";
+import { bus, compositeCmd, patchDataCmd, type RfLike } from "../commands";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
 import { beatColOf, frame169, framesInBeat, rowY, subIndexOf } from "../frames";
 import { EditableText } from "../ui";
 import { NEON } from "../theme";
-import { FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, type FrameBeat, type FrameBgAnchor, type FrameBox } from "../types";
+import { WorldBackground } from "../WorldBackground";
+import { WORLDS, worldById } from "../worlds";
+import { FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, type FrameBeat, type FrameBgAnchor, type FrameBox, type LessonBox } from "../types";
 
 /** 9-point anchor grid, row-major for a 3×3 button pad. */
 const BG_ANCHORS: FrameBgAnchor[] = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
@@ -99,6 +101,13 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const showChrome = hover || selected;
   const isCurrent = nav.currentFrameId === id;
 
+  // VISUAL WORLD (Phase 2): the frame's own `world`, else the lesson's default.
+  const lessonData = (() => { const p = rf.getNode(id)?.parentId; return p ? (rf.getNode(p)?.data as LessonBox | undefined) : undefined; })();
+  const worldId = d.world ?? lessonData?.worldDefault;
+  const worldPreset = worldById(worldId);
+  const worldInten = d.world ? d.worldIntensity : lessonData?.worldDefaultIntensity;
+  const worldMot = d.world ? d.worldMotion : lessonData?.worldDefaultMotion;
+
   const bgLoop = d.bgSrc ? FRAME_BG_LOOPS.find((l) => l.id === d.bgSrc) : undefined;
   const bgOpacity = d.bgOpacity ?? FRAME_BG_DEFAULT_OPACITY;
   const bgFit = d.bgFit ?? "cover";
@@ -163,6 +172,30 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     if (isCurrent) nav.exit();
   };
 
+  // WORLD picker actions (Phase 2). Apply resets the sliders to the chosen
+  // preset's tasteful defaults; None clears the frame's own world (it then
+  // inherits the lesson default, if any).
+  const applyWorld = (wid: string | undefined) => {
+    if (!wid) { update({ world: undefined }); return; }
+    const p = worldById(wid);
+    update({ world: wid, worldIntensity: p?.defaultIntensity, worldMotion: p?.motionIntensity, worldSeed: d.worldSeed ?? 1 });
+  };
+  const applyWorldToLesson = () => {
+    const me = rf.getNode(id);
+    if (!me?.parentId) return;
+    const patch = { world: d.world, worldIntensity: d.worldIntensity, worldMotion: d.worldMotion, worldSeed: d.worldSeed };
+    const frames = rf.getNodes().filter((n) => n.type === "frame" && n.parentId === me.parentId);
+    const cmds = frames.map((f) => patchDataCmd(rf as unknown as RfLike, f.id, patch, "world→lesson")).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, "apply world to all frames");
+    if (cmd) bus.dispatch(cmd);
+  };
+  const setLessonDefaultWorld = () => {
+    const me = rf.getNode(id);
+    if (!me?.parentId) return;
+    const c = patchDataCmd(rf as unknown as RfLike, me.parentId, { worldDefault: d.world, worldDefaultIntensity: d.worldIntensity, worldDefaultMotion: d.worldMotion }, "lesson world default");
+    if (c) bus.dispatch(c);
+  };
+
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   const btn = "nodrag grid h-5 w-5 place-items-center rounded";
 
@@ -182,6 +215,14 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         boxShadow: isCurrent ? `0 0 0 2px ${meta.color}, 0 0 26px -8px ${meta.color}` : selected ? `0 0 20px -10px ${meta.color}` : "none",
       }}
     >
+      {/* VISUAL WORLD (Phase 2) — a rendered atmosphere behind ALL cards. Deepest
+          layer (z-0, pointer-events-none) so cards, chrome and the spotlight
+          overlay always read on top. Frame's own world wins; else lesson default. */}
+      {worldPreset && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+          <WorldBackground worldId={worldPreset.id} intensity={worldInten} motion={worldMot} seed={d.worldSeed} />
+        </div>
+      )}
       {/* BACKGROUND ANIMATION — a trimmed loop plays behind every card at the
           author-set opacity; pointer-events-none so the stage still enters on
           double-click. Wrapper CLIPS (overflow-hidden) so zoom overflow crops
@@ -272,12 +313,55 @@ export function FrameNode({ id, data, selected }: NodeProps) {
       {bgMenu && (
         <div
           ref={bgMenuRef}
-          className="nodrag nowheel absolute right-2 top-9 z-[6] w-56 rounded-lg p-2 text-[11px]"
+          className="nodrag nowheel absolute right-2 top-9 z-[6] max-h-[80vh] w-64 overflow-y-auto rounded-lg p-2 text-[11px]"
           style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}
           onPointerDown={stop}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
+          {/* VISUAL WORLD (Phase 2) — thumbnail library + intensity/motion/seed +
+              lesson-level actions. Atmosphere behind the cards; never a hero. */}
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Visual world</span>
+            {(d.world ?? lessonData?.worldDefault) && <span className="text-[8.5px]" style={{ color: NEON.muted }}>{d.world ? "frame" : "lesson"}</span>}
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            <button title="No world" className="relative grid place-items-center overflow-hidden rounded" style={{ aspectRatio: "16/9", border: `1px solid ${!worldId ? meta.color : NEON.borderSoft}`, background: "#0A0F22", color: NEON.muted }} onClick={() => applyWorld(undefined)}>
+              <span className="text-[8px] font-semibold">None</span>
+            </button>
+            {WORLDS.map((w) => (
+              <button key={w.id} title={`${w.name} — ${w.blurb}`} className="relative overflow-hidden rounded" style={{ aspectRatio: "16/9", border: `1px solid ${d.world === w.id ? meta.color : NEON.borderSoft}` }} onClick={() => applyWorld(w.id)}>
+                <WorldBackground worldId={w.id} intensity={w.defaultIntensity} motion={0} seed={1} />
+                <span className="absolute inset-x-0 bottom-0 truncate px-0.5 text-[7px] font-semibold" style={{ color: "#C9D6F5", background: "rgba(4,7,16,0.5)" }}>{w.name}</span>
+              </button>
+            ))}
+          </div>
+          {d.world ? (
+            <>
+              <div className="mt-2 flex items-center gap-2">
+                <span style={{ color: NEON.muted }}>Intensity</span>
+                <input type="range" min={0} max={60} value={Math.round((d.worldIntensity ?? worldPreset?.defaultIntensity ?? 0.3) * 100)} className="flex-1 accent-current" onChange={(e) => update({ worldIntensity: Number(e.target.value) / 100 })} />
+                <span className="w-8 text-right tabular-nums">{Math.round((d.worldIntensity ?? worldPreset?.defaultIntensity ?? 0.3) * 100)}%</span>
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <span style={{ color: NEON.muted }}>Motion</span>
+                <input type="range" min={0} max={100} value={Math.round((d.worldMotion ?? worldPreset?.motionIntensity ?? 0.15) * 100)} className="flex-1 accent-current" onChange={(e) => update({ worldMotion: Number(e.target.value) / 100 })} />
+                <span className="w-8 text-right tabular-nums">{Math.round((d.worldMotion ?? worldPreset?.motionIntensity ?? 0.15) * 100)}%</span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1">
+                <button className="rounded px-1.5 py-0.5" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} title="New star layout" onClick={() => update({ worldSeed: (d.worldSeed ?? 1) + 1 })}>Seed ↻ {d.worldSeed ?? 1}</button>
+                <button className="rounded px-1.5 py-0.5" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} title="Reset intensity/motion to the preset defaults" onClick={() => applyWorld(worldPreset?.id)}>Reset</button>
+              </div>
+              <div className="mt-1 flex gap-1">
+                <button className="flex-1 rounded px-1 py-0.5 font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} title="Give every frame in this lesson this world" onClick={applyWorldToLesson}>Apply to lesson</button>
+                <button className="flex-1 rounded px-1 py-0.5 font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} title="Make this the lesson's default world (frames without their own inherit it)" onClick={setLessonDefaultWorld}>Set default</button>
+              </div>
+            </>
+          ) : (
+            (lessonData?.worldDefault) && <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Inherits the lesson default. Pick a world above to override just this frame.</p>
+          )}
+          <div className="my-2 border-t" style={{ borderColor: NEON.borderSoft }} />
+
           <div className="mb-1 font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Background loop</div>
           <div className="flex flex-wrap gap-1">
             <button className="rounded px-2 py-1 font-semibold" style={{ background: !d.bgSrc ? meta.color : "transparent", color: !d.bgSrc ? "#0B1322" : NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => update({ bgSrc: undefined, bgPlaying: false })}>None</button>

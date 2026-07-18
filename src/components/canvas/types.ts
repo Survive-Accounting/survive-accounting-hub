@@ -533,6 +533,11 @@ export interface LessonBox {
   /** SCRIPT EDITOR V2: this lesson's collapse state in the script modal. Absent =
    *  default (only the current lesson expanded). Persists in the scene. */
   scriptOpen?: boolean;
+  /** VISUAL WORLDS (Phase 2) — the lesson's DEFAULT world: any frame with no
+   *  `world` of its own inherits these. Additive/nullable, in the scene JSON. */
+  worldDefault?: string;
+  worldDefaultIntensity?: number;
+  worldDefaultMotion?: number;
   // NOTE: the old per-lesson `home` flag was dropped (L3) — Home is now just the
   // top outline entry + a Home element (welcome heading + Ask Lee) in the region.
 }
@@ -624,6 +629,18 @@ export interface FrameBox {
   bgFit?: "cover" | "contain";
   bgZoom?: number;
   bgAnchor?: FrameBgAnchor;
+  /** VISUAL WORLDS (Phase 2) — a rendered atmosphere preset (see worlds.ts) that
+   *  sits BEHIND the cards, alongside/instead of a video loop. All additive +
+   *  nullable, stored in the scene JSON (no migration). `world` empty ⇒ fall back
+   *  to the lesson's worldDefault, then to no world. */
+  world?: string;
+  worldIntensity?: number; // 0..0.6
+  worldMotion?: number;    // 0..1
+  worldSeed?: number;
+  /** VISUAL MIX (Phase 8) — an optional lightweight tag for the read-only lesson
+   *  summary ("stage", "statement", "diagram", …). Purely informational; unset
+   *  frames are simply "untagged" in the summary. */
+  visualType?: string;
 }
 export type FrameBgAnchor =
   | "top-left" | "top" | "top-right"
