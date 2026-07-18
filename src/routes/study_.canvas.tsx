@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Grid3x3, Layers, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Gauge, Grid3x3, Layers, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -67,6 +67,7 @@ import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
 import { LessonNavigator } from "@/components/canvas/LessonNavigator";
 import { PanelPopout, PopoutPlaceholder, TeleprompterPopout, openPopoutWindow } from "@/components/canvas/PanelPopout";
+import { VisualMixPanel } from "@/components/canvas/VisualMixPanel";
 import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
@@ -781,6 +782,7 @@ function PresentCanvas() {
   const [fileMenuOpen, setFileMenuOpen] = useState(false); // File menu (Save/Load/Export/…) upward dropdown
   const [addCardOpen, setAddCardOpen] = useState(false);   // Add Card menu — card-kind picker upward dropdown
   const [deckOpen, setDeckOpen] = useState(false); // Deck panel (toolbar-controlled; no top-right badge)
+  const [visualMixOpen, setVisualMixOpen] = useState(false); // Phase 8: read-only lesson visual-mix summary
   // PANEL POPOUTS — the director's monitor. A popped panel renders into a
   // separate browser window (off-stage for OBS Window Capture) via createPortal,
   // same React tree so the bus / frame-nav / deck all keep working live.
@@ -3046,7 +3048,7 @@ function PresentCanvas() {
           // RUNG 1 — close any open route-level dialog/popover/menu FIRST (Esc just
           // dismisses what's open; it never zooms the board out from under an open
           // menu). The bottom toolbar stays put — clean/film are lower rungs.
-          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen) {
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen) {
             setHelpOpen(false);
             setLoadOpen(false);
             setImportPreview(null);
@@ -3059,6 +3061,7 @@ function PresentCanvas() {
             setAddCardOpen(false);
             setFramePickerOpen(false);
             setFrameHeaderOpen(false);
+            setVisualMixOpen(false);
             return;
           }
           // RUNG 2 — cancel an in-progress connection drag
@@ -3170,7 +3173,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
   );
   useKeymap(bindings);
 
@@ -3615,6 +3618,7 @@ function PresentCanvas() {
           <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
           <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
+          <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>
           <TB title="Recorder spike (EXPERIMENT — cam+mic in the browser; OBS remains the filming flow)" active={spikeOpen} onClick={() => setSpikeOpen((v) => !v)}><FlaskConical className="h-3.5 w-3.5" /></TB>
           {/* BIRDS-EYE — the ONLY way out to the whole-course grid (else stay framed) */}
           <TB title="Birds-eye view — zoom out to the whole course (pick a frame/lesson to dive back in)" onClick={() => { exitFrame(); window.setTimeout(() => void rf.fitView({ duration: 400, padding: 0.15 }), 300); }}><Eye className="h-3.5 w-3.5" /></TB>
@@ -3910,6 +3914,14 @@ function PresentCanvas() {
       )}
       {chrome && cueSheetOpen && isPopped("cuesheet") && (
         <PopoutPlaceholder title="Cue sheet" onReturn={() => returnPop("cuesheet")} style={{ top: 12, right: 12 }} />
+      )}
+
+      {/* VISUAL MIX (Phase 8) — read-only lesson summary; changes nothing. */}
+      {chrome && visualMixOpen && (
+        <VisualMixPanel
+          lessonId={currentFrameId ? (rf.getNode(currentFrameId)?.parentId ?? null) : null}
+          onClose={() => setVisualMixOpen(false)}
+        />
       )}
 
       {/* SCRIPT EDITOR — the whole course script in one modal (authoring only) */}
