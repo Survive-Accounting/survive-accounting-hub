@@ -574,6 +574,10 @@ export interface FrameScript {
   /** JOURNAL: free-text workshop space (rich HTML — bold + bullets) where Lee
    *  riffs on ideas for the frame. Never rendered on camera. */
   journal?: string;
+  /** SCRIPT STATE (Phase 3): the WRITING status of this frame's script. Additive +
+   *  nullable — absent is DERIVED ("empty" when blank, else "draft"), so old
+   *  scenes read unchanged and nothing is rewritten until Lee sets a state. */
+  scriptState?: "draft" | "review" | "final";
 }
 /** TAKE BOARD: the frame's filming state. Absent = unfilmed. */
 export type FilmStatus = "unfilmed" | "filmed" | "retake";

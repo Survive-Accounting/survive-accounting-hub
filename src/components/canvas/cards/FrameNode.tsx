@@ -15,6 +15,7 @@ import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "../co
 import { blankCard } from "../templates";
 import { FRAME_TEMPLATES, placeTemplate, type FrameTemplate } from "../frame-templates";
 import { baseTextPxForKind, phoneChecks, PHONE_LANDSCAPE, type PhoneEl } from "../phone-check";
+import { cycleScriptState, deriveScriptState, SCRIPT_STATE_META } from "../script-doc";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
@@ -322,6 +323,23 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         </span>
         {/* TAKE BOARD: film status chip (authoring chrome — header hides in film) */}
         <FilmStatusChip frameId={id} status={d.filmStatus ?? "unfilmed"} small />
+        {/* SCRIPT STATE (Phase 3): the script's writing status — click to cycle
+            draft → review → final. "Empty" is derived and inert. Authoring chrome. */}
+        {(() => {
+          const st = deriveScriptState(d.script);
+          const m = SCRIPT_STATE_META[st];
+          return (
+            <button
+              className="shrink-0 rounded px-1 text-[8.5px] font-bold uppercase tracking-wider"
+              title={st === "empty" ? "No script yet — write it in the Script editor" : `Script: ${m.label} — click to cycle draft · review · final`}
+              style={{ color: m.color, border: `1px solid ${m.color}66`, opacity: st === "empty" ? 0.5 : 1 }}
+              onPointerDown={stop}
+              onClick={(e) => { e.stopPropagation(); if (st === "empty") return; update({ script: { ...(d.script ?? {}), scriptState: cycleScriptState(st) } }); }}
+            >
+              {m.short} {m.label}
+            </button>
+          );
+        })()}
         <span className="min-w-0 flex-1 text-[12px] font-bold" style={{ color: "#F4EFE6" }} onClick={(e) => e.stopPropagation()}>
           <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="Frame title" openSeq={(data as { _editSeq?: number })._editSeq} />
         </span>

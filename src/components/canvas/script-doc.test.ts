@@ -1,74 +1,61 @@
 import { describe, expect, test } from "bun:test";
 
-import { courseScriptMarkdown, filmStatusOf, hasScript, scriptTree, type ScriptNode } from "./script-doc";
+import { cycleScriptState, deriveScriptState, scriptTree, SCRIPT_STATE_META, type ScriptNode } from "./script-doc";
+import type { FrameScript } from "./types";
 
-const lesson = (id: string, label: string, pathOrder: number): ScriptNode => ({
-  id, type: "lesson", position: { x: 0, y: 0 }, data: { label, pathOrder },
-});
-const frame = (id: string, parentId: string, beat: string, subIndex: number, data: Record<string, unknown> = {}): ScriptNode => ({
-  id, type: "frame", parentId, position: { x: 0, y: 0 }, data: { beat, subIndex, ...data },
-});
-
-const scene: ScriptNode[] = [
-  lesson("L2", "Ch 2 · Debits", 2),
-  lesson("L1", "Ch 1 · Accounts", 1),
-  frame("f-hook", "L1", "hook", 0, { title: "Title card", script: { entry: "Welcome back.", beats: "why accounts\nfive types", exit: "Let's map them." } }),
-  frame("f-hook2", "L1", "hook", 1, { title: "Outline" }),
-  frame("f-check", "L1", "check", 0, { filmStatus: "filmed", script: { entry: "Quiz time." } }),
-  frame("f-teach", "L1", "teach", 0, { filmStatus: "retake" }),
-  frame("f2-hook", "L2", "hook", 0),
-];
-
-describe("scriptTree", () => {
-  test("lessons in path order, beats in column order, frames by subIndex, walk numbering", () => {
-    const t = scriptTree(scene);
-    expect(t.map((l) => l.lessonId)).toEqual(["L1", "L2"]);
-    const l1 = t[0];
-    expect(l1.beats.map((b) => b.beat)).toEqual(["hook", "teach", "check"]); // model_practice empty → dropped
-    expect(l1.beats[0].frames.map((f) => f.frameId)).toEqual(["f-hook", "f-hook2"]);
-    // walk numbering runs across the whole lesson: hook(1,2) teach(3) check(4)
-    expect(l1.beats.flatMap((b) => b.frames.map((f) => f.n))).toEqual([1, 2, 3, 4]);
+describe("script state derivation", () => {
+  test("no text → empty", () => {
+    expect(deriveScriptState(undefined)).toBe("empty");
+    expect(deriveScriptState({})).toBe("empty");
+    expect(deriveScriptState({ entry: "   " })).toBe("empty");
   });
-
-  test("progress counts: scripted + filmed vs total", () => {
-    const l1 = scriptTree(scene)[0];
-    expect(l1.total).toBe(4);
-    expect(l1.scripted).toBe(2); // f-hook + f-check carry text
-    expect(l1.filmed).toBe(1); // retake ≠ filmed
+  test("text but no explicit state → draft", () => {
+    expect(deriveScriptState({ entry: "Hello" })).toBe("draft");
+    expect(deriveScriptState({ beats: "- a\n- b" })).toBe("draft");
   });
-
-  test("hasScript ignores whitespace-only fields", () => {
-    expect(hasScript({ entry: "  " })).toBe(false);
-    expect(hasScript({ beats: "a" })).toBe(true);
-    expect(hasScript(undefined)).toBe(false);
+  test("explicit state wins (when there's text)", () => {
+    expect(deriveScriptState({ entry: "x", scriptState: "review" })).toBe("review");
+    expect(deriveScriptState({ entry: "x", scriptState: "final" })).toBe("final");
   });
-
-  test("filmStatusOf defaults to unfilmed", () => {
-    expect(filmStatusOf({})).toBe("unfilmed");
-    expect(filmStatusOf({ filmStatus: "filmed" })).toBe("filmed");
-    expect(filmStatusOf({ filmStatus: "bogus" })).toBe("unfilmed");
+  test("explicit state on empty script still reads empty (nothing to review)", () => {
+    expect(deriveScriptState({ scriptState: "final" } as FrameScript)).toBe("empty");
   });
 });
 
-describe("courseScriptMarkdown", () => {
-  const md = courseScriptMarkdown(scriptTree(scene), "Start Here");
-
-  test("hierarchy: course › lesson › beat › frame", () => {
-    expect(md).toContain("# Start Here — course script");
-    expect(md.indexOf("## Ch 1 · Accounts")).toBeLessThan(md.indexOf("## Ch 2 · Debits"));
-    expect(md).toContain("### Hook");
-    expect(md).toContain("**Frame 1 — Title card**");
+describe("cycleScriptState", () => {
+  test("draft → review → final → draft; empty starts at draft", () => {
+    expect(cycleScriptState("empty")).toBe("draft");
+    expect(cycleScriptState("draft")).toBe("review");
+    expect(cycleScriptState("review")).toBe("final");
+    expect(cycleScriptState("final")).toBe("draft");
   });
-
-  test("entry as quote, beats as bullets, exit as italic quote, unscripted flagged", () => {
-    expect(md).toContain("> Welcome back.");
-    expect(md).toContain("- why accounts");
-    expect(md).toContain("- five types");
-    expect(md).toContain("> _Let's map them._");
-    expect(md).toContain("_(no script yet)_");
+  test("every state has display meta", () => {
+    for (const s of ["empty", "draft", "review", "final"] as const) {
+      expect(SCRIPT_STATE_META[s].label.length).toBeGreaterThan(0);
+      expect(SCRIPT_STATE_META[s].color.startsWith("#")).toBe(true);
+    }
   });
+});
 
-  test("summary line counts scripted frames", () => {
-    expect(md).toContain("2 lessons · 2/5 frames scripted");
+describe("scriptTree rolls up state", () => {
+  const node = (over: Partial<ScriptNode>): ScriptNode => ({ id: "n", position: { x: 0, y: 0 }, data: {}, ...over });
+  const frame = (id: string, lesson: string, beat: string, sub: number, script: FrameScript): ScriptNode =>
+    node({ id, type: "frame", parentId: lesson, data: { beat, subIndex: sub, script } });
+
+  test("final count reflects marked-final frames; scripted counts any text", () => {
+    const nodes: ScriptNode[] = [
+      node({ id: "L1", type: "lesson", data: { label: "Intro", pathOrder: 0 } }),
+      frame("f1", "L1", "hook", 0, { entry: "hi", scriptState: "final" }),
+      frame("f2", "L1", "hook", 1, { entry: "draft it" }),
+      frame("f3", "L1", "teach", 0, {}), // empty
+    ];
+    const tree = scriptTree(nodes);
+    expect(tree.length).toBe(1);
+    const l = tree[0];
+    expect(l.total).toBe(3);
+    expect(l.scripted).toBe(2);
+    expect(l.final).toBe(1);
+    const states = l.beats.flatMap((b) => b.frames).map((f) => f.state);
+    expect(states).toEqual(["final", "draft", "empty"]);
   });
 });

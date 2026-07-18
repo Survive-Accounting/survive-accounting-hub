@@ -20,7 +20,7 @@ import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, type RfLike } from "./c
 import { blankFrameData, BEAT_COLUMNS, beatColOf, columnX, framesInBeat, nextSubIndex, RESERVED_ROWS, rowY, subIndexOf } from "./frames";
 import { isUnlinked, MARK_KINDS, markLabel, newMark, parseAtTokens } from "./card-marks";
 import { downloadText } from "./export";
-import { courseScriptMarkdown, hasScript, scriptTree } from "./script-doc";
+import { courseScriptMarkdown, cycleScriptState, hasScript, SCRIPT_STATE_META, scriptTree } from "./script-doc";
 import { NEON } from "./theme";
 import { cardId, FRAME_H, FRAME_W, isContainerType, type Beat, type CardMark, type FrameScript, type MarkKind } from "./types";
 
@@ -97,6 +97,11 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
   // ---- script + mark writes (undoable; keystrokes coalesce) ------------------
   const patchScript = (frameId: string, key: "entry" | "beats" | "exit", value: string) => {
     const c = patchDataFnCmd(rfl, frameId, (prev) => ({ script: { ...((prev.script as FrameScript) ?? {}), [key]: value } }), "edit script", `d:${frameId}:script:${key}`);
+    if (c) bus.dispatch(c);
+  };
+  // SCRIPT STATE (Phase 3): set the writing status on a frame's script.
+  const setScriptState = (frameId: string, state: "draft" | "review" | "final") => {
+    const c = patchDataFnCmd(rfl, frameId, (prev) => ({ script: { ...((prev.script as FrameScript) ?? {}), scriptState: state } }), "script state");
     if (c) bus.dispatch(c);
   };
   // frame NAME (editable) — coalesced keystrokes; hook frames default 1=Intro, 2=Outline, 3=Teaser.
@@ -290,7 +295,7 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                     {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                   </button>
                   <h3 className="text-[12.5px] font-black uppercase tracking-wide" style={{ color: l.lessonId === currentLessonId ? NEON.yellow : NEON.text }}>{l.label}</h3>
-                  <span className="text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>{l.scripted}/{l.total} scripted{statusCell ? ` · ${l.filmed}/${l.total} filmed` : ""}</span>
+                  <span className="text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>{l.scripted}/{l.total} scripted · <span style={{ color: l.final === l.total && l.total > 0 ? "#7EF3C0" : NEON.muted }}>{l.final}/{l.total} final</span>{statusCell ? ` · ${l.filmed}/${l.total} filmed` : ""}</span>
                   {unlinkedCount > 0 && <span className="rounded px-1 text-[8.5px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.yellow}66` }}>{unlinkedCount} to build</span>}
                   <span className="flex-1" />
                   {lessonControl?.(l.lessonId)}
@@ -326,6 +331,21 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                                   onChange={(e) => patchFrameTitle(f.frameId, e.target.value)}
                                   onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); (e.currentTarget as HTMLInputElement).blur(); } }}
                                 />
+                                {/* SCRIPT STATE (Phase 3): click to cycle draft · review · final */}
+                                {(() => {
+                                  const m = SCRIPT_STATE_META[f.state];
+                                  return (
+                                    <button
+                                      className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                                      style={{ color: m.color, border: `1px solid ${m.color}66`, opacity: f.state === "empty" ? 0.5 : 1 }}
+                                      title={f.state === "empty" ? "No script yet" : `Script: ${m.label} — click to cycle draft · review · final`}
+                                      disabled={f.state === "empty"}
+                                      onClick={() => setScriptState(f.frameId, cycleScriptState(f.state))}
+                                    >
+                                      {m.short} {m.label}
+                                    </button>
+                                  );
+                                })()}
                                 {statusCell?.(f.frameId, f.filmStatus)}
                                 <span className="flex shrink-0 items-center">
                                   <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Move up" onClick={() => moveFrame(f.frameId, -1)}>▲</button>

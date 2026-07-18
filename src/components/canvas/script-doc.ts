@@ -16,6 +16,36 @@ export interface ScriptNode {
   data: Record<string, unknown>;
 }
 
+/** SCRIPT STATE (Phase 3) — the writing status of a frame's script. "empty" is
+ *  derived (no text yet) and never stored; the other three are set by Lee. */
+export type ScriptState = "empty" | "draft" | "review" | "final";
+export const SCRIPT_STATE_ORDER: ScriptState[] = ["empty", "draft", "review", "final"];
+export const SCRIPT_STATE_META: Record<ScriptState, { label: string; color: string; short: string }> = {
+  empty: { label: "Empty", color: "#7A879B", short: "—" },
+  draft: { label: "Draft", color: "#8CC0EE", short: "D" },
+  review: { label: "Review", color: "#F5D48F", short: "R" },
+  final: { label: "Final", color: "#7EF3C0", short: "✓" },
+};
+
+/** The effective state: an explicit scriptState wins, else it's derived from
+ *  whether there's any script text (empty vs draft). */
+export function deriveScriptState(script: FrameScript | undefined): ScriptState {
+  if (!hasScript(script)) return "empty";
+  const s = script?.scriptState;
+  return s === "draft" || s === "review" || s === "final" ? s : "draft";
+}
+
+/** Cycle a frame's set state forward (draft → review → final → draft). "empty"
+ *  frames start at draft. Returns the value to persist on FrameScript.scriptState. */
+export function cycleScriptState(current: ScriptState): "draft" | "review" | "final" {
+  switch (current) {
+    case "draft": return "review";
+    case "review": return "final";
+    case "final": return "draft";
+    default: return "draft"; // empty → draft
+  }
+}
+
 export interface ScriptFrameRow {
   frameId: string;
   beat: Beat;
@@ -25,6 +55,8 @@ export interface ScriptFrameRow {
   title: string;
   script: FrameScript;
   filmStatus: FilmStatus;
+  /** Phase 3: the derived writing status. */
+  state: ScriptState;
 }
 
 export interface ScriptBeatGroup {
@@ -42,6 +74,8 @@ export interface ScriptLessonGroup {
   scripted: number;
   filmed: number;
   total: number;
+  /** Phase 3: frames whose script is marked Final. */
+  final: number;
 }
 
 const pathOrderOf = (n: ScriptNode): number => {
@@ -82,15 +116,19 @@ export function scriptTree(nodes: ScriptNode[]): ScriptLessonGroup[] {
       return {
         beat,
         label: BEAT_LABEL[beat],
-        frames: inBeat.map((f) => ({
-          frameId: f.id,
-          beat,
-          subIndex: subIndexOf(f as never),
-          n: ++n,
-          title: (f.data.title as string) || "",
-          script: (f.data.script as FrameScript) ?? {},
-          filmStatus: filmStatusOf(f.data),
-        })),
+        frames: inBeat.map((f) => {
+          const script = (f.data.script as FrameScript) ?? {};
+          return {
+            frameId: f.id,
+            beat,
+            subIndex: subIndexOf(f as never),
+            n: ++n,
+            title: (f.data.title as string) || "",
+            script,
+            filmStatus: filmStatusOf(f.data),
+            state: deriveScriptState(script),
+          };
+        }),
       };
     }).filter((g) => g.frames.length > 0);
     const all = beats.flatMap((g) => g.frames);
@@ -102,6 +140,7 @@ export function scriptTree(nodes: ScriptNode[]): ScriptLessonGroup[] {
       scripted: all.filter((f) => hasScript(f.script)).length,
       filmed: all.filter((f) => f.filmStatus === "filmed").length,
       total: all.length,
+      final: all.filter((f) => f.state === "final").length,
     };
   });
 }
