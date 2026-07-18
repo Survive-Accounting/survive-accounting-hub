@@ -192,6 +192,31 @@ export const CARD_CURSOR_CSS = `
   .film-mode .react-flow__node, .sa-clean .react-flow__node { cursor: default; }
 `;
 
+/** DOUBLE-EMPHASIS 🔥 — an always-on (authoring + film) flame that runs across
+ *  the BOTTOM of any target carrying data-flame="on" (toggled by Ctrl+Shift+click
+ *  in SpotlightContext). A moving gradient bar + a 🔥 emoji that travels the
+ *  width, so a memo or lesson row can be really-really emphasized in the moment. */
+export const FLAME_CSS = `
+  [data-flame="on"] { position: relative; border-radius: 8px; }
+  [data-flame="on"]::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 4px; border-radius: 4px;
+    background: linear-gradient(90deg, transparent, #FF7A00 25%, #FFD23F 50%, #FF7A00 75%, transparent);
+    background-size: 220% 100%; animation: sa-flame-run 1.1s linear infinite;
+    filter: drop-shadow(0 0 6px rgba(255,122,0,0.85)); pointer-events: none; z-index: 7;
+  }
+  [data-flame="on"]::before {
+    content: "🔥"; position: absolute; bottom: -11px; left: 0; font-size: 15px; line-height: 1;
+    animation: sa-flame-emoji 1.5s linear infinite; pointer-events: none; z-index: 8;
+    filter: drop-shadow(0 0 4px rgba(255,122,0,0.9));
+  }
+  @keyframes sa-flame-run { from { background-position: 220% 0; } to { background-position: 0% 0; } }
+  @keyframes sa-flame-emoji {
+    0%   { left: -3%;  transform: translateY(0)    scaleX(1); }
+    50%  {             transform: translateY(-2px) scaleX(-1); }
+    100% { left: 100%; transform: translateY(0)    scaleX(1); }
+  }
+`;
+
 /** CSS that removes at-rest card chrome in film mode. Interactions keep working —
  *  drag (header), dbl-click edit, hotkeys — only passive affordances disappear. */
 export const FILM_MODE_CSS = `

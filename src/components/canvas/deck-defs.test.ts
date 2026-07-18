@@ -83,7 +83,7 @@ describe("seedStartHereDecks (item 5/6 — chapters derived, not hardcoded)", ()
   test("Foundations fallback: 11×2 chapter decks + Ch3 drill + 4 memo decks = 27", () => {
     const { toAdd } = seedStartHereDecks([], foundations, lessons);
     expect(toAdd.length).toBe(27);
-    const drill = toAdd.find((d) => d.name === "Ch 3 · Normal Balances")!; // Ch 3 = "Accounts & DR/CR" → the drill chapter
+    const drill = toAdd.find((d) => d.name === "#3 · Normal Balances")!; // #3 = "Accounts & DR/CR" → the drill chapter
     expect(drill.runMode).toBe("shuffle");
     expect(drill.filter).toBe(NORMAL_BALANCE_DRILL_FILTER);
     const memoDecks = toAdd.filter((d) => d.payloadType === "memos");
@@ -97,9 +97,9 @@ describe("seedStartHereDecks (item 5/6 — chapters derived, not hardcoded)", ()
       { number: 3, name: "Debits & Credits" }, // matches the drill heuristic
     ];
     const { toAdd } = seedStartHereDecks([], chapters, []);
-    expect(toAdd.find((d) => d.name === "Ch 2 · The Accounting Equation")).toBeTruthy();
-    expect(toAdd.find((d) => d.name === "Ch 3 · Debits & Credits")).toBeTruthy();
-    expect(toAdd.find((d) => d.name === "Ch 3 · Normal Balances")!.filter).toBe(NORMAL_BALANCE_DRILL_FILTER);
+    expect(toAdd.find((d) => d.name === "#2 · The Accounting Equation")).toBeTruthy();
+    expect(toAdd.find((d) => d.name === "#3 · Debits & Credits")).toBeTruthy();
+    expect(toAdd.find((d) => d.name === "#3 · Normal Balances")!.filter).toBe(NORMAL_BALANCE_DRILL_FILTER);
     // 3×2 chapter decks + drill + 4 memo = 11
     expect(toAdd.length).toBe(11);
   });
@@ -114,9 +114,9 @@ describe("seedStartHereDecks (item 5/6 — chapters derived, not hardcoded)", ()
   test("attaches chapter decks to a matched lesson; leaves the rest loose", () => {
     const { toAdd, attached } = seedStartHereDecks([], foundations, lessons);
     expect(attached).toBe(3); // Ch 1, Ch 3, Ch 11 (Wrap-up) matched
-    expect(toAdd.find((d) => d.name === "Ch 1 · A=L+E")!.lessonId).toBe("L1");
-    expect(toAdd.find((d) => d.name === "Ch 3 · Check")!.lessonId).toBe("L3");
-    expect(toAdd.find((d) => d.name === "Ch 2 · The Cycle")!.lessonId).toBeNull();
+    expect(toAdd.find((d) => d.name === "#1 · A=L+E")!.lessonId).toBe("L1");
+    expect(toAdd.find((d) => d.name === "#3 · Check")!.lessonId).toBe("L3");
+    expect(toAdd.find((d) => d.name === "#2 · The Cycle")!.lessonId).toBeNull();
   });
 
   test("idempotent — seeding twice adds nothing new", () => {

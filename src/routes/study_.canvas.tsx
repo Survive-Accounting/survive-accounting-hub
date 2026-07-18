@@ -95,7 +95,7 @@ import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
-import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
+import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FLAME_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
@@ -3043,8 +3043,10 @@ function PresentCanvas() {
           // exactly one rung. Card popovers (CardPopover) consume Esc themselves
           // with a capture listener, so rung 1 covers them inherently.
           e.preventDefault();
-          // RUNG 1 — close any open route-level dialog/popover
-          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen) {
+          // RUNG 1 — close any open route-level dialog/popover/menu FIRST (Esc just
+          // dismisses what's open; it never zooms the board out from under an open
+          // menu). The bottom toolbar stays put — clean/film are lower rungs.
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen) {
             setHelpOpen(false);
             setLoadOpen(false);
             setImportPreview(null);
@@ -3053,6 +3055,10 @@ function PresentCanvas() {
             setManageCourseOpen(false);
             setSettingsOpen(false);
             setBgOpen(false);
+            setFileMenuOpen(false);
+            setAddCardOpen(false);
+            setFramePickerOpen(false);
+            setFrameHeaderOpen(false);
             return;
           }
           // RUNG 2 — cancel an in-progress connection drag
@@ -3121,20 +3127,23 @@ function PresentCanvas() {
       {
         combo: "arrowup",
         group: "Spotlight",
-        description: "Spotlight: move focus up (↑ off the top exits) · else prev frame",
+        description: "Spotlight: move focus up (↑ off the top exits) · else prev sub-frame",
         handler: (e) => {
           if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1); return; }
-          if (frameFreeNav()) { e.preventDefault(); armOrStep("up", () => stepSub(-1)); }
+          // ↑/↓ walk sub-frames in the current beat COLUMN on a single press (no
+          // double-tap arm — moving among your own rows, and ↓ past the last makes
+          // a new frame, should feel immediate). ←/→ keep the arm (bigger jumps).
+          if (frameFreeNav()) { e.preventDefault(); stepSub(-1); }
         },
       },
       {
         combo: "arrowdown",
         group: "Spotlight",
-        description: "Spotlight: move focus down · re-enter after an exit · else next frame",
+        description: "Spotlight: move focus down · else next sub-frame (↓ past the last adds one)",
         handler: (e) => {
           if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1); return; }
           if (spotRef.current?.tryReenter(1)) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); armOrStep("down", () => stepSub(1)); }
+          if (frameFreeNav()) { e.preventDefault(); stepSub(1); }
         },
       },
       { combo: "shift+arrowdown", group: "Spotlight", description: "Extend the spotlight range down", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { range: true }); } } },
@@ -3161,7 +3170,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
   );
   useKeymap(bindings);
 
@@ -3224,6 +3233,7 @@ function PresentCanvas() {
       <style>{CARD_CURSOR_CSS}</style>
       <style>{CONNECTION_DOTS_CSS}</style>
       <style>{ARROW_EDGE_CSS}</style>
+      <style>{FLAME_CSS}</style>
       {/* card tap feedback — always on (authoring); the audience never sees it in film/clean */}
       {chrome && <CardTapPulse />}
       {film && (

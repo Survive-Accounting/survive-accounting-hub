@@ -28,7 +28,7 @@ const UNDERLINE_CSS = `
  *  .film-mode so authoring never plays it. */
 const TYPEWRITER_CSS = `
 @keyframes sa-typewrite { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2% 0 0); } }
-.film-mode .sa-typewrite { animation: sa-typewrite 600ms steps(22, end) both; }
+.film-mode .sa-typewrite { animation: sa-typewrite 1250ms steps(30, end) both; }
 `;
 
 /** Split "MAIN [sub]" — sub is optional and must be the trailing bracket. */

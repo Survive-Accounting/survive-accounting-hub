@@ -129,7 +129,9 @@ export function seedStartHereDecks(existing: DeckDef[], chapters: SeedChapter[],
   const drillN = drillChapterNumber(chapters);
   chapters.forEach((c, i) => {
     const n = c.number ?? i + 1;
-    const label = `Ch ${n}`;
+    // "#N", never "Ch N": lessons are numbered by OUR order, not a textbook chapter
+    // (students use different books) — see [[chapter-vocab-canvas]].
+    const label = `#${n}`;
     const lessonId = matchLessonForChapter(lessons, n, c.name);
     if (lessonId) attached++; else unattached.push(label);
     mk(`${label} · ${c.name}`, { lessonId });

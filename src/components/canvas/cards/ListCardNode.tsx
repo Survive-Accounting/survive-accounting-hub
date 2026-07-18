@@ -85,6 +85,8 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
       selected={selected}
       accent={NEON.green}
       noEditBtn
+      clipX
+      titleNode={<span className="min-w-0 flex-1" />}
       headerRight={
         <button
           title="List settings"
@@ -102,6 +104,18 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           <ListSettings d={d} onUpdate={update} onClose={() => setGear(null)} />
         </CardPopover>
       )}
+
+      {/* HEADER — the list title reads as a real heading: big, bold, and set off
+          from the rows by a rule. (The compact navy bar keeps only the controls.) */}
+      <div className="mb-2 border-b pb-1.5" style={{ borderColor: PAPER.line }}>
+        <EditableText
+          value={d.title ?? ""}
+          onChange={(v) => update({ title: v })}
+          editing={editing}
+          className="block text-[19px] font-extrabold uppercase leading-tight tracking-wide"
+          placeholder="List title"
+        />
+      </div>
 
       {/* Item 6: the one-line "definition" was a duplicate inline title — the
           title lives ONLY in the top bar now; the description sits directly
@@ -142,7 +156,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1, paddingLeft: r.indent ? 18 : 0, ...(r.youAreHere ? { background: "rgba(252,163,17,0.16)", borderRadius: 6, boxShadow: "inset 3px 0 0 " + PAPER.gold, paddingLeft: (r.indent ? 18 : 0) + 6 } : null) }}>
             <MemoAnchor subId={r.id} />
             {bullet(pulledRows.length + i)}
-            <span className="min-w-0 flex-1" style={{ color: r.youAreHere ? PAPER.gold : PAPER.ink, fontWeight: r.youAreHere ? 800 : 500 }}>
+            <span className="min-w-0 flex-1 break-words" style={{ color: r.youAreHere ? PAPER.gold : PAPER.ink, fontWeight: r.youAreHere ? 800 : 500 }}>
               {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
               <EditableText value={r.text} onChange={(v) => patchRow(r.id, { text: v })} editing={editing} placeholder="Item" />
             </span>

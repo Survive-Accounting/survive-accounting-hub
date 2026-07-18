@@ -181,6 +181,7 @@ export function BaseCard({
   noEditBtn,
   fixedWidth,
   noResize,
+  clipX,
   children,
 }: {
   id: string;
@@ -197,10 +198,14 @@ export function BaseCard({
   /** Scene-uniform width (JE) — overrides per-card w. */
   fixedWidth?: number;
   noResize?: boolean;
+  /** Clip horizontal overflow (the body scrolls only vertically) — the list card
+   *  wants its numbers always visible, never scrolled off to the left. */
+  clipX?: boolean;
   children: React.ReactNode;
 }) {
   const { update, remove, toFront, duplicate, addToDeck, tuck } = useCardActions(id);
   const rf = useReactFlow();
+  const [hover, setHover] = useState(false);
   const title = data.title ?? "";
   const scale = useCardScale(id, data);
   const dim = useCardDim(id);
@@ -211,6 +216,8 @@ export function BaseCard({
   return (
     <div
       onPointerDownCapture={toFront}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       className="group/shell animate-in fade-in zoom-in-95 relative flex flex-col overflow-hidden rounded-xl duration-150"
       style={{
         width: fixedWidth ?? data.w ?? undefined,
@@ -234,12 +241,14 @@ export function BaseCard({
       {/* hover connection dots — drag from one to grow an arrow (V2) */}
       <ConnectionDots />
       {!noResize && (
+        // Resize any card on HOVER or when selected — no need to select first, and
+        // it stays live in film so Lee can size a card mid-take.
         <NodeResizer
-          isVisible={!!selected}
+          isVisible={hover || !!selected}
           minWidth={220}
           minHeight={90}
           lineStyle={{ borderColor: accent }}
-          handleStyle={{ width: 8, height: 8, borderRadius: 2, background: accent, border: "none" }}
+          handleStyle={{ width: 9, height: 9, borderRadius: 2, background: accent, border: "none" }}
           onResize={(_, p) => update({ w: Math.round(p.width), h: Math.round(p.height) })}
         />
       )}
@@ -290,7 +299,7 @@ export function BaseCard({
           <IconBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></IconBtn>
         </div>
       </div>
-      <div className="nowheel min-h-0 flex-1 overflow-auto p-2.5">{children}</div>
+      <div className={`nowheel min-h-0 flex-1 p-2.5 ${clipX ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"}`}>{children}</div>
       {/* POSITION LOCK (B2) — bottom-right: freezes the spot (no drag), edits
           still work. The JE review-lock is the stricter cousin (edits too). */}
       <button

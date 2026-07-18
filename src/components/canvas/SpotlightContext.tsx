@@ -29,7 +29,14 @@ interface SpotlightApi {
   focusTargetId: () => string | null;
   targetState: (cardId: string, targetId: string) => SpotTargetState;
   cardDim: (cardId: string) => boolean;
+  /** DOUBLE-EMPHASIS (🔥) — a fixed, elective "on fire" mark: Ctrl+Shift+click a
+   *  target to toggle it. Independent of the movable spotlight (can stack on it),
+   *  never persisted. Multiple targets can burn at once. */
+  toggleFlame: (cardId: string, targetId: string) => void;
+  isFlamed: (cardId: string, targetId: string) => boolean;
 }
+
+const flameKey = (cardId: string, targetId: string) => `${cardId}::${targetId}`;
 
 export const SpotlightCtx = createContext<SpotlightApi | null>(null);
 export const useSpotlight = () => useContext(SpotlightCtx);
@@ -45,8 +52,19 @@ export function useSpotlightController({ film, focusDimMode, followReveals }: {
 }): SpotlightApi {
   const rf = useReactFlow();
   const [spot, setSpot] = useState<SpotState | null>(null);
+  const [flames, setFlames] = useState<Set<string>>(() => new Set());
   const justExited = useRef(false);
   const lastCardId = useRef<string | null>(null);
+
+  const toggleFlame = useCallback((cardId: string, targetId: string) => {
+    setFlames((prev) => {
+      const next = new Set(prev);
+      const k = flameKey(cardId, targetId);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  }, []);
+  const isFlamed = useCallback((cardId: string, targetId: string) => flames.has(flameKey(cardId, targetId)), [flames]);
 
   const focusDimOn = focusDimMode === "on" ? true : focusDimMode === "off" ? false : film;
 
@@ -132,17 +150,37 @@ export function useSpotlightController({ film, focusDimMode, followReveals }: {
   }, [spot, focusDimOn, frameOf]);
 
   return useMemo<SpotlightApi>(() => ({
-    spot, active: !!spot, followReveals, start, move, tryReenter, exit, editSpot, onReveal, focusTargetId, targetState, cardDim,
-  }), [spot, followReveals, start, move, tryReenter, exit, editSpot, onReveal, focusTargetId, targetState, cardDim]);
+    spot, active: !!spot, followReveals, start, move, tryReenter, exit, editSpot, onReveal, focusTargetId, targetState, cardDim, toggleFlame, isFlamed,
+  }), [spot, followReveals, start, move, tryReenter, exit, editSpot, onReveal, focusTargetId, targetState, cardDim, toggleFlame, isFlamed]);
 }
 
-/** WARM performance styling for a target. `spot`/`range` = emphasized, `dim` = recede. */
+/** WARM performance styling for a target. The spotlight now reads as a GOLD
+ *  HIGHLIGHT PILL (the "you are here" bar) that MOVES with the focus — an amber
+ *  wash + left gate bar + glow, not just a size bump. `dim` recedes. */
 export function spotStyle(state: SpotTargetState): React.CSSProperties {
-  const trans = "transform 150ms ease, opacity 150ms ease, filter 150ms ease";
+  const trans = "transform 150ms ease, opacity 150ms ease, filter 150ms ease, background 150ms ease, box-shadow 150ms ease";
   if (state === "spot")
-    return { transform: "scale(1.12)", transformOrigin: "left center", fontWeight: 600, filter: "drop-shadow(0 0 7px rgba(252,163,17,0.75))", transition: trans, position: "relative", zIndex: 6 };
+    return {
+      background: "rgba(252,163,17,0.22)",
+      borderRadius: 8,
+      boxShadow: "inset 3px 0 0 #FCA311, 0 0 18px rgba(252,163,17,0.5)",
+      fontWeight: 700,
+      transform: "scale(1.03)",
+      transformOrigin: "left center",
+      transition: trans,
+      position: "relative",
+      zIndex: 6,
+    };
   if (state === "range")
-    return { transform: "scale(1.07)", transformOrigin: "left center", fontWeight: 600, filter: "drop-shadow(0 0 5px rgba(252,163,17,0.6))", transition: trans, position: "relative", zIndex: 5 };
+    return {
+      background: "rgba(252,163,17,0.14)",
+      borderRadius: 8,
+      boxShadow: "inset 3px 0 0 rgba(252,163,17,0.7)",
+      fontWeight: 600,
+      transition: trans,
+      position: "relative",
+      zIndex: 5,
+    };
   if (state === "dim") return { opacity: 0.85, transition: trans };
   return { transition: trans };
 }
@@ -151,15 +189,21 @@ export function spotStyle(state: SpotTargetState): React.CSSProperties {
  *  `sp` from a single top-level useSpotlight(), so it's safe inside a .map. */
 export function spotTargetProps(sp: SpotlightApi | null, cardId: string, targetId: string) {
   const state = sp?.targetState(cardId, targetId) ?? null;
+  const flamed = sp?.isFlamed(cardId, targetId) ?? false;
   return {
     state,
+    flamed,
     props: {
       "data-spot-target": targetId,
+      "data-flame": flamed ? "on" : undefined,
       onPointerDownCapture: (e: React.PointerEvent) => {
-        // Ctrl/Cmd+click a target → spotlight it. stopImmediatePropagation on the
-        // NATIVE event so React Flow's own pointer listeners (drag / selection box)
-        // never see the click — otherwise the spotlight would fight a node drag.
-        if ((e.ctrlKey || e.metaKey) && sp) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.start(cardId, targetId); }
+        // Ctrl+SHIFT+click → toggle the 🔥 double-emphasis (checked first, since
+        // it's also a ctrl-click). Ctrl/Cmd+click alone → move the spotlight here.
+        // stopImmediatePropagation on the NATIVE event so React Flow's own pointer
+        // listeners (drag / selection box) never see the click.
+        if (!sp) return;
+        if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(cardId, targetId); return; }
+        if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.start(cardId, targetId); }
       },
     },
   };

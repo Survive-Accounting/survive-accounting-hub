@@ -7,7 +7,7 @@
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize2, Pause, Play, StickyNote, Tag, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize2, Pause, Play, StickyNote, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -15,10 +15,10 @@ import { bus } from "../commands";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
-import { BEAT_COLUMNS, columnX, frame169, framesInBeat, rowY } from "../frames";
+import { beatColOf, frame169, framesInBeat, rowY, subIndexOf } from "../frames";
 import { EditableText } from "../ui";
 import { NEON } from "../theme";
-import { FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, type Beat, type FrameBeat, type FrameBgAnchor, type FrameBox } from "../types";
+import { FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, type FrameBeat, type FrameBgAnchor, type FrameBox } from "../types";
 
 /** 9-point anchor grid, row-major for a 3×3 button pad. */
 const BG_ANCHORS: FrameBgAnchor[] = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
@@ -29,6 +29,53 @@ export const BEAT_META: Record<FrameBeat, { label: string; color: string; tint: 
   model_practice: { label: "Model · Practice", color: "#7EF3C0", tint: "rgba(59,245,160,0.05)", edge: "rgba(59,245,160,0.4)" },
   check: { label: "Check", color: "#FF8B9E", tint: "rgba(206,17,38,0.06)", edge: "rgba(206,17,38,0.45)" },
 };
+
+/** SEAMLESS LOOP — two stacked <video>s crossfade at the loop boundary so the
+ *  restart seam never hard-cuts (the "choppy" Dream loop). The back copy is armed
+ *  ~0.7s before the front ends, then we swap and fade — the outgoing tail dissolves
+ *  into the incoming head. muted+playsInline so browsers allow programmatic play. */
+function BgLoopVideo({ base, playing, style }: { base: string; playing: boolean; style: React.CSSProperties }) {
+  const a = useRef<HTMLVideoElement>(null);
+  const b = useRef<HTMLVideoElement>(null);
+  const [front, setFront] = useState(0);
+  const XFADE = 0.7;
+  const baseOpacity = typeof style.opacity === "number" ? style.opacity : 1;
+
+  useEffect(() => {
+    [a.current, b.current].forEach((v) => { if (!v) return; if (playing) void v.play().catch(() => {}); else v.pause(); });
+  }, [playing, base]);
+
+  useEffect(() => {
+    const f = (front === 0 ? a : b).current;
+    const back = (front === 0 ? b : a).current;
+    if (!f || !back) return;
+    const onTime = () => {
+      if (!f.duration || Number.isNaN(f.duration)) return;
+      if (f.currentTime >= f.duration - XFADE) {
+        back.currentTime = 0;
+        if (playing) void back.play().catch(() => {});
+        setFront((x) => (x === 0 ? 1 : 0));
+      }
+    };
+    f.addEventListener("timeupdate", onTime);
+    return () => f.removeEventListener("timeupdate", onTime);
+  }, [front, playing]);
+
+  const vid = (ref: React.RefObject<HTMLVideoElement | null>, isFront: boolean) => (
+    <video
+      ref={ref}
+      className="absolute inset-0 h-full w-full"
+      style={{ ...style, opacity: (isFront ? baseOpacity : 0), transition: `opacity ${XFADE}s linear` }}
+      muted
+      playsInline
+      preload="auto"
+    >
+      <source src={`${base}.webm`} type="video/webm" />
+      <source src={`${base}.mp4`} type="video/mp4" />
+    </video>
+  );
+  return <>{vid(a, front === 0)}{vid(b, front === 1)}</>;
+}
 
 export function FrameNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as FrameBox;
@@ -42,7 +89,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const { upload, takesFor } = useFrameTakes();
   const drop = useFileDrop((f) => void upload(id, f)); // drop an OBS clip → Mux
   const takeCount = takesFor(id).length;
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const bgMenuRef = useRef<HTMLDivElement>(null);
   const beat = d.beat ?? "none";
   const meta = BEAT_META[beat];
   const settings = useCanvasSettings();
@@ -58,30 +105,22 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const bgZoom = d.bgZoom ?? FRAME_BG_DEFAULT_ZOOM;
   const bgAnchor = d.bgAnchor ?? "center";
   const bgAnchorCss = FRAME_BG_ANCHOR_CSS[bgAnchor];
-  // Drive the <video> from the persisted bgPlaying flag (play before a take, pause
-  // on action). muted+playsInline so browsers allow programmatic play.
+  // The background/framing menu closes on Escape (consumed in CAPTURE so the
+  // route's Escape ladder doesn't also fire and zoom the canvas out) OR on any
+  // click outside it. Fixes the "menu gets stuck" bug.
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (d.bgPlaying) void v.play().catch(() => {});
-    else v.pause();
-  }, [d.bgPlaying, d.bgSrc]);
-
-  /** Cycle the frame to the NEXT beat COLUMN — lands at the end of that column
-   *  (new subIndex) and repositions to the grid cell. */
-  const cycleBeat = () => {
-    const cur = (beat === "none" ? "hook" : beat) as Beat;
-    const next = BEAT_COLUMNS[(BEAT_COLUMNS.indexOf(cur) + 1) % BEAT_COLUMNS.length];
-    const me = rf.getNode(id);
-    if (!me?.parentId) { update({ beat: next, subIndex: 0 }); return; }
-    const sub = framesInBeat(rf.getNodes() as never, me.parentId, next).length;
-    update({ beat: next, subIndex: sub });
-    rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { x: columnX(BEAT_COLUMNS.indexOf(next)), y: rowY(sub) } } : n)));
-  };
+    if (!bgMenu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setBgMenu(false); } };
+    const onDown = (e: PointerEvent) => { const t = e.target as HTMLElement; if (!bgMenuRef.current?.contains(t) && !t.closest("[data-bg-toggle]")) setBgMenu(false); };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("pointerdown", onDown, true);
+    return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("pointerdown", onDown, true); };
+  }, [bgMenu]);
 
   /** Delete the frame but KEEP its cards (spec): reparent children to the frame's
    *  lesson (offset by the frame's position so they stay put), then drop the
-   *  frame — ONE undoable command. */
+   *  frame — and REFLOW the beat column so every frame BELOW slides up one row
+   *  (subIndex − 1 + new grid Y). ONE undoable command. */
   const deleteFrame = () => {
     const me = rf.getNode(id);
     if (!me) { remove(); return; }
@@ -90,20 +129,34 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     const kidSnaps = kids.map((k) => structuredClone(k));
     const framePos = me.position;
     const newParent = me.parentId;
+    // frames below me in the same beat column — reflow them up by one row
+    const myBeat = beatColOf(me as never);
+    const mySub = subIndexOf(me as never);
+    const below = newParent
+      ? framesInBeat(rf.getNodes() as never, newParent, myBeat).filter((s) => s.id !== id && subIndexOf(s) > mySub)
+      : [];
+    const belowSnaps = below.map((s) => structuredClone(s as never)) as { id: string; position: { x: number; y: number }; data: Record<string, unknown> }[];
     bus.dispatch({
       label: "delete frame (keep cards)",
       do: () =>
         rf.setNodes((nds) =>
           nds
             .filter((n) => n.id !== id)
-            .map((n) => (n.parentId === id ? { ...n, parentId: newParent, position: { x: n.position.x + framePos.x, y: n.position.y + framePos.y } } : n)),
+            .map((n) => {
+              if (n.parentId === id) return { ...n, parentId: newParent, position: { x: n.position.x + framePos.x, y: n.position.y + framePos.y } };
+              if (below.some((s) => s.id === n.id)) { const ns = subIndexOf(n as never) - 1; return { ...n, position: { x: n.position.x, y: rowY(ns) }, data: { ...n.data, subIndex: ns } }; }
+              return n;
+            }),
         ),
       undo: () =>
         rf.setNodes((nds) => {
           const base = nds.some((n) => n.id === id) ? nds : [...nds, structuredClone(frameSnap)];
           return base.map((n) => {
             const ks = kidSnaps.find((k) => k.id === n.id);
-            return ks ? { ...n, parentId: ks.parentId, position: { ...ks.position } } : n;
+            if (ks) return { ...n, parentId: ks.parentId, position: { ...ks.position } };
+            const bs = belowSnaps.find((s) => s.id === n.id);
+            if (bs) return { ...n, position: { ...bs.position }, data: { ...n.data, subIndex: (bs.data as { subIndex?: number }).subIndex } };
+            return n;
           });
         }),
     });
@@ -137,10 +190,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           content without re-cutting the file. Keyed by src so switching remounts. */}
       {bgLoop && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
-          <video
-            ref={videoRef}
+          <BgLoopVideo
             key={bgLoop.id}
-            className="h-full w-full"
+            base={bgLoop.base}
+            playing={!!d.bgPlaying}
             style={{
               opacity: bgOpacity,
               objectFit: bgFit,
@@ -148,14 +201,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               transform: `scale(${bgZoom / 100})`,
               transformOrigin: bgAnchorCss,
             }}
-            muted
-            loop
-            playsInline
-            preload="auto"
-          >
-            <source src={`${bgLoop.base}.webm`} type="video/webm" />
-            <source src={`${bgLoop.base}.mp4`} type="video/mp4" />
-          </video>
+          />
         </div>
       )}
       <ConnectionDots color={meta.color} />
@@ -200,14 +246,13 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               {d.bgPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
             </button>
           )}
-          <button className={btn} style={{ color: bgLoop ? meta.color : NEON.text }} title="Background animation" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>
+          <button data-bg-toggle className={btn} style={{ color: bgLoop ? meta.color : NEON.text }} title="Background animation" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>
           {/* TAKE BOARD: review the frame's uploaded takes (latest plays inline) */}
           <button className={btn} style={{ color: takeCount ? meta.color : NEON.text }} title={takeCount ? `Takes (${takeCount}) — review the latest clip` : "Takes — drop an OBS clip on the frame to upload"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setTakesOpen((v) => !v); }}>
             <Clapperboard className="h-3 w-3" />
           </button>
           <button className={btn} style={{ color: nav.canStep(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder)" disabled={!nav.canStep(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
           <button className={btn} style={{ color: nav.canStep(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder)" disabled={!nav.canStep(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
-          <button className={btn} style={{ color: meta.color }} title="Cycle beat tag (Hook · Teach · Model-Practice · Check)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); cycleBeat(); }}><Tag className="h-3 w-3" /></button>
           {/* DIRECTOR NOTE — GLOBAL per beat: the note shows on every frame of this
               beat, in every lesson. Filming chrome, hidden in film. */}
           <button className={btn} style={{ color: note ? meta.color : NEON.text }} title={note ? `Edit the ${meta.label} director note (shown on every ${meta.label} frame)` : `Add a director note for every ${meta.label} frame`} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setNoteEdit((v) => !v); }}>
@@ -226,6 +271,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           nowheel so the slider works; stops propagation so clicks don't enter. */}
       {bgMenu && (
         <div
+          ref={bgMenuRef}
           className="nodrag nowheel absolute right-2 top-9 z-[6] w-56 rounded-lg p-2 text-[11px]"
           style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}
           onPointerDown={stop}
