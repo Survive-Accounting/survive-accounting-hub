@@ -11,7 +11,9 @@ import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
-import { bus, compositeCmd, patchDataCmd, type RfLike } from "../commands";
+import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "../commands";
+import { blankCard } from "../templates";
+import { FRAME_TEMPLATES, placeTemplate, type FrameTemplate } from "../frame-templates";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
@@ -20,7 +22,7 @@ import { EditableText } from "../ui";
 import { NEON } from "../theme";
 import { WorldBackground } from "../WorldBackground";
 import { WORLDS, worldById } from "../worlds";
-import { FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, type FrameBeat, type FrameBgAnchor, type FrameBox, type LessonBox } from "../types";
+import { cardId, FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, FRAME_H, FRAME_W, type FrameBeat, type FrameBgAnchor, type FrameBox, type LessonBox } from "../types";
 
 /** 9-point anchor grid, row-major for a 3×3 button pad. */
 const BG_ANCHORS: FrameBgAnchor[] = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
@@ -194,6 +196,25 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     if (!me?.parentId) return;
     const c = patchDataCmd(rf as unknown as RfLike, me.parentId, { worldDefault: d.world, worldDefaultIntensity: d.worldIntensity, worldDefaultMotion: d.worldMotion }, "lesson world default");
     if (c) bus.dispatch(c);
+  };
+
+  // FRAME TEMPLATE (Phase 5, additive) — spawn a template's EXISTING card kinds,
+  // parented to this frame at safe placements. The spawned cards are ordinary,
+  // fully editable; the frame is tagged with the template's visualType for the
+  // Visual Mix summary. One undoable command.
+  const applyTemplate = (t: FrameTemplate) => {
+    const fw = d.w ?? FRAME_W;
+    const fh = d.h ?? FRAME_H;
+    const nodes = placeTemplate(t, fw, fh).map((pl) => ({
+      id: cardId(pl.kind),
+      type: pl.kind,
+      parentId: id,
+      position: { x: pl.x, y: pl.y },
+      data: { ...blankCard(pl.kind), w: pl.w } as Record<string, unknown>,
+    }));
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `apply ${t.name} template`));
+    update({ visualType: t.visualType });
+    setBgMenu(false);
   };
 
   const stop = (e: React.PointerEvent) => e.stopPropagation();
@@ -408,6 +429,26 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               </div>
               <button className="ml-auto self-start rounded px-1.5 py-0.5 text-[10px]" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={() => update({ bgFit: "cover", bgZoom: FRAME_BG_DEFAULT_ZOOM, bgAnchor: "center" })}>Reset</button>
             </div>
+          </div>
+
+          {/* LAYOUT TEMPLATE (Phase 5) — spawn a safe starting layout of existing
+              card kinds into this frame. The spawned cards are fully editable. */}
+          <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+            <div className="mb-1 font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Layout template</div>
+            <div className="grid grid-cols-2 gap-1">
+              {FRAME_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  title={`${t.blurb} — spawns ${t.placements.map((p) => p.kind).join(" + ")}`}
+                  className="rounded px-1.5 py-1 text-left text-[10px] font-semibold"
+                  style={{ border: `1px solid ${d.visualType === t.visualType ? meta.color : NEON.borderSoft}`, color: NEON.text }}
+                  onClick={() => applyTemplate(t)}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Spawns editable cards at safe spots. Add on top of what's here.</p>
           </div>
         </div>
       )}
