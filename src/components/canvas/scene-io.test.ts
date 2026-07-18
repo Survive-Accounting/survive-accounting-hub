@@ -3,7 +3,29 @@
 // cards saved selected reload as a drag-group).
 import { describe, expect, test } from "bun:test";
 
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateIntroCards, sanitizeSceneNodes } from "./scene-io";
+import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateIntroCards, sanitizeSceneNodes } from "./scene-io";
+
+describe("migrateCheckToCram (Phase 7 beat rename, migrate-on-load)", () => {
+  test("frame beat:'check' → 'cram'; other frames + non-frames untouched", () => {
+    const nodes = [
+      { id: "L1", type: "lesson", data: { label: "Intro" } },
+      { id: "f1", type: "frame", parentId: "L1", data: { beat: "check", subIndex: 0, title: "Recap" } },
+      { id: "f2", type: "frame", parentId: "L1", data: { beat: "teach", subIndex: 0 } },
+      { id: "c1", type: "je", parentId: "f1", data: { kind: "je" } },
+    ];
+    const out = migrateCheckToCram(nodes);
+    expect((out.find((n) => n.id === "f1")!.data as { beat: string }).beat).toBe("cram");
+    expect((out.find((n) => n.id === "f2")!.data as { beat: string }).beat).toBe("teach");
+    // non-frame + title preserved
+    expect((out.find((n) => n.id === "f1")!.data as { title: string }).title).toBe("Recap");
+    expect(out.find((n) => n.id === "c1")!.data).toEqual({ kind: "je" });
+  });
+
+  test("idempotent — a scene with no legacy 'check' is returned unchanged (same ref)", () => {
+    const nodes = [{ id: "f", type: "frame", data: { beat: "cram", subIndex: 0 } }];
+    expect(migrateCheckToCram(nodes)).toBe(nodes);
+  });
+});
 
 describe("migrateIntroCards", () => {
   const scene = () => [

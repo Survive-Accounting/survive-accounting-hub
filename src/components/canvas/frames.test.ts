@@ -16,11 +16,12 @@ describe("grid accessors", () => {
     L("L1", 1),
     F("h1", "L1", "hook", 0), F("h2", "L1", "hook", 1),
     F("t1", "L1", "teach", 0),
-    F("c1", "L1", "check", 0),
+    F("c1", "L1", "cram", 0),
   ];
-  test("beatColOf folds legacy none → hook", () => {
+  test("beatColOf folds legacy none → hook, legacy check → cram", () => {
     expect(beatColOf(F("x", "L1", "teach", 0))).toBe("teach");
     expect(beatColOf(F("x", "L1", "none", 0))).toBe("hook");
+    expect(beatColOf(F("x", "L1", "check", 0))).toBe("cram"); // legacy 4th-column value
     expect(beatColOf({ id: "x", type: "frame", parentId: "L1", position: { x: 0, y: 0 }, data: {} })).toBe("hook");
   });
   test("framesInBeat sorts by subIndex", () => expect(framesInBeat(nodes, "L1", "hook").map((f) => f.id)).toEqual(["h1", "h2"]));
@@ -29,7 +30,7 @@ describe("grid accessors", () => {
     expect(g.hook.map((f) => f.id)).toEqual(["h1", "h2"]);
     expect(g.teach.map((f) => f.id)).toEqual(["t1"]);
     expect(g.model_practice).toEqual([]);
-    expect(g.check.map((f) => f.id)).toEqual(["c1"]);
+    expect(g.cram.map((f) => f.id)).toEqual(["c1"]);
   });
   test("framesInLesson is COLUMN-MAJOR (Hook 1..n, Teach…, M/P…, Check…)", () =>
     expect(framesInLesson(nodes, "L1").map((f) => f.id)).toEqual(["h1", "h2", "t1", "c1"]));
@@ -46,7 +47,7 @@ describe("→ / ← beat navigation (skips empty beats, same subIndex else first
     F("h1", "L1", "hook", 0), F("h2", "L1", "hook", 1),
     F("t1", "L1", "teach", 0),
     // model_practice empty
-    F("c1", "L1", "check", 0),
+    F("c1", "L1", "cram", 0),
   ];
   test("→ same subIndex if it exists", () => expect(beatNeighborFrame(nodes, "h1", 1)?.id).toBe("t1"));
   test("→ falls to the beat's FIRST when same subIndex is missing (h2 → teach has no row 1)", () =>
@@ -70,7 +71,7 @@ describe("frameWalkNext (space-walk — column-major, stops at lesson end)", () 
     L("L1", 1),
     F("h1", "L1", "hook", 0), F("h2", "L1", "hook", 1),
     F("t1", "L1", "teach", 0),
-    F("c1", "L1", "check", 0),
+    F("c1", "L1", "cram", 0),
     L("L2", 2), F("l2h", "L2", "hook", 0),
   ];
   test("walks column-major within the lesson (Hook 1→Hook 2→Teach 1→Check 1)", () => {
@@ -94,7 +95,7 @@ describe("frameWalkNext (space-walk — column-major, stops at lesson end)", () 
 
 describe("cross-lesson roll (→ next Hook 1 · ← prev lesson's last beat)", () => {
   const nodes = [
-    L("L1", 1), F("a-h", "L1", "hook", 0), F("a-c", "L1", "check", 0),
+    L("L1", 1), F("a-h", "L1", "hook", 0), F("a-c", "L1", "cram", 0),
     L("L2", 2), F("b-h", "L2", "hook", 0), F("b-t", "L2", "teach", 0),
   ];
   test("→ off L1's last beat rolls to L2's first Hook", () => expect(lessonRollFrame(nodes, "a-c", 1)?.id).toBe("b-h"));
@@ -107,15 +108,15 @@ describe("cross-lesson roll (→ next Hook 1 · ← prev lesson's last beat)", (
 
 describe("region grid (reserved-space map)", () => {
   test("gridLayout reserves the full RESERVED_ROWS height regardless of sub-frames", () => {
-    const empty = gridLayout({ hook: [], teach: [], model_practice: [], check: [] });
-    const full = gridLayout({ hook: [F("a", "L", "hook", 0), F("b", "L", "hook", 1), F("c", "L", "hook", 2)], teach: [], model_practice: [], check: [] });
+    const empty = gridLayout({ hook: [], teach: [], model_practice: [], cram: [] });
+    const full = gridLayout({ hook: [F("a", "L", "hook", 0), F("b", "L", "hook", 1), F("c", "L", "hook", 2)], teach: [], model_practice: [], cram: [] });
     expect(empty.h).toBe(full.h); // adding sub-frames NEVER grows the cell
     expect(RESERVED_ROWS).toBe(5);
   });
   test("lessonCellSize is the fixed 4-beat × 5-row footprint", () => {
     const c = lessonCellSize();
     expect(c.w).toBeGreaterThan(FRAME_W * 4);
-    expect(c.h).toBe(gridLayout({ hook: [], teach: [], model_practice: [], check: [] }).h);
+    expect(c.h).toBe(gridLayout({ hook: [], teach: [], model_practice: [], cram: [] }).h);
   });
   test("regionLayout lays cells row-major, 5 wide, min 3 rows, ghosts fill", () => {
     const cell = { w: 1000, h: 800 };
@@ -151,7 +152,7 @@ describe("layout", () => {
     expect(rowY(0)).toBeLessThan(rowY(1));
   });
   test("gridLayout positions frames per (beat column, sub row) and sizes the lesson", () => {
-    const grid = { hook: [F("h1", "L", "hook", 0), F("h2", "L", "hook", 1)], teach: [F("t1", "L", "teach", 0)], model_practice: [], check: [] };
+    const grid = { hook: [F("h1", "L", "hook", 0), F("h2", "L", "hook", 1)], teach: [F("t1", "L", "teach", 0)], model_practice: [], cram: [] };
     const gl = gridLayout(grid, FRAME_W, FRAME_H);
     expect(gl.positions.get("h1")!.x).toBe(columnX(0));
     expect(gl.positions.get("t1")!.x).toBe(columnX(1));
@@ -159,7 +160,7 @@ describe("layout", () => {
     expect(gl.columns.map((c) => c.beat)).toEqual(BEAT_COLUMNS);
     expect(gl.w).toBeGreaterThan(FRAME_W * 4); // 4 columns + gaps
   });
-  test("SCAFFOLD_BEATS = the 4 beats in column order", () => expect(SCAFFOLD_BEATS.map((b) => b.beat)).toEqual(["hook", "teach", "model_practice", "check"]));
+  test("SCAFFOLD_BEATS = the 4 beats in column order", () => expect(SCAFFOLD_BEATS.map((b) => b.beat)).toEqual(["hook", "teach", "model_practice", "cram"]));
   test("absRectOf walks card→frame→lesson", () => {
     const lesson: RectNode = { id: "L", type: "lesson", position: { x: 100, y: 100 }, data: { w: 900, h: 500 } };
     const frame: RectNode = { id: "f", type: "frame", parentId: "L", position: { x: 40, y: 60 }, data: { w: 400, h: 225 } };

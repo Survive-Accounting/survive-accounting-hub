@@ -260,7 +260,7 @@ export const FILM_MODE_CSS = `
   @keyframes sa-deal-pop { 0% { scale: 0.82; opacity: 0; } 60% { scale: 1.05; opacity: 1; } 100% { scale: 1; opacity: 1; } }
   .film-mode.sa-entrance-pop .react-flow__node > * { animation: sa-deal-pop 180ms cubic-bezier(0.22,1,0.36,1) both; }
   /* (b) CHECK GATE GLOW — the red Check frame reads hotter on camera. */
-  .film-mode.sa-check-glow [data-beat="check"] { box-shadow: 0 0 0 2px rgba(206,17,38,0.65), 0 0 42px -6px rgba(206,17,38,0.75) !important; }
+  .film-mode.sa-check-glow [data-beat="cram"] { box-shadow: 0 0 0 2px rgba(206,17,38,0.65), 0 0 42px -6px rgba(206,17,38,0.75) !important; }
   /* FILM = STRUCTURE INERT, CONTENT LIVE. Every design/structure node
      (frame, lesson, region/zone, heading, text, gate) goes pointer-events:none
      so it can't be selected, dragged, resized, or hovered — clicks fall through

@@ -6,8 +6,8 @@
 import { courseCode, lessonCode } from "./take-naming";
 import type { Beat } from "./types";
 
-/** Column order = the space-walk order (Hook · Teach · Model · Check). */
-export const BODY_BEAT_ORDER: Beat[] = ["hook", "teach", "model_practice", "check"];
+/** Column order = the space-walk order (Hook · Teach · Model · Cram). */
+export const BODY_BEAT_ORDER: Beat[] = ["hook", "teach", "model_practice", "cram"];
 
 export interface PubFrame {
   id: string;

@@ -9,7 +9,7 @@ const frames: PubFrame[] = [
   F("h2", "hook", 1, { title: "Outline" }),
   F("t1", "teach", 0),
   F("m1", "model_practice", 0),
-  F("c1", "check", 0),
+  F("c1", "cram", 0),
 ];
 
 describe("introFrame", () => {
@@ -43,7 +43,7 @@ describe("collectKeepers", () => {
     expect(keeperOf([{ frameId: "x", keeper: true, muxPlaybackId: "p", status: "ready" }])?.frameId).toBe("x");
   });
   test("missingLabel names frames by title or beat/row", () => {
-    expect(missingLabel([F("c1", "check", 0), F("t1", "teach", 1, { title: "Model it" })])).toBe("check f1, Model it");
+    expect(missingLabel([F("c1", "cram", 0), F("t1", "teach", 1, { title: "Model it" })])).toBe("cram f1, Model it");
   });
 });
 

@@ -142,7 +142,9 @@ export function migrateDeckFields<T extends { data?: Record<string, unknown> }>(
 export function migrateFrameGrid<T extends { type?: string; parentId?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
   const frames = nodes.filter((n) => n.type === "frame");
   if (frames.length === 0 || frames.every((f) => typeof (f.data as { subIndex?: number } | undefined)?.subIndex === "number")) return nodes;
-  const BEATS = ["hook", "teach", "model_practice", "check"];
+  // legacy flat frames may carry the old 4th-column value "check" — recognize it
+  // here so it keeps its own column; migrateCheckToCram then renames it to "cram".
+  const BEATS = ["hook", "teach", "model_practice", "check", "cram"];
   const beatOf = (f: T) => { const b = (f.data as { beat?: string } | undefined)?.beat; return b && BEATS.includes(b) ? b : "hook"; };
   const orderOf = (f: T) => { const o = (f.data as { order?: number } | undefined)?.order; return typeof o === "number" ? o : Number.POSITIVE_INFINITY; };
   const cols = new Map<string, T[]>();
@@ -150,6 +152,21 @@ export function migrateFrameGrid<T extends { type?: string; parentId?: string; d
   const sub = new Map<T, number>();
   for (const [, list] of cols) { list.sort((a, b) => orderOf(a) - orderOf(b)); list.forEach((f, i) => sub.set(f, i)); }
   return nodes.map((n) => (sub.has(n) ? { ...n, data: { ...n.data, beat: beatOf(n), subIndex: sub.get(n) } } : n));
+}
+
+/** CHECK → CRAM (Phase 7): the 4th beat column was renamed from "Check" to
+ *  "Cram". A frame storing the old value `beat:"check"` upgrades to `beat:"cram"`
+ *  ON LOAD (in memory) — the file on disk keeps "check" until the scene is next
+ *  saved, so this never rewrites stored data underneath the author
+ *  (migrate-on-load, keep-old-readable). Idempotent; other frames untouched. */
+export function migrateCheckToCram<T extends { type?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  let changed = false;
+  const out = nodes.map((n) => {
+    if (n.type !== "frame" || (n.data as { beat?: string } | undefined)?.beat !== "check") return n;
+    changed = true;
+    return { ...n, data: { ...n.data, beat: "cram" } };
+  });
+  return changed ? out : nodes;
 }
 
 /** FRAMES SHIP LOCKED (item 2): migrate existing scenes so every frame whose

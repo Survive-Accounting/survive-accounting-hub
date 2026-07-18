@@ -12,7 +12,7 @@ import { worldById } from "./worlds";
 import { WorldBackground } from "./WorldBackground";
 
 const BEAT_TINT: Record<string, string> = {
-  hook: "#8CC0EE", teach: "#E8B84B", model_practice: "#7EF3C0", check: "#FF8B9E",
+  hook: "#8CC0EE", teach: "#E8B84B", model_practice: "#7EF3C0", cram: "#FF8B9E",
 };
 const FILM_DOT: Record<string, string> = { unfilmed: NEON.borderSoft, filmed: "#7EF3C0", retake: "#F5D48F" };
 

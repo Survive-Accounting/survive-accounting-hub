@@ -33,7 +33,7 @@ export const BEAT_META: Record<FrameBeat, { label: string; color: string; tint: 
   hook: { label: "Hook", color: "#8CC0EE", tint: "rgba(79,163,227,0.05)", edge: "rgba(79,163,227,0.35)" },
   teach: { label: "Teach", color: "#E8B84B", tint: "rgba(252,163,17,0.045)", edge: "rgba(252,163,17,0.35)" },
   model_practice: { label: "Model · Practice", color: "#7EF3C0", tint: "rgba(59,245,160,0.05)", edge: "rgba(59,245,160,0.4)" },
-  check: { label: "Check", color: "#FF8B9E", tint: "rgba(206,17,38,0.06)", edge: "rgba(206,17,38,0.45)" },
+  cram: { label: "Cram", color: "#FF8B9E", tint: "rgba(206,17,38,0.06)", edge: "rgba(206,17,38,0.45)" },
 };
 
 /** SEAMLESS LOOP — two stacked <video>s crossfade at the loop boundary so the
@@ -97,7 +97,8 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const drop = useFileDrop((f) => void upload(id, f)); // drop an OBS clip → Mux
   const takeCount = takesFor(id).length;
   const bgMenuRef = useRef<HTMLDivElement>(null);
-  const beat = d.beat ?? "none";
+  // legacy "check" folds to "cram" so un-migrated scenes still find their meta.
+  const beat: FrameBeat = (d.beat as string) === "check" ? "cram" : (d.beat ?? "none");
   const meta = BEAT_META[beat];
   const settings = useCanvasSettings();
   // GLOBAL director note for THIS beat — one note, shown on every frame of the

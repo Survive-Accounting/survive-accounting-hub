@@ -35,7 +35,7 @@ function focusNextField(cur: HTMLElement) {
   if (next) { next.focus(); if (next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) next.select(); next.scrollIntoView({ block: "nearest" }); }
 }
 
-const BEAT_LABEL: Record<Beat, string> = { hook: "Hook", teach: "Teach", model_practice: "Model · Practice", check: "Check" };
+const BEAT_LABEL: Record<Beat, string> = { hook: "Hook", teach: "Teach", model_practice: "Model · Practice", cram: "Cram" };
 // Hook frames get default names (shown until Lee renames): Intro · Outline · Teaser.
 const HOOK_NAMES = ["Intro", "Outline", "Teaser"];
 const defaultFrameName = (beat: Beat, n: number) => (beat === "hook" ? (HOOK_NAMES[n - 1] ?? "") : "");

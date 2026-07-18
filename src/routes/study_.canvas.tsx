@@ -73,7 +73,7 @@ import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuck
 import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { migrateZTiers, nextZ } from "@/components/canvas/zorder";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
@@ -357,7 +357,7 @@ function LessonNode({ id, data, selected }: NodeProps) {
           const col = framesInBeat(nodes as never, id, b);
           return (
             <div key={b} className="absolute" style={{ left: columnX(ci), top: GRID.lessonHeaderH, width: FRAME_W }}>
-              <div className="rounded px-1.5 py-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: cbm.color, background: b === "check" ? "rgba(206,17,38,0.10)" : "transparent", display: "inline-block" }}>{cbm.label}</div>
+              <div className="rounded px-1.5 py-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: cbm.color, background: b === "cram" ? "rgba(206,17,38,0.10)" : "transparent", display: "inline-block" }}>{cbm.label}</div>
               {col.length === 0 && (
                 <div className="mt-2 grid place-items-center rounded-lg text-[12px] italic" style={{ width: FRAME_W, height: FRAME_H, border: `1.5px dashed ${cbm.edge}`, background: cbm.tint, color: NEON.muted }}>
                   empty {cbm.label} — press ↓ inside a frame to add
@@ -2383,7 +2383,7 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))));
+      rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -2422,7 +2422,7 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))));
+            rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -2775,7 +2775,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))));
+      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());

@@ -545,9 +545,10 @@ export interface LessonBox {
 // ---- Frames (the SHOT tier: WORLD › REGION › LESSON › FRAME › CARD) ----
 // A FRAME is one screen / one shot / one sitting — a bounded 16:9 stage inside a
 // lesson holding cards. A lesson's frames form a GRID: the BEAT is a COLUMN
-// (Hook · Teach · Model-Practice · Check), subIndex is the ROW within it.
-/** The 4 beat COLUMNS. (Legacy scenes may carry "none" — folded to hook on load.) */
-export type Beat = "hook" | "teach" | "model_practice" | "check";
+// (Hook · Teach · Model-Practice · Cram), subIndex is the ROW within it.
+/** The 4 beat COLUMNS. Legacy scenes may carry "none" (folded to hook) or the old
+ *  4th-column value "check" (folded to "cram" on load — see migrateCheckToCram). */
+export type Beat = "hook" | "teach" | "model_practice" | "cram";
 export type FrameBeat = Beat | "none";
 /** CARD MARKS (script editor V2): the cards Lee INTENDS to build in this frame —
  *  planning intent, NOT a card. Typed as "@Kind" in the beats field; each carries

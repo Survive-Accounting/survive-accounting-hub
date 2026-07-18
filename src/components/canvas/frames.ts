@@ -34,12 +34,14 @@ export function absRectOf(n: RectNode, byId: Map<string, RectNode>): { x: number
 }
 
 // ---- the 4 beat columns ----------------------------------------------------
-export const BEAT_COLUMNS: Beat[] = ["hook", "teach", "model_practice", "check"];
-export const BEAT_LABEL: Record<Beat, string> = { hook: "Hook", teach: "Teach", model_practice: "Model · Practice", check: "Check" };
+export const BEAT_COLUMNS: Beat[] = ["hook", "teach", "model_practice", "cram"];
+export const BEAT_LABEL: Record<Beat, string> = { hook: "Hook", teach: "Teach", model_practice: "Model · Practice", cram: "Cram" };
 
-/** A frame's beat COLUMN — anything unrecognized (legacy "none") folds to Hook. */
+/** A frame's beat COLUMN — legacy "check" folds to "cram", anything else
+ *  unrecognized (legacy "none") folds to Hook. Keeps un-migrated scenes readable. */
 export function beatColOf(n: RectNode): Beat {
   const b = (n.data as FrameBox | undefined)?.beat;
+  if ((b as string) === "check") return "cram"; // legacy 4th-column value
   return b && (BEAT_COLUMNS as string[]).includes(b) ? (b as Beat) : "hook";
 }
 export function subIndexOf(n: RectNode): number {
@@ -60,7 +62,7 @@ export function lessonGrid(nodes: RectNode[], lessonId: string): Record<Beat, Re
     hook: framesInBeat(nodes, lessonId, "hook"),
     teach: framesInBeat(nodes, lessonId, "teach"),
     model_practice: framesInBeat(nodes, lessonId, "model_practice"),
-    check: framesInBeat(nodes, lessonId, "check"),
+    cram: framesInBeat(nodes, lessonId, "cram"),
   };
 }
 
@@ -212,7 +214,7 @@ export const REGION = { cols: 5, minRows: 3, gutterX: 220, gutterY: 260, wrapGap
 
 /** The fixed lesson-cell footprint (4 beats × RESERVED_ROWS). */
 export function lessonCellSize(frameW = FRAME_W, frameH = FRAME_H): { w: number; h: number } {
-  const g = gridLayout({ hook: [], teach: [], model_practice: [], check: [] }, frameW, frameH);
+  const g = gridLayout({ hook: [], teach: [], model_practice: [], cram: [] }, frameW, frameH);
   return { w: g.w, h: g.h };
 }
 
@@ -268,7 +270,7 @@ export const SCAFFOLD_BEATS: { beat: Beat; title: string }[] = [
   { beat: "hook", title: "Hook" },
   { beat: "teach", title: "Teach" },
   { beat: "model_practice", title: "Model · Practice" },
-  { beat: "check", title: "Check" },
+  { beat: "cram", title: "Cram" },
 ];
 
 /** DIRECTOR NOTES (item 8) stamped on the scaffold's beat openers — Lee's on-set

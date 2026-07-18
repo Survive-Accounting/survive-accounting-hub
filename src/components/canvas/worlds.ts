@@ -143,7 +143,7 @@ export const WORLDS: WorldPreset[] = [
     focalPoint: { x: 0.5, y: 0.5 },
     landingZones: [{ x: 0.06, y: 0.06, w: 0.88, h: 0.88 }],
     avoidZones: [],
-    recommendedFrameTypes: ["statement", "cram", "quiet", "check"],
+    recommendedFrameTypes: ["statement", "cram", "quiet"],
     scrim: "none",
     palette: { base: "#060910", base2: "#0A0F22", glow: "#121A38", accent: "#2A3A6A" },
     stars: 14, wireframe: "none",
