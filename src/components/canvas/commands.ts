@@ -144,6 +144,27 @@ export function addNodesCmd(rf: RfLike, nodes: any[], label: string): Command {
   };
 }
 
+/** Spawn nodes AND edges in ONE step (duplication). undo removes both the added
+ *  nodes and the added edges (plus any edge that grew onto the new nodes). Used by
+ *  Duplicate frame / lesson, where a deep copy brings its own arrows. */
+export function addNodesAndEdgesCmd(rf: RfLike, nodes: any[], edges: any[], label: string): Command {
+  const nodeSnap = structuredClone(nodes);
+  const edgeSnap = structuredClone(edges);
+  const nodeIds = new Set(nodes.map((n: { id: string }) => n.id));
+  const edgeIds = new Set(edges.map((e: { id: string }) => e.id));
+  return {
+    label,
+    do: () => {
+      rf.addNodes(structuredClone(nodeSnap));
+      if (edgeSnap.length) rf.setEdges((eds) => [...eds, ...structuredClone(edgeSnap)]);
+    },
+    undo: () => {
+      rf.setNodes((nds) => nds.filter((n) => !nodeIds.has(n.id)));
+      rf.setEdges((eds) => eds.filter((e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)));
+    },
+  };
+}
+
 /** Delete: undo restores the exact nodes AND their edges. */
 export function removeNodesCmd(rf: RfLike, ids: string[], label: string): Command | null {
   const idSet = new Set(ids);

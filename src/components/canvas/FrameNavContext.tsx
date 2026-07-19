@@ -18,6 +18,14 @@ export interface FrameNav {
   addFrame: (lessonId: string) => void;
   /** REORDER a frame within its lesson (swap order with the -1/+1 neighbour). */
   reorder: (frameId: string, dir: -1 | 1) => void;
+  /** DUPLICATE a frame (deep copy) to the next slot in its beat by default, or to
+   *  an explicit lesson+beat. One undoable step. */
+  duplicate: (frameId: string, dest?: { lessonId: string; beat: string }) => void;
+  /** Open the small "duplicate to lesson + beat" dialog for a frame. */
+  duplicateDialog: (frameId: string) => void;
+  /** DUPLICATE a whole lesson cell (frames, cards, scripts, named decks) to the
+   *  next empty region cell. One undoable step. */
+  duplicateLesson: (lessonId: string) => void;
 }
 
 const noop = () => {};
@@ -29,6 +37,9 @@ export const FrameNavContext = createContext<FrameNav>({
   canStep: () => false,
   addFrame: noop,
   reorder: noop,
+  duplicate: noop,
+  duplicateDialog: noop,
+  duplicateLesson: noop,
 });
 
 export const useFrameNav = () => useContext(FrameNavContext);

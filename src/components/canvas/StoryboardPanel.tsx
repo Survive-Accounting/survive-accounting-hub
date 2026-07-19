@@ -2,7 +2,7 @@
 // cell shows its beat, title, script state, film status, World and card count.
 // Click a cell to jump into that frame. Read-only navigation; mutates nothing.
 import { useReactFlow } from "@xyflow/react";
-import { Clapperboard, X } from "lucide-react";
+import { Clapperboard, Copy, X } from "lucide-react";
 
 import { useFrameNav } from "./FrameNavContext";
 import { SCRIPT_STATE_META } from "./script-doc";
@@ -16,15 +16,26 @@ const BEAT_TINT: Record<string, string> = {
 };
 const FILM_DOT: Record<string, string> = { unfilmed: NEON.borderSoft, filmed: "#7EF3C0", retake: "#F5D48F" };
 
-function Cell({ cell, current, onEnter }: { cell: StoryboardCell; current: boolean; onEnter: () => void }) {
+function Cell({ cell, current, onEnter, onDuplicate }: { cell: StoryboardCell; current: boolean; onEnter: () => void; onDuplicate: () => void }) {
   const sm = SCRIPT_STATE_META[cell.state];
   const beatColor = BEAT_TINT[cell.beat] ?? NEON.muted;
   const w = worldById(cell.world);
   return (
+    <div className="group relative" style={{ width: 150 }}>
+      {/* DUPLICATE (PROMPT 1): deep-copy this frame — opens the lesson+beat picker.
+          A sibling overlay (buttons can't nest) shown on hover. */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+        className="absolute right-1 top-1 z-10 grid h-5 w-5 place-items-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+        style={{ background: "rgba(4,7,16,0.75)", color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
+        title="Duplicate this frame (choose lesson + beat)"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
     <button
       onClick={onEnter}
-      className="group relative flex flex-col overflow-hidden rounded-lg text-left"
-      style={{ width: 150, border: `1.5px solid ${current ? NEON.yellow : NEON.borderSoft}`, background: NEON.bg2 }}
+      className="relative flex w-full flex-col overflow-hidden rounded-lg text-left"
+      style={{ border: `1.5px solid ${current ? NEON.yellow : NEON.borderSoft}`, background: NEON.bg2 }}
       title={`Frame ${cell.n} — ${cell.beatLabel}${cell.title ? ` · ${cell.title}` : ""} · ${sm.label}. Click to enter.`}
     >
       {/* 16:9 preview: the World (if any) behind a beat wash */}
@@ -40,6 +51,7 @@ function Cell({ cell, current, onEnter }: { cell: StoryboardCell; current: boole
         <span className="min-w-0 flex-1 truncate text-[10px] font-semibold" style={{ color: cell.title ? NEON.text : NEON.muted }}>{cell.title || "(untitled)"}</span>
       </div>
     </button>
+    </div>
   );
 }
 
@@ -72,7 +84,7 @@ export function Storyboard({ onClose }: { onClose: () => void }) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {l.cells.map((c) => (
-                    <Cell key={c.frameId} cell={c} current={nav.currentFrameId === c.frameId} onEnter={() => { nav.enter(c.frameId); onClose(); }} />
+                    <Cell key={c.frameId} cell={c} current={nav.currentFrameId === c.frameId} onEnter={() => { nav.enter(c.frameId); onClose(); }} onDuplicate={() => { onClose(); nav.duplicateDialog(c.frameId); }} />
                   ))}
                 </div>
               </div>

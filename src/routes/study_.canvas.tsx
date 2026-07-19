@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -55,7 +55,7 @@ import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas
 import { DecksContext } from "@/components/canvas/DecksContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -70,7 +70,9 @@ import { PanelPopout, PopoutPlaceholder, TeleprompterPopout, openPopoutWindow } 
 import { VisualMixPanel } from "@/components/canvas/VisualMixPanel";
 import { Storyboard } from "@/components/canvas/StoryboardPanel";
 import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
-import { addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
+import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
+import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
+import { decksOfLesson, duplicateLessonDecks, mintDeckIds, nextRegionCell } from "@/components/canvas/duplicate-lesson";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
@@ -412,6 +414,11 @@ function LessonNode({ id, data, selected }: NodeProps) {
           <button className={chromeBtn} title="Add a frame (a 16:9 shot) to this lesson" onPointerDown={stop} onClick={() => frameNav.addFrame(id)}>
             <Plus className="h-3 w-3" style={{ color: NEON.cyan }} />
           </button>
+          {/* DUPLICATE (PROMPT 1): deep-copy the whole lesson — frames, cards,
+              scripts, and its named decks — into the next empty region cell. */}
+          <button className={chromeBtn} title="Duplicate lesson (frames, cards, scripts, decks) into the next empty cell" onPointerDown={stop} onClick={() => frameNav.duplicateLesson(id)}>
+            <Copy className="h-3 w-3" />
+          </button>
           <button className={chromeBtn} title="Fit to contents (one undo step)" onPointerDown={stop} onClick={hug}>
             <Shrink className="h-3 w-3" />
           </button>
@@ -419,6 +426,60 @@ function LessonNode({ id, data, selected }: NodeProps) {
             <X className="h-3 w-3" />
           </button>
         </span>
+      </div>
+    </div>
+  );
+}
+
+/** DUPLICATE FRAME dialog (PROMPT 1) — pick a target lesson + beat for the copy.
+ *  Read-only picker; the actual deep copy is duplicateFrame in the route. Reads
+ *  live nodes so the "N left" per-beat counts respect the 5-cap. */
+function DuplicateFrameDialog({ frameId, onClose, onDuplicate }: {
+  frameId: string;
+  onClose: () => void;
+  onDuplicate: (frameId: string, dest: { lessonId: string; beat: Beat }) => void;
+}) {
+  const rf = useReactFlow();
+  const nodes = rf.getNodes();
+  const frame = nodes.find((n) => n.id === frameId);
+  const lessons = nodes.filter((n) => n.type === "lesson" && !n.parentId);
+  const labelOf = (l: { id: string; data: unknown }) => {
+    const h = nodes.find((n) => n.parentId === l.id && n.type === "heading");
+    const raw = h ? (((h.data as { text?: string }).text) ?? "") : "";
+    const stripped = /^(.*?)\s*\[[^\]]+\]\s*$/s.exec(raw)?.[1] ?? raw;
+    return (stripped || (l.data as { label?: string }).label || "Lesson").trim();
+  };
+  const [lessonId, setLessonId] = useState(frame?.parentId ?? lessons[0]?.id ?? "");
+  const [beat, setBeat] = useState<Beat>(frame ? beatColOf(frame as never) : "hook");
+  if (!frame) return null;
+  const roomLeft = (b: Beat) => RESERVED_ROWS - framesInBeat(rf.getNodes() as never, lessonId, b).length;
+  const full = roomLeft(beat) <= 0 || !lessonId;
+  return (
+    <div className="absolute inset-0 z-[70] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
+      <div className="w-80 max-w-[92vw] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}><Copy className="h-3.5 w-3.5" /> Duplicate frame to…</div>
+        <label className="block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
+          lesson
+          <select className="mt-0.5 w-full rounded bg-black/40 px-1 py-1 text-[11px] font-normal normal-case outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={lessonId} onChange={(e) => setLessonId(e.target.value)}>
+            {lessons.map((l) => <option key={l.id} value={l.id}>{labelOf(l)}</option>)}
+          </select>
+        </label>
+        <div className="mt-2 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>beat</div>
+        <div className="mt-0.5 grid grid-cols-2 gap-1">
+          {BEAT_COLUMNS.map((b) => {
+            const left = roomLeft(b);
+            return (
+              <button key={b} disabled={left <= 0} onClick={() => setBeat(b)} className="rounded px-1.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                style={{ border: `1px solid ${beat === b ? NEON.yellow : NEON.borderSoft}`, color: beat === b ? NEON.yellow : NEON.text }}>
+                {BEAT_LABEL[b]} <span className="tabular-nums" style={{ color: NEON.muted }}>({left})</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex justify-end gap-2">
+          <button className="rounded px-2.5 py-1 text-[11px] font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={onClose}>Cancel</button>
+          <button className="rounded px-2.5 py-1 text-[11px] font-bold disabled:opacity-40" disabled={full} style={{ background: NEON.yellow, color: "#0B1322" }} onClick={() => onDuplicate(frameId, { lessonId, beat })}>Duplicate</button>
+        </div>
       </div>
     </div>
   );
@@ -1730,7 +1791,109 @@ function PresentCanvas() {
     if (cmd) bus.dispatch(cmd);
   }, [rf, gridPos]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, reorder: reorderFrame }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, reorderFrame]);
+  // ---- DUPLICATION (PROMPT 1 — the swap-many foundation) ---------------------
+  // Deep-copy a frame or a whole lesson: cards + per-element state, script +
+  // @marks (relinked to the copies), world/visual choice, and scenario BINDINGS
+  // (same ids — rebinding is how swap-many works). Fresh node ids throughout;
+  // deck membership does NOT carry on a frame copy. ONE undoable bus command.
+  const [dupFrameFor, setDupFrameFor] = useState<string | null>(null); // frame → dialog
+
+  /** Minimal node slice the copier needs (never clone RF internals like measured). */
+  const toClone = useCallback((n: CardNode): CloneNode => ({
+    id: n.id, type: n.type, parentId: n.parentId,
+    position: { x: n.position.x, y: n.position.y },
+    width: (n as { width?: number }).width, height: (n as { height?: number }).height,
+    data: n.data as Record<string, unknown>,
+  }), []);
+
+  const duplicateFrame = useCallback((frameId: string, dest?: { lessonId: string; beat: Beat }) => {
+    const all = rf.getNodes() as CardNode[];
+    const src = all.find((n) => n.id === frameId && n.type === "frame");
+    if (!src?.parentId) return;
+    const lessonId = dest?.lessonId ?? src.parentId;
+    // pick a beat WITH ROOM (5-per-beat cap); offer another beat when the target is full
+    const roomIn = (b: Beat) => nextSubIndex(all as never, lessonId, b) < RESERVED_ROWS;
+    let beat: Beat = dest?.beat ?? beatColOf(src as never);
+    if (!roomIn(beat)) {
+      const alt = BEAT_COLUMNS.find(roomIn);
+      if (!alt) { flashToast(`lesson full — max ${RESERVED_ROWS} frames per beat`); return; }
+      flashToast(`${BEAT_LABEL[beat]} full — placed in ${BEAT_LABEL[alt]}`);
+      beat = alt;
+    }
+    const subIndex = nextSubIndex(all as never, lessonId, beat);
+
+    // the frame + everything parented to it, plus the arrows wholly inside it
+    const children = all.filter((n) => n.parentId === frameId);
+    const setNodes = [src, ...children];
+    const setIds = new Set(setNodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => setIds.has(e.source) && setIds.has(e.target));
+
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(setNodes.map(toClone), edges, (k) => cardId(k), { stripDeck: true });
+    const newFrameId = idMap.get(frameId)!;
+    // place the copy: root reparented to the target lesson at the free grid cell;
+    // reset filmStatus/introTake (takes are keyed by the OLD frame id — none carry).
+    const placed = orderParentsFirst(cloned).map((n) => (n.id === newFrameId
+      ? { ...n, parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...n.data, beat, subIndex, filmStatus: undefined, introTake: undefined } }
+      : n));
+
+    bus.dispatch(addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "duplicate frame"));
+    setDupFrameFor(null);
+    // frame the copy where it landed (grid view — no film mode)
+    const lesson = rf.getNode(lessonId);
+    if (lesson) {
+      const p = gridPos(beat, subIndex);
+      window.setTimeout(() => void rf.fitBounds({ x: lesson.position.x + p.x, y: lesson.position.y + p.y, width: FRAME_W, height: FRAME_H }, { duration: 400, padding: 0.35 }), 40);
+    }
+  }, [rf, gridPos, toClone, flashToast]);
+
+  const duplicateLesson = useCallback((lessonId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const lesson = all.find((n) => n.id === lessonId && n.type === "lesson");
+    if (!lesson) return;
+    const frameIds = new Set(all.filter((n) => n.type === "frame" && n.parentId === lessonId).map((n) => n.id));
+    const inSet = (n: CardNode) => n.id === lessonId || n.parentId === lessonId || (!!n.parentId && frameIds.has(n.parentId));
+    const setNodes = all.filter(inSet);
+    const setIds = new Set(setNodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => setIds.has(e.source) && setIds.has(e.target));
+
+    // named decks of this lesson → mint new ids FIRST so members can be remapped
+    // in the same clone pass; build the deck DEFS after (they need the node idMap).
+    const srcDecks = decksOfLesson(decks, lessonId, frameIds);
+    const deckIdMap = mintDeckIds(srcDecks, () => cardId("deck"));
+
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(setNodes.map(toClone), edges, (k) => cardId(k), { deckIdMap });
+    const newDecks = duplicateLessonDecks(srcDecks, idMap, deckIdMap);
+    const newLessonId = idMap.get(lessonId)!;
+
+    // land at the next empty region cell; "unplaced" (pathOrder cleared) + "(copy)".
+    const cell = lessonCellSize();
+    const lessonsXY = all.filter((n) => n.type === "lesson" && !n.parentId).map((n) => ({ x: n.position.x, y: n.position.y }));
+    const dest = nextRegionCell(lessonsXY, cell);
+    const placed = orderParentsFirst(cloned).map((n) => (n.id === newLessonId
+      ? { ...n, parentId: undefined, position: dest, width: cell.w, height: cell.h, data: { ...n.data, w: cell.w, h: cell.h, pathOrder: null, label: `${(n.data.label as string) || "Lesson"} (copy)` } }
+      : n));
+
+    // ONE undoable step INCLUDING the deck state (undo removes the copies' decks too).
+    const nodeIds = new Set(placed.map((n) => n.id));
+    const edgeIds = new Set(clonedEdges.map((e) => e.id));
+    const newDeckIds = new Set(newDecks.map((d) => d.id));
+    bus.dispatch({
+      label: "duplicate lesson",
+      do: () => {
+        rf.addNodes(structuredClone(placed) as never);
+        if (clonedEdges.length) rf.setEdges((eds) => [...eds, ...structuredClone(clonedEdges)] as never);
+        if (newDecks.length) setDecks((prev) => [...prev, ...structuredClone(newDecks)]);
+      },
+      undo: () => {
+        rf.setNodes((nds) => nds.filter((n) => !nodeIds.has(n.id)));
+        rf.setEdges((eds) => eds.filter((e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)));
+        if (newDecks.length) setDecks((prev) => prev.filter((d) => !newDeckIds.has(d.id)));
+      },
+    });
+    window.setTimeout(() => void rf.fitBounds({ x: dest.x, y: dest.y, width: cell.w, height: cell.h }, { duration: 500, padding: 0.12 }), 60);
+  }, [rf, decks, toClone]);
+
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, reorder: reorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, reorderFrame, duplicateFrame, duplicateLesson]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -3050,7 +3213,7 @@ function PresentCanvas() {
           // RUNG 1 — close any open route-level dialog/popover/menu FIRST (Esc just
           // dismisses what's open; it never zooms the board out from under an open
           // menu). The bottom toolbar stays put — clean/film are lower rungs.
-          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen) {
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor) {
             setHelpOpen(false);
             setLoadOpen(false);
             setImportPreview(null);
@@ -3065,6 +3228,7 @@ function PresentCanvas() {
             setFrameHeaderOpen(false);
             setVisualMixOpen(false);
             setStoryboardOpen(false);
+            setDupFrameFor(null);
             return;
           }
           // RUNG 2 — cancel an in-progress connection drag
@@ -3176,7 +3340,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
   );
   useKeymap(bindings);
 
@@ -4051,6 +4215,9 @@ function PresentCanvas() {
           </div>
         </div>
       )}
+
+      {/* DUPLICATE FRAME dialog (PROMPT 1) — pick a target lesson + beat */}
+      {dupFrameFor && <DuplicateFrameDialog frameId={dupFrameFor} onClose={() => setDupFrameFor(null)} onDuplicate={(fid, dest) => duplicateFrame(fid, dest)} />}
 
       {/* REGION SCAFFOLD dialog (PROMPT C) */}
       {scaffoldOpen && (

@@ -7,7 +7,7 @@
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Clapperboard, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -394,6 +394,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: d.posLock ? meta.color : NEON.text }} title={d.posLock ? "Frame locked (no accidental drags) — click to unlock" : "Lock the frame in place"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); update({ posLock: !d.posLock }); }}>
             {d.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
           </button>
+          {/* DUPLICATE (PROMPT 1): deep-copy this frame to the next slot in its beat;
+              Shift-click to pick a target lesson + beat. Cards, script, @marks,
+              world + scenario bindings copy; deck membership does not. */}
+          <button className={btn} style={{ color: NEON.text }} title="Duplicate frame → next slot in this beat (Shift-click: choose lesson + beat)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); if (e.shiftKey) nav.duplicateDialog(id); else nav.duplicate(id); }}><Copy className="h-3 w-3" /></button>
           <button className={btn} style={{ color: NEON.text }} title="Enter frame" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.enter(id); }}><Maximize2 className="h-3 w-3" /></button>
           <button className={btn} style={{ color: NEON.red }} title="Delete frame (its cards go loose in the lesson)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); deleteFrame(); }}><X className="h-3.5 w-3.5" /></button>
         </span>
