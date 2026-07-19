@@ -9,6 +9,7 @@ import { useNodes } from "@xyflow/react";
 
 import { frameCellLabel } from "./frames";
 import { hasScript } from "./script-doc";
+import { estimateFrameSeconds, formatReadTime, frameScriptLines, isOverReadTime } from "./script-timing";
 import type { FrameBox, FrameScript } from "./types";
 
 export type PrompterCorner = "tl" | "tc" | "tr";
@@ -51,10 +52,12 @@ export function Teleprompter({ script, frameLabel, corner, onCorner, onClose, on
   onClose: () => void;
   onPopOut?: () => void;
 }) {
-  const beats = (script?.beats ?? "")
-    .split("\n")
-    .map((b) => b.trim().replace(/^[-*•]\s+/, ""))
-    .filter(Boolean);
+  // TWO SCRIPT LAYERS (item 2): money lines (verbatim) bright/bold; talking
+  // points dim. Entry/exit are money by default; a beats line starting with "!"
+  // is money too.
+  const rows = frameScriptLines(script);
+  const secs = estimateFrameSeconds(script);
+  const over = isOverReadTime(secs);
 
   return (
     <div
@@ -71,6 +74,9 @@ export function Teleprompter({ script, frameLabel, corner, onCorner, onClose, on
       <div className="flex items-center gap-1 px-2.5 pt-1.5">
         <span className="text-[8.5px] font-bold uppercase tracking-[0.2em]" style={{ color: "rgba(252,163,17,0.85)" }}>Prompter</span>
         <span className="min-w-0 flex-1 truncate text-[8.5px]" style={{ color: "rgba(255,255,255,0.4)" }}>{frameLabel}</span>
+        {secs > 0 && (
+          <span className="shrink-0 rounded px-1 text-[8.5px] font-bold tabular-nums" title="Estimated spoken time" style={{ color: over ? "#FF8B9E" : "rgba(255,255,255,0.5)", border: `1px solid ${over ? "rgba(255,139,158,0.5)" : "rgba(255,255,255,0.15)"}` }}>{formatReadTime(secs)}</span>
+        )}
         {CORNERS.map(({ k, icon: Icon, label }) => (
           <button
             key={k}
@@ -98,26 +104,30 @@ export function Teleprompter({ script, frameLabel, corner, onCorner, onClose, on
             No script for this frame yet — write it in the Script editor.
           </p>
         ) : (
-          <>
-            {(script?.entry ?? "").trim() && (
-              <p className="text-[15px] font-bold leading-snug" style={{ color: "#FFD98A" }}>{script!.entry}</p>
-            )}
-            {beats.length > 0 && (
-              <ul className="mt-1 space-y-0.5">
-                {beats.map((b, i) => (
-                  <li key={i} className="flex gap-1.5 text-[13px] font-medium leading-snug" style={{ color: "rgba(255,255,255,0.92)" }}>
-                    <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full" style={{ background: "#FCA311" }} />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {(script?.exit ?? "").trim() && (
-              <p className="mt-1.5 border-t pt-1 text-[13px] font-semibold italic leading-snug" style={{ borderColor: "rgba(255,255,255,0.12)", color: "#8FD3FF" }}>
-                → {script!.exit}
-              </p>
-            )}
-          </>
+          <div className="space-y-0.5">
+            {rows.map((r, i) => {
+              const exitStart = r.section === "exit" && (i === 0 || rows[i - 1].section !== "exit");
+              if (r.line.money) {
+                // MONEY LINE — say verbatim: bright + bold. Exit gets the blue → treatment.
+                return (
+                  <p
+                    key={i}
+                    className={`text-[15px] font-bold leading-snug ${exitStart ? "mt-1.5 border-t pt-1" : i > 0 ? "mt-0.5" : ""}`}
+                    style={{ color: r.section === "exit" ? "#8FD3FF" : "#FFD98A", borderColor: "rgba(255,255,255,0.12)" }}
+                  >
+                    {r.section === "exit" ? `→ ${r.line.text}` : r.line.text}
+                  </p>
+                );
+              }
+              // TALKING POINT — riff on it: dim + bulleted.
+              return (
+                <div key={i} className="mt-0.5 flex gap-1.5 text-[13px] leading-snug" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full" style={{ background: "rgba(255,255,255,0.3)" }} />
+                  <span>{r.line.text}</span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

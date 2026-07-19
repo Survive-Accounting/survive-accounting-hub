@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -60,7 +60,7 @@ import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/c
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -69,6 +69,7 @@ import { LessonNavigator } from "@/components/canvas/LessonNavigator";
 import { PanelPopout, PopoutPlaceholder, TeleprompterPopout, openPopoutWindow } from "@/components/canvas/PanelPopout";
 import { VisualMixPanel } from "@/components/canvas/VisualMixPanel";
 import { Storyboard } from "@/components/canvas/StoryboardPanel";
+import { DEFAULT_RIFF, DEFAULT_READTIME_THRESHOLD_S, estimateFrameSeconds } from "@/components/canvas/script-timing";
 import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
@@ -483,6 +484,81 @@ function DuplicateFrameDialog({ frameId, onClose, onDuplicate }: {
           <button className="rounded px-2.5 py-1 text-[11px] font-bold disabled:opacity-40" disabled={full} style={{ background: NEON.yellow, color: "#0B1322" }} onClick={() => onDuplicate(frameId, { lessonId, beat })}>Duplicate</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** REHEARSAL HUD (PROMPT 3 item 4) — bottom-center stopwatch overlay. Tap to
+ *  start; space walks cues via the normal handler (no recording). Finish shows
+ *  actual vs estimate; Save stores it on the frame. Esc exits (handled by the
+ *  route's ladder). */
+function RehearsalHud({ startedAt, endAt, estSeconds, onStart, onFinish, onSave, onExit }: {
+  startedAt: number | null;
+  endAt: number | null;
+  estSeconds: number;
+  onStart: () => void;
+  onFinish: () => void;
+  onSave: () => void;
+  onExit: () => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (startedAt && !endAt) { const id = window.setInterval(() => setNow(Date.now()), 200); return () => window.clearInterval(id); }
+  }, [startedAt, endAt]);
+  const elapsed = startedAt ? Math.max(0, Math.round(((endAt ?? now) - startedAt) / 1000)) : 0;
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const delta = endAt ? elapsed - estSeconds : 0;
+  return (
+    <div className="pointer-events-none fixed bottom-6 left-1/2 z-[85] -translate-x-1/2">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: "rgba(8,12,24,0.92)", border: "1px solid rgba(126,243,192,0.5)", boxShadow: "0 12px 30px -12px rgba(0,0,0,0.8)", color: "#EAF2FF" }}>
+        <Timer className="h-4 w-4" style={{ color: "#7EF3C0" }} />
+        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#7EF3C0" }}>Rehearse</span>
+        {!startedAt ? (
+          <button className="rounded-full px-3 py-0.5 text-[12px] font-bold" style={{ background: "#7EF3C0", color: "#06210F" }} onClick={onStart}>Tap to start</button>
+        ) : !endAt ? (
+          <>
+            <span className="text-[16px] font-bold tabular-nums">{fmt(elapsed)}</span>
+            {estSeconds > 0 && <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.5)" }}>/ est {fmt(estSeconds)}</span>}
+            <button className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "#FF8B9E", color: "#2A0710" }} onClick={onFinish}>Finish</button>
+          </>
+        ) : (
+          <>
+            <span className="text-[13px] font-bold tabular-nums">{fmt(elapsed)}</span>
+            {estSeconds > 0 && (
+              <span className="text-[10.5px] font-semibold" style={{ color: Math.abs(delta) <= 5 ? "#7EF3C0" : "#F5D48F" }}>
+                {delta === 0 ? "on estimate" : `${delta > 0 ? "+" : "−"}${fmt(Math.abs(delta))} vs est`}
+              </span>
+            )}
+            <button className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "#7EF3C0", color: "#06210F" }} onClick={onSave}>Save time</button>
+          </>
+        )}
+        <button className="grid h-5 w-5 place-items-center rounded-full" title="Exit (Esc)" style={{ color: "rgba(255,255,255,0.5)" }} onClick={onExit}><X className="h-3.5 w-3.5" /></button>
+      </div>
+    </div>
+  );
+}
+
+/** CAMERA-SAFE GUIDES (PROMPT 3 item 5) — advisory overlay on the current frame's
+ *  16:9 letterbox rect: phone-safe bounds, camera-bubble corner, watermark
+ *  corner, and the YouTube end-screen region (last-frame guidance). Lines only;
+ *  never persisted, never shown in film. */
+function SafeGuidesOverlay({ rect }: { rect: { left: number; top: number; width: number; height: number } }) {
+  const { left, top, width: w, height: h } = rect;
+  const box = (x: number, y: number, bw: number, bh: number, color: string, label: string): React.ReactNode => (
+    <div className="absolute" style={{ left: left + x, top: top + y, width: bw, height: bh, border: `1.5px dashed ${color}` }}>
+      <span className="absolute left-0.5 top-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color }}>{label}</span>
+    </div>
+  );
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[55]">
+      {/* phone-safe / title-safe inset (~5%) */}
+      {box(w * 0.05, h * 0.05, w * 0.9, h * 0.9, "rgba(126,243,192,0.6)", "title-safe")}
+      {/* camera bubble — bottom-right corner (~26% × 26%) */}
+      {box(w * 0.72, h * 0.7, w * 0.26, h * 0.28, "rgba(140,192,238,0.7)", "camera")}
+      {/* watermark — top-right corner */}
+      {box(w * 0.78, h * 0.03, w * 0.2, h * 0.12, "rgba(245,212,143,0.7)", "watermark")}
+      {/* YouTube end-screen region — right half + lower band (last-frame guidance) */}
+      {box(w * 0.62, h * 0.12, w * 0.34, h * 0.76, "rgba(255,139,158,0.55)", "end-screen")}
     </div>
   );
 }
@@ -996,6 +1072,11 @@ function PresentCanvas() {
   const [spikeOpen, setSpikeOpen] = useState(false); // PHASE 3 EXPERIMENT: in-browser recorder spike (never the main flow)
   const [prompter, setPrompter] = useState(false); // TELEPROMPTER: hidden by default (incl. film); `p` toggles
   const [prompterCorner, setPrompterCorner] = useState<PrompterCorner>("tc"); // camera eyeline corner (persisted)
+  // PROMPT 3 — read-time knobs (scene settings) + transient safe-guides + rehearsal
+  const [riffMultiplier, setRiffMultiplier] = useState(DEFAULT_RIFF); // talking-point time multiplier
+  const [readTimeThreshold, setReadTimeThreshold] = useState(DEFAULT_READTIME_THRESHOLD_S); // flag frames over this many seconds
+  const [safeGuides, setSafeGuides] = useState(false); // camera-safe overlay — OFF, never persisted, never in film
+  const [rehearse, setRehearse] = useState<{ frameId: string; startedAt: number | null; endAt: number | null } | null>(null);
   const [introClipLength, setIntroClipLength] = useState(6.0); // AUTO-TRIM: intro clip length (s)
   const [autoTrimIntros, setAutoTrimIntros] = useState(true); // AUTO-TRIM: on by default
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
@@ -2006,6 +2087,27 @@ function PresentCanvas() {
     catch (e) { flashToast(e instanceof Error ? e.message : "delete failed"); }
   }, [refreshSnippets, flashToast]);
 
+  // ---- REHEARSAL MODE (PROMPT 3 item 4) -------------------------------------
+  // Enter the frame + teleprompter, tap to start a stopwatch, space walks cues
+  // exactly like normal (no recording, no take). Finish → actual vs estimate;
+  // saving stores lastRehearsalS on the frame (shown on the storyboard row).
+  const startRehearsal = useCallback((frameId: string) => {
+    enterFrame(frameId);
+    setPrompter(true);
+    setRehearse({ frameId, startedAt: null, endAt: null });
+  }, [enterFrame]);
+  const exitRehearsal = useCallback(() => setRehearse(null), []);
+  const saveRehearsal = useCallback(() => {
+    setRehearse((r) => {
+      if (r?.frameId && r.startedAt && r.endAt) {
+        const secs = Math.max(1, Math.round((r.endAt - r.startedAt) / 1000));
+        const c = patchDataCmd(rf as unknown as RfLike, r.frameId, { lastRehearsalS: secs }, "rehearsal time");
+        if (c) bus.dispatch(c);
+      }
+      return null;
+    });
+  }, [rf]);
+
   const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, reorder: reorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, reorderFrame, duplicateFrame, duplicateLesson]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
@@ -2609,13 +2711,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2683,6 +2785,8 @@ function PresentCanvas() {
       { const pc = (nj.sceneSettings as { prompterCorner?: string } | undefined)?.prompterCorner; setPrompterCorner(pc === "tl" || pc === "tr" ? pc : "tc"); } // teleprompter corner, default top-center
       { const cl = (nj.sceneSettings as { introClipLength?: number } | undefined)?.introClipLength; if (typeof cl === "number" && cl > 0) setIntroClipLength(cl); setAutoTrimIntros((nj.sceneSettings as { autoTrimIntros?: boolean } | undefined)?.autoTrimIntros !== false); } // auto-trim default on
       { const bn = (nj.sceneSettings as { beatNotes?: Record<string, string> } | undefined)?.beatNotes; if (bn && typeof bn === "object") setBeatNotes((prev) => ({ ...prev, ...bn })); } // global director notes travel with the scene, merged over the local set
+      { const rm = (nj.sceneSettings as { riffMultiplier?: number } | undefined)?.riffMultiplier; if (typeof rm === "number" && rm > 0) setRiffMultiplier(rm); } // read-time riff (PROMPT 3)
+      { const rt = (nj.sceneSettings as { readTimeThreshold?: number } | undefined)?.readTimeThreshold; if (typeof rt === "number" && rt > 0) setReadTimeThreshold(rt); }
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -3326,6 +3430,8 @@ function PresentCanvas() {
           // RUNG 1 — close any open route-level dialog/popover/menu FIRST (Esc just
           // dismisses what's open; it never zooms the board out from under an open
           // menu). The bottom toolbar stays put — clean/film are lower rungs.
+          if (rehearse) { setRehearse(null); return; }
+          if (safeGuides) { setSafeGuides(false); return; }
           if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor || snipMenu || snipSaveIds) {
             setSnipMenu(null);
             setSnipSaveIds(null);
@@ -3455,7 +3561,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
   );
   useKeymap(bindings);
 
@@ -3596,6 +3702,30 @@ function PresentCanvas() {
           {toast}
         </div>
       )}
+      {/* REHEARSAL HUD (PROMPT 3) — stopwatch for the frame being rehearsed */}
+      {rehearse && (() => {
+        const f = rf.getNode(rehearse.frameId);
+        const est = f ? estimateFrameSeconds((f.data as { script?: FrameScript }).script, { riff: riffMultiplier }) : 0;
+        return (
+          <RehearsalHud
+            startedAt={rehearse.startedAt}
+            endAt={rehearse.endAt}
+            estSeconds={est}
+            onStart={() => setRehearse((r) => (r ? { ...r, startedAt: Date.now() } : r))}
+            onFinish={() => setRehearse((r) => (r ? { ...r, endAt: Date.now() } : r))}
+            onSave={saveRehearsal}
+            onExit={exitRehearsal}
+          />
+        );
+      })()}
+      {/* CAMERA-SAFE GUIDES (PROMPT 3) — advisory overlay on the current frame's
+          16:9 rect; never in film, never persisted. */}
+      {safeGuides && currentFrameId && !film && (() => {
+        const cw = window.innerWidth, ch = window.innerHeight;
+        const iw = Math.min(cw, (ch * 16) / 9);
+        const ih = (iw * 9) / 16;
+        return <SafeGuidesOverlay rect={{ left: (cw - iw) / 2, top: (ch - ih) / 2, width: iw, height: ih }} />;
+      })()}
       {/* looping video background (low opacity, filming-optional); key remounts on swap.
           In the cinema backstage BackstageStage owns the animation, so skip this one. */}
       {bgCfg.mode === "video" && !(chrome && backstage === "cinema") && (
@@ -3923,6 +4053,7 @@ function PresentCanvas() {
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
           <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>
           <TB title="Storyboard — every frame in film order; click one to jump in" active={storyboardOpen} onClick={() => setStoryboardOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>
+          <TB title="Camera-safe guides — phone-safe, camera bubble, watermark + end-screen zones (enter a frame)" active={safeGuides} onClick={() => { const nv = !safeGuides; setSafeGuides(nv); if (nv && !currentFrameId) flashToast("Enter a frame to see the safe zones"); }}><Frame className="h-3.5 w-3.5" /></TB>
           <TB title="Recorder spike (EXPERIMENT — cam+mic in the browser; OBS remains the filming flow)" active={spikeOpen} onClick={() => setSpikeOpen((v) => !v)}><FlaskConical className="h-3.5 w-3.5" /></TB>
           {/* BIRDS-EYE — the ONLY way out to the whole-course grid (else stay framed) */}
           <TB title="Birds-eye view — zoom out to the whole course (pick a frame/lesson to dive back in)" onClick={() => { exitFrame(); window.setTimeout(() => void rf.fitView({ duration: 400, padding: 0.15 }), 300); }}><Eye className="h-3.5 w-3.5" /></TB>
@@ -4034,6 +4165,16 @@ function PresentCanvas() {
                   <input type="checkbox" checked={compositionGuides} onChange={(e) => setCompositionGuides(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Composition guides <span className="opacity-60">(center/thirds/fifths in a frame; hold Alt to bypass)</span>
                 </label>
+                {/* READ-TIME (PROMPT 3): riff multiplier + over-threshold seconds */}
+                <div className="mt-2 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Riff × <span className="tabular-nums" style={{ color: NEON.text }}>{riffMultiplier.toFixed(1)}</span></span>
+                  <input type="range" min={10} max={40} value={Math.round(riffMultiplier * 10)} className="flex-1 accent-current" onChange={(e) => setRiffMultiplier(Number(e.target.value) / 10)} title="Talking-point time multiplier (money lines = 1×)" />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Long frame &gt;</span>
+                  <input type="number" min={10} max={600} value={readTimeThreshold} className="w-16 rounded bg-black/30 px-1 py-0.5 text-[11px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onChange={(e) => { const n = parseInt(e.target.value, 10); if (Number.isFinite(n) && n > 0) setReadTimeThreshold(n); }} />
+                  <span>s (storyboard flag)</span>
+                </div>
                 {/* AC1: backstage background — authoring only; film keeps the dark stage */}
                 <div className="mt-1.5 text-[10px]" style={{ color: NEON.muted }}>Backstage <span className="opacity-60">(authoring only)</span></div>
                 <div className="mt-0.5 flex gap-1">
@@ -4221,13 +4362,22 @@ function PresentCanvas() {
       )}
 
       {/* STORYBOARD (Phase 4) — bird's-eye board of frames in film order; click to enter. */}
-      {chrome && storyboardOpen && <Storyboard onClose={() => setStoryboardOpen(false)} />}
+      {chrome && storyboardOpen && (
+        <Storyboard
+          onClose={() => setStoryboardOpen(false)}
+          timing={{ riff: riffMultiplier }}
+          threshold={readTimeThreshold}
+          onOpenScript={() => { setStoryboardOpen(false); setScriptOpen(true); }}
+          onRehearse={(fid) => startRehearsal(fid)}
+        />
+      )}
 
       {/* VISUAL MIX (Phase 8) — read-only lesson summary; changes nothing. */}
       {chrome && visualMixOpen && (
         <VisualMixPanel
           lessonId={currentFrameId ? (rf.getNode(currentFrameId)?.parentId ?? null) : null}
           onClose={() => setVisualMixOpen(false)}
+          riff={riffMultiplier}
         />
       )}
 

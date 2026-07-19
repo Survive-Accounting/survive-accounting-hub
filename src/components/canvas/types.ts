@@ -646,6 +646,10 @@ export interface FrameBox {
    *  summary ("stage", "statement", "diagram", …). Purely informational; unset
    *  frames are simply "untagged" in the summary. */
   visualType?: string;
+  /** REHEARSAL (PROMPT 3): the last rehearsal's actual spoken seconds — stored so
+   *  the storyboard row shows "practiced Ns" next to the estimate. No take is
+   *  created; purely a self-timing aid. */
+  lastRehearsalS?: number;
 }
 export type FrameBgAnchor =
   | "top-left" | "top" | "top-right"

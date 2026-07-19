@@ -6,11 +6,12 @@ import { X } from "lucide-react";
 
 import { frameCellLabel, framesInLesson } from "./frames";
 import { baseTextPxForKind, phoneChecks, type PhoneEl } from "./phone-check";
+import { estimateTotalSeconds, formatReadTime } from "./script-timing";
 import { NEON } from "./theme";
-import { FRAME_CARD_SCALE, FRAME_H, FRAME_W, type FrameBox, type LessonBox } from "./types";
+import { FRAME_CARD_SCALE, FRAME_H, FRAME_W, type FrameBox, type FrameScript, type LessonBox } from "./types";
 import { computeVisualMix, TEACHING_KINDS } from "./visual-mix";
 
-export function VisualMixPanel({ lessonId, onClose }: { lessonId: string | null; onClose: () => void }) {
+export function VisualMixPanel({ lessonId, onClose, riff = 2.0 }: { lessonId: string | null; onClose: () => void; riff?: number }) {
   const rf = useReactFlow();
   const lessons = rf.getNodes().filter((n) => n.type === "lesson");
   // Prefer the passed lesson; else the lesson with the most frames; else the first.
@@ -41,6 +42,8 @@ export function VisualMixPanel({ lessonId, onClose }: { lessonId: string | null;
   });
 
   const mix = computeVisualMix(summaries);
+  // PROMPT 3 — lesson total read-time from the frames' scripts
+  const totalReadS = estimateTotalSeconds(frames.map((fr) => (fr.data as unknown as FrameBox).script as FrameScript | undefined), { riff });
   const stat = (label: string, value: string | number, tone?: string) => (
     <div className="flex items-center justify-between rounded px-2 py-1" style={{ background: NEON.bg2, border: `1px solid ${NEON.borderSoft}` }}>
       <span style={{ color: NEON.muted }}>{label}</span>
@@ -65,6 +68,7 @@ export function VisualMixPanel({ lessonId, onClose }: { lessonId: string | null;
         <>
           <div className="grid grid-cols-2 gap-1">
             {stat("Frames", mix.totalFrames)}
+            {stat("Read-time", totalReadS > 0 ? formatReadTime(totalReadS) : "—", NEON.text)}
             {stat("Hero visuals", `${mix.heroCount} · ${Math.round(mix.heroPct * 100)}%`, mix.heroPct > 0.25 ? "#FF8B9E" : "#7EF3C0")}
             {stat("Motion-heavy", mix.motionCount, mix.motionCount / mix.totalFrames > 0.5 ? "#F5D48F" : NEON.text)}
             {stat("Cram frames", mix.cramCount)}

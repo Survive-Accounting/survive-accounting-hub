@@ -21,6 +21,7 @@ import { blankFrameData, BEAT_COLUMNS, beatColOf, columnX, framesInBeat, nextSub
 import { isUnlinked, MARK_KINDS, markLabel, newMark, parseAtTokens } from "./card-marks";
 import { downloadText } from "./export";
 import { courseScriptMarkdown, cycleScriptState, hasScript, SCRIPT_STATE_META, scriptTree } from "./script-doc";
+import { estimateFrameSeconds, formatReadTime, isOverReadTime } from "./script-timing";
 import { NEON } from "./theme";
 import { cardId, FRAME_H, FRAME_W, isContainerType, type Beat, type CardMark, type FrameScript, type MarkKind } from "./types";
 
@@ -322,6 +323,8 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                             <div key={f.frameId} className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${hasScript(f.script) ? "rgba(126,243,192,0.25)" : NEON.borderSoft}` }}>
                               <div className="mb-1 flex items-center gap-1.5">
                                 <span className="rounded px-1 text-[9px] font-bold tabular-nums" style={{ color: NEON.yellow, border: FIELD_BORDER }}>F{f.n}</span>
+                                {/* READ-TIME (PROMPT 3): estimated spoken time; lead a "!" line to mark a money line */}
+                                {(() => { const s = estimateFrameSeconds(f.script); if (!s) return null; const over = isOverReadTime(s); return <span className="shrink-0 rounded px-1 text-[9px] font-bold tabular-nums" title="Estimated spoken time (start a line with ! to mark a money line)" style={{ color: over ? "#FF8B9E" : NEON.muted, border: FIELD_BORDER }}>{formatReadTime(s)}</span>; })()}
                                 <input
                                   className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-[11px] font-semibold outline-none focus:ring-1"
                                   style={{ color: NEON.text }}
