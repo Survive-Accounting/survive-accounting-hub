@@ -16,6 +16,9 @@ export interface FrameNav {
   canStep: (frameId: string, dir: -1 | 1) => boolean;
   /** Append a blank frame to a lesson (lesson hover chrome "+ frame"). */
   addFrame: (lessonId: string) => void;
+  /** Add a blank frame directly BELOW a frame — same beat column, next sub-row
+   *  (big-picture "+" under a frame). */
+  addBelow: (frameId: string) => void;
   /** REORDER a frame within its lesson (swap order with the -1/+1 neighbour). */
   reorder: (frameId: string, dir: -1 | 1) => void;
   /** DUPLICATE a frame (deep copy) to the next slot in its beat by default, or to
@@ -36,6 +39,7 @@ export const FrameNavContext = createContext<FrameNav>({
   step: noop,
   canStep: () => false,
   addFrame: noop,
+  addBelow: noop,
   reorder: noop,
   duplicate: noop,
   duplicateDialog: noop,

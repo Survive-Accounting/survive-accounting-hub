@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FlaskConical, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -90,7 +90,6 @@ import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
 import { FrameTakesProvider, LessonMediaBar, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
-import { RecorderSpike } from "@/components/canvas/RecorderSpike";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { hubLayout, plateForCourse } from "@/components/canvas/hub-layout";
 import { LessonPublishControl } from "@/components/canvas/lesson-publish";
@@ -480,46 +479,85 @@ function DuplicateFrameDialog({ frameId, onClose, onDuplicate }: {
  *  start; space walks cues via the normal handler (no recording). Finish shows
  *  actual vs estimate; Save stores it on the frame. Esc exits (handled by the
  *  route's ladder). */
-function RehearsalHud({ startedAt, endAt, estSeconds, onStart, onFinish, onSave, onExit }: {
-  startedAt: number | null;
-  endAt: number | null;
+/** A rehearsal RUN — one stopwatch that accumulates per-frame across a whole pass.
+ *  `perFrame` banks completed time (ms); the live segment (running && segStart) is
+ *  added on the fly. Switching frames banks + pauses; Finish freezes finishedAt. */
+interface RehearseRun {
+  frameId: string;                  // the frame currently being timed
+  running: boolean;                 // stopwatch counting right now
+  segStart: number | null;          // epoch ms the live segment began (null when paused)
+  perFrame: Record<string, number>; // banked ms per frame (excludes the live segment)
+  order: string[];                  // frames in first-entered order (report order)
+  finishedAt: number | null;        // set on Finish → the report is frozen
+}
+
+/** Bank the live segment into perFrame (leaves running as-is unless caller flips it). */
+function bankRehearseSegment(r: RehearseRun): RehearseRun {
+  if (!r.running || r.segStart == null) return r;
+  const add = Date.now() - r.segStart;
+  return { ...r, perFrame: { ...r.perFrame, [r.frameId]: (r.perFrame[r.frameId] ?? 0) + add }, segStart: r.running ? Date.now() : null };
+}
+
+const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.round(s)) % 60).padStart(2, "0")}`;
+
+function RehearsalHud({ run, estSeconds, frameLabel, reportRows, onToggle, onFinish, onExit }: {
+  run: RehearseRun;
   estSeconds: number;
-  onStart: () => void;
+  frameLabel: string;
+  reportRows: { id: string; label: string; secs: number }[];
+  onToggle: () => void;
   onFinish: () => void;
-  onSave: () => void;
   onExit: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    if (startedAt && !endAt) { const id = window.setInterval(() => setNow(Date.now()), 200); return () => window.clearInterval(id); }
-  }, [startedAt, endAt]);
-  const elapsed = startedAt ? Math.max(0, Math.round(((endAt ?? now) - startedAt) / 1000)) : 0;
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-  const delta = endAt ? elapsed - estSeconds : 0;
+    if (run.running && !run.finishedAt) { const id = window.setInterval(() => setNow(Date.now()), 200); return () => window.clearInterval(id); }
+  }, [run.running, run.finishedAt]);
+  const liveSeg = run.running && run.segStart != null ? (now - run.segStart) / 1000 : 0;
+  const curSecs = (run.perFrame[run.frameId] ?? 0) / 1000 + liveSeg;
+  const totalSecs = Object.values(run.perFrame).reduce((a, b) => a + b, 0) / 1000 + liveSeg;
+
+  // FINISHED → the per-frame report (a small card above the pill).
+  if (run.finishedAt) {
+    const total = reportRows.reduce((a, r) => a + r.secs, 0);
+    return (
+      <div className="fixed bottom-6 left-1/2 z-[85] -translate-x-1/2">
+        <div className="w-[320px] rounded-xl p-3" style={{ background: "rgba(8,12,24,0.96)", border: "1px solid rgba(126,243,192,0.5)", boxShadow: "0 18px 44px -14px rgba(0,0,0,0.85)", color: "#EAF2FF" }}>
+          <div className="mb-2 flex items-center gap-2">
+            <Timer className="h-4 w-4" style={{ color: "#7EF3C0" }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#7EF3C0" }}>Rehearsal report</span>
+            <span className="ml-auto text-[15px] font-bold tabular-nums">{fmtClock(total)}</span>
+          </div>
+          <div className="max-h-[40vh] space-y-0.5 overflow-y-auto">
+            {reportRows.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 text-[11.5px]">
+                <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.75)" }}>{fmtClock(r.secs)}</span>
+              </div>
+            ))}
+          </div>
+          <button className="mt-2 w-full rounded-full py-1 text-[11px] font-bold" style={{ background: "#7EF3C0", color: "#06210F" }} onClick={onExit}>Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  // RUNNING / PAUSED → the stopwatch pill (current frame + running total).
   return (
     <div className="pointer-events-none fixed bottom-6 left-1/2 z-[85] -translate-x-1/2">
       <div className="pointer-events-auto flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: "rgba(8,12,24,0.92)", border: "1px solid rgba(126,243,192,0.5)", boxShadow: "0 12px 30px -12px rgba(0,0,0,0.8)", color: "#EAF2FF" }}>
-        <Timer className="h-4 w-4" style={{ color: "#7EF3C0" }} />
-        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#7EF3C0" }}>Rehearse</span>
-        {!startedAt ? (
-          <button className="rounded-full px-3 py-0.5 text-[12px] font-bold" style={{ background: "#7EF3C0", color: "#06210F" }} onClick={onStart}>Tap to start</button>
-        ) : !endAt ? (
-          <>
-            <span className="text-[16px] font-bold tabular-nums">{fmt(elapsed)}</span>
-            {estSeconds > 0 && <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.5)" }}>/ est {fmt(estSeconds)}</span>}
-            <button className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "#FF8B9E", color: "#2A0710" }} onClick={onFinish}>Finish</button>
-          </>
-        ) : (
-          <>
-            <span className="text-[13px] font-bold tabular-nums">{fmt(elapsed)}</span>
-            {estSeconds > 0 && (
-              <span className="text-[10.5px] font-semibold" style={{ color: Math.abs(delta) <= 5 ? "#7EF3C0" : "#F5D48F" }}>
-                {delta === 0 ? "on estimate" : `${delta > 0 ? "+" : "−"}${fmt(Math.abs(delta))} vs est`}
-              </span>
-            )}
-            <button className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "#7EF3C0", color: "#06210F" }} onClick={onSave}>Save time</button>
-          </>
-        )}
+        <button className="grid h-6 w-6 place-items-center rounded-full" title={run.running ? "Pause" : "Start / resume"} style={{ background: run.running ? "#F5D48F" : "#7EF3C0", color: "#06210F" }} onClick={onToggle}>
+          {run.running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        </button>
+        <div className="flex flex-col leading-tight">
+          <span className="max-w-[150px] truncate text-[9px] font-bold uppercase tracking-wider" style={{ color: run.running ? "#7EF3C0" : "#F5D48F" }}>{run.running ? frameLabel : "paused — click ▶"}</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[16px] font-bold tabular-nums">{fmtClock(curSecs)}</span>
+            {estSeconds > 0 && <span className="text-[9.5px]" style={{ color: "rgba(255,255,255,0.5)" }}>/ est {fmtClock(estSeconds)}</span>}
+          </div>
+        </div>
+        <span className="ml-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums" style={{ background: "rgba(126,243,192,0.14)", color: "#7EF3C0" }} title="Running total across all frames">Σ {fmtClock(totalSecs)}</span>
+        <button className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "#FF8B9E", color: "#2A0710" }} onClick={onFinish}>Finish</button>
         <button className="grid h-5 w-5 place-items-center rounded-full" title="Exit (Esc)" style={{ color: "rgba(255,255,255,0.5)" }} onClick={onExit}><X className="h-3.5 w-3.5" /></button>
       </div>
     </div>
@@ -1057,14 +1095,17 @@ function PresentCanvas() {
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
   const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
   const [scriptOpen, setScriptOpen] = useState(false); // SCRIPT EDITOR: the course-script modal
-  const [spikeOpen, setSpikeOpen] = useState(false); // PHASE 3 EXPERIMENT: in-browser recorder spike (never the main flow)
   const [prompter, setPrompter] = useState(false); // TELEPROMPTER: hidden by default (incl. film); `p` toggles
   const [prompterCorner, setPrompterCorner] = useState<PrompterCorner>("tc"); // camera eyeline corner (persisted)
   // PROMPT 3 — read-time knobs (scene settings) + transient safe-guides + rehearsal
   const [riffMultiplier, setRiffMultiplier] = useState(DEFAULT_RIFF); // talking-point time multiplier
   const [readTimeThreshold, setReadTimeThreshold] = useState(DEFAULT_READTIME_THRESHOLD_S); // flag frames over this many seconds
   const [safeGuides, setSafeGuides] = useState(false); // camera-safe overlay — OFF, never persisted, never in film
-  const [rehearse, setRehearse] = useState<{ frameId: string; startedAt: number | null; endAt: number | null } | null>(null);
+  // REHEARSAL RUN (Lee's call): one stopwatch that accumulates PER FRAME across a
+  // whole run. Timing the current frame; switching frames auto-banks + PAUSES; a
+  // click resumes on the new frame. Finish freezes a per-frame report + total.
+  const [rehearse, setRehearse] = useState<RehearseRun | null>(null);
+  const [lastRehearsalTotalS, setLastRehearsalTotalS] = useState<number | null>(null); // persisted; shown top-center
   const [introClipLength, setIntroClipLength] = useState(6.0); // AUTO-TRIM: intro clip length (s)
   const [autoTrimIntros, setAutoTrimIntros] = useState(true); // AUTO-TRIM: on by default
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
@@ -1869,6 +1910,13 @@ function PresentCanvas() {
 
   /** Lesson "+frame" — appends a Hook sub-frame (grid model). */
   const addFrameToLesson = useCallback((lessonId: string) => makeFrameAt(lessonId, "hook", nextSubIndex(rf.getNodes() as never, lessonId, "hook")), [rf, makeFrameAt]);
+  // + directly below a frame: same beat column, next sub-row (big-picture affordance).
+  const addFrameBelow = useCallback((frameId: string) => {
+    const n = rf.getNode(frameId);
+    if (!n?.parentId) return;
+    const beat = beatColOf(n as never);
+    makeFrameAt(n.parentId, beat, nextSubIndex(rf.getNodes() as never, n.parentId, beat));
+  }, [rf, makeFrameAt]);
 
   /** HUD "+ frame after" — a new sub-frame in the SAME beat, entered. */
   const addFrameAfter = useCallback((frameId: string) => {
@@ -2119,21 +2167,41 @@ function PresentCanvas() {
   const startRehearsal = useCallback((frameId: string) => {
     enterFrame(frameId);
     setPrompter(true);
-    setRehearse({ frameId, startedAt: null, endAt: null });
+    setRehearse({ frameId, running: true, segStart: Date.now(), perFrame: {}, order: [frameId], finishedAt: null });
   }, [enterFrame]);
   const exitRehearsal = useCallback(() => setRehearse(null), []);
-  const saveRehearsal = useCallback(() => {
+  // Pause/resume the stopwatch (banking the live segment on pause).
+  const toggleRehearsal = useCallback(() => setRehearse((r) => {
+    if (!r || r.finishedAt) return r;
+    if (r.running) return { ...bankRehearseSegment(r), running: false, segStart: null };
+    return { ...r, running: true, segStart: Date.now() };
+  }), []);
+  // FINISH → bank the live segment, freeze the report, persist per-frame seconds +
+  // the run TOTAL (shown top-center; survives reload via sceneSettings).
+  const finishRehearsal = useCallback(() => setRehearse((r) => {
+    if (!r) return r;
+    const banked = { ...bankRehearseSegment(r), running: false, segStart: null };
+    const cmds = Object.entries(banked.perFrame)
+      .map(([fid, ms]) => patchDataCmd(rf as unknown as RfLike, fid, { lastRehearsalS: Math.max(1, Math.round(ms / 1000)) }, "rehearsal time"))
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, "rehearsal times");
+    if (cmd) bus.dispatch(cmd);
+    setLastRehearsalTotalS(Math.round(Object.values(banked.perFrame).reduce((a, b) => a + b, 0) / 1000));
+    return { ...banked, finishedAt: Date.now() };
+  }), [rf]);
+  // AUTO-PAUSE ON TRANSITION (Lee's call): moving to a new frame banks the current
+  // frame's segment and pauses — a click resumes the stopwatch on the new frame.
+  useEffect(() => {
     setRehearse((r) => {
-      if (r?.frameId && r.startedAt && r.endAt) {
-        const secs = Math.max(1, Math.round((r.endAt - r.startedAt) / 1000));
-        const c = patchDataCmd(rf as unknown as RfLike, r.frameId, { lastRehearsalS: secs }, "rehearsal time");
-        if (c) bus.dispatch(c);
-      }
-      return null;
+      if (!r || r.finishedAt || !currentFrameId || currentFrameId === r.frameId) return r;
+      const banked = { ...bankRehearseSegment(r), running: false, segStart: null };
+      const order = banked.order.includes(currentFrameId) ? banked.order : [...banked.order, currentFrameId];
+      return { ...banked, frameId: currentFrameId, order };
     });
-  }, [rf]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFrameId]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, reorder: reorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, reorderFrame, duplicateFrame, duplicateLesson]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, duplicateFrame, duplicateLesson]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -2736,13 +2804,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastLessonId: lastLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, lastLessonId: lastLessonRef.current },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2802,6 +2870,7 @@ function PresentCanvas() {
       setFrameTransitions((nj.sceneSettings as { frameTransitions?: boolean } | undefined)?.frameTransitions !== false); // default on
       setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames !== false); // default on
       setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
+      setLastRehearsalTotalS((nj.sceneSettings as { lastRehearsalTotalS?: number } | undefined)?.lastRehearsalTotalS ?? null);
       setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
       { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "cinema" || bs === "gray" || bs === "light" ? bs : "dark"); } // default dark (dots-only)
       setFilmEntrancePop((nj.sceneSettings as { filmEntrancePop?: boolean } | undefined)?.filmEntrancePop !== false); // default on
@@ -3637,6 +3706,10 @@ function PresentCanvas() {
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
     (_e: unknown, node: CardNode) => {
+      // FILM MODE: never focus-zoom a card on double-click — the camera is pinned
+      // to the frame while filming and an accidental dbl-click must NOT pop out to
+      // the "back to frame" birds-eye (Lee's call).
+      if (filmRef.current) return;
       // DIVE INTO A FRAME (regression fix): double-clicking a frame ENTERS it (fits
       // the camera). Frames are container types, so this must run BEFORE the
       // container early-return below — otherwise dbl-click does nothing.
@@ -3746,18 +3819,36 @@ function PresentCanvas() {
           {toast}
         </div>
       )}
-      {/* REHEARSAL HUD (PROMPT 3) — stopwatch for the frame being rehearsed */}
+      {/* LAST REHEARSAL — persisted total, top-center (Lee's call). Authoring only,
+          hidden while a run is live (the HUD shows the running total then). */}
+      {chrome && !rehearse && lastRehearsalTotalS != null && (
+        <div className="pointer-events-none fixed left-1/2 top-3 z-[46] -translate-x-1/2">
+          <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(8,12,24,0.82)", border: "1px solid rgba(126,243,192,0.4)", color: "#EAF2FF" }}>
+            <Timer className="h-3.5 w-3.5" style={{ color: "#7EF3C0" }} />
+            <span className="uppercase tracking-wider" style={{ color: "#7EF3C0" }}>Last rehearsal</span>
+            <span className="tabular-nums">{fmtClock(lastRehearsalTotalS)}</span>
+          </div>
+        </div>
+      )}
+      {/* REHEARSAL HUD (PROMPT 3 + run rework) — accumulating stopwatch across the
+          whole pass; auto-pauses on frame change; Finish shows a per-frame report. */}
       {rehearse && (() => {
+        const labelOf = (fid: string) => {
+          const n = rf.getNode(fid);
+          const t = (n?.data as { title?: string } | undefined)?.title;
+          return (t && t.trim()) || (n ? frameCellLabel(n as never) : "frame");
+        };
         const f = rf.getNode(rehearse.frameId);
         const est = f ? estimateFrameSeconds((f.data as { script?: FrameScript }).script, { riff: riffMultiplier }) : 0;
+        const reportRows = rehearse.order.map((fid) => ({ id: fid, label: labelOf(fid), secs: Math.round((rehearse.perFrame[fid] ?? 0) / 1000) }));
         return (
           <RehearsalHud
-            startedAt={rehearse.startedAt}
-            endAt={rehearse.endAt}
+            run={rehearse}
             estSeconds={est}
-            onStart={() => setRehearse((r) => (r ? { ...r, startedAt: Date.now() } : r))}
-            onFinish={() => setRehearse((r) => (r ? { ...r, endAt: Date.now() } : r))}
-            onSave={saveRehearsal}
+            frameLabel={labelOf(rehearse.frameId)}
+            reportRows={reportRows}
+            onToggle={toggleRehearsal}
+            onFinish={finishRehearsal}
             onExit={exitRehearsal}
           />
         );
@@ -4090,7 +4181,6 @@ function PresentCanvas() {
           <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>
           <TB title="Storyboard — every frame in film order; click one to jump in" active={storyboardOpen} onClick={() => setStoryboardOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>
           <TB title="Camera-safe guides — phone-safe, camera bubble, watermark + end-screen zones (enter a frame)" active={safeGuides} onClick={() => { const nv = !safeGuides; setSafeGuides(nv); if (nv && !currentFrameId) flashToast("Enter a frame to see the safe zones"); }}><Frame className="h-3.5 w-3.5" /></TB>
-          <TB title="Recorder spike (EXPERIMENT — cam+mic in the browser; OBS remains the filming flow)" active={spikeOpen} onClick={() => setSpikeOpen((v) => !v)}><FlaskConical className="h-3.5 w-3.5" /></TB>
           {/* Birds-eye button removed — Esc bottoms out at the CURRENT lesson's
               overview (fitCurrentLesson), never the whole course. */}
           {/* FRAME HEADER panel — on-camera header toggle + THIS lesson's intro/outro/preview */}
@@ -4428,8 +4518,6 @@ function PresentCanvas() {
         />
       )}
 
-      {/* PHASE 3 EXPERIMENT — in-browser recorder spike (report-only; OBS stays) */}
-      {chrome && spikeOpen && <RecorderSpike onClose={() => setSpikeOpen(false)} />}
 
       {/* TELEPROMPTER — author-only, works in authoring AND film; `p` toggles.
           Never a student surface: it's an overlay on Lee's filming canvas.

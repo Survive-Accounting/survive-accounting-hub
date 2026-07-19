@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Clapperboard, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Plus, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -679,6 +679,21 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           )}
         </div>
       )}
+
+      {/* BIG-PICTURE "+ / clone" — sits just BELOW the frame on hover so it's easy
+          to add a blank frame or duplicate THIS frame into the next sub-row of this
+          beat (Lee's call). data-frame-chrome → film mode hides it. */}
+      <div
+        data-frame-chrome
+        className="absolute -bottom-9 left-1/2 z-[9] flex -translate-x-1/2 items-center gap-1 rounded-full px-1 py-1 opacity-0 transition-opacity group-hover/frame:opacity-100"
+        style={{ background: NEON.panelSolid, border: `1px solid ${meta.edge}`, boxShadow: "0 8px 22px -10px rgba(0,0,0,0.75)" }}
+        onPointerDown={stop}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button className="grid h-6 w-6 place-items-center rounded-full" style={{ color: meta.color }} title="Add a blank frame below (same beat)" onClick={() => nav.addBelow(id)}><Plus className="h-3.5 w-3.5" /></button>
+        <button className="grid h-6 w-6 place-items-center rounded-full" style={{ color: NEON.text }} title="Duplicate this frame below (same beat)" onClick={() => nav.duplicate(id)}><Copy className="h-3.5 w-3.5" /></button>
+      </div>
     </div>
   );
 }

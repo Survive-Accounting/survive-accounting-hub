@@ -1,4 +1,4 @@
-// Heading — an ELEMENT (design furniture, not a card): DM Serif Display, cream
+// Heading — an ELEMENT (design furniture, not a card): DISPLAY_FONT (Sora), cream
 // on navy, neon-gold underline draw-in. Never in the deck, no flip-help, no
 // teaching settings — chrome is H-level · clone · position-lock · ×, plus
 // corner resize (font scales with box height). Supports template variables

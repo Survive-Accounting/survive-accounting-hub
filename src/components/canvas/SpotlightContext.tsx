@@ -165,7 +165,10 @@ export function spotStyle(state: SpotTargetState): React.CSSProperties {
       borderRadius: 8,
       boxShadow: "inset 3px 0 0 #FCA311, 0 0 18px rgba(252,163,17,0.5)",
       fontWeight: 700,
-      transform: "scale(1.03)",
+      // SPOTLIT → ~20% larger (Lee's call). Super-spotlight (🔥 flame, Ctrl+Shift+
+      // click) goes to ~40% via FLAME_CSS with !important so it wins when a target
+      // is both spotlit and flamed.
+      transform: "scale(1.2)",
       transformOrigin: "left center",
       transition: trans,
       position: "relative",
@@ -203,7 +206,12 @@ export function spotTargetProps(sp: SpotlightApi | null, cardId: string, targetI
         // listeners (drag / selection box) never see the click.
         if (!sp) return;
         if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(cardId, targetId); return; }
-        if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.start(cardId, targetId); }
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
+          // TOGGLE (Lee's call): Ctrl+click a target that is already the single
+          // spotlight → clear it; otherwise move the spotlight here.
+          if (sp.targetState(cardId, targetId) === "spot") sp.exit(); else sp.start(cardId, targetId);
+        }
       },
     },
   };

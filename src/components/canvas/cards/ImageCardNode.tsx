@@ -1,14 +1,16 @@
-// Image card — pasted/uploaded picture stored in the canvas-media bucket.
-// Three ways in: Ctrl+V on the canvas (route spawns one pre-loaded), the
-// "paste or upload" drop state here, or a direct URL in edit mode. Upload goes
-// through the service-role server fn; failures render ON the card (fail loud).
+// Image — a chromeless DESIGN ELEMENT (Lee's call): a pasted/uploaded picture is
+// just a draggable, resizable image you can hang a memo off — NOT a "card" with
+// header/teaching chrome. Three ways in: Ctrl+V on the canvas (route spawns one
+// pre-loaded), the "paste or upload" drop state here, or a direct URL in edit
+// mode. Upload goes through the service-role server fn; failures render ON it.
 import { useRef, useState } from "react";
 import type { NodeProps } from "@xyflow/react";
-import { ImagePlus, Link2 } from "lucide-react";
+import { GripVertical, ImagePlus, Link2 } from "lucide-react";
 
 import { uploadCanvasMedia } from "@/lib/canvas.functions";
-import { BaseCard, useCardActions } from "../BaseCard";
-import { EditableText } from "../ui";
+import { useCardActions } from "../BaseCard";
+import { ConnectionDots } from "../ConnectionDots";
+import { ElementChrome, ElementResizer } from "./elements";
 import { NEON, PAPER } from "../theme";
 import type { ImageCard } from "../types";
 
@@ -34,13 +36,13 @@ export async function uploadImageFile(file: Blob & { type: string }): Promise<st
 
 export function ImageCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as ImageCard;
-  const { update } = useCardActions(id);
+  const { update, toFront } = useCardActions(id);
   const editing = !!d.editMode;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const takeFile = async (file: File | Blob & { type: string }) => {
+  const takeFile = async (file: File | (Blob & { type: string })) => {
     setErr(null);
     setBusy(true);
     try {
@@ -53,20 +55,39 @@ export function ImageCardNode({ id, data, selected }: NodeProps) {
     }
   };
 
+  const w = d.w ?? 320;
+
   return (
-    <BaseCard id={id} data={d} selected={selected} accent={NEON.cyan}>
+    <div
+      onPointerDownCapture={toFront}
+      className="group/el animate-in fade-in relative rounded-lg duration-150"
+      style={{ width: w, minHeight: d.h ?? 80 }}
+    >
+      {/* memo-attach handles (drag a dot → arrow/memo), element chrome + resizer */}
+      <ConnectionDots color={NEON.cyan} />
+      <ElementChrome id={id} posLock={d.posLock} selected={selected} />
+      <ElementResizer id={id} selected={selected} minWidth={120} minHeight={80} />
+      {/* GRAB HANDLE — a bare image is hard to grab; the picture itself drags too. */}
+      <div
+        className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
+        title="Drag to move"
+        style={{ color: NEON.muted }}
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
+
       {d.url ? (
         <img
           src={d.url}
           alt={d.caption || "canvas image"}
-          className="w-full rounded"
-          style={{ objectFit: d.fit, maxHeight: 560 }}
+          className="block w-full rounded-lg"
+          style={{ height: d.h ?? "auto", objectFit: d.fit }}
           draggable={false}
         />
       ) : (
         <div
-          className="nodrag grid min-h-[120px] cursor-pointer place-items-center rounded border border-dashed p-3 text-center"
-          style={{ borderColor: PAPER.line, color: PAPER.inkMuted }}
+          className="nodrag grid min-h-[100px] cursor-pointer place-items-center rounded-lg border border-dashed p-3 text-center"
+          style={{ borderColor: NEON.borderSoft, color: NEON.muted }}
           onClick={() => fileRef.current?.click()}
           onPaste={(e) => {
             const f = [...e.clipboardData.files].find((x) => x.type.startsWith("image/"));
@@ -93,21 +114,17 @@ export function ImageCardNode({ id, data, selected }: NodeProps) {
         className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) void takeFile(f); }}
       />
-      {err && (
-        <p className="mt-1.5 rounded px-2 py-1 text-[11px]" style={{ background: "rgba(194,24,50,0.07)", color: PAPER.red, border: "1px solid rgba(194,24,50,0.3)" }}>
-          {err}
-        </p>
-      )}
-      {(d.caption || editing) && (
-        <p className="mt-1.5 text-center text-[11.5px] italic" style={{ color: PAPER.inkMuted }}>
-          <EditableText value={d.caption ?? ""} onChange={(v) => update({ caption: v })} editing={editing} placeholder="Caption" />
+      {(err || d.caption) && (
+        <p className="mt-1 rounded px-2 py-0.5 text-center text-[10.5px]" style={err ? { background: "rgba(194,24,50,0.12)", color: PAPER.red } : { color: NEON.muted }}>
+          {err || d.caption}
         </p>
       )}
       {editing && (
-        <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" style={{ color: PAPER.inkMuted }}>
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" style={{ color: NEON.muted }}>
           <Link2 className="h-3 w-3 shrink-0" />
           <input
-            className="nodrag min-w-0 flex-1 rounded bg-black/5 px-1.5 py-0.5 outline-none ring-1 ring-[rgba(20,33,61,0.30)]"
+            className="nodrag min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 outline-none"
+            style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
             defaultValue={d.url}
             placeholder="…or paste an image URL"
             onBlur={(e) => update({ url: e.target.value.trim() })}
@@ -115,7 +132,7 @@ export function ImageCardNode({ id, data, selected }: NodeProps) {
           />
           <button
             className="nodrag rounded px-1.5 py-0.5 font-semibold"
-            style={{ color: PAPER.navy, border: "1px solid rgba(20,33,61,0.35)" }}
+            style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => update({ fit: d.fit === "cover" ? "contain" : "cover" })}
           >
@@ -123,6 +140,6 @@ export function ImageCardNode({ id, data, selected }: NodeProps) {
           </button>
         </div>
       )}
-    </BaseCard>
+    </div>
   );
 }

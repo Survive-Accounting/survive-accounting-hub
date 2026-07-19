@@ -40,8 +40,9 @@ export const PAPER = {
   green: "#1E7F4F",
 } as const;
 
-/** The home-page display face ("Survive your accounting exam."). */
-export const DISPLAY_FONT = "'DM Serif Display', serif";
+/** Canvas DISPLAY face — Sora: a slick, geometric display sans that matches the
+ *  SURVIVE wordmark energy (Lee's call — the old DM Serif read "textbooky"). */
+export const DISPLAY_FONT = "'Sora', 'Inter', system-ui, sans-serif";
 
 /** JE card voice (A11): transaction descriptions + badges — modern, clean. */
 export const JE_FONT = "'Poppins', 'Inter', system-ui, sans-serif";

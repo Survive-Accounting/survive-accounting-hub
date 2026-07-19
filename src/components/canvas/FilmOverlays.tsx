@@ -197,7 +197,10 @@ export const CARD_CURSOR_CSS = `
  *  in SpotlightContext). A moving gradient bar + a 🔥 emoji that travels the
  *  width, so a memo or lesson row can be really-really emphasized in the moment. */
 export const FLAME_CSS = `
-  [data-flame="on"] { position: relative; border-radius: 8px; }
+  /* Super-spotlight → ~40% larger (Lee's call). !important beats the inline
+     scale(1.2) from spotStyle so a target that is both spotlit AND flamed lands
+     at 40%, not 20%. */
+  [data-flame="on"] { position: relative; border-radius: 8px; transform: scale(1.4) !important; transform-origin: left center !important; transition: transform 150ms ease; }
   [data-flame="on"]::after {
     content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 4px; border-radius: 4px;
     background: linear-gradient(90deg, transparent, #FF7A00 25%, #FFD23F 50%, #FF7A00 75%, transparent);
