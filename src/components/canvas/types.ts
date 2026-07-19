@@ -650,6 +650,11 @@ export interface FrameBox {
    *  the storyboard row shows "practiced Ns" next to the estimate. No take is
    *  created; purely a self-timing aid. */
   lastRehearsalS?: number;
+  /** CUE LOG (PROMPT 4): the PENDING log of SPACE-press wall-clock times (epoch-ms)
+   *  from the last film-mode visit, kept on the frame until an OBS clip is dropped
+   *  and the presses are aligned into per-beat cut boundaries. Rides the scene
+   *  JSON (additive); cleared once a take's segments are aligned. */
+  cueLog?: { startedAtMs: number; pressesMs: number[] };
 }
 export type FrameBgAnchor =
   | "top-left" | "top" | "top-right"

@@ -94,7 +94,17 @@ const tbl = async () => {
   return () => supabaseAdmin.from("lesson_videos" as never) as any;
 };
 
-const keeperSchema = z.object({ frameId: z.string(), playbackId: z.string().min(6), dim: z.object({ w: z.number(), h: z.number() }).nullable().optional() });
+// PROMPT 4: a body item may be a per-beat SEGMENT — a sub-clip window into the
+// keeper take (Mux multi-input concat accepts per-input start_time/end_time, so
+// segments assemble with no ffmpeg; video stays a hard cut). Absent start/end =
+// the whole keeper take (the pre-segment behaviour, unchanged).
+const keeperSchema = z.object({
+  frameId: z.string(),
+  playbackId: z.string().min(6),
+  dim: z.object({ w: z.number(), h: z.number() }).nullable().optional(),
+  start: z.number().nonnegative().optional(),
+  end: z.number().positive().optional(),
+});
 // the intro can carry a TRIM window (from the auto-trim); publish realizes it via
 // a Mux ingest-trim so Auphonic gets the trimmed intro.
 const introSchema = keeperSchema.extend({ trim: z.object({ start: z.number(), length: z.number() }).nullable().optional() });
@@ -133,11 +143,18 @@ export const publishLesson = createServerFn({ method: "POST" })
     const { courseCode, lessonCode } = await import("@/components/canvas/take-naming");
     const passthrough = `${courseCode(data.courseName)}-${lessonCode(data.lessonLabel)}-v${version}`;
 
-    // BODY = Mux multi-input concat of the keeper takes, in order.
+    // BODY = Mux multi-input concat of the keeper takes/segments, in order.
+    // PROMPT 4: when a body item carries start/end it is a per-beat SEGMENT — the
+    // Mux input gets start_time/end_time so the sub-clip assembles with no ffmpeg
+    // (video hard cut). Auphonic still receives ONE continuous body file.
     const bodyAsset = await muxApi("/video/v1/assets", {
       method: "POST",
       body: JSON.stringify({
-        input: data.body.map((b) => ({ url: muxMp4(b.playbackId) })),
+        input: data.body.map((b) =>
+          b.start != null && b.end != null
+            ? { url: muxMp4(b.playbackId), start_time: b.start, end_time: b.end }
+            : { url: muxMp4(b.playbackId) },
+        ),
         playback_policy: ["public"],
         mp4_support: "standard",
         passthrough: `${passthrough}-body`,
