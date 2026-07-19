@@ -219,6 +219,10 @@ const LESSON_TINTS = {
   navy: { fill: "rgba(79,163,227,0.08)", edge: "rgba(79,163,227,0.30)", edgeOn: NEON.cyan, glow: NEON.cyan, ink: "#8CC0EE" },
   check: { fill: "rgba(206,17,38,0.10)", edge: "rgba(206,17,38,0.45)", edgeOn: "#E0284A", glow: "#E0284A", ink: "#FF8B9E" },
 } as const;
+
+// CANVAS VOCABULARY — Lee calls these "Lessons", never "Chapters" (2026-07). The
+// DB rows are still `chapters`; only the on-canvas LABEL flips "Ch N ·" → "Lesson N ·".
+const lessonLabelOf = (ch: Parameters<typeof chapterLabel>[0]) => chapterLabel(ch).replace(/^Ch\s+/i, "Lesson ");
 const BEAT_LABELS = ["Hook", "Teach", "Model · Practice", "Check"] as const;
 /** Stable parity for a lesson with no pathOrder, so the two tints still alternate. */
 const lessonHash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i)) | 0; return Math.abs(h); };
@@ -1439,29 +1443,34 @@ function PresentCanvas() {
       id: lid, type: "lesson", position: { x: pos.x, y: pos.y },
       data: { label, w: cell.w, h: cell.h, pathOrder, check } as unknown as CardNode["data"],
     };
-    const frames = SCAFFOLD_BEATS.map((b, k) => ({
+    // Teach · Model · Cram beat openers (one each). The HOOK opener is built
+    // separately below as the fixed 3-frame intro run.
+    const frames = SCAFFOLD_BEATS.filter((b) => b.beat !== "hook").map((b) => ({
       id: cardId("frame"), type: "frame", parentId: lid,
-      position: { x: columnX(k), y: rowY(0) }, width: FRAME_W, height: FRAME_H,
-      // No seeded notes — director notes are GLOBAL per beat now (Lee sets them;
-      // one note shows on that beat's frame in every lesson). See beatNotes.
+      position: { x: columnX(BEAT_COLUMNS.indexOf(b.beat)), y: rowY(0) }, width: FRAME_W, height: FRAME_H,
       data: { ...blankFrameData(b.beat, 0) } as unknown as CardNode["data"],
     }));
-    // HOOK · FRAME 1 — the lesson TITLE, prefilled. A resizable/positionable
-    // heading so Lee frames it wherever the intro shot needs it.
+    // HOOK is ALWAYS three fixed frames (Lee's call): Intro → CEQ → Outline. The
+    // lesson always opens the same way; the teaching starts from Teach.
+    const introFrameId = cardId("frame");
+    const introFrame = { id: introFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(0) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 0), title: "Intro" } as unknown as CardNode["data"] };
+    // INTRO — the lesson TITLE heading, prefilled.
     const titleCard = {
-      id: cardId("heading"), type: "heading", parentId: frames[0].id,
+      id: cardId("heading"), type: "heading", parentId: introFrameId,
       position: { x: 110, y: 150 },
       data: { kind: "heading", text: label, level: 1, scrim: true } as unknown as CardNode["data"],
     };
-    // HOOK · FRAME 2 — the COURSE OUTLINE as a plain LIST of every lesson, with
-    // THIS lesson's row marked "you are here" (auto-spotlight). Prefilled so the
-    // intro's "here's where we're going" beat is one card, no authoring.
-    const outlineFrameId = cardId("frame");
-    const outlineFrame = {
-      id: outlineFrameId, type: "frame", parentId: lid,
-      position: { x: columnX(0), y: rowY(1) }, width: FRAME_W, height: FRAME_H,
-      data: { ...blankFrameData("hook", 1), title: "Outline" } as unknown as CardNode["data"],
+    // CEQ — a blank question the intro can pose as a hook ("try one first").
+    const ceqFrameId = cardId("frame");
+    const ceqFrame = { id: ceqFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(1) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 1), title: "CEQ" } as unknown as CardNode["data"] };
+    const ceqCard = {
+      id: cardId("ceq"), type: "ceq", parentId: ceqFrameId,
+      position: { x: 130, y: 90 },
+      data: blankCard("ceq") as unknown as CardNode["data"],
     };
+    // OUTLINE — the lesson list with THIS lesson marked "you are here".
+    const outlineFrameId = cardId("frame");
+    const outlineFrame = { id: outlineFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(2) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 2), title: "Outline" } as unknown as CardNode["data"] };
     const labels = allLabels.length ? allLabels : [label];
     const outlineList = {
       id: cardId("list"), type: "list", parentId: outlineFrameId,
@@ -1471,7 +1480,7 @@ function PresentCanvas() {
         rows: labels.map((t) => ({ id: cardId("r"), text: t, youAreHere: t === label })),
       } as unknown as CardNode["data"],
     };
-    return [lesson, ...frames, titleCard, outlineFrame, outlineList] as CardNode[];
+    return [lesson, introFrame, ceqFrame, outlineFrame, ...frames, titleCard, ceqCard, outlineList] as CardNode[];
   }, []);
 
   const spawnRegionScaffold = useCallback(() => {
@@ -1526,7 +1535,7 @@ function PresentCanvas() {
     }
 
     // Every lesson's Hook-2 outline list shows the WHOLE course (grid + wrap-up).
-    const allLabels = [...gridChapters.map(chapterLabel), ...(wrapChapter ? [chapterLabel(wrapChapter)] : [])];
+    const allLabels = [...gridChapters.map(lessonLabelOf), ...(wrapChapter ? [lessonLabelOf(wrapChapter)] : [])];
     const nodes: CardNode[] = [
       { id: cardId("heading"), type: "heading", position: { x: homeX, y: homeY },
         data: { kind: "heading", text: `Welcome — start here [${name}]`, level: 2 } as unknown as CardNode["data"] },
@@ -1534,10 +1543,10 @@ function PresentCanvas() {
         data: { kind: "asklee" } as unknown as CardNode["data"] },
       ...regionHeader,
       // GRID CHAPTERS → cells in reading order (reserved footprint each).
-      ...gridChapters.flatMap((ch, i) => buildLessonCell({ x: ox + rl.cells[i].x, y: gridTop + rl.cells[i].y }, chapterLabel(ch), i + 1, false, allLabels)),
+      ...gridChapters.flatMap((ch, i) => buildLessonCell({ x: ox + rl.cells[i].x, y: gridTop + rl.cells[i].y }, lessonLabelOf(ch), i + 1, false, allLabels)),
       // WRAP-UP → centered below, region-level red Check tint, same 4-beat arc.
       ...(wrapChapter && rl.wrapUp
-        ? buildLessonCell({ x: ox + rl.wrapUp.x, y: gridTop + rl.wrapUp.y }, chapterLabel(wrapChapter), gridChapters.length + 1, true, allLabels)
+        ? buildLessonCell({ x: ox + rl.wrapUp.x, y: gridTop + rl.wrapUp.y }, lessonLabelOf(wrapChapter), gridChapters.length + 1, true, allLabels)
         : []),
     ] as CardNode[];
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
@@ -4070,7 +4079,7 @@ function PresentCanvas() {
           {/* DECK — the run-of-show roster (replaces the top-right badge) */}
           <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); }} />
           <TB
-            title="Add region scaffold — full-width header + chapters laid on a snaking path (layout stamp)"
+            title="Add region scaffold — full-width header + lessons laid on a snaking path (layout stamp)"
             onClick={() => { setScaffoldCourseId(sceneCourseId ?? ""); setScaffoldOpen(true); }}
           >
             <LayoutTemplate className="h-3.5 w-3.5" />
@@ -4236,9 +4245,9 @@ function PresentCanvas() {
                     className="mt-1 w-full rounded bg-black/40 px-1 py-1 text-[11px] outline-none"
                     style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
                   >
-                    <option value="">All chapters</option>
+                    <option value="">All lessons</option>
                     {sceneCourse.chapters.map((ch) => (
-                      <option key={ch.id} value={ch.id}>{chapterLabel(ch)}</option>
+                      <option key={ch.id} value={ch.id}>{lessonLabelOf(ch)}</option>
                     ))}
                   </select>
                 )}
@@ -4256,7 +4265,7 @@ function PresentCanvas() {
                     className="flex-1 rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
                     style={{ color: NEON.yellow, border: `1px solid rgba(252,163,17,0.45)` }}
                     disabled={!sceneCourseId}
-                    title={sceneCourseId ? "Rename this course; add/rename/reorder/archive its chapters" : "Set the scene course first"}
+                    title={sceneCourseId ? "Rename this course; add/rename/reorder/archive its lessons" : "Set the scene course first"}
                     onClick={() => { setManageCourseOpen(true); setSettingsOpen(false); }}
                   >
                     Manage course
@@ -4598,13 +4607,13 @@ function PresentCanvas() {
               >
                 <option value="">— pick —</option>
                 {(coursesQuery.data ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{courseLabel(c)} ({c.chapters.filter((ch) => ch.status !== "archived").length} chapters)</option>
+                  <option key={c.id} value={c.id}>{courseLabel(c)} ({c.chapters.filter((ch) => ch.status !== "archived").length} lessons)</option>
                 ))}
               </select>
             </label>
             <p className="mt-2 text-[10.5px] leading-snug" style={{ color: NEON.muted }}>
-              Stamps a full-width header + one lesson per chapter laid on a snaking path (row 1 →, row 2 ←, …),
-              path order following the snake, the course’s final chapter at the end. Everything is ordinary
+              Stamps a full-width header + one lesson laid on a snaking path (row 1 →, row 2 ←, …),
+              path order following the snake, the course’s final lesson at the end. Everything is ordinary
               editable nodes afterwards — one Ctrl+Z removes the stamp; “Tidy layout” re-snakes later.
             </p>
             <div className="mt-3 flex justify-end gap-2">
@@ -4759,18 +4768,8 @@ function PresentCanvas() {
                       {s.name}
                     </button>
                     <span className="text-[10px]" style={{ color: NEON.muted }}>{new Date(s.updated_at).toLocaleString()}</span>
-                    <select
-                      className="max-w-[70px] rounded bg-black/40 px-0.5 py-0.5 text-[9px] outline-none"
-                      style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }}
-                      title="Move to folder"
-                      value={s.folder_id ?? ""}
-                      onChange={(e) => void moveScene(s, e.target.value || null)}
-                    >
-                      <option value="">Unfiled</option>
-                      {(folders ?? []).map((fo) => <option key={fo.id} value={fo.id ?? ""}>{fo.name}</option>)}
-                    </select>
                     <button
-                      className="text-[9.5px] font-semibold uppercase"
+                      className="shrink-0 text-[9.5px] font-semibold uppercase"
                       style={{ color: NEON.cyan }}
                       title="Duplicate scene — full copy, same folder, '(copy)' name"
                       onClick={async () => {
@@ -4781,7 +4780,7 @@ function PresentCanvas() {
                       dup
                     </button>
                     <button
-                      className="text-[9.5px] font-semibold uppercase"
+                      className="shrink-0 text-[9.5px] font-semibold uppercase"
                       style={{ color: snapsFor === s.id ? NEON.yellow : NEON.muted }}
                       title="Snapshots (auto-saved when film mode starts)"
                       onClick={() => void openSnaps(s.id)}
@@ -4789,7 +4788,7 @@ function PresentCanvas() {
                       snaps
                     </button>
                     <button
-                      className="text-[10px]"
+                      className="shrink-0 text-[10px]"
                       style={{ color: NEON.red }}
                       title="Delete scene"
                       onClick={async () => {
@@ -4800,6 +4799,25 @@ function PresentCanvas() {
                     >
                       ✕
                     </button>
+                  </div>
+                  {/* FILE INTO A FOLDER — its own labeled, full-width row (was a
+                      tiny 70px muted dropdown that Lee couldn't find). Create a
+                      folder up top ("New folder…"), then pick it here. */}
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="shrink-0 text-[9.5px] font-semibold uppercase" style={{ color: NEON.muted }}>Folder</span>
+                    <select
+                      className="min-w-0 flex-1 rounded bg-black/40 px-1.5 py-0.5 text-[10.5px] outline-none"
+                      style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                      title="File this scene into a folder"
+                      value={s.folder_id ?? ""}
+                      onChange={(e) => void moveScene(s, e.target.value || null)}
+                    >
+                      <option value="">— Unfiled —</option>
+                      {(folders ?? []).map((fo) => <option key={fo.id} value={fo.id ?? ""}>{fo.name}</option>)}
+                    </select>
+                    {(folders ?? []).length === 0 && (
+                      <span className="shrink-0 text-[9px] italic" style={{ color: NEON.muted }}>make one up top ↑</span>
+                    )}
                   </div>
                   {snapsFor === s.id && (
                     <div className="mt-1 space-y-0.5 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>

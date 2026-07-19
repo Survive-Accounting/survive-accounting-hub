@@ -6,6 +6,7 @@
 // ENTER: the camera fits the frame exactly (frame bounds = viewport). ‹ › walk
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
 import { ChevronLeft, ChevronRight, Clapperboard, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
 
@@ -417,15 +418,35 @@ export function FrameNode({ id, data, selected }: NodeProps) {
 
       {/* BACKGROUND PICKER — loop chooser + opacity slider (author-facing). nodrag/
           nowheel so the slider works; stops propagation so clicks don't enter. */}
-      {bgMenu && (
+      {bgMenu && createPortal((
+        // A FIXED right-side drawer (portaled to <body>) so it ALWAYS sits above
+        // every card + header (Lee's call), never gets clipped by the frame, and
+        // fits the screen height with its own scroll. Sticky header carries an
+        // obvious X. See [[panel-popouts-directors-monitor]] for the portal pattern.
         <div
           ref={bgMenuRef}
-          className="nodrag nowheel absolute right-2 top-9 z-[6] max-h-[80vh] w-64 overflow-y-auto rounded-lg p-2 text-[11px]"
-          style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}
+          className="nodrag nowheel fixed right-3 top-16 z-[200] flex max-h-[calc(100vh-5.5rem)] w-72 flex-col rounded-xl text-[11px]"
+          style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 20px 55px -12px rgba(0,0,0,0.85)" }}
           onPointerDown={stop}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
+          {/* STICKY HEADER — title + obvious close (Lee couldn't find how to
+              dismiss it, and the body ran off-screen). */}
+          <div className="flex items-center gap-2 rounded-t-xl border-b px-2.5 py-2" style={{ borderColor: NEON.borderSoft, background: NEON.panelSolid }}>
+            <Film className="h-3.5 w-3.5" style={{ color: meta.color }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: NEON.text }}>Frame visuals</span>
+            <button
+              className="ml-auto grid h-6 w-6 place-items-center rounded-md"
+              style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
+              title="Close (Esc)"
+              onClick={() => setBgMenu(false)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {/* SCROLL BODY — the whole menu scrolls inside the fixed drawer. */}
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {/* VISUAL WORLD (Phase 2) — thumbnail library + intensity/motion/seed +
               lesson-level actions. Atmosphere behind the cards; never a hero. */}
           <div className="mb-1 flex items-center justify-between">
@@ -456,7 +477,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
                 <span className="w-8 text-right tabular-nums">{Math.round((d.worldMotion ?? worldPreset?.motionIntensity ?? 0.15) * 100)}%</span>
               </div>
               <div className="mt-1.5 flex items-center gap-1">
-                <button className="rounded px-1.5 py-0.5" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} title="New star layout" onClick={() => update({ worldSeed: (d.worldSeed ?? 1) + 1 })}>Seed ↻ {d.worldSeed ?? 1}</button>
+                <button className="rounded px-1.5 py-0.5" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} title="Nudge the atmosphere layout" onClick={() => update({ worldSeed: (d.worldSeed ?? 1) + 1 })}>Seed ↻ {d.worldSeed ?? 1}</button>
                 <button className="rounded px-1.5 py-0.5" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} title="Reset intensity/motion to the preset defaults" onClick={() => applyWorld(worldPreset?.id)}>Reset</button>
               </div>
               <div className="mt-1 flex gap-1">
@@ -579,8 +600,9 @@ export function FrameNode({ id, data, selected }: NodeProps) {
             </div>
             <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Spawns editable cards at safe spots. Add on top of what's here.</p>
           </div>
+          </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* PHONE-LANDSCAPE CHECK (Phase 6) — advisory overlay: the phone-safe region
           + a non-blocking list of warnings. data-frame-chrome so film hides it;
