@@ -403,3 +403,35 @@ proven, not a detour from it.
   cycle on the paid side. The completion moment becomes the conversion moment
   (same success-not-struggle rule as the Bridge cards / completion promo in
   docs/VIDEO-FUNNEL-AND-PRICING.md).
+
+---
+
+## Deferred from the workflow report (Lee's picks, July 2026)
+
+The efficiency/quality report (Prompts 1–4 built the first tranche: duplicate
+frame+lesson, snippet library, storyboard-first + script money-lines + read-time
++ rehearsal + safe-guides, beat-level segment cores). These are the picks Lee
+parked for later, in his priority order:
+
+- **Lesson themes (set-once styling).** A per-lesson master for World / font /
+  card-scale / intro so consistency is inherited, not re-fiddled per frame.
+  Every professor's output looks on-brand with zero per-frame setup.
+- **Voice-memo -> script transcription.** Talk through a frame; transcribe into
+  editable talking points. The 20% AI (transcription only) — the words stay
+  the professor's. Pairs with the money-line convention (Prompt 3).
+- **Solo-filming ergonomics — mostly covered by OBS** (countdown, hotkeys). The
+  in-app piece that remains is the Prompt-4 cue-log capture during film.
+- **Publishing / student-side:** auto-placement (videos land in the right
+  course/chapter from the frame binding), cram-pack bundling (binge a course
+  before the exam), derived cheat-sheets (a 1-page PDF from the authored legend
+  slips / JE templates — derived, not generated), drop-off analytics (which
+  frames get rewatched/abandoned -> where the explanation failed).
+- **Professor onboarding:** a 20-minute guided first-run (chapter -> scaffold ->
+  4 frames -> talking points -> film -> publish), per-professor style presets,
+  and a shared starter library of frame archetypes + lesson scaffolds (network
+  effect as more professors join).
+- **INTERACTIVE CRAM PLAYER — design LOCKED.** The student attempts the
+  interactive card (JE / CEQ) FIRST; the professor's recorded explanation
+  reveals AFTER. The per-beat video SEGMENTS (Prompt 4 cores, now built) are the
+  prerequisite — each beat is an independently addressable clip the player can
+  gate behind the attempt. Build it with the student shell.
