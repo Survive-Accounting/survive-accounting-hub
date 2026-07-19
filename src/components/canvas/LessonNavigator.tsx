@@ -58,13 +58,10 @@ export function LessonNavigator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nav.currentFrameId]);
 
-  // ON LOAD: open the course's FIRST frame (locked into frames, not the grid).
-  useEffect(() => {
-    if (didInit.current || lessons.length === 0) return;
-    didInit.current = true;
-    if (!nav.currentFrameId) window.setTimeout(() => enterLesson(lessons[0]), 700);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessons.length]);
+  // ON LOAD: the ROUTE owns the camera now — it fits the most-recent lesson's
+  // big-picture (birds-eye), never auto-enters a frame (Lee's call). The navigator
+  // just follows.
+  void didInit;
 
   if (lessons.length === 0) return null;
 

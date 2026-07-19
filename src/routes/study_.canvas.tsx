@@ -84,7 +84,6 @@ import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeL
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
 import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
-import { GhostCellsLayer } from "@/components/canvas/GhostCellsLayer";
 import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
 import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
@@ -295,12 +294,14 @@ function LessonNode({ id, data, selected }: NodeProps) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        // size comes from the NODE (width/height) — NodeResizer drives it live;
-        // data.w/h stay synced on resize-end for the parenting hit test
+        // FRAMES-ONLY AUTHORING (Lee's call): the lesson draws NOTHING at rest —
+        // no box, no tint, no header, no beat-column labels. Only the frames show.
+        // The node stays a hit-testable container so hovering reveals its chrome
+        // (the bottom lesson navigator already tells Lee which lesson he's in).
         minWidth: 180,
         minHeight: 56,
-        background: tint.fill,
-        border: `1.5px solid ${selected ? tint.edgeOn : tint.edge}`,
+        background: "transparent",
+        border: `1.5px solid ${selected ? tint.edgeOn : "transparent"}`,
         boxShadow: selected ? `0 0 24px -8px ${tint.glow}` : "none",
       }}
     >
@@ -353,28 +354,11 @@ function LessonNode({ id, data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* GRID COLUMN HEADERS (FG2): the 4 beats as labelled columns; the Check
-          column keeps its red treatment. Empty beats show a placeholder cell so
-          a beat never renders as a gap. Hidden in film (data-frame-chrome). */}
-      <div data-frame-chrome className="pointer-events-none absolute inset-0 z-0">
-        {BEAT_COLUMNS.map((b, ci) => {
-          const cbm = BEAT_META[b];
-          const col = framesInBeat(nodes as never, id, b);
-          return (
-            <div key={b} className="absolute" style={{ left: columnX(ci), top: GRID.lessonHeaderH, width: FRAME_W }}>
-              <div className="rounded px-1.5 py-0.5 text-[13px] font-bold uppercase tracking-wider" style={{ color: cbm.color, background: b === "cram" ? "rgba(206,17,38,0.10)" : "transparent", display: "inline-block" }}>{cbm.label}</div>
-              {col.length === 0 && (
-                <div className="mt-2 grid place-items-center rounded-lg text-[12px] italic" style={{ width: FRAME_W, height: FRAME_H, border: `1.5px dashed ${cbm.edge}`, background: cbm.tint, color: NEON.muted }}>
-                  empty {cbm.label} — press ↓ inside a frame to add
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {/* Grid column headers + empty-beat placeholders removed (frames-only). */}
 
-      {/* THE CALM BAND LABEL — the only thing visible at rest (title + tint). */}
-      <div className="relative z-[1] flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em]" style={{ color: tint.ink }}>
+      {/* HOVER CHROME BAND — nothing at rest; on hover/selected it fades in the
+          lesson label + actions. (Was always-on before; now hidden by default.) */}
+      <div className={`relative z-[1] flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em] transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`} style={{ color: tint.ink }}>
         {d.check && <Flag className="h-3 w-3 shrink-0" style={{ color: tint.ink }} />}
         {headingText ? (
           <span title="Label follows the heading inside this lesson">{headingText}</span>
@@ -1063,7 +1047,7 @@ function PresentCanvas() {
   }, []);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
-  const [backstage, setBackstage] = useState<BackstageMode>("cinema"); // AC1: authoring-only pane background (film keeps the dark stage)
+  const [backstage, setBackstage] = useState<BackstageMode>("dark"); // dots-only matrix by default (no SURVIVE backdrop) — Lee's call; cinema still selectable
   const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
@@ -1432,6 +1416,9 @@ function PresentCanvas() {
   // SPACE-WALK cursor (PROMPT C): the lesson whose deck the show key is
   // currently walking — follows the last deal; a selected card's lesson wins.
   const walkLessonRef = useRef<string | null | undefined>(undefined);
+  // MOST-RECENT LESSON (for on-load start): set on every frame enter; persisted in
+  // sceneSettings.lastLessonId so a reload lands on the lesson Lee was working in.
+  const lastLessonRef = useRef<string | null>(null);
 
   // ---- REGION SCAFFOLD (PROMPT C, the Wednesday accelerator): one dialog
   // (region name + course) stamps a laid-out cluster — full-width header
@@ -1754,6 +1741,7 @@ function PresentCanvas() {
     if (!f || f.type !== "frame") return;
     const r = absRectOf(f as never, byId as never);
     setCurrentFrameId(frameId);
+    if (f.parentId) lastLessonRef.current = f.parentId; // remember the lesson we're working in (for on-load)
     lastUserView.current = Date.now(); // suppress auto-fit fighting the frame camera
     // EXACT FIT (the whole point: frame bounds = the viewport). Compute the
     // viewport directly rather than fitBounds so the shot is deterministic —
@@ -2739,7 +2727,7 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastLessonId: lastLessonRef.current },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
@@ -2806,7 +2794,7 @@ function PresentCanvas() {
       setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames !== false); // default on
       setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
       setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
-      { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "dark" || bs === "gray" || bs === "light" ? bs : "cinema"); } // default cinema
+      { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "cinema" || bs === "gray" || bs === "light" ? bs : "dark"); } // default dark (dots-only)
       setFilmEntrancePop((nj.sceneSettings as { filmEntrancePop?: boolean } | undefined)?.filmEntrancePop !== false); // default on
       setFilmCheckGlow((nj.sceneSettings as { filmCheckGlow?: boolean } | undefined)?.filmCheckGlow !== false); // default on
       setFramePath((nj.sceneSettings as { framePath?: boolean } | undefined)?.framePath === true); // default off
@@ -2820,8 +2808,24 @@ function PresentCanvas() {
       setSceneChapterId(ss?.chapterId ?? null);
       const cfg = decodeBg(payload.bg);
       if (cfg) setBgCfg(cfg);
-      const vpFinal = vp;
-      if (vpFinal && typeof vpFinal.zoom === "number") setTimeout(() => rf.setViewport(vpFinal), 0);
+      // ON-LOAD CAMERA (Lee's call) — ONE deterministic destination: the
+      // big-picture (birds-eye) of the MOST-RECENT lesson worked on. Never restore
+      // the saved viewport, never auto-enter a frame (that was the "goes one place
+      // then another" confusion). Falls back to the first lesson by path order.
+      void vp;
+      const startLessonId = (nj.sceneSettings as { lastLessonId?: string | null } | undefined)?.lastLessonId ?? null;
+      lastLessonRef.current = startLessonId;
+      setCurrentFrameId(null);
+      window.setTimeout(() => {
+        const ns = rf.getNodes();
+        const byId = new Map(ns.map((n) => [n.id, n]));
+        const lessons = ns.filter((n) => n.type === "lesson" && !n.parentId);
+        if (lessons.length === 0) { void rf.fitView({ duration: 0, padding: 0.15 }); return; }
+        const po = (n: { data: Record<string, unknown> }) => { const v = n.data.pathOrder; return typeof v === "number" ? v : Number.POSITIVE_INFINITY; };
+        const target = (startLessonId ? byId.get(startLessonId) : undefined)
+          ?? [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x)[0];
+        if (target) { const r = absRectOf(target as never, byId as never); void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: 0, padding: 0.12 }); }
+      }, 450);
       // HYDRATION INTEGRITY: rf.setNodes silently no-ops when the RF store
       // isn't ready (fresh mount + restore effect races onInit). Re-apply once;
       // if the canvas is still empty, say so loudly — autosave already refuses
@@ -3827,20 +3831,12 @@ function PresentCanvas() {
         {bgCfg.mode !== "video" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
         {/* SKELETON GRID (P4): ghost previews for named decks' undealt slots */}
         <SkeletonLayer decks={decks} />
-        {/* GHOST CELLS: empty region-grid slots as "+ add lesson" (authoring only) */}
-        {chrome && (
-          <GhostCellsLayer
-            onAdd={(pos, pathOrder) => {
-              // the outline list on the new lesson shows every existing lesson + itself
-              const existing = rf.getNodes().filter((n) => n.type === "lesson").map((n) => String((n.data as { label?: string }).label ?? "")).filter(Boolean);
-              const cellNodes = buildLessonCell(pos, "New lesson", pathOrder, false, [...existing, "New lesson"]);
-              bus.dispatch(addNodesCmd(rf as unknown as RfLike, cellNodes, "add lesson"));
-              if (pathOrder > 15) flashToast("16th lesson — grid extended a row"); // soft warn, never block
-            }}
-          />
-        )}
-        {/* AC2/AC3: per-lesson ghost sub-frame slots + toggleable numbered film-order path */}
-        {chrome && <FrameGridOverlay showPath={framePath} onAddFrame={(lessonId, beat, sub) => { makeFrameAt(lessonId, beat, sub); }} />}
+        {/* GHOST CELLS + ghost sub-frame slots are "generated outside the frames" —
+            removed by default (Lee's call: only the frames show). Add lessons via
+            the region-scaffold button; add frames via ↓ / the lesson "+frame" /
+            duplicate. FrameGridOverlay still renders when the film-order PATH is
+            toggled on (so that feature keeps working). */}
+        {chrome && framePath && <FrameGridOverlay showPath={framePath} onAddFrame={(lessonId, beat, sub) => { makeFrameAt(lessonId, beat, sub); }} />}
         {/* CINEMA: giant SURVIVE wordmark laid across the scaffolding, behind the nodes */}
         {chrome && backstage === "cinema" && <SurviveBackdrop />}
         {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
