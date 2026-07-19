@@ -2,12 +2,71 @@
 // then the LIBRARY (every entry / computation / memorize / question from the scenario
 // docs), searchable + filtered by course family, chapter, and card type. Fully collapsible.
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, Layers, Pencil, Search, Trash2 } from "lucide-react";
 
 import { NEON } from "./theme";
+import { SNIPPET_DND_MIME } from "./snippet-payload";
 import { blankCard, formulaAle, scheduleTemplate, CARD_KIND_LABEL } from "./templates";
 import type { LibraryItem } from "./library";
 import type { CardData, CardKind, SchedulePreset } from "./types";
+
+/** A saved snippet as the palette needs it (id + name). */
+export interface SnippetListItem { id: string; name: string }
+
+/** MY SNIPPETS — the personal clip-bin. Click to spawn at the view center (into
+ *  the entered frame); drag onto the canvas to drop it there. Rename + delete
+ *  inline. Global across scenes/courses. */
+function SnippetSection({ snippets, onSpawn, onRename, onDelete }: {
+  snippets: SnippetListItem[];
+  onSpawn: (id: string) => void;
+  onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  return (
+    <div className="mb-2">
+      <button className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }} onClick={() => setOpen((v) => !v)} title="Your reusable saved clusters">
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <Layers className="h-3 w-3" /> My snippets <span style={{ color: NEON.muted }}>({snippets.length})</span>
+      </button>
+      {open && (
+        snippets.length === 0 ? (
+          <p className="px-1 py-1 text-[10px] italic leading-snug" style={{ color: NEON.muted }}>Select a card (or a group) → “Save as snippet”. They show up here, usable in any scene.</p>
+        ) : (
+          <div className="space-y-1">
+            {snippets.map((s) => (
+              <div
+                key={s.id}
+                draggable={renaming !== s.id}
+                onDragStart={(e) => { e.dataTransfer.setData(SNIPPET_DND_MIME, s.id); e.dataTransfer.effectAllowed = "copy"; }}
+                className="group flex items-center gap-1 rounded-md px-2 py-1 transition-all hover:-translate-y-px"
+                style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(214,84,138,0.06)", cursor: "grab" }}
+              >
+                {renaming === s.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={s.name}
+                    className="w-full bg-transparent text-[12px] outline-none"
+                    style={{ color: NEON.text }}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { onRename(s.id, (e.target as HTMLInputElement).value); setRenaming(null); } if (e.key === "Escape") setRenaming(null); }}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.name) onRename(s.id, v); setRenaming(null); }}
+                  />
+                ) : (
+                  <>
+                    <button className="min-w-0 flex-1 truncate text-left text-[12px] font-medium" style={{ color: NEON.text }} onClick={() => onSpawn(s.id)} title="Click to spawn (drag to place). Lands in the entered frame.">{s.name}</button>
+                    <button className="shrink-0 opacity-0 transition-opacity group-hover:opacity-70 hover:!opacity-100" style={{ color: NEON.muted }} title="Rename" onClick={() => setRenaming(s.id)}><Pencil className="h-3 w-3" /></button>
+                    <button className="shrink-0 opacity-0 transition-opacity group-hover:opacity-70 hover:!opacity-100" style={{ color: NEON.red }} title="Delete snippet (spawned copies are untouched)" onClick={() => { if (window.confirm(`Delete snippet “${s.name}”? Cards already spawned from it stay.`)) onDelete(s.id); }}><Trash2 className="h-3 w-3" /></button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
 
 type BlankSpec = { kind: CardKind; label: string; preset?: SchedulePreset; special?: "ale" };
 
@@ -119,6 +178,10 @@ export function Palette({
   focus = false,
   sceneCourseKey = null,
   docked = false,
+  snippets = [],
+  onSpawnSnippet,
+  onRenameSnippet,
+  onDeleteSnippet,
 }: {
   /** Pre-filtered by the route: ACTIVE + AUTHORED only (content reset). */
   library: LibraryItem[];
@@ -132,6 +195,11 @@ export function Palette({
   /** DOCKED (declutter run): fills the drawer panel instead of floating
    *  top-left — no collapse chrome, height from the parent. */
   docked?: boolean;
+  /** MY SNIPPETS (PROMPT 2) — the personal clip-bin, global across scenes. */
+  snippets?: SnippetListItem[];
+  onSpawnSnippet?: (id: string) => void;
+  onRenameSnippet?: (id: string, name: string) => void;
+  onDeleteSnippet?: (id: string) => void;
 }) {
   const [q, setQ] = useState("");
   const [course, setCourse] = useState<string>("all");
@@ -210,6 +278,14 @@ export function Palette({
         <BlankGroup title="Elements" color={NEON.cyan} blanks={ELEMENT_BLANKS} onSpawn={onSpawn} />
         <BlankGroup title="Bridge" color={NEON.pinkSoft} blanks={BRIDGE_BLANKS} onSpawn={onSpawn} />
         <MoreBlanks onSpawn={onSpawn} />
+        {onSpawnSnippet && (
+          <SnippetSection
+            snippets={snippets}
+            onSpawn={onSpawnSnippet}
+            onRename={(id, name) => onRenameSnippet?.(id, name)}
+            onDelete={(id) => onDeleteSnippet?.(id)}
+          />
+        )}
       </div>
 
       {/* LIBRARY — collapsible; a 1,000-item list is prep clutter mid-lesson */}

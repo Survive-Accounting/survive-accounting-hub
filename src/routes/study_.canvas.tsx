@@ -73,6 +73,8 @@ import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuck
 import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
 import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
 import { decksOfLesson, duplicateLessonDecks, mintDeckIds, nextRegionCell } from "@/components/canvas/duplicate-lesson";
+import { buildSnippetPayload, spawnSnippet, SNIPPET_DND_MIME, type SnippetPayload } from "@/components/canvas/snippet-payload";
+import { deleteSnippet as deleteSnippetFn, listSnippets, renameSnippet as renameSnippetFn, saveSnippet as saveSnippetFn, type SnippetRow } from "@/lib/snippet.functions";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
@@ -720,7 +722,7 @@ const LS_KEY = "sa-canvas-fallback-scene";
 // subscriptions it needs to track pan/zoom + drags live HERE — not on the
 // 2500-line route, which previously re-rendered on every pan/zoom frame just
 // to reposition this bar. Behavior identical; only the render scope shrank.
-function GroupChromeBar() {
+function GroupChromeBar({ onSaveSnippet }: { onSaveSnippet: (ids: string[]) => void }) {
   const rf = useReactFlow();
   const nodes = useNodes();
   useStore((s) => s.transform); // re-render the BAR (not the route) on pan/zoom
@@ -798,6 +800,7 @@ function GroupChromeBar() {
     >
       <span className="px-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>{selectedCards.length} cards</span>
       <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Clone all — preserved layout, offset below (one undo step)" onClick={cloneAll}>clone</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.pink, border: "1px solid rgba(214,84,138,0.5)" }} title="Save this selection as a reusable snippet (My snippets)" onClick={() => onSaveSnippet(selectedCards.map((n) => n.id))}>snippet</button>
       <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }} title="Add all to the deck (one undo step)" onClick={deckAll}>deck</button>
       <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }} title="Tuck all into the deck (one undo step)" onClick={tuckAll}>tuck</button>
       <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }} title="Delete all (confirms past 3; one undo step)" onClick={deleteAll}>delete</button>
@@ -1892,6 +1895,116 @@ function PresentCanvas() {
     });
     window.setTimeout(() => void rf.fitBounds({ x: dest.x, y: dest.y, width: cell.w, height: cell.h }, { duration: 500, padding: 0.12 }), 60);
   }, [rf, decks, toClone]);
+
+  // ---- SNIPPET LIBRARY (PROMPT 2 — personal clip-bin) ------------------------
+  // Save a card or a multi-selection as a reusable snippet (global across
+  // scenes/courses); spawn it anywhere (click or drag from the palette), landing
+  // parented to the frame/lesson dropped into with fresh ids. Reuses the Prompt 1
+  // deep-copy core (snippet-payload.ts → cloneNodeSet).
+  const [snippets, setSnippets] = useState<SnippetRow[]>([]);
+  const [snipSaveIds, setSnipSaveIds] = useState<string[] | null>(null); // save dialog
+  const [snipName, setSnipName] = useState("");
+  const [snipMenu, setSnipMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null); // right-click
+
+  const refreshSnippets = useCallback(async () => {
+    try { setSnippets(await listSnippets()); } catch (e) { flashToast(e instanceof Error ? e.message : "snippets unavailable"); }
+  }, [flashToast]);
+  useEffect(() => { void refreshSnippets(); }, [refreshSnippets]);
+
+  /** The smallest frame (preferred) else lesson whose ABSOLUTE rect contains a
+   *  flow point — the parent a dropped snippet homes into. */
+  const containerAt = useCallback((pt: { x: number; y: number }): CardNode | null => {
+    const all = rf.getNodes() as CardNode[];
+    const byId = new Map(all.map((n) => [n.id, n as never]));
+    const hit = (types: string[]) => all
+      .filter((n) => types.includes(n.type ?? ""))
+      .map((n) => ({ n, r: absRectOf(n as never, byId) }))
+      .filter(({ r }) => pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h)
+      .sort((a, b) => a.r.w * a.r.h - b.r.w * b.r.h)[0]?.n ?? null;
+    return hit(["frame"]) ?? hit(["lesson"]);
+  }, [rf]);
+
+  /** Place a snippet payload: fresh ids, offset to `atLocal` (parent-local),
+   *  parented to `parentId`, landing on top. ONE undoable bus command. */
+  const placeSnippet = useCallback((payload: SnippetPayload, atLocal: { x: number; y: number }, parentId?: string) => {
+    const { nodes, edges } = spawnSnippet(payload, (k) => cardId(k), atLocal, parentId, (n) => nextZ(n.type, (n.data as { kind?: string }).kind));
+    if (nodes.length === 0) { flashToast("snippet is empty"); return; }
+    bus.dispatch(addNodesAndEdgesCmd(rf as unknown as RfLike, nodes.map((n) => ({ ...n, selected: false })), edges, "spawn snippet"));
+  }, [rf, flashToast]);
+
+  /** Spawn by id from the palette. Click (no drop point) → center of the view,
+   *  parented to the entered frame if any. Drop → the flow point + the container
+   *  under it. */
+  const spawnSnippetById = useCallback((id: string, dropFlowPt?: { x: number; y: number }) => {
+    const row = snippets.find((s) => s.id === id);
+    if (!row) return;
+    let payload: SnippetPayload;
+    try { payload = JSON.parse(row.payload_json) as SnippetPayload; } catch { flashToast("snippet payload unreadable"); return; }
+    if (dropFlowPt) {
+      const parent = containerAt(dropFlowPt);
+      if (parent) {
+        const o = absRectOf(parent as never, new Map((rf.getNodes() as CardNode[]).map((n) => [n.id, n as never])));
+        placeSnippet(payload, { x: dropFlowPt.x - o.x, y: dropFlowPt.y - o.y }, parent.id);
+      } else {
+        placeSnippet(payload, dropFlowPt);
+      }
+      return;
+    }
+    // click: center of the viewport; parent to the entered frame if we're in one
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const frameId = currentFrameRef.current;
+    if (frameId) {
+      const f = rf.getNode(frameId);
+      const o = f ? absRectOf(f as never, new Map((rf.getNodes() as CardNode[]).map((n) => [n.id, n as never]))) : null;
+      placeSnippet(payload, o ? { x: center.x - o.x, y: center.y - o.y } : center, frameId);
+    } else {
+      placeSnippet(payload, center);
+    }
+  }, [snippets, containerAt, placeSnippet, rf, flashToast]);
+
+  /** Save the given nodes (or the current selection) as a snippet — opens the
+   *  name dialog. Filters out containers (snippets are card clusters). */
+  const openSnippetSave = useCallback((ids: string[]) => {
+    const cardIds = ids.filter((id) => { const n = rf.getNode(id); return n && !isContainerType(n.type); });
+    if (cardIds.length === 0) { flashToast("select a card (or a group) to save as a snippet"); return; }
+    setSnipMenu(null);
+    setSnipName("");
+    setSnipSaveIds(cardIds);
+  }, [rf, flashToast]);
+
+  const commitSnippetSave = useCallback(async (name: string) => {
+    const ids = snipSaveIds;
+    if (!ids || ids.length === 0) return;
+    const all = rf.getNodes() as CardNode[];
+    const byId = new Map(all.map((n) => [n.id, n as never]));
+    const idSet = new Set(ids);
+    const cloneNodes: CloneNode[] = ids.map((id) => byId.get(id) as CardNode | undefined).filter(Boolean).map((n) => {
+      const node = n as CardNode;
+      const o = absRectOf(node as never, byId);
+      return { id: node.id, type: node.type, parentId: node.parentId, position: { x: o.x, y: o.y }, width: (node as { width?: number }).width, height: (node as { height?: number }).height, data: node.data as Record<string, unknown> };
+    });
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => idSet.has(e.source) && idSet.has(e.target));
+    const payload = buildSnippetPayload(cloneNodes, edges);
+    try {
+      await saveSnippetFn({ data: { name: name.trim() || "Snippet", payload_json: JSON.stringify(payload) } });
+      setSnipSaveIds(null);
+      await refreshSnippets();
+      flashToast(`Saved snippet · ${cloneNodes.length} card${cloneNodes.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      flashToast(e instanceof Error ? e.message : "snippet save failed");
+    }
+  }, [snipSaveIds, rf, refreshSnippets, flashToast]);
+
+  const renameSnippet = useCallback(async (id: string, name: string) => {
+    try { await renameSnippetFn({ data: { id, name } }); await refreshSnippets(); }
+    catch (e) { flashToast(e instanceof Error ? e.message : "rename failed"); }
+  }, [refreshSnippets, flashToast]);
+
+  const deleteSnippet = useCallback(async (id: string) => {
+    try { await deleteSnippetFn({ data: { id } }); await refreshSnippets(); }
+    catch (e) { flashToast(e instanceof Error ? e.message : "delete failed"); }
+  }, [refreshSnippets, flashToast]);
 
   const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, reorder: reorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, reorderFrame, duplicateFrame, duplicateLesson]);
 
@@ -3213,7 +3326,9 @@ function PresentCanvas() {
           // RUNG 1 — close any open route-level dialog/popover/menu FIRST (Esc just
           // dismisses what's open; it never zooms the board out from under an open
           // menu). The bottom toolbar stays put — clean/film are lower rungs.
-          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor) {
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor || snipMenu || snipSaveIds) {
+            setSnipMenu(null);
+            setSnipSaveIds(null);
             setHelpOpen(false);
             setLoadOpen(false);
             setImportPreview(null);
@@ -3340,7 +3455,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
   );
   useKeymap(bindings);
 
@@ -3393,7 +3508,12 @@ function PresentCanvas() {
     <FrameNavContext.Provider value={frameNav}>
     <SpotlightCtx.Provider value={spot}>
     <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
-    <div className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`} style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}>
+    <div
+      className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
+      style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes(SNIPPET_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
+      onDrop={(e) => { const id = e.dataTransfer.getData(SNIPPET_DND_MIME); if (!id) return; e.preventDefault(); spawnSnippetById(id, rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}
+    >
       <style>{FILM_MODE_CSS}</style>
       {/* TAKE BOARD: loud banner when Mux env vars / frame_takes table are missing */}
       {chrome && <MuxBanner />}
@@ -3503,6 +3623,18 @@ function PresentCanvas() {
         onConnect={onConnect}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
+        onNodeContextMenu={(e, node) => {
+          if (isContainerType(node.type)) return; // frames/lessons keep the native menu
+          e.preventDefault();
+          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
+          const ids = sel.includes(node.id) && sel.length > 0 ? sel : [node.id];
+          setSnipMenu({ x: e.clientX, y: e.clientY, ids });
+        }}
+        onSelectionContextMenu={(e, sel) => {
+          e.preventDefault();
+          const ids = sel.filter((n) => !isContainerType(n.type)).map((n) => n.id);
+          if (ids.length) setSnipMenu({ x: e.clientX, y: e.clientY, ids });
+        }}
         connectionMode={ConnectionMode.Loose}
         connectionRadius={28}
         connectionLineType={ConnectionLineType.SmoothStep}
@@ -3647,6 +3779,10 @@ function PresentCanvas() {
               onSpawn={spawn}
               focus={focusPalette}
               sceneCourseKey={sceneCourseId}
+              snippets={snippets}
+              onSpawnSnippet={(id) => spawnSnippetById(id)}
+              onRenameSnippet={renameSnippet}
+              onDeleteSnippet={deleteSnippet}
             />
           )}
           {drawerPanel === "outline" && <OutlinePanel />}
@@ -3657,7 +3793,7 @@ function PresentCanvas() {
 
       {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection; owns its
           own subscriptions so pan/zoom doesn't re-render the route */}
-      {chrome && <GroupChromeBar />}
+      {chrome && <GroupChromeBar onSaveSnippet={openSnippetSave} />}
 
       {/* RESTORE POPOUTS — browsers can't auto-reopen windows on reload, so if a
           prior session had panels popped we offer a one-click restore (from this
@@ -4218,6 +4354,46 @@ function PresentCanvas() {
 
       {/* DUPLICATE FRAME dialog (PROMPT 1) — pick a target lesson + beat */}
       {dupFrameFor && <DuplicateFrameDialog frameId={dupFrameFor} onClose={() => setDupFrameFor(null)} onDuplicate={(fid, dest) => duplicateFrame(fid, dest)} />}
+
+      {/* SNIPPET right-click menu (PROMPT 2) */}
+      {snipMenu && (
+        <>
+          <div className="fixed inset-0 z-[75]" onClick={() => setSnipMenu(null)} onContextMenu={(e) => { e.preventDefault(); setSnipMenu(null); }} />
+          <div className="fixed z-[76] overflow-hidden rounded-lg py-1 text-[12px]" style={{ left: snipMenu.x, top: snipMenu.y, background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => openSnippetSave(snipMenu.ids)}>
+              <Layers className="h-3.5 w-3.5" style={{ color: NEON.pink }} /> Save as snippet{snipMenu.ids.length > 1 ? ` (${snipMenu.ids.length} cards)` : ""}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* SNIPPET save dialog (PROMPT 2) — name it */}
+      {snipSaveIds && (
+        <div className="absolute inset-0 z-[70] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSnipSaveIds(null)}>
+          <form
+            className="w-80 max-w-[92vw] rounded-xl p-4"
+            style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => { e.preventDefault(); void commitSnippetSave(snipName); }}
+          >
+            <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}><Layers className="h-3.5 w-3.5" /> Save as snippet</div>
+            <input
+              autoFocus
+              value={snipName}
+              onChange={(e) => setSnipName(e.target.value)}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") setSnipSaveIds(null); }}
+              placeholder="e.g. Adjusting stub"
+              className="w-full rounded bg-black/30 px-2 py-1 text-[13px] outline-none"
+              style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+            />
+            <p className="mt-1 text-[10px]" style={{ color: NEON.muted }}>{snipSaveIds.length} card{snipSaveIds.length === 1 ? "" : "s"} + layout · usable in any scene.</p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" className="rounded px-2.5 py-1 text-[11px] font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={() => setSnipSaveIds(null)}>Cancel</button>
+              <button type="submit" disabled={!snipName.trim()} className="rounded px-2.5 py-1 text-[11px] font-bold disabled:opacity-40" style={{ background: NEON.pink, color: "#0B1322" }}>Save</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* REGION SCAFFOLD dialog (PROMPT C) */}
       {scaffoldOpen && (
