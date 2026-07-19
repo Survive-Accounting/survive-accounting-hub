@@ -1764,7 +1764,9 @@ function PresentCanvas() {
     const zoom = Math.max(0.08, Math.min(2.5, Math.min(cw / r.w, ch / r.h)));
     const x = cw / 2 - (r.x + r.w / 2) * zoom;
     const y = ch / 2 - (r.y + r.h / 2) * zoom;
-    void rf.setViewport({ x, y, zoom }, { duration: frameTransitionsRef.current ? 280 : 0 });
+    // INSTANT CUTS WHILE AUTHORING (Lee's call): the smooth camera push only runs
+    // in FILM mode; authoring/editing jumps instantly (no lag, no motion).
+    void rf.setViewport({ x, y, zoom }, { duration: filmRef.current && frameTransitionsRef.current ? 280 : 0 });
   }, [rf]);
 
   // Keep the frame pinned to its exact 16:9 fit when the window resizes.
@@ -1781,13 +1783,39 @@ function PresentCanvas() {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const f = byId.get(cur);
     const lesson = f?.parentId ? byId.get(f.parentId) : undefined;
-    const dur = frameTransitionsRef.current ? 280 : 0;
+    const dur = filmRef.current && frameTransitionsRef.current ? 280 : 0; // instant while authoring
     if (lesson) {
       const r = absRectOf(lesson as never, byId as never);
       void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: dur, padding: 0.12 });
     } else {
       void rf.fitView({ duration: dur, padding: 0.2 });
     }
+  }, [rf]);
+
+  /** BIRDS-EYE = the CURRENT lesson only (never the whole course). Picks the
+   *  current frame's lesson → the walk lesson → the lesson nearest the viewport
+   *  center, and fits the camera to it. The Esc ladder bottoms out here. */
+  const fitCurrentLesson = useCallback(() => {
+    const nodes = rf.getNodes();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const lessons = nodes.filter((n) => n.type === "lesson" && !n.parentId);
+    if (lessons.length === 0) { void rf.fitView({ duration: 300, padding: 0.15 }); return; }
+    let pickId: string | null = null;
+    const cf = currentFrameRef.current;
+    if (cf) pickId = rf.getNode(cf)?.parentId ?? null;
+    if (!pickId && walkLessonRef.current) pickId = walkLessonRef.current;
+    let lesson = pickId ? byId.get(pickId) : undefined;
+    if (!lesson) {
+      const vp = rf.getViewport();
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const cx = (-vp.x + (rect?.width ?? 1200) / 2) / vp.zoom;
+      const cy = (-vp.y + (rect?.height ?? 700) / 2) / vp.zoom;
+      lesson = lessons
+        .map((l) => ({ l, r: absRectOf(l as never, byId as never) }))
+        .sort((a, b) => Math.hypot(a.r.x + a.r.w / 2 - cx, a.r.y + a.r.h / 2 - cy) - Math.hypot(b.r.x + b.r.w / 2 - cx, b.r.y + b.r.h / 2 - cy))[0]?.l;
+    }
+    if (lesson) { const r = absRectOf(lesson as never, byId as never); void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: 300, padding: 0.12 }); }
+    else void rf.fitView({ duration: 300, padding: 0.15 });
   }, [rf]);
 
   /** Lesson-relative grid position for a (beat, subIndex) cell. */
@@ -3461,11 +3489,12 @@ function PresentCanvas() {
           // RUNG 2.5 — SPOTLIGHT exits first (SL2), before focus-zoom/film/frame
           if (spotRef.current?.active) { spotRef.current.exit(); return; }
           // RUNG 3 — exit focus zoom. A film-lock PUSH snaps back to the exact
-          // framed view; a normal focus-zoom fits the whole board (item 1).
+          // framed view; a normal focus-zoom fits the CURRENT LESSON (never the
+          // whole course).
           if (zoomedRef.current) {
             if (returnFromPush()) return;
             zoomedRef.current = false;
-            void rf.fitView({ duration: 400, padding: 0.15 });
+            fitCurrentLesson();
             return;
           }
           // RUNG 4 — FILM mode exits FIRST (FF-3), even inside a frame
@@ -3483,6 +3512,8 @@ function PresentCanvas() {
           if (currentFrameRef.current) { exitFrame(); return; }
           // RUNG 7 — clean screen off
           if (clean) { setClean(false); return; }
+          // RUNG 8 (TOP) — bottom out at a BIRDS-EYE of the CURRENT lesson only.
+          fitCurrentLesson();
         },
       },
       { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
@@ -3561,7 +3592,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, disarm, returnFromPush, armOrStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep],
   );
   useKeymap(bindings);
 
@@ -4055,8 +4086,8 @@ function PresentCanvas() {
           <TB title="Storyboard — every frame in film order; click one to jump in" active={storyboardOpen} onClick={() => setStoryboardOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>
           <TB title="Camera-safe guides — phone-safe, camera bubble, watermark + end-screen zones (enter a frame)" active={safeGuides} onClick={() => { const nv = !safeGuides; setSafeGuides(nv); if (nv && !currentFrameId) flashToast("Enter a frame to see the safe zones"); }}><Frame className="h-3.5 w-3.5" /></TB>
           <TB title="Recorder spike (EXPERIMENT — cam+mic in the browser; OBS remains the filming flow)" active={spikeOpen} onClick={() => setSpikeOpen((v) => !v)}><FlaskConical className="h-3.5 w-3.5" /></TB>
-          {/* BIRDS-EYE — the ONLY way out to the whole-course grid (else stay framed) */}
-          <TB title="Birds-eye view — zoom out to the whole course (pick a frame/lesson to dive back in)" onClick={() => { exitFrame(); window.setTimeout(() => void rf.fitView({ duration: 400, padding: 0.15 }), 300); }}><Eye className="h-3.5 w-3.5" /></TB>
+          {/* Birds-eye button removed — Esc bottoms out at the CURRENT lesson's
+              overview (fitCurrentLesson), never the whole course. */}
           {/* FRAME HEADER panel — on-camera header toggle + THIS lesson's intro/outro/preview */}
           <div className="relative">
             <TB title="Frame header — header HUD + this lesson's intro / outro / preview" active={frameHeaderOpen} onClick={() => setFrameHeaderOpen((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>

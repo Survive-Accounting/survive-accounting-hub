@@ -6,9 +6,9 @@
 //
 // Intensity scales overall opacity (kept in a muted band by clampWorldIntensity).
 // Motion is slow and OFF whenever the OS asks for reduced motion.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { clampWorldIntensity, clampWorldMotion, seededStars, worldById, type WorldPreset } from "./worlds";
+import { clampWorldIntensity, clampWorldMotion, worldById, type WorldPreset } from "./worlds";
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -24,8 +24,12 @@ function usePrefersReducedMotion(): boolean {
 }
 
 const WORLD_CSS = `
-@keyframes sa-world-tw { 0%,100% { opacity: var(--tw-lo); } 50% { opacity: var(--tw-hi); } }
 @keyframes sa-world-drift { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1.2%, -0.8%, 0); } }
+@keyframes sa-world-glow { 0%,100% { transform: translate3d(-2%,-1.5%,0) scale(1.06); } 50% { transform: translate3d(2%,1.5%,0) scale(1.12); } }
+/* MOTION ONLY IN FILM MODE (Lee's call) — authoring shows a STATIC gradient so
+   many frames on screen at once don't each animate/repaint (instant, no lag). */
+.film-mode .sa-world-glow-el { animation-name: sa-world-glow; }
+.film-mode .sa-world-drift-el { animation-name: sa-world-drift; }
 `;
 
 function Wireframe({ w, stroke, opacity }: { w: WorldPreset; stroke: string; opacity: number }) {
@@ -111,12 +115,7 @@ export function WorldBackground({ worldId, intensity, motion, seed }: {
   const mot = reduced ? 0 : clampWorldMotion(motion, w?.motionIntensity ?? 0.15);
   const sd = typeof seed === "number" ? seed : 1;
 
-  const stars = useMemo(() => {
-    if (!w) return [];
-    const count = Math.round(w.stars * (0.5 + inten));
-    return seededStars(w.id, sd, count);
-  }, [w, inten, sd]);
-
+  void sd; // seed retained for API compatibility; the star field was removed (Lee's call)
   if (!w) return null;
   const p = w.palette;
   const scrim = scrimStyle(w, inten);
@@ -126,48 +125,34 @@ export function WorldBackground({ worldId, intensity, motion, seed }: {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity: 0.55 + inten * 0.75, zIndex: 0 }} aria-hidden>
       <style>{WORLD_CSS}</style>
-      {/* base graded navy + an OFF-center soft glow at the focal point */}
+      {/* base graded navy + an OFF-center soft glow that slowly breathes/drifts —
+          THE moving gradient (the only motion now the stars are gone). */}
       <div
-        className="absolute inset-0"
+        className="sa-world-glow-el absolute inset-0"
         style={{
           background: `radial-gradient(90% 80% at ${w.focalPoint.x * 100}% ${w.focalPoint.y * 100}%, ${p.glow} 0%, ${p.base2} 42%, ${p.base} 100%)`,
+          // animation-NAME is applied only under .film-mode (see WORLD_CSS); here we
+          // just set the timing so authoring stays a static gradient.
+          animationDuration: mot > 0 ? `${Math.round(30 - mot * 12)}s` : undefined,
+          animationTimingFunction: "ease-in-out",
+          animationIterationCount: "infinite",
+          willChange: mot > 0 ? "transform" : undefined,
         }}
       />
-      {/* star field (+ faint wireframe), optionally drifting very slowly */}
+      {/* faint wireframe only (NO stars — Lee wants just the moving gradient),
+          drifting very slowly so the atmosphere breathes. */}
       <div
-        className="absolute"
+        className="sa-world-drift-el absolute"
         style={{
           inset: "-2%",
-          animation: mot > 0 ? `sa-world-drift ${driftDur} ease-in-out infinite alternate` : undefined,
+          animationDuration: mot > 0 ? driftDur : undefined,
+          animationTimingFunction: "ease-in-out",
+          animationIterationCount: "infinite",
+          animationDirection: "alternate",
         }}
       >
         <svg viewBox="0 0 100 56.25" preserveAspectRatio="xMidYMid slice" className="h-full w-full">
           <Wireframe w={w} stroke={p.accent} opacity={0.22 + inten * 0.25} />
-          {stars.map((s, i) => (
-            <circle
-              key={i}
-              cx={s.x * 100}
-              cy={s.y * 56.25}
-              r={s.r * (0.18 + inten * 0.12)}
-              fill={s.tw > 0.7 ? p.accent : "#C9D6F5"}
-              style={
-                mot > 0
-                  ? ({
-                      opacity: 0.35 + s.tw * 0.4,
-                      // twinkle a subset, staggered by index
-                      ...(s.tw > 0.55
-                        ? {
-                            animation: `sa-world-tw ${(3 + s.tw * 4).toFixed(1)}s ease-in-out ${(i % 7) * 0.3}s infinite`,
-                            // CSS custom props for the keyframe
-                            ["--tw-lo" as string]: `${0.2 + s.tw * 0.2}`,
-                            ["--tw-hi" as string]: `${0.5 + s.tw * 0.4}`,
-                          }
-                        : {}),
-                    } as React.CSSProperties)
-                  : { opacity: 0.3 + s.tw * 0.4 }
-              }
-            />
-          ))}
         </svg>
       </div>
       {scrim && <div className="absolute inset-0" style={scrim} />}

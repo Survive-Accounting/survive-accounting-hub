@@ -538,6 +538,11 @@ export interface LessonBox {
   worldDefault?: string;
   worldDefaultIntensity?: number;
   worldDefaultMotion?: number;
+  /** PER-BEAT WORLD DEFAULTS — a subtle differentiation between Hook / Teach /
+   *  Model·Practice / Cram within a lesson. Resolution order for a frame:
+   *  own `world` → this beat's default → the lesson `worldDefault` → none.
+   *  Keyed by beat ("hook" | "teach" | "model_practice" | "cram"). Additive. */
+  worldByBeat?: Partial<Record<string, { world?: string; intensity?: number; motion?: number }>>;
   // NOTE: the old per-lesson `home` flag was dropped (L3) — Home is now just the
   // top outline entry + a Home element (welcome heading + Ask Lee) in the region.
 }

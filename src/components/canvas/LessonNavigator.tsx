@@ -72,8 +72,10 @@ export function LessonNavigator() {
 
   return (
     <div className="absolute bottom-[4.5rem] left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
+      {/* SIMPLE MENU (de-lag): solid panels, no backdrop-blur (it repainted the
+          whole screen over the animated backstage every frame), no transitions. */}
       {expanded && (
-        <div className="flex max-w-[80vw] flex-wrap justify-center gap-1 rounded-xl px-2 py-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+        <div className="flex max-w-[80vw] flex-wrap justify-center gap-1 rounded-xl px-2 py-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
           {frames.length === 0 && <span className="px-1 text-[10px] italic" style={{ color: NEON.muted }}>no frames in this lesson</span>}
           {frames.map((f, i) => {
             const active = nav.currentFrameId === f.id;
@@ -91,14 +93,14 @@ export function LessonNavigator() {
           })}
         </div>
       )}
-      <div className="flex items-center gap-1 rounded-full px-1 py-1" style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}>
-        <button className="grid h-6 w-6 place-items-center rounded-full transition-colors disabled:opacity-40" style={{ color: NEON.text }} disabled={cur === 0} onClick={() => goLesson(-1)} title="Previous lesson"><ChevronLeft className="h-4 w-4" /></button>
+      <div className="flex items-center gap-1 rounded-full px-1 py-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
+        <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-40" style={{ color: NEON.text }} disabled={cur === 0} onClick={() => goLesson(-1)} title="Previous lesson"><ChevronLeft className="h-4 w-4" /></button>
         <button className="flex items-center gap-1.5 px-2 text-[11.5px] font-bold" style={{ color: NEON.text }} onClick={() => { setExpanded((v) => !v); enterLesson(lesson); }} title="Enter this lesson's first frame · click to list its frames">
           <span className="text-[9px] tabular-nums" style={{ color: NEON.muted }}>{cur + 1}/{lessons.length}</span>
           <span className="max-w-[38vw] truncate">{(lesson.data.label as string) || "Lesson"}</span>
           <ChevronUp className="h-3 w-3" style={{ transform: expanded ? "none" : "rotate(180deg)", color: NEON.muted }} />
         </button>
-        <button className="grid h-6 w-6 place-items-center rounded-full transition-colors disabled:opacity-40" style={{ color: NEON.text }} disabled={cur >= lessons.length - 1} onClick={() => goLesson(1)} title="Next lesson"><ChevronRight className="h-4 w-4" /></button>
+        <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-40" style={{ color: NEON.text }} disabled={cur >= lessons.length - 1} onClick={() => goLesson(1)} title="Next lesson"><ChevronRight className="h-4 w-4" /></button>
       </div>
     </div>
   );

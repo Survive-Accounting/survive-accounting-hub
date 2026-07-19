@@ -42,6 +42,7 @@ export function storyboardLessons(nodes: ScriptNode[], timing: ScriptTimingOpts 
   return tree.map((l) => {
     const lessonNode = nodes.find((n) => n.id === l.lessonId);
     const worldDefault = (lessonNode?.data as { worldDefault?: string } | undefined)?.worldDefault;
+    const worldByBeat = (lessonNode?.data as { worldByBeat?: Record<string, { world?: string }> } | undefined)?.worldByBeat;
     const cells: StoryboardCell[] = l.beats.flatMap((g) => g.frames).map((f) => {
       const frameNode = nodes.find((n) => n.id === f.frameId);
       const fb = frameNode?.data as { world?: string; lastRehearsalS?: number } | undefined;
@@ -55,7 +56,7 @@ export function storyboardLessons(nodes: ScriptNode[], timing: ScriptTimingOpts 
         title: f.title,
         state: f.state,
         filmStatus: f.filmStatus,
-        world: fb?.world ?? worldDefault,
+        world: fb?.world ?? worldByBeat?.[f.beat]?.world ?? worldDefault,
         cardCount,
         hasScript: hasScript(f.script),
         estSeconds: estimateFrameSeconds(f.script, timing),

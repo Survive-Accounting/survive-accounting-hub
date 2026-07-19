@@ -111,12 +111,14 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const showChrome = hover || selected;
   const isCurrent = nav.currentFrameId === id;
 
-  // VISUAL WORLD (Phase 2): the frame's own `world`, else the lesson's default.
+  // VISUAL WORLD (Phase 2 + per-beat): the frame's own `world`, else this BEAT's
+  // lesson default, else the lesson default. (own → beat → lesson → none.)
   const lessonData = (() => { const p = rf.getNode(id)?.parentId; return p ? (rf.getNode(p)?.data as LessonBox | undefined) : undefined; })();
-  const worldId = d.world ?? lessonData?.worldDefault;
+  const beatDef = lessonData?.worldByBeat?.[beat];
+  const worldId = d.world ?? beatDef?.world ?? lessonData?.worldDefault;
   const worldPreset = worldById(worldId);
-  const worldInten = d.world ? d.worldIntensity : lessonData?.worldDefaultIntensity;
-  const worldMot = d.world ? d.worldMotion : lessonData?.worldDefaultMotion;
+  const worldInten = d.world ? d.worldIntensity : beatDef?.world ? beatDef.intensity : lessonData?.worldDefaultIntensity;
+  const worldMot = d.world ? d.worldMotion : beatDef?.world ? beatDef.motion : lessonData?.worldDefaultMotion;
 
   // PHONE-LANDSCAPE CHECK (Phase 6) — advisory only. Build lightweight element
   // rects from the frame's child card nodes (position + size × card scale) and run
@@ -224,6 +226,16 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     const me = rf.getNode(id);
     if (!me?.parentId) return;
     const c = patchDataCmd(rf as unknown as RfLike, me.parentId, { worldDefault: d.world, worldDefaultIntensity: d.worldIntensity, worldDefaultMotion: d.worldMotion }, "lesson world default");
+    if (c) bus.dispatch(c);
+  };
+  // PER-BEAT default: every frame of THIS beat in the lesson (that has no world of
+  // its own) inherits this — subtle Hook/Teach/Practice/Cram differentiation.
+  const setBeatDefaultWorld = () => {
+    const me = rf.getNode(id);
+    if (!me?.parentId || beat === "none") return;
+    const cur = (rf.getNode(me.parentId)?.data as LessonBox | undefined)?.worldByBeat ?? {};
+    const next = { ...cur, [beat]: { world: d.world, intensity: d.worldIntensity, motion: d.worldMotion } };
+    const c = patchDataCmd(rf as unknown as RfLike, me.parentId, { worldByBeat: next }, `world→${beat} beat`);
     if (c) bus.dispatch(c);
   };
 
@@ -451,6 +463,9 @@ export function FrameNode({ id, data, selected }: NodeProps) {
                 <button className="flex-1 rounded px-1 py-0.5 font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} title="Give every frame in this lesson this world" onClick={applyWorldToLesson}>Apply to lesson</button>
                 <button className="flex-1 rounded px-1 py-0.5 font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} title="Make this the lesson's default world (frames without their own inherit it)" onClick={setLessonDefaultWorld}>Set default</button>
               </div>
+              {beat !== "none" && (
+                <button className="mt-1 w-full rounded px-1 py-0.5 font-semibold" style={{ border: `1px solid ${meta.edge}`, color: meta.color }} title={`Make this the default for every ${meta.label} frame in this lesson (subtle per-beat differentiation)`} onClick={setBeatDefaultWorld}>Default for all {meta.label} frames</button>
+              )}
             </>
           ) : (
             (lessonData?.worldDefault) && <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Inherits the lesson default. Pick a world above to override just this frame.</p>
