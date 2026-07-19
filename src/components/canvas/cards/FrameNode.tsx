@@ -7,7 +7,7 @@
 // the lesson's frames; Esc / ⌂ exits.
 import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Clapperboard, Film, Lock, LockOpen, Maximize2, Pause, Play, Smartphone, StickyNote, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -16,6 +16,9 @@ import { blankCard } from "../templates";
 import { FRAME_TEMPLATES, placeTemplate, type FrameTemplate } from "../frame-templates";
 import { baseTextPxForKind, phoneChecks, PHONE_LANDSCAPE, type PhoneEl } from "../phone-check";
 import { cycleScriptState, deriveScriptState, SCRIPT_STATE_META } from "../script-doc";
+import { templateById } from "../frame-templates";
+import type { FrameContext, VisualSuggestion } from "../suggest-visual";
+import { suggestVisualForFrame } from "@/lib/suggest-visual.functions";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
@@ -91,6 +94,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const [hover, setHover] = useState(false);
   const [bgMenu, setBgMenu] = useState(false);
   const [phoneCheck, setPhoneCheck] = useState(false); // phone-landscape advisory overlay
+  const [suggest, setSuggest] = useState<{ loading: boolean; result: VisualSuggestion | null; error: string | null }>({ loading: false, result: null, error: null }); // ✨ Suggest visual
   const [noteEdit, setNoteEdit] = useState(false); // director note editor open
   const [takesOpen, setTakesOpen] = useState(false); // TAKE BOARD: per-frame takes panel
   const { upload, takesFor } = useFrameTakes();
@@ -241,6 +245,29 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     update({ visualType: t.visualType });
     setBgMenu(false);
   };
+
+  // ✨ SUGGEST VISUAL (Phase 5 #13) — ask the AI Gateway to recommend a World +
+  // template from this frame's beat/title/script/cards. Read-only: it only shows
+  // a suggestion; applying it uses the same undoable actions above.
+  const runSuggest = async () => {
+    setSuggest({ loading: true, result: null, error: null });
+    const ctx: FrameContext = {
+      title: d.title,
+      beat: String(beat),
+      entry: d.script?.entry,
+      beats: d.script?.beats,
+      exit: d.script?.exit,
+      cardKinds: rf.getNodes().filter((n) => n.parentId === id).map((n) => ((n.data as { kind?: string }).kind ?? n.type ?? "card") as string),
+    };
+    try {
+      const { suggestion } = await suggestVisualForFrame({ data: ctx });
+      setSuggest({ loading: false, result: suggestion, error: null });
+    } catch (e) {
+      setSuggest({ loading: false, result: null, error: e instanceof Error ? e.message : "Suggestion failed" });
+    }
+  };
+  const applySuggestedWorld = (s: VisualSuggestion) => { if (!s.world) return; applyWorld(s.world); if (s.worldIntensity != null) update({ worldIntensity: s.worldIntensity }); };
+  const applySuggestedTemplate = (s: VisualSuggestion) => { const t = s.template ? templateById(s.template) : undefined; if (t) applyTemplate(t); };
 
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   const btn = "nodrag grid h-5 w-5 place-items-center rounded";
@@ -424,6 +451,46 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           ) : (
             (lessonData?.worldDefault) && <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Inherits the lesson default. Pick a world above to override just this frame.</p>
           )}
+
+          {/* ✨ SUGGEST VISUAL (Phase 5 #13) — AI recommends a world + template
+              from this frame's beat/script/cards. Read-only until you Apply. */}
+          <button
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded px-2 py-1 text-[10.5px] font-semibold"
+            style={{ border: `1px solid ${NEON.border}`, color: NEON.yellow, opacity: suggest.loading ? 0.6 : 1 }}
+            disabled={suggest.loading}
+            title="Ask the AI to suggest a World + layout for this frame"
+            onClick={runSuggest}
+          >
+            {suggest.loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {suggest.loading ? "Thinking…" : "Suggest visual"}
+          </button>
+          {suggest.error && <p className="mt-1 text-[9px] leading-snug" style={{ color: "#FF8B9E" }}>{suggest.error}</p>}
+          {suggest.result && (
+            <div className="mt-1.5 rounded-md p-1.5" style={{ background: NEON.bg2, border: `1px solid ${NEON.borderSoft}` }}>
+              {suggest.result.rationale && <p className="mb-1 text-[9.5px] italic leading-snug" style={{ color: NEON.muted }}>{suggest.result.rationale}</p>}
+              <div className="flex gap-1">
+                <button
+                  className="flex-1 rounded px-1 py-0.5 text-[10px] font-semibold disabled:opacity-40"
+                  style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                  disabled={!suggest.result.world}
+                  title={suggest.result.world ? `Apply world: ${worldById(suggest.result.world)?.name}` : "No world suggested"}
+                  onClick={() => applySuggestedWorld(suggest.result!)}
+                >
+                  World: {suggest.result.world ? worldById(suggest.result.world)?.name : "—"}
+                </button>
+                <button
+                  className="flex-1 rounded px-1 py-0.5 text-[10px] font-semibold disabled:opacity-40"
+                  style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                  disabled={!suggest.result.template}
+                  title={suggest.result.template ? `Spawn the ${templateById(suggest.result.template)?.name} template` : "No template suggested"}
+                  onClick={() => applySuggestedTemplate(suggest.result!)}
+                >
+                  Layout: {suggest.result.template ? templateById(suggest.result.template)?.name : "—"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="my-2 border-t" style={{ borderColor: NEON.borderSoft }} />
 
           <div className="mb-1 font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Background loop</div>
