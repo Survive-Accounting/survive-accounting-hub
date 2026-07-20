@@ -336,7 +336,7 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
         >
           {emoji}
         </span>
-        {editing ? (
+        {d.showLabel === false ? null : editing ? (
           <input
             autoFocus
             className="nodrag w-[85%] rounded bg-black/30 px-2 py-1 text-center outline-none"
@@ -356,16 +356,37 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
             {d.label || "Your exam"}
           </span>
         )}
-        <span
-          className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]"
-          style={{ color: "#FFFFFF", background: "rgba(224,40,74,0.92)", boxShadow: "0 0 16px rgba(224,40,74,0.55)" }}
-        >
-          You'll see this on the exam
-        </span>
+        {d.showTag !== false && (
+          <span
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]"
+            style={{ color: "#FFFFFF", background: "rgba(224,40,74,0.92)", boxShadow: "0 0 16px rgba(224,40,74,0.55)" }}
+          >
+            You'll see this on the exam
+          </span>
+        )}
       </div>
 
-      {/* emoji swatches on hover */}
-      <div className="card-actions absolute -bottom-6 left-1/2 flex -translate-x-1/2 gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover/el:opacity-100" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+      {/* emoji swatches + text/tag toggles on hover */}
+      <div className="card-actions absolute -bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover/el:opacity-100" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+        <button
+          className="nodrag grid h-5 w-5 place-items-center rounded text-[10px] font-black"
+          style={{ color: d.showLabel === false ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); update({ showLabel: d.showLabel === false }); }}
+          title={d.showLabel === false ? "Text hidden — click to show the label" : "Hide the label (show just the emoji)"}
+        >
+          Aa
+        </button>
+        <button
+          className="nodrag grid h-5 place-items-center rounded px-1 text-[8px] font-black uppercase"
+          style={{ color: d.showTag === false ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); update({ showTag: d.showTag === false }); }}
+          title={d.showTag === false ? "Tag hidden — click to show it" : "Hide the 'on the exam' tag"}
+        >
+          tag
+        </button>
+        <span className="mx-0.5 h-4 w-px" style={{ background: NEON.borderSoft }} />
         {EXAM_EMOJIS.map((em) => (
           <button
             key={em}

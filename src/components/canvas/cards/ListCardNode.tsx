@@ -47,13 +47,27 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
   // accounts arrive indented + "Less:" (statement form). These are derived —
   // never stored — so editing the course's COA updates the card live.
   const pulled = d.coaGroup ? (ctx.coa.find((g) => g.label === d.coaGroup)?.accounts ?? []) : [];
-  const pulledRows: { key: string; text: string; chip?: "DR" | "CR"; indent: boolean; pulled: true }[] = pulled.map((a) => ({
+  const pulledRowsRaw: { key: string; text: string; chip?: "DR" | "CR"; indent: boolean; pulled: true }[] = pulled.map((a) => ({
     key: `coa:${a.name}`,
     text: a.name,
     chip: a.normal === "debit" ? "DR" : "CR",
     indent: a.type.startsWith("contra"),
     pulled: true,
   }));
+  // MANUAL REORDER (Lee): apply d.pullOrder (account names); unlisted accounts keep
+  // their COA order after the ordered ones (stable sort).
+  const pulledRows = (() => {
+    if (!d.pullOrder?.length) return pulledRowsRaw;
+    const idx = new Map(d.pullOrder.map((n, i) => [n, i]));
+    return pulledRowsRaw.slice().sort((a, b) => (idx.get(a.text) ?? Infinity) - (idx.get(b.text) ?? Infinity));
+  })();
+  const movePulled = (i: number, dir: -1 | 1) => {
+    const names = pulledRows.map((r) => r.text);
+    const j = i + dir;
+    if (j < 0 || j >= names.length) return;
+    [names[i], names[j]] = [names[j], names[i]];
+    update({ pullOrder: names });
+  };
 
   // COURSE OUTLINE BIND (Lee): auto-fill from the scene's course chapters, live.
   const tree = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 60_000, enabled: !!d.outlineBind });
@@ -119,16 +133,19 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
       )}
 
       {/* HEADER — the list title reads as a real heading: big, bold, and set off
-          from the rows by a rule. (The compact navy bar keeps only the controls.) */}
-      <div className="mb-2 border-b pb-1.5" style={{ borderColor: PAPER.line }}>
-        <EditableText
-          value={d.title ?? ""}
-          onChange={(v) => update({ title: v })}
-          editing={editing}
-          className="block text-[19px] font-extrabold uppercase leading-tight tracking-wide"
-          placeholder="List title"
-        />
-      </div>
+          from the rows by a rule. Hidden via the "List title" setting (Lee) for a
+          clean rows-only box. (The compact navy bar keeps only the controls.) */}
+      {!d.hideTitle && (
+        <div className="mb-2 border-b pb-1.5" style={{ borderColor: PAPER.line }}>
+          <EditableText
+            value={d.title ?? ""}
+            onChange={(v) => update({ title: v })}
+            editing={editing}
+            className="block text-[19px] font-extrabold uppercase leading-tight tracking-wide"
+            placeholder="List title"
+          />
+        </div>
+      )}
 
       {/* Item 6: the one-line "definition" was a duplicate inline title — the
           title lives ONLY in the top bar now; the description sits directly
@@ -151,24 +168,39 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
       )}
 
       <ol className="space-y-1">
-        {/* OUTLINE rows (live course chapters) — read-only, auto-filled */}
-        {outlineRows.map((r, i) => (
-          <li key={r.key} className="flex items-center gap-1.5 text-[14px]">
-            {bullet(i)}
-            <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>{r.text}</span>
-          </li>
-        ))}
-        {/* PULLED rows (live COA) — read-only, contra items in "Less:" form */}
-        {pulledRows.map((r, i) => (
-          <li key={r.key} className="flex items-center gap-1.5 text-[14px]" style={{ paddingLeft: r.indent ? 18 : 0 }}>
+        {/* OUTLINE rows (live course chapters) — auto-filled; spotlightable (Lee) */}
+        {outlineRows.map((r, i) => {
+          const st = spotTargetProps(sp, id, r.key);
+          return (
+            <li key={r.key} {...st.props} className="flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state) }}>
+              {bullet(i)}
+              <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>{r.text}</span>
+            </li>
+          );
+        })}
+        {/* PULLED rows (live COA) — contra items in "Less:" form. Now spotlightable,
+            memo-attachable, and manually reorderable (edit mode) — Lee's asks. */}
+        {pulledRows.map((r, i) => {
+          const st = spotTargetProps(sp, id, r.key);
+          return (
+          <li key={r.key} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), paddingLeft: r.indent ? 18 : 0 }}>
+            <MemoAnchor subId={r.key} />
             {bullet(outlineRows.length + i)}
             <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
               {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
               {r.text}
             </span>
+            <MemoLightbulb targetId={id} handleId={memoAnchorId(r.key)} title="Attach a memo to this account" className="h-5 w-5 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100" style={{ color: PAPER.navy }} />
             {chipEl(r.chip)}
+            {editing && (
+              <span className="flex shrink-0">
+                <IconBtn title="Move up" onClick={() => movePulled(i, -1)}><ArrowUp className="h-3 w-3" /></IconBtn>
+                <IconBtn title="Move down" onClick={() => movePulled(i, 1)}><ArrowDown className="h-3 w-3" /></IconBtn>
+              </span>
+            )}
           </li>
-        ))}
+          );
+        })}
         {/* MANUAL rows */}
         {d.rows.map((r, i) => {
           const st = spotTargetProps(sp, id, r.id);
@@ -242,6 +274,14 @@ function ListSettings({ d, onUpdate, onClose }: { d: ListCard; onUpdate: (p: Par
       <div className={row}>
         <span>Course outline</span>
         <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.outlineBind)} onClick={() => onUpdate({ outlineBind: !d.outlineBind })}>{d.outlineBind ? "on" : "off"}</button>
+      </div>
+      <div className={row}>
+        <span>List title</span>
+        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!d.hideTitle)} onClick={() => onUpdate({ hideTitle: !d.hideTitle })}>{d.hideTitle ? "off" : "on"}</button>
+      </div>
+      <div className={row}>
+        <span>Header bar <span className="opacity-60">(Alt+click too)</span></span>
+        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!d.hideChrome)} onClick={() => onUpdate({ hideChrome: !d.hideChrome })}>{d.hideChrome ? "off" : "on"}</button>
       </div>
       <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
         <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Bind to COA</div>

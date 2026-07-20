@@ -440,6 +440,10 @@ export interface ExamCueElement extends CardBase {
   label: string;
   /** The emoji illustration that bounces (default 📄). */
   emoji?: string;
+  /** Show the label text (default true). Turn off to show JUST the floating emoji. */
+  showLabel?: boolean;
+  /** Show the "you'll see this on the exam" tag (default true). */
+  showTag?: boolean;
 }
 
 // ---- Cycle (Lee): the Accounting Cycle — a raised callout box (exam-cue vibe)
@@ -514,6 +518,11 @@ export interface ListCard extends CardBase {
    *  of the scene's course — rows auto-populate from that COA set, live, and
    *  precede any manual teaching rows. null/absent = manual only. */
   coaGroup?: string | null;
+  /** MANUAL ORDER of the COA-pulled rows (Lee): account names in the desired
+   *  order. Accounts not listed follow, in the COA's own order. Absent = COA order. */
+  pullOrder?: string[];
+  /** Hide the list's title heading — a cleaner "just the rows" list (Lee). */
+  hideTitle?: boolean;
 }
 
 export type CardData =
