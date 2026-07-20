@@ -522,22 +522,25 @@ function FrameThumb({ frame, nodes, active, color, code, onEnter, onDropFrame }:
   );
 }
 
-/** The placeholder for an EMPTY beat column — also a DROP TARGET, so a frame can
- *  be dragged from another beat straight into an empty beat (Lee: dragging Teach →
- *  empty Model did nothing). Highlights while a frame hovers over it. */
-function EmptyBeatCell({ color, onDropFrame }: { color: string; onDropFrame: (srcId: string) => void }) {
+/** The placeholder for an EMPTY beat column. It's BOTH a CREATE button (click → a
+ *  fresh frame in this beat, entered — so a beat whose only frame was deleted can
+ *  be restarted) AND a DROP TARGET (drag a frame from another beat straight in;
+ *  Lee: dragging Teach → empty Model did nothing). Highlights while a frame hovers. */
+function EmptyBeatCell({ color, onCreate, onDropFrame }: { color: string; onCreate: () => void; onDropFrame: (srcId: string) => void }) {
   const [over, setOver] = useState(false);
   return (
-    <span
-      className="grid h-[37px] w-[66px] place-items-center rounded text-[8px] italic transition-colors"
+    <button
+      type="button"
+      className="grid h-[37px] w-[66px] place-items-center rounded transition-colors"
       style={{ border: `1px dashed ${over ? color : NEON.borderSoft}`, background: over ? `${color}1f` : "transparent", color: over ? color : NEON.muted }}
-      title="Drop a frame here to move it into this beat"
+      title="Click to add a frame here — or drag a frame from another beat into this one"
+      onClick={onCreate}
       onDragOver={(e) => { if (e.dataTransfer.types.includes("text/sa-frame")) { e.preventDefault(); setOver(true); } }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { setOver(false); const src = e.dataTransfer.getData("text/sa-frame"); if (src) { e.preventDefault(); onDropFrame(src); } }}
     >
-      {over ? "drop" : "–"}
-    </span>
+      {over ? <span className="text-[8px] italic">drop</span> : <Plus className="h-3.5 w-3.5" />}
+    </button>
   );
 }
 
@@ -2214,6 +2217,16 @@ function PresentCanvas() {
     if (!f?.parentId) return;
     const beat = beatColOf(f as never);
     const fid = makeFrameAt(f.parentId, beat, nextSubIndex(rf.getNodes() as never, f.parentId, beat));
+    if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    window.setTimeout(() => enterFrame(fid), 40);
+  }, [rf, makeFrameAt, enterFrame, flashToast]);
+
+  /** Seed a FRESH frame into a beat column and enter it — the click action on the
+   *  navigator's EmptyBeatCell. Lets a beat whose only frame was deleted (or that
+   *  a scaffold skipped) be restarted from scratch, not just filled by dragging an
+   *  existing frame in. Appends (subIndex 0 when the column is empty). */
+  const createFrameInBeat = useCallback((lessonId: string, beat: Beat) => {
+    const fid = makeFrameAt(lessonId, beat, nextSubIndex(rf.getNodes() as never, lessonId, beat));
     if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
     window.setTimeout(() => enterFrame(fid), 40);
   }, [rf, makeFrameAt, enterFrame, flashToast]);
@@ -4457,7 +4470,7 @@ function PresentCanvas() {
                   return (
                     <div key={b} className="flex shrink-0 flex-col items-center gap-1">
                       <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
-                      {col.length === 0 && <EmptyBeatCell color={cbm.color} onDropFrame={(src) => moveFrameToBeat(src, b)} />}
+                      {col.length === 0 && <EmptyBeatCell color={cbm.color} onCreate={() => createFrameInBeat(lessonId, b)} onDropFrame={(src) => moveFrameToBeat(src, b)} />}
                       {col.map((f) => (
                         <FrameThumb key={f.id} frame={f as never} nodes={rf.getNodes() as never} active={f.id === currentFrameId} color={cbm.color} code={codeOf(f.id)} onEnter={() => enterFrame(f.id)} onDropFrame={(src) => moveFrameToFrame(src, f.id)} />
                       ))}
