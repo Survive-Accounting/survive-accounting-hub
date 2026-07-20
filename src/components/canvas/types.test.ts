@@ -3,8 +3,9 @@ import { describe, expect, test } from "bun:test";
 import { clampScale, FRAME_CARD_SCALE } from "./types";
 
 describe("clampScale (FF-2 filming scale)", () => {
-  test("clamps to the 25–100% band", () => {
-    expect(clampScale(1.5)).toBe(1);
+  test("clamps to the 25–300% band (widened for Canva-style grow)", () => {
+    expect(clampScale(1.5)).toBe(1.5);
+    expect(clampScale(4)).toBe(3);
     expect(clampScale(0.1)).toBe(0.25);
     expect(clampScale(0.6)).toBe(0.6);
   });
