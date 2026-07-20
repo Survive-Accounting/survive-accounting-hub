@@ -14,6 +14,7 @@ import { Clapperboard, Copy, Grid3x3, Layers, ListChecks, Plus, RotateCcw, Shuff
 
 import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedChapters, seedStartHereDecks, shuffledOrder, updateDeck, type SeedChapter } from "./deck-defs";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
+import { CEQ_OPTIONS, correctFor, filmOrder, generateCeqCards, seedAccountTypeSet, type CeqOption, type CeqSetAccount, type CeqSetDef, type Difficulty } from "./ceq-set";
 import { nextStageOrder } from "./BaseCard";
 import { useCanvasSettings } from "./CanvasSettingsContext";
 import { DECK_DND_MIME, useDecks } from "./DecksContext";
@@ -22,7 +23,7 @@ import { useFrameNav } from "./FrameNavContext";
 import { cardId, isContainerType, type DeckDef } from "./types";
 import { NEON } from "./theme";
 
-export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void }) {
+export function DeckManager({ decks, setDecks, ceqSets, setCeqSets }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; ceqSets: CeqSetDef[]; setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void }) {
   const rf = useReactFlow();
   const nodes = useNodes();
   const nav = useFrameNav();
@@ -107,6 +108,54 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
     if (cmd) bus.dispatch(cmd);
     setDecks((prev) => updateDeck(prev, deck.id, { slots }));
     setSeedNote(`generated ${newNodes.length} ${preset === "re" ? "Rev/Exp" : "A=L+E"} effect cards for ${deck.name}`);
+  };
+
+  // ---- CEQ SET FACTORY -------------------------------------------------------
+  const [expandedSet, setExpandedSet] = useState<string | null>(null);
+  const lessonOpts = rf.getNodes().filter((n) => n.type === "lesson").map((n) => ({ id: n.id, label: String((n.data as { label?: string }).label ?? "Lesson") }));
+
+  const newAccountTypeSet = () => {
+    const coaAccts = coa.flatMap((g) => g.accounts).map((a) => ({ id: a.name, name: a.name, accountType: a.type }));
+    if (coaAccts.length === 0) { setSeedNote("no chart of accounts loaded — set the scene's course first"); return; }
+    const set = seedAccountTypeSet(cardId("ceqset"), coaAccts);
+    setCeqSets((prev) => [...prev, set]);
+    setExpandedSet(set.id);
+    setSeedNote(`new set: ${set.accounts.filter((a) => a.include).length}/${set.accounts.length} accounts included`);
+  };
+
+  const patchAccount = (setId: string, accountId: string, patch: Partial<CeqSetAccount>) =>
+    setCeqSets((prev) => prev.map((s) => (s.id === setId ? { ...s, accounts: s.accounts.map((a) => (a.accountId === accountId ? { ...a, ...patch } : a)) } : s)));
+  const cycleDifficulty = (d: Difficulty): Difficulty => (d === "easy" ? "medium" : d === "medium" ? "hard" : "easy");
+  const removeSet = (setId: string) => setCeqSets((prev) => prev.filter((s) => s.id !== setId));
+
+  /** APPROVE AS DECK — generate one card per included account in FILM order and
+   *  spawn them tucked into a named deck (re-approve replaces the deck's cards).
+   *  Reports the film order for Lee to eyeball. */
+  const approveSet = (set: CeqSetDef, lessonId: string | null) => {
+    const order = filmOrder(set.accounts);
+    if (order.length === 0) { setSeedNote("include at least one account first"); return; }
+    const cards = generateCeqCards(set, order);
+    const deckId = set.deckId ?? cardId("deck");
+    const cols = Math.max(1, Math.ceil(Math.sqrt(cards.length)));
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const cen = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const slots = gridSlots(cards.length, { originX: Math.round(cen.x - (cols * 290) / 2), originY: Math.round(cen.y - 120), cellW: 260, cellH: 150, gapX: 30, gapY: 30 });
+    // re-approve: remove the deck's existing cards, folded into one undo step
+    const existingIds = new Set(deckMembersOf(rf.getNodes() as { data?: { deckId?: string; stageOrder?: number }; id: string }[], deckId).map((n) => n.id));
+    const removeSnap = rf.getNodes().filter((n) => existingIds.has(n.id)).map((n) => structuredClone(n));
+    const newNodes = cards.map((c, i) => ({
+      id: cardId("ceq"), type: "ceq", position: slots[i], selected: false,
+      data: { ...c, title: set.name, deckId, deckMember: true, tucked: true, stageOrder: i, slotIndex: i, deckCategory: "ceq:set", deckPos: slots[i] } as Record<string, unknown>,
+    }));
+    const cmds = [
+      removeSnap.length ? { label: "clear old CEQ cards", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
+      addNodesCmd(rf as unknown as RfLike, newNodes as never, `approve ${newNodes.length} CEQ cards`),
+    ].filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, "approve set as deck");
+    if (cmd) bus.dispatch(cmd);
+    setDecks((prev) => (set.deckId ? updateDeck(prev, deckId, { slots, lessonId, name: set.name }) : addDeck(prev, { ...newDeckDef(set.name, "cards"), id: deckId, lessonId, runMode: "sequence", slots })));
+    setCeqSets((prev) => prev.map((s) => (s.id === set.id ? { ...s, deckId } : s)));
+    setSeedNote(`approved ${cards.length} cards → "${set.name}". Film order: ${order.map((a) => a.name).join(" · ")}`);
   };
 
   /** ITEM 4a — a card/memo dragged from its chip onto this deck row (re)joins it.
@@ -330,6 +379,59 @@ export function DeckManager({ decks, setDecks }: { decks: DeckDef[]; setDecks: (
           >
             <ListChecks className="h-3 w-3" /> seed Start Here decks
           </button>
+          {/* CEQ SET FACTORY — a template + COA source that generates one card per
+              included account, in film order, into a named deck. */}
+          <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
+              <ListChecks className="h-3 w-3" /> CEQ sets <span style={{ color: NEON.muted }}>({ceqSets.length})</span>
+            </div>
+            {ceqSets.map((set) => {
+              const inc = set.accounts.filter((a) => a.include).length;
+              const open2 = expandedSet === set.id;
+              return (
+                <div key={set.id} className="mt-1 rounded-md px-1.5 py-1" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}>
+                  <div className="flex items-center gap-1">
+                    <button className="min-w-0 flex-1 truncate text-left text-[11px] font-semibold" style={{ color: NEON.text }} onClick={() => setExpandedSet(open2 ? null : set.id)} title="Expand to include/exclude accounts, set difficulty + correct answer">
+                      {set.name} <span style={{ color: NEON.muted }}>· {inc} in{set.deckId ? " · ✓ deck" : ""}</span>
+                    </button>
+                    <button title="Delete this set (keeps any approved deck)" onClick={() => removeSet(set.id)} style={{ color: NEON.muted }}><Trash2 className="h-3 w-3" /></button>
+                  </div>
+                  {open2 && (
+                    <div className="mt-1">
+                      <div className="max-h-48 space-y-0.5 overflow-y-auto pr-0.5 nowheel">
+                        {set.accounts.map((a) => {
+                          const ans = correctFor(a);
+                          return (
+                            <div key={a.accountId} className="flex items-center gap-1 text-[10px]" style={{ opacity: a.include ? 1 : 0.4 }}>
+                              <input type="checkbox" checked={a.include} onChange={(e) => patchAccount(set.id, a.accountId, { include: e.target.checked })} style={{ accentColor: "#FCA311" }} />
+                              <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }} title={a.offCoa ? "added for teaching (not in the course COA)" : a.accountType}>{a.name}{a.offCoa ? " *" : ""}</span>
+                              <button className="rounded px-1 text-[8px] font-bold uppercase" style={{ color: a.difficulty === "hard" ? "#FF8B9E" : a.difficulty === "medium" ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Cycle difficulty (easy → medium → hard)" onClick={() => patchAccount(set.id, a.accountId, { difficulty: cycleDifficulty(a.difficulty) })}>{a.difficulty[0]}</button>
+                              <select value={a.correctOverride ?? "auto"} onChange={(e) => patchAccount(set.id, a.accountId, { correctOverride: e.target.value === "auto" ? null : (e.target.value as CeqOption) })} className="rounded bg-black/40 text-[9px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Correct answer (auto = derived from account type)">
+                                <option value="auto">{ans} (auto)</option>
+                                {CEQ_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <select id={`ceq-lesson-${set.id}`} className="min-w-0 flex-1 rounded bg-black/40 text-[9px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} defaultValue={nav.currentFrameId ? (rf.getNode(nav.currentFrameId)?.parentId ?? "") : ""}>
+                          <option value="">no lesson</option>
+                          {lessonOpts.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                        </select>
+                        <button className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: "#0B0F1E", background: NEON.yellow }} title="Generate one card per included account (film order) into a named deck, ready to deal + skeleton-grid" onClick={() => { const el = document.getElementById(`ceq-lesson-${set.id}`) as HTMLSelectElement | null; approveSet(set, el?.value || null); }}>
+                          {set.deckId ? "re-approve" : "approve as deck"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <button className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} title="Create the What-type-of-account set from the scene course COA (difficulty ramp preset; COGS auto-added)" onClick={newAccountTypeSet}>
+              <Plus className="h-3 w-3" /> new: what type of account?
+            </button>
+          </div>
           {seedNote && <div className="px-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>{seedNote}</div>}
         </div>
       )}

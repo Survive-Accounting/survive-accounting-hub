@@ -60,6 +60,7 @@ import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blan
 import { BridgeCardNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig } from "@/components/canvas/sfx";
+import { type CeqSetDef } from "@/components/canvas/ceq-set";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
@@ -1087,6 +1088,7 @@ function PresentCanvas() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
+  const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
   // ITEM 4e — a transient "flash this deck's member cards" pulse (auto-clears).
   const [deckHighlightId, setDeckHighlightId] = useState<string | null>(null);
   const deckFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3215,11 +3217,12 @@ function PresentCanvas() {
         }),
         sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, lastLessonId: lastLessonRef.current },
         decks, // NAMED DECKS (P3)
+        ceqSets, // CEQ SET factories
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, ceqSets]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -3251,6 +3254,7 @@ function PresentCanvas() {
         edges?: unknown[];
         sceneSettings?: { jeCardWidth?: number; jeIndent?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean; focusPalette?: boolean };
         decks?: DeckDef[];
+        ceqSets?: CeqSetDef[];
       } = {};
       let vp: Viewport | null = null;
       try {
@@ -3269,6 +3273,7 @@ function PresentCanvas() {
       setSceneName(payload.name);
       setSceneId(id);
       setDecks(Array.isArray(nj.decks) ? nj.decks : []); // named decks (P3)
+      setCeqSets(Array.isArray(nj.ceqSets) ? nj.ceqSets : []); // CEQ set factories
       if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
       if (typeof nj.sceneSettings?.jeIndent === "number") setJeIndent(nj.sceneSettings.jeIndent);
       // v≤2 scenes may say "blind" — normalize maps it to practice (blind retired)
@@ -3361,6 +3366,7 @@ function PresentCanvas() {
     setSceneId(null);
     setSceneName("Untitled scene");
     setDecks([]);
+    setCeqSets([]);
     setSavedAt(null);
     setSceneCourseId(null);
     setSceneChapterId(null);
@@ -4550,6 +4556,8 @@ function PresentCanvas() {
           setHideFdLabels={setHideFdLabels}
           decks={decks}
           setDecks={setDecks}
+          ceqSets={ceqSets}
+          setCeqSets={setCeqSets}
           onPopOut={() => openPop("deck")}
         />
       )}
@@ -4568,6 +4576,8 @@ function PresentCanvas() {
             setHideFdLabels={setHideFdLabels}
             decks={decks}
             setDecks={setDecks}
+            ceqSets={ceqSets}
+            setCeqSets={setCeqSets}
           />
         </PanelPopout>
       )}

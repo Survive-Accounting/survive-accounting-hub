@@ -19,6 +19,7 @@ import { blankFrom, JE_PRESETS } from "./je-logic";
 import { CARD_KIND_LABEL } from "./templates";
 import { NEON } from "./theme";
 import { cardId, isContainerType, isElementKind, type CardBase, type CardData, type DeckDef, type JeCard, type JeLine } from "./types";
+import { type CeqSetDef } from "./ceq-set";
 import { DeckManager } from "./DeckManager";
 
 // re-exports: the route and older imports keep working
@@ -99,6 +100,8 @@ export function Deck({
   setHideFdLabels,
   decks,
   setDecks,
+  ceqSets,
+  setCeqSets,
 }: {
   /** Toolbar-controlled: the panel shows only when open (no top-right badge). */
   open: boolean;
@@ -114,6 +117,8 @@ export function Deck({
   setHideFdLabels: (v: boolean) => void;
   decks: DeckDef[];
   setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void;
+  ceqSets: CeqSetDef[];
+  setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void;
 }) {
   const rf = useReactFlow();
   const nodes = useNodes();
@@ -267,7 +272,7 @@ export function Deck({
       </div>
 
       {/* NAMED DECKS (P3) — first-class deck objects, above the lesson roster */}
-      <DeckManager decks={decks} setDecks={setDecks} />
+      <DeckManager decks={decks} setDecks={setDecks} ceqSets={ceqSets} setCeqSets={setCeqSets} />
 
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
         {members.length === 0 && (
