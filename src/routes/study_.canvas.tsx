@@ -1926,7 +1926,7 @@ function PresentCanvas() {
   }, [rf, flashToast]);
 
   // ---- FRAMES: enter/exit/step camera (the frame's bounds = the viewport) ----
-  const enterFrame = useCallback((frameId: string) => {
+  const enterFrame = useCallback((frameId: string, opts?: { smooth?: boolean }) => {
     const nodes = rf.getNodes();
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const f = byId.get(frameId);
@@ -1947,7 +1947,9 @@ function PresentCanvas() {
     const y = ch / 2 - (r.y + r.h / 2) * zoom;
     // INSTANT CUTS WHILE AUTHORING (Lee's call): the smooth camera push only runs
     // in FILM mode; authoring/editing jumps instantly (no lag, no motion).
-    void rf.setViewport({ x, y, zoom }, { duration: filmRef.current && frameTransitionsRef.current ? 280 : 0 });
+    // SMOOTH ZOOM-IN (Lee): the double-click-into-a-frame gesture animates like the
+    // element focus-zoom (modern + eye-catching). Space-walk / nav stay as-is.
+    void rf.setViewport({ x, y, zoom }, { duration: opts?.smooth ? 460 : filmRef.current && frameTransitionsRef.current ? 280 : 0 });
   }, [rf]);
 
   // Keep the frame pinned to its exact 16:9 fit when the window resizes.
@@ -2527,7 +2529,7 @@ function PresentCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrameId]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -4060,7 +4062,7 @@ function PresentCanvas() {
       // FILM too (Lee wants to jump into a frame while filming); only CARD
       // focus-zoom is suppressed in film (the camera stays pinned to the frame).
       if (node.type === "frame") {
-        enterFrame(node.id);
+        enterFrame(node.id, { smooth: true });
         return;
       }
       // FILM MODE: never focus-zoom a card on double-click — an accidental
