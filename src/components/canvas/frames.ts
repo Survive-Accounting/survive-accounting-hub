@@ -79,17 +79,17 @@ export function nextSubIndex(nodes: RectNode[], lessonId: string, beat: Beat): n
 }
 
 // ---- navigation ------------------------------------------------------------
-/** →/← : the frame in the next/prev NON-EMPTY beat column of the SAME lesson —
- *  same subIndex if it exists, else that column's first frame. Null when there's
- *  no non-empty column that way (caller rolls into the adjacent lesson). */
+/** →/← : the FIRST frame of the next/prev NON-EMPTY beat column of the SAME
+ *  lesson — always the TOP of that section (Lee's call: →/← land at subIndex 0,
+ *  not the matching row). Null when there's no non-empty column that way (caller
+ *  rolls into the adjacent lesson). */
 export function beatNeighborFrame(nodes: RectNode[], frameId: string, dir: -1 | 1): RectNode | null {
   const f = nodes.find((n) => n.id === frameId);
   if (!f?.parentId) return null;
-  const sub = subIndexOf(f);
   const ci = BEAT_COLUMNS.indexOf(beatColOf(f));
   for (let nci = ci + dir; nci >= 0 && nci < BEAT_COLUMNS.length; nci += dir) {
     const col = framesInBeat(nodes, f.parentId, BEAT_COLUMNS[nci]);
-    if (col.length) return col.find((x) => subIndexOf(x) === sub) ?? col[0];
+    if (col.length) return col[0];
   }
   return null;
 }

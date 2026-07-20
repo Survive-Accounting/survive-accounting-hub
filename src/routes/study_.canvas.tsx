@@ -1880,17 +1880,11 @@ function PresentCanvas() {
   const stepSub = useCallback((dir: -1 | 1) => {
     const cur = currentFrameRef.current;
     if (!cur) return;
+    // ↑/↓ move FREELY within the beat column and simply STOP at the edges — no
+    // forced frame creation (Lee's call: use the + affordance to add frames).
     const adj = subNeighborFrame(rf.getNodes() as never, cur, dir);
-    if (adj) { enterFrame(adj.id); return; }
-    if (dir > 0 && !filmRef.current) {
-      const f = rf.getNode(cur);
-      if (!f?.parentId) return;
-      const beat = beatColOf(f as never);
-      const fid = makeFrameAt(f.parentId, beat, nextSubIndex(rf.getNodes() as never, f.parentId, beat));
-      if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; } // cap reached (item 4)
-      window.setTimeout(() => enterFrame(fid), 40);
-    }
-  }, [rf, enterFrame, makeFrameAt, flashToast]);
+    if (adj) enterFrame(adj.id);
+  }, [rf, enterFrame]);
 
   /** → / ← — walk beat COLUMNS (same subIndex if it exists, else the beat's first
    *  frame); at a lesson's end, roll into the adjacent lesson (→ next Hook 1, ←
@@ -3673,37 +3667,24 @@ function PresentCanvas() {
       },
       {
         combo: "arrowup",
-        group: "Spotlight",
-        description: "Spotlight: move focus up (↑ off the top exits) · else prev sub-frame",
-        handler: (e) => {
-          if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1); return; }
-          // ↑/↓ walk sub-frames in the current beat COLUMN on a single press (no
-          // double-tap arm — moving among your own rows, and ↓ past the last makes
-          // a new frame, should feel immediate). ←/→ keep the arm (bigger jumps).
-          if (frameFreeNav()) { e.preventDefault(); stepSub(-1); }
-        },
+        group: "Frames",
+        description: "Previous sub-frame (↑) within this beat column — stops at the top",
+        // ↑/↓ move FREELY between sub-frames (no spotlight hijack — spotlights are
+        // click-only now; arrows belong to the frames).
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(-1); } },
       },
       {
         combo: "arrowdown",
-        group: "Spotlight",
-        description: "Spotlight: move focus down · else next sub-frame (↓ past the last adds one)",
-        handler: (e) => {
-          if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1); return; }
-          if (spotRef.current?.tryReenter(1)) { e.preventDefault(); return; }
-          if (frameFreeNav()) { e.preventDefault(); stepSub(1); }
-        },
+        group: "Frames",
+        description: "Next sub-frame (↓) within this beat column — stops at the bottom",
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(1); } },
       },
-      { combo: "shift+arrowdown", group: "Spotlight", description: "Extend the spotlight range down", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { range: true }); } } },
-      { combo: "shift+arrowup", group: "Spotlight", description: "Extend the spotlight range up", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1, { range: true }); } } },
-      { combo: "ctrl+arrowdown", group: "Spotlight", description: "Spotlight jump to the last target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(1, { jump: true }); } } },
-      { combo: "ctrl+arrowup", group: "Spotlight", description: "Spotlight jump to the first target", handler: (e) => { if (spotRef.current?.active) { e.preventDefault(); spotRef.current.move(-1, { jump: true }); } } },
       // F2 GLOBAL EDIT (item 4): one binding — edit the spotlit target if a
       // spotlight is active, else stamp a transient _editSeq on the SELECTED node
       // so its own editor opens (per-kind: heading/text/memo/list/JE line/frame
       // title all watch it via useEditSignal / openSeq). Film mode is a no-op.
       { combo: "f2", group: "Edit", description: "Edit the selected element (heading · text · JE line · list · memo · frame title)", handler: (e) => {
         if (film) return;
-        if (spotRef.current?.active) { e.preventDefault(); spotRef.current.editSpot(); return; }
         const sel = rf.getNodes().find((n) => n.selected);
         if (sel) { e.preventDefault(); rf.updateNodeData(sel.id, { _editSeq: Date.now() }); }
       } },
@@ -4089,7 +4070,9 @@ function PresentCanvas() {
           {drawerPanel === "key" && <LegendHud docked />}
         </BrandBar>
       )}
-      {!chrome && <BrandWatermark />}
+      {/* Corner watermark — but NOT when the current frame plays a full-bleed
+          background loop (the branded loop is the mark; the video reads over it). */}
+      {!chrome && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { bgSrc?: string } | undefined)?.bgSrc) && <BrandWatermark />}
 
       {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection; owns its
           own subscriptions so pan/zoom doesn't re-render the route */}

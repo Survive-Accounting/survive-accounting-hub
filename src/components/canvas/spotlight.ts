@@ -115,3 +115,32 @@ export function startSpot(cardId: string, targets: string[], targetId: string): 
   const index = Math.max(0, targets.indexOf(targetId));
   return { cardId, index, anchor: null };
 }
+
+// ---- CLICK-TOGGLE MODEL (Lee's redesign) -----------------------------------
+// Two independent emphasis layers keyed by `${cardId}::${targetId}`:
+//   • regular = MANY gold pills (Ctrl+click toggles each).
+//   • superKey = ONE flame (Ctrl+Shift+click; setting a new one replaces it).
+// A key lives in at most one layer. Pure reducers so the behaviour is testable.
+export interface SpotSets {
+  regular: Set<string>;
+  superKey: string | null;
+}
+export const spotKey = (cardId: string, targetId: string) => `${cardId}::${targetId}`;
+
+/** Ctrl+click a target. On a SUPER target → downgrade it to regular. On a regular
+ *  target → toggle it off. Otherwise → add a regular pill. */
+export function applyRegularClick(s: SpotSets, k: string): SpotSets {
+  const regular = new Set(s.regular);
+  if (s.superKey === k) { regular.add(k); return { regular, superKey: null }; }
+  if (regular.has(k)) regular.delete(k); else regular.add(k);
+  return { regular, superKey: s.superKey };
+}
+
+/** Ctrl+Shift+click a target. On the current SUPER → toggle it off. Otherwise →
+ *  make it the ONE super (replacing any previous), and drop it from regular. */
+export function applySuperClick(s: SpotSets, k: string): SpotSets {
+  if (s.superKey === k) return { regular: s.regular, superKey: null };
+  const regular = new Set(s.regular);
+  regular.delete(k);
+  return { regular, superKey: k };
+}

@@ -153,10 +153,12 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         {d.rows.map((r, i) => {
           const st = spotTargetProps(sp, id, r.id);
           return (
-          <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1, paddingLeft: r.indent ? 18 : 0, ...(r.youAreHere ? { background: "rgba(252,163,17,0.16)", borderRadius: 6, boxShadow: "inset 3px 0 0 " + PAPER.gold, paddingLeft: (r.indent ? 18 : 0) + 6 } : null) }}>
+          <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1, paddingLeft: r.indent ? 18 : 0 }}>
             <MemoAnchor subId={r.id} />
             {bullet(pulledRows.length + i)}
-            <span className="min-w-0 flex-1 break-words" style={{ color: r.youAreHere ? PAPER.gold : PAPER.ink, fontWeight: r.youAreHere ? 800 : 500 }}>
+            {/* No default "you are here" emphasis (Lee's call) — emphasis comes only
+                from the user's spotlight/super-spotlight. */}
+            <span className="min-w-0 flex-1 break-words" style={{ color: PAPER.ink, fontWeight: 500 }}>
               {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
               <EditableText value={r.text} onChange={(v) => patchRow(r.id, { text: v })} editing={editing} placeholder="Item" />
             </span>

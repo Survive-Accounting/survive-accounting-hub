@@ -1,7 +1,48 @@
 import { describe, expect, test } from "bun:test";
 
-import { moveSpot, scheduleRowTarget, spotlightTargetsOf, spotMembership, startSpot, type SpotState } from "./spotlight";
+import { applyRegularClick, applySuperClick, moveSpot, scheduleRowTarget, spotKey, spotlightTargetsOf, spotMembership, startSpot, type SpotSets, type SpotState } from "./spotlight";
 import type { CardData } from "./types";
+
+describe("click-toggle model — regular (many) + super (one)", () => {
+  const empty = (): SpotSets => ({ regular: new Set(), superKey: null });
+  const a = spotKey("c", "a"), b = spotKey("c", "b");
+
+  test("regular click adds, re-click removes (toggle)", () => {
+    let s = applyRegularClick(empty(), a);
+    expect([...s.regular]).toEqual([a]);
+    s = applyRegularClick(s, a);
+    expect(s.regular.size).toBe(0);
+  });
+  test("multiple regulars coexist", () => {
+    let s = applyRegularClick(empty(), a);
+    s = applyRegularClick(s, b);
+    expect(s.regular.has(a) && s.regular.has(b)).toBe(true);
+  });
+  test("super is single — a new super replaces the previous", () => {
+    let s = applySuperClick(empty(), a);
+    expect(s.superKey).toBe(a);
+    s = applySuperClick(s, b);
+    expect(s.superKey).toBe(b);
+    expect(s.regular.size).toBe(0);
+  });
+  test("re-super the same target toggles it off", () => {
+    let s = applySuperClick(empty(), a);
+    s = applySuperClick(s, a);
+    expect(s.superKey).toBeNull();
+  });
+  test("super-clicking a regular upgrades it (removed from regular)", () => {
+    let s = applyRegularClick(empty(), a);
+    s = applySuperClick(s, a);
+    expect(s.superKey).toBe(a);
+    expect(s.regular.has(a)).toBe(false);
+  });
+  test("regular-clicking the super downgrades it to regular", () => {
+    let s = applySuperClick(empty(), a);
+    s = applyRegularClick(s, a);
+    expect(s.superKey).toBeNull();
+    expect(s.regular.has(a)).toBe(true);
+  });
+});
 
 const list = (n: number): CardData => ({ kind: "list", rows: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, text: `row ${i}` })), showChips: false } as CardData);
 

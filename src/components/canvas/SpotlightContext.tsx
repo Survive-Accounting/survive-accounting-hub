@@ -2,10 +2,9 @@
 // inside the ReactFlowProvider (needs rf to read a card's targets + its frame).
 // State is React-only: NEVER written to node data / scenes. Cards read their
 // spotlight state through useSpotTarget (per target) + useCardDim (whole card).
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { useReactFlow } from "@xyflow/react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-import { moveSpot, spotlightTargetsOf, spotMembership, startSpot, type SpotState } from "./spotlight";
+import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SpotState } from "./spotlight";
 
 export type FocusDimMode = "auto" | "on" | "off"; // auto = ON in film, OFF outside
 export type SpotTargetState = "spot" | "range" | "dim" | null;
@@ -36,122 +35,46 @@ interface SpotlightApi {
   isFlamed: (cardId: string, targetId: string) => boolean;
 }
 
-const flameKey = (cardId: string, targetId: string) => `${cardId}::${targetId}`;
-
 export const SpotlightCtx = createContext<SpotlightApi | null>(null);
 export const useSpotlight = () => useContext(SpotlightCtx);
 export type { SpotlightApi };
 
-/** The controller — call it inside the canvas component (which owns `film` +
- *  settings + the keymap), drive it from key handlers, and hand its result to
- *  <SpotlightCtx.Provider> so the card nodes can read it. */
-export function useSpotlightController({ film, focusDimMode, followReveals }: {
-  film: boolean;
-  focusDimMode: FocusDimMode;
-  followReveals: boolean;
-}): SpotlightApi {
-  const rf = useReactFlow();
-  const [spot, setSpot] = useState<SpotState | null>(null);
-  const [flames, setFlames] = useState<Set<string>>(() => new Set());
-  const justExited = useRef(false);
-  const lastCardId = useRef<string | null>(null);
+/** The controller — CLICK-TOGGLE model (Lee's redesign). Regular spotlights are a
+ *  MANY-set of gold pills; super is a SINGLE flame. No movable cursor / arrow-nav
+ *  anymore (arrow keys belong to frame navigation). The old cursor methods stay on
+ *  the API as inert no-ops so the keymap keeps type-checking; only `active` (any
+ *  emphasis present) and `exit` (clear all) still do anything for the keymap. */
+export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: FocusDimMode; followReveals?: boolean }): SpotlightApi {
+  const [sets, setSets] = useState<SpotSets>(() => ({ regular: new Set(), superKey: null }));
 
-  const toggleFlame = useCallback((cardId: string, targetId: string) => {
-    setFlames((prev) => {
-      const next = new Set(prev);
-      const k = flameKey(cardId, targetId);
-      if (next.has(k)) next.delete(k); else next.add(k);
-      return next;
-    });
-  }, []);
-  const isFlamed = useCallback((cardId: string, targetId: string) => flames.has(flameKey(cardId, targetId)), [flames]);
-
-  const focusDimOn = focusDimMode === "on" ? true : focusDimMode === "off" ? false : film;
-
-  const targetsOf = useCallback((cardId: string) => spotlightTargetsOf(rf.getNode(cardId)?.data as never), [rf]);
-  const frameOf = useCallback((id: string): string | null => {
-    let n = rf.getNode(id);
-    let g = 0;
-    while (n?.parentId && g++ < 12) {
-      const p = rf.getNode(n.parentId);
-      if (p?.type === "frame") return p.id;
-      n = p;
-    }
-    return null;
-  }, [rf]);
-
+  // Ctrl+click → regular toggle (also downgrades a super to regular).
   const start = useCallback((cardId: string, targetId: string) => {
-    justExited.current = false;
-    lastCardId.current = cardId;
-    setSpot(startSpot(cardId, targetsOf(cardId), targetId));
-  }, [targetsOf]);
-
-  const exit = useCallback(() => {
-    setSpot((s) => { if (s) { lastCardId.current = s.cardId; justExited.current = true; } return null; });
+    setSets((s) => applyRegularClick(s, spotKey(cardId, targetId)));
   }, []);
-
-  const move = useCallback((dir: -1 | 1, opts?: { range?: boolean; jump?: boolean }) => {
-    setSpot((s) => {
-      if (!s) return s;
-      const n = targetsOf(s.cardId).length;
-      const next = moveSpot(s, n, dir, opts);
-      if (next === "exit") { lastCardId.current = s.cardId; justExited.current = true; return null; }
-      return next;
-    });
-  }, [targetsOf]);
-
-  const tryReenter = useCallback((dir: -1 | 1) => {
-    if (dir > 0 && justExited.current && lastCardId.current && rf.getNode(lastCardId.current)) {
-      justExited.current = false;
-      setSpot({ cardId: lastCardId.current, index: 0, anchor: null });
-      return true;
-    }
-    justExited.current = false; // any other move clears the escape-hatch window
-    return false;
-  }, [rf]);
-
-  const focusTargetId = useCallback(() => {
-    if (!spot) return null;
-    return targetsOf(spot.cardId)[spot.index] ?? null;
-  }, [spot, targetsOf]);
-
-  const onReveal = useCallback((cardId: string, targetId: string) => {
-    if (!followReveals) return;
-    justExited.current = false;
-    lastCardId.current = cardId;
-    setSpot(startSpot(cardId, targetsOf(cardId), targetId));
-  }, [followReveals, targetsOf]);
-
-  const editSpot = useCallback(() => {
-    if (!spot) return;
-    const cardId = spot.cardId;
-    const targetId = targetsOf(cardId)[spot.index];
-    rf.updateNodeData(cardId, { editMode: true });
-    // focus the target's own editor once edit mode paints
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      const el = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${cardId}"] [data-spot-target="${targetId}"] input, .react-flow__node[data-id="${cardId}"] [data-spot-target="${targetId}"] textarea, .react-flow__node[data-id="${cardId}"] [data-spot-target="${targetId}"] [contenteditable]`);
-      el?.focus();
-    }));
-  }, [spot, targetsOf, rf]);
-
+  // Ctrl+Shift+click → the ONE super (replaces the previous; re-click toggles off).
+  const toggleFlame = useCallback((cardId: string, targetId: string) => {
+    setSets((s) => applySuperClick(s, spotKey(cardId, targetId)));
+  }, []);
+  const isFlamed = useCallback((cardId: string, targetId: string) => sets.superKey === spotKey(cardId, targetId), [sets]);
+  // Both regular AND super targets get the gold pill; super additionally burns
+  // (data-flame → flame bar + 40% scale). Everything else = null.
   const targetState = useCallback((cardId: string, targetId: string): SpotTargetState => {
-    if (!spot || spot.cardId !== cardId) return null;
-    const idx = targetsOf(cardId).indexOf(targetId);
-    if (idx < 0) return null;
-    const m = spotMembership(spot, idx);
-    if (m === "single") return "spot";
-    if (m === "range") return "range";
-    return focusDimOn ? "dim" : null;
-  }, [spot, targetsOf, focusDimOn]);
+    const k = spotKey(cardId, targetId);
+    return sets.regular.has(k) || sets.superKey === k ? "spot" : null;
+  }, [sets]);
+  const exit = useCallback(() => setSets({ regular: new Set(), superKey: null }), []);
 
-  const cardDim = useCallback((cardId: string) => {
-    if (!spot || !focusDimOn || spot.cardId === cardId) return false;
-    return frameOf(cardId) === frameOf(spot.cardId);
-  }, [spot, focusDimOn, frameOf]);
+  const active = sets.regular.size > 0 || sets.superKey != null;
+  const noop = useCallback(() => {}, []);
+  const noReenter = useCallback(() => false, []);
+  const noFocus = useCallback(() => null, []);
+  const noDim = useCallback(() => false, []);
 
   return useMemo<SpotlightApi>(() => ({
-    spot, active: !!spot, followReveals, start, move, tryReenter, exit, editSpot, onReveal, focusTargetId, targetState, cardDim, toggleFlame, isFlamed,
-  }), [spot, followReveals, start, move, tryReenter, exit, editSpot, onReveal, focusTargetId, targetState, cardDim, toggleFlame, isFlamed]);
+    spot: null, active, followReveals: false,
+    start, move: noop, tryReenter: noReenter, exit, editSpot: noop, onReveal: noop,
+    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed,
+  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed]);
 }
 
 /** WARM performance styling for a target. The spotlight now reads as a GOLD
