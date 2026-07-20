@@ -114,7 +114,7 @@ export interface CardBase {
 
 /** Clamp/step a filming scale to the 25–100% band (FF-2). */
 export const FRAME_CARD_SCALE = 0.6;
-export const clampScale = (s: number): number => Math.max(0.25, Math.min(1, Math.round(s * 100) / 100));
+export const clampScale = (s: number): number => Math.max(0.25, Math.min(3, Math.round(s * 100) / 100));
 
 // ---- JE ----
 /** A line's floating annotation (PROMPT A): TEXT (lightbulb, prose "why") or

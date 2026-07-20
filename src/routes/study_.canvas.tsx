@@ -2467,21 +2467,25 @@ function PresentCanvas() {
     );
   }, [rf]);
 
-  /** FF-2: nudge the filming SCALE of every selected card by ±step (clamped
-   *  0.25–1), one undoable command. Reads the EFFECTIVE scale first (so the
-   *  first nudge on a framed 60% card moves from 0.6, not 1). Containers/elements
-   *  are skipped — only cards scale. */
-  const scaleSelected = useCallback((step: number) => {
-    const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+  /** Canva-style fluid resize of every selected node by a FACTOR (>1 grows, <1
+   *  shrinks), one undoable command. Cards scale via `scale` (clamped 0.25–3);
+   *  ELEMENTS (heading/text/image) resize their box (w/h) so their type/photo
+   *  grows with them. Reads the EFFECTIVE scale first so a framed 60% card grows
+   *  from 0.6. Containers are skipped. */
+  const scaleSelected = useCallback((factor: number) => {
+    const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
     if (!sel.length) return;
     const cmds = sel.map((n) => {
-      const d = n.data as unknown as CardBase;
-      const cur = typeof d.scale === "number"
-        ? d.scale
-        : (n.parentId && rf.getNode(n.parentId)?.type === "frame" ? FRAME_CARD_SCALE : 1);
-      return patchDataCmd(rf as unknown as RfLike, n.id, { scale: clampScale(cur + step) }, "scale card");
-    });
-    const cmd = compositeCmd(cmds, step > 0 ? "scale up" : "scale down");
+      const d = n.data as unknown as CardBase & { w?: number; h?: number };
+      if (isElementKind(d.kind)) {
+        const w = typeof d.w === "number" ? d.w : (n.measured?.width ?? 300);
+        const h = typeof d.h === "number" ? d.h : (n.measured?.height ?? 80);
+        return patchDataCmd(rf as unknown as RfLike, n.id, { w: Math.round(Math.max(60, w * factor)), h: Math.round(Math.max(28, h * factor)) }, "resize element");
+      }
+      const cur = typeof d.scale === "number" ? d.scale : (n.parentId && rf.getNode(n.parentId)?.type === "frame" ? FRAME_CARD_SCALE : 1);
+      return patchDataCmd(rf as unknown as RfLike, n.id, { scale: clampScale(cur * factor) }, "scale card");
+    }).filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, factor > 1 ? "scale up" : "scale down");
     if (cmd) bus.dispatch(cmd);
   }, [rf]);
 
@@ -3703,8 +3707,10 @@ function PresentCanvas() {
       { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("ceq"); } },
       { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("list"); } },
       { combo: "d", group: "Cards", description: "Duplicate the selected card (lands underneath)", handler: () => duplicateSelected() },
-      { combo: ">", group: "Cards", description: "Scale the selected card(s) up (filming size, max 100%)", handler: () => scaleSelected(0.05) },
-      { combo: "<", group: "Cards", description: "Scale the selected card(s) down (filming size, min 25%)", handler: () => scaleSelected(-0.05) },
+      { combo: ">", group: "Cards", description: "Grow the selected card(s) / element(s)", handler: () => scaleSelected(1.06) },
+      { combo: "<", group: "Cards", description: "Shrink the selected card(s) / element(s)", handler: () => scaleSelected(1 / 1.06) },
+      { combo: "ctrl+shift+>", group: "Cards", description: "Grow the selected card(s) — bigger step (Canva-style)", handler: (e) => { e.preventDefault(); scaleSelected(1.12); } },
+      { combo: "ctrl+shift+<", group: "Cards", description: "Shrink the selected card(s) — bigger step", handler: (e) => { e.preventDefault(); scaleSelected(1 / 1.12); } },
       {
         combo: "arrowleft",
         group: "JE lines",
