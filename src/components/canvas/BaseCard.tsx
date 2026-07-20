@@ -7,7 +7,7 @@ import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type Rf
 import { ConnectionDots } from "./ConnectionDots";
 import { DeckChip, useDecks } from "./DecksContext";
 import { attachMemo } from "./MemoLightbulb";
-import { useCardDim } from "./SpotlightContext";
+import { useCardDim, useCardEmphasis } from "./SpotlightContext";
 import { NEON, PAPER } from "./theme";
 import { nextZ } from "./zorder";
 import { cardId, clampScale, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
@@ -209,6 +209,10 @@ export function BaseCard({
   const title = data.title ?? "";
   const scale = useCardScale(id, data);
   const dim = useCardDim(id);
+  // A lit target (spotlight pill or super flame) scales its row 1.2–1.4× from the
+  // left edge; while any is on, UNCLIP the card so that enlarged row spills past
+  // the card border and stays fully legible instead of being cut off. Same in film.
+  const emphasized = useCardEmphasis(id);
   // ITEM 4e — pulse a bright ring while this card's deck is clicked in the panel.
   const { highlightId } = useDecks();
   const deckFlash = !!data.deckId && highlightId === data.deckId;
@@ -237,6 +241,9 @@ export function BaseCard({
             : "0 12px 32px -14px rgba(0,0,0,0.6)",
         transition: "box-shadow 150ms ease",
         color: PAPER.ink,
+        // UNCLIP while a target is lit so the enlarged row escapes the card edge;
+        // lift the card above its neighbours so the spill isn't overlapped.
+        ...(emphasized ? { overflow: "visible", zIndex: 20 } : {}),
         ...dim,
       }}
     >
@@ -304,7 +311,7 @@ export function BaseCard({
         </div>
       </div>
       )}
-      <div className={`nowheel min-h-0 flex-1 p-2.5 ${clipX ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"}`}>{children}</div>
+      <div className={`nowheel min-h-0 flex-1 p-2.5 ${clipX ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"}`} style={emphasized ? { overflow: "visible" } : undefined}>{children}</div>
       {/* POSITION LOCK (B2) — bottom-right: freezes the spot (no drag), edits
           still work. The JE review-lock is the stricter cousin (edits too). */}
       <button

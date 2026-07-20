@@ -37,6 +37,11 @@ interface SpotlightApi {
    *  never persisted. Multiple targets can burn at once. */
   toggleFlame: (cardId: string, targetId: string) => void;
   isFlamed: (cardId: string, targetId: string) => boolean;
+  /** True when this card owns ANY lit target (a regular pill or the super flame).
+   *  Cards read it to UNCLIP their overflow so an enlarged spotlit/flamed row
+   *  (scale 1.2 / 1.4) spills past the card edge and stays legible instead of
+   *  being cut off — works the same in film. */
+  cardHasEmphasis: (cardId: string) => boolean;
   /** CINEMATIC PUSH (Lee): the target the camera should dolly toward — the most
    *  recent emphasis (super wins over regular), or null when cleared. */
   focusTarget: FocusTarget | null;
@@ -89,6 +94,12 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
     if (next.superKey === key) onActionRef.current?.(cardId, targetId, "super");
   }, [focusFrom]);
   const isFlamed = useCallback((cardId: string, targetId: string) => sets.superKey === spotKey(cardId, targetId), [sets]);
+  const cardHasEmphasis = useCallback((cardId: string): boolean => {
+    const prefix = `${cardId}::`;
+    if (sets.superKey && sets.superKey.startsWith(prefix)) return true;
+    for (const k of sets.regular) if (k.startsWith(prefix)) return true;
+    return false;
+  }, [sets]);
   // Both regular AND super targets get the gold pill; super additionally burns
   // (data-flame → flame bar + 40% scale). Everything else = null.
   const targetState = useCallback((cardId: string, targetId: string): SpotTargetState => {
@@ -106,8 +117,8 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
   return useMemo<SpotlightApi>(() => ({
     spot: null, active, followReveals: false,
     start, move: noop, tryReenter: noReenter, exit, editSpot: noop, onReveal: noop,
-    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed, focusTarget: focus,
-  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed, focus]);
+    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed, cardHasEmphasis, focusTarget: focus,
+  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed, cardHasEmphasis, focus]);
 }
 
 /** WARM performance styling for a target. The spotlight now reads as a GOLD
@@ -183,4 +194,12 @@ export function useSpotTarget(cardId: string, targetId: string) {
 export function useCardDim(cardId: string): React.CSSProperties {
   const sp = useSpotlight();
   return sp?.cardDim(cardId) ? { opacity: 0.85, transition: "opacity 150ms ease" } : {};
+}
+
+/** Does this card own any lit target? Cards use it to UNCLIP overflow while an
+ *  emphasis is on so the scaled spotlit/flamed row spills past the card edge and
+ *  stays legible (identical in film). */
+export function useCardEmphasis(cardId: string): boolean {
+  const sp = useSpotlight();
+  return sp?.cardHasEmphasis(cardId) ?? false;
 }
