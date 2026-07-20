@@ -38,6 +38,7 @@ export function spotlightTargetsOf(data: CardData | undefined): string[] {
     case "heading": // heading / Big Text — whole-element spotlight (Lee)
     case "text": // text block — whole-element spotlight (Lee)
     case "examcue": // exam-cue callout — whole-element spotlight (Lee)
+    case "cycle": // accounting-cycle callout — whole-element spotlight (Lee)
       return [MEMO_SELF_TARGET];
     default:
       return [];

@@ -7,7 +7,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useReactFlow, useStore, useViewport, type NodeProps } from "@xyflow/react";
-import { ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, SunDim, Type, Underline, X } from "lucide-react";
+import { AlignCenter, AlignLeft, ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, SunDim, Type, Underline, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -101,11 +101,13 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
 
   // The visible slab (text + underline). Rendered in the pane AND, when onTop,
   // mirrored into a fixed portal above the camera — so both copies stay in sync.
+  const centered = d.align === "center";
   const slab = (
     <>
       <div
         key={typeKey}
         className={`relative cursor-move whitespace-pre-line leading-tight${d.typewriter ? " sa-typewrite" : ""}`}
+        style={{ textAlign: centered ? "center" : "left" }}
         title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
         onDoubleClick={() => setEditing(true)}
       >
@@ -147,7 +149,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
           className="mt-1 h-[3px] rounded-full"
           style={{
             width: "100%",
-            transformOrigin: "left center",
+            transformOrigin: centered ? "center" : "left center",
             background: `linear-gradient(90deg, ${NEON.yellow}, rgba(224,40,74,0.9))`,
             boxShadow: "0 0 10px rgba(252,163,17,0.6)",
             animation: "heading-underline-in 0.4s ease-out both",
@@ -215,6 +217,10 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         {/* BIG TEXT (spartan) — heavy League-Spartan wordmark voice */}
         <HBtn title={d.spartan ? "Big Text on — League Spartan slab (click for normal heading)" : "Big Text — heavy League Spartan wordmark (SURVIVE style)"} onClick={() => update({ spartan: !d.spartan })}>
           <Type className="h-3 w-3" style={d.spartan ? { color: NEON.yellow } : undefined} />
+        </HBtn>
+        {/* ALIGN (Lee) — toggle left ↔ centre for the text + underline */}
+        <HBtn title={centered ? "Centred (click to left-align)" : "Left-aligned (click to centre)"} onClick={() => update({ align: centered ? "left" : "center" })}>
+          {centered ? <AlignCenter className="h-3 w-3" style={{ color: NEON.yellow }} /> : <AlignLeft className="h-3 w-3" />}
         </HBtn>
         {/* OVER EVERYTHING — lift above all cards + the camera bubble */}
         <HBtn title={d.onTop ? "On top of everything (incl. camera) — click to sit in the canvas" : "Sit on top of everything, including the camera"} onClick={() => update({ onTop: !d.onTop })}>

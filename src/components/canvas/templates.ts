@@ -39,6 +39,22 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "text", body: "", color: 0 };
     case "examcue":
       return { kind: "examcue", label: "Your exam", emoji: "📄", w: 300, h: 230 };
+    case "cycle":
+      return {
+        kind: "cycle",
+        title: "The Accounting Cycle",
+        steps: [
+          { id: cardId("cy"), text: "Analyze transactions" },
+          { id: cardId("cy"), text: "Record JEs" },
+          { id: cardId("cy"), text: "Post to Ledger" },
+          { id: cardId("cy"), text: "Trial Balance" },
+          { id: cardId("cy"), text: "Adj Entries" },
+          { id: cardId("cy"), text: "Financial Stmts" },
+          { id: cardId("cy"), text: "Year End Closed" },
+        ],
+        w: 620,
+        h: 380,
+      };
     case "memo":
       return { kind: "memo", memoKind: "note", title: "", body: "" };
     case "paygate":
@@ -212,6 +228,7 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   heading: "Heading",
   text: "Text",
   examcue: "Exam Cue",
+  cycle: "Accounting Cycle",
   memo: "Memo",
   paygate: "Payment Gate",
   signupgate: "Signup Gate",

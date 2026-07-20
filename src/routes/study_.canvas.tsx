@@ -58,6 +58,7 @@ import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
@@ -519,6 +520,25 @@ function FrameThumb({ frame, nodes, active, color, code, onEnter, onDropFrame }:
   );
 }
 
+/** The placeholder for an EMPTY beat column — also a DROP TARGET, so a frame can
+ *  be dragged from another beat straight into an empty beat (Lee: dragging Teach →
+ *  empty Model did nothing). Highlights while a frame hovers over it. */
+function EmptyBeatCell({ color, onDropFrame }: { color: string; onDropFrame: (srcId: string) => void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <span
+      className="grid h-[37px] w-[66px] place-items-center rounded text-[8px] italic transition-colors"
+      style={{ border: `1px dashed ${over ? color : NEON.borderSoft}`, background: over ? `${color}1f` : "transparent", color: over ? color : NEON.muted }}
+      title="Drop a frame here to move it into this beat"
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("text/sa-frame")) { e.preventDefault(); setOver(true); } }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { setOver(false); const src = e.dataTransfer.getData("text/sa-frame"); if (src) { e.preventDefault(); onDropFrame(src); } }}
+    >
+      {over ? "drop" : "–"}
+    </span>
+  );
+}
+
 /** A rehearsal RUN — one stopwatch that accumulates per-frame across a whole pass.
  *  `perFrame` banks completed time (ms); the live segment (running && segStart) is
  *  added on the fly. Switching frames banks + pauses; Finish freezes finishedAt. */
@@ -648,6 +668,7 @@ const nodeTypes = {
   heading: HeadingCardNode,
   text: TextElementNode,
   examcue: ExamCueNode,
+  cycle: CycleNode,
   memo: MemoCardNode,
   paygate: GateNode,
   signupgate: GateNode,
@@ -826,6 +847,7 @@ const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
   { label: "Bulleted List", make: () => ({ kind: "list", title: "List", bulleted: true, showChips: false, rows: [{ id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }], editMode: true }) },
   { label: "Outline List", make: () => ({ kind: "list", title: "Course outline", bulleted: false, showChips: false, outlineBind: true, rows: [] }) },
   { label: "Exam Cue", make: () => blankCard("examcue") },
+  { label: "Accounting Cycle", make: () => blankCard("cycle") },
   { label: "Memo", make: () => blankCard("memo") },
 ];
 
@@ -2240,6 +2262,29 @@ function PresentCanvas() {
     const slot = new Map<string, { beat: Beat; sub: number }>();
     if (srcBeat !== destBeat) srcCol.forEach((x, i) => slot.set(x.id, { beat: srcBeat, sub: i }));
     newDest.forEach((x, i) => slot.set(x.id, { beat: destBeat, sub: i }));
+    rf.setNodes((nds) => nds.map((n) => { const p = slot.get(n.id); return p ? { ...n, position: gridPos(p.beat, p.sub) } : n; }));
+    const cmds = [...slot.entries()].map(([id, p]) => patchDataCmd(rf as unknown as RfLike, id, { beat: p.beat, subIndex: p.sub }, "move frame")).filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, "move frame");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos, flashToast]);
+
+  /** MOVE a frame into a whole BEAT column (Lee: dragging a frame onto an EMPTY
+   *  beat did nothing — no thumbnail to drop onto). Appends to the end of the
+   *  destination beat (subIndex 0 when it's empty) and closes up the source
+   *  column. One undoable command; a same-beat drop is a no-op. */
+  const moveFrameToBeat = useCallback((srcId: string, destBeat: Beat) => {
+    const src = rf.getNode(srcId);
+    if (!src?.parentId) return;
+    const lessonId = src.parentId;
+    const srcBeat = beatColOf(src as never);
+    if (srcBeat === destBeat) return;
+    const nodes = rf.getNodes();
+    const destCol = framesInBeat(nodes as never, lessonId, destBeat).filter((x) => x.id !== srcId);
+    if (destCol.length >= RESERVED_ROWS) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    const srcCol = framesInBeat(nodes as never, lessonId, srcBeat).filter((x) => x.id !== srcId);
+    const slot = new Map<string, { beat: Beat; sub: number }>();
+    srcCol.forEach((x, i) => slot.set(x.id, { beat: srcBeat, sub: i }));
+    [...destCol, { id: srcId }].forEach((x, i) => slot.set(x.id, { beat: destBeat, sub: i }));
     rf.setNodes((nds) => nds.map((n) => { const p = slot.get(n.id); return p ? { ...n, position: gridPos(p.beat, p.sub) } : n; }));
     const cmds = [...slot.entries()].map(([id, p]) => patchDataCmd(rf as unknown as RfLike, id, { beat: p.beat, subIndex: p.sub }, "move frame")).filter((c): c is Command => !!c);
     const cmd = compositeCmd(cmds, "move frame");
@@ -4364,7 +4409,7 @@ function PresentCanvas() {
                   return (
                     <div key={b} className="flex shrink-0 flex-col items-center gap-1">
                       <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
-                      {col.length === 0 && <span className="grid h-[37px] w-[66px] place-items-center rounded text-[8px] italic" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
+                      {col.length === 0 && <EmptyBeatCell color={cbm.color} onDropFrame={(src) => moveFrameToBeat(src, b)} />}
                       {col.map((f) => (
                         <FrameThumb key={f.id} frame={f as never} nodes={rf.getNodes() as never} active={f.id === currentFrameId} color={cbm.color} code={codeOf(f.id)} onEnter={() => enterFrame(f.id)} onDropFrame={(src) => moveFrameToFrame(src, f.id)} />
                       ))}

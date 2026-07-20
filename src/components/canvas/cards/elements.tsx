@@ -4,7 +4,7 @@
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
 import { useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, X } from "lucide-react";
+import { AlignCenter, AlignLeft, Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, X } from "lucide-react";
 
 import { BaseCard, useCardActions } from "../BaseCard";
 import { bus } from "../commands";
@@ -209,7 +209,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
         <div
           {...spot.props}
           className="cursor-text text-[13px] leading-relaxed"
-          style={{ color: d.faded ? "rgba(158,168,184,0.5)" : d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT, ...spotStyle(spot.state) }}
+          style={{ textAlign: d.align === "center" ? "center" : "left", color: d.faded ? "rgba(158,168,184,0.5)" : d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT, ...spotStyle(spot.state) }}
           title="Click to edit"
           onClick={() => setEditing(true)}
         >
@@ -226,6 +226,16 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
           title={d.faded ? "Faded (greyed out) — click for full colour" : "Fade to grey (de-emphasize)"}
         >
           <SunDim className="h-3 w-3" />
+        </button>
+        {/* ALIGN (Lee) — left ↔ centre */}
+        <button
+          className="nodrag grid h-4 w-4 place-items-center rounded"
+          style={{ color: d.align === "center" ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => update({ align: d.align === "center" ? "left" : "center" })}
+          title={d.align === "center" ? "Centred (click to left-align)" : "Left-aligned (click to centre)"}
+        >
+          {d.align === "center" ? <AlignCenter className="h-3 w-3" /> : <AlignLeft className="h-3 w-3" />}
         </button>
         <span className="mx-0.5 h-3 w-px" style={{ background: NEON.borderSoft }} />
         {NOTE_COLORS.map((nc, i) => (

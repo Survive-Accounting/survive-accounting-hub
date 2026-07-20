@@ -19,6 +19,7 @@ export type CardKind =
   | "heading"
   | "text"
   | "examcue"
+  | "cycle"
   | "memo"
   | "outline"
   | "paygate"
@@ -52,6 +53,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   heading: "element",
   text: "element",
   examcue: "element",
+  cycle: "element",
   memo: "element",
   paygate: "element",
   signupgate: "element",
@@ -399,6 +401,9 @@ export interface HeadingCard extends CardBase {
   /** FADED (Lee): render the text in a muted grey — a "shadowed out" / de-emphasized
    *  look (e.g. an old point you've moved past). Toggle in the chrome. */
   faded?: boolean;
+  /** ALIGN (Lee): horizontal text alignment within the element box. Default
+   *  "left"; "center" for centred titles / Big Text. Toggle in the chrome. */
+  align?: "left" | "center";
 }
 
 // ---- Text element (freeform markdown-lite block; ELEMENT category) ----
@@ -410,6 +415,8 @@ export interface TextElement extends CardBase {
   color: number; // index into NOTE_COLORS accents
   /** FADED (Lee): render muted grey — a "shadowed out" de-emphasized look. */
   faded?: boolean;
+  /** ALIGN (Lee): horizontal text alignment. Default "left"; "center". */
+  align?: "left" | "center";
 }
 
 // ---- Gate elements (VISUAL PLACEHOLDERS — real gating is World v1) ----
@@ -428,6 +435,24 @@ export interface ExamCueElement extends CardBase {
   label: string;
   /** The emoji illustration that bounces (default 📄). */
   emoji?: string;
+}
+
+// ---- Cycle (Lee): the Accounting Cycle — a raised callout box (exam-cue vibe)
+//      with N steps laid out evenly around an OVAL, connected by flow arrows that
+//      close the loop. Add / remove / rename steps; the oval re-solves from the
+//      step count so it always stays an even ring. Design ELEMENT: resizable,
+//      spotlightable (whole-element "self" target), never in the deck. ----
+export interface CycleStep {
+  id: string;
+  /** The step label, e.g. "Record JEs". */
+  text: string;
+}
+export interface CycleElement extends CardBase {
+  kind: "cycle";
+  /** Center label (default "The Accounting Cycle"). */
+  title?: string;
+  /** Ordered steps around the ring (clockwise from top). */
+  steps: CycleStep[];
 }
 
 // ---- Bridge placeholders (deckable cards; features arrive with World v1) ----
@@ -502,6 +527,7 @@ export type CardData =
   | HeadingCard
   | TextElement
   | ExamCueElement
+  | CycleElement
   | MemoCard
   | GateElement
   | OutlineCard
