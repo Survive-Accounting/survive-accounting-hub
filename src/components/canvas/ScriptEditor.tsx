@@ -14,7 +14,7 @@
 // a save (edits ride the undoable command bus, coalesced).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { Bold, ChevronDown, ChevronRight, Download, Filter, Link2, Link2Off, List, NotebookPen, Plus, ScrollText, Trash2, X } from "lucide-react";
+import { Bold, ChevronLeft, ChevronRight, Download, Link2, Link2Off, LayoutGrid, List, NotebookPen, ScrollText, X } from "lucide-react";
 
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, type RfLike } from "./commands";
 import { blankFrameData, BEAT_COLUMNS, beatColOf, columnX, framesInBeat, nextSubIndex, RESERVED_ROWS, rowY, subIndexOf } from "./frames";
@@ -27,7 +27,7 @@ import { cardId, FRAME_H, FRAME_W, isContainerType, type Beat, type CardMark, ty
 
 const FIELD_BG = "rgba(255,255,255,0.05)";
 const FIELD_BORDER = `1px solid ${NEON.borderSoft}`;
-type AnyNode = { id: string; type?: string; parentId?: string; position: { x: number; y: number }; data: Record<string, unknown> };
+type AnyNode = { id: string; type?: string; parentId?: string; position: { x: number; y: number }; measured?: { width?: number; height?: number }; data: Record<string, unknown> };
 
 /** Focus the next scriptable field in document order (Enter / Ctrl+Enter flow). */
 function focusNextField(cur: HTMLElement) {
@@ -41,13 +41,16 @@ const BEAT_LABEL: Record<Beat, string> = { hook: "Hook", teach: "Teach", model_p
 const HOOK_NAMES = ["Intro", "Outline", "Teaser"];
 const defaultFrameName = (beat: Beat, n: number) => (beat === "hook" ? (HOOK_NAMES[n - 1] ?? "") : "");
 
-export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, lessonControl }: {
+export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, lessonControl, onOpenFrameNav }: {
   courseName: string;
   currentFrameId?: string | null;
   onClose: () => void;
   statusCell?: (frameId: string, status: import("./types").FilmStatus) => React.ReactNode;
   /** Per-lesson control in the header (the Publish button + status). */
   lessonControl?: (lessonId: string) => React.ReactNode;
+  /** Open the on-canvas frame navigator (drag-drop strip) — moving frames lives
+   *  there now, not in this modal. */
+  onOpenFrameNav?: (frameId: string) => void;
 }) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
@@ -74,6 +77,30 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
     const f = currentFrameId ? nodes.find((n) => n.id === currentFrameId) : null;
     return f?.parentId ?? null;
   }, [currentFrameId, nodes]);
+
+  // ONE FRAME AT A TIME (Lee's call) — the modal walks a SINGLE lesson's frames in
+  // film order; lesson ‹ › switches lessons, frame ‹ › steps within it. Narrow
+  // focus for creative writing.
+  const [lessonIdx, setLessonIdx] = useState(0);
+  const [frameIdx, setFrameIdx] = useState(0);
+  const didInit = useRef(false);
+  useEffect(() => {
+    if (didInit.current || tree.length === 0) return;
+    didInit.current = true;
+    const li = currentLessonId ? tree.findIndex((l) => l.lessonId === currentLessonId) : 0;
+    const L = Math.max(0, li);
+    setLessonIdx(L);
+    const flat = tree[L]?.beats.flatMap((g) => g.frames) ?? [];
+    const fi = currentFrameId ? flat.findIndex((f) => f.frameId === currentFrameId) : 0;
+    setFrameIdx(Math.max(0, fi));
+  }, [tree, currentLessonId, currentFrameId]);
+  const lesson = tree[Math.min(lessonIdx, Math.max(0, tree.length - 1))];
+  const lessonFrames = useMemo(() => lesson?.beats.flatMap((g) => g.frames) ?? [], [lesson]);
+  const fIdx = Math.min(frameIdx, Math.max(0, lessonFrames.length - 1));
+  const frame = lessonFrames[fIdx];
+  const gotoLesson = (d: -1 | 1) => { const n = Math.max(0, Math.min(tree.length - 1, lessonIdx + d)); setLessonIdx(n); setFrameIdx(0); };
+  const gotoFrame = (d: -1 | 1) => setFrameIdx((i) => Math.max(0, Math.min(lessonFrames.length - 1, i + d)));
+  const lessonNum = lesson ? (nodes.find((n) => n.id === lesson.lessonId)?.data.pathOrder as number | undefined) ?? (lessonIdx + 1) : 1;
 
   // Esc closes (capture, ahead of the canvas's Esc ladder) — but let an open
   // picker swallow Esc first.
@@ -248,170 +275,110 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 p-6" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.85)" }}>
-        {/* header */}
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.85)" }}>
+        {/* header — lesson nav + export + close */}
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5" style={{ borderColor: NEON.borderSoft }}>
           <ScrollText className="h-4 w-4" style={{ color: NEON.yellow }} />
           <span className="text-[13px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Course script</span>
-          <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums" style={{ color: NEON.muted, border: FIELD_BORDER }}>{totals.s}/{totals.t} scripted</span>
+          <span className="mx-1 flex items-center gap-1">
+            <button className="grid h-6 w-6 place-items-center rounded disabled:opacity-30" style={{ color: NEON.text, border: FIELD_BORDER }} title="Previous lesson" disabled={lessonIdx <= 0} onClick={() => gotoLesson(-1)}><ChevronLeft className="h-3.5 w-3.5" /></button>
+            <span className="max-w-[38ch] truncate text-[12.5px] font-black" style={{ color: NEON.text }}>{lesson?.label ?? "—"}</span>
+            <span className="text-[9px] tabular-nums" style={{ color: NEON.muted }}>{tree.length ? lessonIdx + 1 : 0}/{tree.length}</span>
+            <button className="grid h-6 w-6 place-items-center rounded disabled:opacity-30" style={{ color: NEON.text, border: FIELD_BORDER }} title="Next lesson" disabled={lessonIdx >= tree.length - 1} onClick={() => gotoLesson(1)}><ChevronRight className="h-3.5 w-3.5" /></button>
+          </span>
           <span className="flex-1" />
+          {lesson && lessonControl?.(lesson.lessonId)}
           <button className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold" style={{ color: NEON.cyan, border: FIELD_BORDER }} title="Export the whole course script as one markdown doc" onClick={exportScript}><Download className="h-3 w-3" /> Export</button>
           <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted }} title="Close (Esc)" onClick={onClose}><X className="h-3.5 w-3.5" /></button>
         </div>
 
-        {/* toolbar — filter box, unlinked queue, collapse/expand all */}
-        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-1.5" style={{ borderColor: NEON.borderSoft }}>
-          <div className="flex items-center gap-1 rounded px-1.5" style={{ border: FIELD_BORDER, background: FIELD_BG }}>
-            <Filter className="h-3 w-3" style={{ color: NEON.muted }} />
-            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="filter lessons / frames" className="w-44 bg-transparent py-1 text-[11px] outline-none" style={{ color: NEON.text }} />
-            {filter && <button className="text-[10px]" style={{ color: NEON.muted }} onClick={() => setFilter("")}>✕</button>}
-          </div>
-          <button className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10.5px] font-bold uppercase" style={{ color: unlinkedOnly ? "#0B1322" : NEON.muted, background: unlinkedOnly ? NEON.yellow : "transparent", border: FIELD_BORDER }} title="Show only frames with card marks not yet linked to a built card — the build queue" onClick={() => setUnlinkedOnly((v) => !v)}>
-            <Link2Off className="h-3 w-3" /> unlinked marks
-          </button>
-          <span className="flex-1" />
-          <button className="rounded px-2 py-1 text-[10.5px] font-semibold" style={{ color: NEON.text, border: FIELD_BORDER }} onClick={() => setAllLessons(true)}>expand all</button>
-          <button className="rounded px-2 py-1 text-[10.5px] font-semibold" style={{ color: NEON.text, border: FIELD_BORDER }} onClick={() => setAllLessons(false)}>collapse all</button>
-        </div>
+        {/* ONE FRAME AT A TIME */}
+        {!frame ? (
+          <div className="py-16 text-center text-[12px]" style={{ color: NEON.muted }}>{tree.length === 0 ? '"Add region scaffold" builds the course structure first.' : "This lesson has no frames yet."}</div>
+        ) : (() => {
+          const marks = frame.script.marks ?? [];
+          const code = `#${lessonNum}.${fIdx + 1}`;
+          const kids = nodes.filter((n) => n.parentId === frame.frameId && !isContainerType(n.type));
+          const TW = 360, TH = 202.5, sx = TW / FRAME_W, sy = TH / FRAME_H; // 16:9 thumb
+          return (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {/* frame nav bar */}
+            <div className="flex items-center gap-2 border-b px-4 py-1.5" style={{ borderColor: NEON.borderSoft }}>
+              <button className="grid h-7 w-7 place-items-center rounded-full disabled:opacity-30" style={{ color: NEON.text, border: FIELD_BORDER }} title="Previous frame" disabled={fIdx <= 0} onClick={() => gotoFrame(-1)}><ChevronLeft className="h-4 w-4" /></button>
+              <span className="rounded px-1.5 py-0.5 text-[12px] font-bold tabular-nums" style={{ color: NEON.yellow, border: `1px solid rgba(232,184,75,0.5)` }}>{code}</span>
+              <span className="text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>frame {fIdx + 1}/{lessonFrames.length}</span>
+              <button className="grid h-7 w-7 place-items-center rounded-full disabled:opacity-30" style={{ color: NEON.text, border: FIELD_BORDER }} title="Next frame" disabled={fIdx >= lessonFrames.length - 1} onClick={() => gotoFrame(1)}><ChevronRight className="h-4 w-4" /></button>
+              <span className="flex-1" />
+              {/* move frames on the canvas — not here */}
+              {onOpenFrameNav && <button className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10.5px] font-semibold" style={{ color: NEON.cyan, border: FIELD_BORDER }} title="Open the frame navigator on the canvas to reorder / move frames" onClick={() => onOpenFrameNav(frame.frameId)}><LayoutGrid className="h-3 w-3" /> Move frames</button>}
+              {/* OBS upload only */}
+              {statusCell?.(frame.frameId, frame.filmStatus)}
+            </div>
 
-        {/* body */}
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-          {tree.length === 0 && <div className="py-10 text-center text-[12px]" style={{ color: NEON.muted }}>No lessons yet — "Add region scaffold" builds the course structure first.</div>}
-          {tree.map((l) => {
-            const lessonMatch = !q || l.label.toLowerCase().includes(q);
-            const beatsWithVisibleFrames = BEAT_COLUMNS.map((beat) => {
-              const group = l.beats.find((g) => g.beat === beat);
-              const frames = (group?.frames ?? []).filter((f) => frameVisible(f.frameId, f.title, f.script.marks ?? [], lessonMatch));
-              return { beat, frames, hasAny: !!group?.frames.length };
-            });
-            const anyVisibleFrame = beatsWithVisibleFrames.some((b) => b.frames.length > 0);
-            // when filtering, drop lessons with nothing to show
-            if (filterActive && !anyVisibleFrame && !(q && lessonMatch)) return null;
-            const open = isOpen(l.lessonId);
-            const unlinkedCount = l.beats.flatMap((g) => g.frames).reduce((a, f) => a + (f.script.marks ?? []).filter((m) => isUnlinked(m, cardExists)).length, 0);
-            return (
-              <section key={l.lessonId} className="mb-3">
-                <div className="mb-1 flex items-center gap-1.5">
-                  <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setLessonOpen(l.lessonId, !open)} disabled={filterActive} title={open ? "Collapse" : "Expand"}>
-                    {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                  </button>
-                  <h3 className="text-[12.5px] font-black uppercase tracking-wide" style={{ color: l.lessonId === currentLessonId ? NEON.yellow : NEON.text }}>{l.label}</h3>
-                  <span className="text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>{l.scripted}/{l.total} scripted · <span style={{ color: l.final === l.total && l.total > 0 ? "#7EF3C0" : NEON.muted }}>{l.final}/{l.total} final</span>{statusCell ? ` · ${l.filmed}/${l.total} filmed` : ""}</span>
-                  {unlinkedCount > 0 && <span className="rounded px-1 text-[8.5px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.yellow}66` }}>{unlinkedCount} to build</span>}
-                  <span className="flex-1" />
-                  {lessonControl?.(l.lessonId)}
+            {/* thumbnail (left) + writing (right) */}
+            <div className="flex min-h-0 flex-1 gap-4 overflow-auto p-4">
+              <div className="shrink-0">
+                <div className="relative overflow-hidden rounded-lg" style={{ width: TW, height: TH, border: `1px solid ${NEON.border}`, background: "rgba(0,0,0,0.35)" }}>
+                  {kids.map((n) => {
+                    const w = Math.max(3, ((n.measured?.width ?? (n.data.w as number) ?? 220)) * sx);
+                    const h = Math.max(2, ((n.measured?.height ?? (n.data.h as number) ?? 120)) * sy);
+                    return <div key={n.id} className="absolute rounded-[2px]" style={{ left: n.position.x * sx, top: n.position.y * sy, width: w, height: h, background: "rgba(232,240,252,0.5)", border: "0.5px solid rgba(232,240,252,0.3)" }} />;
+                  })}
+                  {kids.length === 0 && <span className="absolute inset-0 grid place-items-center text-[11px] italic" style={{ color: NEON.muted }}>empty frame</span>}
                 </div>
-                {open && beatsWithVisibleFrames.map(({ beat, frames, hasAny }) => {
-                  const beatKey = `${l.lessonId}:${beat}`;
-                  const beatOpen = filterActive || openBeats.has(beatKey);
-                  return (
-                  (frames.length > 0 || (!filterActive && !hasAny)) && (
-                    <div key={beat} className="mb-2 ml-6">
-                      <div className="mb-1 flex items-center gap-1.5">
-                        <button className="grid h-4 w-4 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => toggleBeat(beatKey)} disabled={filterActive} title={beatOpen ? "Collapse" : "Expand"}>
-                          {beatOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                        </button>
-                        <button className="text-[9.5px] font-bold uppercase tracking-widest" style={{ color: NEON.cyan }} onClick={() => toggleBeat(beatKey)} disabled={filterActive}>{BEAT_LABEL[beat]}</button>
-                        <span className="text-[9px] tabular-nums" style={{ color: NEON.muted }}>{frames.length}</span>
-                        <button className="inline-flex items-center gap-0.5 rounded px-1 text-[9px] font-semibold" style={{ color: NEON.muted, border: FIELD_BORDER }} title={`Add a frame to ${BEAT_LABEL[beat]} (max ${RESERVED_ROWS})`} onClick={() => addFrameEnd(l.lessonId, beat)}><Plus className="h-2.5 w-2.5" /> frame</button>
-                      </div>
-                      {beatOpen && (
-                      <div className="space-y-1.5">
-                        {frames.map((f) => {
-                          const marks = f.script.marks ?? [];
-                          return (
-                            <div key={f.frameId} className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${hasScript(f.script) ? "rgba(126,243,192,0.25)" : NEON.borderSoft}` }}>
-                              <div className="mb-1 flex items-center gap-1.5">
-                                <span className="rounded px-1 text-[9px] font-bold tabular-nums" style={{ color: NEON.yellow, border: FIELD_BORDER }}>F{f.n}</span>
-                                {/* READ-TIME (PROMPT 3): estimated spoken time; lead a "!" line to mark a money line */}
-                                {(() => { const s = estimateFrameSeconds(f.script); if (!s) return null; const over = isOverReadTime(s); return <span className="shrink-0 rounded px-1 text-[9px] font-bold tabular-nums" title="Estimated spoken time (start a line with ! to mark a money line)" style={{ color: over ? "#FF8B9E" : NEON.muted, border: FIELD_BORDER }}>{formatReadTime(s)}</span>; })()}
-                                <input
-                                  className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-[11px] font-semibold outline-none focus:ring-1"
-                                  style={{ color: NEON.text }}
-                                  defaultValue={f.title || defaultFrameName(beat, f.n)}
-                                  placeholder={defaultFrameName(beat, f.n) || "frame name"}
-                                  title="Frame name"
-                                  onChange={(e) => patchFrameTitle(f.frameId, e.target.value)}
-                                  onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); (e.currentTarget as HTMLInputElement).blur(); } }}
-                                />
-                                {/* SCRIPT STATE (Phase 3): click to cycle draft · review · final */}
-                                {(() => {
-                                  const m = SCRIPT_STATE_META[f.state];
-                                  return (
-                                    <button
-                                      className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                                      style={{ color: m.color, border: `1px solid ${m.color}66`, opacity: f.state === "empty" ? 0.5 : 1 }}
-                                      title={f.state === "empty" ? "No script yet" : `Script: ${m.label} — click to cycle draft · review · final`}
-                                      disabled={f.state === "empty"}
-                                      onClick={() => setScriptState(f.frameId, cycleScriptState(f.state))}
-                                    >
-                                      {m.short} {m.label}
-                                    </button>
-                                  );
-                                })()}
-                                {statusCell?.(f.frameId, f.filmStatus)}
-                                <span className="flex shrink-0 items-center">
-                                  <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Move up" onClick={() => moveFrame(f.frameId, -1)}>▲</button>
-                                  <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Move down" onClick={() => moveFrame(f.frameId, 1)}>▼</button>
-                                  <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Insert a frame after this one" onClick={() => insertFrameAfter(f.frameId)}><Plus className="h-3 w-3" /></button>
-                                  <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.red }} title="Delete frame (its cards go loose)" onClick={() => deleteFrame(f.frameId)}><Trash2 className="h-3 w-3" /></button>
-                                </span>
-                              </div>
-                              <div className="grid gap-1">
-                                <input data-sefield data-frame-entry={f.frameId} className="w-full rounded px-1.5 py-1 text-[11.5px] outline-none focus:ring-1" style={{ background: FIELD_BG, border: FIELD_BORDER, color: NEON.text }} placeholder="Entry line" defaultValue={f.script.entry ?? ""} onChange={(e) => patchScript(f.frameId, "entry", e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusNextField(e.currentTarget); } }} />
-                                <textarea data-sefield rows={2} className="w-full resize-none rounded px-1.5 py-1 text-[11.5px] leading-snug outline-none focus:ring-1" style={{ background: FIELD_BG, border: FIELD_BORDER, color: NEON.text }} placeholder={"Beats — one point per line · type @ to mark a card"} defaultValue={f.script.beats ?? ""}
-                                  onFocus={(e) => grow(e.currentTarget)} onInput={(e) => grow(e.currentTarget)}
-                                  onChange={(e) => patchScript(f.frameId, "beats", e.target.value)}
-                                  onPaste={(e) => onBeatsPaste(f.frameId, e)}
-                                  onKeyDown={(e) => { if (e.key === "@") { e.preventDefault(); openPicker(f.frameId, e.currentTarget); } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); focusNextField(e.currentTarget); } }} />
-                                <input data-sefield className="w-full rounded px-1.5 py-1 text-[11.5px] outline-none focus:ring-1" style={{ background: FIELD_BG, border: FIELD_BORDER, color: NEON.text }} placeholder="Exit line" defaultValue={f.script.exit ?? ""} onChange={(e) => patchScript(f.frameId, "exit", e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusNextField(e.currentTarget); } }} />
-                              </div>
-                              {/* CARDS TO BUILD — the mark checklist */}
-                              <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                                <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>cards to build:</span>
-                                {marks.length === 0 && <span className="text-[10px] italic" style={{ color: NEON.muted }}>none — type @ in beats</span>}
-                                {marks.map((m) => {
-                                  const linked = m.linkedCardId && cardExists(m.linkedCardId);
-                                  return (
-                                    <span key={m.id} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px]" style={{ background: linked ? "rgba(126,243,192,0.1)" : "rgba(252,163,17,0.1)", border: `1px solid ${linked ? "rgba(126,243,192,0.4)" : "rgba(252,163,17,0.4)"}` }}>
-                                      <b style={{ color: linked ? "#7EF3C0" : NEON.yellow }}>@{markLabel(m.kind)}</b>
-                                      <input value={m.note ?? ""} onChange={(e) => setNote(f.frameId, m.id, e.target.value)} placeholder="note" title={m.note || "note"} className="w-20 bg-transparent text-[10px] outline-none" style={{ color: NEON.text }} />
-                                      {linked ? (
-                                        <button className="grid h-4 w-4 place-items-center" style={{ color: "#7EF3C0" }} title="Linked — click to unlink" onClick={() => linkMark(f.frameId, m.id, null)}><Link2 className="h-3 w-3" /></button>
-                                      ) : (
-                                        <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.muted }} title="Link to a card on this frame" onClick={(e) => setLinkFor({ frameId: f.frameId, markId: m.id, rect: e.currentTarget.getBoundingClientRect() })}><Link2Off className="h-3 w-3" /></button>
-                                      )}
-                                      <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.red }} title="Remove mark" onClick={() => removeMark(f.frameId, m.id)}><X className="h-2.5 w-2.5" /></button>
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                              {/* JOURNAL — free-text workshop space (bold + bullets); never on camera */}
-                              <div className="mt-1.5">
-                                <button
-                                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                                  style={{ color: (f.script.journal ?? "").trim() ? NEON.yellow : NEON.muted, border: `1px solid ${(f.script.journal ?? "").trim() ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }}
-                                  title="Free-text space to riff on ideas for this frame (bold + bullets)"
-                                  onClick={() => toggleJournal(f.frameId)}
-                                >
-                                  <NotebookPen className="h-2.5 w-2.5" /> Journal{(f.script.journal ?? "").replace(/<[^>]*>/g, "").trim() ? " •" : ""}
-                                </button>
-                                {openJournals.has(f.frameId) && <JournalEditor html={f.script.journal ?? ""} onChange={(h) => patchJournal(f.frameId, h)} />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      )}
-                    </div>
-                  )
-                  );
-                })}
-              </section>
-            );
-          })}
-        </div>
-        <div className="border-t px-4 py-1.5 text-[9.5px]" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>Type @ in beats to mark a card · Enter → next field · Ctrl+Enter leaves beats · edits autosave to the canvas (undoable)</div>
+                <div className="mt-1 text-center text-[9px]" style={{ color: NEON.muted }}>a zoomed-out preview of this frame's cards</div>
+              </div>
+
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  {(() => { const s = estimateFrameSeconds(frame.script); if (!s) return null; const over = isOverReadTime(s); return <span className="shrink-0 rounded px-1 text-[9.5px] font-bold tabular-nums" title="Estimated spoken time (start a line with ! to mark a money line)" style={{ color: over ? "#FF8B9E" : NEON.muted, border: FIELD_BORDER }}>{formatReadTime(s)}</span>; })()}
+                  <input key={`title-${frame.frameId}`} className="min-w-0 flex-1 rounded px-2 py-1.5 text-[15px] font-bold outline-none focus:ring-1" style={{ background: FIELD_BG, border: FIELD_BORDER, color: NEON.text }} defaultValue={frame.title} placeholder="Frame title" title="Frame title" onChange={(e) => patchFrameTitle(frame.frameId, e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); focusNextField(e.currentTarget); } }} />
+                </div>
+                <label className="text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Entry line</label>
+                <input key={`entry-${frame.frameId}`} data-sefield className="w-full rounded px-2 py-1.5 text-[12.5px] outline-none focus:ring-1" style={{ background: FIELD_BG, border: FIELD_BORDER, color: NEON.text }} placeholder="How you walk into this frame…" defaultValue={frame.script.entry ?? ""} onChange={(e) => patchScript(frame.frameId, "entry", e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusNextField(e.currentTarget); } }} />
+                <label className="text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Beats <span className="opacity-60">· one point per line · @ marks a card · ! = money line</span></label>
+                <textarea key={`beats-${frame.frameId}`} data-sefield rows={5} className="w-full resize-none rounded px-2 py-1.5 text-[12.5px] leading-relaxed outline-none focus:ring-1" style={{ background: FIELD_BG, border: FIELD_BORDER, color: NEON.text, minHeight: 96 }} placeholder={"• point one\n• point two\n• point three"} defaultValue={frame.script.beats ?? ""}
+                  onFocus={(e) => grow(e.currentTarget)} onInput={(e) => grow(e.currentTarget)}
+                  onChange={(e) => patchScript(frame.frameId, "beats", e.target.value)}
+                  onPaste={(e) => onBeatsPaste(frame.frameId, e)}
+                  onKeyDown={(e) => { if (e.key === "@") { e.preventDefault(); openPicker(frame.frameId, e.currentTarget); } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); focusNextField(e.currentTarget); } }} />
+                <label className="text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Exit line</label>
+                <input key={`exit-${frame.frameId}`} data-sefield className="w-full rounded px-2 py-1.5 text-[12.5px] outline-none focus:ring-1" style={{ background: FIELD_BG, border: FIELD_BORDER, color: NEON.text }} placeholder="How you hand off to the next frame…" defaultValue={frame.script.exit ?? ""} onChange={(e) => patchScript(frame.frameId, "exit", e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); focusNextField(e.currentTarget); } }} />
+
+                {/* CARDS TO BUILD */}
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>cards to build:</span>
+                  {marks.length === 0 && <span className="text-[10px] italic" style={{ color: NEON.muted }}>none — type @ in beats</span>}
+                  {marks.map((m) => {
+                    const linked = m.linkedCardId && cardExists(m.linkedCardId);
+                    return (
+                      <span key={m.id} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px]" style={{ background: linked ? "rgba(126,243,192,0.1)" : "rgba(252,163,17,0.1)", border: `1px solid ${linked ? "rgba(126,243,192,0.4)" : "rgba(252,163,17,0.4)"}` }}>
+                        <b style={{ color: linked ? "#7EF3C0" : NEON.yellow }}>@{markLabel(m.kind)}</b>
+                        <input value={m.note ?? ""} onChange={(e) => setNote(frame.frameId, m.id, e.target.value)} placeholder="note" title={m.note || "note"} className="w-24 bg-transparent text-[10px] outline-none" style={{ color: NEON.text }} />
+                        {linked ? (
+                          <button className="grid h-4 w-4 place-items-center" style={{ color: "#7EF3C0" }} title="Linked — click to unlink" onClick={() => linkMark(frame.frameId, m.id, null)}><Link2 className="h-3 w-3" /></button>
+                        ) : (
+                          <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.muted }} title="Link to a card on this frame" onClick={(e) => setLinkFor({ frameId: frame.frameId, markId: m.id, rect: e.currentTarget.getBoundingClientRect() })}><Link2Off className="h-3 w-3" /></button>
+                        )}
+                        <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.red }} title="Remove mark" onClick={() => removeMark(frame.frameId, m.id)}><X className="h-2.5 w-2.5" /></button>
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {/* JOURNAL */}
+                <div className="mt-1">
+                  <button className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: (frame.script.journal ?? "").trim() ? NEON.yellow : NEON.muted, border: `1px solid ${(frame.script.journal ?? "").trim() ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} title="Free-text space to riff on ideas for this frame" onClick={() => toggleJournal(frame.frameId)}>
+                    <NotebookPen className="h-2.5 w-2.5" /> Journal{(frame.script.journal ?? "").replace(/<[^>]*>/g, "").trim() ? " •" : ""}
+                  </button>
+                  {openJournals.has(frame.frameId) && <JournalEditor key={`journal-${frame.frameId}`} html={frame.script.journal ?? ""} onChange={(h) => patchJournal(frame.frameId, h)} />}
+                </div>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
+        <div className="border-t px-4 py-1.5 text-[9.5px]" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>Type @ in beats to mark a card · Enter → next field · Ctrl+Enter leaves beats · {totals.s}/{totals.t} scripted · edits autosave to the canvas (undoable)</div>
       </div>
 
       {/* @ CARD-KIND PICKER — anchored under the beats field */}

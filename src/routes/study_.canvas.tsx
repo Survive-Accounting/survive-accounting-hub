@@ -4607,6 +4607,7 @@ function PresentCanvas() {
           onClose={() => setScriptOpen(false)}
           statusCell={(fid) => <TakeBoardCell frameId={fid} />}
           lessonControl={(lessonId) => <LessonPublishControl lessonId={lessonId} courseName={sceneCourse ? courseLabel(sceneCourse) : null} />}
+          onOpenFrameNav={(fid) => { setScriptOpen(false); enterFrame(fid); setShowFrameHeader(true); }}
         />
       )}
 
