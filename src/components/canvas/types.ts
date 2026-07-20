@@ -99,6 +99,9 @@ export interface CardBase {
   /** POSITION LOCK (B2): frozen in place (no drag) — edits still allowed.
    *  Distinct from the JE review-lock, which also freezes edits. */
   posLock?: boolean;
+  /** ALT+CLICK CHROMELESS (Lee, #288): hide this card's header bar (title +
+   *  settings + chrome) for a clean on-camera look. Alt+click the card toggles it. */
+  hideChrome?: boolean;
   editMode?: boolean; // whole-card edit affordances on
   w?: number; // resize width/height (px), applied to the shell
   h?: number;

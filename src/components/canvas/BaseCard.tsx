@@ -218,6 +218,8 @@ export function BaseCard({
       onPointerDownCapture={toFront}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      // ALT+CLICK (#288): toggle the header/chrome off for a clean on-camera card.
+      onClickCapture={(e) => { if (e.altKey) { e.stopPropagation(); update({ hideChrome: !data.hideChrome }); } }}
       className="group/shell animate-in fade-in zoom-in-95 relative flex flex-col overflow-hidden rounded-xl duration-150"
       style={{
         width: fixedWidth ?? data.w ?? undefined,
@@ -252,7 +254,9 @@ export function BaseCard({
           onResize={(_, p) => update({ w: Math.round(p.width), h: Math.round(p.height) })}
         />
       )}
-      {/* Header (drag handle for the whole card) — brand navy band */}
+      {/* Header (drag handle for the whole card) — brand navy band. Alt+click the
+          card hides it (#288) for a clean on-camera look. */}
+      {!data.hideChrome && (
       <div
         className="flex items-center gap-1.5 px-2 py-1"
         style={{ background: PAPER.header }}
@@ -299,6 +303,7 @@ export function BaseCard({
           <IconBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></IconBtn>
         </div>
       </div>
+      )}
       <div className={`nowheel min-h-0 flex-1 p-2.5 ${clipX ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"}`}>{children}</div>
       {/* POSITION LOCK (B2) — bottom-right: freezes the spot (no drag), edits
           still work. The JE review-lock is the stricter cousin (edits too). */}

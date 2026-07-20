@@ -12,11 +12,19 @@ import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, getStraightPath, useRea
 
 import { removeEdgeCmd } from "./arrows";
 import { bus, type RfLike } from "./commands";
+import { useSpotlight } from "./SpotlightContext";
 
 export function ArrowEdge(props: EdgeProps) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, style, markerEnd, data } = props;
   const rf = useReactFlow();
   const dragging = !!data?._drag;
+  // SPOTLIGHT AN ARROW (Lee): Ctrl+click pills the edge, Ctrl+Shift+click flames it.
+  const sp = useSpotlight();
+  const spotlit = sp?.targetState(id, "self") === "spot";
+  const flamed = sp?.isFlamed(id, "self") ?? false;
+  const spotStyle: React.CSSProperties = spotlit
+    ? { stroke: flamed ? "#FF7A00" : "#FCA311", strokeWidth: flamed ? 4.5 : 3, filter: `drop-shadow(0 0 ${flamed ? 9 : 5}px rgba(252,163,17,0.9))` }
+    : {};
   const [path, labelX, labelY] = dragging
     ? getStraightPath({ sourceX, sourceY, targetX, targetY })
     : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
@@ -27,7 +35,7 @@ export function ArrowEdge(props: EdgeProps) {
         id={id}
         path={path}
         markerEnd={markerEnd}
-        style={style}
+        style={{ ...style, ...spotStyle }}
         className={data?._pulse ? "sa-edge-pulse" : undefined}
         interactionWidth={16}
       />

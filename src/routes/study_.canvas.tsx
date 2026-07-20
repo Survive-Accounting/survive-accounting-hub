@@ -1461,6 +1461,14 @@ function PresentCanvas() {
   }, [rf]);
   const onEdgeClick = useCallback(
     (_e: React.MouseEvent, edge: { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => {
+      // SPOTLIGHT AN ARROW (Lee): Ctrl+click pills the edge, Ctrl+Shift+click flames
+      // it — same emphasis model as cards, keyed on the edge id.
+      if (_e.ctrlKey || _e.metaKey) {
+        _e.stopPropagation();
+        if (_e.shiftKey) spotRef.current?.toggleFlame(edge.id, "self");
+        else spotRef.current?.start(edge.id, "self");
+        return;
+      }
       clearEdgeGlow();
       const ends: [string, string | null][] = [
         [edge.source, lineIdOfHandle(edge.sourceHandle)],
