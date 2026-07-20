@@ -1552,19 +1552,12 @@ function PresentCanvas() {
       position: { x: 130, y: 90 },
       data: blankCard("ceq") as unknown as CardNode["data"],
     };
-    // OUTLINE — the lesson list with THIS lesson marked "you are here".
+    // OUTLINE — an EMPTY frame (Lee's call: no auto-generated lesson list; build
+    // your own outline list here and bind it to the course outline if you want).
+    void allLabels;
     const outlineFrameId = cardId("frame");
     const outlineFrame = { id: outlineFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(2) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 2), title: "Outline" } as unknown as CardNode["data"] };
-    const labels = allLabels.length ? allLabels : [label];
-    const outlineList = {
-      id: cardId("list"), type: "list", parentId: outlineFrameId,
-      position: { x: 130, y: 72 },
-      data: {
-        kind: "list", title: "Lessons", showChips: false,
-        rows: labels.map((t) => ({ id: cardId("r"), text: t, youAreHere: t === label })),
-      } as unknown as CardNode["data"],
-    };
-    return [lesson, introFrame, ceqFrame, outlineFrame, ...frames, titleCard, ceqCard, outlineList] as CardNode[];
+    return [lesson, introFrame, ceqFrame, outlineFrame, ...frames, titleCard, ceqCard] as CardNode[];
   }, []);
 
   const spawnRegionScaffold = useCallback(() => {
@@ -3255,7 +3248,18 @@ function PresentCanvas() {
 
   // ---- two-tab guard: first tab to open a scene owns its autosave; a second
   // tab sees the fresh foreign lock, pauses autosave, and shows a banner.
-  const TAB_ID = useRef(Math.random().toString(36).slice(2));
+  // STABLE per browser TAB (sessionStorage survives a hard refresh but is unique
+  // per tab) — so reloading no longer trips the "open in another tab" lock, while
+  // a genuinely different tab still conflicts. (Was per page-load → false alarm.)
+  const TAB_ID = useRef((() => {
+    try {
+      const s = sessionStorage.getItem("sa-canvas-tab-id");
+      if (s) return s;
+      const id = Math.random().toString(36).slice(2);
+      sessionStorage.setItem("sa-canvas-tab-id", id);
+      return id;
+    } catch { return Math.random().toString(36).slice(2); }
+  })());
   const [tabConflict, setTabConflict] = useState(false);
   const lockKey = sceneId ? `sa-canvas-lock-${sceneId}` : null;
   const lockOwned = useCallback(() => {
@@ -3756,6 +3760,7 @@ function PresentCanvas() {
       { combo: "[", group: "Frames", description: "Previous beat ← (also PageUp)", handler: () => stepBeat(-1) },
       { combo: "pagedown", group: "Frames", description: "Next beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(1); } },
       { combo: "pageup", group: "Frames", description: "Previous beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(-1); } },
+      { combo: "ctrl+s", group: "File", description: "Save the scene", handler: (e) => { e.preventDefault(); void saveRef.current(); } },
       { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
       { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
