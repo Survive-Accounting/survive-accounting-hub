@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -1128,6 +1128,7 @@ function PresentCanvas() {
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
   const [watermarkOn, setWatermarkOn] = useState(true); // brand watermark on the recording (toggle) — Lee's call
+  const [trashOver, setTrashOver] = useState(false); // frame-navigator trash drop target hover
   const [backstage, setBackstage] = useState<BackstageMode>("dark"); // dots-only matrix by default (no SURVIVE backdrop) — Lee's call; cinema still selectable
   const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
@@ -2028,6 +2029,65 @@ function PresentCanvas() {
     const cmd = compositeCmd(cmds, "swap frames");
     if (cmd) bus.dispatch(cmd);
   }, [rf, gridPos]);
+
+  /** DRAG-DROP reorder: drop frame SRC onto frame DEST → SRC MOVES to DEST's slot
+   *  (DEST + everything below it slide down; SRC's old column closes up). Works
+   *  across beats. One undoable command. This is a MOVE (not a swap) so you can
+   *  drop a frame underneath another to make it sit there. */
+  const moveFrameToFrame = useCallback((srcId: string, destId: string) => {
+    if (srcId === destId) return;
+    const src = rf.getNode(srcId), dest = rf.getNode(destId);
+    if (!src?.parentId || !dest?.parentId || src.parentId !== dest.parentId) return;
+    const lessonId = src.parentId;
+    const srcBeat = beatColOf(src as never), destBeat = beatColOf(dest as never);
+    const nodes = rf.getNodes();
+    const srcCol = framesInBeat(nodes as never, lessonId, srcBeat).filter((x) => x.id !== srcId);
+    const destColBase = (srcBeat === destBeat ? srcCol : framesInBeat(nodes as never, lessonId, destBeat)).filter((x) => x.id !== srcId);
+    if (srcBeat !== destBeat && destColBase.length >= RESERVED_ROWS) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    const di = destColBase.findIndex((x) => x.id === destId);
+    const insertAt = di < 0 ? destColBase.length : di;
+    const newDest = [...destColBase.slice(0, insertAt), { id: srcId }, ...destColBase.slice(insertAt)];
+    const slot = new Map<string, { beat: Beat; sub: number }>();
+    if (srcBeat !== destBeat) srcCol.forEach((x, i) => slot.set(x.id, { beat: srcBeat, sub: i }));
+    newDest.forEach((x, i) => slot.set(x.id, { beat: destBeat, sub: i }));
+    rf.setNodes((nds) => nds.map((n) => { const p = slot.get(n.id); return p ? { ...n, position: gridPos(p.beat, p.sub) } : n; }));
+    const cmds = [...slot.entries()].map(([id, p]) => patchDataCmd(rf as unknown as RfLike, id, { beat: p.beat, subIndex: p.sub }, "move frame")).filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, "move frame");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos, flashToast]);
+
+  /** DELETE a frame (drag it onto the navigator's trash): the frame's cards go
+   *  loose into the lesson (absolute position kept), the beat column closes up,
+   *  and the camera exits if we deleted the frame we're in. One undoable command. */
+  const deleteFrameById = useCallback((frameId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const f = all.find((n) => n.id === frameId && n.type === "frame");
+    if (!f?.parentId) return;
+    const lessonId = f.parentId;
+    const beat = beatColOf(f as never);
+    const kidsBefore = all.filter((n) => n.parentId === frameId).map((k) => ({ id: k.id, position: { ...k.position } }));
+    const frameSnap = { ...(rf.getNode(frameId) as object) } as CardNode;
+    const remaining = framesInBeat(all as never, lessonId, beat).filter((x) => x.id !== frameId);
+    const reindexBefore = remaining.map((x) => ({ id: x.id, subIndex: subIndexOf(x as never), position: { ...x.position } }));
+    if (currentFrameRef.current === frameId) exitFrame();
+    bus.dispatch({
+      label: "delete frame",
+      do: () => rf.setNodes((nds) => (nds as CardNode[]).filter((n) => n.id !== frameId).map((n) => {
+        if (n.parentId === frameId) return { ...n, parentId: lessonId, position: { x: n.position.x + f.position.x, y: n.position.y + f.position.y } };
+        const i = remaining.findIndex((x) => x.id === n.id);
+        return i >= 0 ? { ...n, data: { ...n.data, subIndex: i }, position: gridPos(beat, i) } : n;
+      }) as never),
+      undo: () => rf.setNodes((nds) => {
+        const restored = (nds as CardNode[]).map((n) => {
+          const kb = kidsBefore.find((x) => x.id === n.id);
+          if (kb) return { ...n, parentId: frameId, position: kb.position };
+          const rb = reindexBefore.find((x) => x.id === n.id);
+          return rb ? { ...n, data: { ...n.data, subIndex: rb.subIndex }, position: rb.position } : n;
+        });
+        return [...restored, frameSnap] as never;
+      }),
+    });
+  }, [rf, gridPos, exitFrame]);
 
   // ---- DUPLICATION (PROMPT 1 — the swap-many foundation) ---------------------
   // Deep-copy a frame or a whole lesson: cards + per-element state, script +
@@ -4084,22 +4144,36 @@ function PresentCanvas() {
           </div>
 
           {/* THE LESSON LAYOUT — thumbnails per beat column; drag one onto another
-              to SWAP their slots, click to jump in. */}
+              to drop it INTO that slot (it slides in; others shift down), click to
+              jump in, or drag onto the trash (bottom-right) to delete it. */}
           {lessonId && (
-            <div className="flex items-start gap-2 overflow-x-auto rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}`, maxWidth: "88vw" }}>
-              {BEAT_COLUMNS.map((b) => {
-                const col = framesInBeat(rf.getNodes() as never, lessonId, b);
-                const cbm = BEAT_META[b];
-                return (
-                  <div key={b} className="flex shrink-0 flex-col items-center gap-1">
-                    <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
-                    {col.length === 0 && <span className="grid h-[37px] w-[66px] place-items-center rounded text-[8px] italic" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
-                    {col.map((f) => (
-                      <FrameThumb key={f.id} frame={f as never} nodes={rf.getNodes() as never} active={f.id === currentFrameId} color={cbm.color} code={codeOf(f.id)} onEnter={() => enterFrame(f.id)} onDropFrame={(src) => swapFrames(src, f.id)} />
-                    ))}
-                  </div>
-                );
-              })}
+            <div className="flex items-stretch gap-2">
+              <div className="flex flex-1 items-start gap-2 overflow-x-auto rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}`, maxWidth: "84vw" }}>
+                {BEAT_COLUMNS.map((b) => {
+                  const col = framesInBeat(rf.getNodes() as never, lessonId, b);
+                  const cbm = BEAT_META[b];
+                  return (
+                    <div key={b} className="flex shrink-0 flex-col items-center gap-1">
+                      <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
+                      {col.length === 0 && <span className="grid h-[37px] w-[66px] place-items-center rounded text-[8px] italic" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
+                      {col.map((f) => (
+                        <FrameThumb key={f.id} frame={f as never} nodes={rf.getNodes() as never} active={f.id === currentFrameId} color={cbm.color} code={codeOf(f.id)} onEnter={() => enterFrame(f.id)} onDropFrame={(src) => moveFrameToFrame(src, f.id)} />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* TRASH — drag a frame here to delete it (undoable) */}
+              <div
+                className="grid w-11 shrink-0 place-items-center self-stretch rounded-lg transition-colors"
+                style={{ border: `1.5px dashed ${trashOver ? "#E0284A" : NEON.borderSoft}`, background: trashOver ? "rgba(224,40,74,0.18)" : "rgba(0,0,0,0.28)", color: trashOver ? "#FF8B9E" : NEON.muted }}
+                title="Drop a frame here to delete it (Ctrl+Z to undo)"
+                onDragOver={(e) => { if (e.dataTransfer.types.includes("text/sa-frame")) { e.preventDefault(); setTrashOver(true); } }}
+                onDragLeave={() => setTrashOver(false)}
+                onDrop={(e) => { setTrashOver(false); const src = e.dataTransfer.getData("text/sa-frame"); if (src) { e.preventDefault(); deleteFrameById(src); } }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </div>
             </div>
           )}
         </div>
