@@ -12,10 +12,10 @@ import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { useSpotTarget, spotStyle } from "../SpotlightContext";
 import { useCanvasSettings } from "../CanvasSettingsContext";
-import { DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
+import { BIG_FONT, DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { useEditSignal } from "../ui";
 import { renderTokens, TokenMenu } from "../variables";
-import type { BridgeCard, GateElement, TextElement } from "../types";
+import type { BridgeCard, ExamCueElement, GateElement, TextElement } from "../types";
 
 // ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
 export function ElementChrome({ id, posLock, selected }: { id: string; posLock?: boolean; selected?: boolean }) {
@@ -227,6 +227,114 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
             onClick={() => update({ color: i })}
             title={nc.name}
           />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---- EXAM CUE (Lee) — a big emoji-illustration callout that HOOKS a common-exam
+//      -question frame: a bouncing sheet of paper + "Your exam" + a red "on the
+//      exam" tag, so students feel they'll meet this on the real test. Design
+//      element: resizable, spotlightable (Ctrl+click) / super-spotlightable
+//      (Ctrl+Shift+click), never in the deck. ----
+const EXAMCUE_CSS = `
+@keyframes sa-examcue-bounce { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-15px) rotate(3deg); } }
+`;
+const EXAM_EMOJIS = ["📄", "📝", "🧾", "📋", "✍️", "🎯", "⏰", "🔥"];
+
+export function ExamCueNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as ExamCueElement;
+  const { update, toFront } = useCardActions(id);
+  const [editing, setEditing] = useState(false);
+  // SPOTLIGHT: whole-element "self" target — Ctrl+click pills it, Ctrl+Shift+click
+  // super-flames it, live while filming.
+  const spot = useSpotTarget(id, "self");
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit
+  const emoji = d.emoji || "📄";
+  const w = d.w ?? 300;
+  const h = d.h ?? 230;
+  const emojiPx = Math.max(44, Math.min(150, h * 0.34));
+  const labelPx = Math.max(20, Math.min(72, w * 0.14));
+
+  return (
+    <div
+      onPointerDownCapture={toFront}
+      className="group/el animate-in fade-in relative duration-150"
+      style={{ width: w, minHeight: h }}
+    >
+      <style>{EXAMCUE_CSS}</style>
+      <ConnectionDots />
+      <ElementChrome id={id} posLock={d.posLock} selected={selected} />
+      <ElementResizer id={id} selected={selected} minWidth={180} minHeight={170} keepAspect />
+      {/* GRAB HANDLE — a clear affordance; the whole box drags too */}
+      <div
+        className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
+        title="Drag to move"
+        style={{ color: NEON.muted }}
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
+
+      {/* the callout — spotlight wraps the whole thing */}
+      <div
+        {...spot.props}
+        className="flex h-full w-full flex-col items-center justify-center gap-2.5 rounded-3xl px-4 py-5 text-center"
+        style={{
+          minHeight: h,
+          background: "radial-gradient(ellipse at 50% 20%, rgba(30,42,74,0.85), rgba(9,13,26,0.9))",
+          border: `1.5px solid rgba(224,40,74,0.45)`,
+          boxShadow: "0 18px 44px -18px rgba(0,0,0,0.7)",
+          ...spotStyle(spot.state),
+        }}
+      >
+        <span
+          aria-hidden
+          style={{ fontSize: emojiPx, lineHeight: 1, animation: "sa-examcue-bounce 1.5s ease-in-out infinite", filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.55))" }}
+        >
+          {emoji}
+        </span>
+        {editing ? (
+          <input
+            autoFocus
+            className="nodrag w-[85%] rounded bg-black/30 px-2 py-1 text-center outline-none"
+            style={{ color: "#F4EFE6", fontFamily: BIG_FONT, fontWeight: 800, fontSize: Math.min(labelPx, 34), letterSpacing: "-0.01em" }}
+            defaultValue={d.label}
+            placeholder="Your exam"
+            onBlur={(e) => { update({ label: e.target.value }); setEditing(false); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { update({ label: (e.target as HTMLInputElement).value }); setEditing(false); } if (e.key === "Escape") setEditing(false); e.stopPropagation(); }}
+          />
+        ) : (
+          <span
+            className="cursor-text leading-none"
+            style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: labelPx, letterSpacing: "-0.01em", color: "#F4EFE6", textShadow: "0 2px 12px rgba(0,0,0,0.7)" }}
+            title="Double-click to edit"
+            onDoubleClick={() => setEditing(true)}
+          >
+            {d.label || "Your exam"}
+          </span>
+        )}
+        <span
+          className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]"
+          style={{ color: "#FFFFFF", background: "rgba(224,40,74,0.92)", boxShadow: "0 0 16px rgba(224,40,74,0.55)" }}
+        >
+          You'll see this on the exam
+        </span>
+      </div>
+
+      {/* emoji swatches on hover */}
+      <div className="card-actions absolute -bottom-6 left-1/2 flex -translate-x-1/2 gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover/el:opacity-100" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+        {EXAM_EMOJIS.map((em) => (
+          <button
+            key={em}
+            className="nodrag grid h-5 w-5 place-items-center rounded text-[13px]"
+            style={{ background: emoji === em ? "rgba(252,163,17,0.2)" : "transparent" }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); update({ emoji: em }); }}
+            title={`Use ${em}`}
+          >
+            {em}
+          </button>
         ))}
       </div>
     </div>

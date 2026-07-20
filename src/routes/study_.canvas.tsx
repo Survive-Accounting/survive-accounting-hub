@@ -57,7 +57,7 @@ import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/compo
 import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
-import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { BridgeCardNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
@@ -647,6 +647,7 @@ const nodeTypes = {
   // ELEMENTS: plain — never face-down (elements don't deck)
   heading: HeadingCardNode,
   text: TextElementNode,
+  examcue: ExamCueNode,
   memo: MemoCardNode,
   paygate: GateNode,
   signupgate: GateNode,

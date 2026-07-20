@@ -18,6 +18,7 @@ export type CardKind =
   | "formula"
   | "heading"
   | "text"
+  | "examcue"
   | "memo"
   | "outline"
   | "paygate"
@@ -50,6 +51,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   formula: "card",
   heading: "element",
   text: "element",
+  examcue: "element",
   memo: "element",
   paygate: "element",
   signupgate: "element",
@@ -408,6 +410,18 @@ export interface GateElement extends CardBase {
   label: string; // editable banner text
 }
 
+// ---- Exam cue (Lee): a big emoji-illustration callout — a bouncing sheet of
+//      paper + a label ("Your exam") — that HOOKS a common-exam-question frame by
+//      signalling "you'll see this on the real exam". Design ELEMENT: resizable,
+//      spotlightable, never in the deck. ----
+export interface ExamCueElement extends CardBase {
+  kind: "examcue";
+  /** The callout line (default "Your exam"). */
+  label: string;
+  /** The emoji illustration that bounces (default 📄). */
+  emoji?: string;
+}
+
 // ---- Bridge placeholders (deckable cards; features arrive with World v1) ----
 export interface BridgeCard extends CardBase {
   kind: "asklee" | "submitproblem" | "shareinvite";
@@ -476,6 +490,7 @@ export type CardData =
   | FormulaCard
   | HeadingCard
   | TextElement
+  | ExamCueElement
   | MemoCard
   | GateElement
   | OutlineCard
