@@ -51,11 +51,15 @@ export type { SpotlightApi };
  *  anymore (arrow keys belong to frame navigation). The old cursor methods stay on
  *  the API as inert no-ops so the keymap keeps type-checking; only `active` (any
  *  emphasis present) and `exit` (clear all) still do anything for the keymap. */
-export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: FocusDimMode; followReveals?: boolean }): SpotlightApi {
+export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: FocusDimMode; followReveals?: boolean; onAction?: (cardId: string, targetId: string, tier: "regular" | "super") => void }): SpotlightApi {
   const [sets, setSets] = useState<SpotSets>(() => ({ regular: new Set(), superKey: null }));
   const setsRef = useRef(sets);
   setsRef.current = sets;
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  // CUE RECORDER (Lee): fire ONLY when a click turns emphasis ON, so the recorder
+  // logs the spotlight/super but not a toggle-off. Kept in a ref → stable callbacks.
+  const onActionRef = useRef(_opts?.onAction);
+  onActionRef.current = _opts?.onAction;
 
   // Which target the camera should push toward, given the new sets + the target
   // that was just acted on. Super wins; else the acted key if it's now lit; else
@@ -74,6 +78,7 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
     const next = applyRegularClick(setsRef.current, key);
     setsRef.current = next; setSets(next);
     setFocus(focusFrom(next, key));
+    if (next.regular.has(key)) onActionRef.current?.(cardId, targetId, "regular");
   }, [focusFrom]);
   // Ctrl+Shift+click → the ONE super (replaces the previous; re-click toggles off).
   const toggleFlame = useCallback((cardId: string, targetId: string) => {
@@ -81,6 +86,7 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
     const next = applySuperClick(setsRef.current, key);
     setsRef.current = next; setSets(next);
     setFocus(focusFrom(next, key));
+    if (next.superKey === key) onActionRef.current?.(cardId, targetId, "super");
   }, [focusFrom]);
   const isFlamed = useCallback((cardId: string, targetId: string) => sets.superKey === spotKey(cardId, targetId), [sets]);
   // Both regular AND super targets get the gold pill; super additionally burns

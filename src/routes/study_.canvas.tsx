@@ -61,7 +61,7 @@ import { BridgeCardNode, ExamCueNode, GateNode, TextElementNode } from "@/compon
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -72,7 +72,7 @@ import { VisualMixPanel } from "@/components/canvas/VisualMixPanel";
 import { Storyboard } from "@/components/canvas/StoryboardPanel";
 import { DEFAULT_RIFF, DEFAULT_READTIME_THRESHOLD_S, estimateFrameSeconds } from "@/components/canvas/script-timing";
 import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
-import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type Command, type RfLike } from "@/components/canvas/commands";
+import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type Command, type RfLike } from "@/components/canvas/commands";
 import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
 import { decksOfLesson, duplicateLessonDecks, mintDeckIds, nextRegionCell } from "@/components/canvas/duplicate-lesson";
 import { buildSnippetPayload, spawnSnippet, SNIPPET_DND_MIME, type SnippetPayload } from "@/components/canvas/snippet-payload";
@@ -1024,7 +1024,26 @@ function PresentCanvas() {
   // film / OFF outside; followReveals default on. The controller reads them live.
   const [spotFocusDim, setSpotFocusDim] = useState<FocusDimMode>("auto");
   const [spotFollowReveals, setSpotFollowReveals] = useState(true);
-  const spot = useSpotlightController({ film, focusDimMode: spotFocusDim, followReveals: spotFollowReveals });
+  // CUE RECORDER (Lee): record mode captures spotlights + reveals + deals into the
+  // frame's recordedCues; a frame WITH a recording plays it back on Space.
+  const [cueRecording, setCueRecording] = useState(false);
+  const cueRecordingRef = useRef(false);
+  cueRecordingRef.current = cueRecording;
+  const recPlayIdxRef = useRef<Map<string, number>>(new Map()); // per-frame recorded-playback cursor
+  const spot = useSpotlightController({
+    film, focusDimMode: spotFocusDim, followReveals: spotFollowReveals,
+    // record spotlight / super clicks (only while recording, inside a frame)
+    onAction: (cid, targetId, tier) => {
+      if (!cueRecordingRef.current) return;
+      const fid = currentFrameRef.current;
+      if (!fid) return;
+      const nd = rf.getNode(cid)?.data as { title?: string; kind?: string } | undefined;
+      const name = nd?.title || nd?.kind || "card";
+      const tgt = targetId && targetId !== "self" ? `${name} · ${targetId}` : name;
+      const cmd = patchDataFnCmd(rf as unknown as RfLike, fid, (prev) => ({ recordedCues: [...((prev.recordedCues as RecCue[]) ?? []), { id: cardId("rc"), kind: tier === "super" ? "super" : "spot", cardId: cid, targetId, label: tier === "super" ? "Super" : "Spot", target: tgt }] }), "record spotlight");
+      if (cmd) bus.dispatch(cmd);
+    },
+  });
   const spotRef = useRef(spot);
   spotRef.current = spot;
   // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
@@ -1865,6 +1884,47 @@ function PresentCanvas() {
     return "handled";
   }, [rf, deal, disarm]);
 
+  // ---- CUE RECORDER (Lee) --------------------------------------------------
+  // Execute one recorded cue's effect (recorded playback + click-to-play). Spot/
+  // super go through the live spotlight controller; reveal/deal/memo mirror the
+  // derived walk. onAction is guarded on recording, so playback never re-records.
+  const executeRecCue = useCallback((cue: RecCue) => {
+    const rfl = rf as unknown as RfLike;
+    if (cue.kind === "reveal" && cue.cardId) {
+      const d = rf.getNode(cue.cardId)?.data as CardData | undefined;
+      if (d) { const c = patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, cue.revealCount ?? 0) as Record<string, unknown>, "reveal (rec)"); if (c) bus.dispatch(c); }
+      rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === cue.cardId) ? { ...n, selected: n.id === cue.cardId } : n)));
+    } else if (cue.kind === "deal" && cue.cardId) {
+      deal(cue.cardId);
+    } else if (cue.kind === "memo" && cue.memoId) {
+      const c = patchDataCmd(rfl, cue.memoId, { cueHidden: false }, "reveal memo (rec)"); if (c) bus.dispatch(c);
+    } else if (cue.kind === "spot" && cue.cardId) {
+      spotRef.current?.start(cue.cardId, cue.targetId ?? "self");
+      if (cue.superOnEntry) spotRef.current?.toggleFlame(cue.cardId, cue.targetId ?? "self");
+    } else if (cue.kind === "super" && cue.cardId) {
+      spotRef.current?.toggleFlame(cue.cardId, cue.targetId ?? "self");
+    }
+  }, [rf, deal]);
+  // Append a reveal/deal cue while recording (spotlights are captured via onAction).
+  const recordStepCue = useCallback((frameId: string, cue: Omit<RecCue, "id">) => {
+    const c = patchDataFnCmd(rf as unknown as RfLike, frameId, (prev) => ({ recordedCues: [...((prev.recordedCues as RecCue[]) ?? []), { ...cue, id: cardId("rc") }] }), "record step");
+    if (c) bus.dispatch(c);
+  }, [rf]);
+  // Toggle record for the current frame. Starting a take CLEARS the old recording.
+  const toggleRecord = useCallback(() => {
+    const fid = currentFrameRef.current;
+    if (!fid) { flashToast("Enter a frame to record its cues"); return; }
+    setCueRecording((on) => {
+      const next = !on;
+      const cmd = next
+        ? patchDataFnCmd(rf as unknown as RfLike, fid, () => ({ recordedCues: [] }), "start recording")
+        : (() => { const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues; return cur && cur.length === 0 ? patchDataFnCmd(rf as unknown as RfLike, fid, () => ({ recordedCues: undefined }), "clear empty recording") : null; })();
+      if (cmd) bus.dispatch(cmd);
+      recPlayIdxRef.current.set(fid, 0);
+      return next;
+    });
+  }, [rf, flashToast]);
+
   // ---- FRAMES: enter/exit/step camera (the frame's bounds = the viewport) ----
   const enterFrame = useCallback((frameId: string) => {
     const nodes = rf.getNodes();
@@ -1873,6 +1933,7 @@ function PresentCanvas() {
     if (!f || f.type !== "frame") return;
     const r = absRectOf(f as never, byId as never);
     setCurrentFrameId(frameId);
+    recPlayIdxRef.current.set(frameId, 0); // restart recorded playback for this frame
     if (f.parentId) lastLessonRef.current = f.parentId; // remember the lesson we're working in (for on-load)
     lastUserView.current = Date.now(); // suppress auto-fit fighting the frame camera
     // EXACT FIT (the whole point: frame bounds = the viewport). Compute the
@@ -3624,6 +3685,23 @@ function PresentCanvas() {
           //       advances past (→ is the manual roll to the next lesson).
           // Any reveal/deal DISARMS. Not inside a frame → the old cross-lesson walk.
           e.preventDefault();
+          // RECORDED PLAYBACK (Lee): a frame WITH a recording plays it back — each
+          // Space fires the next recorded cue (spotlight / reveal / deal), then
+          // arms + advances when exhausted. Only while NOT recording; frames with
+          // no recording fall through to the derived walk, byte-for-byte unchanged.
+          const recF = currentFrameRef.current;
+          if (recF && !cueRecordingRef.current) {
+            const rc = (rf.getNode(recF)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
+            if (rc && rc.length) {
+              const idx = recPlayIdxRef.current.get(recF) ?? 0;
+              if (idx < rc.length) { executeRecCue(rc[idx]); recPlayIdxRef.current.set(recF, idx + 1); disarm(); return; }
+              if (!spaceAdvancesFramesRef.current) return;
+              const nf = frameWalkNext(rf.getNodes() as never, recF);
+              if (armStateRef.current !== "ready") { setArmState(nf ? "ready" : "end"); return; }
+              if (!nf) return;
+              enterFrame(nf.id); setArmState(null); return;
+            }
+          }
           // CUE-DRIVEN (Phase 2): a frame with an explicit cueOrder runs its cues
           // in that exact order; ONLY such frames take this path — every other
           // frame keeps the derived precedence below, byte-for-byte unchanged.
@@ -3657,13 +3735,14 @@ function PresentCanvas() {
             if (c) bus.dispatch(c);
             const tid = revealedTargetId(sel.data as unknown as CardData, patch as Partial<CardData>);
             if (tid) spotRef.current?.onReveal(sel.id, tid);
+            if (cueRecordingRef.current && recF) recordStepCue(recF, { kind: "reveal", cardId: sel.id, revealCount: currentRevealCount({ ...(sel.data as unknown as CardData), ...(patch as Partial<CardData>) } as CardData), label: "Reveal", target: tid || (sel.data as { title?: string; kind?: string }).title || (sel.data as { kind?: string }).kind || "card" });
             disarm(); return;
           }
           // (b) deal — the current FRAME's deck if we're in one, else cross-lesson
           const frameId = currentFrameRef.current;
           if (frameId) {
             const next = nextTuckedInFrame(nodes as never, frameId);
-            if (next) { deal(next.id); disarm(); return; }
+            if (next) { deal(next.id); if (cueRecordingRef.current) recordStepCue(frameId, { kind: "deal", cardId: next.id, label: "Deal", target: (next.data as { title?: string; kind?: string }).title || (next.data as { kind?: string }).kind || "card" }); disarm(); return; }
           } else {
             const current = sel ? lessonIdOf(sel as never, nodes as never) : walkLessonRef.current;
             const next = nextTuckedCross(nodes as never, current);
@@ -4789,11 +4868,11 @@ function PresentCanvas() {
           live in film); in-canvas we leave a placeholder chip to bring it back. */}
       {cueSheetOpen && currentFrameId && isPopped("cuesheet") && (
         <PanelPopout win={popWins.cuesheet!} title="Cue sheet" onReturn={() => returnPop("cuesheet")}>
-          <CueSheet frameId={currentFrameId} inPopout onClose={() => setCueSheetOpen(false)} />
+          <CueSheet frameId={currentFrameId} inPopout onClose={() => setCueSheetOpen(false)} recording={cueRecording} onToggleRecord={toggleRecord} />
         </PanelPopout>
       )}
       {chrome && cueSheetOpen && currentFrameId && !isPopped("cuesheet") && (
-        <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} onPopOut={() => openPop("cuesheet")} />
+        <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} onPopOut={() => openPop("cuesheet")} recording={cueRecording} onToggleRecord={toggleRecord} />
       )}
       {chrome && cueSheetOpen && isPopped("cuesheet") && (
         <PopoutPlaceholder title="Cue sheet" onReturn={() => returnPop("cuesheet")} style={{ top: 12, right: 12 }} />

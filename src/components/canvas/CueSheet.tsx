@@ -9,14 +9,23 @@
 // the frame to the derived order.
 import { useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronDown, ChevronUp, ExternalLink, GripVertical, Layers, ListOrdered, MousePointerClick, RotateCcw, StickyNote, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Circle, ExternalLink, Flame, GripVertical, Layers, ListOrdered, MousePointerClick, RotateCcw, Sparkles, StickyNote, Trash2, X } from "lucide-react";
 
 import { bus, type RfLike } from "./commands";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type Cue, type CueState } from "./cue-sheet";
 import { patchDataCmd } from "./commands";
 import { frameWalkNext } from "./frames";
 import { NEON } from "./theme";
-import { isContainerType, type CardData } from "./types";
+import { isContainerType, type CardData, type RecCue } from "./types";
+
+const REC_META: Record<RecCue["kind"], { icon: typeof Layers; color: string; verb: string }> = {
+  deal: { icon: Layers, color: NEON.cyan, verb: "Deal" },
+  reveal: { icon: MousePointerClick, color: "#7EF3C0", verb: "Reveal" },
+  memo: { icon: StickyNote, color: "#FCA311", verb: "Memo" },
+  spot: { icon: Sparkles, color: "#FCD34D", verb: "Spot" },
+  super: { icon: Flame, color: "#FF7A00", verb: "Super" },
+  advance: { icon: ChevronDown, color: NEON.muted, verb: "Advance" },
+};
 
 type AnyNode = { id: string; type?: string; parentId?: string; position: { x: number; y: number }; data: CardData & { deckMember?: boolean; tucked?: boolean; stageOrder?: number; title?: string; memoKind?: string; body?: string; cueHidden?: boolean } };
 
@@ -27,7 +36,7 @@ const KIND_META: Record<Cue["kind"], { icon: typeof Layers; color: string; verb:
   advance: { icon: ChevronDown, color: NEON.muted, verb: "Advance" },
 };
 
-export function CueSheet({ frameId, onClose, onPopOut, inPopout }: { frameId: string; onClose: () => void; onPopOut?: () => void; inPopout?: boolean }) {
+export function CueSheet({ frameId, onClose, onPopOut, inPopout, recording, onToggleRecord }: { frameId: string; onClose: () => void; onPopOut?: () => void; inPopout?: boolean; recording?: boolean; onToggleRecord?: () => void }) {
   const rf = useReactFlow();
   const nodes = useNodes() as unknown as AnyNode[];
   const edges = useEdges() as unknown as { id: string; source: string; target: string }[];
@@ -37,6 +46,14 @@ export function CueSheet({ frameId, onClose, onPopOut, inPopout }: { frameId: st
   const frame = nodes.find((n) => n.id === frameId);
   const cueOrder = (frame?.data as { cueOrder?: string[] } | undefined)?.cueOrder;
   const isCustom = !!cueOrder && cueOrder.length > 0;
+  // RECORDED CUES (Lee): when present, they OVERRIDE the derived list — the panel
+  // shows the recording (delete / reorder / super-on-entry) instead.
+  const recorded = (frame?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+  const hasRecording = recorded.length > 0;
+  const writeRec = (cues: RecCue[] | null) => { const c = patchDataCmd(rfl, frameId, { recordedCues: cues && cues.length ? cues : undefined }, cues ? "edit recording" : "clear recording"); if (c) bus.dispatch(c); };
+  const moveRec = (i: number, dir: -1 | 1) => { const j = i + dir; if (j < 0 || j >= recorded.length) return; const next = [...recorded]; [next[i], next[j]] = [next[j], next[i]]; writeRec(next); };
+  const delRec = (id: string) => writeRec(recorded.filter((c) => c.id !== id));
+  const toggleSuperEntry = (id: string) => writeRec(recorded.map((c) => (c.id === id ? { ...c, superOnEntry: !c.superOnEntry } : c)));
 
   const children = nodes.filter((n) => n.parentId === frameId);
   const cards = children.filter((n) => !isContainerType(n.type) && n.data.kind !== "memo");
@@ -109,9 +126,21 @@ export function CueSheet({ frameId, onClose, onPopOut, inPopout }: { frameId: st
       <div className="flex items-center gap-1.5 border-b px-2.5 py-1.5" style={{ borderColor: NEON.borderSoft }}>
         <ListOrdered className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
         <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Cue sheet</span>
-        {isCustom && <span className="rounded px-1 text-[8px] font-bold uppercase" style={{ background: "rgba(252,163,17,0.85)", color: "#0B1322" }}>custom</span>}
+        {isCustom && !hasRecording && <span className="rounded px-1 text-[8px] font-bold uppercase" style={{ background: "rgba(252,163,17,0.85)", color: "#0B1322" }}>custom</span>}
+        {hasRecording && <span className="rounded px-1 text-[8px] font-bold uppercase" style={{ background: "rgba(224,40,74,0.9)", color: "#fff" }}>rec</span>}
         <span className="flex-1" />
-        {isCustom && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Reset to the derived order" onClick={() => writeOrder(null)}><RotateCcw className="h-3 w-3" /></button>}
+        {onToggleRecord && (
+          <button
+            className="flex h-5 items-center gap-1 rounded px-1.5 text-[9px] font-bold uppercase"
+            style={{ color: recording ? "#fff" : NEON.muted, background: recording ? "rgba(224,40,74,0.9)" : "transparent", border: `1px solid ${recording ? "rgba(224,40,74,0.9)" : NEON.borderSoft}` }}
+            title={recording ? "Stop recording" : "Record a run: do actions (spotlight / reveal / deal) and each becomes a cue. Overrides the space-walk."}
+            onClick={onToggleRecord}
+          >
+            <Circle className="h-2.5 w-2.5" style={{ fill: "currentColor" }} /> {recording ? "Stop" : "Rec"}
+          </button>
+        )}
+        {hasRecording && !recording && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Clear the recording (back to the derived walk)" onClick={() => writeRec(null)}><RotateCcw className="h-3 w-3" /></button>}
+        {isCustom && !hasRecording && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Reset to the derived order" onClick={() => writeOrder(null)}><RotateCcw className="h-3 w-3" /></button>}
         <span className="text-[9.5px]" style={{ color: NEON.muted }}>{cues.length}</span>
         {onPopOut && !inPopout && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Pop out to a second window (off-stage for OBS)" onClick={onPopOut}><ExternalLink className="h-3 w-3" /></button>}
         {!inPopout && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} title="Close" onClick={onClose}><X className="h-3 w-3" /></button>}
@@ -136,6 +165,42 @@ export function CueSheet({ frameId, onClose, onPopOut, inPopout }: { frameId: st
         );
       })()}
       <div className="min-h-0 flex-1 overflow-auto p-1.5">
+        {/* RECORDED run (Lee) — overrides the derived walk. Reorder ↑/↓, delete,
+            and toggle "super on entry" per spotlight. */}
+        {hasRecording ? (
+          <ol className="space-y-0.5">
+            {recorded.map((c, i) => {
+              const m = REC_META[c.kind];
+              const Icon = m.icon;
+              const isSpot = c.kind === "spot";
+              return (
+                <li key={c.id}>
+                  <div className="group/rec flex items-center gap-1 rounded px-1 py-1 text-[11px]" style={{ background: "transparent" }}>
+                    <span className="w-4 shrink-0 text-right text-[9px] tabular-nums" style={{ color: NEON.muted }}>{i + 1}</span>
+                    <span className="grid h-4 w-4 shrink-0 place-items-center rounded" style={{ color: m.color }}><Icon className="h-3 w-3" /></span>
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide" style={{ color: m.color }}>{m.verb}</span>
+                    <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }}>{c.target}</span>
+                    {isSpot && (
+                      <button
+                        className="shrink-0 rounded px-1 text-[8px] font-bold uppercase"
+                        style={{ color: c.superOnEntry ? "#fff" : NEON.muted, background: c.superOnEntry ? "rgba(255,122,0,0.85)" : "transparent", border: `1px solid ${c.superOnEntry ? "rgba(255,122,0,0.85)" : NEON.borderSoft}` }}
+                        title={c.superOnEntry ? "Enters as SUPER-spotlight (click for regular)" : "Enter as super-spotlight on this cue"}
+                        onClick={() => toggleSuperEntry(c.id)}
+                      >
+                        {c.superOnEntry ? "super" : "reg"}
+                      </button>
+                    )}
+                    <span className="flex shrink-0 opacity-0 transition-opacity group-hover/rec:opacity-100">
+                      <button className="grid h-4 w-4 place-items-center" title="Move up" onClick={() => moveRec(i, -1)} style={{ color: NEON.muted }}><ChevronUp className="h-3 w-3" /></button>
+                      <button className="grid h-4 w-4 place-items-center" title="Move down" onClick={() => moveRec(i, 1)} style={{ color: NEON.muted }}><ChevronDown className="h-3 w-3" /></button>
+                      <button className="grid h-4 w-4 place-items-center" title="Delete" onClick={() => delRec(c.id)} style={{ color: "#FF6B6B" }}><Trash2 className="h-3 w-3" /></button>
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (<>
         {cues.length === 0 && <div className="px-2 py-3 text-center text-[10.5px]" style={{ color: NEON.muted }}>No cues yet — add cards to this frame.</div>}
         <ol className="space-y-0.5">
           {cues.map((c, i) => {
@@ -182,9 +247,10 @@ export function CueSheet({ frameId, onClose, onPopOut, inPopout }: { frameId: st
             );
           })}
         </ol>
+        </>)}
       </div>
       <div className="border-t px-2.5 py-1 text-[9px]" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>
-        Click a cue to play to it · drag or ↑/↓ to reorder{isCustom ? " · custom order active" : ""}
+        {recording ? "Recording — spotlight / reveal / deal are captured. Stop when done." : hasRecording ? "Recorded run plays on Space · ↑/↓ reorder · super = enters as super-spotlight" : "Click a cue to play to it · drag or ↑/↓ to reorder" + (isCustom ? " · custom order active" : "")}
       </div>
     </div>
   );

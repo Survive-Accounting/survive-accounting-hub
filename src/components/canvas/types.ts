@@ -617,6 +617,20 @@ export interface FrameScript {
 /** TAKE BOARD: the frame's filming state. Absent = unfilmed. */
 export type FilmStatus = "unfilmed" | "filmed" | "retake";
 
+/** One recorded action in a frame's cue recording (see FrameBox.recordedCues). */
+export interface RecCue {
+  id: string;
+  kind: "deal" | "reveal" | "memo" | "spot" | "super" | "advance";
+  cardId?: string;
+  targetId?: string; // spot/super/reveal: the emphasis/row target within the card
+  memoId?: string;
+  revealCount?: number; // reveal cues: steps visible AFTER this cue
+  label: string;  // captured human label (e.g. "Owner invests cash")
+  target: string; // captured human target (e.g. "line 2")
+  /** spot cues only: when this cue plays, enter as a SUPER-spotlight (Lee's toggle). */
+  superOnEntry?: boolean;
+}
+
 export interface FrameBox {
   title?: string;
   /** 16:9 aspect-locked (h = round(w * 9 / 16)). */
@@ -651,6 +665,11 @@ export interface FrameBox {
    *  cue-driven mode (Lee reordered/interleaved its sequence). Absent ⇒ the
    *  derived precedence (deal-order + reveal-order) runs, exactly as before. */
   cueOrder?: string[];
+  /** CUE RECORDER (Lee): a RECORDED action sequence for this frame. When present it
+   *  OVERRIDES the derived/cueOrder space-walk — Space plays these in order.
+   *  Captured live in record mode (spotlights + reveals + deals); fully editable
+   *  (delete / reorder / per-spotlight "super on entry"). Additive; scene JSON. */
+  recordedCues?: RecCue[];
   /** LEGACY flat index (pre-grid) — migrated to (beat, subIndex) on load. */
   order?: number | null;
   /** BACKGROUND ANIMATION (author-facing filming aid): a looping video from
