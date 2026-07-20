@@ -36,11 +36,24 @@ export function SkeletonLayer({ decks }: { decks: DeckDef[] }) {
   const gridDecks = decks.filter((d) => d.showSkeletons !== false && (d.slots?.length ?? 0) > 0);
   if (gridDecks.length === 0) return null;
 
-  type SkelNode = { id: string; type?: string; data?: { deckId?: string; stageOrder?: number; slotIndex?: number; tucked?: boolean; minimized?: boolean; staged?: boolean } };
+  type SkelNode = { id: string; type?: string; parentId?: string; position?: { x: number; y: number }; data?: { deckId?: string; stageOrder?: number; slotIndex?: number; tucked?: boolean; minimized?: boolean; staged?: boolean } };
+  const all = nodes as unknown as SkelNode[];
+  const byId = new Map(all.map((n) => [n.id, n]));
+  // A frame-local deck's slots are relative to its frame's top-left — offset them
+  // by the frame's ABSOLUTE origin so the skeletons land inside the frame (the
+  // dealt cards are frame children, so they get the same origin for free).
+  const originFor = (deck: DeckDef): { x: number; y: number } => {
+    if (!(deck.slotsLocal && deck.frameId)) return { x: 0, y: 0 };
+    let n = byId.get(deck.frameId);
+    let x = 0, y = 0, g = 0;
+    while (n && g++ < 20) { x += n.position?.x ?? 0; y += n.position?.y ?? 0; n = n.parentId ? byId.get(n.parentId) : undefined; }
+    return { x, y };
+  };
   return (
     <ViewportPortal>
       {gridDecks.flatMap((deck) => {
-        const members = deckMembersOf(nodes as unknown as SkelNode[], deck.id);
+        const members = deckMembersOf(all, deck.id);
+        const origin = originFor(deck);
         return members.flatMap((n, i) => {
           const idx = (n.data?.slotIndex ?? i) as number;
           const slot = deck.slots?.[idx];
@@ -52,8 +65,8 @@ export function SkeletonLayer({ decks }: { decks: DeckDef[] }) {
               key={`skel-${deck.id}-${n.id}`}
               className="pointer-events-none absolute"
               style={{
-                left: slot.x,
-                top: slot.y,
+                left: origin.x + slot.x,
+                top: origin.y + slot.y,
                 width: shape.w,
                 height: shape.h,
                 borderRadius: 14,

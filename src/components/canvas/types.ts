@@ -829,6 +829,11 @@ export interface DeckDef {
   frameId?: string | null;
   /** Skeleton-grid slots, in deal order (P4). Empty = no grid (free layout). */
   slots?: DeckSlot[];
+  /** When true, `slots` are FRAME-LOCAL (relative to `frameId`'s top-left) and the
+   *  members are reparented INTO the frame — the in-frame hook grid. The skeleton
+   *  layer offsets these by the frame origin. Absent/false ⇒ slots are absolute
+   *  (legacy free-canvas grid), rendered as-is. */
+  slotsLocal?: boolean;
   /** Show ghosted skeletons for undealt slots (P4). Default true. */
   showSkeletons?: boolean;
   createdAt?: string;

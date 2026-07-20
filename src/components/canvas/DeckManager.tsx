@@ -18,7 +18,6 @@ import { CEQ_OPTIONS, correctFor, filmOrder, generateCeqCards, seedAccountTypeSe
 import { nextStageOrder } from "./BaseCard";
 import { useCanvasSettings } from "./CanvasSettingsContext";
 import { DECK_DND_MIME, useDecks } from "./DecksContext";
-import { absRectOf } from "./frames";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, isContainerType, type DeckDef } from "./types";
 import { NEON } from "./theme";
@@ -192,35 +191,53 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets }: { decks: D
   const membersOf = (deck: DeckDef) => deckMembersOf(rf.getNodes() as Member[], deck.id);
 
   /** LAY GRID (P4): arrange the deck's members into a near-square grid, record
-   *  the slots, and tuck every member so the grid starts as skeletons. One step. */
+   *  the slots, and tuck every member so the grid starts as skeletons. One step.
+   *  INSIDE A FRAME (the hook shot): the members are REPARENTED into the frame and
+   *  the slots are FRAME-LOCAL, so the whole grid rides inside the frame as its
+   *  filmed content — deal fills it in place with no zoom-out. */
   const layGrid = (deck: DeckDef) => {
     const members = membersOf(deck);
     if (members.length === 0) return;
     const cols = Math.max(1, Math.ceil(Math.sqrt(members.length)));
+    const rows = Math.ceil(members.length / cols);
+    // The target frame: the attached one (if it still exists), else the frame the
+    // author is currently inside — laying then ATTACHES so it's remembered.
+    const frameId = deck.frameId && rf.getNode(deck.frameId) ? deck.frameId : (nav.currentFrameId ?? null);
+    const frame = frameId ? rf.getNode(frameId) : null;
     let slots: { x: number; y: number }[];
-    const frame = deck.frameId ? rf.getNode(deck.frameId) : null;
     if (frame) {
-      // DECK ↔ FRAME (F3): lay the grid INSIDE the frame's bounds — the frame is
-      // the deck's stage (a Check frame holding its CEQ grid).
-      const byId = new Map(rf.getNodes().map((n) => [n.id, n]));
-      const r = absRectOf(frame as never, byId as never);
-      const rows = Math.ceil(members.length / cols);
-      const pad = 40;
-      const gap = 24;
-      const cellW = Math.max(120, (r.w - 2 * pad - (cols - 1) * gap) / cols);
-      const cellH = Math.max(90, (r.h - 2 * pad - (rows - 1) * gap) / rows);
-      slots = gridSlots(members.length, { originX: Math.round(r.x + pad), originY: Math.round(r.y + pad), cols, cellW, cellH, gapX: gap, gapY: gap });
+      const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
+      const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
+      const pad = 40, gap = 24;
+      const cellW = Math.max(120, (fw - 2 * pad - (cols - 1) * gap) / cols);
+      const cellH = Math.max(90, (fh - 2 * pad - (rows - 1) * gap) / rows);
+      // FRAME-LOCAL origin — the members become frame children (position is
+      // relative to the frame's top-left).
+      slots = gridSlots(members.length, { originX: pad, originY: pad, cols, cellW, cellH, gapX: gap, gapY: gap });
     } else {
       const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
       const c = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
       slots = gridSlots(members.length, { originX: Math.round(c.x - (cols * 360) / 2), originY: Math.round(c.y - 120), cellW: 320, cellH: 200, gapX: 40, gapY: 40 });
     }
-    const cmd = compositeCmd(
-      members.map((n, i) => patchDataCmd(rf as unknown as RfLike, n.id, { slotIndex: i, deckMember: true, tucked: true, staged: undefined, minimized: undefined, deckPos: slots[i] }, "lay grid")),
-      `lay grid: ${deck.name}`,
-    );
-    if (cmd) bus.dispatch(cmd);
-    setDecks((prev) => updateDeck(prev, deck.id, { slots }));
+    // Capture before-state so reparent + move is one undoable step.
+    const before = members.map((m) => { const n = rf.getNode(m.id); return { id: m.id, parentId: n?.parentId, position: { ...(n?.position ?? { x: 0, y: 0 }) }, data: { ...(n?.data ?? {}) } }; });
+    const slotFor = new Map(members.map((m, i) => [m.id, slots[i]] as const));
+    const idxFor = new Map(members.map((m, i) => [m.id, i] as const));
+    bus.dispatch({
+      label: `lay grid: ${deck.name}`,
+      do: () => rf.setNodes((nds) => nds.map((n) => {
+        const slot = slotFor.get(n.id);
+        if (!slot) return n;
+        const next = { ...n, position: { ...slot }, data: { ...n.data, slotIndex: idxFor.get(n.id), deckMember: true, tucked: true, staged: undefined, minimized: undefined, deckPos: { ...slot } } } as typeof n;
+        if (frame) next.parentId = frameId ?? undefined;
+        return next;
+      })),
+      undo: () => rf.setNodes((nds) => nds.map((n) => {
+        const b = before.find((x) => x.id === n.id);
+        return b ? ({ ...n, parentId: b.parentId, position: { ...b.position }, data: { ...b.data } } as typeof n) : n;
+      })),
+    });
+    setDecks((prev) => updateDeck(prev, deck.id, { slots, slotsLocal: !!frame, frameId: frame ? frameId : (deck.frameId ?? null) }));
   };
 
   /** Attach the deck to the frame you're currently inside (or detach). */

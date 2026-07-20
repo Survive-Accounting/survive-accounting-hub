@@ -1900,7 +1900,11 @@ function PresentCanvas() {
           rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position }, selected: false } : n)));
         },
       });
-      setTimeout(maybeAutoFit, 40); // after the store settles
+      // DEAL WITHIN A FRAME (hook shot): a frame-child card fills its in-frame slot
+      // in place — never auto-fit (that would zoom out to the whole canvas). Only
+      // free-canvas decks re-fit to keep the newly dealt card on screen.
+      const inFrame = !!node.parentId && rf.getNode(node.parentId)?.type === "frame";
+      if (!inFrame) setTimeout(maybeAutoFit, 40); // after the store settles
     },
     [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit],
   );
