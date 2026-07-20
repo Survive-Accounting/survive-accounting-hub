@@ -1111,8 +1111,12 @@ function PresentCanvas() {
   // SPACE-WALK ACROSS FRAMES: space advances to the next frame once the current
   // one is exhausted, but only after ARMING (a guard press) so a mid-take space
   // never jumps the camera. armState is transient (never persisted).
-  const [spaceAdvancesFrames, setSpaceAdvancesFrames] = useState(true); // toggle: off = space stays in-frame
-  const spaceAdvancesFramesRef = useRef(true);
+  // Lee: spacebar runs the frame's space-walk ONLY and NEVER moves between frames
+  // (arrows do that). Default OFF; when a frame's walk is exhausted, space shows
+  // the "move on" indicator instead of advancing. The toggle stays as an opt-in
+  // escape hatch for the old arm-then-advance-on-space behavior.
+  const [spaceAdvancesFrames, setSpaceAdvancesFrames] = useState(false);
+  const spaceAdvancesFramesRef = useRef(false);
   spaceAdvancesFramesRef.current = spaceAdvancesFrames;
   const [rehearsalHud, setRehearsalHud] = useState(false); // next-up "next: Teach 2" pill (rehearsal only)
   const [armState, setArmState] = useState<null | ArmState>(null);
@@ -3325,7 +3329,7 @@ function PresentCanvas() {
       if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
       if (typeof nj.sceneSettings?.focusPalette === "boolean") setFocusPalette(nj.sceneSettings.focusPalette);
       setFrameTransitions((nj.sceneSettings as { frameTransitions?: boolean } | undefined)?.frameTransitions !== false); // default on
-      setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames !== false); // default on
+      setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames === true); // default OFF — arrows move frames
       setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
       setLastRehearsalTotalS((nj.sceneSettings as { lastRehearsalTotalS?: number } | undefined)?.lastRehearsalTotalS ?? null);
       setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
@@ -3824,7 +3828,7 @@ function PresentCanvas() {
             if (rc && rc.length) {
               const idx = recPlayIdxRef.current.get(recF) ?? 0;
               if (idx < rc.length) { executeRecCue(rc[idx]); recPlayIdxRef.current.set(recF, idx + 1); disarm(); return; }
-              if (!spaceAdvancesFramesRef.current) return;
+              if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkNext(rf.getNodes() as never, recF) ? "ready" : "end"); return; } // in-frame only → just flag the move
               const nf = frameWalkNext(rf.getNodes() as never, recF);
               if (armStateRef.current !== "ready") { setArmState(nf ? "ready" : "end"); return; }
               if (!nf) return;
@@ -3839,7 +3843,7 @@ function PresentCanvas() {
             const res = performFrameCue(cueF, 1);
             if (res === "handled") return;
             // "boundary" — all content done → arm, then advance (same as derived)
-            if (!spaceAdvancesFramesRef.current) return;
+            if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkNext(rf.getNodes() as never, cueF) ? "ready" : "end"); return; } // in-frame only → just flag the move
             const nf = frameWalkNext(rf.getNodes() as never, cueF);
             if (armStateRef.current !== "ready") { setArmState(nf ? "ready" : "end"); return; }
             if (!nf) return;
@@ -3878,8 +3882,9 @@ function PresentCanvas() {
             if (next) { deal(next.id); disarm(); return; }
             return; // no frame context + nothing to deal → no transition to arm
           }
-          // (c/d/e) FRAME EXHAUSTED. Toggle off → space stays at the frame edge.
-          if (!spaceAdvancesFramesRef.current) return;
+          // (c/d/e) FRAME EXHAUSTED. Default (off) → space STAYS in-frame and only
+          // flags that a frame move is due; the arrow keys do the actual move.
+          if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkNext(nodes as never, frameId) ? "ready" : "end"); return; }
           const nextFrame = frameWalkNext(nodes as never, frameId);
           if (armStateRef.current !== "ready") {
             setArmState(nextFrame ? "ready" : "end"); // ARM forward (also re-arms if a back-arm was pending)
@@ -3911,8 +3916,8 @@ function PresentCanvas() {
           if (cueFB && (rf.getNode(cueFB)?.data as { cueOrder?: string[] } | undefined)?.cueOrder?.length) {
             const res = performFrameCue(cueFB, -1);
             if (res === "handled") return;
-            // "boundary" — at the frame's start → arm back, then step back a frame
-            if (!spaceAdvancesFramesRef.current) return;
+            // "boundary" — at the frame's start → just flag the back-move (arrows)
+            if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkPrev(rf.getNodes() as never, cueFB) ? "ready-back" : "start"); return; }
             const pf = frameWalkPrev(rf.getNodes() as never, cueFB);
             if (armStateRef.current !== "ready-back") { setArmState(pf ? "ready-back" : "start"); return; }
             if (!pf) return;
@@ -3945,8 +3950,9 @@ function PresentCanvas() {
             if (last) { retuck(last.id); disarm(); return; }
             return; // no frame context + nothing dealt → nothing to reverse
           }
-          // (c/d/e) FRAME AT ITS START. Toggle off → shift+space stays at the edge.
-          if (!spaceAdvancesFramesRef.current) return;
+          // (c/d/e) FRAME AT ITS START. Default (off) → shift+space stays in-frame
+          // and only flags the back-move; the arrow keys do it.
+          if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkPrev(nodes as never, frameId) ? "ready-back" : "start"); return; }
           const prevFrame = frameWalkPrev(nodes as never, frameId);
           if (armStateRef.current !== "ready-back") {
             setArmState(prevFrame ? "ready-back" : "start"); // ARM back (also re-arms if a forward-arm was pending)
@@ -4811,7 +4817,7 @@ function PresentCanvas() {
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Filming</div>
                 <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: spaceAdvancesFrames ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={spaceAdvancesFrames} onChange={(e) => setSpaceAdvancesFrames(e.target.checked)} style={{ accentColor: "#FCA311" }} />
-                  Space advances frames <span className="opacity-60">(arm-then-go; off = stay in frame)</span>
+                  Spacebar also moves between frames <span className="opacity-60">(default off — arrows move frames; spacebar only runs the space-walk)</span>
                 </label>
                 <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: rehearsalHud ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={rehearsalHud} onChange={(e) => setRehearsalHud(e.target.checked)} style={{ accentColor: "#FCA311" }} />
