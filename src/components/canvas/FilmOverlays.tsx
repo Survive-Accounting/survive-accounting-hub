@@ -282,6 +282,13 @@ export const FILM_MODE_CSS = `
   .film-mode .react-flow__node-signupgate {
     pointer-events: none !important;
   }
+  /* SPOTLIGHT IN FILM (Lee): a heading / text block stays inert (no accidental
+     drag mid-take) EXCEPT its spotlight TARGET — Ctrl+click / Ctrl+Shift+click
+     must still emphasise it while filming. Only the target span re-arms. */
+  .film-mode .react-flow__node-heading [data-spot-target],
+  .film-mode .react-flow__node-text [data-spot-target] {
+    pointer-events: auto !important;
+  }
   /* FRAME FULLY LOCKED IN FILM: the frame node AND all its own descendants
      (letterbox, bg loop, chrome) go inert, so grabbing anywhere on the frame can
      never pick it up mid-take — only the CARDS (DOM siblings, not descendants)

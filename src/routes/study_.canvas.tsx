@@ -4056,17 +4056,16 @@ function PresentCanvas() {
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
     (_e: unknown, node: CardNode) => {
-      // FILM MODE: never focus-zoom a card on double-click — the camera is pinned
-      // to the frame while filming and an accidental dbl-click must NOT pop out to
-      // the "back to frame" birds-eye (Lee's call).
-      if (filmRef.current) return;
-      // DIVE INTO A FRAME (regression fix): double-clicking a frame ENTERS it (fits
-      // the camera). Frames are container types, so this must run BEFORE the
-      // container early-return below — otherwise dbl-click does nothing.
+      // DIVE INTO A FRAME — double-clicking a FRAME zooms into it. This works in
+      // FILM too (Lee wants to jump into a frame while filming); only CARD
+      // focus-zoom is suppressed in film (the camera stays pinned to the frame).
       if (node.type === "frame") {
         enterFrame(node.id);
         return;
       }
+      // FILM MODE: never focus-zoom a card on double-click — an accidental
+      // dbl-click must NOT pop the camera out to the "back to frame" birds-eye.
+      if (filmRef.current) return;
       if (isContainerType(node.type)) return;
       focusNode(node.id);
     },

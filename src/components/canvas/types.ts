@@ -679,6 +679,10 @@ export interface FrameBox {
   bgSrc?: string;
   bgOpacity?: number;
   bgPlaying?: boolean;
+  /** BACKGROUND SCRIM (Lee): a black wash OVER the bg loop (0–1) so cards read on
+   *  top of a busy backdrop (e.g. dim the SURVIVE logo loop). Sits above the video,
+   *  below the cards. 0/absent = no scrim. */
+  bgScrim?: number;
   /** BACKGROUND FRAMING (compose without re-cutting the file): `bgFit` = fill
    *  (cover) vs fit (contain); `bgZoom` % (scale, default 100) pushes focal content
    *  bigger; `bgAnchor` is a 9-point anchor that pins both object-position AND the

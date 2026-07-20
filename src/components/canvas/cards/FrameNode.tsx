@@ -341,6 +341,11 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           />
         </div>
       )}
+      {/* BACKGROUND SCRIM (Lee) — a black wash over the loop so cards read on top of
+          a busy backdrop. Above the video, below the cards (cards are DOM siblings). */}
+      {bgLoop && (d.bgScrim ?? 0) > 0 && (
+        <div className="pointer-events-none absolute inset-0 rounded-lg" style={{ background: "#000", opacity: Math.min(0.92, d.bgScrim ?? 0) }} />
+      )}
       <ConnectionDots color={meta.color} />
       {/* FRAMES ARE STATIC — resize handles disabled (the frame is a fixed 16:9
           stage; size/position never change, only the cards inside move). */}
@@ -364,8 +369,8 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           data-frame-chrome so FILM mode hides it completely (FG4). */}
       <div
         data-frame-chrome
-        className="flex items-center gap-1.5 px-2 py-1"
-        style={{ borderBottom: `1px solid ${meta.edge}` }}
+        className="relative flex items-center gap-1.5 rounded-t-lg px-2 py-1"
+        style={{ borderBottom: `1px solid ${meta.edge}`, background: "rgba(9,13,26,0.82)", backdropFilter: "blur(2px)" }}
         onClick={(e) => { e.stopPropagation(); nav.enter(id); }}
         title="Enter this frame (fit the camera to it)"
       >
@@ -554,6 +559,11 @@ export function FrameNode({ id, data, selected }: NodeProps) {
             <span style={{ color: NEON.muted }}>Opacity</span>
             <input type="range" min={0} max={100} value={Math.round(bgOpacity * 100)} disabled={!bgLoop} className="flex-1 accent-current" onChange={(e) => update({ bgOpacity: Number(e.target.value) / 100 })} />
             <span className="w-8 text-right tabular-nums" style={{ color: NEON.text }}>{Math.round(bgOpacity * 100)}%</span>
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span style={{ color: NEON.muted }} title="Black wash over the loop so cards read on top">Card scrim</span>
+            <input type="range" min={0} max={90} value={Math.round((d.bgScrim ?? 0) * 100)} disabled={!bgLoop} className="flex-1 accent-current" onChange={(e) => update({ bgScrim: Number(e.target.value) / 100 })} />
+            <span className="w-8 text-right tabular-nums" style={{ color: NEON.text }}>{Math.round((d.bgScrim ?? 0) * 100)}%</span>
           </div>
 
           {/* FRAMING — fit (fill/fit) · zoom · 9-point anchor. Compose without re-cutting. */}
