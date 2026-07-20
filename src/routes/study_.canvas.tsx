@@ -824,6 +824,7 @@ const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
   { label: "Big Text", make: () => ({ kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 }) },
   { label: "Text", make: () => blankCard("text") },
   { label: "Bulleted List", make: () => ({ kind: "list", title: "List", bulleted: true, showChips: false, rows: [{ id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }], editMode: true }) },
+  { label: "Outline List", make: () => ({ kind: "list", title: "Course outline", bulleted: false, showChips: false, outlineBind: true, rows: [] }) },
   { label: "Exam Cue", make: () => blankCard("examcue") },
   { label: "Memo", make: () => blankCard("memo") },
 ];

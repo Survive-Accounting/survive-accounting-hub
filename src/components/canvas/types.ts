@@ -477,6 +477,9 @@ export interface ListCard extends CardBase {
   showChips: boolean;
   /** NUMBERED (default) vs BULLETED rows (P2). */
   bulleted?: boolean;
+  /** COURSE OUTLINE BIND (Lee): auto-fill rows from the scene's course chapters
+   *  (in order, live). Manual rows still allowed below. */
+  outlineBind?: boolean;
   /** LIVE COA PULL (P2): bind to one of the 5 account-type GROUPS (Assets, …)
    *  of the scene's course — rows auto-populate from that COA set, live, and
    *  precede any manual teaching rows. null/absent = manual only. */

@@ -6,7 +6,10 @@
 // plus a per-row INDENT that renders contra items in statement form ("Less: …").
 import { useState } from "react";
 import type { NodeProps } from "@xyflow/react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, IndentIncrease, Plus, Settings2, Trash2 } from "lucide-react";
+
+import { fetchJeBrowserTree } from "@/lib/je-api";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -51,6 +54,16 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
     indent: a.type.startsWith("contra"),
     pulled: true,
   }));
+
+  // COURSE OUTLINE BIND (Lee): auto-fill from the scene's course chapters, live.
+  const tree = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 60_000, enabled: !!d.outlineBind });
+  const outlineRows: { key: string; text: string }[] = d.outlineBind
+    ? ((tree.data?.courses.find((c) => c.id === ctx.courseId)?.chapters ?? [])
+        .filter((ch) => ch.id !== "__unassigned__" && (ch.status ?? "active") !== "archived")
+        .slice()
+        .sort((a, b) => (a.chapter_number ?? 9999) - (b.chapter_number ?? 9999))
+        .map((ch) => ({ key: `ol:${ch.id}`, text: ch.chapter_name || `Lesson ${ch.chapter_number ?? ""}`.trim() })))
+    : [];
 
   const bullet = (i: number) =>
     d.bulleted ? (
@@ -138,10 +151,17 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
       )}
 
       <ol className="space-y-1">
+        {/* OUTLINE rows (live course chapters) — read-only, auto-filled */}
+        {outlineRows.map((r, i) => (
+          <li key={r.key} className="flex items-center gap-1.5 text-[14px]">
+            {bullet(i)}
+            <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>{r.text}</span>
+          </li>
+        ))}
         {/* PULLED rows (live COA) — read-only, contra items in "Less:" form */}
         {pulledRows.map((r, i) => (
           <li key={r.key} className="flex items-center gap-1.5 text-[14px]" style={{ paddingLeft: r.indent ? 18 : 0 }}>
-            {bullet(i)}
+            {bullet(outlineRows.length + i)}
             <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
               {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
               {r.text}
@@ -155,7 +175,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           return (
           <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1, paddingLeft: r.indent ? 18 : 0 }}>
             <MemoAnchor subId={r.id} />
-            {bullet(pulledRows.length + i)}
+            {bullet(outlineRows.length + pulledRows.length + i)}
             {/* No default "you are here" emphasis (Lee's call) — emphasis comes only
                 from the user's spotlight/super-spotlight. */}
             <span className="min-w-0 flex-1 break-words" style={{ color: PAPER.ink, fontWeight: 500 }}>
@@ -218,6 +238,10 @@ function ListSettings({ d, onUpdate, onClose }: { d: ListCard; onUpdate: (p: Par
       <div className={row}>
         <span>DR/CR chips</span>
         <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.showChips)} onClick={() => onUpdate({ showChips: !d.showChips })}>{d.showChips ? "on" : "off"}</button>
+      </div>
+      <div className={row}>
+        <span>Course outline</span>
+        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.outlineBind)} onClick={() => onUpdate({ outlineBind: !d.outlineBind })}>{d.outlineBind ? "on" : "off"}</button>
       </div>
       <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
         <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Bind to COA</div>
