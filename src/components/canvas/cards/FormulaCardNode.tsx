@@ -13,6 +13,8 @@ import { BaseCard, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { coaLookup, deriveArrows, EQ_ARROW_GLYPH, EQ_DIR_CYCLE, rubricOf } from "../equation-derive";
+import { useFrameNav } from "../FrameNavContext";
+import { playSfx } from "../sfx";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
 import { JeScenarioPicker } from "./JeScenarioPicker";
@@ -42,6 +44,7 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
   const { update, updateFn } = useCardActions(id);
   const ctx = useCanvasSettings();
   const sp = useSpotlight();
+  const nav = useFrameNav();
   const [gear, setGear] = useState<HTMLElement | null>(null);
   const [picker, setPicker] = useState<HTMLElement | null>(null);
 
@@ -337,7 +340,14 @@ export function FormulaCardNode({ id, data, selected }: NodeProps) {
           {d.graded ? (
             <button className="nodrag rounded px-1.5 py-0.5 font-bold uppercase" style={{ color: PAPER.navy, border: `1px solid ${PAPER.line}` }} onPointerDown={(e) => e.stopPropagation()} onClick={() => updateFn((prev) => ({ graded: false, segments: (prev.segments as FormulaSegment[]).map((s) => ({ ...s, attempt: undefined, drAttempt: undefined, crAttempt: undefined })) }))}>reset</button>
           ) : (
-            <button className="nodrag rounded px-1.5 py-0.5 font-bold uppercase disabled:opacity-40" style={{ color: "#0B1322", background: canReveal ? NEON.yellow : "transparent", border: `1px solid ${PAPER.line}` }} disabled={!canReveal} onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ graded: true })}>reveal</button>
+            <button className="nodrag rounded px-1.5 py-0.5 font-bold uppercase disabled:opacity-40" style={{ color: "#0B1322", background: canReveal ? NEON.yellow : "transparent", border: `1px solid ${PAPER.line}` }} disabled={!canReveal} onPointerDown={(e) => e.stopPropagation()} onClick={() => {
+              const comps = d.segments.filter((s) => s.component);
+              const allCorrect = comps.length > 0 && comps.every((s) => rubric
+                ? (s.drAttempt === rubricOf(s.component!).dr && s.crAttempt === rubricOf(s.component!).cr)
+                : (s.attempt === (s.arrow ?? "none")));
+              if (nav.film && allCorrect) playSfx("confirm");
+              update({ graded: true });
+            }}>reveal</button>
           )}
         </div>
       )}

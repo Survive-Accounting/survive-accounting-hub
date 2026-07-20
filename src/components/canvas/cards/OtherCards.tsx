@@ -5,6 +5,8 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
+import { useFrameNav } from "../FrameNavContext";
+import { playSfx } from "../sfx";
 import { NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
   cardId,
@@ -151,6 +153,7 @@ export function ComputationCardNode({ id, data, selected }: NodeProps) {
 export function CeqCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CeqCard;
   const { update } = useCardActions(id);
+  const nav = useFrameNav();
   const editing = !!d.editMode;
   const [picked, setPicked] = ((): [string | null, (v: string | null) => void] => {
     // picked choice lives in node data so it round-trips through scenes
@@ -179,7 +182,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 background: showState === "right" ? "rgba(30,127,79,0.07)" : showState === "wrong" ? "rgba(194,24,50,0.06)" : "transparent",
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => !editing && setPicked(c.id)}
+              onClick={() => { if (editing) return; if (nav.film && c.correct && picked !== c.id) playSfx("confirm"); setPicked(c.id); }}
             >
               <span className="min-w-0 flex-1">
                 <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing={editing} placeholder="Choice" />

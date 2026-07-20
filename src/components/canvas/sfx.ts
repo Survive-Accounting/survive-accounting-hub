@@ -1,13 +1,15 @@
 // CANVAS SFX ENGINE (Lee: reveal & transition sounds). A module singleton so any
-// card node or the route can fire a cue without threading a context. Three events
-// map to swappable CC0 files under /sfx/ (see scripts/gen-sfx.mjs). All playback
-// respects a global mute, per-event volume, and prefers-reduced-motion; callers
-// gate FILM-only (silent while authoring unless previewing).
+// card node or the route can fire a cue without threading a context. Four events
+// map to swappable files under /sfx/. The bundled set is Lee's own MP3s
+// (keypad/swoosh/cram-launch/confirm); scripts/gen-sfx.mjs can regenerate CC0
+// placeholder WAVs if a file is ever missing. All playback respects a global
+// mute, per-event volume, and prefers-reduced-motion; callers gate FILM-only
+// (silent while authoring unless previewing).
 //
 // Web Audio only (no <audio> churn): one lazy AudioContext (needs a user gesture,
 // always present while filming — keys/clicks), decoded buffers cached by filename.
 
-export type SfxEvent = "keypad" | "swoosh" | "cramLaunch";
+export type SfxEvent = "keypad" | "swoosh" | "cramLaunch" | "confirm";
 
 export interface SfxConfig {
   /** Global mute — silences every event. */
@@ -19,14 +21,15 @@ export interface SfxConfig {
 }
 
 export const SFX_FILES: Record<SfxEvent, string> = {
-  keypad: "keypad.wav",
-  swoosh: "swoosh.wav",
-  cramLaunch: "cram-launch.wav",
+  keypad: "keypad.mp3",
+  swoosh: "swoosh.mp3",
+  cramLaunch: "cram-launch.mp3",
+  confirm: "confirm.mp3",
 };
 
 export const SFX_DEFAULT: SfxConfig = {
   muted: false,
-  volume: { keypad: 0.55, swoosh: 0.5, cramLaunch: 0.85 },
+  volume: { keypad: 0.55, swoosh: 0.5, cramLaunch: 0.85, confirm: 0.6 },
   file: { ...SFX_FILES },
 };
 

@@ -4795,7 +4795,7 @@ function PresentCanvas() {
                   <input type="checkbox" checked={sfx.muted} onChange={(e) => setSfx((s) => ({ ...s, muted: e.target.checked }))} style={{ accentColor: "#FCA311" }} />
                   Mute all <span className="opacity-60">(global)</span>
                 </label>
-                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"]] as const).map(([ev, label]) => (
+                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"], ["confirm", "Confirm"]] as const).map(([ev, label]) => (
                   <div key={ev} className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted, opacity: sfx.muted ? 0.4 : 1 }}>
                     <span className="w-24 shrink-0">{label} <span className="tabular-nums" style={{ color: NEON.text }}>{Math.round(sfx.volume[ev] * 100)}</span></span>
                     <input type="range" min={0} max={100} value={Math.round(sfx.volume[ev] * 100)} disabled={sfx.muted} className="flex-1 accent-current" onChange={(e) => { const v = Number(e.target.value) / 100; setSfx((s) => ({ ...s, volume: { ...s.volume, [ev]: v } })); if (v > 0 && !sfx.muted) playSfx(ev); }} title={`${label} volume (drag = preview)`} />
