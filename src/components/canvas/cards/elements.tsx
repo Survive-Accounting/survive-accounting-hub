@@ -4,7 +4,7 @@
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
 import { useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, UserRoundPlus, X } from "lucide-react";
+import { Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, X } from "lucide-react";
 
 import { BaseCard, useCardActions } from "../BaseCard";
 import { bus } from "../commands";
@@ -209,15 +209,25 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
         <div
           {...spot.props}
           className="cursor-text text-[13px] leading-relaxed"
-          style={{ color: d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT, ...spotStyle(spot.state) }}
+          style={{ color: d.faded ? "rgba(158,168,184,0.5)" : d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT, ...spotStyle(spot.state) }}
           title="Click to edit"
           onClick={() => setEditing(true)}
         >
           {d.body ? <MarkdownLite text={d.body} student={ctx.previewStudent} /> : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Text…</span>}
         </div>
       )}
-      {/* accent swatches on hover */}
-      <div className="card-actions absolute -bottom-5 left-1 flex gap-1 opacity-0 transition-opacity group-hover/el:opacity-100">
+      {/* accent swatches + fade toggle on hover */}
+      <div className="card-actions absolute -bottom-5 left-1 flex items-center gap-1 opacity-0 transition-opacity group-hover/el:opacity-100">
+        <button
+          className="nodrag grid h-4 w-4 place-items-center rounded"
+          style={{ color: d.faded ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => update({ faded: !d.faded })}
+          title={d.faded ? "Faded (greyed out) — click for full colour" : "Fade to grey (de-emphasize)"}
+        >
+          <SunDim className="h-3 w-3" />
+        </button>
+        <span className="mx-0.5 h-3 w-px" style={{ background: NEON.borderSoft }} />
         {NOTE_COLORS.map((nc, i) => (
           <button
             key={nc.name}

@@ -7,7 +7,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useReactFlow, useStore, useViewport, type NodeProps } from "@xyflow/react";
-import { ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, Type, Underline, X } from "lucide-react";
+import { ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, SunDim, Type, Underline, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -122,20 +122,20 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
           {...spot.props}
           style={{
             display: "inline-block", // so the spotlight scale/pill can render
-            color: d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)",
+            color: d.faded ? "rgba(158,168,184,0.5)" : d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)",
             fontFamily: font,
             fontWeight: d.spartan ? 800 : undefined,
             letterSpacing: d.spartan ? "-0.01em" : undefined,
             fontSize: size,
             fontStyle: d.text ? undefined : "italic",
-            textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.95)" : undefined,
+            textShadow: d.faded ? undefined : d.scrim ? "0 2px 14px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.95)" : undefined,
             ...spotStyle(spot.state),
           }}
         >
           {main ? renderRich(main, ctx.previewStudent) : "Heading"}
         </span>
         {sub && (
-          <span style={{ color: NEON.muted, fontFamily: font, fontSize: Math.round(size * 0.55), marginLeft: 10, textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9)" : undefined }}>
+          <span style={{ color: d.faded ? "rgba(158,168,184,0.42)" : NEON.muted, fontFamily: font, fontSize: Math.round(size * 0.55), marginLeft: 10, textShadow: d.faded ? undefined : d.scrim ? "0 2px 14px rgba(0,0,0,0.9)" : undefined }}>
             [{renderRich(sub, ctx.previewStudent)}]
           </span>
         )}
@@ -219,6 +219,10 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         {/* OVER EVERYTHING — lift above all cards + the camera bubble */}
         <HBtn title={d.onTop ? "On top of everything (incl. camera) — click to sit in the canvas" : "Sit on top of everything, including the camera"} onClick={() => update({ onTop: !d.onTop })}>
           <ArrowUpToLine className="h-3 w-3" style={d.onTop ? { color: NEON.yellow } : undefined} />
+        </HBtn>
+        {/* FADE — grey the text out (de-emphasize / "shadowed out") */}
+        <HBtn title={d.faded ? "Faded (greyed out) — click for full colour" : "Fade to grey (de-emphasize)"} onClick={() => update({ faded: !d.faded })}>
+          <SunDim className="h-3 w-3" style={d.faded ? { color: NEON.yellow } : undefined} />
         </HBtn>
         <HBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></HBtn>
         <HBtn title={d.posLock ? "Unlock position" : "Lock in place (edits still work)"} onClick={() => update({ posLock: !d.posLock })}>

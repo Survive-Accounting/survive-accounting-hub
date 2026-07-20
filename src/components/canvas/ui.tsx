@@ -3,13 +3,13 @@
 // doesn't treat typing/scrolling as canvas gestures.
 import { useEffect, useRef, useState } from "react";
 
-import { splitStrike } from "./variables";
+import { parseInline } from "./variables";
 
-/** Render `~~struck~~` runs of a plain string with line-through (no tokens). */
+/** Render `**bold**` + `~~struck~~` runs of a plain string (no tokens). */
 export function renderStrike(text: string): React.ReactNode {
-  const segs = splitStrike(text);
-  if (segs.length === 1 && !segs[0].strike) return text;
-  return segs.map((s, i) => (s.strike ? <s key={i} style={{ textDecoration: "line-through" }}>{s.t}</s> : <span key={i}>{s.t}</span>));
+  const segs = parseInline(text);
+  if (segs.length === 1 && !segs[0].strike && !segs[0].bold) return text;
+  return segs.map((s, i) => (s.strike ? <s key={i} style={{ textDecoration: "line-through" }}>{s.t}</s> : s.bold ? <b key={i}>{s.t}</b> : <span key={i}>{s.t}</span>));
 }
 
 /** Set a field's value so React's controlled onChange fires, then dispatch input. */
@@ -20,9 +20,10 @@ function setFieldValue(el: HTMLInputElement | HTMLTextAreaElement, val: string) 
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-/** Alt+Shift+5 (Lee): toggle `~~strike~~` around the selection (or the word under
- *  the caret) in any input/textarea. Returns true if it acted. */
-export function toggleStrikeInField(el: HTMLInputElement | HTMLTextAreaElement): boolean {
+/** Toggle a wrapping `marker` (`**` bold / `~~` strike) around the selection (or the
+ *  word under the caret) in any input/textarea. Returns true if it acted. */
+export function toggleWrapInField(el: HTMLInputElement | HTMLTextAreaElement, marker: string): boolean {
+  const ml = marker.length;
   const v = el.value;
   let start = el.selectionStart ?? 0;
   let end = el.selectionEnd ?? 0;
@@ -31,16 +32,19 @@ export function toggleStrikeInField(el: HTMLInputElement | HTMLTextAreaElement):
     let l = start, r = start;
     while (l > 0 && /\S/.test(v[l - 1])) l--;
     while (r < v.length && /\S/.test(v[r])) r++;
-    if (l === r) { setFieldValue(el, v.slice(0, start) + "~~~~" + v.slice(end)); el.setSelectionRange(start + 2, start + 2); return true; }
+    if (l === r) { setFieldValue(el, v.slice(0, start) + marker + marker + v.slice(end)); el.setSelectionRange(start + ml, start + ml); return true; }
     start = l; end = r;
   }
   const sel = v.slice(start, end);
-  const wrapped = sel.startsWith("~~") && sel.endsWith("~~") && sel.length >= 4;
-  const next = wrapped ? sel.slice(2, -2) : `~~${sel}~~`;
+  const wrapped = sel.startsWith(marker) && sel.endsWith(marker) && sel.length >= 2 * ml;
+  const next = wrapped ? sel.slice(ml, -ml) : `${marker}${sel}${marker}`;
   setFieldValue(el, v.slice(0, start) + next + v.slice(end));
   el.setSelectionRange(start, start + next.length);
   return true;
 }
+
+/** Alt+Shift+5 (Lee): toggle `~~strike~~` around the selection. */
+export const toggleStrikeInField = (el: HTMLInputElement | HTMLTextAreaElement): boolean => toggleWrapInField(el, "~~");
 
 /** F2 GLOBAL EDIT (item 4): the route stamps a transient `_editSeq` timestamp on
  *  a node's data to say "open your inline editor now". Each editable node calls

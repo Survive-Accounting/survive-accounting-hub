@@ -62,7 +62,7 @@ import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
-import { EditableText, toggleStrikeInField } from "@/components/canvas/ui";
+import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
@@ -1134,16 +1134,24 @@ function PresentCanvas() {
     document.addEventListener("fullscreenchange", onFs);
     return () => { window.removeEventListener("resize", bump); document.removeEventListener("fullscreenchange", onFs); };
   }, []);
-  // STRIKETHROUGH (Lee): Alt+Shift+5 toggles `~~strike~~` around the selection in
-  // ANY editable field (capture phase — runs before the field's own key handler
-  // stops propagation). Physical Digit5 so keyboard layout doesn't matter.
+  // INLINE MARKUP (Lee): Ctrl+B toggles `**bold**`, Alt+Shift+5 toggles `~~strike~~`
+  // around the selection in ANY editable field (capture phase — runs before the
+  // field's own key handler stops propagation). Physical Digit5 so layout-agnostic.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey || !e.shiftKey) return;
-      if (e.code !== "Digit5" && e.key !== "5" && e.key !== "%") return;
       const el = document.activeElement as HTMLElement | null;
-      if (!el || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA")) return;
-      if (toggleStrikeInField(el as HTMLInputElement | HTMLTextAreaElement)) { e.preventDefault(); e.stopPropagation(); }
+      const editable = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+      if (!editable) return;
+      const field = el as HTMLInputElement | HTMLTextAreaElement;
+      // Ctrl/Cmd+B → bold
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "b" || e.key === "B")) {
+        if (toggleWrapInField(field, "**")) { e.preventDefault(); e.stopPropagation(); }
+        return;
+      }
+      // Alt+Shift+5 → strikethrough
+      if (e.altKey && e.shiftKey && (e.code === "Digit5" || e.key === "5" || e.key === "%")) {
+        if (toggleWrapInField(field, "~~")) { e.preventDefault(); e.stopPropagation(); }
+      }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);

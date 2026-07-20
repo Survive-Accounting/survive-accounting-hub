@@ -86,13 +86,34 @@ export function splitStrike(text: string): { t: string; strike: boolean }[] {
   return out.length ? out : [{ t: text, strike: false }];
 }
 
-/** Tokens + `~~strike~~` → nodes. The rich renderer for headings/Big Text. */
+// Inline runs — `**bold**` (Ctrl+B) + `~~strike~~` (Alt+Shift+5). One level, one
+// marker per run (good enough for headings/lists); MarkdownLite still does *italic*.
+const INLINE_RE = /(\*\*[^*]+\*\*|~~[^~]+~~)/g;
+export interface InlineSeg { t: string; bold: boolean; strike: boolean }
+export function parseInline(text: string): InlineSeg[] {
+  const out: InlineSeg[] = [];
+  const re = new RegExp(INLINE_RE.source, "g");
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ t: text.slice(last, m.index), bold: false, strike: false });
+    const seg = m[0];
+    if (seg.startsWith("**")) out.push({ t: seg.slice(2, -2), bold: true, strike: false });
+    else out.push({ t: seg.slice(2, -2), bold: false, strike: true });
+    last = m.index + seg.length;
+  }
+  if (last < text.length) out.push({ t: text.slice(last), bold: false, strike: false });
+  return out.length ? out : [{ t: text, bold: false, strike: false }];
+}
+
+/** Tokens + `**bold**` + `~~strike~~` → nodes. The rich renderer for headings/Big Text. */
 export function renderRich(text: string, student: PreviewStudent): ReactNode[] {
-  return splitStrike(text).map((s, i) =>
-    s.strike
-      ? <s key={`s${i}`} style={{ textDecoration: "line-through" }}>{renderTokens(s.t, student)}</s>
-      : <span key={`n${i}`}>{renderTokens(s.t, student)}</span>,
-  );
+  return parseInline(text).map((s, i) => {
+    const inner = renderTokens(s.t, student);
+    if (s.strike) return <s key={`s${i}`} style={{ textDecoration: "line-through" }}>{inner}</s>;
+    if (s.bold) return <b key={`b${i}`}>{inner}</b>;
+    return <span key={`n${i}`}>{inner}</span>;
+  });
 }
 
 /** Plain-string substitution (title attributes, measurements). Unset → EXAMPLE. */

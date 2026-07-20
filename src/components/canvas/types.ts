@@ -393,6 +393,9 @@ export interface HeadingCard extends CardBase {
   /** OVER EVERYTHING: lift this element above all other canvas content AND the
    *  camera bubble, so a Big Text slab can sit on top of the presenter. */
   onTop?: boolean;
+  /** FADED (Lee): render the text in a muted grey — a "shadowed out" / de-emphasized
+   *  look (e.g. an old point you've moved past). Toggle in the chrome. */
+  faded?: boolean;
 }
 
 // ---- Text element (freeform markdown-lite block; ELEMENT category) ----
@@ -402,6 +405,8 @@ export interface TextElement extends CardBase {
    *  breaks) and template tokens (stored raw, rendered substituted). */
   body: string;
   color: number; // index into NOTE_COLORS accents
+  /** FADED (Lee): render muted grey — a "shadowed out" de-emphasized look. */
+  faded?: boolean;
 }
 
 // ---- Gate elements (VISUAL PLACEHOLDERS — real gating is World v1) ----
