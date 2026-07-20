@@ -1494,11 +1494,15 @@ function PresentCanvas() {
     // HOOK is ALWAYS three fixed frames (Lee's call): Intro → CEQ → Outline. The
     // lesson always opens the same way; the teaching starts from Teach.
     const introFrameId = cardId("frame");
-    const introFrame = { id: introFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(0) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 0), title: "Intro" } as unknown as CardNode["data"] };
-    // INTRO — the lesson TITLE heading, prefilled.
+    // CONSISTENT INTRO LOOK (Lee's call): every Intro frame opens on the Dream
+    // loop, playing, full-bleed — Fill · 100% opacity · 110% zoom · anchored
+    // bottom-middle — so the branded header lands the same way every lesson.
+    const introFrame = { id: introFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(0) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 0), title: "Intro", bgSrc: "dream", bgPlaying: true, bgOpacity: 1, bgFit: "cover", bgZoom: 110, bgAnchor: "bottom" } as unknown as CardNode["data"] };
+    // INTRO — the lesson TITLE heading, prefilled. Left-aligned (aligns with the S)
+    // and scrimmed so it reads over the bright loop.
     const titleCard = {
       id: cardId("heading"), type: "heading", parentId: introFrameId,
-      position: { x: 110, y: 150 },
+      position: { x: 60, y: 150 },
       data: { kind: "heading", text: label, level: 1, scrim: true } as unknown as CardNode["data"],
     };
     // CEQ — a blank question the intro can pose as a hook ("try one first").
