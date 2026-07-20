@@ -182,7 +182,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 background: showState === "right" ? "rgba(30,127,79,0.07)" : showState === "wrong" ? "rgba(194,24,50,0.06)" : "transparent",
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => { if (editing) return; if (nav.film && c.correct && picked !== c.id) playSfx("confirm"); setPicked(c.id); }}
+              onClick={() => { if (editing) return; if (nav.film && c.correct && picked !== c.id && d.confirmSfx !== false) playSfx("confirm"); setPicked(c.id); }}
             >
               <span className="min-w-0 flex-1">
                 <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing={editing} placeholder="Choice" />
@@ -221,14 +221,28 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
         </div>
       )}
       <div className="mt-2 flex items-center justify-between">
-        <button
-          className="nodrag rounded px-1.5 py-0.5 text-[11px] font-semibold"
-          style={{ color: PAPER.gold, border: "1px solid rgba(138,90,0,0.4)" }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => update({ revealedAnswer: !d.revealedAnswer })}
-        >
-          {d.revealedAnswer ? "hide answer" : "reveal answer"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            className="nodrag rounded px-1.5 py-0.5 text-[11px] font-semibold"
+            style={{ color: PAPER.gold, border: "1px solid rgba(138,90,0,0.4)" }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => update({ revealedAnswer: !d.revealedAnswer })}
+          >
+            {d.revealedAnswer ? "hide answer" : "reveal answer"}
+          </button>
+          {/* CORRECT-ANSWER SOUND toggle (Lee) — per CEQ: plays the confirm SFX
+              when the right choice is picked in film. Authoring chrome (hidden on
+              camera). Default on. */}
+          <button
+            className="sa-chrome nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
+            title="Correct-answer sound for THIS question — plays when the right choice is picked (film). Click to toggle."
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => update({ confirmSfx: d.confirmSfx === false ? true : false })}
+            style={{ color: d.confirmSfx === false ? PAPER.inkFaint : PAPER.green, border: `1px solid ${d.confirmSfx === false ? PAPER.line : "rgba(31,157,87,0.5)"}` }}
+          >
+            🔔 {d.confirmSfx === false ? "off" : "on"}
+          </button>
+        </div>
         {picked && (
           <button className="nodrag text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => setPicked(null)}>
             reset

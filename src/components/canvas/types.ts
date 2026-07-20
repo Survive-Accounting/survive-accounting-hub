@@ -263,6 +263,10 @@ export interface CeqCard extends CardBase {
   prompt: string;
   choices: CeqChoice[];
   revealedAnswer?: boolean;
+  /** CORRECT-ANSWER SOUND (Lee): play the confirm SFX when the right choice is
+   *  picked on THIS question in film. Default ON (undefined ⇒ plays); toggle off
+   *  per card. */
+  confirmSfx?: boolean;
 }
 
 // ---- Memorize ----
@@ -704,6 +708,10 @@ export interface FrameBox {
   /** DIRECTOR NOTE (scaffold v2): Lee's on-set reminder for this shot — filming
    *  chrome, hidden in film, never student-facing. */
   note?: string;
+  /** ADVANCE SWOOSH (Lee): play the swoosh SFX when the camera enters THIS frame
+   *  in film. Default ON (undefined ⇒ plays); toggle off per frame for a silent
+   *  cut. The cram-launch frame plays its own launch sound instead. */
+  swooshSfx?: boolean;
   /** LAUNCH TRANSITION (item 9): this frame plays the punchy zoom-push when the
    *  space-walk advances OUT of it (the "Ready to cram?" → Check liftoff). */
   launch?: boolean;

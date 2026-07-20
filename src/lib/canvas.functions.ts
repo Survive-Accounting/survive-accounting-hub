@@ -537,6 +537,80 @@ export const uploadCanvasMedia = createServerFn({ method: "POST" })
     return { url: pub.publicUrl };
   });
 
+// ---- canvas SFX (the 4 sound files Lee uploads himself; GLOBAL config) -----
+// Audio bytes go to the same `canvas-media` bucket; the 4 public URLs live in the
+// single-row `canvas_sfx` table (migration 0099) so every scene + machine plays
+// the SAME sounds. Reads are POST (GET server fns swallow throws here); the empty
+// default ⇒ the client falls back to the bundled /sfx/* files.
+const MISSING_SFX_HINT =
+  "canvas_sfx missing — run migration/supabase-migrations/0099_canvas_sfx.sql in the Supabase SQL editor";
+
+const SFX_EVENT = z.enum(["keypad", "swoosh", "cramLaunch", "confirm"]);
+const sfxFilesSchema = z
+  .object({
+    keypad: z.string().url(),
+    swoosh: z.string().url(),
+    cramLaunch: z.string().url(),
+    confirm: z.string().url(),
+  })
+  .partial();
+export type CanvasSfxFiles = z.infer<typeof sfxFilesSchema>;
+
+const sfxUploadSchema = z.object({
+  event: SFX_EVENT,
+  b64: z.string().min(1).max(9_000_000), // ~6.5MB binary ceiling
+  contentType: z.enum(["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/webm"]),
+});
+
+/** Store one uploaded SFX audio file in the canvas-media bucket, return its public
+ *  URL. The client then folds the URL into the config via saveCanvasSfx. */
+export const uploadCanvasSfxFile = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => sfxUploadSchema.parse(d))
+  .handler(async ({ data }): Promise<{ url: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ext = { "audio/mpeg": "mp3", "audio/wav": "wav", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/webm": "webm" }[data.contentType];
+    const path = `sfx/${data.event}-${Date.now().toString(36)}.${ext}`;
+    const bytes = Buffer.from(data.b64, "base64");
+    const { error } = await supabaseAdmin.storage.from("canvas-media").upload(path, bytes, {
+      contentType: data.contentType,
+      cacheControl: "31536000",
+    });
+    if (error) {
+      if (/bucket.*not.*found/i.test(error.message)) throw new Error(MISSING_BUCKET_HINT);
+      throw new Error(`upload failed: ${error.message}`);
+    }
+    const { data: pub } = supabaseAdmin.storage.from("canvas-media").getPublicUrl(path);
+    return { url: pub.publicUrl };
+  });
+
+/** Read the global SFX file URLs (POST — see header). Empty when unset / the table
+ *  isn't migrated yet, so the caller uses the bundled defaults. */
+export const getCanvasSfx = createServerFn({ method: "POST" })
+  .handler(async (): Promise<{ files: CanvasSfxFiles }> => {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data } = await (supabaseAdmin.from("canvas_sfx" as never) as never as { select: (c: string) => { eq: (k: string, v: number) => { maybeSingle: () => Promise<{ data: { config?: { files?: CanvasSfxFiles } } | null }> } } })
+        .select("config").eq("id", 1).maybeSingle();
+      return { files: data?.config?.files ?? {} };
+    } catch {
+      return { files: {} }; // table missing / not yet migrated → bundled defaults
+    }
+  });
+
+/** Upsert the global SFX file URLs (fail-loud if the table isn't migrated). */
+export const saveCanvasSfx = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ files: sfxFilesSchema }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("canvas_sfx" as never) as never as { upsert: (row: unknown, opts: unknown) => Promise<{ error: { code?: string; message: string } | null }> })
+      .upsert({ id: 1, config: { files: data.files }, updated_at: new Date().toISOString() }, { onConflict: "id" });
+    if (error) {
+      if (isMissingSchema(error, /canvas_sfx/i)) throw new Error(MISSING_SFX_HINT);
+      throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
 // ---- scene snapshots (auto on entering film mode; keep the 10 newest) ------
 const MISSING_SNAPSHOTS_HINT =
   "canvas_scene_snapshots missing — run migration/supabase-migrations/0086_canvas_scene_snapshots.sql in the Supabase SQL editor";

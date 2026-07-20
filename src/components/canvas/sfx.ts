@@ -74,7 +74,10 @@ async function load(file: string): Promise<AudioBuffer | null> {
     try {
       const ac = audio();
       if (!ac) return null;
-      const res = await fetch(`/sfx/${file}`);
+      // `file` is either a bundled name (→ /sfx/<name>) or an absolute URL of a
+      // file Lee uploaded to storage (global SFX config).
+      const url = /^https?:\/\//.test(file) ? file : `/sfx/${file}`;
+      const res = await fetch(url);
       if (!res.ok) return null;
       const buf = await ac.decodeAudioData(await res.arrayBuffer());
       buffers.set(file, buf);

@@ -59,7 +59,7 @@ import { ambientViewport, fillViewport, spotlightPushViewport } from "@/componen
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
-import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig } from "@/components/canvas/sfx";
+import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { type CeqSetDef } from "@/components/canvas/ceq-set";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -103,6 +103,7 @@ import { onMissingMigration } from "@/lib/missing-migration";
 import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
 import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
 import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
+import { getCanvasSfx, saveCanvasSfx, uploadCanvasSfxFile, type CanvasSfxFiles } from "@/lib/canvas.functions";
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FLAME_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
@@ -1224,9 +1225,38 @@ function PresentCanvas() {
   const [backstage, setBackstage] = useState<BackstageMode>("dark"); // dots-only matrix by default (no SURVIVE backdrop) — Lee's call; cinema still selectable
   const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
-  const [sfx, setSfx] = useState<SfxConfig>(() => ({ muted: SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume }, file: { ...SFX_DEFAULT.file } })); // reveal/transition sounds (film only)
-  useEffect(() => { configureSfx(sfx); }, [sfx]);
-  useEffect(() => { if (film) preloadSfx(); }, [film]);
+  const [sfx, setSfx] = useState<SfxConfig>(() => ({ muted: SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume }, file: { ...SFX_DEFAULT.file } })); // volume + mute (per scene); FILES come from the GLOBAL config below
+  // GLOBAL SFX FILES (Lee uploads them himself) — one source across every scene +
+  // machine. Fetched once; overrides the bundled /sfx/* names. Empty until Lee
+  // uploads (or the 0099 migration is unapplied) ⇒ bundled defaults play.
+  const [globalSfxFiles, setGlobalSfxFiles] = useState<CanvasSfxFiles>({});
+  const [sfxUploading, setSfxUploading] = useState<SfxEvent | null>(null);
+  useEffect(() => { getCanvasSfx({} as never).then((r) => setGlobalSfxFiles(r.files ?? {})).catch(() => {}); }, []);
+  // Files = global upload (if any) over the bundled default; volume/mute = scene.
+  useEffect(() => { configureSfx({ muted: sfx.muted, volume: sfx.volume, file: { ...SFX_DEFAULT.file, ...globalSfxFiles } }); }, [sfx, globalSfxFiles]);
+  useEffect(() => { if (film) preloadSfx(); }, [film, globalSfxFiles]);
+  /** Upload a sound file for one event → storage → save the URL globally. */
+  const uploadSfx = useCallback(async (event: SfxEvent, file: File) => {
+    const okTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/webm"];
+    const ct = (okTypes.includes(file.type) ? file.type : "audio/mpeg") as "audio/mpeg";
+    if (file.size > 6_500_000) { flashToast("sound file too big (max ~6MB)"); return; }
+    setSfxUploading(event);
+    try {
+      const buf = await file.arrayBuffer();
+      let bin = ""; const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      const b64 = btoa(bin);
+      const { url } = await uploadCanvasSfxFile({ data: { event, b64, contentType: ct } });
+      const nextFiles = { ...globalSfxFiles, [event]: url };
+      await saveCanvasSfx({ data: { files: nextFiles } });
+      setGlobalSfxFiles(nextFiles);
+      flashToast(`${event} sound updated`);
+    } catch (e) {
+      flashToast(`upload failed: ${e instanceof Error ? e.message : "error"}`);
+    } finally {
+      setSfxUploading(null);
+    }
+  }, [globalSfxFiles, flashToast]);
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
   const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
   const [scriptOpen, setScriptOpen] = useState(false); // SCRIPT EDITOR: the course-script modal
@@ -1989,7 +2019,7 @@ function PresentCanvas() {
     // launch when entering the lesson's cram-launch frame. Silent while authoring.
     if (filmRef.current && currentFrameRef.current !== frameId) {
       if (isCramLaunchFrame(frameId)) playSfx("cramLaunch");
-      else playSfx("swoosh");
+      else if ((f.data as { swooshSfx?: boolean } | undefined)?.swooshSfx !== false) playSfx("swoosh"); // per-frame toggle; default on
     }
     setCurrentFrameId(frameId);
     recPlayIdxRef.current.set(frameId, 0); // restart recorded playback for this frame
@@ -4454,6 +4484,21 @@ function PresentCanvas() {
                 </button>
               );
             })()}
+            {/* ADVANCE SWOOSH toggle (Lee) — per frame: on → off. Silences the
+                swoosh when the camera enters THIS frame (film). Default on. */}
+            {(() => {
+              const on = (fd?.swooshSfx ?? true);
+              return (
+                <button
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  title="Advance swoosh for THIS frame — plays the swoosh sound when the camera cuts to it (film). Click to toggle off for a silent cut."
+                  onClick={() => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { swooshSfx: !on }, "swoosh sound"); if (c) bus.dispatch(c); }}
+                  style={{ color: on ? NEON.yellow : "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }}
+                >
+                  🌀 {on ? "on" : "off"}
+                </button>
+              );
+            })()}
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring it back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
           </div>
@@ -4795,12 +4840,26 @@ function PresentCanvas() {
                   <input type="checkbox" checked={sfx.muted} onChange={(e) => setSfx((s) => ({ ...s, muted: e.target.checked }))} style={{ accentColor: "#FCA311" }} />
                   Mute all <span className="opacity-60">(global)</span>
                 </label>
-                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"], ["confirm", "Confirm"]] as const).map(([ev, label]) => (
-                  <div key={ev} className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted, opacity: sfx.muted ? 0.4 : 1 }}>
-                    <span className="w-24 shrink-0">{label} <span className="tabular-nums" style={{ color: NEON.text }}>{Math.round(sfx.volume[ev] * 100)}</span></span>
-                    <input type="range" min={0} max={100} value={Math.round(sfx.volume[ev] * 100)} disabled={sfx.muted} className="flex-1 accent-current" onChange={(e) => { const v = Number(e.target.value) / 100; setSfx((s) => ({ ...s, volume: { ...s.volume, [ev]: v } })); if (v > 0 && !sfx.muted) playSfx(ev); }} title={`${label} volume (drag = preview)`} />
-                  </div>
-                ))}
+                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"], ["confirm", "Correct answer"]] as const).map(([ev, label]) => {
+                  const custom = !!globalSfxFiles[ev];
+                  const busy = sfxUploading === ev;
+                  return (
+                    <div key={ev} className="mt-1.5 flex flex-col gap-1 rounded p-1" style={{ opacity: sfx.muted ? 0.4 : 1, border: `1px solid ${NEON.borderSoft}` }}>
+                      <div className="flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                        <span className="w-24 shrink-0">{label} <span className="tabular-nums" style={{ color: NEON.text }}>{Math.round(sfx.volume[ev] * 100)}</span></span>
+                        <input type="range" min={0} max={100} value={Math.round(sfx.volume[ev] * 100)} disabled={sfx.muted} className="flex-1 accent-current" onChange={(e) => { const v = Number(e.target.value) / 100; setSfx((s) => ({ ...s, volume: { ...s.volume, [ev]: v } })); if (v > 0 && !sfx.muted) playSfx(ev); }} title={`${label} volume (drag = preview)`} />
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px]" style={{ color: NEON.muted }}>
+                        <label className="cursor-pointer rounded px-1.5 py-0.5 font-bold uppercase tracking-wide" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Upload your own sound file for this event — used in every scene and on every machine">
+                          {busy ? "Uploading…" : "Upload"}
+                          <input type="file" accept="audio/*" className="hidden" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadSfx(ev, f); e.target.value = ""; }} />
+                        </label>
+                        <span className="rounded px-1 py-0.5 uppercase tracking-wide" style={{ color: custom ? "#7CE7B0" : NEON.muted }}>{custom ? "custom" : "default"}</span>
+                        <button className="rounded px-1.5 py-0.5 font-bold uppercase tracking-wide" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => playSfx(ev)} title="Play this sound now">Test</button>
+                      </div>
+                    </div>
+                  );
+                })}
                 {/* READ-TIME (PROMPT 3): riff multiplier + over-threshold seconds */}
                 <div className="mt-2 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
                   <span className="w-24 shrink-0">Riff × <span className="tabular-nums" style={{ color: NEON.text }}>{riffMultiplier.toFixed(1)}</span></span>
