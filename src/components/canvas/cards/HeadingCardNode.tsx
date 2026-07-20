@@ -50,7 +50,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   const inCurrentFrame = !!parentId && nav.currentFrameId === parentId;
   const typeKey = d.typewriter && inCurrentFrame ? `tw-${nav.currentFrameId}` : "tw-static";
   const [tokenMenu, setTokenMenu] = useState<HTMLElement | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
 
   // QUICK RESIZE: box height drives the font (min readable size)
@@ -118,17 +118,19 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
 
       {editing ? (
         <div className="relative">
-          <input
+          <textarea
             ref={inputRef}
             autoFocus
-            className="nodrag w-full min-w-[280px] rounded bg-black/30 px-1.5 py-1 pr-7 outline-none"
+            rows={Math.max(1, d.text.split("\n").length)}
+            className="nodrag nowheel w-full min-w-[280px] resize-none overflow-hidden rounded bg-black/30 px-1.5 py-1 pr-7 leading-tight outline-none"
             style={{ color: "#F4EFE6", fontFamily: DISPLAY_FONT, fontSize: Math.min(size, 32) }}
             defaultValue={d.text}
             placeholder="Heading [optional sub]"
+            onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }}
             onBlur={(e) => { if (!tokenMenu) { update({ text: e.target.value }); setEditing(false); } }}
             onKeyDown={(e) => {
-              // LV2 item 6: plain Enter commits; Shift+Enter is reserved for line breaks (no commit).
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); update({ text: (e.target as HTMLInputElement).value }); setEditing(false); }
+              // Plain Enter commits; Shift+Enter inserts a line break (Lee's call).
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); update({ text: (e.target as HTMLTextAreaElement).value }); setEditing(false); }
               if (e.key === "Escape") setEditing(false);
               e.stopPropagation();
             }}
@@ -162,7 +164,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
       ) : (
         <div
           key={typeKey}
-          className={`relative cursor-move whitespace-nowrap leading-tight${d.typewriter ? " sa-typewrite" : ""}`}
+          className={`relative cursor-move whitespace-pre-line leading-tight${d.typewriter ? " sa-typewrite" : ""}`}
           title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
           onDoubleClick={() => setEditing(true)}
         >

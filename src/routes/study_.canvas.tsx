@@ -71,7 +71,7 @@ import { VisualMixPanel } from "@/components/canvas/VisualMixPanel";
 import { Storyboard } from "@/components/canvas/StoryboardPanel";
 import { DEFAULT_RIFF, DEFAULT_READTIME_THRESHOLD_S, estimateFrameSeconds } from "@/components/canvas/script-timing";
 import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
-import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type RfLike } from "@/components/canvas/commands";
+import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, removeNodesCmd, type Command, type RfLike } from "@/components/canvas/commands";
 import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
 import { decksOfLesson, duplicateLessonDecks, mintDeckIds, nextRegionCell } from "@/components/canvas/duplicate-lesson";
 import { buildSnippetPayload, spawnSnippet, SNIPPET_DND_MIME, type SnippetPayload } from "@/components/canvas/snippet-payload";
@@ -1914,13 +1914,35 @@ function PresentCanvas() {
 
   /** Lesson "+frame" — appends a Hook sub-frame (grid model). */
   const addFrameToLesson = useCallback((lessonId: string) => makeFrameAt(lessonId, "hook", nextSubIndex(rf.getNodes() as never, lessonId, "hook")), [rf, makeFrameAt]);
-  // + directly below a frame: same beat column, next sub-row (big-picture affordance).
+  // Open a gap at subIndex `at` in a lesson-beat column: every frame at subIndex
+  // >= at slides down one row (position derives from subIndex — same split as
+  // reorderFrame: position via setNodes, subIndex via bus). Returns the bus
+  // commands so the caller folds them into ONE undoable insert.
+  const openBeatGap = useCallback((lessonId: string, beat: Beat, at: number): Command[] => {
+    const below = framesInBeat(rf.getNodes() as never, lessonId, beat).filter((x) => subIndexOf(x as never) >= at);
+    if (below.length === 0) return [];
+    rf.setNodes((nds) => nds.map((m) => {
+      const sh = below.find((x) => x.id === m.id);
+      return sh ? { ...m, position: gridPos(beat, subIndexOf(sh as never) + 1) } : m;
+    }));
+    return below
+      .map((x) => patchDataCmd(rf as unknown as RfLike, x.id, { subIndex: subIndexOf(x as never) + 1 }, "shift down"))
+      .filter((c): c is Command => !!c);
+  }, [rf, gridPos]);
+
+  // + directly BELOW a frame (big-picture affordance): a blank frame lands at the
+  // clicked frame's subIndex+1 and the rest of the column slides down — one undo.
   const addFrameBelow = useCallback((frameId: string) => {
     const n = rf.getNode(frameId);
     if (!n?.parentId) return;
     const beat = beatColOf(n as never);
-    makeFrameAt(n.parentId, beat, nextSubIndex(rf.getNodes() as never, n.parentId, beat));
-  }, [rf, makeFrameAt]);
+    if (nextSubIndex(rf.getNodes() as never, n.parentId, beat) >= RESERVED_ROWS) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    const at = subIndexOf(n as never) + 1;
+    const shiftCmds = openBeatGap(n.parentId, beat, at);
+    const newNode = { id: cardId("frame"), type: "frame", parentId: n.parentId, position: gridPos(beat, at), width: FRAME_W, height: FRAME_H, data: { ...blankFrameData(beat, at) } } as unknown as CardNode;
+    const cmd = compositeCmd([...shiftCmds, addNodesCmd(rf as unknown as RfLike, [newNode], "add frame below")], "add frame below");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos, openBeatGap, flashToast]);
 
   /** HUD "+ frame after" — a new sub-frame in the SAME beat, entered. */
   const addFrameAfter = useCallback((frameId: string) => {
@@ -1931,6 +1953,17 @@ function PresentCanvas() {
     if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
     window.setTimeout(() => enterFrame(fid), 40);
   }, [rf, makeFrameAt, enterFrame, flashToast]);
+
+  /** Can this frame reorder in `dir` within its beat column? (There must be a
+   *  sub-frame above/below to swap with.) Gates the ‹ › buttons — they were wrongly
+   *  gated on canStep (beat/lesson nav), so a Hook frame could never move up. */
+  const canReorderFrame = useCallback((frameId: string, dir: -1 | 1) => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return false;
+    const col = framesInBeat(rf.getNodes() as never, f.parentId, beatColOf(f as never));
+    const i = col.findIndex((x) => x.id === frameId);
+    return i >= 0 && i + dir >= 0 && i + dir < col.length;
+  }, [rf]);
 
   /** ‹ › in the frame header — reorder WITHIN the beat column (swap subIndex +
    *  grid position with the up/down neighbour), one undoable command. */
@@ -1981,7 +2014,11 @@ function PresentCanvas() {
       flashToast(`${BEAT_LABEL[beat]} full — placed in ${BEAT_LABEL[alt]}`);
       beat = alt;
     }
-    const subIndex = nextSubIndex(all as never, lessonId, beat);
+    // IN-PLACE duplicate lands right BELOW the source (subIndex+1, column slides
+    // down); a cross-lesson/cross-beat dialog copy appends at the end.
+    const inPlace = !dest && lessonId === src.parentId && beat === beatColOf(src as never);
+    const subIndex = inPlace ? subIndexOf(src as never) + 1 : nextSubIndex(all as never, lessonId, beat);
+    const shiftCmds = inPlace ? openBeatGap(lessonId, beat, subIndex) : [];
 
     // the frame + everything parented to it, plus the arrows wholly inside it
     const children = all.filter((n) => n.parentId === frameId);
@@ -1997,7 +2034,9 @@ function PresentCanvas() {
       ? { ...n, parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...n.data, beat, subIndex, filmStatus: undefined, introTake: undefined } }
       : n));
 
-    bus.dispatch(addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "duplicate frame"));
+    const addCmd = addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "duplicate frame");
+    const cmd = shiftCmds.length ? compositeCmd([...shiftCmds, addCmd], "duplicate frame") : addCmd;
+    if (cmd) bus.dispatch(cmd);
     setDupFrameFor(null);
     // frame the copy where it landed (grid view — no film mode)
     const lesson = rf.getNode(lessonId);
@@ -2005,7 +2044,7 @@ function PresentCanvas() {
       const p = gridPos(beat, subIndex);
       window.setTimeout(() => void rf.fitBounds({ x: lesson.position.x + p.x, y: lesson.position.y + p.y, width: FRAME_W, height: FRAME_H }, { duration: 400, padding: 0.35 }), 40);
     }
-  }, [rf, gridPos, toClone, flashToast]);
+  }, [rf, gridPos, toClone, flashToast, openBeatGap]);
 
   const duplicateLesson = useCallback((lessonId: string) => {
     const all = rf.getNodes() as CardNode[];
@@ -2205,7 +2244,7 @@ function PresentCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrameId]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, duplicateFrame, duplicateLesson]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: enterFrame, exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */

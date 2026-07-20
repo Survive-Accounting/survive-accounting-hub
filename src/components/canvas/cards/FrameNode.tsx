@@ -396,8 +396,8 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: takeCount ? meta.color : NEON.text }} title={takeCount ? `Takes (${takeCount}) — review the latest clip` : "Takes — drop an OBS clip on the frame to upload"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setTakesOpen((v) => !v); }}>
             <Clapperboard className="h-3 w-3" />
           </button>
-          <button className={btn} style={{ color: nav.canStep(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder)" disabled={!nav.canStep(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
-          <button className={btn} style={{ color: nav.canStep(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder)" disabled={!nav.canStep(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
+          <button className={btn} style={{ color: nav.canReorder(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder up in this beat)" disabled={!nav.canReorder(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
+          <button className={btn} style={{ color: nav.canReorder(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder down in this beat)" disabled={!nav.canReorder(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           {/* DIRECTOR NOTE — GLOBAL per beat: the note shows on every frame of this
               beat, in every lesson. Filming chrome, hidden in film. */}
           <button className={btn} style={{ color: note ? meta.color : NEON.text }} title={note ? `Edit the ${meta.label} director note (shown on every ${meta.label} frame)` : `Add a director note for every ${meta.label} frame`} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setNoteEdit((v) => !v); }}>

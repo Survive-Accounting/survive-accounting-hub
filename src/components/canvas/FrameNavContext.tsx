@@ -21,6 +21,8 @@ export interface FrameNav {
   addBelow: (frameId: string) => void;
   /** REORDER a frame within its lesson (swap order with the -1/+1 neighbour). */
   reorder: (frameId: string, dir: -1 | 1) => void;
+  /** Whether reordering in `dir` is possible (a sub-frame above/below to swap). */
+  canReorder: (frameId: string, dir: -1 | 1) => boolean;
   /** DUPLICATE a frame (deep copy) to the next slot in its beat by default, or to
    *  an explicit lesson+beat. One undoable step. */
   duplicate: (frameId: string, dest?: { lessonId: string; beat: string }) => void;
@@ -41,6 +43,7 @@ export const FrameNavContext = createContext<FrameNav>({
   addFrame: noop,
   addBelow: noop,
   reorder: noop,
+  canReorder: () => false,
   duplicate: noop,
   duplicateDialog: noop,
   duplicateLesson: noop,
