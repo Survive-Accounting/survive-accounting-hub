@@ -20,7 +20,9 @@ import { renderTokens, TokenMenu } from "../variables";
 import type { HeadingCard } from "../types";
 
 const UNDERLINE_CSS = `
-@keyframes heading-underline-in { from { width: 0; } to { width: 100%; } }
+/* draw-in via scaleX so the underline STAYS width:100% (tracks the resizable box)
+   — animating width with fill:both froze a pixel width that ignored later resizes. */
+@keyframes heading-underline-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 `;
 
 /** TYPEWRITER (item 11) — film-mode only: the text types itself in (~600ms,
@@ -191,6 +193,8 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
       <div
         className="mt-1 h-[3px] rounded-full"
         style={{
+          width: "100%", // tracks the resizable box width — shrinks with the header
+          transformOrigin: "left center",
           background: `linear-gradient(90deg, ${NEON.yellow}, rgba(224,40,74,0.9))`,
           boxShadow: "0 0 10px rgba(252,163,17,0.6)",
           animation: "heading-underline-in 0.4s ease-out both",
