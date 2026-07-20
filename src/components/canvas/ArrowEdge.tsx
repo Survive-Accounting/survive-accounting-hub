@@ -8,14 +8,22 @@
 //  - DRAG PERF: while either endpoint node is mid-drag the route stamps
 //    data._drag — we render a plain straight path (no smoothstep corner
 //    math per frame) and restore the smoothstep on drop.
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, getStraightPath, useReactFlow, type EdgeProps } from "@xyflow/react";
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, getStraightPath, Position, useInternalNode, useReactFlow, type EdgeProps } from "@xyflow/react";
 
 import { removeEdgeCmd } from "./arrows";
 import { bus, type RfLike } from "./commands";
+import { floatingGeometry, type Rect, type Side } from "./floating-anchor";
 import { useSpotlight } from "./SpotlightContext";
 
+const SIDE_TO_POS: Record<Side, Position> = {
+  top: Position.Top,
+  bottom: Position.Bottom,
+  left: Position.Left,
+  right: Position.Right,
+};
+
 export function ArrowEdge(props: EdgeProps) {
-  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, style, markerEnd, data } = props;
+  const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, style, markerEnd, data } = props;
   const rf = useReactFlow();
   const dragging = !!data?._drag;
   // SPOTLIGHT AN ARROW (Lee): Ctrl+click pills the edge, Ctrl+Shift+click flames it.
@@ -25,9 +33,31 @@ export function ArrowEdge(props: EdgeProps) {
   const spotStyle: React.CSSProperties = spotlit
     ? { stroke: flamed ? "#FF7A00" : "#FCA311", strokeWidth: flamed ? 4.5 : 3, filter: `drop-shadow(0 0 ${flamed ? 9 : 5}px rgba(252,163,17,0.9))` }
     : {};
+
+  // FLOATING ANCHOR (Lee): a plain card→card arrow (data.floating) attaches to
+  // the exact border point facing the other node, sliding along the full
+  // perimeter as nodes move — not snapped to a fixed t/b/l/r dot. Hooks run
+  // unconditionally (rules-of-hooks); the rects are only used when floating.
+  const srcInternal = useInternalNode(source);
+  const tgtInternal = useInternalNode(target);
+  const rectOf = (n: typeof srcInternal): Rect | null =>
+    n && n.measured.width != null && n.measured.height != null
+      ? { x: n.internals.positionAbsolute.x, y: n.internals.positionAbsolute.y, width: n.measured.width, height: n.measured.height }
+      : null;
+  const sRect = rectOf(srcInternal);
+  const tRect = rectOf(tgtInternal);
+  const floatG = data?.floating && sRect && tRect ? floatingGeometry(sRect, tRect) : null;
+
+  const sX = floatG ? floatG.sx : sourceX;
+  const sY = floatG ? floatG.sy : sourceY;
+  const tX = floatG ? floatG.tx : targetX;
+  const tY = floatG ? floatG.ty : targetY;
+  const sPos = floatG ? SIDE_TO_POS[floatG.sourceSide] : sourcePosition;
+  const tPos = floatG ? SIDE_TO_POS[floatG.targetSide] : targetPosition;
+
   const [path, labelX, labelY] = dragging
-    ? getStraightPath({ sourceX, sourceY, targetX, targetY })
-    : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
+    ? getStraightPath({ sourceX: sX, sourceY: sY, targetX: tX, targetY: tY })
+    : getSmoothStepPath({ sourceX: sX, sourceY: sY, targetX: tX, targetY: tY, sourcePosition: sPos, targetPosition: tPos, borderRadius: 8 });
 
   return (
     <>
