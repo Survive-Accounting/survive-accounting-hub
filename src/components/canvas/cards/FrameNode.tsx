@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Clapperboard, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Plus, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
+import { Clapperboard, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Plus, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -23,7 +23,7 @@ import { suggestVisualForFrame } from "@/lib/suggest-visual.functions";
 import { ConnectionDots } from "../ConnectionDots";
 import { FilmStatusChip, TakesPanel, useFileDrop, useFrameTakes } from "../frame-takes";
 import { useFrameNav } from "../FrameNavContext";
-import { beatColOf, frame169, framesInBeat, rowY, subIndexOf } from "../frames";
+import { beatColOf, frame169, framesInBeat, framesInLesson, rowY, subIndexOf } from "../frames";
 import { EditableText } from "../ui";
 import { NEON } from "../theme";
 import { WorldBackground } from "../WorldBackground";
@@ -120,6 +120,16 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const worldPreset = worldById(worldId);
   const worldInten = d.world ? d.worldIntensity : beatDef?.world ? beatDef.intensity : lessonData?.worldDefaultIntensity;
   const worldMot = d.world ? d.worldMotion : beatDef?.world ? beatDef.motion : lessonData?.worldDefaultMotion;
+  // FRAME CODE (#lesson.frame) — Lee's identifier: the lesson's number + this
+  // frame's 1-based ordinal in the lesson's film order. Replaces the "HOOK 1" chip.
+  const frameCode = (() => {
+    const p = rf.getNode(id)?.parentId;
+    const lessonNum = (lessonData as { pathOrder?: number } | undefined)?.pathOrder ?? 1;
+    if (!p) return `#${lessonNum}.1`;
+    const order = framesInLesson(rf.getNodes() as never, p);
+    const i = order.findIndex((f) => f.id === id);
+    return `#${lessonNum}.${i < 0 ? 1 : i + 1}`;
+  })();
 
   // PHONE-LANDSCAPE CHECK (Phase 6) — advisory only. Build lightweight element
   // rects from the frame's child card nodes (position + size × card scale) and run
@@ -359,8 +369,10 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         onClick={(e) => { e.stopPropagation(); nav.enter(id); }}
         title="Enter this frame (fit the camera to it)"
       >
-        <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: meta.color, border: `1px solid ${meta.edge}` }}>
-          {meta.label} {(d.subIndex ?? 0) + 1}
+        {/* FRAME CODE (#lesson.frame) — the beat is already the grid column, so no
+            "HOOK 1" chip (Lee's call); this identifies the frame instead. */}
+        <span className="shrink-0 rounded px-1 text-[10px] font-bold tabular-nums" style={{ color: meta.color, border: `1px solid ${meta.edge}` }}>
+          {frameCode}
         </span>
         {/* TAKE BOARD: film status chip (authoring chrome — header hides in film) */}
         <FilmStatusChip frameId={id} status={d.filmStatus ?? "unfilmed"} small />
@@ -382,7 +394,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           );
         })()}
         <span className="min-w-0 flex-1 text-[12px] font-bold" style={{ color: "#F4EFE6" }} onClick={(e) => e.stopPropagation()}>
-          <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="Frame title" openSeq={(data as { _editSeq?: number })._editSeq} />
+          <EditableText value={d.title ?? ""} onChange={(v) => update({ title: v })} placeholder="title (optional)" openSeq={(data as { _editSeq?: number })._editSeq} />
         </span>
         <span className={`flex items-center gap-0.5 transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`}>
           {bgLoop && (
@@ -396,8 +408,6 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: takeCount ? meta.color : NEON.text }} title={takeCount ? `Takes (${takeCount}) — review the latest clip` : "Takes — drop an OBS clip on the frame to upload"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setTakesOpen((v) => !v); }}>
             <Clapperboard className="h-3 w-3" />
           </button>
-          <button className={btn} style={{ color: nav.canReorder(id, -1) ? NEON.text : NEON.borderSoft }} title="Move frame earlier (reorder up in this beat)" disabled={!nav.canReorder(id, -1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, -1); }}><ChevronLeft className="h-3.5 w-3.5" /></button>
-          <button className={btn} style={{ color: nav.canReorder(id, 1) ? NEON.text : NEON.borderSoft }} title="Move frame later (reorder down in this beat)" disabled={!nav.canReorder(id, 1)} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.reorder(id, 1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           {/* DIRECTOR NOTE — GLOBAL per beat: the note shows on every frame of this
               beat, in every lesson. Filming chrome, hidden in film. */}
           <button className={btn} style={{ color: note ? meta.color : NEON.text }} title={note ? `Edit the ${meta.label} director note (shown on every ${meta.label} frame)` : `Add a director note for every ${meta.label} frame`} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setNoteEdit((v) => !v); }}>

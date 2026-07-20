@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, Minimize2, PanelTop, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -479,6 +479,44 @@ function DuplicateFrameDialog({ frameId, onClose, onDuplicate }: {
  *  start; space walks cues via the normal handler (no recording). Finish shows
  *  actual vs estimate; Save stores it on the frame. Esc exits (handled by the
  *  route's ladder). */
+/** FRAME THUMB — a tiny zoomed-out schematic of a frame for the in-frame layout
+ *  strip: the frame's cards as pale blocks (scaled from frame space), the current
+ *  one glowing. DRAGGABLE — drop it onto another thumb to SWAP their slots. Click
+ *  enters the frame. Hover shows the title. */
+function FrameThumb({ frame, nodes, active, color, code, onEnter, onDropFrame }: {
+  frame: { id: string; data: Record<string, unknown> };
+  nodes: { id: string; parentId?: string; type?: string; position: { x: number; y: number }; measured?: { width?: number; height?: number }; data: Record<string, unknown> }[];
+  active: boolean; color: string; code: string;
+  onEnter: () => void; onDropFrame: (srcId: string) => void;
+}) {
+  const [over, setOver] = useState(false);
+  const W = 66, H = 37;
+  const sx = W / FRAME_W, sy = H / FRAME_H;
+  const kids = nodes.filter((n) => n.parentId === frame.id && !isContainerType(n.type));
+  const title = (frame.data.title as string) || "";
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.setData("text/sa-frame", frame.id); e.dataTransfer.effectAllowed = "move"; }}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("text/sa-frame")) { e.preventDefault(); setOver(true); } }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { setOver(false); const src = e.dataTransfer.getData("text/sa-frame"); if (src) { e.preventDefault(); onDropFrame(src); } }}
+      onClick={onEnter}
+      title={title ? `${code} · ${title}` : `${code} — drag to swap`}
+      className="relative shrink-0 cursor-grab overflow-hidden rounded active:cursor-grabbing"
+      style={{ width: W, height: H, border: `1.5px solid ${active ? color : over ? NEON.cyan : NEON.borderSoft}`, background: active ? `${color}22` : "rgba(255,255,255,0.03)", boxShadow: active ? `0 0 12px -3px ${color}` : over ? `0 0 10px -3px ${NEON.cyan}` : "none" }}
+    >
+      {kids.map((n) => {
+        const w = Math.max(3, ((n.measured?.width ?? (n.data.w as number) ?? 220)) * sx);
+        const h = Math.max(2, ((n.measured?.height ?? (n.data.h as number) ?? 120)) * sy);
+        return <div key={n.id} className="pointer-events-none absolute rounded-[1px]" style={{ left: n.position.x * sx, top: n.position.y * sy, width: w, height: h, background: "rgba(232,240,252,0.5)", border: "0.5px solid rgba(232,240,252,0.28)" }} />;
+      })}
+      {kids.length === 0 && <span className="pointer-events-none absolute inset-0 grid place-items-center text-[7.5px] italic" style={{ color: NEON.muted }}>empty</span>}
+      <span className="pointer-events-none absolute bottom-0 left-0 rounded-tr px-0.5 text-[7px] font-bold tabular-nums" style={{ color: active ? "#0B1322" : NEON.text, background: active ? color : "rgba(8,12,24,0.7)" }}>{code}</span>
+    </div>
+  );
+}
+
 /** A rehearsal RUN — one stopwatch that accumulates per-frame across a whole pass.
  *  `perFrame` banks completed time (ms); the live segment (running && segStart) is
  *  added on the fly. Switching frames banks + pauses; Finish freezes finishedAt. */
@@ -1089,6 +1127,7 @@ function PresentCanvas() {
   }, []);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
+  const [watermarkOn, setWatermarkOn] = useState(true); // brand watermark on the recording (toggle) — Lee's call
   const [backstage, setBackstage] = useState<BackstageMode>("dark"); // dots-only matrix by default (no SURVIVE backdrop) — Lee's call; cinema still selectable
   const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
@@ -1979,6 +2018,24 @@ function PresentCanvas() {
     if (cmd) bus.dispatch(cmd);
   }, [rf, gridPos]);
 
+  /** DRAG-DROP in the frame navigator: drop frame A onto frame B → swap their
+   *  grid slots (beat + subIndex + position). Works across beats and rows. One
+   *  undoable command. */
+  const swapFrames = useCallback((aId: string, bId: string) => {
+    if (aId === bId) return;
+    const a = rf.getNode(aId), b = rf.getNode(bId);
+    if (!a?.parentId || !b?.parentId) return;
+    const aBeat = beatColOf(a as never), aSub = subIndexOf(a as never);
+    const bBeat = beatColOf(b as never), bSub = subIndexOf(b as never);
+    rf.setNodes((nds) => nds.map((n) => (n.id === aId ? { ...n, position: gridPos(bBeat, bSub) } : n.id === bId ? { ...n, position: gridPos(aBeat, aSub) } : n)));
+    const cmds = [
+      patchDataCmd(rf as unknown as RfLike, aId, { beat: bBeat, subIndex: bSub }, "swap frames"),
+      patchDataCmd(rf as unknown as RfLike, bId, { beat: aBeat, subIndex: aSub }, "swap frames"),
+    ].filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, "swap frames");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos]);
+
   // ---- DUPLICATION (PROMPT 1 — the swap-many foundation) ---------------------
   // Deep-copy a frame or a whole lesson: cards + per-element state, script +
   // @marks (relinked to the copies), world/visual choice, and scenario BINDINGS
@@ -2841,13 +2898,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, lastLessonId: lastLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, lastLessonId: lastLessonRef.current },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -2909,6 +2966,7 @@ function PresentCanvas() {
       setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
       setLastRehearsalTotalS((nj.sceneSettings as { lastRehearsalTotalS?: number } | undefined)?.lastRehearsalTotalS ?? null);
       setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
+      setWatermarkOn((nj.sceneSettings as { watermarkOn?: boolean } | undefined)?.watermarkOn !== false); // default on
       { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "cinema" || bs === "gray" || bs === "light" ? bs : "dark"); } // default dark (dots-only)
       setFilmEntrancePop((nj.sceneSettings as { filmEntrancePop?: boolean } | undefined)?.filmEntrancePop !== false); // default on
       setFilmCheckGlow((nj.sceneSettings as { filmCheckGlow?: boolean } | undefined)?.filmCheckGlow !== false); // default on
@@ -3988,52 +4046,45 @@ function PresentCanvas() {
         );
       })()}
 
-      {/* FRAME HUD — while inside a frame: ‹ prev · "LESSON · frame — Beat" · next ›
-          (FF-6). Frame title is inline-editable here. Auto-hidden in film/clean
-          unless the frame-header toggle forces it; the tiny film HUD covers film. */}
+      {/* FRAME HUD — while inside a frame: the LESSON's whole layout as a strip of
+          draggable THUMBNAILS (drag one onto another to SWAP; click to jump). The
+          beat labels the column, so no "HOOK 1" chip; the frame is identified by
+          its #lesson.frame code. Auto-hidden in film/clean unless toggled on. */}
       {currentFrameId && chrome && showFrameHeader && (() => {
         const fnode = rf.getNode(currentFrameId);
         const fd = fnode?.data as FrameBox | undefined;
         const lessonId = fnode?.parentId;
         const lessonTitle = (lessonId ? (rf.getNode(lessonId)?.data as { label?: string } | undefined)?.label : "") || "Lesson";
-        const beat = (fd?.beat ?? "hook") as Beat;
-        const bm = BEAT_META[beat];
-        const sub = (fd?.subIndex ?? 0) + 1;
+        const lessonNum = ((lessonId ? (rf.getNode(lessonId)?.data as { pathOrder?: number } | undefined)?.pathOrder : 1) ?? 1);
+        const order = lessonId ? framesInLesson(rf.getNodes() as never, lessonId) : [];
+        const codeOf = (fid: string) => { const i = order.findIndex((x) => x.id === fid); return `#${lessonNum}.${i < 0 ? 1 : i + 1}`; };
+        const curCode = codeOf(currentFrameId);
         return (
-        <div data-frame-chrome className="absolute left-1/2 top-3 z-[58] flex max-w-[92vw] -translate-x-1/2 flex-col gap-1.5 rounded-2xl p-2.5" style={{ background: "linear-gradient(180deg, rgba(16,22,40,0.96), rgba(9,13,26,0.96))", border: `1px solid rgba(232,184,75,0.28)`, color: NEON.text, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
-          {/* lesson name (prominent, never cut) + beat chip + hide */}
+        <div data-frame-chrome className="absolute left-1/2 top-3 z-[58] flex max-w-[94vw] -translate-x-1/2 flex-col gap-1.5 rounded-2xl p-2.5" style={{ background: "linear-gradient(180deg, rgba(16,22,40,0.96), rgba(9,13,26,0.96))", border: `1px solid rgba(232,184,75,0.28)`, color: NEON.text, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
+          {/* lesson # + title · frame code · add · hide */}
           <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-[17px] font-black tracking-wide" style={{ color: "#FBEFD6", textShadow: "0 0 18px rgba(232,184,75,0.35)" }}>{lessonTitle}</span>
-            <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: bm.color, border: `1px solid ${bm.edge}`, background: `${bm.color}14` }}>{bm.label} {sub}</span>
-            <span className="flex-1" />
-            <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
+            <span className="whitespace-nowrap text-[16px] font-black tracking-wide" style={{ color: "#FBEFD6", textShadow: "0 0 18px rgba(232,184,75,0.35)" }}>{lessonTitle}</span>
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums" style={{ color: NEON.yellow, border: `1px solid rgba(232,184,75,0.5)` }}>{curCode}</span>
+            <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: "#F4EFE6" }}>
+              <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="title (optional)" />
+            </span>
+            <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
+            <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring it back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
           </div>
 
-          {/* frame title — underneath the lesson name */}
-          <div className="whitespace-nowrap text-[13px] font-bold" style={{ color: "#F4EFE6" }}>
-            <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="untitled frame" />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Previous beat ( ← / [ )" disabled={!frameNav.canStep(currentFrameId, -1)} onClick={() => stepBeat(-1)} style={{ color: NEON.text }}><ChevronLeft className="h-4 w-4" /></button>
-            <button className="grid h-6 w-6 place-items-center rounded-full disabled:opacity-30" title="Next beat ( → / ] )" disabled={!frameNav.canStep(currentFrameId, 1)} onClick={() => stepBeat(1)} style={{ color: NEON.text }}><ChevronRight className="h-4 w-4" /></button>
-            <span className="mx-0.5 h-4 w-px" style={{ background: NEON.borderSoft }} />
-            <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a sub-frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
-            <button className="grid h-6 w-6 place-items-center rounded-full" title="Exit frame (Esc)" onClick={exitFrame} style={{ color: NEON.yellow }}><Minimize2 className="h-3.5 w-3.5" /></button>
-          </div>
-
-          {/* FRAMES GRID — always visible, fixed box; click a cell to jump */}
+          {/* THE LESSON LAYOUT — thumbnails per beat column; drag one onto another
+              to SWAP their slots, click to jump in. */}
           {lessonId && (
-            <div className="flex gap-1.5 rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}` }}>
+            <div className="flex items-start gap-2 overflow-x-auto rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}`, maxWidth: "88vw" }}>
               {BEAT_COLUMNS.map((b) => {
                 const col = framesInBeat(rf.getNodes() as never, lessonId, b);
                 const cbm = BEAT_META[b];
                 return (
-                  <div key={b} className="flex flex-col items-center gap-1">
+                  <div key={b} className="flex shrink-0 flex-col items-center gap-1">
                     <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
-                    {col.length === 0 && <span className="grid h-6 w-10 place-items-center rounded text-[8px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
-                    {col.map((f, ri) => (
-                      <button key={f.id} className="grid h-6 w-10 place-items-center rounded text-[10px] font-bold transition-transform hover:scale-105" style={{ border: `1px solid ${f.id === currentFrameId ? cbm.color : NEON.borderSoft}`, background: f.id === currentFrameId ? `${cbm.color}2e` : "rgba(255,255,255,0.02)", color: f.id === currentFrameId ? cbm.color : NEON.text, boxShadow: f.id === currentFrameId ? `0 0 12px -2px ${cbm.color}` : "none" }} title={`${cbm.label} ${ri + 1}`} onClick={() => enterFrame(f.id)}>{ri + 1}</button>
+                    {col.length === 0 && <span className="grid h-[37px] w-[66px] place-items-center rounded text-[8px] italic" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>–</span>}
+                    {col.map((f) => (
+                      <FrameThumb key={f.id} frame={f as never} nodes={rf.getNodes() as never} active={f.id === currentFrameId} color={cbm.color} code={codeOf(f.id)} onEnter={() => enterFrame(f.id)} onDropFrame={(src) => swapFrames(src, f.id)} />
                     ))}
                   </div>
                 );
@@ -4070,9 +4121,9 @@ function PresentCanvas() {
           {drawerPanel === "key" && <LegendHud docked />}
         </BrandBar>
       )}
-      {/* Corner watermark — but NOT when the current frame plays a full-bleed
+      {/* Corner watermark — toggleable; and NEVER over a frame's full-bleed
           background loop (the branded loop is the mark; the video reads over it). */}
-      {!chrome && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { bgSrc?: string } | undefined)?.bgSrc) && <BrandWatermark />}
+      {!chrome && watermarkOn && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { bgSrc?: string } | undefined)?.bgSrc) && <BrandWatermark />}
 
       {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection; owns its
           own subscriptions so pan/zoom doesn't re-render the route */}
@@ -4316,6 +4367,10 @@ function PresentCanvas() {
                 <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: compositionGuides ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={compositionGuides} onChange={(e) => setCompositionGuides(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Composition guides <span className="opacity-60">(center/thirds/fifths in a frame; hold Alt to bypass)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: watermarkOn ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={watermarkOn} onChange={(e) => setWatermarkOn(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Watermark <span className="opacity-60">(Survive Accounting mark on the recording)</span>
                 </label>
                 {/* READ-TIME (PROMPT 3): riff multiplier + over-threshold seconds */}
                 <div className="mt-2 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
