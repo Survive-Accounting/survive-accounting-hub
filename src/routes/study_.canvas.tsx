@@ -90,6 +90,7 @@ import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
+import { FrameScriptDock, FrameScriptDockBody } from "@/components/canvas/FrameScriptDock";
 import { FrameTakesProvider, LessonMediaBar, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { hubLayout, plateForCourse } from "@/components/canvas/hub-layout";
@@ -106,8 +107,8 @@ import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
 // Panels that can be popped out to the director's second-monitor window.
-type PopKey = "teleprompter" | "cuesheet" | "deck";
-const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck"];
+type PopKey = "teleprompter" | "cuesheet" | "deck" | "script";
+const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script"];
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -1156,6 +1157,7 @@ function PresentCanvas() {
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
   const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
   const [scriptOpen, setScriptOpen] = useState(false); // SCRIPT EDITOR: the course-script modal
+  const [scriptDock, setScriptDock] = useState(false); // SCRIPT-IN-PLACE: dock the current frame's script beside its visual
   const [prompter, setPrompter] = useState(false); // TELEPROMPTER: hidden by default (incl. film); `p` toggles
   const [prompterCorner, setPrompterCorner] = useState<PrompterCorner>("tc"); // camera eyeline corner (persisted)
   // PROMPT 3 — read-time knobs (scene settings) + transient safe-guides + rehearsal
@@ -4234,6 +4236,7 @@ function PresentCanvas() {
             <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: "#F4EFE6" }}>
               <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="title (optional)" />
             </span>
+            <button className="grid h-6 w-6 place-items-center rounded-full" title={scriptDock ? "Close the script dock" : "Script this frame — write what you'll say beside the visual"} onClick={() => setScriptDock((v) => !v)} style={{ color: scriptDock || isPopped("script") ? NEON.yellow : NEON.muted }}><ScrollText className="h-3.5 w-3.5" /></button>
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring it back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
           </div>
@@ -4324,6 +4327,7 @@ function PresentCanvas() {
                 if (key === "teleprompter") { setPrompter(true); openPop(key, 720, 540); }
                 else if (key === "cuesheet") { setCueSheetOpen(true); openPop(key); }
                 else if (key === "deck") { setDeckOpen(true); openPop(key); }
+                else if (key === "script") { setScriptDock(true); openPop(key, 420, 640); }
               }
               setPopRestoreDismissed(true);
             }}
@@ -4794,6 +4798,17 @@ function PresentCanvas() {
         />
       )}
 
+      {/* SCRIPT-IN-PLACE — the current frame's script docked beside its visual
+          (same data as the modal + teleprompter). Pops to a window like the
+          teleprompter. Only while inside a frame. */}
+      {scriptDock && currentFrameId && !isPopped("script") && (
+        <FrameScriptDock frameId={currentFrameId} onClose={() => setScriptDock(false)} onPopOut={() => openPop("script", 420, 640)} />
+      )}
+      {isPopped("script") && (
+        <PanelPopout win={popWins.script!} title="Script" onReturn={() => returnPop("script")}>
+          <FrameScriptDockBody frameId={currentFrameId} />
+        </PanelPopout>
+      )}
 
       {/* TELEPROMPTER — author-only, works in authoring AND film; `p` toggles.
           Never a student surface: it's an overlay on Lee's filming canvas.
