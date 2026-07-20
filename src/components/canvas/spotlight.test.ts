@@ -70,6 +70,10 @@ describe("spotlightTargetsOf — registry per kind", () => {
   test("memo = single self target", () => {
     expect(spotlightTargetsOf({ kind: "memo", memoKind: "trap", body: "" } as unknown as CardData)).toEqual(["self"]);
   });
+  test("heading / Big Text + text block = single self target (Lee)", () => {
+    expect(spotlightTargetsOf({ kind: "heading", text: "A = L + E", level: 1 } as unknown as CardData)).toEqual(["self"]);
+    expect(spotlightTargetsOf({ kind: "text", body: "", color: 0 } as unknown as CardData)).toEqual(["self"]);
+  });
   test("non-spotlightable kinds → []", () => {
     expect(spotlightTargetsOf({ kind: "note", body: "", color: 0 } as unknown as CardData)).toEqual([]);
     expect(spotlightTargetsOf(undefined)).toEqual([]);

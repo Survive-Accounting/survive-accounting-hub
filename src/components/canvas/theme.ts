@@ -44,6 +44,11 @@ export const PAPER = {
  *  SURVIVE wordmark energy (Lee's call — the old DM Serif read "textbooky"). */
 export const DISPLAY_FONT = "'Sora', 'Inter', system-ui, sans-serif";
 
+/** BIG TEXT face — League Spartan: the heavy, tight, geometric wordmark voice
+ *  that mimics the SURVIVE logo (Lee's call). Used by the "Big Text" element for
+ *  huge on-camera slabs like "A = L + E". */
+export const BIG_FONT = "'League Spartan', 'Sora', 'Inter', system-ui, sans-serif";
+
 /** JE card voice (A11): transaction descriptions + badges — modern, clean. */
 export const JE_FONT = "'Poppins', 'Inter', system-ui, sans-serif";
 

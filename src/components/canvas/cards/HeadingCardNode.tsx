@@ -5,19 +5,51 @@
 // ({first_name} …) rendered from the Preview student; a trailing "[sub]"
 // renders as a smaller bracketed sub-label.
 import { useRef, useState } from "react";
-import { useReactFlow, type NodeProps } from "@xyflow/react";
-import { Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useReactFlow, useStore, useViewport, type NodeProps } from "@xyflow/react";
+import { ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, Type, Underline, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { useFrameNav } from "../FrameNavContext";
+import { useSpotTarget, spotStyle } from "../SpotlightContext";
 import { ElementResizer } from "./elements";
 import { useEditSignal } from "../ui";
-import { DISPLAY_FONT, NEON } from "../theme";
+import { BIG_FONT, DISPLAY_FONT, NEON } from "../theme";
 import { renderTokens, TokenMenu } from "../variables";
 import type { HeadingCard } from "../types";
+
+/** OVER EVERYTHING (Lee) — render a copy of the slab into a fixed body portal at
+ *  z above the camera bubble (z-80), positioned at the node's on-screen rect from
+ *  the live viewport. Display-only (pointer-events:none); the real interactive
+ *  node stays in the pane underneath. Lets a Big Text slab sit on top of camera. */
+function OnTopOverlay({ nodeId, children }: { nodeId: string; children: React.ReactNode }) {
+  const vp = useViewport();
+  const container = useStore((s) => s.domNode);
+  const geom = useStore(
+    (s) => {
+      const n = s.nodeLookup.get(nodeId);
+      if (!n) return null;
+      const p = n.internals.positionAbsolute;
+      return { x: p.x, y: p.y, w: n.measured?.width ?? 0, h: n.measured?.height ?? 0 };
+    },
+    (a, b) => a?.x === b?.x && a?.y === b?.y && a?.w === b?.w && a?.h === b?.h,
+  );
+  if (typeof document === "undefined" || !container || !geom) return null;
+  const rect = container.getBoundingClientRect();
+  const left = rect.left + vp.x + geom.x * vp.zoom;
+  const top = rect.top + vp.y + geom.y * vp.zoom;
+  return createPortal(
+    <div
+      style={{ position: "fixed", left, top, width: geom.w || undefined, transform: `scale(${vp.zoom})`, transformOrigin: "top left", zIndex: 85, pointerEvents: "none" }}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 const UNDERLINE_CSS = `
 /* draw-in via scaleX so the underline STAYS width:100% (tracks the resizable box)
@@ -55,10 +87,75 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
 
-  // QUICK RESIZE: box height drives the font (min readable size)
-  const base = d.level === 1 ? 48 : 28;
-  const size = d.h ? Math.max(16, Math.min(120, d.h - 22)) : base;
+  // SPOTLIGHT (Lee): a heading/Big-Text is a single "self" target — Ctrl+click to
+  // pill it, Ctrl+Shift+click to super-flame it, live while filming.
+  const spot = useSpotTarget(id, "self");
+  // BIG TEXT (spartan) → heavy League-Spartan wordmark voice; else Sora display.
+  const font = d.spartan ? BIG_FONT : DISPLAY_FONT;
+  // QUICK RESIZE: box height drives the font (min readable size). Big Text can go
+  // much larger than a regular heading.
+  const base = d.spartan ? 88 : d.level === 1 ? 48 : 28;
+  const size = d.h ? Math.max(16, Math.min(d.spartan ? 260 : 120, d.h - 22)) : base;
+  const showUnderline = d.underline !== false;
   const { main, sub } = parseHeading(d.text);
+
+  // The visible slab (text + underline). Rendered in the pane AND, when onTop,
+  // mirrored into a fixed portal above the camera — so both copies stay in sync.
+  const slab = (
+    <>
+      <div
+        key={typeKey}
+        className={`relative cursor-move whitespace-pre-line leading-tight${d.typewriter ? " sa-typewrite" : ""}`}
+        title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
+        onDoubleClick={() => setEditing(true)}
+      >
+        {/* SCRIM (item 5): a soft dark halo BEHIND the glyphs so the title pops
+            over bright loops — a blurred dark pad plus a heavy text-shadow. */}
+        {d.scrim && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-[1] rounded-xl"
+            style={{ background: "radial-gradient(ellipse at center, rgba(6,10,20,0.72) 0%, rgba(6,10,20,0.5) 55%, transparent 100%)", filter: "blur(3px)" }}
+          />
+        )}
+        <span
+          {...spot.props}
+          style={{
+            display: "inline-block", // so the spotlight scale/pill can render
+            color: d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)",
+            fontFamily: font,
+            fontWeight: d.spartan ? 800 : undefined,
+            letterSpacing: d.spartan ? "-0.01em" : undefined,
+            fontSize: size,
+            fontStyle: d.text ? undefined : "italic",
+            textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.95)" : undefined,
+            ...spotStyle(spot.state),
+          }}
+        >
+          {main ? renderTokens(main, ctx.previewStudent) : "Heading"}
+        </span>
+        {sub && (
+          <span style={{ color: NEON.muted, fontFamily: font, fontSize: Math.round(size * 0.55), marginLeft: 10, textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9)" : undefined }}>
+            [{renderTokens(sub, ctx.previewStudent)}]
+          </span>
+        )}
+      </div>
+      {/* neon underline — draws in once per mount; width:100% tracks the resizable
+          box so it shrinks with the header. Toggle-able (Lee); off for Big Text. */}
+      {showUnderline && (
+        <div
+          className="mt-1 h-[3px] rounded-full"
+          style={{
+            width: "100%",
+            transformOrigin: "left center",
+            background: `linear-gradient(90deg, ${NEON.yellow}, rgba(224,40,74,0.9))`,
+            boxShadow: "0 0 10px rgba(252,163,17,0.6)",
+            animation: "heading-underline-in 0.4s ease-out both",
+          }}
+        />
+      )}
+    </>
+  );
 
   return (
     <div
@@ -111,6 +208,18 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         <HBtn title={d.typewriter ? "Typewriter entrance on — types in when its frame is entered in film (click to turn off)" : "Typewriter entrance — the title types itself in on frame entry (film mode)"} onClick={() => update({ typewriter: !d.typewriter })}>
           <Keyboard className="h-3 w-3" style={d.typewriter ? { color: NEON.yellow } : undefined} />
         </HBtn>
+        {/* UNDERLINE toggle (Lee) — show/hide the neon draw-in bar */}
+        <HBtn title={showUnderline ? "Underline on (click to hide)" : "Underline off (click to show)"} onClick={() => update({ underline: !showUnderline })}>
+          <Underline className="h-3 w-3" style={showUnderline ? { color: NEON.yellow } : undefined} />
+        </HBtn>
+        {/* BIG TEXT (spartan) — heavy League-Spartan wordmark voice */}
+        <HBtn title={d.spartan ? "Big Text on — League Spartan slab (click for normal heading)" : "Big Text — heavy League Spartan wordmark (SURVIVE style)"} onClick={() => update({ spartan: !d.spartan })}>
+          <Type className="h-3 w-3" style={d.spartan ? { color: NEON.yellow } : undefined} />
+        </HBtn>
+        {/* OVER EVERYTHING — lift above all cards + the camera bubble */}
+        <HBtn title={d.onTop ? "On top of everything (incl. camera) — click to sit in the canvas" : "Sit on top of everything, including the camera"} onClick={() => update({ onTop: !d.onTop })}>
+          <ArrowUpToLine className="h-3 w-3" style={d.onTop ? { color: NEON.yellow } : undefined} />
+        </HBtn>
         <HBtn title="Duplicate" onClick={duplicate}><Copy className="h-3 w-3" /></HBtn>
         <HBtn title={d.posLock ? "Unlock position" : "Lock in place (edits still work)"} onClick={() => update({ posLock: !d.posLock })}>
           {d.posLock ? <Lock className="h-3 w-3" style={{ color: NEON.yellow }} /> : <LockOpen className="h-3 w-3" />}
@@ -125,7 +234,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
             autoFocus
             rows={Math.max(1, d.text.split("\n").length)}
             className="nodrag nowheel w-full min-w-[280px] resize-none overflow-hidden rounded bg-black/30 px-1.5 py-1 pr-7 leading-tight outline-none"
-            style={{ color: "#F4EFE6", fontFamily: DISPLAY_FONT, fontSize: Math.min(size, 32) }}
+            style={{ color: "#F4EFE6", fontFamily: font, fontSize: Math.min(size, 32) }}
             defaultValue={d.text}
             placeholder="Heading [optional sub]"
             onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }}
@@ -164,42 +273,11 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
           )}
         </div>
       ) : (
-        <div
-          key={typeKey}
-          className={`relative cursor-move whitespace-pre-line leading-tight${d.typewriter ? " sa-typewrite" : ""}`}
-          title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
-          onDoubleClick={() => setEditing(true)}
-        >
-          {/* SCRIM (item 5): a soft dark halo BEHIND the glyphs so the title pops
-              over bright loops — a blurred dark pad plus a heavy text-shadow. */}
-          {d.scrim && (
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-[1] rounded-xl"
-              style={{ background: "radial-gradient(ellipse at center, rgba(6,10,20,0.72) 0%, rgba(6,10,20,0.5) 55%, transparent 100%)", filter: "blur(3px)" }}
-            />
-          )}
-          <span style={{ color: d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)", fontFamily: DISPLAY_FONT, fontSize: size, fontStyle: d.text ? undefined : "italic", textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.95)" : undefined }}>
-            {main ? renderTokens(main, ctx.previewStudent) : "Heading"}
-          </span>
-          {sub && (
-            <span style={{ color: NEON.muted, fontFamily: DISPLAY_FONT, fontSize: Math.round(size * 0.55), marginLeft: 10, textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9)" : undefined }}>
-              [{renderTokens(sub, ctx.previewStudent)}]
-            </span>
-          )}
-        </div>
+        slab
       )}
-      {/* neon underline — draws in once per mount (spawn AND deal both remount) */}
-      <div
-        className="mt-1 h-[3px] rounded-full"
-        style={{
-          width: "100%", // tracks the resizable box width — shrinks with the header
-          transformOrigin: "left center",
-          background: `linear-gradient(90deg, ${NEON.yellow}, rgba(224,40,74,0.9))`,
-          boxShadow: "0 0 10px rgba(252,163,17,0.6)",
-          animation: "heading-underline-in 0.4s ease-out both",
-        }}
-      />
+      {/* OVER EVERYTHING: mirror the slab into a fixed portal above the camera. Not
+          while editing (the in-pane textarea must be visible). */}
+      {d.onTop && !editing && <OnTopOverlay nodeId={id}>{slab}</OnTopOverlay>}
     </div>
   );
 }

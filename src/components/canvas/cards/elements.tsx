@@ -10,6 +10,7 @@ import { BaseCard, useCardActions } from "../BaseCard";
 import { bus } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
+import { useSpotTarget, spotStyle } from "../SpotlightContext";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { useEditSignal } from "../ui";
@@ -135,6 +136,9 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
   const [tokenMenu, setTokenMenu] = useState<HTMLElement | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
+  // SPOTLIGHT (Lee): a text block is a single "self" target — Ctrl+click to pill,
+  // Ctrl+Shift+click to super-flame, live while filming.
+  const spot = useSpotTarget(id, "self");
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
 
   return (
@@ -202,8 +206,9 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
         </>
       ) : (
         <div
+          {...spot.props}
           className="cursor-text text-[13px] leading-relaxed"
-          style={{ color: d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT }}
+          style={{ color: d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT, ...spotStyle(spot.state) }}
           title="Click to edit"
           onClick={() => setEditing(true)}
         >

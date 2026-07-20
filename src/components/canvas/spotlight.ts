@@ -35,6 +35,8 @@ export function spotlightTargetsOf(data: CardData | undefined): string[] {
     case "ceq":
       return (data as CeqCard).choices.map((c) => c.id);
     case "memo":
+    case "heading": // heading / Big Text — whole-element spotlight (Lee)
+    case "text": // text block — whole-element spotlight (Lee)
       return [MEMO_SELF_TARGET];
     default:
       return [];

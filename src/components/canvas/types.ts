@@ -382,6 +382,15 @@ export interface HeadingCard extends CardBase {
    *  (~600ms) when its frame is entered — the lesson-title reveal. Per-element
    *  toggle; no effect outside film. */
   typewriter?: boolean;
+  /** UNDERLINE: the neon draw-in bar under the text. Default ON; set false to
+   *  hide it (toggle in the chrome). Undefined = shown (back-compat). */
+  underline?: boolean;
+  /** BIG TEXT (Lee): render in the heavy League Spartan wordmark voice — huge,
+   *  tight, no underline by default — the "A = L + E" slab that sits on camera. */
+  spartan?: boolean;
+  /** OVER EVERYTHING: lift this element above all other canvas content AND the
+   *  camera bubble, so a Big Text slab can sit on top of the presenter. */
+  onTop?: boolean;
 }
 
 // ---- Text element (freeform markdown-lite block; ELEMENT category) ----

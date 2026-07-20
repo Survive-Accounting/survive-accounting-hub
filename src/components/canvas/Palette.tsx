@@ -68,7 +68,7 @@ function SnippetSection({ snippets, onSpawn, onRename, onDelete }: {
   );
 }
 
-type BlankSpec = { kind: CardKind; label: string; preset?: SchedulePreset; special?: "ale" };
+type BlankSpec = { kind: CardKind; label: string; preset?: SchedulePreset; special?: "ale" | "bigtext" };
 
 /** BLANK reorganized into three groups (design-elements run). */
 const CARD_BLANKS: BlankSpec[] = [
@@ -79,6 +79,7 @@ const CARD_BLANKS: BlankSpec[] = [
 ];
 const ELEMENT_BLANKS: BlankSpec[] = [
   { kind: "heading", label: "Heading" },
+  { kind: "heading", label: "Big Text", special: "bigtext" },
   { kind: "text", label: "Text" },
   { kind: "memo", label: "Memo" },
   { kind: "paygate", label: "Payment Gate" },
@@ -115,6 +116,9 @@ const FOCUS_KINDS: CardKind[] = ["je", "taccount", "note"];
 
 function spawnBlank(b: BlankSpec): CardData {
   if (b.special === "ale") return formulaAle();
+  // BIG TEXT: a heavy League-Spartan slab (spartan heading) — no underline,
+  // seeded with "A = L + E" as the canonical on-camera example.
+  if (b.special === "bigtext") return { kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 };
   if (b.kind === "schedule") return scheduleTemplate(b.preset ?? "generic");
   return blankCard(b.kind);
 }
