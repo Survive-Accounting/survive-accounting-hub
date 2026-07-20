@@ -6,6 +6,8 @@ import { createContext, useContext } from "react";
 export interface FrameNav {
   /** The frame currently framed by the camera (null = lesson/free view). */
   currentFrameId: string | null;
+  /** Whether FILM mode is on right now (performance) — nodes gate film-only SFX. */
+  film: boolean;
   /** Fit the camera exactly to a frame's bounds and mark it current. */
   enter: (frameId: string) => void;
   /** Leave frame view (back to the lesson / free canvas). */
@@ -36,6 +38,7 @@ export interface FrameNav {
 const noop = () => {};
 export const FrameNavContext = createContext<FrameNav>({
   currentFrameId: null,
+  film: false,
   enter: noop,
   exit: noop,
   step: noop,

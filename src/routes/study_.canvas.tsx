@@ -59,6 +59,7 @@ import { ambientViewport, fillViewport, spotlightPushViewport } from "@/componen
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
+import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig } from "@/components/canvas/sfx";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
@@ -1218,6 +1219,9 @@ function PresentCanvas() {
   const [backstage, setBackstage] = useState<BackstageMode>("dark"); // dots-only matrix by default (no SURVIVE backdrop) — Lee's call; cinema still selectable
   const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
   const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
+  const [sfx, setSfx] = useState<SfxConfig>(() => ({ muted: SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume }, file: { ...SFX_DEFAULT.file } })); // reveal/transition sounds (film only)
+  useEffect(() => { configureSfx(sfx); }, [sfx]);
+  useEffect(() => { if (film) preloadSfx(); }, [film]);
   const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
   const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
   const [scriptOpen, setScriptOpen] = useState(false); // SCRIPT EDITOR: the course-script modal
@@ -1957,12 +1961,31 @@ function PresentCanvas() {
   }, [rf, flashToast]);
 
   // ---- FRAMES: enter/exit/step camera (the frame's bounds = the viewport) ----
+  /** Whether entering `frameId` should fire the CRAM-LAUNCH cue rather than the
+   *  normal advance swoosh: the lesson's cramSfx override (auto = first CRAM-beat
+   *  frame in column-major order; off = never; a frame id = that frame). */
+  const isCramLaunchFrame = useCallback((frameId: string): boolean => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return false;
+    const mode = (rf.getNode(f.parentId)?.data as { cramSfx?: string } | undefined)?.cramSfx ?? "auto";
+    if (mode === "off") return false;
+    if (mode !== "auto") return mode === frameId;
+    const cram = framesInBeat(rf.getNodes() as never, f.parentId, "cram");
+    return cram.length > 0 && cram[0].id === frameId;
+  }, [rf]);
+
   const enterFrame = useCallback((frameId: string, opts?: { smooth?: boolean }) => {
     const nodes = rf.getNodes();
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const f = byId.get(frameId);
     if (!f || f.type !== "frame") return;
     const r = absRectOf(f as never, byId as never);
+    // SFX (Lee): a FILM frame transition plays the advance swoosh, or the cram
+    // launch when entering the lesson's cram-launch frame. Silent while authoring.
+    if (filmRef.current && currentFrameRef.current !== frameId) {
+      if (isCramLaunchFrame(frameId)) playSfx("cramLaunch");
+      else playSfx("swoosh");
+    }
     setCurrentFrameId(frameId);
     recPlayIdxRef.current.set(frameId, 0); // restart recorded playback for this frame
     if (f.parentId) lastLessonRef.current = f.parentId; // remember the lesson we're working in (for on-load)
@@ -1981,7 +2004,7 @@ function PresentCanvas() {
     // SMOOTH ZOOM-IN (Lee): the double-click-into-a-frame gesture animates like the
     // element focus-zoom (modern + eye-catching). Space-walk / nav stay as-is.
     void rf.setViewport({ x, y, zoom }, { duration: opts?.smooth ? 460 : filmRef.current && frameTransitionsRef.current ? 280 : 0 });
-  }, [rf]);
+  }, [rf, isCramLaunchFrame]);
 
   // Keep the frame pinned to its exact 16:9 fit when the window resizes.
   useEffect(() => {
@@ -2583,7 +2606,7 @@ function PresentCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrameId]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -3190,13 +3213,13 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, lastLessonId: lastLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, lastLessonId: lastLessonRef.current },
         decks, // NAMED DECKS (P3)
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -3268,6 +3291,7 @@ function PresentCanvas() {
       { const bn = (nj.sceneSettings as { beatNotes?: Record<string, string> } | undefined)?.beatNotes; if (bn && typeof bn === "object") setBeatNotes((prev) => ({ ...prev, ...bn })); } // global director notes travel with the scene, merged over the local set
       { const rm = (nj.sceneSettings as { riffMultiplier?: number } | undefined)?.riffMultiplier; if (typeof rm === "number" && rm > 0) setRiffMultiplier(rm); } // read-time riff (PROMPT 3)
       { const rt = (nj.sceneSettings as { readTimeThreshold?: number } | undefined)?.readTimeThreshold; if (typeof rt === "number" && rt > 0) setReadTimeThreshold(rt); }
+      { const sx = (nj.sceneSettings as { sfx?: Partial<SfxConfig> } | undefined)?.sfx; setSfx({ muted: sx?.muted ?? SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume, ...(sx?.volume ?? {}) }, file: { ...SFX_DEFAULT.file, ...(sx?.file ?? {}) } }); } // reveal/transition SFX config
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -4393,6 +4417,24 @@ function PresentCanvas() {
               <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="title (optional)" />
             </span>
             <button className="grid h-6 w-6 place-items-center rounded-full" title={scriptDock ? "Close the script dock" : "Script this frame — write what you'll say beside the visual"} onClick={() => setScriptDock((v) => !v)} style={{ color: scriptDock || isPopped("script") ? NEON.yellow : NEON.muted }}><ScrollText className="h-3.5 w-3.5" /></button>
+            {/* CRAM-LAUNCH SFX override (Lee) — per lesson: auto (first cram frame) →
+                off → HERE (this frame) → auto. */}
+            {(() => {
+              const mode = (lessonId ? (rf.getNode(lessonId)?.data as { cramSfx?: string } | undefined)?.cramSfx : undefined) ?? "auto";
+              const isHere = mode === currentFrameId;
+              const label = mode === "off" ? "off" : mode === "auto" ? "auto" : isHere ? "here" : "set";
+              const next = mode === "auto" ? "off" : mode === "off" ? currentFrameId : "auto";
+              return (
+                <button
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  title="Cram-launch sound for THIS lesson — auto (first Cram frame) → off → here (this frame). Cycles on click."
+                  onClick={() => { if (lessonId) { const c = patchDataCmd(rf as unknown as RfLike, lessonId, { cramSfx: next }, "cram sound"); if (c) bus.dispatch(c); } }}
+                  style={{ color: mode === "off" ? "#FF8B9E" : mode === "auto" ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
+                >
+                  🚀 {label}
+                </button>
+              );
+            })()}
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring it back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
           </div>
@@ -4723,6 +4765,19 @@ function PresentCanvas() {
                   <input type="checkbox" checked={watermarkOn} onChange={(e) => setWatermarkOn(e.target.checked)} style={{ accentColor: "#FCA311" }} />
                   Watermark <span className="opacity-60">(Survive Accounting mark on the recording)</span>
                 </label>
+                {/* REVEAL & TRANSITION SOUNDS (Lee) — film-only cues: keypad (per-element),
+                    advance swoosh (every frame advance), cram launch (first CRAM frame). */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Sounds <span className="font-normal normal-case opacity-60">(film only)</span></div>
+                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: sfx.muted ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={sfx.muted} onChange={(e) => setSfx((s) => ({ ...s, muted: e.target.checked }))} style={{ accentColor: "#FCA311" }} />
+                  Mute all <span className="opacity-60">(global)</span>
+                </label>
+                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"]] as const).map(([ev, label]) => (
+                  <div key={ev} className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted, opacity: sfx.muted ? 0.4 : 1 }}>
+                    <span className="w-24 shrink-0">{label} <span className="tabular-nums" style={{ color: NEON.text }}>{Math.round(sfx.volume[ev] * 100)}</span></span>
+                    <input type="range" min={0} max={100} value={Math.round(sfx.volume[ev] * 100)} disabled={sfx.muted} className="flex-1 accent-current" onChange={(e) => { const v = Number(e.target.value) / 100; setSfx((s) => ({ ...s, volume: { ...s.volume, [ev]: v } })); if (v > 0 && !sfx.muted) playSfx(ev); }} title={`${label} volume (drag = preview)`} />
+                  </div>
+                ))}
                 {/* READ-TIME (PROMPT 3): riff multiplier + over-threshold seconds */}
                 <div className="mt-2 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
                   <span className="w-24 shrink-0">Riff × <span className="tabular-nums" style={{ color: NEON.text }}>{riffMultiplier.toFixed(1)}</span></span>

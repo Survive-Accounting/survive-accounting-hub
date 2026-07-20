@@ -404,6 +404,9 @@ export interface HeadingCard extends CardBase {
   /** ALIGN (Lee): horizontal text alignment within the element box. Default
    *  "left"; "center" for centred titles / Big Text. Toggle in the chrome. */
   align?: "left" | "center";
+  /** KEYPAD SFX (Lee): when on, revealing this element in FILM (its reveal-on-step
+   *  / typewriter entrance) plays the keypad cue. Off by default; per-element. */
+  keypadSfx?: boolean;
 }
 
 // ---- Text element (freeform markdown-lite block; ELEMENT category) ----
@@ -417,6 +420,8 @@ export interface TextElement extends CardBase {
   faded?: boolean;
   /** ALIGN (Lee): horizontal text alignment. Default "left"; "center". */
   align?: "left" | "center";
+  /** KEYPAD SFX (Lee): reveal-in-film plays the keypad cue. Off by default. */
+  keypadSfx?: boolean;
 }
 
 // ---- Gate elements (VISUAL PLACEHOLDERS — real gating is World v1) ----
@@ -604,6 +609,10 @@ export interface LessonBox {
    *  own `world` → this beat's default → the lesson `worldDefault` → none.
    *  Keyed by beat ("hook" | "teach" | "model_practice" | "cram"). Additive. */
   worldByBeat?: Partial<Record<string, { world?: string; intensity?: number; motion?: number }>>;
+  /** CRAM LAUNCH SFX (Lee): which frame in this lesson fires the cram-launch cue.
+   *  "auto" (or absent) = the first CRAM-beat frame in column-major order;
+   *  "off" = never; any other value = that frame id (override "elsewhere"). */
+  cramSfx?: "auto" | "off" | string;
   // NOTE: the old per-lesson `home` flag was dropped (L3) — Home is now just the
   // top outline entry + a Home element (welcome heading + Ask Lee) in the region.
 }

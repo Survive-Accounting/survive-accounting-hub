@@ -2,9 +2,12 @@
 // BRIDGE placeholder cards. Elements never join the deck, never flip, carry no
 // teaching settings: chrome is exactly clone · × · position-lock (+ resize).
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { AlignCenter, AlignLeft, Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, X } from "lucide-react";
+import { AlignCenter, AlignLeft, Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, Volume2, X } from "lucide-react";
+
+import { useFrameNav } from "../FrameNavContext";
+import { playSfx } from "../sfx";
 
 import { BaseCard, useCardActions } from "../BaseCard";
 import { bus } from "../commands";
@@ -133,6 +136,8 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as TextElement;
   const { update, toFront } = useCardActions(id);
   const ctx = useCanvasSettings();
+  const rf = useReactFlow();
+  const nav = useFrameNav();
   const [editing, setEditing] = useState(false);
   const [tokenMenu, setTokenMenu] = useState<HTMLElement | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -140,6 +145,13 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
   // SPOTLIGHT (Lee): a text block is a single "self" target — Ctrl+click to pill,
   // Ctrl+Shift+click to super-flame, live while filming.
   const spot = useSpotTarget(id, "self");
+  // KEYPAD SFX (Lee): play the keypad cue when this text enters its frame in FILM.
+  const inCurrentFrame = nav.currentFrameId != null && rf.getNode(id)?.parentId === nav.currentFrameId;
+  const wasInFrame = useRef(false);
+  useEffect(() => {
+    if (nav.film && inCurrentFrame && !wasInFrame.current && d.keypadSfx) playSfx("keypad");
+    wasInFrame.current = inCurrentFrame;
+  }, [inCurrentFrame, nav.film, d.keypadSfx]);
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
 
   return (
@@ -236,6 +248,16 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
           title={d.align === "center" ? "Centred (click to left-align)" : "Left-aligned (click to centre)"}
         >
           {d.align === "center" ? <AlignCenter className="h-3 w-3" /> : <AlignLeft className="h-3 w-3" />}
+        </button>
+        {/* KEYPAD SFX (Lee) — reveal in film plays the keypad cue */}
+        <button
+          className="nodrag grid h-4 w-4 place-items-center rounded"
+          style={{ color: d.keypadSfx ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => update({ keypadSfx: !d.keypadSfx })}
+          title={d.keypadSfx ? "Keypad sound on — plays when revealed in film (click to turn off)" : "Keypad sound — play a keypad cue when this reveals in film"}
+        >
+          <Volume2 className="h-3 w-3" />
         </button>
         <span className="mx-0.5 h-3 w-px" style={{ background: NEON.borderSoft }} />
         {NOTE_COLORS.map((nc, i) => (

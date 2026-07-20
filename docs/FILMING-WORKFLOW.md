@@ -96,3 +96,30 @@ there's nothing to extract. The rest doesn't move the needle for us:
 - **Filler-word removal** contradicts the one-unedited-take principle.
 
 Revisit only if the re-film approach for shorts ever fails.
+
+---
+
+## Reveal & transition sounds — FILM-AUDIO SAFETY (must read)
+
+The canvas plays three optional cues during a take (film mode only): a per-element
+**keypad** on reveal, an **advance swoosh** on every frame advance, and a
+**cram-launch** on entering the first Cram frame. They are synthesized CC0 assets
+in `public/sfx/` (`keypad.wav`, `swoosh.wav`, `cram-launch.wav`) — regenerate or
+swap them with `node scripts/gen-sfx.mjs`. Volumes + a global mute live under the
+canvas Settings → **Sounds** (film only; authoring is always silent unless you
+drag a volume slider to preview).
+
+**These sounds must NEVER reach the RE20 through room speakers** — they'd bleed
+into the voice track and defeat the one-clean-take principle. Route app audio so
+the mic never hears it:
+
+- **Headphones only.** Monitor the browser on closed-back headphones. The app
+  audio is captured digitally by OBS, not acoustically by the mic.
+- **OR a separate OBS track / virtual cable.** Send Chrome/app audio to its own
+  OBS audio track (or a virtual cable like VB-Cable) so it's a discrete stem you
+  can mix or drop in post — never summed into the mic track, never on speakers.
+- Sanity check before a real take: play a frame advance with the mic live and
+  confirm the swoosh does **not** appear on the mic track.
+
+Respect accessibility: with `prefers-reduced-motion` set (or Mute all on), every
+cue is suppressed.

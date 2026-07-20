@@ -4,10 +4,12 @@
 // corner resize (font scales with box height). Supports template variables
 // ({first_name} …) rendered from the Preview student; a trailing "[sub]"
 // renders as a smaller bracketed sub-label.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useReactFlow, useStore, useViewport, type NodeProps } from "@xyflow/react";
-import { AlignCenter, AlignLeft, ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, SunDim, Type, Underline, X } from "lucide-react";
+import { AlignCenter, AlignLeft, ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, SunDim, Type, Underline, Volume2, X } from "lucide-react";
+
+import { playSfx } from "../sfx";
 
 import { useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -83,6 +85,13 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   const parentId = rf.getNode(id)?.parentId;
   const inCurrentFrame = !!parentId && nav.currentFrameId === parentId;
   const typeKey = d.typewriter && inCurrentFrame ? `tw-${nav.currentFrameId}` : "tw-static";
+  // KEYPAD SFX (Lee): when this heading enters its frame in FILM and has the
+  // keypad toggle on, play the keypad cue (synced with its typewriter entrance).
+  const wasInFrame = useRef(false);
+  useEffect(() => {
+    if (nav.film && inCurrentFrame && !wasInFrame.current && (d as { keypadSfx?: boolean }).keypadSfx) playSfx("keypad");
+    wasInFrame.current = inCurrentFrame;
+  }, [inCurrentFrame, nav.film, d]);
   const [tokenMenu, setTokenMenu] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit (item 4)
@@ -213,6 +222,10 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         {/* UNDERLINE toggle (Lee) — show/hide the neon draw-in bar */}
         <HBtn title={showUnderline ? "Underline on (click to hide)" : "Underline off (click to show)"} onClick={() => update({ underline: !showUnderline })}>
           <Underline className="h-3 w-3" style={showUnderline ? { color: NEON.yellow } : undefined} />
+        </HBtn>
+        {/* KEYPAD SFX (Lee) — reveal in film plays the keypad cue */}
+        <HBtn title={(d as { keypadSfx?: boolean }).keypadSfx ? "Keypad sound on — plays when revealed in film (click to turn off)" : "Keypad sound — play a keypad cue when this reveals in film"} onClick={() => update({ keypadSfx: !(d as { keypadSfx?: boolean }).keypadSfx })}>
+          <Volume2 className="h-3 w-3" style={(d as { keypadSfx?: boolean }).keypadSfx ? { color: NEON.yellow } : undefined} />
         </HBtn>
         {/* BIG TEXT (spartan) — heavy League-Spartan wordmark voice */}
         <HBtn title={d.spartan ? "Big Text on — League Spartan slab (click for normal heading)" : "Big Text — heavy League Spartan wordmark (SURVIVE style)"} onClick={() => update({ spartan: !d.spartan })}>
