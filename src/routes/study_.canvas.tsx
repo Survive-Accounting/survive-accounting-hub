@@ -55,6 +55,7 @@ import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas
 import { DecksContext } from "@/components/canvas/DecksContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
+import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { LegendHud } from "@/components/canvas/LegendHud";
@@ -1886,6 +1887,79 @@ function PresentCanvas() {
       void rf.fitView({ duration: dur, padding: 0.2 });
     }
   }, [rf]);
+
+  // CINEMATIC ZOOM (Lee) — camera-only pushes while filming. Tunables are
+  // session-level; the per-frame ON/OFF lives on the FrameBox (ambientPush /
+  // spotlightPush). All respect prefers-reduced-motion and reset on frame exit.
+  const [cinePushMs, setCinePushMs] = useState(700); // spotlight ease duration
+  const [cinePushIntensity, setCinePushIntensity] = useState(1); // 0.5 subtle … 1.5 strong
+  const [cineAmbientMs, setCineAmbientMs] = useState(6000); // ambient Ken-Burns duration
+  const cinePushMsRef = useRef(cinePushMs); cinePushMsRef.current = cinePushMs;
+  const cinePushIntensityRef = useRef(cinePushIntensity); cinePushIntensityRef.current = cinePushIntensity;
+  const cineAmbientMsRef = useRef(cineAmbientMs); cineAmbientMsRef.current = cineAmbientMs;
+  const reducedMotionRef = useRef(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => { reducedMotionRef.current = mq.matches; };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const containerSize = () => {
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    return { cw: rect?.width ?? window.innerWidth, ch: rect?.height ?? window.innerHeight };
+  };
+  // A frame is "scenery" (may push further) when it holds no teaching CARD.
+  const frameIsScenery = (frameId: string, nodes: CardNode[]) => {
+    const CARD = new Set(["je", "taccount", "list", "computation", "schedule", "ceq", "formula", "legend", "memorize"]);
+    return !nodes.some((n) => n.parentId === frameId && CARD.has((n.data as { kind?: string })?.kind ?? ""));
+  };
+
+  // SPOTLIGHT PUSH — ease toward the focused target; ease back when it clears.
+  // Film = animated; authoring = an instant static preview of the framing.
+  const spotPushedRef = useRef(false);
+  useEffect(() => {
+    const fid = currentFrameId;
+    if (!fid) { spotPushedRef.current = false; return; }
+    const nodes = rf.getNodes() as CardNode[];
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const fnode = byId.get(fid);
+    const fd = fnode?.data as FrameBox | undefined;
+    if (!fnode || !fd?.spotlightPush) return; // per-frame toggle (default off)
+    const { cw, ch } = containerSize();
+    const fr = absRectOf(fnode as never, byId as never);
+    const t = spot.focusTarget;
+    const tnode = t ? byId.get(t.cardId) : undefined;
+    const dur = film && !reducedMotionRef.current ? cinePushMsRef.current : 0;
+    if (t && tnode && tnode.parentId === fid) {
+      const tr = absRectOf(tnode as never, byId as never);
+      const vp = spotlightPushViewport({ frame: fr, target: tr, cw, ch, tier: t.tier, isScenery: frameIsScenery(fid, nodes), intensity: cinePushIntensityRef.current });
+      void rf.setViewport(vp, { duration: dur });
+      spotPushedRef.current = true;
+    } else if (spotPushedRef.current) {
+      spotPushedRef.current = false;
+      void rf.setViewport(fillViewport(fr, cw, ch), { duration: dur });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spot.focusTarget, currentFrameId, film]);
+
+  // AMBIENT PUSH — a slow Ken-Burns drift on frame entry (film only, no spotlight).
+  useEffect(() => {
+    const fid = currentFrameId;
+    if (!fid || !film || reducedMotionRef.current) return;
+    const nodes = rf.getNodes() as CardNode[];
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const fnode = byId.get(fid);
+    const fd = fnode?.data as FrameBox | undefined;
+    if (!fnode || !fd?.ambientPush) return;
+    if (spotRef.current?.focusTarget) return; // don't fight a spotlight push
+    const { cw, ch } = containerSize();
+    const fr = absRectOf(fnode as never, byId as never);
+    const vp = ambientViewport(fr, cw, ch);
+    const t = window.setTimeout(() => { if (!spotRef.current?.focusTarget) void rf.setViewport(vp, { duration: cineAmbientMsRef.current }); }, 340);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFrameId, film]);
 
   /** BIRDS-EYE = the CURRENT lesson only (never the whole course). Picks the
    *  current frame's lesson → the walk lesson → the lesson nearest the viewport
@@ -4487,6 +4561,20 @@ function PresentCanvas() {
                   <span className="w-24 shrink-0">Long frame &gt;</span>
                   <input type="number" min={10} max={600} value={readTimeThreshold} className="w-16 rounded bg-black/30 px-1 py-0.5 text-[11px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onChange={(e) => { const n = parseInt(e.target.value, 10); if (Number.isFinite(n) && n > 0) setReadTimeThreshold(n); }} />
                   <span>s (storyboard flag)</span>
+                </div>
+                {/* CINEMATIC CAMERA (Lee) — speed + intensity for the per-frame pushes */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Cinematic camera</div>
+                <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Push speed <span className="tabular-nums" style={{ color: NEON.text }}>{(cinePushMs / 1000).toFixed(1)}s</span></span>
+                  <input type="range" min={300} max={1600} step={100} value={cinePushMs} className="flex-1 accent-current" onChange={(e) => setCinePushMs(Number(e.target.value))} title="How fast the spotlight dolly eases" />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Push intensity <span className="tabular-nums" style={{ color: NEON.text }}>{cinePushIntensity.toFixed(1)}×</span></span>
+                  <input type="range" min={5} max={15} value={Math.round(cinePushIntensity * 10)} className="flex-1 accent-current" onChange={(e) => setCinePushIntensity(Number(e.target.value) / 10)} title="How far the spotlight dolly pushes (capped so cards stay legible)" />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Ambient drift <span className="tabular-nums" style={{ color: NEON.text }}>{(cineAmbientMs / 1000).toFixed(0)}s</span></span>
+                  <input type="range" min={4000} max={10000} step={500} value={cineAmbientMs} className="flex-1 accent-current" onChange={(e) => setCineAmbientMs(Number(e.target.value))} title="Ken-Burns push duration on frame entry" />
                 </div>
                 {/* AC1: backstage background — authoring only; film keeps the dark stage */}
                 <div className="mt-1.5 text-[10px]" style={{ color: NEON.muted }}>Backstage <span className="opacity-60">(authoring only)</span></div>

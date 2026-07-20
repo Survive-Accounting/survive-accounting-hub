@@ -2,9 +2,13 @@
 // inside the ReactFlowProvider (needs rf to read a card's targets + its frame).
 // State is React-only: NEVER written to node data / scenes. Cards read their
 // spotlight state through useSpotTarget (per target) + useCardDim (whole card).
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SpotState } from "./spotlight";
+
+/** The target the camera should push toward — the most recent emphasis, super
+ *  taking precedence over the regular pills. Null when nothing is emphasized. */
+export interface FocusTarget { cardId: string; targetId: string; tier: "regular" | "super" }
 
 export type FocusDimMode = "auto" | "on" | "off"; // auto = ON in film, OFF outside
 export type SpotTargetState = "spot" | "range" | "dim" | null;
@@ -33,6 +37,9 @@ interface SpotlightApi {
    *  never persisted. Multiple targets can burn at once. */
   toggleFlame: (cardId: string, targetId: string) => void;
   isFlamed: (cardId: string, targetId: string) => boolean;
+  /** CINEMATIC PUSH (Lee): the target the camera should dolly toward — the most
+   *  recent emphasis (super wins over regular), or null when cleared. */
+  focusTarget: FocusTarget | null;
 }
 
 export const SpotlightCtx = createContext<SpotlightApi | null>(null);
@@ -46,15 +53,35 @@ export type { SpotlightApi };
  *  emphasis present) and `exit` (clear all) still do anything for the keymap. */
 export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: FocusDimMode; followReveals?: boolean }): SpotlightApi {
   const [sets, setSets] = useState<SpotSets>(() => ({ regular: new Set(), superKey: null }));
+  const setsRef = useRef(sets);
+  setsRef.current = sets;
+  const [focus, setFocus] = useState<FocusTarget | null>(null);
+
+  // Which target the camera should push toward, given the new sets + the target
+  // that was just acted on. Super wins; else the acted key if it's now lit; else
+  // the most recent remaining regular pill (Set preserves insertion order); else none.
+  const focusFrom = useCallback((s: SpotSets, actedKey: string): FocusTarget | null => {
+    const parse = (key: string, tier: "regular" | "super"): FocusTarget => { const i = key.indexOf("::"); return { cardId: key.slice(0, i), targetId: key.slice(i + 2), tier }; };
+    if (s.superKey) return parse(s.superKey, "super");
+    if (s.regular.has(actedKey)) return parse(actedKey, "regular");
+    const arr = [...s.regular];
+    return arr.length ? parse(arr[arr.length - 1], "regular") : null;
+  }, []);
 
   // Ctrl+click → regular toggle (also downgrades a super to regular).
   const start = useCallback((cardId: string, targetId: string) => {
-    setSets((s) => applyRegularClick(s, spotKey(cardId, targetId)));
-  }, []);
+    const key = spotKey(cardId, targetId);
+    const next = applyRegularClick(setsRef.current, key);
+    setsRef.current = next; setSets(next);
+    setFocus(focusFrom(next, key));
+  }, [focusFrom]);
   // Ctrl+Shift+click → the ONE super (replaces the previous; re-click toggles off).
   const toggleFlame = useCallback((cardId: string, targetId: string) => {
-    setSets((s) => applySuperClick(s, spotKey(cardId, targetId)));
-  }, []);
+    const key = spotKey(cardId, targetId);
+    const next = applySuperClick(setsRef.current, key);
+    setsRef.current = next; setSets(next);
+    setFocus(focusFrom(next, key));
+  }, [focusFrom]);
   const isFlamed = useCallback((cardId: string, targetId: string) => sets.superKey === spotKey(cardId, targetId), [sets]);
   // Both regular AND super targets get the gold pill; super additionally burns
   // (data-flame → flame bar + 40% scale). Everything else = null.
@@ -62,7 +89,7 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
     const k = spotKey(cardId, targetId);
     return sets.regular.has(k) || sets.superKey === k ? "spot" : null;
   }, [sets]);
-  const exit = useCallback(() => setSets({ regular: new Set(), superKey: null }), []);
+  const exit = useCallback(() => { const n = { regular: new Set<string>(), superKey: null }; setsRef.current = n; setSets(n); setFocus(null); }, []);
 
   const active = sets.regular.size > 0 || sets.superKey != null;
   const noop = useCallback(() => {}, []);
@@ -73,8 +100,8 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
   return useMemo<SpotlightApi>(() => ({
     spot: null, active, followReveals: false,
     start, move: noop, tryReenter: noReenter, exit, editSpot: noop, onReveal: noop,
-    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed,
-  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed]);
+    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed, focusTarget: focus,
+  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed, focus]);
 }
 
 /** WARM performance styling for a target. The spotlight now reads as a GOLD

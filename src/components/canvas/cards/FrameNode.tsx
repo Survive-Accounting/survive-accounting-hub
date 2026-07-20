@@ -591,6 +591,28 @@ export function FrameNode({ id, data, selected }: NodeProps) {
             </div>
           </div>
 
+          {/* CINEMATIC CAMERA (Lee) — camera-only pushes while filming. Both default
+              OFF, per-frame. Ambient = slow Ken-Burns on entry (stage frames);
+              Spotlight push = the camera dollies toward whatever you Spotlight. */}
+          <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+            <div className="mb-1 font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Cinematic camera</div>
+            <button
+              className="flex w-full items-center justify-between rounded px-2 py-1 font-semibold"
+              style={{ border: `1px solid ${d.ambientPush ? meta.color : NEON.borderSoft}`, color: d.ambientPush ? meta.color : NEON.text }}
+              onClick={() => update({ ambientPush: !d.ambientPush })}
+            >
+              <span>Ambient push (Ken-Burns)</span><span>{d.ambientPush ? "on" : "off"}</span>
+            </button>
+            <button
+              className="mt-1 flex w-full items-center justify-between rounded px-2 py-1 font-semibold"
+              style={{ border: `1px solid ${d.spotlightPush ? meta.color : NEON.borderSoft}`, color: d.spotlightPush ? meta.color : NEON.text }}
+              onClick={() => update({ spotlightPush: !d.spotlightPush })}
+            >
+              <span>Spotlight push (dolly-in)</span><span>{d.spotlightPush ? "on" : "off"}</span>
+            </button>
+            <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Camera only — never moves cards. Motion plays in film; authoring shows the framing.</p>
+          </div>
+
           {/* LAYOUT TEMPLATE (Phase 5) — spawn a safe starting layout of existing
               card kinds into this frame. The spawned cards are fully editable. */}
           <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>

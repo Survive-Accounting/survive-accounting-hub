@@ -669,6 +669,13 @@ export interface FrameBox {
    *  and the presses are aligned into per-beat cut boundaries. Rides the scene
    *  JSON (additive); cleared once a take's segments are aligned. */
   cueLog?: { startedAtMs: number; pressesMs: number[] };
+  /** CINEMATIC ZOOM (camera-only, film-mode) — both default OFF, per-frame:
+   *  `ambientPush` = a slow Ken-Burns push-in on frame entry (stage/scenery);
+   *  `spotlightPush` = the camera eases toward a Spotlight target (dolly-in),
+   *  eases back out when Spotlight clears. Never move nodes; reset on frame exit.
+   *  Speed/intensity are scene-level (sceneSettings). */
+  ambientPush?: boolean;
+  spotlightPush?: boolean;
 }
 export type FrameBgAnchor =
   | "top-left" | "top" | "top-right"
