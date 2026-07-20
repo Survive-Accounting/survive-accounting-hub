@@ -18,7 +18,7 @@ import { useSpotTarget, spotStyle } from "../SpotlightContext";
 import { ElementResizer } from "./elements";
 import { useEditSignal } from "../ui";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "../theme";
-import { renderTokens, TokenMenu } from "../variables";
+import { renderRich, renderTokens, TokenMenu } from "../variables";
 import type { HeadingCard } from "../types";
 
 /** OVER EVERYTHING (Lee) — render a copy of the slab into a fixed body portal at
@@ -132,11 +132,11 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
             ...spotStyle(spot.state),
           }}
         >
-          {main ? renderTokens(main, ctx.previewStudent) : "Heading"}
+          {main ? renderRich(main, ctx.previewStudent) : "Heading"}
         </span>
         {sub && (
           <span style={{ color: NEON.muted, fontFamily: font, fontSize: Math.round(size * 0.55), marginLeft: 10, textShadow: d.scrim ? "0 2px 14px rgba(0,0,0,0.9)" : undefined }}>
-            [{renderTokens(sub, ctx.previewStudent)}]
+            [{renderRich(sub, ctx.previewStudent)}]
           </span>
         )}
       </div>

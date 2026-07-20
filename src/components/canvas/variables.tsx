@@ -68,6 +68,33 @@ export function renderTokens(text: string, student: PreviewStudent): ReactNode[]
   return out;
 }
 
+// STRIKETHROUGH (Lee): `~~struck~~` renders line-through, everywhere text is
+// editable. Alt+Shift+5 wraps the selection in the field (see ui.tsx). Shared so
+// headings, text blocks and list rows all honor the same marker.
+const STRIKE_RE = /~~([^~]+)~~/g;
+export function splitStrike(text: string): { t: string; strike: boolean }[] {
+  const out: { t: string; strike: boolean }[] = [];
+  const re = new RegExp(STRIKE_RE.source, "g");
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ t: text.slice(last, m.index), strike: false });
+    out.push({ t: m[1], strike: true });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ t: text.slice(last), strike: false });
+  return out.length ? out : [{ t: text, strike: false }];
+}
+
+/** Tokens + `~~strike~~` → nodes. The rich renderer for headings/Big Text. */
+export function renderRich(text: string, student: PreviewStudent): ReactNode[] {
+  return splitStrike(text).map((s, i) =>
+    s.strike
+      ? <s key={`s${i}`} style={{ textDecoration: "line-through" }}>{renderTokens(s.t, student)}</s>
+      : <span key={`n${i}`}>{renderTokens(s.t, student)}</span>,
+  );
+}
+
 /** Plain-string substitution (title attributes, measurements). Unset → EXAMPLE. */
 export function substituteTokens(text: string, student: PreviewStudent): string {
   const ex = defaultPreviewStudent();

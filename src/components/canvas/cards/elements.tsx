@@ -90,14 +90,15 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
 function mdInline(text: string, student: Parameters<typeof renderTokens>[1], keyBase: string): React.ReactNode[] {
   // tokens substitute FIRST-class: split on md markers, render tokens inside
   const out: React.ReactNode[] = [];
-  const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const re = /(~~[^~]+~~|\*\*[^*]+\*\*|\*[^*]+\*)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let i = 0;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(...renderTokens(text.slice(last, m.index), student));
     const seg = m[0];
-    if (seg.startsWith("**")) out.push(<b key={`${keyBase}b${i++}`}>{renderTokens(seg.slice(2, -2), student)}</b>);
+    if (seg.startsWith("~~")) out.push(<s key={`${keyBase}s${i++}`} style={{ textDecoration: "line-through" }}>{renderTokens(seg.slice(2, -2), student)}</s>);
+    else if (seg.startsWith("**")) out.push(<b key={`${keyBase}b${i++}`}>{renderTokens(seg.slice(2, -2), student)}</b>);
     else out.push(<i key={`${keyBase}i${i++}`}>{renderTokens(seg.slice(1, -1), student)}</i>);
     last = m.index + seg.length;
   }

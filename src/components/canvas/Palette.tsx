@@ -8,7 +8,7 @@ import { NEON } from "./theme";
 import { SNIPPET_DND_MIME } from "./snippet-payload";
 import { blankCard, formulaAle, scheduleTemplate, CARD_KIND_LABEL } from "./templates";
 import type { LibraryItem } from "./library";
-import type { CardData, CardKind, SchedulePreset } from "./types";
+import { cardId, type CardData, type CardKind, type SchedulePreset } from "./types";
 
 /** A saved snippet as the palette needs it (id + name). */
 export interface SnippetListItem { id: string; name: string }
@@ -68,7 +68,7 @@ function SnippetSection({ snippets, onSpawn, onRename, onDelete }: {
   );
 }
 
-type BlankSpec = { kind: CardKind; label: string; preset?: SchedulePreset; special?: "ale" | "bigtext" };
+type BlankSpec = { kind: CardKind; label: string; preset?: SchedulePreset; special?: "ale" | "bigtext" | "bullets" };
 
 /** BLANK reorganized into three groups (design-elements run). */
 const CARD_BLANKS: BlankSpec[] = [
@@ -81,6 +81,7 @@ const ELEMENT_BLANKS: BlankSpec[] = [
   { kind: "heading", label: "Heading" },
   { kind: "heading", label: "Big Text", special: "bigtext" },
   { kind: "text", label: "Text" },
+  { kind: "list", label: "Bulleted List", special: "bullets" },
   { kind: "memo", label: "Memo" },
   { kind: "paygate", label: "Payment Gate" },
   { kind: "signupgate", label: "Signup Gate" },
@@ -119,6 +120,9 @@ function spawnBlank(b: BlankSpec): CardData {
   // BIG TEXT: a heavy League-Spartan slab (spartan heading) — no underline,
   // seeded with "A = L + E" as the canonical on-camera example.
   if (b.special === "bigtext") return { kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 };
+  // BULLETED LIST: a plain header + bullets design element. Reuses the List card
+  // (bulleted markers, per-row space-walk reveal, per-row spotlight), chips off.
+  if (b.special === "bullets") return { kind: "list", title: "List", bulleted: true, showChips: false, rows: [{ id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }], editMode: true };
   if (b.kind === "schedule") return scheduleTemplate(b.preset ?? "generic");
   return blankCard(b.kind);
 }

@@ -61,7 +61,7 @@ import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
-import { EditableText } from "@/components/canvas/ui";
+import { EditableText, toggleStrikeInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
 import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
@@ -1115,15 +1115,35 @@ function PresentCanvas() {
     toastTimer.current = window.setTimeout(() => setToast(null), 6000);
   }), []);
   const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
+  // Track real fullscreen — the 16:9 letterbox bars only make sense filling an
+  // exact-aspect fullscreen shot. Windowed (incl. after EXITING fullscreen) they
+  // just leave ugly black sides, so we drop them when not fullscreen (Lee's call).
+  const [isFullscreen, setIsFullscreen] = useState(false);
   useEffect(() => {
     // Fullscreen EXIT resizes the window but the letterbox reads window.inner*
     // at render — so re-tick on resize AND fullscreenchange, plus a delayed tick
     // to catch the settled dimensions after the browser's fullscreen transition.
     const bump = () => setVpTick((t) => t + 1);
-    const onFs = () => { bump(); window.setTimeout(bump, 120); window.setTimeout(bump, 320); };
+    const syncFs = () => setIsFullscreen(!!document.fullscreenElement);
+    const onFs = () => { syncFs(); bump(); window.setTimeout(bump, 120); window.setTimeout(bump, 320); };
+    syncFs();
     window.addEventListener("resize", bump);
     document.addEventListener("fullscreenchange", onFs);
     return () => { window.removeEventListener("resize", bump); document.removeEventListener("fullscreenchange", onFs); };
+  }, []);
+  // STRIKETHROUGH (Lee): Alt+Shift+5 toggles `~~strike~~` around the selection in
+  // ANY editable field (capture phase — runs before the field's own key handler
+  // stops propagation). Physical Digit5 so keyboard layout doesn't matter.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || !e.shiftKey) return;
+      if (e.code !== "Digit5" && e.key !== "5" && e.key !== "%") return;
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA")) return;
+      if (toggleStrikeInField(el as HTMLInputElement | HTMLTextAreaElement)) { e.preventDefault(); e.stopPropagation(); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, []);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
@@ -4097,9 +4117,10 @@ function PresentCanvas() {
       </ReactFlow>
 
       {/* LETTERBOX (FF-5): inside a frame, solid bars mask the canvas outside the
-          exact 16:9 region the frame fills, so the shot is 16:9 in any window.
-          Film mode → pure black. pointer-events pass through outside film. */}
-      {currentFrameId && (() => {
+          exact 16:9 region the frame fills, so the shot is 16:9 in fullscreen.
+          Film mode → pure black. Only while FULLSCREEN — windowed (and right after
+          exiting fullscreen) the bars just leave black sides, so we drop them. */}
+      {currentFrameId && isFullscreen && (() => {
         const cw = window.innerWidth, ch = window.innerHeight;
         const innerW = Math.min(cw, (ch * 16) / 9);
         const innerH = innerW * 9 / 16;
