@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -816,6 +816,18 @@ const ADD_CARD_KINDS: { kind: Parameters<typeof blankCard>[0]; label: string; pr
   { kind: "video", label: "Video" },
 ];
 
+// ADD ELEMENTS menu (the "Palette" toolbar button) — design furniture Lee reaches
+// for a lot: headings, Big Text, bullets, the Exam Cue hook, memos. Spawns the
+// same blanks the drawer Palette does, one click from the toolbar.
+const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
+  { label: "Heading", make: () => blankCard("heading") },
+  { label: "Big Text", make: () => ({ kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 }) },
+  { label: "Text", make: () => blankCard("text") },
+  { label: "Bulleted List", make: () => ({ kind: "list", title: "List", bulleted: true, showChips: false, rows: [{ id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }], editMode: true }) },
+  { label: "Exam Cue", make: () => blankCard("examcue") },
+  { label: "Memo", make: () => blankCard("memo") },
+];
+
 const encodeBg = (c: BgConfig) => (c.mode === "video" ? `video|${c.video}|${Math.round(c.opacity * 100)}` : c.mode);
 function decodeBg(s: string | null | undefined): BgConfig | null {
   if (!s) return null;
@@ -989,6 +1001,7 @@ function PresentCanvas() {
   const [bgOpen, setBgOpen] = useState(false); // background picker popover (removed from toolbar; dot grid forced)
   const [fileMenuOpen, setFileMenuOpen] = useState(false); // File menu (Save/Load/Export/…) upward dropdown
   const [addCardOpen, setAddCardOpen] = useState(false);   // Add Card menu — card-kind picker upward dropdown
+  const [addElemOpen, setAddElemOpen] = useState(false);   // Palette menu — design-element picker upward dropdown
   const [deckOpen, setDeckOpen] = useState(false); // Deck panel (toolbar-controlled; no top-right badge)
   const [visualMixOpen, setVisualMixOpen] = useState(false); // Phase 8: read-only lesson visual-mix summary
   const [storyboardOpen, setStoryboardOpen] = useState(false); // Phase 4: bird's-eye board of frames in film order
@@ -4402,25 +4415,8 @@ function PresentCanvas() {
             onKeyDown={(e) => e.stopPropagation()}
             title="Scene name"
           />
-          {/* FILE — save / load / export / import / new tab (upward dropdown) */}
-          <div className="relative">
-            <MenuButton icon={<FileText className="h-3.5 w-3.5" />} label="File" open={fileMenuOpen} onClick={() => { setFileMenuOpen((v) => !v); setAddCardOpen(false); }} />
-            {fileMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setFileMenuOpen(false)} />
-                <div className="absolute bottom-9 left-0 z-50 w-44 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
-                  <MenuRow icon={<Save className="h-3.5 w-3.5" />} label="Save" onClick={() => { setFileMenuOpen(false); void doSave(); }} />
-                  <MenuRow icon={<FilePlus2 className="h-3.5 w-3.5" />} label="Save as new" onClick={() => { setFileMenuOpen(false); void doSave(true); }} />
-                  <MenuRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="Load scene" onClick={() => { setFileMenuOpen(false); void openLoad(); }} />
-                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-                  <MenuRow icon={<Download className="h-3.5 w-3.5" />} label="Export (.json + .md)" onClick={() => { setFileMenuOpen(false); exportScene(); }} />
-                  <MenuRow icon={<Upload className="h-3.5 w-3.5" />} label="Import from file" onClick={() => { setFileMenuOpen(false); importRef.current?.click(); }} />
-                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-                  <MenuRow icon={<Plus className="h-3.5 w-3.5" />} label="New tab" onClick={() => { setFileMenuOpen(false); newTab(); }} />
-                </div>
-              </>
-            )}
-          </div>
+          {/* CUE SHEET — moved to the leftmost tool slot (Lee's call, swapped with File) */}
+          <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
           <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
           {/* ADD CARD — card-kind picker (upward). Replaces Add region / Add lesson. */}
@@ -4437,15 +4433,43 @@ function PresentCanvas() {
               </>
             )}
           </div>
+          {/* PALETTE — design ELEMENTS (heading, Big Text, Text, Bulleted List, Exam
+              Cue, Memo). Sits right next to +Card so the elements are easy to find. */}
+          <div className="relative">
+            <MenuButton icon={<PaletteIcon className="h-3.5 w-3.5" />} label="Palette" open={addElemOpen} onClick={() => { setAddElemOpen((v) => !v); setAddCardOpen(false); setFileMenuOpen(false); }} />
+            {addElemOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setAddElemOpen(false)} />
+                <div className="absolute bottom-9 left-0 z-50 grid w-64 grid-cols-2 gap-0.5 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  {ADD_ELEMENT_BLANKS.map((b) => (
+                    <BgOption key={b.label} label={b.label} active={false} onClick={() => { setAddElemOpen(false); spawn(b.make()); }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           {/* DECK — the run-of-show roster (replaces the top-right badge) */}
-          <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); }} />
-          <TB
-            title="Add region scaffold — full-width header + lessons laid on a snaking path (layout stamp)"
-            onClick={() => { setScaffoldCourseId(sceneCourseId ?? ""); setScaffoldOpen(true); }}
-          >
-            <LayoutTemplate className="h-3.5 w-3.5" />
-          </TB>
-          <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
+          <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); setAddElemOpen(false); }} />
+          {/* FILE — save / load / export / import (floppy icon; moved onto the old
+              region-scaffold slot, which Lee no longer uses) */}
+          <div className="relative">
+            <MenuButton icon={<Save className="h-3.5 w-3.5" />} label="File" open={fileMenuOpen} onClick={() => { setFileMenuOpen((v) => !v); setAddCardOpen(false); setAddElemOpen(false); }} />
+            {fileMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFileMenuOpen(false)} />
+                <div className="absolute bottom-9 left-1/2 z-50 w-44 -translate-x-1/2 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  <MenuRow icon={<Save className="h-3.5 w-3.5" />} label="Save" onClick={() => { setFileMenuOpen(false); void doSave(); }} />
+                  <MenuRow icon={<FilePlus2 className="h-3.5 w-3.5" />} label="Save as new" onClick={() => { setFileMenuOpen(false); void doSave(true); }} />
+                  <MenuRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="Load scene" onClick={() => { setFileMenuOpen(false); void openLoad(); }} />
+                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+                  <MenuRow icon={<Download className="h-3.5 w-3.5" />} label="Export (.json + .md)" onClick={() => { setFileMenuOpen(false); exportScene(); }} />
+                  <MenuRow icon={<Upload className="h-3.5 w-3.5" />} label="Import from file" onClick={() => { setFileMenuOpen(false); importRef.current?.click(); }} />
+                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+                  <MenuRow icon={<Plus className="h-3.5 w-3.5" />} label="New tab" onClick={() => { setFileMenuOpen(false); newTab(); }} />
+                </div>
+              </>
+            )}
+          </div>
           <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
           <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>
