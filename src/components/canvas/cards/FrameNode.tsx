@@ -98,8 +98,8 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const [suggest, setSuggest] = useState<{ loading: boolean; result: VisualSuggestion | null; error: string | null }>({ loading: false, result: null, error: null }); // ✨ Suggest visual
   const [noteEdit, setNoteEdit] = useState(false); // director note editor open
   const [takesOpen, setTakesOpen] = useState(false); // TAKE BOARD: per-frame takes panel
-  const { upload, takesFor } = useFrameTakes();
-  const drop = useFileDrop((f) => void upload(id, f)); // drop an OBS clip → Mux
+  const { requestUpload, takesFor } = useFrameTakes();
+  const drop = useFileDrop((f) => requestUpload(id, f)); // drop an OBS clip → coverage picker → Mux
   const takeCount = takesFor(id).length;
   const bgMenuRef = useRef<HTMLDivElement>(null);
   // legacy "check" folds to "cram" so un-migrated scenes still find their meta.

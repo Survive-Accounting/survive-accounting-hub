@@ -938,6 +938,10 @@ async function muxApi(path: string, init?: RequestInit): Promise<any> {
 export interface FrameTakeRow {
   id: string;
   frame_id: string;
+  /** MULTI-FRAME (0100): every frame this one clip covers, in film order. The
+   *  run's FIRST frame is `frame_id`. Null on legacy rows ⇒ coverage is
+   *  [frame_id]. */
+  frame_ids?: string[] | null;
   take_n: number;
   mux_asset_id: string;
   mux_playback_id: string | null;
@@ -961,11 +965,12 @@ const takesTbl = async () => {
 
 /** Start a direct upload for a frame's next take. Returns the PUT URL. */
 export const createFrameTakeUpload = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ frameId: z.string().min(1).max(120), passthrough: z.string().min(1).max(160) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ frameIds: z.array(z.string().min(1).max(120)).min(1).max(20), passthrough: z.string().min(1).max(160) }).parse(d))
   .handler(async ({ data }): Promise<{ uploadUrl: string; takeId: string; takeN: number; passthrough: string }> => {
     muxAuthHeader(); // creds gate FIRST — fail loud before touching the DB
     const tbl = await takesTbl();
-    const { data: prior, error: qErr } = await tbl().select("take_n").eq("frame_id", data.frameId).order("take_n", { ascending: false }).limit(1);
+    const primary = data.frameIds[0]; // the run's first frame — drives take_n + passthrough
+    const { data: prior, error: qErr } = await tbl().select("take_n").eq("frame_id", primary).order("take_n", { ascending: false }).limit(1);
     if (qErr) rethrowTakes(qErr);
     const takeN = ((prior?.[0]?.take_n as number | undefined) ?? 0) + 1;
     const passthrough = `${data.passthrough}-t${takeN}`;
@@ -979,7 +984,7 @@ export const createFrameTakeUpload = createServerFn({ method: "POST" })
       }),
     });
     const { data: row, error: insErr } = await tbl()
-      .insert({ frame_id: data.frameId, take_n: takeN, mux_upload_id: upload.id, passthrough, status: "uploading" })
+      .insert({ frame_id: primary, frame_ids: data.frameIds, take_n: takeN, mux_upload_id: upload.id, passthrough, status: "uploading" })
       .select("id")
       .single();
     if (insErr) rethrowTakes(insErr);

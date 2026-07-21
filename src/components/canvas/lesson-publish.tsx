@@ -89,8 +89,20 @@ export function LessonPublishControl({ lessonId, courseName }: { lessonId: strin
 
       // BODY = the lesson's frames with a ready keeper, in order — SKIP frames with
       // no keeper (Lee leaves the intro-making frames empty). Exclude the Hook-f1
-      // intro frame only when it's serving as the intro (no uploaded clip).
-      const body = bodyFrames(frames, introFrameId).map((f) => ({ f, t: keeperFor(f.id) })).filter((x): x is { f: PubFrame; t: PubTake } => !!x.t);
+      // intro frame only when it's serving as the intro (no uploaded clip). A
+      // MULTI-FRAME take (0100) is the keeper for EVERY frame in its run, so those
+      // frames share one playback id — emit each distinct take ONCE for the whole
+      // body (a Set, not just adjacent), and seed it with the intro's playback so a
+      // run that also serves as the intro never replays in the body.
+      const emitted = new Set<string>();
+      if (introPlayback) emitted.add(introPlayback);
+      const body: { f: PubFrame; t: PubTake }[] = [];
+      for (const f of bodyFrames(frames, introFrameId)) {
+        const t = keeperFor(f.id);
+        if (!t?.muxPlaybackId || emitted.has(t.muxPlaybackId)) continue; // no keeper, or take already shipped
+        emitted.add(t.muxPlaybackId);
+        body.push({ f, t });
+      }
       if (body.length === 0) { setError("No frames have a ready keeper take yet — mark keepers first."); setBusy(false); return; }
 
       const { publishId, version } = await publishLesson({

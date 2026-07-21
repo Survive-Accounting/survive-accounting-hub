@@ -13,11 +13,16 @@ import { Check, Loader2, RefreshCw, Scissors, Star, Upload, Video, X } from "luc
 import { createFrameTakeUpload, listFrameTakes, resolveFrameTake, setTakeKeeper, setTakeTrim, type FrameTakeRow } from "@/lib/canvas.functions";
 import { previewLesson, resolvePreview } from "@/lib/publish.functions";
 import { bus, patchDataCmd, type RfLike } from "./commands";
+import { framesInLesson } from "./frames";
 import { computeTrim, isPublishable, trimLabel, WARNING_TEXT } from "./intro-trim";
 import { bodyFrames, type PubFrame } from "./publish-pipeline";
 import { takePassthrough } from "./take-naming";
 import { NEON } from "./theme";
 import type { Beat, FilmStatus } from "./types";
+
+/** The frames a take covers (0100). Legacy rows (no frame_ids) cover just their
+ *  primary frame. */
+export const takeCoverage = (t: FrameTakeRow): string[] => (t.frame_ids && t.frame_ids.length ? t.frame_ids : [t.frame_id]);
 
 // ---- browser audio analysis (onset + duration) — no server bytes, no ffmpeg ---
 /** Reliable media duration via a throwaway <video> element. */
@@ -63,7 +68,10 @@ interface UploadingState { frameId: string; pct: "uploading" | "processing" }
 
 interface FrameTakesApi {
   takesFor: (frameId: string) => FrameTakeRow[];
-  upload: (frameId: string, file: File) => Promise<void>;
+  /** Upload one clip covering a RUN of frames (frameIds[0] is the run's first). */
+  upload: (frameIds: string[], file: File) => Promise<void>;
+  /** Open the coverage picker for a frame-take drop/select, then upload the run. */
+  requestUpload: (frameId: string, file: File) => void;
   markKeeper: (take: FrameTakeRow) => Promise<void>;
   cycleStatus: (frameId: string) => void;
   uploading: UploadingState[];
@@ -83,6 +91,7 @@ interface FrameTakesApi {
 const FrameTakesContext = createContext<FrameTakesApi>({
   takesFor: () => [],
   upload: async () => {},
+  requestUpload: () => {},
   markKeeper: async () => {},
   cycleStatus: () => {},
   uploading: [],
@@ -179,16 +188,18 @@ export function FrameTakesProvider({ courseName, introClipLength = 6, autoTrimIn
     mergeRow(row);
   }, [introClipLength, mergeRow]);
 
-  const upload = useCallback(async (frameId: string, file: File) => {
+  const upload = useCallback(async (frameIds: string[], file: File) => {
+    if (frameIds.length === 0) return;
+    const primary = frameIds[0]; // the run's first frame — passthrough + take_n + trim
     // LESSON-LEVEL intro/outro clips ("intro:<lessonId>" / "outro:<lessonId>",
     // uploaded by the lesson title) have no frame node — derive from the lesson.
-    const media = /^(intro|outro):(.+)$/.exec(frameId);
+    const media = /^(intro|outro):(.+)$/.exec(primary);
     let lesson: string | null, beat: string, subIndex: number, isIntro: boolean;
     if (media) {
       lesson = (rf.getNode(media[2])?.data as { label?: string } | undefined)?.label ?? null;
       beat = media[1]; subIndex = 0; isIntro = media[1] === "intro";
     } else {
-      const node = rf.getNode(frameId);
+      const node = rf.getNode(primary);
       if (!node) return;
       const d = node.data as { beat?: string; subIndex?: number; introTake?: boolean };
       // lesson label from the frame's parent; the scene name carries the course.
@@ -197,24 +208,37 @@ export function FrameTakesProvider({ courseName, introClipLength = 6, autoTrimIn
     }
     const passthrough = takePassthrough(courseName, lesson, beat, subIndex);
     setMuxError(null);
-    setUploading((u) => [...u.filter((x) => x.frameId !== frameId), { frameId, pct: "uploading" }]);
+    setUploading((u) => [...u.filter((x) => x.frameId !== primary), { frameId: primary, pct: "uploading" }]);
     try {
-      const { uploadUrl, takeId } = await createFrameTakeUpload({ data: { frameId, passthrough } });
+      const { uploadUrl, takeId } = await createFrameTakeUpload({ data: { frameIds, passthrough } });
       // AUTO-TRIM INTRO: on an intro frame OR a lesson intro clip, analyse the audio
       // (in the browser) and store a non-destructive trim window.
-      const trimP = isIntro && autoTrimIntros ? deriveTrim(takeId, frameId, file).catch(() => {}) : null;
+      const trimP = isIntro && autoTrimIntros ? deriveTrim(takeId, primary, file).catch(() => {}) : null;
       const put = await fetch(uploadUrl, { method: "PUT", body: file });
       if (!put.ok) throw new Error(`Mux upload PUT failed (${put.status})`);
-      // upload landed → a real frame flips to FILMED (lesson media has no node)
-      if (!media) setFrameStatus(frameId, "filmed");
-      setUploading((u) => u.map((x) => (x.frameId === frameId ? { ...x, pct: "processing" } : x)));
+      // upload landed → EVERY real covered frame flips to FILMED (lesson media has no node)
+      if (!media) for (const fid of frameIds) setFrameStatus(fid, "filmed");
+      setUploading((u) => u.map((x) => (x.frameId === primary ? { ...x, pct: "processing" } : x)));
       pollTake(takeId);
       void trimP;
     } catch (e) {
-      setUploading((u) => u.filter((x) => x.frameId !== frameId));
+      setUploading((u) => u.filter((x) => x.frameId !== primary));
       setMuxError(e instanceof Error ? e.message : String(e));
     }
   }, [rf, pollTake, setFrameStatus, courseName, autoTrimIntros, deriveTrim]);
+
+  // COVERAGE PICKER (Lee) — a frame-take drop/select asks which frame(s) this one
+  // clip covers (a run filmed in one continuous take), then uploads once.
+  const [pending, setPending] = useState<{ file: File; primary: string; frames: { id: string; code: string; title: string }[] } | null>(null);
+  const requestUpload = useCallback((frameId: string, file: File) => {
+    const node = rf.getNode(frameId);
+    const lessonId = node?.parentId;
+    if (!lessonId) { void upload([frameId], file); return; } // no lesson context → single
+    const order = framesInLesson(rf.getNodes() as never, lessonId);
+    const num = (rf.getNode(lessonId)?.data as { pathOrder?: number } | undefined)?.pathOrder ?? 1;
+    const frames = order.map((f, i) => ({ id: f.id, code: `#${num}.${i + 1}`, title: ((f.data as { title?: string })?.title) || "" }));
+    setPending({ file, primary: frameId, frames });
+  }, [rf, upload]);
 
   /** Re-derive a take's trim from the CURRENT clip length (keeps the onset). */
   const retrimTake = useCallback(async (take: FrameTakeRow) => {
@@ -259,8 +283,15 @@ export function FrameTakesProvider({ courseName, introClipLength = 6, autoTrimIn
   return (
     <FrameTakesContext.Provider
       value={{
-        takesFor: (id) => takes.get(id) ?? [],
+        // coverage-aware (0100): a frame sees any take whose run includes it, even
+        // when that take's primary frame is a different frame in the run.
+        takesFor: (id) => {
+          const out: FrameTakeRow[] = [];
+          for (const arr of takes.values()) for (const t of arr) if (takeCoverage(t).includes(id)) out.push(t);
+          return out.sort((a, b) => b.take_n - a.take_n);
+        },
         upload,
+        requestUpload,
         markKeeper,
         cycleStatus,
         uploading,
@@ -274,7 +305,56 @@ export function FrameTakesProvider({ courseName, introClipLength = 6, autoTrimIn
       }}
     >
       {children}
+      {pending && (
+        <TakeCoveragePicker
+          pending={pending}
+          onCancel={() => setPending(null)}
+          onConfirm={(ids) => { void upload(ids, pending.file); setPending(null); }}
+        />
+      )}
     </FrameTakesContext.Provider>
+  );
+}
+
+/** COVERAGE PICKER — pick which frame(s) one uploaded take covers (a continuous
+ *  run). The list is the lesson's frames in film order; the dropped frame starts
+ *  selected. Selected ids are returned in film order; the run plays once. */
+function TakeCoveragePicker({ pending, onCancel, onConfirm }: { pending: { file: File; primary: string; frames: { id: string; code: string; title: string }[] }; onCancel: () => void; onConfirm: (ids: string[]) => void }) {
+  const [sel, setSel] = useState<Set<string>>(() => new Set([pending.primary]));
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) { if (n.size > 1) n.delete(id); } else n.add(id); return n; });
+  const ordered = pending.frames.filter((f) => sel.has(f.id)).map((f) => f.id); // film order preserved
+  const sizeMB = (pending.file.size / 1_000_000).toFixed(0);
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onCancel}>
+      <div className="w-[22rem] max-w-[92vw] rounded-xl p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text, boxShadow: "0 20px 50px -16px rgba(0,0,0,0.75)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-1 flex items-center gap-1.5">
+          <Video className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
+          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Which frames does this take cover?</span>
+        </div>
+        <p className="mb-2 text-[10px] leading-relaxed" style={{ color: NEON.muted }}>
+          One clip can cover a run you filmed in one go — pick the contiguous stretch. It plays once across them. ({pending.file.name} · {sizeMB}MB)
+        </p>
+        <div className="max-h-[46vh] space-y-0.5 overflow-y-auto">
+          {pending.frames.map((f) => {
+            const on = sel.has(f.id);
+            return (
+              <label key={f.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[11px]" style={{ background: on ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${on ? "rgba(252,163,17,0.4)" : NEON.borderSoft}` }}>
+                <input type="checkbox" checked={on} onChange={() => toggle(f.id)} style={{ accentColor: "#FCA311" }} />
+                <span className="shrink-0 font-bold tabular-nums" style={{ color: NEON.yellow }}>{f.code}</span>
+                <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }}>{f.title || "(untitled frame)"}</span>
+                {f.id === pending.primary && <span className="shrink-0 text-[8px] uppercase tracking-wide" style={{ color: NEON.muted }}>dropped</span>}
+              </label>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex items-center justify-end gap-1.5">
+          <button className="rounded px-2 py-1 text-[10px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={onCancel}>Cancel</button>
+          <button className="rounded px-2 py-1 text-[10px] font-bold disabled:opacity-40" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => onConfirm(ordered)} disabled={ordered.length === 0}>
+            Apply to {ordered.length} frame{ordered.length === 1 ? "" : "s"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -423,7 +503,7 @@ const DERIVED_STATUS_META = {
 } as const;
 
 export function TakeBoardCell({ frameId }: { frameId: string }) {
-  const { takesFor, upload } = useFrameTakes();
+  const { takesFor, requestUpload } = useFrameTakes();
   const fileRef = useRef<HTMLInputElement>(null);
   const takes = takesFor(frameId);
   const n = takes.length;
@@ -434,7 +514,7 @@ export function TakeBoardCell({ frameId }: { frameId: string }) {
     <span
       className="flex shrink-0 items-center gap-1"
       onDragOver={(e) => { e.preventDefault(); }}
-      onDrop={(e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) void upload(frameId, f); }}
+      onDrop={(e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) requestUpload(frameId, f); }}
     >
       <span
         className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
@@ -451,7 +531,7 @@ export function TakeBoardCell({ frameId }: { frameId: string }) {
       >
         <Upload className="h-3 w-3" />
       </button>
-      <input ref={fileRef} type="file" accept="video/*,.mkv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(frameId, f); e.target.value = ""; }} />
+      <input ref={fileRef} type="file" accept="video/*,.mkv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) requestUpload(frameId, f); e.target.value = ""; }} />
     </span>
   );
 }
@@ -496,7 +576,7 @@ export function LessonMediaBar({ lessonId }: { lessonId: string }) {
       <span
         className="nodrag zone-actions inline-flex items-center"
         onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) void upload(id, f); }}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("video/") || /\.(mp4|mov|mkv|webm)$/i.test(x.name)); if (f) void upload([id], f); }}
       >
         <button
           className="inline-flex items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide transition-opacity"
@@ -509,7 +589,7 @@ export function LessonMediaBar({ lessonId }: { lessonId: string }) {
           {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : ready ? <Check className="h-2.5 w-2.5" /> : <Upload className="h-2.5 w-2.5" />}
           {label}
         </button>
-        <input type="file" accept="video/*,.mkv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(id, f); e.target.value = ""; }} />
+        <input type="file" accept="video/*,.mkv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload([id], f); e.target.value = ""; }} />
       </span>
     );
   };
@@ -529,11 +609,17 @@ export function LessonMediaBar({ lessonId }: { lessonId: string }) {
       return { id: n.id, beat: (d.beat === "none" ? "hook" : d.beat ?? "hook") as Beat, subIndex: d.subIndex ?? 0 };
     });
     const readyKeeper = (fid: string) => takesFor(fid).find((t) => t.keeper && t.status === "ready" && t.mux_playback_id)?.mux_playback_id ?? null;
-    const body = bodyFrames(frames, null).map((f) => readyKeeper(f.id)).filter((x): x is string => !!x);
-    if (body.length === 0) { setPreview({ status: "errored", error: "No frames have a ready keeper take yet — mark keepers first." }); return; }
     const introPb = introTake?.status === "ready" ? introTake.mux_playback_id : null;
     const introTrim = introTake && introTake.trimmed_duration_s != null && introTake.trim_warning !== "too_short"
       ? { start: introTake.onset_s ?? 0, length: introTake.trimmed_duration_s } : null;
+    // A multi-frame take is the keeper for every frame in its run, so those frames
+    // yield the SAME playback id — emit each distinct take ONCE for the whole body
+    // (a Set, so a non-contiguous run still can't double up), seeded with the intro.
+    const body: string[] = [];
+    const emitted = new Set<string>();
+    if (introPb) emitted.add(introPb);
+    for (const f of bodyFrames(frames, null)) { const pb = readyKeeper(f.id); if (pb && !emitted.has(pb)) { emitted.add(pb); body.push(pb); } }
+    if (body.length === 0) { setPreview({ status: "errored", error: "No frames have a ready keeper take yet — mark keepers first." }); return; }
     const outroPb = outroTake?.status === "ready" ? outroTake.mux_playback_id : null;
     setPreview({ status: "processing" });
     try {
