@@ -716,10 +716,14 @@ export interface FrameBox {
   /** DIRECTOR NOTE (scaffold v2): Lee's on-set reminder for this shot — filming
    *  chrome, hidden in film, never student-facing. */
   note?: string;
-  /** ADVANCE SWOOSH (Lee): play the swoosh SFX when the camera enters THIS frame
-   *  in film. Default ON (undefined ⇒ plays); toggle off per frame for a silent
-   *  cut. The cram-launch frame plays its own launch sound instead. */
+  /** SOUNDS ON ENTRY (Lee) — per-frame, any combination, edited in the frame
+   *  header's Sounds popover:
+   *   • swooshSfx — the advance swoosh (default on, off on the cram-launch frame)
+   *   • cramLaunchSfx — the cram launch (default = the lesson's first cram frame)
+   *   • keypadOnEntry — a keypad cue when the frame is entered (default off) */
   swooshSfx?: boolean;
+  cramLaunchSfx?: boolean;
+  keypadOnEntry?: boolean;
   /** STACK DEAL (Lee): this frame's deck deals ONE card at a time in the SAME
    *  spot (the frame centre), each Space re-tucking the one underneath —
    *  flashcard drilling. Shift+Space flips back. Default off (grid deal). */

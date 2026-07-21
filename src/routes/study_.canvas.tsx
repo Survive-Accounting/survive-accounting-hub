@@ -1294,6 +1294,7 @@ function PresentCanvas() {
   const [helpOpen, setHelpOpen] = useState(false); // "?" cheat sheet
   const [settingsOpen, setSettingsOpen] = useState(false); // toolbar canvas-settings gear
   const [coaOrderOpen, setCoaOrderOpen] = useState(false); // "Account order" section in settings (Lee)
+  const [soundsOpen, setSoundsOpen] = useState(false); // per-frame Sounds popover in the frame header (Lee)
   const [savedAt, setSavedAt] = useState<string | null>(null);
   // SCENE TABS — the open set + which one drives the live canvas
   const [tabState, setTabState] = useState<{ tabs: TabEntry[]; active: string }>(() => {
@@ -2109,11 +2110,16 @@ function PresentCanvas() {
     const f = byId.get(frameId);
     if (!f || f.type !== "frame") return;
     const r = absRectOf(f as never, byId as never);
-    // SFX (Lee): a FILM frame transition plays the advance swoosh, or the cram
-    // launch when entering the lesson's cram-launch frame. Silent while authoring.
+    // SFX ON ENTRY (Lee) — a FILM frame transition plays any COMBINATION of cram
+    // launch / advance swoosh / keypad, toggled per frame in the Sounds popover.
+    // Defaults: swoosh on every frame, cram-launch on the first cram frame (where
+    // swoosh defaults off), keypad off. Silent while authoring.
     if (filmRef.current && currentFrameRef.current !== frameId) {
-      if (isCramLaunchFrame(frameId)) playSfx("cramLaunch");
-      else if ((f.data as { swooshSfx?: boolean } | undefined)?.swooshSfx !== false) playSfx("swoosh"); // per-frame toggle; default on
+      const fd = f.data as { swooshSfx?: boolean; cramLaunchSfx?: boolean; keypadOnEntry?: boolean } | undefined;
+      const cramOn = fd?.cramLaunchSfx ?? isCramLaunchFrame(frameId);
+      if (cramOn) playSfx("cramLaunch");
+      if (fd?.swooshSfx ?? !cramOn) playSfx("swoosh");
+      if (fd?.keypadOnEntry) playSfx("keypad");
     }
     setCurrentFrameId(frameId);
     recPlayIdxRef.current.set(frameId, 0); // restart recorded playback for this frame
@@ -4579,37 +4585,42 @@ function PresentCanvas() {
               <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="title (optional)" />
             </span>
             <button className="grid h-6 w-6 place-items-center rounded-full" title={scriptDock ? "Close the script dock" : "Script this frame — write what you'll say beside the visual"} onClick={() => setScriptDock((v) => !v)} style={{ color: scriptDock || isPopped("script") ? NEON.yellow : NEON.muted }}><ScrollText className="h-3.5 w-3.5" /></button>
-            {/* CRAM-LAUNCH SFX override (Lee) — per lesson: auto (first cram frame) →
-                off → HERE (this frame) → auto. */}
+            {/* SOUNDS ON ENTRY (Lee) — one popover per frame: swoosh / cram launch /
+                keypad, any combination. Defaults: swoosh on, cram on the first cram
+                frame (swoosh off there), keypad off. */}
             {(() => {
-              const mode = (lessonId ? (rf.getNode(lessonId)?.data as { cramSfx?: string } | undefined)?.cramSfx : undefined) ?? "auto";
-              const isHere = mode === currentFrameId;
-              const label = mode === "off" ? "off" : mode === "auto" ? "auto" : isHere ? "here" : "set";
-              const next = mode === "auto" ? "off" : mode === "off" ? currentFrameId : "auto";
-              return (
-                <button
-                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                  title="Cram-launch sound for THIS lesson — auto (first Cram frame) → off → here (this frame). Cycles on click."
-                  onClick={() => { if (lessonId) { const c = patchDataCmd(rf as unknown as RfLike, lessonId, { cramSfx: next }, "cram sound"); if (c) bus.dispatch(c); } }}
-                  style={{ color: mode === "off" ? "#FF8B9E" : mode === "auto" ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
-                >
-                  🚀 {label}
+              const cramOn = fd?.cramLaunchSfx ?? isCramLaunchFrame(currentFrameId);
+              const swooshOn = fd?.swooshSfx ?? !cramOn;
+              const keypadOn = fd?.keypadOnEntry ?? false;
+              const anyOn = cramOn || swooshOn || keypadOn;
+              const patch = (p: Record<string, unknown>) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, p, "frame sounds"); if (c) bus.dispatch(c); };
+              const soundRow = (label: string, on: boolean, toggle: () => void) => (
+                <button className="flex w-full items-center justify-between rounded px-1.5 py-1 text-[10px]" onClick={toggle} style={{ color: on ? NEON.yellow : NEON.muted }}>
+                  <span>{label}</span><span className="font-bold uppercase tracking-wide">{on ? "on" : "off"}</span>
                 </button>
               );
-            })()}
-            {/* ADVANCE SWOOSH toggle (Lee) — per frame: on → off. Silences the
-                swoosh when the camera enters THIS frame (film). Default on. */}
-            {(() => {
-              const on = (fd?.swooshSfx ?? true);
               return (
-                <button
-                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                  title="Advance swoosh for THIS frame — plays the swoosh sound when the camera cuts to it (film). Click to toggle off for a silent cut."
-                  onClick={() => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { swooshSfx: !on }, "swoosh sound"); if (c) bus.dispatch(c); }}
-                  style={{ color: on ? NEON.yellow : "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }}
-                >
-                  🌀 {on ? "on" : "off"}
-                </button>
+                <span className="relative shrink-0">
+                  <button
+                    className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                    title="Sounds on entry for THIS frame — swoosh / cram launch / keypad (any combination)"
+                    onClick={() => setSoundsOpen((v) => !v)}
+                    style={{ color: soundsOpen ? NEON.yellow : anyOn ? "#F4EFE6" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+                  >
+                    🔊 Sounds
+                  </button>
+                  {soundsOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[59]" onClick={() => setSoundsOpen(false)} />
+                      <div className="absolute right-0 top-8 z-[60] w-44 rounded-lg p-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 14px 34px -14px rgba(0,0,0,0.7)" }} onClick={(e) => e.stopPropagation()}>
+                        <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Play on entry (film)</div>
+                        {soundRow("🌀 Advance swoosh", swooshOn, () => patch({ swooshSfx: !swooshOn }))}
+                        {soundRow("🚀 Cram launch", cramOn, () => patch({ cramLaunchSfx: !cramOn }))}
+                        {soundRow("⌨️ Keypad", keypadOn, () => patch({ keypadOnEntry: !keypadOn }))}
+                      </div>
+                    </>
+                  )}
+                </span>
               );
             })()}
             {/* STACK-DEAL toggle (Lee) — per frame: this frame's deck deals one card
