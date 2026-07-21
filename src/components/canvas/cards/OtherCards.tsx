@@ -235,7 +235,10 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 animationDelay: editing ? undefined : `${520 + ci * 80}ms`,
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => { if (editing) return; if (nav.film && c.correct && picked !== c.id && d.confirmSfx !== false) playSfx("confirm"); setPicked(c.id); }}
+              // SOUND DISCIPLINE (Item 8): the win sound ("confirm"/chaching) fires
+              // ONLY on a correct-answer ENTER-resolve (resolveCeqChoice), never on a
+              // click. Click-to-pick stays a silent visual self-check.
+              onClick={() => { if (editing) return; setPicked(c.id); }}
             >
               <MemoAnchor subId={c.id} />
               <span className="min-w-0 flex-1">
@@ -298,7 +301,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
               camera). Default on. */}
           <button
             className="sa-chrome nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
-            title="Correct-answer sound for THIS question — plays when the right choice is picked (film). Click to toggle."
+            title="Correct-answer win sound for THIS question — plays when the correct choice is resolved (Enter, film). Click to toggle."
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => update({ confirmSfx: d.confirmSfx === false ? true : false })}
             style={{ color: d.confirmSfx === false ? PAPER.inkFaint : PAPER.green, border: `1px solid ${d.confirmSfx === false ? PAPER.line : "rgba(31,157,87,0.5)"}` }}
