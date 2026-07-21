@@ -2048,8 +2048,14 @@ function PresentCanvas() {
     const rfl = rf as unknown as RfLike;
     const cmds: (Command | null)[] = [];
     cmds.push(patchDataFnCmd(rfl, cardId, (prev) => {
-      const pd = prev as unknown as { choices: { id: string; resolved?: boolean }[] };
-      return { choices: pd.choices.map((c) => (c.id === choiceId ? { ...c, resolved: nowResolved } : c)) };
+      const pd = prev as unknown as { choices: { id: string; resolved?: boolean }[]; tags?: string[] };
+      const choices = pd.choices.map((c) => (c.id === choiceId ? { ...c, resolved: nowResolved } : c));
+      // AUTO-TAG (Item 7): the FIRST time a WRONG choice is Enter-resolved in FILM,
+      // tag this CEQ "CEQ_DISTRACTOR" — metadata only, survives reload in the scene
+      // JSON (CeqCard.tags). Authoring/preview resolutions never tag.
+      const patch: { choices: typeof choices; tags?: string[] } = { choices };
+      if (nowResolved && !choice.correct && filmRef.current && !(pd.tags ?? []).includes("CEQ_DISTRACTOR")) patch.tags = [...(pd.tags ?? []), "CEQ_DISTRACTOR"];
+      return patch;
     }, nowResolved ? "resolve CEQ choice" : "clear CEQ choice"));
     // reveal / hide the choice's memos (edges anchored at anc:<choiceId>)
     const anchor = memoAnchorId(choiceId);
