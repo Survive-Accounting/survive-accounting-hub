@@ -7,6 +7,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
 import { useFrameNav } from "../FrameNavContext";
+import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { playSfx } from "../sfx";
 import { NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
@@ -176,9 +177,26 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
   // toggling keypadSfx === false. Fires once per frame entry in film (caller-gated).
   const wasInFrame = useRef(false);
   useEffect(() => {
-    if (nav.film && inCurrentFrame && !wasInFrame.current && d.keypadSfx !== false) playSfx("keypad");
+    const entering = nav.film && inCurrentFrame && !wasInFrame.current;
     wasInFrame.current = inCurrentFrame;
-  }, [inCurrentFrame, nav.film, d.keypadSfx]);
+    if (!entering) return;
+    if (d.keypadSfx !== false) playSfx("keypad"); // stem type-out keypad (Item 5)
+    // MEMOS reveal ONLY on Enter-resolution (Item 6): on frame entry in film, hide
+    // every choice-memo whose choice isn't already resolved (resolveCeqChoice reveals
+    // it later). Uses cueHidden — the same flag the cue walk hides memos with.
+    const edges = rf.getEdges();
+    for (const c of d.choices) {
+      if (c.resolved) continue;
+      const anchor = memoAnchorId(c.id);
+      for (const e of edges) {
+        if (e.target === id && e.targetHandle === anchor) {
+          const m = rf.getNode(e.source);
+          if (m && !(m.data as { cueHidden?: boolean }).cueHidden) rf.updateNodeData(e.source, { cueHidden: true });
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inCurrentFrame, nav.film]);
   const [picked, setPicked] = ((): [string | null, (v: string | null) => void] => {
     // picked choice lives in node data so it round-trips through scenes
     const v = (d as unknown as { picked?: string | null }).picked ?? null;
@@ -195,24 +213,43 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
       </p>
       <div key={`${typeKey}-opts`} className="space-y-1">
         {d.choices.map((c, ci) => {
-          const revealed = d.revealedAnswer || picked === c.id;
-          const showState = revealed && (c.correct ? "right" : picked === c.id ? "wrong" : null);
+          // RESOLUTION (Item 6): a choice is "revealed" via Enter-resolve (c.resolved),
+          // the legacy student click (picked), or reveal-all. Correct → green, a
+          // resolved/picked distractor → red + strikethrough. Multiple coexist.
+          const resolved = !!c.resolved;
+          const revealed = d.revealedAnswer || picked === c.id || resolved;
+          const showState = revealed ? (c.correct ? "right" : picked === c.id || resolved ? "wrong" : null) : null;
+          // EMPHASIS (Item 6): amber "we're looking at this one" pointer while the CEQ
+          // is focused (selected). Reveals nothing — distinct from the resolution colour.
+          const emphasized = !!selected && !editing && d.emphasis === c.id;
           return (
             <div
               key={c.id}
-              className={`nodrag flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[12.5px] transition-colors${editing ? "" : " sa-ceq-opt"}`}
+              className={`group/choice nodrag relative flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[12.5px] transition-colors${editing ? "" : " sa-ceq-opt"}`}
               style={{
-                borderColor: showState === "right" ? PAPER.green : showState === "wrong" ? PAPER.red : PAPER.line,
+                borderColor: showState === "right" ? PAPER.green : showState === "wrong" ? PAPER.red : emphasized ? "rgba(214,158,46,0.95)" : PAPER.line,
                 color: showState === "right" ? PAPER.green : PAPER.ink,
-                background: showState === "right" ? "rgba(30,127,79,0.07)" : showState === "wrong" ? "rgba(194,24,50,0.06)" : "transparent",
+                background: showState === "right" ? "rgba(30,127,79,0.07)" : showState === "wrong" ? "rgba(194,24,50,0.06)" : emphasized ? "rgba(214,158,46,0.10)" : "transparent",
+                boxShadow: emphasized ? "0 0 0 2px rgba(214,158,46,0.9), 0 0 14px rgba(214,158,46,0.35)" : undefined,
+                textDecoration: showState === "wrong" ? "line-through" : undefined,
                 animationDelay: editing ? undefined : `${520 + ci * 80}ms`,
               }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => { if (editing) return; if (nav.film && c.correct && picked !== c.id && d.confirmSfx !== false) playSfx("confirm"); setPicked(c.id); }}
             >
+              <MemoAnchor subId={c.id} />
               <span className="min-w-0 flex-1">
                 <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing={editing} placeholder="Choice" />
               </span>
+              {!editing && (
+                <MemoLightbulb
+                  targetId={id}
+                  handleId={memoAnchorId(c.id)}
+                  title="Attach a memo to this choice — reveals when the choice is resolved (Enter)"
+                  className="opacity-0 transition-opacity group-hover/choice:opacity-100"
+                  style={{ color: PAPER.inkMuted }}
+                />
+              )}
               {editing && (
                 <>
                   <button

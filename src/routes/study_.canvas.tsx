@@ -60,6 +60,7 @@ import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blan
 import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
+import { memoAnchorId } from "@/components/canvas/MemoLightbulb";
 import { type CeqSetDef } from "@/components/canvas/ceq-set";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -2015,6 +2016,51 @@ function PresentCanvas() {
     return true;
   }, [rf]);
   const frameIsStack = useCallback((frameId: string) => !!(rf.getNode(frameId)?.data as { stackDeal?: boolean } | undefined)?.stackDeal, [rf]);
+
+  // ---- CEQ LIVE-TEACHING (Item 6) — focus emphasis pointer + Enter resolution ----
+  /** Cycle the amber emphasis pointer through the FOCUSED CEQ's choices. Returns
+   *  true when a CEQ is focused (selected) so the caller stops — the focus state
+   *  fully gates the arrows (frame nav never runs at the same time). Transient: the
+   *  pointer is written straight to node data, never onto the undo stack. */
+  const ceqEmphasisMove = useCallback((dir: 1 | -1): boolean => {
+    const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
+    if (!sel) return false;
+    const d = sel.data as unknown as { choices?: { id: string }[]; emphasis?: string };
+    const choices = d.choices ?? [];
+    if (choices.length === 0) return true; // focused but empty — still swallow the arrow
+    const cur = choices.findIndex((c) => c.id === d.emphasis);
+    const nx = cur < 0 ? (dir > 0 ? 0 : choices.length - 1) : (cur + dir + choices.length) % choices.length;
+    rf.updateNodeData(sel.id, { emphasis: choices[nx].id });
+    return true;
+  }, [rf]);
+
+  /** Enter on the emphasised CEQ choice → toggle its resolution. Correct → green +
+   *  win sound (film, respecting confirmSfx) + reveal its memo; wrong → red + strike
+   *  + reveal its memo, NO win sound. Enter again clears it. Resolved choices persist
+   *  and coexist. ONE undoable command (choice flag + its memos' visibility). */
+  const resolveCeqChoice = useCallback((cardId: string, choiceId: string) => {
+    const node = rf.getNode(cardId);
+    if (!node) return;
+    const d = node.data as unknown as { choices: { id: string; correct?: boolean; resolved?: boolean }[]; confirmSfx?: boolean };
+    const choice = d.choices.find((c) => c.id === choiceId);
+    if (!choice) return;
+    const nowResolved = !choice.resolved;
+    const rfl = rf as unknown as RfLike;
+    const cmds: (Command | null)[] = [];
+    cmds.push(patchDataFnCmd(rfl, cardId, (prev) => {
+      const pd = prev as unknown as { choices: { id: string; resolved?: boolean }[] };
+      return { choices: pd.choices.map((c) => (c.id === choiceId ? { ...c, resolved: nowResolved } : c)) };
+    }, nowResolved ? "resolve CEQ choice" : "clear CEQ choice"));
+    // reveal / hide the choice's memos (edges anchored at anc:<choiceId>)
+    const anchor = memoAnchorId(choiceId);
+    for (const e of rf.getEdges()) {
+      if (e.target === cardId && e.targetHandle === anchor) cmds.push(patchDataCmd(rfl, e.source, { cueHidden: !nowResolved }, nowResolved ? "reveal memo" : "hide memo"));
+    }
+    const cmd = compositeCmd(cmds.filter(Boolean) as Command[], nowResolved ? "resolve CEQ choice" : "clear CEQ choice");
+    if (cmd) bus.dispatch(cmd);
+    // WIN SOUND — only on correct + resolving-on + film (respect the per-CEQ toggle).
+    if (nowResolved && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("confirm");
+  }, [rf]);
 
   /** CUE SHEET PHASE 2 — perform the frame's NEXT (dir=1) / undo its LAST (dir=-1)
    *  cue from the explicit cueOrder. Returns "handled" (a content cue ran → the
@@ -4287,16 +4333,30 @@ function PresentCanvas() {
       {
         combo: "arrowup",
         group: "Frames",
-        description: "Previous sub-frame (↑) within this beat column — stops at the top",
+        description: "Previous sub-frame (↑) — or, when a CEQ is focused, cycle its choice emphasis up",
         // ↑/↓ move FREELY between sub-frames (no spotlight hijack — spotlights are
-        // click-only now; arrows belong to the frames).
-        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(-1); } },
+        // click-only now; arrows belong to the frames). BUT a focused CEQ (Item 6)
+        // fully gates them to emphasis navigation — the two never fire at once.
+        handler: (e) => { if (ceqEmphasisMove(-1)) { e.preventDefault(); return; } if (frameFreeNav()) { e.preventDefault(); stepSub(-1); } },
       },
       {
         combo: "arrowdown",
         group: "Frames",
-        description: "Next sub-frame (↓) within this beat column — stops at the bottom",
-        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(1); } },
+        description: "Next sub-frame (↓) — or, when a CEQ is focused, cycle its choice emphasis down",
+        handler: (e) => { if (ceqEmphasisMove(1)) { e.preventDefault(); return; } if (frameFreeNav()) { e.preventDefault(); stepSub(1); } },
+      },
+      {
+        combo: "enter",
+        group: "CEQ",
+        description: "Resolve the emphasised CEQ choice — correct → win + memo · wrong → strike + memo (Enter again clears)",
+        handler: (e) => {
+          const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
+          if (!sel) return; // no CEQ focused → leave Enter to its native behaviour
+          const emp = (sel.data as unknown as { emphasis?: string }).emphasis;
+          if (!emp) return;
+          e.preventDefault();
+          resolveCeqChoice(sel.id, emp);
+        },
       },
       // F2 GLOBAL EDIT (item 4): one binding — edit the spotlit target if a
       // spotlight is active, else stamp a transient _editSeq on the SELECTED node
@@ -4318,7 +4378,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice],
   );
   useKeymap(bindings);
 
