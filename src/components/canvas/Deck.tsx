@@ -9,9 +9,10 @@
 // removes MEMBERSHIP only. Pure ordering/grouping logic lives in deck-logic.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronDown, ChevronRight, Download, ExternalLink, EyeOff, Hand, Layers3, RotateCcw, Shuffle, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, ExternalLink, EyeOff, Hand, Layers3, ListFilter, RotateCcw, Shuffle, X } from "lucide-react";
 
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
+import { useFrameNav } from "./FrameNavContext";
 import { nextStageOrder } from "./BaseCard";
 import { CardPopover } from "./CardPopover";
 import { deckMembers, isMember, isTucked, lessonGroups, nextTucked, categoryOf, type DeckNode } from "./deck-logic";
@@ -122,13 +123,22 @@ export function Deck({
 }) {
   const rf = useReactFlow();
   const nodes = useNodes();
+  const nav = useFrameNav();
   const [dragId, setDragId] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [importFor, setImportFor] = useState<{ lessonId: string; anchor: HTMLElement } | null>(null);
   const [importPick, setImportPick] = useState<Set<string>>(new Set());
+  // ONE LESSON AT A TIME (Lee) — default to just the lesson you're in; toggle to
+  // see the whole roster. The current lesson is the frame you're inside.
+  const [lessonOnly, setLessonOnly] = useState(true);
+  const currentLessonId = (nav.currentFrameId ? (nodes.find((n) => n.id === nav.currentFrameId)?.parentId ?? null) : null) as string | null;
+  const scopeLesson = lessonOnly ? currentLessonId : null; // null ⇒ show all
 
   const members = deckMembers(nodes as never);
-  const groups = lessonGroups(nodes as never);
+  const allGroups = lessonGroups(nodes as never);
+  // Filter to the current lesson's group (keep Loose visible so uncategorized
+  // cards never vanish); when not inside a frame, show everything.
+  const groups = scopeLesson ? allGroups.filter((g) => g.lessonId === scopeLesson || g.lessonId === null) : allGroups;
   const tuckedCount = members.filter((n) => isTucked(n.data as unknown as CardBase)).length;
 
   /** Re-home a dragged entry into another group (drop on its header/body). */
@@ -230,7 +240,7 @@ export function Deck({
 
   return (
     <aside
-      className={inPopout ? "flex h-full w-full flex-col" : "absolute bottom-16 right-3 z-40 flex max-h-[70vh] w-60 flex-col rounded-xl"}
+      className={inPopout ? "flex h-full w-full flex-col" : "absolute bottom-16 right-3 z-40 flex max-h-[84vh] w-80 flex-col rounded-xl"}
       style={inPopout ? { background: NEON.bg, color: NEON.text } : { background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => reorder(null)}
@@ -241,6 +251,13 @@ export function Deck({
           Deck <span style={{ color: NEON.muted }}>({tuckedCount}/{members.length})</span>
         </span>
         <span className="ml-auto flex items-center gap-1">
+          <button
+            onClick={() => setLessonOnly((v) => !v)}
+            title={lessonOnly ? "Showing this lesson only — click to show every lesson" : "Showing every lesson — click to show just the lesson you're in"}
+            style={{ color: lessonOnly ? NEON.yellow : NEON.muted }}
+          >
+            <ListFilter className="h-3.5 w-3.5" />
+          </button>
           {onPopOut && !inPopout && <button onClick={onPopOut} title="Pop out to a second window (off-stage for OBS)" style={{ color: NEON.muted }}><ExternalLink className="h-3.5 w-3.5" /></button>}
           {!inPopout && <button onClick={onClose} title="Close deck" style={{ color: NEON.muted }}><X className="h-3.5 w-3.5" /></button>}
         </span>
@@ -272,7 +289,7 @@ export function Deck({
       </div>
 
       {/* NAMED DECKS (P3) — first-class deck objects, above the lesson roster */}
-      <DeckManager decks={decks} setDecks={setDecks} ceqSets={ceqSets} setCeqSets={setCeqSets} />
+      <DeckManager decks={decks} setDecks={setDecks} ceqSets={ceqSets} setCeqSets={setCeqSets} lessonScope={scopeLesson} />
 
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
         {members.length === 0 && (

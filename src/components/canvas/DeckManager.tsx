@@ -22,7 +22,7 @@ import { useFrameNav } from "./FrameNavContext";
 import { cardId, isContainerType, type DeckDef } from "./types";
 import { NEON } from "./theme";
 
-export function DeckManager({ decks, setDecks, ceqSets, setCeqSets }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; ceqSets: CeqSetDef[]; setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void }) {
+export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; ceqSets: CeqSetDef[]; setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void; lessonScope?: string | null }) {
   const rf = useReactFlow();
   const nodes = useNodes();
   const nav = useFrameNav();
@@ -288,7 +288,9 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets }: { decks: D
 
       {open && (
         <div className="mt-1 space-y-1">
-          {decks.map((deck) => {
+          {/* ONE LESSON AT A TIME (Lee): when scoped, show only this lesson's named
+              decks (plus unassigned decks, which belong to no lesson). */}
+          {decks.filter((deck) => !lessonScope || deck.lessonId === lessonScope || !deck.lessonId).map((deck) => {
             const count = deckMembersOf(nodes as { data?: { deckId?: string; stageOrder?: number }; id: string }[], deck.id).length;
             const memo = deck.payloadType === "memos";
             const slotCount = deck.slots?.length ?? 0;
