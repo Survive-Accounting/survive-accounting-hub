@@ -74,7 +74,7 @@ import { PanelPopout, PopoutPlaceholder, TeleprompterPopout, openPopoutWindow } 
 import { VisualMixPanel } from "@/components/canvas/VisualMixPanel";
 import { Storyboard } from "@/components/canvas/StoryboardPanel";
 import { DEFAULT_RIFF, DEFAULT_READTIME_THRESHOLD_S, estimateFrameSeconds } from "@/components/canvas/script-timing";
-import { lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
+import { deckMembers, lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type Command, type RfLike } from "@/components/canvas/commands";
 import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
 import { decksOfLesson, duplicateLessonDecks, mintDeckIds, nextRegionCell } from "@/components/canvas/duplicate-lesson";
@@ -1908,6 +1908,61 @@ function PresentCanvas() {
     },
     [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit],
   );
+
+  /** STACK DEAL (Lee) — flashcard mode: one of the frame's deck cards at a time in
+   *  the SAME spot (the frame centre), each step re-tucking the one underneath.
+   *  dir=1 forward, dir=-1 back. Returns true when it moved (caller returns), false
+   *  at a boundary (caller flags the frame move). The cards must be the frame's
+   *  children (lay the grid inside the frame first) so the centre is frame-local.
+   *  One undoable command. */
+  const stackStep = useCallback((frameId: string, dir: 1 | -1): boolean => {
+    const nodes = rf.getNodes();
+    const frame = rf.getNode(frameId);
+    if (!frame) return false;
+    const members = deckMembers(nodes as never).filter((n) => (n as { parentId?: string }).parentId === frameId);
+    if (members.length === 0) return false;
+    const shownIdx = members.findIndex((n) => !isTucked(n.data as never));
+    let hideId: string | null = null;
+    let showIdx: number;
+    if (dir > 0) {
+      showIdx = shownIdx < 0 ? 0 : shownIdx + 1;
+      if (showIdx >= members.length) return false; // past the last → boundary
+      hideId = shownIdx >= 0 ? members[shownIdx].id : null;
+    } else {
+      if (shownIdx <= 0) return false; // at the first / none shown → boundary
+      showIdx = shownIdx - 1;
+      hideId = members[shownIdx].id;
+    }
+    const showNode = rf.getNode(members[showIdx].id);
+    if (!showNode) return false;
+    const showId = showNode.id;
+    const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
+    const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
+    const cw = showNode.measured?.width ?? 260;
+    const ch = showNode.measured?.height ?? 180;
+    const centre = { x: Math.round(fw / 2 - cw / 2), y: Math.round(fh / 2 - ch / 2) };
+    const sd = showNode.data as { deckMember?: boolean; tucked?: boolean; staged?: boolean; minimized?: boolean };
+    const beforeShow = { pos: { ...showNode.position }, deckMember: sd.deckMember, tucked: sd.tucked, staged: sd.staged, minimized: sd.minimized };
+    const hideNode = hideId ? rf.getNode(hideId) : null;
+    const beforeHideTucked = hideNode ? (hideNode.data as { tucked?: boolean }).tucked : undefined;
+    bus.dispatch({
+      label: "stack deal",
+      do: () => {
+        rf.updateNodeData(showId, { deckMember: true, tucked: false, staged: undefined, minimized: undefined });
+        if (hideId) rf.updateNodeData(hideId, { tucked: true });
+        rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...centre }, hidden: false, selected: true } : n.selected ? { ...n, selected: false } : n)));
+      },
+      undo: () => {
+        // restore every membership field (not just tucked) so a legacy staged/
+        // minimized member re-hides correctly, mirroring deal's undo.
+        rf.updateNodeData(showId, { deckMember: beforeShow.deckMember, tucked: beforeShow.tucked, staged: beforeShow.staged, minimized: beforeShow.minimized });
+        if (hideId) rf.updateNodeData(hideId, { tucked: beforeHideTucked });
+        rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...beforeShow.pos }, selected: false } : n)));
+      },
+    });
+    return true;
+  }, [rf]);
+  const frameIsStack = useCallback((frameId: string) => !!(rf.getNode(frameId)?.data as { stackDeal?: boolean } | undefined)?.stackDeal, [rf]);
 
   /** CUE SHEET PHASE 2 — perform the frame's NEXT (dir=1) / undo its LAST (dir=-1)
    *  cue from the explicit cueOrder. Returns "handled" (a content cue ran → the
@@ -3858,6 +3913,14 @@ function PresentCanvas() {
             setArmState(null);
             return;
           }
+          // STACK DEAL — a stack-mode frame flips its cards at centre; Space shows
+          // the next one (re-tucking the one underneath). Boundary → flag the move.
+          const stkF = currentFrameRef.current;
+          if (stkF && frameIsStack(stkF) && !cueRecordingRef.current) {
+            if (stackStep(stkF, 1)) { disarm(); return; }
+            setArmState(frameWalkNext(rf.getNodes() as never, stkF) ? "ready" : "end");
+            return;
+          }
           const nodes = rf.getNodes();
           const sel = nodes.find((n) => n.selected && !isContainerType(n.type));
           // (a) flip / reveal on the selected card
@@ -3930,6 +3993,14 @@ function PresentCanvas() {
             const lastCardB = kidsB[kidsB.length - 1];
             rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === lastCardB?.id) ? { ...n, selected: n.id === lastCardB?.id } : n)));
             setArmState(null);
+            return;
+          }
+          // STACK DEAL reverse — flip BACK to the previous card at centre. Boundary
+          // (already at the first / none shown) → flag the back-move.
+          const stkFB = currentFrameRef.current;
+          if (stkFB && frameIsStack(stkFB) && !cueRecordingRef.current) {
+            if (stackStep(stkFB, -1)) { disarm(); return; }
+            setArmState(frameWalkPrev(rf.getNodes() as never, stkFB) ? "ready-back" : "start");
             return;
           }
           const nodes = rf.getNodes();
@@ -4506,6 +4577,22 @@ function PresentCanvas() {
                   style={{ color: on ? NEON.yellow : "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }}
                 >
                   🌀 {on ? "on" : "off"}
+                </button>
+              );
+            })()}
+            {/* STACK-DEAL toggle (Lee) — per frame: this frame's deck deals one card
+                at a time in the SAME spot (flashcard drill), Space forward / Shift+
+                Space back. Off = the normal grid deal. */}
+            {(() => {
+              const on = !!fd?.stackDeal;
+              return (
+                <button
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  title="Stack deal for THIS frame — Space flips the deck one card at a time in the centre (Shift+Space back). Lay the grid inside the frame first. Off = grid deal."
+                  onClick={() => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { stackDeal: !on }, "stack deal"); if (c) bus.dispatch(c); }}
+                  style={{ color: on ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+                >
+                  🃏 {on ? "stack" : "grid"}
                 </button>
               );
             })()}

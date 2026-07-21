@@ -712,6 +712,10 @@ export interface FrameBox {
    *  in film. Default ON (undefined ⇒ plays); toggle off per frame for a silent
    *  cut. The cram-launch frame plays its own launch sound instead. */
   swooshSfx?: boolean;
+  /** STACK DEAL (Lee): this frame's deck deals ONE card at a time in the SAME
+   *  spot (the frame centre), each Space re-tucking the one underneath —
+   *  flashcard drilling. Shift+Space flips back. Default off (grid deal). */
+  stackDeal?: boolean;
   /** LAUNCH TRANSITION (item 9): this frame plays the punchy zoom-push when the
    *  space-walk advances OUT of it (the "Ready to cram?" → Check liftoff). */
   launch?: boolean;
