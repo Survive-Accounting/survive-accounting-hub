@@ -145,6 +145,10 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
   // SPOTLIGHT (Lee): a text block is a single "self" target — Ctrl+click to pill,
   // Ctrl+Shift+click to super-flame, live while filming.
   const spot = useSpotTarget(id, "self");
+  // CLEAN SHOT (Lee): a SPOTLIT text block in FILM drops its edit chrome (border,
+  // resize box, grab handle, edit tooltip) so it reads clean on camera and the
+  // spotlight scale spills past the box.
+  const cleanShot = nav.film && spot.state === "spot";
   // KEYPAD SFX (Lee): play the keypad cue when this text enters its frame in FILM.
   const inCurrentFrame = nav.currentFrameId != null && rf.getNode(id)?.parentId === nav.currentFrameId;
   const wasInFrame = useRef(false);
@@ -162,15 +166,17 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
         width: d.w ?? 300,
         minHeight: d.h ?? 60,
         background: "transparent",
-        border: `1px ${selected ? "solid" : "dashed"} ${selected ? c.border : "rgba(147,160,180,0.25)"}`,
+        border: cleanShot ? "1px solid transparent" : `1px ${selected ? "solid" : "dashed"} ${selected ? c.border : "rgba(147,160,180,0.25)"}`,
         padding: "6px 8px",
+        overflow: "visible",
       }}
     >
       <ConnectionDots />
       <ElementChrome id={id} posLock={d.posLock} selected={selected} />
-      <ElementResizer id={id} selected={selected} minWidth={140} minHeight={48} />
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={140} minHeight={48} />
       {/* GRAB HANDLE (L4): hover grip so a bare text block is easy to grab; the
-          padding box drags too. Edit is DOUBLE-click (single click/drag moves). */}
+          padding box drags too. Edit is DOUBLE-click. Hidden on a clean shot. */}
+      {!cleanShot && (
       <div
         className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
         title="Drag to move"
@@ -178,6 +184,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
       >
         <GripVertical className="h-4 w-4" />
       </div>
+      )}
       {editing ? (
         <>
           <textarea
@@ -220,10 +227,10 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
       ) : (
         <div
           {...spot.props}
-          className="cursor-text text-[13px] leading-relaxed"
+          className={`text-[13px] leading-relaxed${cleanShot ? "" : " cursor-text"}`}
           style={{ textAlign: d.align === "center" ? "center" : "left", color: d.faded ? "rgba(158,168,184,0.5)" : d.color === 0 ? "#F4F6FA" : c.name === "amber" ? "#F5D48F" : "#BBD3F5", fontFamily: DISPLAY_FONT, ...spotStyle(spot.state) }}
-          title="Click to edit"
-          onClick={() => setEditing(true)}
+          title={cleanShot ? undefined : "Click to edit"}
+          onClick={() => { if (!cleanShot) setEditing(true); }}
         >
           {d.body ? <MarkdownLite text={d.body} student={ctx.previewStudent} /> : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Text…</span>}
         </div>
@@ -288,10 +295,14 @@ const EXAM_EMOJIS = ["📄", "📝", "🧾", "📋", "✍️", "🎯", "⏰", "�
 export function ExamCueNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as ExamCueElement;
   const { update, toFront } = useCardActions(id);
+  const nav = useFrameNav();
   const [editing, setEditing] = useState(false);
   // SPOTLIGHT: whole-element "self" target — Ctrl+click pills it, Ctrl+Shift+click
   // super-flames it, live while filming.
   const spot = useSpotTarget(id, "self");
+  // CLEAN SHOT (Lee): spotlit-in-film drops the resize box / grab / edit tooltip
+  // (the design callout border stays — it's the look, not edit chrome).
+  const cleanShot = nav.film && spot.state === "spot";
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit
   const emoji = d.emoji || "📄";
   const w = d.w ?? 300;
@@ -308,8 +319,9 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
       <style>{EXAMCUE_CSS}</style>
       <ConnectionDots />
       <ElementChrome id={id} posLock={d.posLock} selected={selected} />
-      <ElementResizer id={id} selected={selected} minWidth={180} minHeight={170} keepAspect />
-      {/* GRAB HANDLE — a clear affordance; the whole box drags too */}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={180} minHeight={170} keepAspect />
+      {/* GRAB HANDLE — a clear affordance; the whole box drags too. Hidden clean. */}
+      {!cleanShot && (
       <div
         className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
         title="Drag to move"
@@ -317,6 +329,7 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
       >
         <GripVertical className="h-4 w-4" />
       </div>
+      )}
 
       {/* the callout — spotlight wraps the whole thing */}
       <div
@@ -348,9 +361,9 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
           />
         ) : (
           <span
-            className="cursor-text leading-none"
+            className={`leading-none${cleanShot ? "" : " cursor-text"}`}
             style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: labelPx, letterSpacing: "-0.01em", color: "#F4EFE6", textShadow: "0 2px 12px rgba(0,0,0,0.7)" }}
-            title="Double-click to edit"
+            title={cleanShot ? undefined : "Double-click to edit"}
             onDoubleClick={() => setEditing(true)}
           >
             {d.label || "Your exam"}

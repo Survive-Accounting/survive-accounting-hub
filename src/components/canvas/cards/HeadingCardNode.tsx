@@ -99,6 +99,10 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   // SPOTLIGHT (Lee): a heading/Big-Text is a single "self" target — Ctrl+click to
   // pill it, Ctrl+Shift+click to super-flame it, live while filming.
   const spot = useSpotTarget(id, "self");
+  // CLEAN SHOT (Lee): a SPOTLIT element in FILM drops all its edit chrome (the
+  // selection ring, the resize "edit box", the grab handle, the edit tooltip) so
+  // the on-camera title reads clean and the spotlight scale can spill past the box.
+  const cleanShot = nav.film && spot.state === "spot";
   // BIG TEXT (spartan) → heavy League-Spartan wordmark voice; else Sora display.
   const font = d.spartan ? BIG_FONT : DISPLAY_FONT;
   // QUICK RESIZE: box height drives the font (min readable size). Big Text can go
@@ -115,9 +119,9 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
     <>
       <div
         key={typeKey}
-        className={`relative cursor-move whitespace-pre-line leading-tight${d.typewriter ? " sa-typewrite" : ""}`}
+        className={`relative whitespace-pre-line leading-tight${cleanShot ? "" : " cursor-move"}${d.typewriter ? " sa-typewrite" : ""}`}
         style={{ textAlign: centered ? "center" : "left" }}
-        title={d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
+        title={cleanShot ? undefined : d.text ? "Double-click to edit · drag to move" : "Double-click to edit"}
         onDoubleClick={() => setEditing(true)}
       >
         {/* SCRIM (item 5): a soft dark halo BEHIND the glyphs so the title pops
@@ -179,17 +183,22 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         maxWidth: d.w ? undefined : 720,
         padding: "4px 6px",
         borderRadius: 10,
-        boxShadow: selected ? "0 0 0 1.5px rgba(224,40,74,0.45)" : undefined,
+        // no selection ring on a clean (spotlit-in-film) shot
+        boxShadow: selected && !cleanShot ? "0 0 0 1.5px rgba(224,40,74,0.45)" : undefined,
+        overflow: "visible",
       }}
     >
       <style>{UNDERLINE_CSS}</style>
       {d.typewriter && <style>{TYPEWRITER_CSS}</style>}
       <ConnectionDots />
-      <ElementResizer id={id} selected={selected} minWidth={160} minHeight={40} />
+      {/* resize "edit box" hidden on a clean shot so the spotlight isn't fenced in */}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={160} minHeight={40} />
 
       {/* GRAB HANDLE (L4): a bare heading is hard to grab — this hover grip is a
           clear drag affordance. It's NOT nodrag, so pointer-down on it drags the
-          node (the whole padding box drags too); text edits on DOUBLE-click. */}
+          node (the whole padding box drags too); text edits on DOUBLE-click.
+          Hidden on a clean spotlit-in-film shot. */}
+      {!cleanShot && (
       <div
         className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
         title="Drag to move"
@@ -197,6 +206,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
       >
         <GripVertical className="h-4 w-4" />
       </div>
+      )}
 
       {/* ELEMENT chrome: level · clone · lock · × — no deck, no flip, no gear */}
       <div
