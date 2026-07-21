@@ -722,6 +722,12 @@ function stepReveal(data: CardData): Partial<CardData> | null {
   }
   if (data.kind === "list") {
     const d = data as ListCard;
+    // PROGRESSIVE REVEAL (Lee): one row at a time via a counter (covers COA/outline
+    // rows too). revealTotal is synced by the render so the walk knows when it's done.
+    if (d.progressiveReveal) {
+      const n = d.revealN ?? 0;
+      return n < (d.revealTotal ?? 0) ? ({ revealN: n + 1 } as Partial<CardData>) : null;
+    }
     if (d.descHidden) return { descHidden: false } as Partial<CardData>; // description reveals first (it's above the rows)
     const i = d.rows.findIndex((r) => r.hidden);
     if (i === -1) return null;
@@ -771,6 +777,10 @@ function stepRevealBack(data: CardData): Partial<CardData> | null {
   }
   if (data.kind === "list") {
     const d = data as ListCard;
+    if (d.progressiveReveal) {
+      const n = d.revealN ?? 0;
+      return n > 0 ? ({ revealN: n - 1 } as Partial<CardData>) : null;
+    }
     for (let i = d.rows.length - 1; i >= 0; i--) if (!d.rows[i].hidden) return { rows: d.rows.map((r, j) => (j === i ? { ...r, hidden: true } : r)) } as Partial<CardData>;
     if (d.description && !d.descHidden) return { descHidden: true } as Partial<CardData>; // description hides LAST (it revealed first)
     return null;
@@ -794,7 +804,7 @@ function stepRevealBack(data: CardData): Partial<CardData> | null {
 function hideAll(data: CardData): Partial<CardData> | null {
   if (data.kind === "je") return { lines: (data as JeCard).lines.map((l) => ({ ...l, hidden: true })) } as Partial<CardData>;
   if (data.kind === "computation") return { steps: (data as ComputationCard).steps.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
-  if (data.kind === "list") return { descHidden: !!(data as ListCard).description, rows: (data as ListCard).rows.map((r) => ({ ...r, hidden: true })) } as Partial<CardData>;
+  if (data.kind === "list") { const d = data as ListCard; return (d.progressiveReveal ? { revealN: 0 } : { descHidden: !!d.description, rows: d.rows.map((r) => ({ ...r, hidden: true })) }) as Partial<CardData>; }
   if (data.kind === "formula") return { segments: (data as FormulaCard).segments.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
   if (data.kind === "legend") {
     const d = data as LegendCard;

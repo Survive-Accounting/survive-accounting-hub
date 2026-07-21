@@ -41,6 +41,13 @@ describe("revealPatchForCount — first n visible, rest hidden (inverse of the w
     expect(p.descHidden).toBe(false); // definition revealed (n≥1)
     expect(p.rows.map((r) => r.hidden)).toEqual([false, true]); // row A shown, B hidden
   });
+  test("progressive-reveal list — labels from revealTotal; patch sets revealN, clamped", () => {
+    const pr = { kind: "list", progressiveReveal: true, revealTotal: 4, revealN: 0, rows: [] } as unknown as CardData;
+    expect(hideableLabels(pr)).toEqual(["item 1", "item 2", "item 3", "item 4"]);
+    expect((revealPatchForCount(pr, 2) as { revealN: number }).revealN).toBe(2);
+    expect((revealPatchForCount(pr, 9) as { revealN: number }).revealN).toBe(4); // clamp up to revealTotal
+    expect((revealPatchForCount(pr, -1) as { revealN: number }).revealN).toBe(0); // clamp down to 0
+  });
 });
 
 describe("frameCardOrder + deriveFrameCues", () => {

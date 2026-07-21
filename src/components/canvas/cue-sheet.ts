@@ -46,6 +46,7 @@ export function hideableLabels(d: CardData): string[] {
       return (d as ComputationCard).steps.map((s, i) => s.label || `step ${i + 1}`);
     case "list": {
       const l = d as ListCard;
+      if (l.progressiveReveal) return Array.from({ length: l.revealTotal ?? 0 }, (_, i) => `item ${i + 1}`);
       const rows = l.rows.map((r, i) => r.text || `item ${i + 1}`);
       return l.description ? ["definition", ...rows] : rows;
     }
@@ -79,6 +80,7 @@ export function revealPatchForCount(d: CardData, n: number): Partial<CardData> {
       return { steps: (d as ComputationCard).steps.map((s, i) => ({ ...s, hidden: vis(i) })) } as Partial<CardData>;
     case "list": {
       const l = d as ListCard;
+      if (l.progressiveReveal) return { revealN: Math.max(0, Math.min(n, l.revealTotal ?? 0)) } as Partial<CardData>;
       const off = l.description ? 1 : 0;
       return {
         descHidden: l.description ? n < 1 : undefined,
@@ -111,7 +113,7 @@ export function currentRevealCount(d: CardData): number {
   switch (d.kind) {
     case "je": return (d as JeCard).lines.filter((l) => !l.hidden).length;
     case "computation": return (d as ComputationCard).steps.filter((s) => !s.hidden).length;
-    case "list": { const l = d as ListCard; return (l.description && !l.descHidden ? 1 : 0) + l.rows.filter((r) => !r.hidden).length; }
+    case "list": { const l = d as ListCard; if (l.progressiveReveal) return l.revealN ?? 0; return (l.description && !l.descHidden ? 1 : 0) + l.rows.filter((r) => !r.hidden).length; }
     case "formula": return (d as FormulaCard).segments.filter((s) => !s.hidden).length;
     case "legend": { const l = d as unknown as LegendCard; return (l.slips ?? []).filter((s) => !s.hidden).length + (l.flavor && !l.flavorHidden ? 1 : 0); }
     case "schedule": { let n = 0; for (const row of (d as ScheduleCard).rows ?? []) for (const c of row) if (c.v !== "" && !c.hidden) n++; return n; }

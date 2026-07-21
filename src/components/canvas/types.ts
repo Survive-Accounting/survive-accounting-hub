@@ -527,6 +527,14 @@ export interface ListCard extends CardBase {
   pullOrder?: string[];
   /** Hide the list's title heading — a cleaner "just the rows" list (Lee). */
   hideTitle?: boolean;
+  /** PROGRESSIVE REVEAL (Lee): the space-walk reveals ONE row at a time, top to
+   *  bottom (covers COA-pulled + outline + manual rows, which per-row `hidden`
+   *  can't). `revealN` = how many are shown; `revealTotal` = the flat item count
+   *  the render syncs so the walk knows when the card is done. Off ⇒ the classic
+   *  per-row hidden behaviour. */
+  progressiveReveal?: boolean;
+  revealN?: number;
+  revealTotal?: number;
 }
 
 export type CardData =

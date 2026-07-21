@@ -4,12 +4,13 @@
 // DR/CR chips (default OFF — Foundations teaches the 5 types before debits/credits),
 // and a LIVE COA BIND (pull a course's Assets/Liabilities/… set, auto-updating);
 // plus a per-row INDENT that renders contra items in statement form ("Less: …").
-import { useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { NodeProps } from "@xyflow/react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, IndentIncrease, Plus, Settings2, Trash2 } from "lucide-react";
 
 import { fetchJeBrowserTree } from "@/lib/je-api";
+import { useFrameNav } from "../FrameNavContext";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
@@ -78,6 +79,21 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         .sort((a, b) => (a.chapter_number ?? 9999) - (b.chapter_number ?? 9999))
         .map((ch) => ({ key: `ol:${ch.id}`, text: ch.chapter_name || `Lesson ${ch.chapter_number ?? ""}`.trim() })))
     : [];
+
+  // PROGRESSIVE REVEAL (Lee): the space-walk reveals one row at a time, top to
+  // bottom, across outline + pulled + manual rows. `revealN` counts how many are
+  // shown; hidden rows are INVISIBLE in film, ghosted while authoring. revealTotal
+  // is kept in sync so the walk knows when the card is exhausted.
+  const nav = useFrameNav();
+  const prog = !!d.progressiveReveal && !editing;
+  const revealN = d.revealN ?? 0;
+  const descOff = d.description ? 1 : 0;
+  const flatTotal = descOff + outlineRows.length + pulledRows.length + d.rows.length;
+  useEffect(() => {
+    if (d.progressiveReveal && (d.revealTotal ?? -1) !== flatTotal) update({ revealTotal: flatTotal });
+  }, [d.progressiveReveal, d.revealTotal, flatTotal, update]);
+  const progHidden = (flatIndex: number) => prog && flatIndex >= revealN;
+  const progStyle = (flatIndex: number): CSSProperties => (progHidden(flatIndex) ? { opacity: nav.film ? 0 : 0.15 } : {});
 
   const bullet = (i: number) =>
     d.bulleted ? (
@@ -152,7 +168,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           under the bar. (d.definition kept in the type for old scenes; unused.) */}
       {/* DESCRIPTION (L4): a short paragraph, inline-editable, reveal-able as a step */}
       {(d.description || editing) && (
-        d.descHidden ? (
+        (d.descHidden && !prog) ? (
           <div
             className="nodrag mb-2 grid h-9 cursor-pointer place-items-center rounded"
             style={{ background: "rgba(59,245,160,0.12)", border: `1px dashed ${PAPER.green}` }}
@@ -161,7 +177,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
             onClick={(e) => { e.stopPropagation(); update({ descHidden: false }); }}
           />
         ) : (
-          <p className="mb-2 whitespace-pre-wrap text-[12.5px] leading-snug" style={{ color: PAPER.ink }}>
+          <p className="mb-2 whitespace-pre-wrap text-[12.5px] leading-snug" style={{ color: PAPER.ink, ...progStyle(0) }}>
             <EditableText value={d.description ?? ""} onChange={(v) => update({ description: v })} editing={editing} placeholder="Description paragraph…" multiline />
           </p>
         )
@@ -172,7 +188,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         {outlineRows.map((r, i) => {
           const st = spotTargetProps(sp, id, r.key);
           return (
-            <li key={r.key} {...st.props} className="flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state) }}>
+            <li key={r.key} {...st.props} className="flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), ...progStyle(descOff + i) }}>
               {bullet(i)}
               <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>{r.text}</span>
             </li>
@@ -183,7 +199,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         {pulledRows.map((r, i) => {
           const st = spotTargetProps(sp, id, r.key);
           return (
-          <li key={r.key} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), paddingLeft: r.indent ? 18 : 0 }}>
+          <li key={r.key} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), paddingLeft: r.indent ? 18 : 0, ...progStyle(descOff + outlineRows.length + i) }}>
             <MemoAnchor subId={r.key} />
             {bullet(outlineRows.length + i)}
             <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
@@ -205,7 +221,7 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         {d.rows.map((r, i) => {
           const st = spotTargetProps(sp, id, r.id);
           return (
-          <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1, paddingLeft: r.indent ? 18 : 0 }}>
+          <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: prog ? (progHidden(descOff + outlineRows.length + pulledRows.length + i) ? (nav.film ? 0 : 0.15) : 1) : (r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1), paddingLeft: r.indent ? 18 : 0 }}>
             <MemoAnchor subId={r.id} />
             {bullet(outlineRows.length + pulledRows.length + i)}
             {/* No default "you are here" emphasis (Lee's call) — emphasis comes only
@@ -274,6 +290,10 @@ function ListSettings({ d, onUpdate, onClose }: { d: ListCard; onUpdate: (p: Par
       <div className={row}>
         <span>Course outline</span>
         <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.outlineBind)} onClick={() => onUpdate({ outlineBind: !d.outlineBind })}>{d.outlineBind ? "on" : "off"}</button>
+      </div>
+      <div className={row}>
+        <span>Progressive reveal <span className="opacity-60">(space reveals rows top-to-bottom)</span></span>
+        <button className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={toggle(!!d.progressiveReveal)} onClick={() => onUpdate(d.progressiveReveal ? { progressiveReveal: false } : { progressiveReveal: true, revealN: 0 })}>{d.progressiveReveal ? "on" : "off"}</button>
       </div>
       <div className={row}>
         <span>List title</span>
