@@ -12,8 +12,6 @@ describe("spotlightTargetsOf — whole-element kinds return the self target", ()
     { kind: "heading", make: () => ({ kind: "heading", text: "H", level: 1 }) },
     { kind: "text", make: () => ({ kind: "text", body: "t", color: 0 }) },
     { kind: "examcue", make: () => ({ kind: "examcue", label: "Your exam" }) },
-    // tonight's addition — the Accounting Cycle element is spotlightable as a whole
-    { kind: "cycle", make: () => ({ kind: "cycle", title: "The Cycle", steps: [{ id: cardId("cy"), text: "A" }] }) },
     { kind: "memo", make: () => ({ kind: "memo", memoKind: "note", title: "", body: "" }) },
   ];
   for (const { kind, make } of selfKinds) {
@@ -30,6 +28,10 @@ describe("spotlightTargetsOf — card kinds expose component targets", () => {
   });
   it("formula → one target per segment", () => {
     const c: CardData = { kind: "formula", segments: [{ id: "s1", label: "A", value: "" }, { id: "s2", label: "L", value: "" }], operators: ["="] };
+    expect(spotlightTargetsOf(c)).toEqual(["s1", "s2"]);
+  });
+  it("cycle → one target per step (Lee: only steps, not the whole element)", () => {
+    const c: CardData = { kind: "cycle", title: "The Cycle", steps: [{ id: "s1", text: "A" }, { id: "s2", text: "B" }] } as unknown as CardData;
     expect(spotlightTargetsOf(c)).toEqual(["s1", "s2"]);
   });
   it("unknown/undefined → no targets (never throws)", () => {

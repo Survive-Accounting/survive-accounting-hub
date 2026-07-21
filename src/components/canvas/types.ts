@@ -483,6 +483,10 @@ export interface CycleElement extends CardBase {
   title?: string;
   /** Ordered steps around the ring (clockwise from top). */
   steps: CycleStep[];
+  /** Arrow-segment indices Lee shift-clicked to the animated-dashed style. */
+  dashedArrows?: number[];
+  w?: number;
+  h?: number;
 }
 
 // ---- Bridge placeholders (deckable cards; features arrive with World v1) ----

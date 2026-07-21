@@ -6,7 +6,7 @@
 // This file is the pure core: the target REGISTRY (card kind → ordered target
 // ids) + the index reducer + range membership. No React, no rf.
 import { orderLines } from "./je-logic";
-import type { CardData, CeqCard, ComputationCard, FormulaCard, JeCard, ListCard, ScheduleCard, TAccountCard } from "./types";
+import type { CardData, CeqCard, ComputationCard, CycleElement, FormulaCard, JeCard, ListCard, ScheduleCard, TAccountCard } from "./types";
 
 /** A schedule row has no id — address it by index. */
 export const scheduleRowTarget = (rowIndex: number) => `sr:${rowIndex}`;
@@ -34,11 +34,12 @@ export function spotlightTargetsOf(data: CardData | undefined): string[] {
       return (data as ScheduleCard).rows.map((_, i) => scheduleRowTarget(i));
     case "ceq":
       return (data as CeqCard).choices.map((c) => c.id);
+    case "cycle": // accounting cycle — per-STEP targets (Lee: only steps, not the whole element)
+      return (data as CycleElement).steps.map((s) => s.id);
     case "memo":
     case "heading": // heading / Big Text — whole-element spotlight (Lee)
     case "text": // text block — whole-element spotlight (Lee)
     case "examcue": // exam-cue callout — whole-element spotlight (Lee)
-    case "cycle": // accounting-cycle callout — whole-element spotlight (Lee)
       return [MEMO_SELF_TARGET];
     default:
       return [];
