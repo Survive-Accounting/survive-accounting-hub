@@ -19,6 +19,7 @@ export type CardKind =
   | "heading"
   | "text"
   | "examcue"
+  | "ceqtease"
   | "cycle"
   | "memo"
   | "outline"
@@ -53,6 +54,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   heading: "element",
   text: "element",
   examcue: "element",
+  ceqtease: "element",
   cycle: "element",
   memo: "element",
   paygate: "element",
@@ -450,6 +452,21 @@ export interface ExamCueElement extends CardBase {
   showTag?: boolean;
 }
 
+// ---- CEQ Tease (Lee): a horizontal banner that teases an exam-question FORMAT —
+//      a floating exam icon on the left, the question text on the right, on an
+//      OPAQUE rounded plate (covers the baked-in SURVIVE watermark). The text
+//      auto-scales DOWN to fit the plate (the container wins, never the text).
+//      Design ELEMENT: resizable, spotlightable, never in the deck. ----
+export interface CeqTeaseElement extends CardBase {
+  kind: "ceqtease";
+  /** The teased question, e.g. 'What type of account is ___?'. */
+  text: string;
+  /** The floating exam icon (default 📝). */
+  emoji?: string;
+  w?: number;
+  h?: number;
+}
+
 // ---- Cycle (Lee): the Accounting Cycle — a raised callout box (exam-cue vibe)
 //      with N steps laid out evenly around an OVAL, connected by flow arrows that
 //      close the loop. Add / remove / rename steps; the oval re-solves from the
@@ -553,6 +570,7 @@ export type CardData =
   | HeadingCard
   | TextElement
   | ExamCueElement
+  | CeqTeaseElement
   | CycleElement
   | MemoCard
   | GateElement

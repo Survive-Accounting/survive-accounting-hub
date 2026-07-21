@@ -2,7 +2,7 @@
 // BRIDGE placeholder cards. Elements never join the deck, never flip, carry no
 // teaching settings: chrome is exactly clone · × · position-lock (+ resize).
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
 import { AlignCenter, AlignLeft, Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, Volume2, X } from "lucide-react";
 
@@ -18,7 +18,7 @@ import { useCanvasSettings } from "../CanvasSettingsContext";
 import { BIG_FONT, DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { useEditSignal } from "../ui";
 import { renderTokens, TokenMenu } from "../variables";
-import type { BridgeCard, ExamCueElement, GateElement, TextElement } from "../types";
+import type { BridgeCard, CeqTeaseElement, ExamCueElement, GateElement, TextElement } from "../types";
 
 // ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
 export function ElementChrome({ id, posLock, selected }: { id: string; posLock?: boolean; selected?: boolean }) {
@@ -413,6 +413,98 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ---- CEQ TEASE (Lee): floating exam icon + auto-scaling question on an OPAQUE
+//      plate that covers the baked-in SURVIVE watermark. The text shrinks to fit
+//      the plate — the container wins, never the text. ----
+const CEQ_TEASE_EMOJIS = ["📝", "📄", "🧾", "✍️", "🎯", "❓", "📋"];
+
+export function CeqTeaseNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as CeqTeaseElement;
+  const { update, toFront } = useCardActions(id);
+  const ctx = useCanvasSettings();
+  const nav = useFrameNav();
+  const [editing, setEditing] = useState(false);
+  const spot = useSpotTarget(id, "self");
+  const cleanShot = nav.film && spot.state === "spot";
+  useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true));
+  const w = d.w ?? 720;
+  const h = d.h ?? 150;
+  const emoji = d.emoji || "📝";
+  const iconBox = Math.max(52, Math.min(h - 26, 150));
+
+  // AUTO-FIT: measure the question at its base size, then a transform scales it
+  // DOWN to fit the text column (never up — the container wins).
+  const boxRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    const box = boxRef.current, el = textRef.current;
+    if (!box || !el) return;
+    const prev = el.style.transform;
+    el.style.transform = "none";
+    const natW = el.scrollWidth, natH = el.scrollHeight;
+    el.style.transform = prev;
+    const s = Math.min(1, (box.clientWidth || natW) / (natW || 1), (box.clientHeight || natH) / (natH || 1));
+    setScale(s > 0 && Number.isFinite(s) ? s : 1);
+  }, [d.text, w, h, emoji, editing]);
+
+  return (
+    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, height: h }}>
+      <style>{EXAMCUE_CSS}</style>
+      <ConnectionDots />
+      {!editing && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={260} minHeight={90} />
+      {!cleanShot && (
+        <div className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`} title="Drag to move" style={{ color: NEON.muted }}>
+          <GripVertical className="h-4 w-4" />
+        </div>
+      )}
+      {/* OPAQUE plate — covers the baked-in SURVIVE watermark */}
+      <div
+        {...spot.props}
+        className="flex h-full w-full items-center gap-3 rounded-3xl px-4"
+        style={{ background: "linear-gradient(135deg, #12203E, #070C1A)", border: "1.5px solid rgba(120,150,210,0.28)", boxShadow: "0 18px 44px -18px rgba(0,0,0,0.8)", ...spotStyle(spot.state) }}
+      >
+        {/* floating exam icon */}
+        <div className="grid shrink-0 place-items-center rounded-2xl" style={{ width: iconBox, height: iconBox, background: "radial-gradient(ellipse at 40% 30%, rgba(45,64,110,0.92), rgba(12,18,36,0.96))", border: "1px solid rgba(120,150,210,0.32)" }}>
+          <span aria-hidden style={{ fontSize: iconBox * 0.52, lineHeight: 1, animation: "sa-examcue-bounce 1.6s ease-in-out infinite", filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.55))" }}>{emoji}</span>
+        </div>
+        {/* the question — auto-scales down to fit the column */}
+        <div ref={boxRef} className="relative flex min-w-0 flex-1 items-center overflow-hidden" style={{ height: "100%" }}>
+          {editing ? (
+            <textarea
+              autoFocus
+              className="nodrag nowheel h-[82%] w-full resize-none rounded bg-black/30 px-2 py-1 outline-none"
+              style={{ color: "#F4EFE6", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 22, letterSpacing: "-0.01em" }}
+              defaultValue={d.text}
+              placeholder={'"What type of account is ___?"'}
+              onBlur={(e) => { update({ text: e.target.value }); setEditing(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); update({ text: (e.target as HTMLTextAreaElement).value }); setEditing(false); } if (e.key === "Escape") setEditing(false); e.stopPropagation(); }}
+            />
+          ) : (
+            <div
+              ref={textRef}
+              className={`w-full whitespace-pre-line leading-tight${cleanShot ? "" : " cursor-text"}`}
+              style={{ transform: `scale(${scale})`, transformOrigin: "left center", fontFamily: BIG_FONT, fontWeight: 800, letterSpacing: "-0.01em", fontSize: 46, color: "#F4EFE6", textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}
+              title={cleanShot ? undefined : "Double-click to edit"}
+              onDoubleClick={() => setEditing(true)}
+            >
+              {d.text ? renderTokens(d.text, ctx.previewStudent) : <span style={{ opacity: 0.5 }}>&quot;What type of account is ___?&quot;</span>}
+            </div>
+          )}
+        </div>
+      </div>
+      {editing && (
+        <div className="nodrag absolute -bottom-7 left-2 flex items-center gap-0.5 rounded-lg px-1 py-0.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()}>
+          {CEQ_TEASE_EMOJIS.map((em) => (
+            <button key={em} className="nodrag grid h-5 w-5 place-items-center rounded text-[13px]" style={{ background: emoji === em ? "rgba(252,163,17,0.2)" : "transparent" }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ emoji: em }); }} title={`Use ${em}`}>{em}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
