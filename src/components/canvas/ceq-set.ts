@@ -10,8 +10,12 @@
 import { groupNameForType, type CoaGroupName } from "./coa-groups";
 import { type CeqCard, type CeqChoice } from "./types";
 
-/** The fixed 5 options — same five on every card in this family. */
-export const CEQ_OPTIONS = ["Asset", "Liability", "Equity", "Revenue", "Expense"] as const;
+/** The "not one of the five base types" answer — CORRECT for a contra/adjunct
+ *  account (Accumulated Depreciation, Dividends, …), a distractor otherwise. */
+export const NONE_OPTION = "None of these" as const;
+/** The options — the 5 base types plus "None of these". Every card shows all six
+ *  (so "None of these" never tells a student the account is a contra). */
+export const CEQ_OPTIONS = ["Asset", "Liability", "Equity", "Revenue", "Expense", NONE_OPTION] as const;
 export type CeqOption = (typeof CEQ_OPTIONS)[number];
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -56,9 +60,13 @@ export interface CeqSetDef {
   deckId?: string | null;
 }
 
-/** The correct option for one account — the manual override, else derived. */
+/** The correct option for one account — the manual override, else "None of these"
+ *  for a contra/adjunct account (it isn't truly one of the five base types), else
+ *  the type-derived answer. */
 export function correctFor(a: CeqSetAccount): CeqOption {
-  return a.correctOverride ?? correctOptionForType(a.accountType);
+  if (a.correctOverride) return a.correctOverride;
+  if (isContraAccount(a)) return NONE_OPTION;
+  return correctOptionForType(a.accountType);
 }
 
 /** Fill the stem template's {token} with an account name. */
@@ -139,17 +147,22 @@ export interface SeedCoaAccount {
 
 const rx = (...words: string[]) => new RegExp(`\\b(${words.join("|")})\\b`, "i");
 // The HARD ramp Lee specified — tricky accounts even strong students trip on.
-const HARD = rx("cost of goods sold", "cogs", "prepaid", "interest receivable", "depreciation expense", "rent expense");
+const HARD = rx("cost of goods sold", "cogs", "prepaid", "interest receivable", "depreciation expense", "rent expense", "accumulated depreciation", "dividends?");
 // MEDIUM — the "cheat-code"/adjunct accounts (receivable/payable/unearned/accrued/notes/retained).
 const MEDIUM = rx("receivable", "payable", "unearned", "accrued", "notes", "retained earnings", "prepaid");
 
-/** Is an account type a contra/adjunct (excluded from this set — Lee traps
- *  those separately, and Dividends is out too)? */
+/** Is an account type a contra/adjunct (its answer is "None of these")? */
 function isContraLike(accountType: string): boolean {
   return accountType.startsWith("contra_") || accountType === "liability_adjunct";
 }
 function isDividends(name: string): boolean {
   return /\bdividends?\b/i.test(name);
+}
+/** A contra/adjunct account — by COA type OR by name (Dividends is a contra-equity
+ *  even where the COA types it plain "equity"). Its correct answer is "None of
+ *  these". */
+export function isContraAccount(a: { accountType: string; name: string }): boolean {
+  return isContraLike(a.accountType) || isDividends(a.name);
 }
 
 /** Difficulty rank for an account (editable afterwards). */
@@ -160,13 +173,12 @@ export function seedDifficulty(name: string): Difficulty {
 }
 
 /**
- * Should this account be INCLUDED by default? Excludes contra/adjunct + Dividends,
- * and excludes MOST expenses — only Depreciation Expense, Rent Expense, and COGS
- * survive (Lee's call). Everything else in the 5 base types is in.
+ * Should this account be INCLUDED by default? Contra/adjunct accounts + Dividends
+ * are IN now (their answer is "None of these"). Still excludes MOST expenses —
+ * only Depreciation Expense, Rent Expense, and COGS survive (Lee's call).
+ * Everything else in the 5 base types is in.
  */
 export function seedInclude(a: SeedCoaAccount): boolean {
-  if (isContraLike(a.accountType)) return false;
-  if (isDividends(a.name)) return false;
   if (a.accountType === "expense") {
     return /\b(depreciation expense|rent expense|cost of goods sold|cogs)\b/i.test(a.name);
   }

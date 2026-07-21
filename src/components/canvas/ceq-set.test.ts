@@ -43,6 +43,13 @@ describe("correctFor — manual override wins over derivation", () => {
   it("derives when no override", () => {
     expect(correctFor(acct({ accountId: "x", name: "Cash", accountType: "asset" }))).toBe("Asset");
   });
+  it("contra/adjunct → None of these (by type or by Dividends name)", () => {
+    expect(correctFor(acct({ accountId: "ad", name: "Accumulated Depreciation", accountType: "contra_asset" }))).toBe("None of these");
+    expect(correctFor(acct({ accountId: "d", name: "Dividends", accountType: "equity" }))).toBe("None of these"); // by name even when typed plain equity
+    expect(correctFor(acct({ accountId: "la", name: "Bond Premium", accountType: "liability_adjunct" }))).toBe("None of these");
+    // an override still wins over the contra rule
+    expect(correctFor(acct({ accountId: "ad2", name: "Accumulated Depreciation", accountType: "contra_asset", correctOverride: "Asset" }))).toBe("Asset");
+  });
 });
 
 describe("fillStem", () => {
@@ -106,9 +113,9 @@ describe("generateCeqCards — one card per account, correct answer flagged", ()
     // Cash + AP + COGS (auto-added since not in COA) = 3
     expect(cards).toHaveLength(3);
   });
-  it("each card has the 5 fixed options and exactly one correct", () => {
+  it("each card has the 6 fixed options (incl. None of these) and exactly one correct", () => {
     for (const c of cards) {
-      expect(c.choices.map((ch) => ch.text)).toEqual(["Asset", "Liability", "Equity", "Revenue", "Expense"]);
+      expect(c.choices.map((ch) => ch.text)).toEqual(["Asset", "Liability", "Equity", "Revenue", "Expense", "None of these"]);
       expect(c.choices.filter((ch) => ch.correct).length).toBe(1);
     }
   });
@@ -147,10 +154,10 @@ describe("seed rules — Lee's ramp", () => {
     expect(seedDifficulty("Rent Expense")).toBe("hard");
   });
 
-  it("include rules: contra + Dividends OUT; only Dep/Rent/COGS expenses IN", () => {
+  it("include rules: contra + Dividends IN (None-of-these answer); only Dep/Rent/COGS expenses IN", () => {
     const inc = (n: string) => seedInclude(coa.find((c) => c.name === n)!);
-    expect(inc("Dividends")).toBe(false);
-    expect(inc("Accumulated Depreciation")).toBe(false);
+    expect(inc("Dividends")).toBe(true);
+    expect(inc("Accumulated Depreciation")).toBe(true);
     expect(inc("Wages Expense")).toBe(false); // most expenses excluded
     expect(inc("Depreciation Expense")).toBe(true);
     expect(inc("Rent Expense")).toBe(true);
