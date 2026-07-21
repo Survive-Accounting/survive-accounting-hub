@@ -4000,7 +4000,18 @@ function PresentCanvas() {
           const frameId = currentFrameRef.current;
           if (frameId) {
             const next = nextTuckedInFrame(nodes as never, frameId);
-            if (next) { deal(next.id); if (cueRecordingRef.current) recordStepCue(frameId, { kind: "deal", cardId: next.id, label: "Deal", target: (next.data as { title?: string; kind?: string }).title || (next.data as { kind?: string }).kind || "card" }); disarm(); return; }
+            if (next) {
+              // CEQ ARM-THEN-ADVANCE (Item 5): between consecutive CEQ cards in a deck,
+              // require an arm press first (reuses the frame arm indicator + "ready"
+              // state) so dealing the next question is deliberate — same muscle memory
+              // as a frame advance. Only kicks in once a CEQ is already on the board.
+              const nextIsCeq = (next.data as { kind?: string }).kind === "ceq";
+              const dealtCeqInFrame = nextIsCeq && nodes.some((n) => n.parentId === frameId && (n.data as { kind?: string }).kind === "ceq" && (n.data as { deckMember?: boolean }).deckMember && !isTucked(n.data as never));
+              if (dealtCeqInFrame && armStateRef.current !== "ready") { setArmState("ready"); return; } // ARM the next question
+              deal(next.id);
+              if (cueRecordingRef.current) recordStepCue(frameId, { kind: "deal", cardId: next.id, label: "Deal", target: (next.data as { title?: string; kind?: string }).title || (next.data as { kind?: string }).kind || "card" });
+              disarm(); return;
+            }
           } else {
             const current = sel ? lessonIdOf(sel as never, nodes as never) : walkLessonRef.current;
             const next = nextTuckedCross(nodes as never, current);
@@ -4394,8 +4405,15 @@ function PresentCanvas() {
           space will transition. Filming chrome (fixed overlay, not lesson DOM). */}
       {armState && currentFrameId && (() => {
         const back = armState === "ready-back" || armState === "start";
+        // CEQ arm (Item 5): a forward "ready" with a CEQ still tucked in THIS frame is
+        // teeing up the next QUESTION, not a frame move — relabel the same indicator.
+        const ceqNext = armState === "ready" && (() => {
+          const ns = rf.getNodes();
+          const nt = nextTuckedInFrame(ns as never, currentFrameId);
+          return !!nt && (nt.data as { kind?: string }).kind === "ceq" && ns.some((n) => n.parentId === currentFrameId && (n.data as { kind?: string }).kind === "ceq" && (n.data as { deckMember?: boolean }).deckMember && !isTucked(n.data as never));
+        })();
         const target = back ? frameWalkPrev(rf.getNodes() as never, currentFrameId) : frameWalkNext(rf.getNodes() as never, currentFrameId);
-        const label = armState === "end" ? "end of lesson" : armState === "start" ? "start of lesson" : !target ? (back ? "start of lesson" : "end of lesson") : frameCellLabel(target as never);
+        const label = ceqNext ? "next question" : armState === "end" ? "end of lesson" : armState === "start" ? "start of lesson" : !target ? (back ? "start of lesson" : "end of lesson") : frameCellLabel(target as never);
         return <FrameArmCue state={armState} nextLabel={label} showHud={rehearsalHud} />;
       })()}
 

@@ -259,7 +259,17 @@ export interface TAccountCard extends CardBase {
 }
 
 // ---- CEQ ----
-export interface CeqChoice { id: string; text: string; correct?: boolean; feedback?: string }
+export interface CeqChoice {
+  id: string;
+  text: string;
+  correct?: boolean;
+  feedback?: string;
+  /** LIVE-TEACHING resolution (choreo Item 6): the choice has been Enter-resolved
+   *  (locked in). Its result is c.correct ? green : red+strike. Persists + coexists
+   *  with other resolved choices; Enter again clears it. Transient teaching state,
+   *  round-trips in the scene JSON (no DB column). */
+  resolved?: boolean;
+}
 export interface CeqCard extends CardBase {
   kind: "ceq";
   prompt: string;
@@ -269,6 +279,16 @@ export interface CeqCard extends CardBase {
    *  picked on THIS question in film. Default ON (undefined ⇒ plays); toggle off
    *  per card. */
   confirmSfx?: boolean;
+  /** STEM KEYPAD SOUND (choreo Item 5): play the keypad cue as the stem types out
+   *  on deal/frame-entry in film. Unlike text/heading keypad (default off), a CEQ
+   *  defaults ON (plays unless === false) — the deal IS a type-out. */
+  keypadSfx?: boolean;
+  /** LIVE-TEACHING emphasis pointer (choreo Item 6): the choice id currently amber-
+   *  emphasised while the CEQ is focused. Reveals nothing on its own. Transient. */
+  emphasis?: string;
+  /** AUTO-TAGS (choreo Item 7): accumulated in film, e.g. "CEQ_DISTRACTOR" the first
+   *  time a wrong choice is Enter-resolved on camera. Metadata only, queryable later. */
+  tags?: string[];
 }
 
 // ---- Memorize ----

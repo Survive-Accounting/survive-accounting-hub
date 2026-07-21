@@ -1,6 +1,7 @@
 // The simpler card types: T-account (live balance), Computation (step reveal),
 // CEQ (distractor feedback), Memorize (kind badge), Note (neon marker), Video (Mux).
-import type { NodeProps } from "@xyflow/react";
+import { useEffect, useRef } from "react";
+import { type NodeProps, useReactFlow } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
@@ -150,11 +151,34 @@ export function ComputationCardNode({ id, data, selected }: NodeProps) {
 }
 
 // ============================== CEQ ==============================
+// STEM TYPE-OUT (choreo Item 5): on deal / frame-entry in film the stem types
+// itself in (clip reveal), then the options fade up staggered — one composed
+// "deal" animation. Scoped under .film-mode so authoring never plays it.
+const CEQ_TYPEOUT_CSS = `
+@keyframes sa-ceq-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2% 0 0); } }
+.film-mode .sa-ceq-type { animation: sa-ceq-type 520ms steps(24, end) both; }
+@keyframes sa-ceq-opt { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.film-mode .sa-ceq-opt { animation: sa-ceq-opt 240ms ease both; }
+`;
+
 export function CeqCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CeqCard;
   const { update } = useCardActions(id);
   const nav = useFrameNav();
+  const rf = useReactFlow();
   const editing = !!d.editMode;
+  // TYPE-OUT: re-key the stem + options when THIS CEQ's frame is entered so the
+  // film animation replays exactly once per entry (mirrors HeadingCardNode).
+  const parentId = rf.getNode(id)?.parentId;
+  const inCurrentFrame = !!parentId && nav.currentFrameId === parentId;
+  const typeKey = inCurrentFrame ? `ceq-${nav.currentFrameId}` : "ceq-static";
+  // KEYPAD on stem type-out — CEQ defaults ON (the deal IS a type-out); silence by
+  // toggling keypadSfx === false. Fires once per frame entry in film (caller-gated).
+  const wasInFrame = useRef(false);
+  useEffect(() => {
+    if (nav.film && inCurrentFrame && !wasInFrame.current && d.keypadSfx !== false) playSfx("keypad");
+    wasInFrame.current = inCurrentFrame;
+  }, [inCurrentFrame, nav.film, d.keypadSfx]);
   const [picked, setPicked] = ((): [string | null, (v: string | null) => void] => {
     // picked choice lives in node data so it round-trips through scenes
     const v = (d as unknown as { picked?: string | null }).picked ?? null;
@@ -165,21 +189,23 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
 
   return (
     <BaseCard id={id} data={d} selected={selected} accent={NEON.pink}>
-      <p className="mb-2 text-[13px] leading-relaxed" style={{ color: PAPER.ink }}>
+      <style>{CEQ_TYPEOUT_CSS}</style>
+      <p key={typeKey} className={`mb-2 text-[13px] leading-relaxed${editing ? "" : " sa-ceq-type"}`} style={{ color: PAPER.ink }}>
         <EditableText value={d.prompt} onChange={(v) => update({ prompt: v })} editing={editing} multiline placeholder="Prompt" />
       </p>
-      <div className="space-y-1">
-        {d.choices.map((c) => {
+      <div key={`${typeKey}-opts`} className="space-y-1">
+        {d.choices.map((c, ci) => {
           const revealed = d.revealedAnswer || picked === c.id;
           const showState = revealed && (c.correct ? "right" : picked === c.id ? "wrong" : null);
           return (
             <div
               key={c.id}
-              className="nodrag flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[12.5px] transition-colors"
+              className={`nodrag flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[12.5px] transition-colors${editing ? "" : " sa-ceq-opt"}`}
               style={{
                 borderColor: showState === "right" ? PAPER.green : showState === "wrong" ? PAPER.red : PAPER.line,
                 color: showState === "right" ? PAPER.green : PAPER.ink,
                 background: showState === "right" ? "rgba(30,127,79,0.07)" : showState === "wrong" ? "rgba(194,24,50,0.06)" : "transparent",
+                animationDelay: editing ? undefined : `${520 + ci * 80}ms`,
               }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => { if (editing) return; if (nav.film && c.correct && picked !== c.id && d.confirmSfx !== false) playSfx("confirm"); setPicked(c.id); }}
@@ -241,6 +267,17 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
             style={{ color: d.confirmSfx === false ? PAPER.inkFaint : PAPER.green, border: `1px solid ${d.confirmSfx === false ? PAPER.line : "rgba(31,157,87,0.5)"}` }}
           >
             🔔 {d.confirmSfx === false ? "off" : "on"}
+          </button>
+          {/* STEM KEYPAD toggle (choreo Item 5) — plays the keypad cue as the stem
+              types out on deal (film). Default on (undefined ⇒ plays). */}
+          <button
+            className="sa-chrome nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
+            title="Keypad type-out sound for THIS question's stem (film). Click to toggle."
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => update({ keypadSfx: d.keypadSfx === false ? true : false })}
+            style={{ color: d.keypadSfx === false ? PAPER.inkFaint : PAPER.navy, border: `1px solid ${d.keypadSfx === false ? PAPER.line : "rgba(20,33,61,0.4)"}` }}
+          >
+            ⌨ {d.keypadSfx === false ? "off" : "on"}
           </button>
         </div>
         {picked && (
