@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronRight, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -1293,6 +1293,7 @@ function PresentCanvas() {
   const [loadOpen, setLoadOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false); // "?" cheat sheet
   const [settingsOpen, setSettingsOpen] = useState(false); // toolbar canvas-settings gear
+  const [coaOrderOpen, setCoaOrderOpen] = useState(false); // "Account order" section in settings (Lee)
   const [savedAt, setSavedAt] = useState<string | null>(null);
   // SCENE TABS — the open set + which one drives the live canvas
   const [tabState, setTabState] = useState<{ tabs: TabEntry[]; active: string }>(() => {
@@ -1363,8 +1364,28 @@ function PresentCanvas() {
     retry: retryUnlessMigrationHint,
     networkMode: "always",
   });
-  const coaGroups = useMemo(() => groupCoa(sceneCourseId ? (courseCoaQuery.data ?? []) : []), [sceneCourseId, courseCoaQuery.data]);
+  // CUSTOM CHART-OF-ACCOUNTS ORDER (Lee): account names in preferred order; applied
+  // within each group so accounts appear how Lee wants across every list + picker.
+  // Persisted in the scene payload; empty = alphabetical.
+  const [coaOrder, setCoaOrder] = useState<string[]>([]);
+  const coaGroups = useMemo(() => groupCoa(sceneCourseId ? (courseCoaQuery.data ?? []) : [], coaOrder), [sceneCourseId, courseCoaQuery.data, coaOrder]);
   const coaNames = useMemo(() => (sceneCourseId ? (courseCoaQuery.data ?? []) : []).map((r) => r.canonical_name), [sceneCourseId, courseCoaQuery.data]);
+  /** Move an account up/down WITHIN ITS GROUP in the custom order. Seeds from the
+   *  current grouped order so the first nudge is intuitive, then persists. */
+  const moveCoaAccount = useCallback((name: string, dir: -1 | 1) => {
+    const group = coaGroups.find((g) => g.accounts.some((a) => a.name === name));
+    if (!group) return;
+    const gi = group.accounts.findIndex((a) => a.name === name);
+    const neighbor = group.accounts[gi + dir];
+    if (!neighbor) return; // at the group edge
+    setCoaOrder((prev) => {
+      const base = prev.length ? prev.slice() : coaGroups.flatMap((g) => g.accounts.map((a) => a.name));
+      const ia = base.indexOf(name), ib = base.indexOf(neighbor.name);
+      if (ia < 0 || ib < 0) return prev;
+      [base[ia], base[ib]] = [base[ib], base[ia]];
+      return base;
+    });
+  }, [coaGroups]);
 
   // Scene-level card settings (persisted in the scene payload)
   const [jeCardWidth, setJeCardWidth] = useState(JE_WIDTH_DEFAULT);
@@ -3331,14 +3352,14 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, lastLessonId: lastLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, lastLessonId: lastLessonRef.current },
         decks, // NAMED DECKS (P3)
         ceqSets, // CEQ SET factories
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, ceqSets]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, ceqSets]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -3413,6 +3434,7 @@ function PresentCanvas() {
       { const rm = (nj.sceneSettings as { riffMultiplier?: number } | undefined)?.riffMultiplier; if (typeof rm === "number" && rm > 0) setRiffMultiplier(rm); } // read-time riff (PROMPT 3)
       { const rt = (nj.sceneSettings as { readTimeThreshold?: number } | undefined)?.readTimeThreshold; if (typeof rt === "number" && rt > 0) setReadTimeThreshold(rt); }
       { const sx = (nj.sceneSettings as { sfx?: Partial<SfxConfig> } | undefined)?.sfx; setSfx({ muted: sx?.muted ?? SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume, ...(sx?.volume ?? {}) }, file: { ...SFX_DEFAULT.file, ...(sx?.file ?? {}) } }); } // reveal/transition SFX config
+      setCoaOrder((nj.sceneSettings as { coaOrder?: string[] } | undefined)?.coaOrder ?? []); // custom Chart-of-Accounts order (Lee)
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -5051,6 +5073,36 @@ function PresentCanvas() {
                     Manage course
                   </button>
                 </div>
+                {/* CUSTOM ACCOUNT ORDER (Lee) — reorder how accounts appear in
+                    COA-bound lists + pickers for this scene (within each type). */}
+                {sceneCourseId && coaGroups.length > 0 && (
+                  <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+                    <button className="flex w-full items-center justify-between text-[10px] font-bold uppercase tracking-wide" style={{ color: coaOrderOpen ? NEON.yellow : NEON.muted }} onClick={() => setCoaOrderOpen((v) => !v)}>
+                      <span>Account order</span>
+                      {coaOrderOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    </button>
+                    {coaOrderOpen && (
+                      <div className="mt-1 max-h-[42vh] space-y-1.5 overflow-y-auto">
+                        <p className="text-[9px] leading-snug" style={{ color: NEON.muted }}>Reorder within each type — COA-bound lists (without their own order) and the account pickers follow this.</p>
+                        {coaGroups.map((g) => (
+                          <div key={g.label}>
+                            <div className="px-0.5 text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>{g.label}</div>
+                            {g.accounts.map((a, i) => (
+                              <div key={a.name} className="flex items-center gap-1 py-px text-[10px]">
+                                <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }} title={a.name}>{a.name}</span>
+                                <button disabled={i === 0} className="grid h-4 w-4 place-items-center rounded disabled:opacity-30" style={{ color: NEON.muted }} title="Move up" onClick={() => moveCoaAccount(a.name, -1)}><ChevronUp className="h-3 w-3" /></button>
+                                <button disabled={i === g.accounts.length - 1} className="grid h-4 w-4 place-items-center rounded disabled:opacity-30" style={{ color: NEON.muted }} title="Move down" onClick={() => moveCoaAccount(a.name, 1)}><ChevronDown className="h-3 w-3" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                        {coaOrder.length > 0 && (
+                          <button className="mt-0.5 w-full rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setCoaOrder([])}>Reset to alphabetical</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* PREP FOR FILMING (PROMPT C): duplicate the master first,
                     then run this on the copy — hide-all + tuck-all, one undo */}
                 <button

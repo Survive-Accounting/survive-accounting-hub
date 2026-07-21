@@ -268,6 +268,18 @@ describe("groupCoa", () => {
     expect(g[1].accounts.map((a) => a.name)).toEqual(["Accounts Payable", "Premium on Bonds Payable"]);
     expect(g[0].normal).toBe("debit");
   });
+  test("custom order: listed accounts lead in that order, unlisted stay alphabetical", () => {
+    const rows = [
+      { canonical_name: "Cash", account_type: "asset", normal_balance: "debit" },
+      { canonical_name: "Accounts Receivable", account_type: "asset", normal_balance: "debit" },
+      { canonical_name: "Supplies", account_type: "asset", normal_balance: "debit" },
+    ];
+    // Lee wants Cash first, then Supplies; AR is unlisted → after, alphabetical
+    const g = groupCoa(rows, ["Cash", "Supplies"]);
+    expect(g[0].accounts.map((a) => a.name)).toEqual(["Cash", "Supplies", "Accounts Receivable"]);
+    // no order → alphabetical (unchanged)
+    expect(groupCoa(rows)[0].accounts.map((a) => a.name)).toEqual(["Accounts Receivable", "Cash", "Supplies"]);
+  });
 });
 
 // ---- PROMPT A: memos (text + calc), calc alignment, date ----

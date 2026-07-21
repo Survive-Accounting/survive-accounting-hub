@@ -386,8 +386,12 @@ const GROUP_NORMAL: Record<string, "debit" | "credit"> = {
   Assets: "debit", Liabilities: "credit", Equity: "credit", Revenue: "credit", Expenses: "debit",
 };
 
-/** 5 teaching groups in fixed order; contra/adjunct accounts ride with their parent type. */
-export function groupCoa(rows: { canonical_name: string; account_type: string; normal_balance: string }[]): CoaGroup[] {
+/** 5 teaching groups in fixed order; contra/adjunct accounts ride with their parent
+ *  type. Within each group accounts are alphabetical UNLESS a custom `order` (a list
+ *  of account names, Lee's preferred order) is given — listed accounts come first in
+ *  that order, the rest stay alphabetical after them. */
+export function groupCoa(rows: { canonical_name: string; account_type: string; normal_balance: string }[], order?: string[] | null): CoaGroup[] {
+  const rank = order && order.length ? new Map(order.map((n, i) => [n, i] as const)) : null;
   const groups: CoaGroup[] = GROUP_ORDER.map((label) => ({ label, normal: GROUP_NORMAL[label], accounts: [] }));
   for (const r of rows) {
     const label = GROUP_OF[r.account_type?.toLowerCase() ?? ""] ?? null;
@@ -398,6 +402,12 @@ export function groupCoa(rows: { canonical_name: string; account_type: string; n
       normal: r.normal_balance === "credit" ? "credit" : "debit",
     });
   }
-  for (const g of groups) g.accounts.sort((a, b) => a.name.localeCompare(b.name));
+  for (const g of groups) g.accounts.sort((a, b) => {
+    if (rank) {
+      const ra = rank.get(a.name) ?? Infinity, rb = rank.get(b.name) ?? Infinity;
+      if (ra !== rb) return ra - rb; // custom-ordered accounts first, in Lee's order
+    }
+    return a.name.localeCompare(b.name);
+  });
   return groups.filter((g) => g.accounts.length > 0);
 }
