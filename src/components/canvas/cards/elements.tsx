@@ -148,7 +148,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
   // CLEAN SHOT (Lee): a SPOTLIT text block in FILM drops its edit chrome (border,
   // resize box, grab handle, edit tooltip) so it reads clean on camera and the
   // spotlight scale spills past the box.
-  const cleanShot = nav.film && spot.state === "spot";
+  const cleanShot = spot.state === "spot"; // clean whenever spotlit (film + authoring rehearsal)
   // KEYPAD SFX (Lee): play the keypad cue when this text enters its frame in FILM.
   const inCurrentFrame = nav.currentFrameId != null && rf.getNode(id)?.parentId === nav.currentFrameId;
   const wasInFrame = useRef(false);
@@ -172,7 +172,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
       }}
     >
       <ConnectionDots />
-      <ElementChrome id={id} posLock={d.posLock} selected={selected} />
+      {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={140} minHeight={48} />
       {/* GRAB HANDLE (L4): hover grip so a bare text block is easy to grab; the
           padding box drags too. Edit is DOUBLE-click. Hidden on a clean shot. */}
@@ -302,7 +302,7 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
   const spot = useSpotTarget(id, "self");
   // CLEAN SHOT (Lee): spotlit-in-film drops the resize box / grab / edit tooltip
   // (the design callout border stays — it's the look, not edit chrome).
-  const cleanShot = nav.film && spot.state === "spot";
+  const cleanShot = spot.state === "spot"; // clean whenever spotlit (film + authoring rehearsal)
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true)); // F2 global edit
   const emoji = d.emoji || "📄";
   const w = d.w ?? 300;
@@ -318,7 +318,7 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
     >
       <style>{EXAMCUE_CSS}</style>
       <ConnectionDots />
-      <ElementChrome id={id} posLock={d.posLock} selected={selected} />
+      {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={180} minHeight={170} keepAspect />
       {/* GRAB HANDLE — a clear affordance; the whole box drags too. Hidden clean. */}
       {!cleanShot && (
@@ -429,7 +429,7 @@ export function CeqTeaseNode({ id, data, selected }: NodeProps) {
   const nav = useFrameNav();
   const [editing, setEditing] = useState(false);
   const spot = useSpotTarget(id, "self");
-  const cleanShot = nav.film && spot.state === "spot";
+  const cleanShot = spot.state === "spot"; // clean whenever spotlit (film + authoring rehearsal)
   useEditSignal((data as { _editSeq?: number })._editSeq, () => setEditing(true));
   const w = d.w ?? 720;
   const h = d.h ?? 150;
@@ -456,7 +456,7 @@ export function CeqTeaseNode({ id, data, selected }: NodeProps) {
     <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, height: h }}>
       <style>{EXAMCUE_CSS}</style>
       <ConnectionDots />
-      {!editing && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
+      {!editing && !cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={260} minHeight={90} />
       {!cleanShot && (
         <div className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`} title="Drag to move" style={{ color: NEON.muted }}>

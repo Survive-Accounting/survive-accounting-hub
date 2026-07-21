@@ -1087,6 +1087,18 @@ function PresentCanvas() {
   });
   const spotRef = useRef(spot);
   spotRef.current = spot;
+  // SPOTLIGHT ON TOP (Lee): lift the currently-emphasised node above every other
+  // node + edge so its enlarged spotlight/flame sits on the top layer, fully
+  // viewable over arrows and neighbouring elements. Transient zIndex; reset when
+  // the emphasis moves or clears.
+  const spotZRef = useRef<string | null>(null);
+  useEffect(() => {
+    const fid = spot.focusTarget?.cardId ?? null;
+    if (fid === spotZRef.current) return;
+    const prev = spotZRef.current;
+    spotZRef.current = fid;
+    rf.setNodes((nds) => nds.map((n) => (n.id === fid ? { ...n, zIndex: 4000 } : n.id === prev ? { ...n, zIndex: undefined } : n)));
+  }, [spot.focusTarget, rf]);
   // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
   const lowZoom = useStore((s) => s.transform[2] < 0.75);
   // DECLUTTER (PROMPT B): the palette + key live in the left drawer now; the

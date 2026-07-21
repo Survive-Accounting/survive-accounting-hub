@@ -99,10 +99,11 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   // SPOTLIGHT (Lee): a heading/Big-Text is a single "self" target — Ctrl+click to
   // pill it, Ctrl+Shift+click to super-flame it, live while filming.
   const spot = useSpotTarget(id, "self");
-  // CLEAN SHOT (Lee): a SPOTLIT element in FILM drops all its edit chrome (the
-  // selection ring, the resize "edit box", the grab handle, the edit tooltip) so
-  // the on-camera title reads clean and the spotlight scale can spill past the box.
-  const cleanShot = nav.film && spot.state === "spot";
+  // CLEAN SHOT (Lee): a SPOTLIT element drops ALL its edit chrome (the action
+  // toolbar, selection ring, resize "edit box", grab handle, edit tooltip) so the
+  // spotlight reads clean and its scale spills past the box — in film AND while
+  // rehearsing in authoring (spotlight is a presentation state, not an edit state).
+  const cleanShot = spot.state === "spot";
   // BIG TEXT (spartan) → heavy League-Spartan wordmark voice; else Sora display.
   const font = d.spartan ? BIG_FONT : DISPLAY_FONT;
   // QUICK RESIZE: box height drives the font (min readable size). Big Text can go
@@ -208,7 +209,9 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
       </div>
       )}
 
-      {/* ELEMENT chrome: level · clone · lock · × — no deck, no flip, no gear */}
+      {/* ELEMENT chrome: level · clone · lock · × — no deck, no flip, no gear.
+          Hidden on a clean spotlit shot. */}
+      {!cleanShot && (
       <div
         className={`card-actions absolute -top-6 right-0 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || d.posLock ? "opacity-100" : "opacity-0 group-hover/el:opacity-100"}`}
         style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
@@ -259,6 +262,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         </HBtn>
         <HBtn title="Delete" danger onClick={remove}><X className="h-3 w-3" /></HBtn>
       </div>
+      )}
 
       {editing ? (
         <div className="relative">
