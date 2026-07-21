@@ -2,7 +2,7 @@
 // tutoring. Cards spawn PREPARED (from the scenario-doc library) or BLANK (improvisation
 // deck); everything is editable inline and scene-local. See docs in the handoff.
 //
-// Hotkeys: c = clean screen · space = reveal next hidden element on the selected card ·
+// Hotkeys: c = choreograph the current frame (click reveals in order) · space = reveal next hidden element on the selected card ·
 // f / double-click = focus-zoom a card · Esc = back to full view · Delete = remove selection.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -1060,6 +1060,12 @@ function PresentCanvas() {
   const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
   const filmRef = useRef(film);
   filmRef.current = film;
+  // CHOREOGRAPH MODE ("c") — click the current frame's elements in the order they
+  // should reveal; rebuilds the frame's space-walk queue. null = off. The click-to-
+  // build behaviour lands in a later item; this item just owns the mode + rebind.
+  const [choreographFrameId, setChoreographFrameId] = useState<string | null>(null);
+  const choreographRef = useRef<string | null>(null);
+  choreographRef.current = choreographFrameId;
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
   // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
   // film / OFF outside; followReveals default on. The controller reads them live.
@@ -4212,6 +4218,8 @@ function PresentCanvas() {
             rf.setEdges((eds) => eds.map((ed) => (ed.selected ? { ...ed, selected: false } : ed)));
             return;
           }
+          // RUNG 5.9 — leave choreograph mode first (its queue persists with the scene)
+          if (choreographRef.current) { setChoreographFrameId(null); flashToast("Choreograph off"); return; }
           // RUNG 6 — leave the framed shot back to the lesson (FRAMES)
           if (currentFrameRef.current) { exitFrame(); return; }
           // RUNG 7 — clean screen off
@@ -4220,7 +4228,20 @@ function PresentCanvas() {
           fitCurrentLesson();
         },
       },
-      { combo: "c", group: "Modes", description: "Clean screen (chrome off)", handler: () => setClean((v) => !v) },
+      {
+        combo: "c",
+        group: "Modes",
+        description: "Choreograph the current frame — click elements in the order they should reveal (Esc to finish)",
+        handler: () => {
+          const fid = currentFrameRef.current;
+          setChoreographFrameId((cur) => {
+            if (cur) { flashToast("Choreograph off"); return null; } // exit — the queue persists with the scene
+            if (!fid) { flashToast("Enter a frame to choreograph its space-walk"); return null; }
+            flashToast("Choreograph: click elements in reveal order · C or Esc to finish");
+            return fid;
+          });
+        },
+      },
       { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
       { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
       { combo: "p", group: "Modes", description: "Teleprompter — the current frame's script (authoring + film)", handler: () => setPrompter((v) => { const on = !v; if (on && !currentFrameRef.current) flashToast("Enter a frame — the prompter reads the current frame's script"); return on; }) },
@@ -5188,7 +5209,7 @@ function PresentCanvas() {
               </div>
             )}
           </div>
-          <TB title="Clean screen (c)" onClick={() => setClean(true)}><Film className="h-3.5 w-3.5" /></TB>
+          <TB title="Clean screen (chrome off)" onClick={() => setClean(true)}><Film className="h-3.5 w-3.5" /></TB>
           {savedAt && <span className="pl-1 text-[10px]" style={{ color: NEON.muted }}>saved {savedAt}</span>}
         </div>
       )}
