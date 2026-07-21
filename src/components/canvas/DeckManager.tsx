@@ -10,7 +10,7 @@ import { useNodes, useReactFlow } from "@xyflow/react";
 
 import { fetchJeBrowserTree } from "@/lib/je-api";
 import { effectCardData } from "./equation-derive";
-import { Clapperboard, Copy, Grid3x3, Layers, ListChecks, Plus, RotateCcw, Shuffle, Sparkles, SquareStack, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Clapperboard, Copy, Grid3x3, Layers, ListChecks, ListOrdered, Plus, RotateCcw, Shuffle, Sparkles, SquareStack, Trash2 } from "lucide-react";
 
 import { addDeck, deckMembersOf, duplicateDeck, gridSlots, newDeckDef, normalBalanceCeqData, NORMAL_BALANCE_DRILL_FILTER, removeDeck, seedChapters, seedStartHereDecks, shuffledOrder, updateDeck, type SeedChapter } from "./deck-defs";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
@@ -38,6 +38,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null); // deck row a card is hovering over (item 4a)
+  const [orderDeck, setOrderDeck] = useState<string | null>(null); // deck whose deal-order list is open (Lee: rearrange deal order)
   const [seedNote, setSeedNote] = useState<string | null>(null); // one-line result after seeding
 
   const create = (payloadType: "cards" | "memos") => setDecks((prev) => addDeck(prev, newDeckDef("", payloadType)));
@@ -251,6 +252,29 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     return f ? (((f.data as { title?: string }).title || "Frame")) : null;
   };
 
+  /** A deck member's short label for the deal-order list (prompt / title / kind). */
+  const cardLabelOf = (n: { data?: Record<string, unknown> }): string => {
+    const d = (n.data ?? {}) as { prompt?: string; title?: string; caption?: string; kind?: string };
+    return (d.prompt || d.title || d.caption || d.kind || "card").toString();
+  };
+
+  /** REARRANGE DEAL ORDER (Lee) — move a deck member up/down one slot in deal
+   *  order. Reassigns every member's stageOrder to its new index so it's robust
+   *  regardless of prior values; one undoable command. */
+  const reorderDeckCard = (deck: DeckDef, cardId: string, dir: -1 | 1) => {
+    const members = deckMembersOf(rf.getNodes() as { id: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id);
+    const i = members.findIndex((m) => m.id === cardId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= members.length) return;
+    const arr = members.slice();
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    const cmd = compositeCmd(
+      arr.map((m, idx) => patchDataCmd(rf as unknown as RfLike, m.id, { stageOrder: idx }, "reorder deck")).filter((c): c is NonNullable<typeof c> => !!c),
+      `reorder ${deck.name}`,
+    );
+    if (cmd) bus.dispatch(cmd);
+  };
+
   /** Deck RESET: re-skeleton the whole grid (tuck all members back to slots).
    *  SHUFFLE (run_mode) reassigns which member lands in which slot first. */
   const resetDeck = (deck: DeckDef) => {
@@ -357,9 +381,29 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
                   {deck.filter === NORMAL_BALANCE_DRILL_FILTER && (
                     <DeckMini title="Generate the normal-balance drill from the course COA (DR/CR CEQ per account)" onClick={() => generateDrill(deck)}><Sparkles className="h-3 w-3" /></DeckMini>
                   )}
+                  <DeckMini title="Rearrange the deal order of this deck's cards" active={orderDeck === deck.id} onClick={() => setOrderDeck((cur) => (cur === deck.id ? null : deck.id))}><ListOrdered className="h-3 w-3" /></DeckMini>
                   <DeckMini title="Duplicate deck" onClick={() => setDecks((prev) => duplicateDeck(prev, deck.id).defs)}><Copy className="h-3 w-3" /></DeckMini>
                   <DeckMini title="Delete deck" danger onClick={() => del(deck)}><Trash2 className="h-3 w-3" /></DeckMini>
                 </div>
+                {/* REARRANGE DEAL ORDER (Lee) — the deck's cards in deal order; up/down
+                    moves a card earlier/later. Deal + space-walk follow this order. */}
+                {orderDeck === deck.id && (() => {
+                  const members = deckMembersOf(nodes as { id: string; data?: Record<string, unknown> }[], deck.id);
+                  return (
+                    <div className="mt-1 space-y-0.5 rounded p-1" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}` }}>
+                      <div className="px-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Deal order</div>
+                      {members.length === 0 && <div className="px-0.5 text-[9px] italic" style={{ color: NEON.muted }}>No cards yet — approve the set or add cards to this deck.</div>}
+                      {members.map((m, idx) => (
+                        <div key={m.id} className="flex items-center gap-1 text-[10px]">
+                          <span className="w-3 shrink-0 text-right tabular-nums" style={{ color: NEON.muted }}>{idx + 1}</span>
+                          <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }} title={cardLabelOf(m)}>{cardLabelOf(m)}</span>
+                          <button disabled={idx === 0} className="grid h-4 w-4 place-items-center rounded transition-opacity disabled:opacity-30" style={{ color: NEON.muted }} title="Move up — deal earlier" onClick={() => reorderDeckCard(deck, m.id, -1)}><ArrowUp className="h-3 w-3" /></button>
+                          <button disabled={idx === members.length - 1} className="grid h-4 w-4 place-items-center rounded transition-opacity disabled:opacity-30" style={{ color: NEON.muted }} title="Move down — deal later" onClick={() => reorderDeckCard(deck, m.id, 1)}><ArrowDown className="h-3 w-3" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {/* ER7 — generate one BOUND blank effect card per placed scenario of
                     this chapter, into this deck, in placement order (both presets). */}
                 {deck.payloadType === "cards" && deck.filter !== NORMAL_BALANCE_DRILL_FILTER && /\bch(?:apter)?\.?\s*\d+/i.test(deck.name) && !/·\s*Check\s*$/i.test(deck.name) && (
