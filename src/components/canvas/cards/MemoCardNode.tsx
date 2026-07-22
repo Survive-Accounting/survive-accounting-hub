@@ -39,16 +39,16 @@ export const MEMO_KIND_OPTIONS: MemoKind[] = ["note", "tip", "trap", "cheat", "c
 export const MEMO_CATEGORIES = ["STEPS", "EXAM TRAPS", "CHEAT CODES", "OTHER TIPS"] as const;
 
 /** Per-category inline glyph (redesign Item 2) — one emoji system, tasteful + camera-
- *  legible. Falls back to the memoKind (calc) then a bulb. Covers the spec's 5 named
- *  categories including ON THE EXAM if it ever appears as a category string. */
-function memoGlyph(category: string | undefined, kind: MemoKind): string {
+ *  legible. NO TAG → NO ICON (Lee): a memo with no category renders clean, no glyph.
+ *  Covers the 5 named categories including ON THE EXAM if it appears as a category. */
+function memoGlyph(category: string | undefined): string | null {
   switch ((category ?? "").toUpperCase()) {
     case "CHEAT CODES": return "💡";
     case "EXAM TRAPS": return "⚠️";
     case "STEPS": return "🔢";
     case "ON THE EXAM": return "🎯";
     case "OTHER TIPS": return "💬";
-    default: return kind === "calc" ? "🧮" : "💡";
+    default: return null; // uncategorised memo → no icon
   }
 }
 const MEMO_MAXW = 340; // ≈ 42ch at 13px — long memos wrap here; short ones stay compact
@@ -80,7 +80,7 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
   // the text (redesign Item 2) — no standalone icon row. Font unified to the canvas
   // DISPLAY stack (Sora), the same one headings use (Item 3).
   const GOLD = { edge: "rgba(252,163,17,0.55)", ink: "#F5D48F" };
-  const glyph = memoGlyph(d.category, mk);
+  const glyph = memoGlyph(d.category); // null when uncategorised → no icon
   const glyphStyle = { fontSize: "1.22em", marginRight: 5, verticalAlign: "-1px" } as const;
   // TEXT SCALES WITH THE CARD (Item 2): resize drives data.scale, applied as a
   // transform so the whole memo — padding, glyph, body — scales as one unit. We
@@ -137,7 +137,7 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
       >
         {calc && d.body ? (
           <span className="grid grid-cols-[1fr_auto] gap-x-1.5 text-[12px] tabular-nums" style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>
-            <span className="col-span-2 mb-0.5" aria-hidden style={{ fontSize: "1.2em" }}>{glyph}</span>
+            {glyph && <span className="col-span-2 mb-0.5" aria-hidden style={{ fontSize: "1.2em" }}>{glyph}</span>}
             {calcRows(d.body).map((r, ri) =>
               r.right === null ? (
                 <span key={ri} className="col-span-2 text-right">{r.left}</span>
@@ -153,20 +153,20 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
           <>
             {d.title ? (
               <div className="font-bold" style={{ color: GOLD.ink }}>
-                <span aria-hidden style={glyphStyle}>{glyph}</span>
+                {glyph && <span aria-hidden style={glyphStyle}>{glyph}</span>}
                 {renderInline(d.title, MEMO_HL)}
               </div>
             ) : null}
             {d.body ? (
               <div style={d.title ? { marginTop: 3 } : undefined}>
-                {!d.title ? <span aria-hidden style={glyphStyle}>{glyph}</span> : null}
+                {!d.title && glyph ? <span aria-hidden style={glyphStyle}>{glyph}</span> : null}
                 {renderInline(d.body, MEMO_HL)}
               </div>
             ) : null}
           </>
         ) : (
           <span className="italic" style={{ opacity: 0.55 }}>
-            <span aria-hidden style={glyphStyle}>{glyph}</span>Double-click to write…
+            {glyph && <span aria-hidden style={glyphStyle}>{glyph}</span>}Double-click to write…
           </span>
         )}
       </div>
