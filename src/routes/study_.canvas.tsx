@@ -86,7 +86,7 @@ import { deleteSnippet as deleteSnippetFn, listSnippets, renameSnippet as rename
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
-import { migrateZTiers, nextZ } from "@/components/canvas/zorder";
+import { migrateZTiers, nextZ, Z_SPOTLIGHT } from "@/components/canvas/zorder";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
@@ -1115,13 +1115,23 @@ function PresentCanvas() {
   // node + edge so its enlarged spotlight/flame sits on the top layer, fully
   // viewable over arrows and neighbouring elements. Transient zIndex; reset when
   // the emphasis moves or clears.
-  const spotZRef = useRef<string | null>(null);
+  // Remember the lifted node + its ORIGINAL zIndex so un-spotlighting restores its
+  // real tiered z (resetting to `undefined` used to drop it to 0 — a second sink).
+  const spotZRef = useRef<{ id: string; prevZ: number | undefined } | null>(null);
   useEffect(() => {
     const fid = spot.focusTarget?.cardId ?? null;
-    if (fid === spotZRef.current) return;
-    const prev = spotZRef.current;
-    spotZRef.current = fid;
-    rf.setNodes((nds) => nds.map((n) => (n.id === fid ? { ...n, zIndex: 4000 } : n.id === prev ? { ...n, zIndex: undefined } : n)));
+    const cur = spotZRef.current;
+    if (fid === (cur?.id ?? null)) return;
+    rf.setNodes((nds) => {
+      let out = cur ? nds.map((n) => (n.id === cur.id ? { ...n, zIndex: cur.prevZ } : n)) : nds;
+      if (fid) {
+        spotZRef.current = { id: fid, prevZ: out.find((n) => n.id === fid)?.zIndex };
+        out = out.map((n) => (n.id === fid ? { ...n, zIndex: Z_SPOTLIGHT } : n));
+      } else {
+        spotZRef.current = null;
+      }
+      return out;
+    });
   }, [spot.focusTarget, rf]);
   // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
   const lowZoom = useStore((s) => s.transform[2] < 0.75);

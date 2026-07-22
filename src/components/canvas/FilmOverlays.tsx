@@ -251,15 +251,17 @@ export const FILM_MODE_CSS = `
   .film-mode .sa-chrome { display: none !important; }
   .film-mode .conn-dot,
   .film-mode .react-flow__handle { display: none !important; }
-  /* RESIZE STAYS LIVE IN FILM but the BOX IS OFF-CAMERA (Lee): the NodeResizer line +
-     handles, the move grip, and the selection ring all hide at REST and reveal only
-     when you HOVER the node — so a take never shows a text box, yet you can still
-     hover to move/resize an element mid-take. */
-  .film-mode .react-flow__resize-control { opacity: 0 !important; transition: opacity 120ms ease; }
-  .film-mode .react-flow__node:hover .react-flow__resize-control.handle { opacity: 1 !important; }
-  .film-mode .react-flow__node:hover .react-flow__resize-control.line { opacity: 0.4 !important; }
-  .film-mode .sa-move-grip { opacity: 0 !important; }
-  .film-mode .react-flow__node:hover .sa-move-grip { opacity: 0.65 !important; }
+  /* NO TEXT-BOX OUTLINE ON CAMERA (Lee): in film the resize LINE (the rectangle
+     outline around a header/element) is NEVER shown; the corner HANDLES + move grip
+     reveal only when you HOVER the node, so you can still grab/resize mid-take. Uses
+     DISPLAY, not opacity — the NodeResizer control re-renders and kept restarting an
+     opacity transition, so opacity:0 never settled and the box stayed visible in film
+     (the reported bug). display:none can't be defeated by that. */
+  .film-mode .react-flow__resize-control.line { display: none !important; }
+  .film-mode .react-flow__resize-control.handle { display: none !important; }
+  .film-mode .react-flow__node:hover .react-flow__resize-control.handle { display: block !important; }
+  .film-mode .sa-move-grip { display: none !important; }
+  .film-mode .react-flow__node:hover .sa-move-grip { display: block !important; }
   .film-mode .zone-actions { display: none !important; }
   /* Legend V2 (item 4): the collection number is an authoring aid — off camera. */
   .film-mode .legend-collnum { display: none !important; }

@@ -26,6 +26,13 @@ export const Z_BASE: Record<ZTier, number> = {
 };
 const TIER_SPAN = 100_000;
 
+/** The transient SPOTLIGHT lift — above every tier (memo 400k) so a spotlit node
+ *  of ANY kind (esp. a heading at the element tier, 200k) sits on top, never sunk
+ *  behind a neighbouring card/memo/frame. (The old `4000` predated the 100k tiers
+ *  and actually pushed a spotlit heading UNDER everything — the "behind the
+ *  background" bug.) */
+export const Z_SPOTLIGHT = 900_000;
+
 export function zTierOf(type: string | undefined, kind: string | undefined): ZTier {
   if (type === "zone" || type === "lesson") return "container";
   if (type === "frame") return "frame";
