@@ -9,11 +9,11 @@ import { useEffect, useRef, useState } from "react";
 import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { Calculator, Lightbulb, ShieldAlert, Sparkles, Star } from "lucide-react";
 
-import { useCardActions } from "../BaseCard";
+import { CardResizeFrame, useCardActions } from "../BaseCard";
 import { DeckChip, useDecks } from "../DecksContext";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
-import { ElementChrome, ElementResizer } from "./elements";
+import { ElementChrome } from "./elements";
 import { calcRows } from "../je-logic";
 import { useEditSignal } from "../ui";
 import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
@@ -82,6 +82,14 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
   const GOLD = { edge: "rgba(252,163,17,0.55)", ink: "#F5D48F" };
   const glyph = memoGlyph(d.category, mk);
   const glyphStyle = { fontSize: "1.22em", marginRight: 5, verticalAlign: "-1px" } as const;
+  // TEXT SCALES WITH THE CARD (Item 2): resize drives data.scale, applied as a
+  // transform so the whole memo — padding, glyph, body — scales as one unit. We
+  // COMPOSE with the spotlight's own scale(1.2) so a spotlit memo still pops. Read
+  // d.scale directly (not useCardScale) — memos float, never take a frame's shot scale.
+  const ss = spotStyle(stp.state);
+  const userScale = typeof d.scale === "number" ? d.scale : 1;
+  const spotScale = ss.transform ? 1.2 : 1; // "spot" state contributes scale(1.2)
+  const totalScale = +(userScale * spotScale).toFixed(4);
 
   return (
     <div
@@ -100,13 +108,15 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
         border: `1px solid ${deckFlash ? NEON.yellow : selected ? GOLD.ink : GOLD.edge}`,
         boxShadow: deckFlash ? `0 0 0 3px ${NEON.yellow}, 0 0 20px -2px ${NEON.yellow}` : selected ? `0 0 18px -6px ${GOLD.ink}` : "0 10px 24px -12px rgba(0,0,0,0.6)",
         fontFamily: DISPLAY_FONT,
-        ...spotStyle(stp.state),
+        ...ss,
         ...dim,
+        transform: totalScale !== 1 ? `scale(${totalScale})` : undefined,
+        transformOrigin: spotScale > 1 ? "left center" : "top left",
       }}
     >
       <ConnectionDots color={GOLD.ink} />
       <ElementChrome id={id} posLock={d.posLock} selected={selected} />
-      <ElementResizer id={id} selected={selected} minWidth={120} minHeight={44} />
+      <CardResizeFrame scale={userScale} onScale={(s) => update({ scale: s })} accent={GOLD.ink} />
 
       {/* category tag + deck chip — hover chrome, top-right (no dead flow row above text) */}
       <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/el:opacity-100">

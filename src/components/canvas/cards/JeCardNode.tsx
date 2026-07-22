@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { Handle, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
 import { ArrowUpRight, Calculator, CalendarDays, ChevronDown, CircleHelp, CircleX, Copy, FlipVertical2, Lightbulb, Lock, LockOpen, Plus, Repeat, Settings2, Undo2, X } from "lucide-react";
 
-import { CardScaleHandle, useCardActions, useCardScale } from "../BaseCard";
+import { CardResizeFrame, useCardActions, useCardScale } from "../BaseCard";
 import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
 import { lineHandleId, memoHandleId } from "../arrows";
 import { addNodesCmd, bus, type RfLike } from "../commands";
@@ -1184,8 +1184,10 @@ export function JeCardNode({ id, data, selected }: NodeProps) {
         </>
       )}
 
-      {/* FILMING SCALE (FF-2 UI) — corner grip + % readout, undoable, persists */}
-      <CardScaleHandle scale={cardScale} onScale={(s) => update({ scale: s })} corner="bl" />
+      {/* UNIFIED RESIZE (Item 1+2) — right/bottom/corner grips scale the whole
+          cluster (text scales); they never move it. The cluster still moves by
+          body-drag (its rows are richly interactive — not nodrag'd like BaseCard). */}
+      <CardResizeFrame scale={cardScale} onScale={(s) => update({ scale: s })} accent={SILVER} />
     </div>
   );
 }

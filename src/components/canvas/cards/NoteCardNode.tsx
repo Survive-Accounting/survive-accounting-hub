@@ -11,7 +11,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import { GripHorizontal, Lock, LockOpen, Trash2 } from "lucide-react";
 
-import { useCardActions, useCardScale } from "../BaseCard";
+import { CardResizeFrame, useCardActions, useCardScale } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
 import { MemoLightbulb } from "../MemoLightbulb";
 import { NOTE_COLORS } from "../theme";
@@ -89,7 +89,7 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
   return (
     <div
       onPointerDownCapture={toFront}
-      className="rounded-lg"
+      className="group/shell relative rounded-lg"
       style={{
         width: d.w ?? 260,
         minHeight: d.h ?? 96,
@@ -105,6 +105,9 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
       }}
     >
       <ConnectionDots />
+      {/* drag-resize (Item 1+2): grips scale the note (text scales); the top strip
+          below stays the move surface. */}
+      <CardResizeFrame scale={scale} onScale={(s) => update({ scale: s })} accent={c.ink} />
 
       {/* drag strip — the ONLY drag surface; also hosts colors + delete */}
       <div className="card-actions flex items-center gap-1 px-2 pt-1.5">
