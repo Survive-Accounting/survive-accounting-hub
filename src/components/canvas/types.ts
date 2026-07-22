@@ -680,12 +680,34 @@ export interface ZoneBox {
 }
 
 // ---- Lessons (the finer grouping tier: one taught section) ----
+/** LESSON TYPE (topic-grouping batch) — the four lesson archetypes. Drives the
+ *  create-time frame scaffold and the type column in the grid-by-type view.
+ *  Default CONCEPT for pre-existing lessons (served at read time). */
+export type LessonType = "CEQ_CRAM" | "CEQ_FULL" | "CONCEPT" | "EXTRA";
+export const LESSON_TYPES: LessonType[] = ["CEQ_CRAM", "CEQ_FULL", "CONCEPT", "EXTRA"];
+/** Short display label per type (badges + grid columns). */
+export const LESSON_TYPE_LABEL: Record<LessonType, string> = { CEQ_CRAM: "CRAM", CEQ_FULL: "FULL", CONCEPT: "CONCEPT", EXTRA: "EXTRA" };
+/** Access tier — display + edit only in this batch; the student gate is still
+ *  position-based (study_.dashboard.tsx FREE_THROUGH), untouched here. */
+export type LessonAccess = "FREE" | "PAID";
+/** Pathing — RECOMMENDED (on the main path) vs OPTIONAL (satellite/dimmed). */
+export type LessonPathing = "RECOMMENDED" | "OPTIONAL";
+
 export interface LessonBox {
   label: string; // manual label; a contained heading's text wins for display
   w: number;
   h: number;
   /** Teaching path position within the region. */
   pathOrder?: number | null;
+  /** LESSON FIELDS (topic-grouping batch) — all additive/nullable, in the scene
+   *  JSON. Defaults served at read time by migrateLessonFields (scene-io.ts):
+   *  lessonType=CONCEPT, topic=label, access=FREE, pathing=RECOMMENDED. Named
+   *  `lessonType` (not `type`) to avoid clashing with the RF node `type`. */
+  lessonType?: LessonType;
+  /** Topic label — groups sibling lessons into a row in the grid-by-type view. */
+  topic?: string;
+  access?: LessonAccess;
+  pathing?: LessonPathing;
   /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
    *  visual seed of the free/paid gate (roadmap). */
   check?: boolean;

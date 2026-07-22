@@ -182,6 +182,29 @@ export function migrateFrameLocks<T extends { type?: string; data?: Record<strin
   return changed ? out : nodes;
 }
 
+/** LESSON FIELDS (topic-grouping batch): fill the new lesson-node fields at read
+ *  time so pre-existing scenes load unchanged with sensible defaults —
+ *  lessonType=CONCEPT, topic=label, access=FREE, pathing=RECOMMENDED. Each field
+ *  is filled ONLY when absent (idempotent; never rewrites an author's choice).
+ *  Additive, scene-JSON only — no SQL. Lessons are RF nodes (type "lesson"). */
+export function migrateLessonFields<T extends { type?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  let changed = false;
+  const out = nodes.map((n) => {
+    if (n.type !== "lesson") return n;
+    const d = n.data as (Record<string, unknown> & { lessonType?: unknown; topic?: unknown; access?: unknown; pathing?: unknown; label?: unknown }) | undefined;
+    if (!d) return n;
+    const patch: Record<string, unknown> = {};
+    if (d.lessonType === undefined) patch.lessonType = "CONCEPT";
+    if (d.topic === undefined) patch.topic = typeof d.label === "string" ? d.label : "";
+    if (d.access === undefined) patch.access = "FREE";
+    if (d.pathing === undefined) patch.pathing = "RECOMMENDED";
+    if (Object.keys(patch).length === 0) return n;
+    changed = true;
+    return { ...n, data: { ...n.data, ...patch } };
+  });
+  return changed ? out : nodes;
+}
+
 /** LEGEND V2: pre-V2 cards stored `facts: string[]`; V2 renders ordered STORY
  *  SLIPS. Convert each fact → a slip (visible, i.e. hidden:false) on load so old
  *  Pacioli/company cards keep their text and gain the space-walk reveal. Runs

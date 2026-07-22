@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -68,7 +68,7 @@ import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonType, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -86,7 +86,7 @@ import { buildSnippetPayload, spawnSnippet, SNIPPET_DND_MIME, type SnippetPayloa
 import { deleteSnippet as deleteSnippetFn, listSnippets, renameSnippet as renameSnippetFn, saveSnippet as saveSnippetFn, type SnippetRow } from "@/lib/snippet.functions";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, migrateLessonFields, sanitizeSceneNodes } from "@/components/canvas/scene-io";
 import { migrateZTiers, nextZ, Z_SPOTLIGHT } from "@/components/canvas/zorder";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
@@ -260,6 +260,17 @@ function LessonNode({ id, data, selected }: NodeProps) {
   const parity = (typeof d.pathOrder === "number" ? d.pathOrder : lessonHash(id)) % 2;
   const tint = d.check ? LESSON_TINTS.check : parity === 0 ? LESSON_TINTS.warm : LESSON_TINTS.navy;
 
+  // LESSON FIELDS (topic-grouping batch) — effective values with read-time
+  // defaults (migrateLessonFields fills persisted lessons; these `??` keep a
+  // brand-new node safe). Badges below are BOTH display + click-to-edit.
+  const lessonType: LessonType = d.lessonType ?? "CONCEPT";
+  const access: LessonAccess = d.access ?? "FREE";
+  const pathing: LessonPathing = d.pathing ?? "RECOMMENDED";
+  const cycleType = () => { const i = LESSON_TYPES.indexOf(lessonType); update({ lessonType: LESSON_TYPES[(i + 1) % LESSON_TYPES.length] }); };
+  const toggleAccess = () => update({ access: access === "PAID" ? "FREE" : "PAID" });
+  const togglePathing = () => update({ pathing: pathing === "OPTIONAL" ? "RECOMMENDED" : "OPTIONAL" });
+  const typeTone = lessonType === "CEQ_CRAM" ? "#FF8B9E" : lessonType === "CEQ_FULL" ? NEON.yellow : lessonType === "CONCEPT" ? NEON.cyan : NEON.muted;
+
   /** FIT TO CONTENTS (optional button — never automatic): shrink-wrap the box
    *  around its children (+padding) in ONE undo step. Children keep their
    *  absolute spots: the box moves, their rel coords shift. */
@@ -320,6 +331,42 @@ function LessonNode({ id, data, selected }: NodeProps) {
     >
       {/* lessons connect too: card↔lesson, lesson↔lesson (V2) */}
       <ConnectionDots color={tint.edgeOn} />
+
+      {/* LESSON BADGES (topic-grouping batch) — ALWAYS visible; a compact tab above
+          the lesson. Each badge is display + a click-to-edit affordance. Type
+          cycles CRAM→FULL→CONCEPT→EXTRA; access toggles FREE↔PAID (PAID uses the
+          gate B&W + lock language); the OPTIONAL badge shows only when off-path
+          (dimmed/off-axis). Pathing is toggled from the hover chrome. */}
+      <div className="nodrag absolute -top-6 left-0 z-[3] flex items-center gap-1" onPointerDown={stop}>
+        <button
+          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+          style={{ color: "#0B0F1E", background: typeTone, border: `1px solid ${typeTone}` }}
+          title={`Lesson type: ${lessonType} — click to cycle`}
+          onClick={cycleType}
+        >
+          {LESSON_TYPE_LABEL[lessonType]}
+        </button>
+        <button
+          className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+          style={access === "PAID"
+            ? { color: "#FF8B9E", background: "rgba(255,92,108,0.12)", border: "1px solid rgba(255,92,108,0.55)", filter: "grayscale(0.2)" }
+            : { color: NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}` }}
+          title={access === "PAID" ? "PAID — behind the study-pass gate (visual language). Click → FREE" : "FREE — click → PAID"}
+          onClick={toggleAccess}
+        >
+          {access === "PAID" ? <><Lock className="h-2.5 w-2.5" /> Paid</> : "Free"}
+        </button>
+        {pathing === "OPTIONAL" && (
+          <button
+            className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider italic"
+            style={{ color: NEON.muted, background: "transparent", border: `1px dashed ${NEON.borderSoft}`, opacity: 0.7, transform: "rotate(-3deg)" }}
+            title="OPTIONAL (satellite) — off the recommended path. Click → RECOMMENDED"
+            onClick={togglePathing}
+          >
+            Optional
+          </button>
+        )}
+      </div>
       {/* the lesson is a DESIGNED SPACE: resize it by hand (handles on hover) */}
       <NodeResizer
         isVisible={showChrome}
@@ -395,6 +442,25 @@ function LessonNode({ id, data, selected }: NodeProps) {
               placeholder="–"
             />
           </span>
+          {/* TOPIC (topic-grouping batch) — groups sibling lessons into a row in
+              the grid-by-type view. Defaults to the lesson label. */}
+          <span
+            className="zone-actions rounded px-1 text-[9px] font-bold normal-case"
+            style={{ border: `1px solid ${d.topic ? tint.edgeOn : NEON.borderSoft}`, color: d.topic ? tint.ink : NEON.muted }}
+            title="Topic — groups sibling lessons into one row in the grid-by-type view"
+          >
+            topic{" "}
+            <EditableText value={d.topic ?? ""} onChange={(v) => update({ topic: v })} placeholder={d.label || "…"} />
+          </span>
+          {/* PATHING toggle — RECOMMENDED (main path) ↔ OPTIONAL (satellite). */}
+          <button
+            className={chromeBtn}
+            title={pathing === "OPTIONAL" ? "OPTIONAL (satellite) — click to make RECOMMENDED" : "RECOMMENDED — click to make OPTIONAL (satellite)"}
+            onPointerDown={stop}
+            onClick={togglePathing}
+          >
+            <Milestone className="h-3 w-3" style={{ color: pathing === "OPTIONAL" ? NEON.muted : tint.ink, opacity: pathing === "OPTIONAL" ? 0.6 : 1 }} />
+          </button>
           <button
             className={chromeBtn}
             title={(d as { beats?: boolean }).beats ? "Hide the beat guides (Hook · Teach · Model-Practice · Check)" : "Show beat guides (Hook · Teach · Model-Practice · Check)"}
@@ -3725,7 +3791,7 @@ function PresentCanvas() {
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
       // MEMBERSHIP FIX 5 — parents before children so RF v12 never hydrates a child
       // detached at the origin (a stranded/teleporting element). Content-only reorder.
-      rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))))));
+      rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]))), isElementKind))))))))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -3797,7 +3863,7 @@ function PresentCanvas() {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
             // MEMBERSHIP FIX 5 — parents before children (see above).
-            rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))))));
+            rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]))), isElementKind))))))))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -4162,7 +4228,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))));
+      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]))), isElementKind)))))));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
