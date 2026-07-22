@@ -205,12 +205,13 @@ export function CameraBubble({ onClose }: { onClose: () => void }) {
         <CamBtn title="Close (b)" onClick={onClose}><X className="h-3 w-3" /></CamBtn>
       </div>
 
-      {/* corner resize handle */}
+      {/* corner resize handle — NOT sa-chrome so it also works in FILM (Lee resizes on
+          camera); still opacity-0 until hover, so at rest the recording stays clean. */}
       <div
-        className="sa-chrome absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize opacity-0 transition-opacity group-hover:opacity-100"
         style={{ background: `linear-gradient(135deg, transparent 50%, ${NEON.yellow} 50%)`, borderBottomRightRadius: prefs.shape === "circle" ? 9999 : 22 }}
         onPointerDown={onPointerDown("resize")}
-        title="Resize"
+        title="Resize (works in film)"
       />
     </div>
   );

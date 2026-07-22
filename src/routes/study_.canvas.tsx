@@ -1081,6 +1081,7 @@ function PresentCanvas() {
   choreoExplodedRef.current = choreoExploded;
   const hoveredNodeRef = useRef<string | null>(null); // last card the pointer entered (for G-explode)
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
+  const [chromaBlack, setChromaBlack] = useState(false); // "k": solid-black world bg in film (chroma-key testing)
   // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
   // film / OFF outside; followReveals default on. The controller reads them live.
   const [spotFocusDim, setSpotFocusDim] = useState<FocusDimMode>("auto");
@@ -4517,6 +4518,7 @@ function PresentCanvas() {
       { combo: "g", group: "Modes", description: "Choreograph: explode the hovered card into per-part steps (G again = done)", handler: () => explodeHovered() },
       { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { setChoreographFrameId(null); setChoreoExploded(null); setChoreoEntry(null); if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
       { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
+      { combo: "k", group: "Modes", description: "Chroma test — solid-black world background in film (for keying)", handler: () => setChromaBlack((v) => !v) },
       { combo: "p", group: "Modes", description: "Teleprompter — the current frame's script (authoring + film)", handler: () => setPrompter((v) => { const on = !v; if (on && !currentFrameRef.current) flashToast("Enter a frame — the prompter reads the current frame's script"); return on; }) },
       { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
       { combo: "t", group: "Quick-spawn", description: "T-account at cursor", handler: () => quickSpawn("taccount") },
@@ -4655,7 +4657,7 @@ function PresentCanvas() {
     <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
     <div
       className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
-      style={{ background: chrome ? BACKSTAGE_BG[backstage] : NEON.bg }}
+      style={{ background: chrome ? BACKSTAGE_BG[backstage] : chromaBlack ? "#000" : NEON.bg }}
       onDragOver={(e) => { if (e.dataTransfer.types.includes(SNIPPET_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
       onDrop={(e) => { const id = e.dataTransfer.getData(SNIPPET_DND_MIME); if (!id) return; e.preventDefault(); spawnSnippetById(id, rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}
     >
