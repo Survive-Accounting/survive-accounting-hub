@@ -470,6 +470,9 @@ export interface ExamCueElement extends CardBase {
   showLabel?: boolean;
   /** Show the "you'll see this on the exam" tag (default true). */
   showTag?: boolean;
+  /** Drop the background plate + border so it's JUST the bouncing emoji (+ any label
+   *  / tag still enabled). Default false (plate shown). */
+  noPlate?: boolean;
 }
 
 // ---- CEQ Tease (Lee): a horizontal banner that teases an exam-question FORMAT —

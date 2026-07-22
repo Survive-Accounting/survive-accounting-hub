@@ -290,7 +290,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
 const EXAMCUE_CSS = `
 @keyframes sa-examcue-bounce { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-15px) rotate(3deg); } }
 `;
-const EXAM_EMOJIS = ["📄", "📝", "🧾", "📋", "✍️", "🎯", "⏰", "🔥"];
+const EXAM_EMOJIS = ["📄", "📝", "🧾", "📋", "✍️", "🎯", "⏰", "🔥", "💰", "💯", "⭐"];
 
 export function ExamCueNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as ExamCueElement;
@@ -337,9 +337,11 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
         className="flex h-full w-full flex-col items-center justify-center gap-2.5 rounded-3xl px-4 py-5 text-center"
         style={{
           minHeight: h,
-          background: "radial-gradient(ellipse at 50% 20%, rgba(30,42,74,0.85), rgba(9,13,26,0.9))",
-          border: `1.5px solid rgba(224,40,74,0.45)`,
-          boxShadow: "0 18px 44px -18px rgba(0,0,0,0.7)",
+          // noPlate (Lee): drop the plate + border so it's JUST the bouncing emoji
+          // (and whatever label/tag are still enabled) — more layout flexibility.
+          background: d.noPlate ? "transparent" : "radial-gradient(ellipse at 50% 20%, rgba(30,42,74,0.85), rgba(9,13,26,0.9))",
+          border: d.noPlate ? "none" : `1.5px solid rgba(224,40,74,0.45)`,
+          boxShadow: d.noPlate ? "none" : "0 18px 44px -18px rgba(0,0,0,0.7)",
           ...spotStyle(spot.state),
         }}
       >
@@ -398,6 +400,24 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
           title={d.showTag === false ? "Tag hidden — click to show it" : "Hide the 'on the exam' tag"}
         >
           tag
+        </button>
+        <button
+          className="nodrag grid h-5 place-items-center rounded px-1 text-[8px] font-black uppercase"
+          style={{ color: d.noPlate ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); update({ noPlate: !d.noPlate }); }}
+          title={d.noPlate ? "Plate hidden — click to show the background shape" : "Hide the background plate (just the bouncing emoji)"}
+        >
+          plate
+        </button>
+        <button
+          className="nodrag grid h-5 place-items-center rounded px-1 text-[8px] font-black"
+          style={{ color: NEON.green, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); update({ label: "Easy Points!", emoji: "🎯", showLabel: true, showTag: false }); }}
+          title="Preset: 'Easy Points!' callout"
+        >
+          ⚡ Easy
         </button>
         <span className="mx-0.5 h-4 w-px" style={{ background: NEON.borderSoft }} />
         {EXAM_EMOJIS.map((em) => (
