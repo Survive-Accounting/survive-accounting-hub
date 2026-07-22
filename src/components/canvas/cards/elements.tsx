@@ -21,7 +21,7 @@ import { renderTokens, TokenMenu } from "../variables";
 import type { BridgeCard, CeqTeaseElement, ExamCueElement, GateElement, TextElement } from "../types";
 
 // ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
-export function ElementChrome({ id, posLock, selected }: { id: string; posLock?: boolean; selected?: boolean }) {
+export function ElementChrome({ id, posLock, selected, align = "right" }: { id: string; posLock?: boolean; selected?: boolean; align?: "left" | "right" }) {
   const { update, remove, duplicate } = useCardActions(id);
   const btn = (title: string, onClick: () => void, child: React.ReactNode, active?: boolean) => (
     <button
@@ -36,7 +36,7 @@ export function ElementChrome({ id, posLock, selected }: { id: string; posLock?:
   );
   return (
     <div
-      className={`card-actions absolute -top-6 right-0 z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || posLock ? "opacity-100" : "opacity-0 group-hover/el:opacity-100"}`}
+      className={`card-actions absolute -top-6 ${align === "left" ? "left-0" : "right-0"} z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || posLock ? "opacity-100" : "opacity-0 group-hover/el:opacity-100"}`}
       style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}
     >
       {btn("Duplicate", duplicate, <Copy className="h-3 w-3" />)}

@@ -115,11 +115,13 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
       }}
     >
       <ConnectionDots color={GOLD.ink} />
-      <ElementChrome id={id} posLock={d.posLock} selected={selected} />
+      {/* action chrome goes to the LEFT so the label can own the top-right OUTSIDE */}
+      <ElementChrome id={id} posLock={d.posLock} selected={selected} align="left" />
       <CardResizeFrame scale={userScale} onScale={(s) => update({ scale: s })} accent={GOLD.ink} />
 
-      {/* category tag + deck chip — hover chrome, top-right (no dead flow row above text) */}
-      <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/el:opacity-100">
+      {/* category label + deck chip — hover chrome, ABOVE the box on the top-right so
+          it never sits over the memo text (Lee). */}
+      <div className="absolute -top-6 right-0 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/el:opacity-100">
         {d.category ? (
           <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: GOLD.ink, background: "rgba(16,27,49,0.9)", border: `1px solid ${GOLD.edge}` }}>{d.category}</span>
         ) : null}
