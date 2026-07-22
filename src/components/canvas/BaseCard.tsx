@@ -104,15 +104,15 @@ export function CardResizeFrame({ scale, onScale, accent }: { scale: number; onS
       <div title="Drag to resize" onPointerDown={begin("y")} className={`${g} bottom-0 left-1/2 h-[7px] w-9 -translate-x-1/2 rounded-t`} style={{ ...dot, cursor: "ns-resize" }} />
       {/* BOTTOM-RIGHT corner — the primary uniform-resize grip */}
       <div title="Drag to resize" onPointerDown={begin("d")} className={`${g} bottom-0 right-0 h-3.5 w-3.5 rounded-tl`} style={{ ...dot, cursor: "nwse-resize" }} />
-      {/* live % while dragging */}
+      {/* live % while dragging — authoring aid (sa-chrome → off camera in film) */}
       {pct !== null && (
-        <span className="nodrag absolute bottom-1 left-1 z-[8] rounded px-1 text-[9px] font-bold tabular-nums" style={{ background: "rgba(251,249,244,0.92)", border: `1px solid ${PAPER.cardEdge}`, color: PAPER.inkMuted }}>
+        <span className="sa-chrome nodrag absolute bottom-1 left-1 z-[8] rounded px-1 text-[9px] font-bold tabular-nums" style={{ background: "rgba(251,249,244,0.92)", border: `1px solid ${PAPER.cardEdge}`, color: PAPER.inkMuted }}>
           {pct}%
         </span>
       )}
-      {/* legibility floor — warn, don't block */}
+      {/* legibility floor — warn, don't block. Authoring aid (sa-chrome → never on camera) */}
       {scale < MIN_LEGIBLE_SCALE && (
-        <span className="nodrag absolute right-1 top-1 z-[8] rounded px-1 py-px text-[8.5px] font-bold" style={{ background: "#3a0d12", color: "#ffb3bd", border: "1px solid rgba(224,40,74,0.6)" }} title="This card may be too small to read on a 1080p capture">
+        <span className="sa-chrome nodrag absolute right-1 top-1 z-[8] rounded px-1 py-px text-[8.5px] font-bold" style={{ background: "#3a0d12", color: "#ffb3bd", border: "1px solid rgba(224,40,74,0.6)" }} title="This card may be too small to read on a 1080p capture">
           ⚠ tiny
         </span>
       )}
