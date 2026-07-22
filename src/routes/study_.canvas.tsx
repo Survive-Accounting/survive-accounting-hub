@@ -109,6 +109,7 @@ import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FLAME_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
+import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
 // Panels that can be popped out to the director's second-monitor window.
@@ -1201,6 +1202,8 @@ function PresentCanvas() {
   }, [arrowArm]);
   const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
+  const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
+  const [copiedFrameId, setCopiedFrameId] = useState<string | null>(null); // frame on the clipboard (rearrange copy/paste)
   const [framePickerOpen, setFramePickerOpen] = useState(false); // FG5: grid mini-map jump
   const [toast, setToast] = useState<string | null>(null); // brief transient notice (frame cap, soft warns)
   const toastTimer = useRef(0);
@@ -4453,9 +4456,10 @@ function PresentCanvas() {
           // menu). The bottom toolbar stays put — clean/film are lower rungs.
           if (rehearse) { setRehearse(null); return; }
           if (safeGuides) { setSafeGuides(false); return; }
-          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor || snipMenu || snipSaveIds) {
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor || snipMenu || snipSaveIds || rearrangeOpen) {
             setSnipMenu(null);
             setSnipSaveIds(null);
+            setRearrangeOpen(false);
             setHelpOpen(false);
             setLoadOpen(false);
             setImportPreview(null);
@@ -4598,6 +4602,7 @@ function PresentCanvas() {
       } },
       { combo: "]", group: "Frames", description: "Next beat → (also PageDown)", handler: () => stepBeat(1) },
       { combo: "[", group: "Frames", description: "Previous beat ← (also PageUp)", handler: () => stepBeat(-1) },
+      { combo: "r", group: "Frames", description: "Rearrange this lesson's frames — full-grid drag reorder + copy/paste", handler: () => setRearrangeOpen((v) => !v) },
       { combo: "pagedown", group: "Frames", description: "Next beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(1); } },
       { combo: "pageup", group: "Frames", description: "Previous beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(-1); } },
       { combo: "ctrl+s", group: "File", description: "Save the scene", handler: (e) => { e.preventDefault(); void saveRef.current(); } },
@@ -4607,7 +4612,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep, explodeHovered],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep, explodeHovered],
   );
   useKeymap(bindings);
 
@@ -4799,16 +4804,7 @@ function PresentCanvas() {
         </>
       )}
 
-      {/* Type floor — prep warning, only INSIDE a frame (composing a shot).
-          Region overview is never a shot, so the badge is just noise there (item 7). */}
-      {lowZoom && !film && currentFrameId && (
-        <div
-          className="absolute left-1/2 top-14 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold"
-          style={{ background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.55)", color: NEON.yellow }}
-        >
-          zoom &lt; 75% — text may be illegible on camera
-        </div>
-      )}
+      {/* (Removed the "zoom < 75% — text may be illegible" warning — Lee doesn't need it.) */}
       {/* FOCUS-PUSH BACK (item 1) — while pushed into a card inside a framed
           shot, one click snaps back to the exact framed view. */}
       {framePushView && (
@@ -5278,6 +5274,7 @@ function PresentCanvas() {
           {/* Birds-eye button removed — Esc bottoms out at the CURRENT lesson's
               overview (fitCurrentLesson), never the whole course. */}
           {/* FRAME HEADER panel — on-camera header toggle + THIS lesson's intro/outro/preview */}
+          <TB title="Rearrange frames (r) — full-grid drag reorder + copy/paste" active={rearrangeOpen} onClick={() => setRearrangeOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>
           <div className="relative">
             <TB title="Frame header — header HUD + this lesson's intro / outro / preview" active={frameHeaderOpen} onClick={() => setFrameHeaderOpen((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>
             {frameHeaderOpen && (
@@ -5809,6 +5806,31 @@ function PresentCanvas() {
 
       {/* DUPLICATE FRAME dialog (PROMPT 1) — pick a target lesson + beat */}
       {dupFrameFor && <DuplicateFrameDialog frameId={dupFrameFor} onClose={() => setDupFrameFor(null)} onDuplicate={(fid, dest) => duplicateFrame(fid, dest)} />}
+
+      {/* FRAME REARRANGE GRID ("r") — big-picture full grid: drag to reorder (reflow),
+          copy a frame + paste into an empty slot, + new frames in any beat. */}
+      {rearrangeOpen && (() => {
+        const lid = (currentFrameId ? rf.getNode(currentFrameId)?.parentId : null) ?? lastLessonRef.current ?? rf.getNodes().find((n) => n.type === "lesson" && !n.parentId)?.id ?? null;
+        if (!lid) { flashToast("No lesson to rearrange — open a lesson first"); return null; }
+        const frames = rf.getNodes().filter((n) => n.type === "frame" && n.parentId === lid);
+        const label = (rf.getNode(lid)?.data as { label?: string } | undefined)?.label ?? "Lesson";
+        return (
+          <FrameRearrangeGrid
+            lessonId={lid}
+            lessonLabel={label}
+            frames={frames as never}
+            currentFrameId={currentFrameId}
+            copiedFrameId={copiedFrameId}
+            onEnter={(fid) => enterFrame(fid)}
+            onMoveToFrame={(src, dest) => moveFrameToFrame(src, dest)}
+            onMoveToBeat={(src, beat) => moveFrameToBeat(src, beat)}
+            onCreate={(beat) => createFrameInBeat(lid, beat)}
+            onCopy={(fid) => { setCopiedFrameId(fid); flashToast("Frame copied — paste it into an empty slot"); }}
+            onPaste={(beat) => { if (copiedFrameId) duplicateFrame(copiedFrameId, { lessonId: lid, beat }); }}
+            onClose={() => setRearrangeOpen(false)}
+          />
+        );
+      })()}
 
       {/* SNIPPET right-click menu (PROMPT 2) */}
       {snipMenu && (
