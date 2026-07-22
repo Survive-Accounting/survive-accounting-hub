@@ -20,7 +20,6 @@ import { useCanvasSettings } from "./CanvasSettingsContext";
 import { DECK_DND_MIME, useDecks } from "./DecksContext";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, isContainerType, type CeqCard, type DeckDef } from "./types";
-import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { NEON } from "./theme";
 
 export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; ceqSets: CeqSetDef[]; setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void; lessonScope?: string | null }) {
@@ -113,8 +112,6 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
 
   // ---- CEQ SET FACTORY -------------------------------------------------------
   const [expandedSet, setExpandedSet] = useState<string | null>(null);
-  // MEMO SUMMARY (Lee) — which memo categories to gather into a summary frame.
-  const [dumpCats, setDumpCats] = useState<Set<string>>(() => new Set([...MEMO_CATEGORIES, "__none__"]));
   const lessonOpts = rf.getNodes().filter((n) => n.type === "lesson").map((n) => ({ id: n.id, label: String((n.data as { label?: string }).label ?? "Lesson") }));
 
   const newAccountTypeSet = () => {
@@ -209,59 +206,9 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     setSeedNote(`dealt ${cards.length} CEQ (${mode}) into ${frameTitleOf(frameId)}`);
   };
 
-  /** DUMP LESSON MEMOS → FRAME (Lee) — gather every memo in the CURRENT frame's
-   *  lesson whose category is checked, and lay COPIES of them in a grid inside the
-   *  frame you're in (a summary slide). Originals stay put; re-dump replaces this
-   *  frame's summary. Memo→frame→lesson is a two-level parentId walk. */
-  const dumpLessonMemos = () => {
-    const frameId = nav.currentFrameId;
-    const frame = frameId ? rf.getNode(frameId) : null;
-    if (!frame || frame.type !== "frame") { setSeedNote("Enter the summary frame first (double-click it), then dump."); return; }
-    const lessonId = frame.parentId && rf.getNode(frame.parentId)?.type === "lesson" ? frame.parentId : null;
-    if (!lessonId) { setSeedNote("This frame isn't inside a lesson."); return; }
-    const lessonOf = (n: { parentId?: string }): string | null => {
-      let cur: { parentId?: string } | undefined = n, guard = 0;
-      while (cur?.parentId && guard++ < 6) {
-        const p = rf.getNode(cur.parentId);
-        if (!p) return null;
-        if (p.type === "lesson") return p.id;
-        cur = p;
-      }
-      return null;
-    };
-    const memos = rf.getNodes().filter((n) => n.type === "memo" && lessonOf(n) === lessonId);
-    const chosen = memos.filter((n) => {
-      const cat = String((n.data as { category?: string }).category ?? "").toUpperCase().trim();
-      return dumpCats.has(cat === "" ? "__none__" : cat);
-    });
-    if (chosen.length === 0) { setSeedNote("no memos in this lesson match the checked categories"); return; }
-    const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
-    const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
-    const cols = Math.max(1, Math.ceil(Math.sqrt(chosen.length)));
-    const rows = Math.ceil(chosen.length / cols);
-    const pad = 40, gap = 20;
-    const cellW = Math.max(160, (fw - 2 * pad - (cols - 1) * gap) / cols);
-    const cellH = Math.max(80, (fh - 2 * pad - (rows - 1) * gap) / rows);
-    const slots = gridSlots(chosen.length, { originX: pad, originY: pad, cols, cellW, cellH, gapX: gap, gapY: gap });
-    const deckId = `memodump::${frameId}`; // one summary per frame — re-dump replaces
-    const existing = rf.getNodes().filter((n) => (n.data as { deckId?: string }).deckId === deckId);
-    const existingIds = new Set(existing.map((n) => n.id));
-    const removeSnap = existing.map((n) => structuredClone(n));
-    const newNodes = chosen.map((m, i) => {
-      const d = m.data as { memoKind?: unknown; title?: unknown; body?: unknown; category?: unknown; w?: unknown };
-      return {
-        id: cardId("memo"), type: "memo", parentId: frameId, position: { ...slots[i] }, selected: false,
-        data: { kind: "memo", memoKind: d.memoKind ?? "note", title: d.title, body: d.body ?? "", category: d.category, w: d.w, deckId } as Record<string, unknown>,
-      };
-    });
-    const cmds = [
-      removeSnap.length ? { label: "clear old summary", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
-      addNodesCmd(rf as unknown as RfLike, newNodes as never, `dump ${newNodes.length} memos`),
-    ].filter((c): c is NonNullable<typeof c> => !!c);
-    const cmd = compositeCmd(cmds, "dump lesson memos");
-    if (cmd) bus.dispatch(cmd);
-    setSeedNote(`dumped ${newNodes.length} memo${newNodes.length === 1 ? "" : "s"} into ${frameTitleOf(frameId)}`);
-  };
+  // Memo summary → frame moved to the LEFT drawer "Memos" section
+  // (MemoLibraryPanel): browse a lesson's memos, curate order, multi-select, and
+  // add COPIES to the current frame. The old dump-all button lived here.
 
   /** ITEM 4a — a card/memo dragged from its chip onto this deck row (re)joins it.
    *  Elements/containers and the wrong payload type are rejected. One undo step. */
@@ -605,31 +552,9 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
             </button>
           </div>
 
-          {/* MEMO SUMMARY → FRAME (Lee) — gather this lesson's memos (by category) as
-              a grid of COPIES in the frame you're in, for a recap slide. */}
-          <div className="mt-2 rounded-md px-1.5 py-1.5" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}>
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
-              <Layers className="h-3 w-3" /> Memo summary → frame
-            </div>
-            <div className="mb-1 flex flex-wrap gap-1">
-              {[...MEMO_CATEGORIES, "__none__"].map((c) => {
-                const on = dumpCats.has(c);
-                return (
-                  <button key={c} className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                    style={{ color: on ? "#0B1322" : NEON.muted, background: on ? NEON.yellow : "transparent", border: `1px solid ${on ? NEON.yellow : NEON.borderSoft}` }}
-                    onClick={() => setDumpCats((prev) => { const n = new Set(prev); if (n.has(c)) n.delete(c); else n.add(c); return n; })}>
-                    {c === "__none__" ? "Uncategorised" : c}
-                  </button>
-                );
-              })}
-            </div>
-            <button className="w-full rounded px-1.5 py-1 text-[9.5px] font-bold uppercase tracking-wide"
-              style={{ color: "#0B0F1E", background: NEON.cyan }}
-              title="Enter a summary frame, check the categories you want, then dump COPIES of this lesson's matching memos into that frame in a grid (re-dump replaces)."
-              onClick={dumpLessonMemos}>
-              Dump into current frame
-            </button>
-          </div>
+          {/* MEMO SUMMARY moved out (Lee) — memos are now browsed, curated, and
+              added to a frame from the "Memos" section of the LEFT drawer
+              (MemoLibraryPanel), replacing the old dump-all button. */}
           {seedNote && <div className="px-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>{seedNote}</div>}
         </div>
       )}

@@ -555,6 +555,10 @@ export interface MemoCard extends CardBase {
   body: string;
   /** Free author tag for memo-deck filtering. */
   category?: string;
+  /** Memo LIBRARY order (left-drawer curation). Lesson-wide sort key that sets
+   *  the order memos fill a frame when added from the library. Additive: absent
+   *  on old memos (they sort last, stable). NOT the memo-deck deal order. */
+  libOrder?: number;
 }
 
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----

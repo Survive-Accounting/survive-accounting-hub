@@ -66,6 +66,7 @@ import { ChoreoScrubber } from "@/components/canvas/ChoreoScrubber";
 import { type CeqSetDef } from "@/components/canvas/ceq-set";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
+import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonBox, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
@@ -5155,7 +5156,7 @@ function PresentCanvas() {
           the canvas top-left clean. Film/clean swap the bar for the watermark. */}
       {chrome && (
         <BrandBar
-          items={[{ key: "cards", label: "Cards" }, { key: "outline", label: "Outline" }, { key: "key", label: "Key" }]}
+          items={[{ key: "cards", label: "Cards" }, { key: "outline", label: "Outline" }, { key: "memos", label: "Memos" }, { key: "key", label: "Key" }]}
           activeItem={drawerPanel}
           onItem={setDrawerPanel}
         >
@@ -5173,6 +5174,7 @@ function PresentCanvas() {
             />
           )}
           {drawerPanel === "outline" && <OutlinePanel />}
+          {drawerPanel === "memos" && <MemoLibraryPanel />}
           {drawerPanel === "key" && <LegendHud docked />}
         </BrandBar>
       )}
