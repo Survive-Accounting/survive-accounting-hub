@@ -19,7 +19,7 @@ import { nextStageOrder } from "./BaseCard";
 import { useCanvasSettings } from "./CanvasSettingsContext";
 import { DECK_DND_MIME, useDecks } from "./DecksContext";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, isContainerType, type DeckDef } from "./types";
+import { cardId, isContainerType, type CeqCard, type DeckDef } from "./types";
 import { NEON } from "./theme";
 
 export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; ceqSets: CeqSetDef[]; setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void; lessonScope?: string | null }) {
@@ -156,6 +156,54 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     setDecks((prev) => (set.deckId ? updateDeck(prev, deckId, { slots, lessonId, name: set.name }) : addDeck(prev, { ...newDeckDef(set.name, "cards"), id: deckId, lessonId, runMode: "sequence", slots })));
     setCeqSets((prev) => prev.map((s) => (s.id === set.id ? { ...s, deckId } : s)));
     setSeedNote(`approved ${cards.length} cards → "${set.name}". Film order: ${order.map((a) => a.name).join(" · ")}`);
+  };
+
+  /** DEAL A CEQ SET INTO THE ENTERED FRAME (Lee) — the set is a FACTORY: this spawns
+   *  a FRESH copy of its cards into whatever frame you're currently inside, so the
+   *  same set can fill a GRID in a teaser frame and a STACK in a cram frame,
+   *  independently. Dealing into the same frame again REPLACES that frame's copy.
+   *  Sets the frame's stackDeal so the space-walk in that frame matches the layout. */
+  const dealSetIntoFrame = (set: CeqSetDef, mode: "grid" | "stack") => {
+    const frameId = nav.currentFrameId;
+    if (!frameId) { setSeedNote("Enter a frame first (double-click a frame), then deal grid / stack."); return; }
+    const frame = rf.getNode(frameId);
+    if (!frame || frame.type !== "frame") { setSeedNote("Enter a frame first (double-click a frame), then deal grid / stack."); return; }
+    const order = filmOrder(set.accounts);
+    if (order.length === 0) { setSeedNote("include at least one account first"); return; }
+    const cards = generateCeqCards(set, order);
+    const deckId = `${set.id}::${frameId}`; // one copy per (set, frame) — re-deal replaces it
+    const existing = rf.getNodes().filter((n) => (n.data as { deckId?: string }).deckId === deckId);
+    const existingIds = new Set(existing.map((n) => n.id));
+    const removeSnap = existing.map((n) => structuredClone(n));
+    const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
+    const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
+    const mk = (c: CeqCard, i: number, pos: { x: number; y: number }, tucked: boolean) => ({
+      id: cardId("ceq"), type: "ceq", parentId: frameId, position: { ...pos }, selected: false,
+      data: { ...c, title: set.name, deckId, deckMember: true, tucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set", deckPos: { ...pos } } as Record<string, unknown>,
+    });
+    let newNodes: ReturnType<typeof mk>[];
+    if (mode === "grid") {
+      // teaser: all cards laid in the frame's grid, VISIBLE — "here's what's coming"
+      const cols = Math.max(1, Math.ceil(Math.sqrt(cards.length)));
+      const rows = Math.ceil(cards.length / cols);
+      const pad = 40, gap = 24;
+      const cellW = Math.max(120, (fw - 2 * pad - (cols - 1) * gap) / cols);
+      const cellH = Math.max(90, (fh - 2 * pad - (rows - 1) * gap) / rows);
+      const slots = gridSlots(cards.length, { originX: pad, originY: pad, cols, cellW, cellH, gapX: gap, gapY: gap });
+      newNodes = cards.map((c, i) => mk(c, i, slots[i], false));
+    } else {
+      // cram: stacked at the frame centre, TUCKED — Space flips them one at a time
+      const at = { x: Math.round(fw / 2 - 170), y: Math.round(fh / 2 - 110) };
+      newNodes = cards.map((c, i) => mk(c, i, at, true));
+    }
+    const cmds = [
+      removeSnap.length ? { label: "clear frame copy", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
+      addNodesCmd(rf as unknown as RfLike, newNodes as never, `deal ${cards.length} CEQ`),
+      patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: mode === "stack" }, "deal mode"),
+    ].filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, `deal set → ${mode}`);
+    if (cmd) bus.dispatch(cmd);
+    setSeedNote(`dealt ${cards.length} CEQ (${mode}) into ${frameTitleOf(frameId)}`);
   };
 
   /** ITEM 4a — a card/memo dragged from its chip onto this deck row (re)joins it.
@@ -457,6 +505,10 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
                     <button className="min-w-0 flex-1 truncate text-left text-[11px] font-semibold" style={{ color: NEON.text }} onClick={() => setExpandedSet(open2 ? null : set.id)} title="Expand to include/exclude accounts, set difficulty + correct answer">
                       {set.name} <span style={{ color: NEON.muted }}>· {inc} in{set.deckId ? " · ✓ deck" : ""}</span>
                     </button>
+                    {/* DEAL INTO THE FRAME YOU'RE IN (Lee) — repeatable across frames: grid in
+                        a teaser, stack in a cram. Each is its own copy. */}
+                    <button title="Grid-deal into the frame you're in — fills its grid with every card, visible (teaser). Repeatable per frame." onClick={() => dealSetIntoFrame(set, "grid")} style={{ color: NEON.cyan }}><Grid3x3 className="h-3 w-3" /></button>
+                    <button title="Stack-deal into the frame you're in — stacked + tucked at centre, Space flips one at a time (cram). Repeatable per frame." onClick={() => dealSetIntoFrame(set, "stack")} style={{ color: NEON.cyan }}><SquareStack className="h-3 w-3" /></button>
                     <button title="Delete this set (keeps any approved deck)" onClick={() => removeSet(set.id)} style={{ color: NEON.muted }}><Trash2 className="h-3 w-3" /></button>
                   </div>
                   {open2 && (

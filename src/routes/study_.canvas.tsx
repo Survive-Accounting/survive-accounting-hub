@@ -5097,22 +5097,8 @@ function PresentCanvas() {
                 </span>
               );
             })()}
-            {/* STACK-DEAL toggle (Lee) — per frame: this frame's deck deals one card
-                at a time in the SAME spot (flashcard drill), Space forward / Shift+
-                Space back. Off = the normal grid deal. */}
-            {(() => {
-              const on = !!fd?.stackDeal;
-              return (
-                <button
-                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                  title="Stack deal for THIS frame — Space flips the deck one card at a time in the centre (Shift+Space back). Lay the grid inside the frame first. Off = grid deal."
-                  onClick={() => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { stackDeal: !on }, "stack deal"); if (c) bus.dispatch(c); }}
-                  style={{ color: on ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
-                >
-                  🃏 {on ? "stack" : "grid"}
-                </button>
-              );
-            })()}
+            {/* STACK/GRID deal moved to the DECK PANEL (Lee) — deal a CEQ set into the
+                frame you're in as a grid (teaser) or a stack (cram), from its set row. */}
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
             <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring it back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
           </div>
