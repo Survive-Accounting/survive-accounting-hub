@@ -3119,6 +3119,27 @@ function PresentCanvas() {
     return () => window.removeEventListener("pointermove", onMove);
   }, []);
 
+  // The innermost container (frame → lesson → zone) whose bounds contain an ABSOLUTE
+  // flow point, with that container's absolute origin. Mirrors onNodeDragStop's hit
+  // test so spawn-time and drag-time membership agree. Returns null over empty canvas.
+  const containerAtPoint = useCallback((abs: { x: number; y: number }): { id: string; abs: { x: number; y: number } } | null => {
+    const nds = rf.getNodes();
+    const byId = new Map(nds.map((n) => [n.id, n] as const));
+    const absOf = (n: CardNode): { x: number; y: number } => {
+      let x = n.position.x, y = n.position.y, p = n.parentId ? byId.get(n.parentId) : undefined, g = 0;
+      while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? byId.get(p.parentId) : undefined; }
+      return { x, y };
+    };
+    const containers = [...nds.filter((n) => n.type === "frame"), ...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
+    for (const z of containers) {
+      const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
+      const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
+      const zp = absOf(z as CardNode);
+      if (abs.x > zp.x && abs.y > zp.y && abs.x < zp.x + w && abs.y < zp.y + h) return { id: z.id, abs: zp };
+    }
+    return null;
+  }, [rf]);
+
   // ---- spawn at viewport center (palette) or at a screen point (quick-spawn) ----
   const spawn = useCallback(
     (data: CardData, at?: { x: number; y: number }) => {
@@ -3136,26 +3157,28 @@ function PresentCanvas() {
         data = { ...data, mode: jePreset, settings: { ...JE_PRESETS[jePreset] } } as CardData;
       }
       const id = cardId(data.kind);
+      const pos = at
+        ? { x: center.x, y: center.y }
+        : { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) };
+      // MEMBERSHIP FIX 2 — attach at birth: a card/element spawned inside a frame becomes
+      // its child NOW (explicit parentId + frame-local position) instead of floating loose
+      // on top of the frame until a later drag. Containers never auto-parent here.
+      let parentId: string | undefined;
+      let position = pos;
+      if (!isContainerType(data.kind)) {
+        const host = containerAtPoint(pos);
+        if (host) { parentId = host.id; position = { x: pos.x - host.abs.x, y: pos.y - host.abs.y }; }
+      }
       bus.dispatch(
         addNodesCmd(
           rf as unknown as RfLike,
-          [
-            {
-              id,
-              type: data.kind,
-              position: at
-                ? { x: center.x, y: center.y }
-                : { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) },
-              data: data as unknown as CardData & Record<string, unknown>,
-              selected: true,
-            },
-          ],
+          [{ id, type: data.kind, parentId, position, data: data as unknown as CardData & Record<string, unknown>, selected: true }],
           `spawn ${data.kind}`,
         ),
       );
       return id;
     },
-    [rf, jePreset],
+    [rf, jePreset, containerAtPoint],
   );
 
   /** Quick-spawn (J/T/N/Q/L): blank at the cursor, edit mode on, first field focused. */
@@ -3565,19 +3588,27 @@ function PresentCanvas() {
       draggedIds.clear();
       draggedIds.add(node.id);
     }
+    // MEMBERSHIP FIX 3+4 — membership changes ONLY as a deliberate move from the
+    // grid/arrange view (no frame entered). While you're INSIDE a frame editing
+    // (currentFrameRef set), a drag keeps the element's parent and just repositions
+    // it locally: the "soft clamp" — no accidental un-parent, so the abs↔frame-local
+    // coordinate flip that "zipped elements across the canvas" can't happen.
+    const arrangeMode = !currentFrameRef.current;
     const decisions = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
-    for (const nid of draggedIds) {
-      const cur = nid === node.id ? node : rf.getNode(nid);
-      if (!cur || isContainerType(cur.type)) continue;
-      const sAbs = nid === node.id ? null : startAbsOf(nid);
-      const abs = nid === node.id ? primaryEndAbs : sAbs ? { x: sAbs.x + delta.x, y: sAbs.y + delta.y } : absOf(cur as CardNode);
-      const hit = hitFor(abs);
-      const startParent = start?.get(nid)?.parentId ?? cur.parentId;
-      if (hit && startParent !== hit.id) {
-        const hp = absPos(hit as CardNode); // parent-relative pos = abs − parent-abs (nesting-safe)
-        decisions.set(nid, { parentId: hit.id, position: { x: abs.x - hp.x, y: abs.y - hp.y } });
-      } else if (!hit && startParent) {
-        decisions.set(nid, { parentId: undefined, position: abs });
+    if (arrangeMode) {
+      for (const nid of draggedIds) {
+        const cur = nid === node.id ? node : rf.getNode(nid);
+        if (!cur || isContainerType(cur.type)) continue;
+        const sAbs = nid === node.id ? null : startAbsOf(nid);
+        const abs = nid === node.id ? primaryEndAbs : sAbs ? { x: sAbs.x + delta.x, y: sAbs.y + delta.y } : absOf(cur as CardNode);
+        const hit = hitFor(abs);
+        const startParent = start?.get(nid)?.parentId ?? cur.parentId;
+        if (hit && startParent !== hit.id) {
+          const hp = absPos(hit as CardNode); // parent-relative pos = abs − parent-abs (nesting-safe)
+          decisions.set(nid, { parentId: hit.id, position: { x: abs.x - hp.x, y: abs.y - hp.y } });
+        } else if (!hit && startParent) {
+          decisions.set(nid, { parentId: undefined, position: abs });
+        }
       }
     }
     if (decisions.size > 0) {
@@ -3681,7 +3712,9 @@ function PresentCanvas() {
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
-      rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))))));
+      // MEMBERSHIP FIX 5 — parents before children so RF v12 never hydrates a child
+      // detached at the origin (a stranded/teleporting element). Content-only reorder.
+      rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))))));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -3752,7 +3785,8 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            rf.setNodes(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind)))))))));
+            // MEMBERSHIP FIX 5 — parents before children (see above).
+            rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])), isElementKind))))))))));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -4629,15 +4663,36 @@ function PresentCanvas() {
       const edgesSnap = structuredClone(edges);
       const nIds = new Set(nodesSnap.map((n) => n.id));
       const eIds = new Set(edgesSnap.map((e) => e.id));
+      // MEMBERSHIP FIX 6 — never leave a dangling parentId. If a deleted node is a
+      // container (frame/lesson/zone), each SURVIVING child is reparented to its
+      // nearest surviving ancestor with position adjusted so it stays visually put
+      // (mirrors the frame-× "keep the cards" behaviour). Computed from the live store
+      // at dispatch time so undo/redo is deterministic.
+      const delById = new Map(nodesSnap.map((n) => [n.id, n] as const));
+      const reparent = rf
+        .getNodes()
+        .filter((n) => !nIds.has(n.id) && n.parentId && nIds.has(n.parentId))
+        .map((n) => {
+          let ox = 0, oy = 0, pid: string | undefined = n.parentId, guard = 0;
+          while (pid && nIds.has(pid) && guard++ < 40) { const d = delById.get(pid); if (!d) break; ox += d.position?.x ?? 0; oy += d.position?.y ?? 0; pid = d.parentId; }
+          const to = { parentId: pid && !nIds.has(pid) ? pid : undefined, position: { x: n.position.x + ox, y: n.position.y + oy } };
+          return { id: n.id, from: { parentId: n.parentId, position: { ...n.position } }, to };
+        });
+      const applyReparent = (which: "to" | "from") => {
+        if (!reparent.length) return;
+        rf.setNodes((nds) => nds.map((n) => { const r = reparent.find((x) => x.id === n.id); return r ? { ...n, parentId: r[which].parentId, position: { ...r[which].position } } : n; }));
+      };
       bus.dispatch({
         label: "delete selection",
         do: () => {
           rf.setNodes((nds) => nds.filter((n) => !nIds.has(n.id)));
           rf.setEdges((eds) => eds.filter((e) => !eIds.has(e.id)));
+          applyReparent("to");
         },
         undo: () => {
           if (nodesSnap.length) rf.addNodes(structuredClone(nodesSnap));
           if (edgesSnap.length) rf.setEdges((eds) => [...eds, ...structuredClone(edgesSnap)]);
+          applyReparent("from");
         },
       });
     },
@@ -4892,6 +4947,10 @@ function PresentCanvas() {
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        // MEMBERSHIP FIX 1 — a click that nudges under 5px is NOT a drag, so it can never
+        // fire the drag-stop reparent (the "click zips an element across the canvas"
+        // bug). Real drags (≥5px) are unaffected.
+        nodeDragThreshold={5}
         onMoveStart={onMoveStart}
         onDelete={onDelete}
         onNodeClick={onNodeClick}
