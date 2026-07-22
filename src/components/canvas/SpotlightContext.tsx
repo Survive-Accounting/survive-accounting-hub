@@ -128,9 +128,13 @@ export function spotStyle(state: SpotTargetState): React.CSSProperties {
   const trans = "transform 150ms ease, opacity 150ms ease, filter 150ms ease, background 150ms ease, box-shadow 150ms ease";
   if (state === "spot")
     return {
-      background: "rgba(252,163,17,0.22)",
+      // Carry the HOST CARD's colour (Lee): a spotlit row inside a card takes that
+      // card's paper background (--spot-bg, set on BaseCard) so it looks like it pops
+      // OUT of the card in the same material; a lift shadow + the gold glow separate
+      // it. Falls back to the gold wash for targets with no host card (headings, etc.).
+      background: "var(--spot-bg, rgba(252,163,17,0.22))",
       borderRadius: 8,
-      boxShadow: "inset 3px 0 0 #FCA311, 0 0 18px rgba(252,163,17,0.5)",
+      boxShadow: "inset 3px 0 0 #FCA311, 0 0 18px rgba(252,163,17,0.55), 0 8px 22px -6px rgba(0,0,0,0.55)",
       fontWeight: 700,
       // SPOTLIT → ~20% larger (Lee's call). Super-spotlight (🔥 flame, Ctrl+Shift+
       // click) goes to ~40% via FLAME_CSS with !important so it wins when a target

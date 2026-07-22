@@ -233,6 +233,9 @@ export function BaseCard({
         transformOrigin: "top left",
         // PAPER card: off-white "textbook flashcard" that pops off the navy table
         background: PAPER.card,
+        // A spotlit row inside this card carries the CARD's paper colour (Lee) so the
+        // lit item looks like it literally pops OUT of the card — spotStyle reads it.
+        ["--spot-bg" as string]: PAPER.card,
         border: `1px solid ${deckFlash ? NEON.yellow : selected ? accent : PAPER.cardEdge}`,
         boxShadow: deckFlash
           ? `0 0 0 3px ${NEON.yellow}, 0 0 22px -2px ${NEON.yellow}`
