@@ -92,7 +92,6 @@ import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/Connect
 import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
 import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
 import { BackstageStage } from "@/components/canvas/BackstageStage";
-import { SurviveBackdrop } from "@/components/canvas/SurviveBackdrop";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
 import { FrameScriptDock, FrameScriptDockBody } from "@/components/canvas/FrameScriptDock";
@@ -2522,8 +2521,11 @@ function PresentCanvas() {
         .map((l) => ({ l, r: absRectOf(l as never, byId as never) }))
         .sort((a, b) => Math.hypot(a.r.x + a.r.w / 2 - cx, a.r.y + a.r.h / 2 - cy) - Math.hypot(b.r.x + b.r.w / 2 - cx, b.r.y + b.r.h / 2 - cy))[0]?.l;
     }
-    if (lesson) { const r = absRectOf(lesson as never, byId as never); void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: 300, padding: 0.12 }); }
-    else void rf.fitView({ duration: 300, padding: 0.15 });
+    if (lesson) {
+      // Fit the lesson's true GRID footprint (data.w/h), not its collapsed measured box.
+      const d = lesson.data as { w?: number; h?: number };
+      void rf.fitBounds({ x: lesson.position.x, y: lesson.position.y, width: d.w ?? lessonCellSize().w, height: d.h ?? lessonCellSize().h }, { duration: 300, padding: 0.08 });
+    } else void rf.fitView({ duration: 300, padding: 0.15 });
   }, [rf]);
 
   /** Lesson-relative grid position for a (beat, subIndex) cell. */
@@ -3725,7 +3727,16 @@ function PresentCanvas() {
         const po = (n: { data: Record<string, unknown> }) => { const v = n.data.pathOrder; return typeof v === "number" ? v : Number.POSITIVE_INFINITY; };
         const target = (startLessonId ? byId.get(startLessonId) : undefined)
           ?? [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x)[0];
-        if (target) { const r = absRectOf(target as never, byId as never); void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: 0, padding: 0.12 }); }
+        if (target) {
+          // Fit ONE lesson's GRID, not the world and not a corner of frame 1. React
+          // Flow measures a lesson node at its tiny label box, so absRectOf under-
+          // reports w/h and fitBounds zoomed into the top-left — the "clunky" load.
+          // Lessons are top-level, so trust their cell size (data.w/h) for the fit.
+          const d = target.data as { w?: number; h?: number };
+          const gw = d.w ?? lessonCellSize().w;
+          const gh = d.h ?? lessonCellSize().h;
+          void rf.fitBounds({ x: target.position.x, y: target.position.y, width: gw, height: gh }, { duration: 0, padding: 0.08 });
+        }
       }, 450);
       // HYDRATION INTEGRITY: rf.setNodes silently no-ops when the RF store
       // isn't ready (fresh mount + restore effect races onInit). Re-apply once;
@@ -4940,8 +4951,7 @@ function PresentCanvas() {
             duplicate. FrameGridOverlay still renders when the film-order PATH is
             toggled on (so that feature keeps working). */}
         {chrome && framePath && <FrameGridOverlay showPath={framePath} onAddFrame={(lessonId, beat, sub) => { makeFrameAt(lessonId, beat, sub); }} />}
-        {/* CINEMA: giant SURVIVE wordmark laid across the scaffolding, behind the nodes */}
-        {chrome && backstage === "cinema" && <SurviveBackdrop />}
+        {/* Removed the "SURVIVE ACCOUNTING / START HERE" world wordmark (Lee — outdated). */}
         {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
         {/* Minimap removed — the bottom LessonNavigator shows one lesson at a time instead */}
       </ReactFlow>
