@@ -9,6 +9,7 @@
 //    data._drag — we render a plain straight path (no smoothstep corner
 //    math per frame) and restore the smoothstep on drop.
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, getStraightPath, Position, useInternalNode, useReactFlow, type EdgeProps } from "@xyflow/react";
+import { Magnet } from "lucide-react";
 
 import { removeEdgeCmd } from "./arrows";
 import { bus, type RfLike } from "./commands";
@@ -26,6 +27,7 @@ export function ArrowEdge(props: EdgeProps) {
   const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, style, markerEnd, data } = props;
   const rf = useReactFlow();
   const dragging = !!data?._drag;
+  const floatingOn = !!data?.floating;
   // SPOTLIGHT AN ARROW (Lee): Ctrl+click pills the edge, Ctrl+Shift+click flames it.
   const sp = useSpotlight();
   const spotlit = sp?.targetState(id, "self") === "spot";
@@ -71,26 +73,51 @@ export function ArrowEdge(props: EdgeProps) {
       />
       {selected && !dragging && (
         <EdgeLabelRenderer>
-          <button
-            className="nodrag nopan grid h-5 w-5 place-items-center rounded-full text-[11px] font-black leading-none"
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              pointerEvents: "all",
-              color: "#FF5C6C",
-              background: "#101B31",
-              border: "1px solid rgba(255,92,122,0.6)",
-              boxShadow: "0 4px 12px -4px rgba(0,0,0,0.6)",
-            }}
-            title="Delete arrow"
-            onClick={(e) => {
-              e.stopPropagation();
-              const cmd = removeEdgeCmd(rf as unknown as RfLike, id);
-              if (cmd) bus.dispatch(cmd);
-            }}
+          <div
+            className="nodrag nopan"
+            style={{ position: "absolute", transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, pointerEvents: "all", display: "flex", gap: 4 }}
           >
-            ×
-          </button>
+            {/* FLOAT TOGGLE — pinned (default) leaves/enters the exact dots you drew
+                from; floating auto-attaches to the border facing the other node. */}
+            <button
+              className="grid h-5 w-5 place-items-center rounded-full"
+              style={{
+                color: floatingOn ? "#0B1322" : "#8FB7FF",
+                background: floatingOn ? "#4FA3E3" : "#101B31",
+                border: "1px solid rgba(79,163,227,0.6)",
+                boxShadow: "0 4px 12px -4px rgba(0,0,0,0.6)",
+              }}
+              title={floatingOn ? "Floating: sticks to the nearest border — click to PIN to the dots" : "Pinned to the dots — click to FLOAT (auto-face the nearest border)"}
+              onClick={(e) => {
+                e.stopPropagation();
+                const next = !floatingOn;
+                bus.dispatch({
+                  label: next ? "arrow: float" : "arrow: pin to dots",
+                  do: () => rf.setEdges((eds) => eds.map((e2) => (e2.id === id ? { ...e2, data: { ...e2.data, floating: next || undefined } } : e2))),
+                  undo: () => rf.setEdges((eds) => eds.map((e2) => (e2.id === id ? { ...e2, data: { ...e2.data, floating: floatingOn || undefined } } : e2))),
+                });
+              }}
+            >
+              <Magnet className="h-3 w-3" />
+            </button>
+            <button
+              className="grid h-5 w-5 place-items-center rounded-full text-[11px] font-black leading-none"
+              style={{
+                color: "#FF5C6C",
+                background: "#101B31",
+                border: "1px solid rgba(255,92,122,0.6)",
+                boxShadow: "0 4px 12px -4px rgba(0,0,0,0.6)",
+              }}
+              title="Delete arrow"
+              onClick={(e) => {
+                e.stopPropagation();
+                const cmd = removeEdgeCmd(rf as unknown as RfLike, id);
+                if (cmd) bus.dispatch(cmd);
+              }}
+            >
+              ×
+            </button>
+          </div>
         </EdgeLabelRenderer>
       )}
     </>

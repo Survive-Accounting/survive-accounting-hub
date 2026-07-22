@@ -14,7 +14,6 @@
 // the styled replacement to dispatch through the bus, or null when a
 // bus-created identical edge already exists (the genuine double-invoke case).
 import type { Command, RfLike } from "./commands";
-import { isPlainHandle } from "./floating-anchor";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 
 export interface EdgeLike {
@@ -57,11 +56,11 @@ export function resolveConnection(
   const autoIds = existing.filter((e) => isAutoEdge(e) && sameEnds(e, c)).map((e) => e.id);
   // a BUS-created identical edge (ours) already there → double invoke, skip
   if (existing.some((e) => !isAutoEdge(e) && sameEnds(e, c))) return { autoIds, edge: null };
-  // FLOATING ANCHOR (Lee): a plain card→card arrow (both ends on a t/b/l/r dot
-  // or no handle) floats to the border point facing the other node — attaches
-  // "at any point on the border of any element". Semantic arrows (ln:/mn:/anc:
-  // handles) stay pinned to their exact handle and are never floated.
-  const floating = isPlainHandle(c.sourceHandle) && isPlainHandle(c.targetHandle);
+  // PIN TO THE DOT YOU DRAGGED (Lee): an arrow now LEAVES the exact dot you grabbed
+  // and ENTERS the exact dot you dropped on, so left→left draws the bracket/L shape
+  // and every deliberate routing is honoured. Auto-facing ("float to the nearest
+  // border") is opt-in per arrow via the ↹ toggle on the selected edge
+  // (data.floating) — no longer the default that overrode your chosen sides.
   return {
     autoIds,
     edge: {
@@ -71,7 +70,6 @@ export function resolveConnection(
       sourceHandle: c.sourceHandle ?? "r",
       targetHandle: c.targetHandle ?? "l",
       type: "smoothstep",
-      ...(floating ? { data: { floating: true } } : {}),
       // ABOVE THE CARDS (JT3): a connection has to be visible ACROSS card bodies.
       // Selected nodes elevate to zIndex 1000 (RF default), so edges ride above
       // even a selected card.
