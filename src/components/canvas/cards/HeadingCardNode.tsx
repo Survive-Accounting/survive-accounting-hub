@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useReactFlow, useStore, useViewport, type NodeProps } from "@xyflow/react";
-import { AlignCenter, AlignLeft, ArrowUpToLine, Braces, Contrast, Copy, GripVertical, Keyboard, Lock, LockOpen, SunDim, Type, Underline, Volume2, X } from "lucide-react";
+import { AlignCenter, AlignLeft, ArrowUpToLine, Braces, Contrast, Copy, Keyboard, Lock, LockOpen, SunDim, Type, Underline, Volume2, X } from "lucide-react";
 
 import { playSfx } from "../sfx";
 
@@ -184,8 +184,8 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
         maxWidth: d.w ? undefined : 720,
         padding: "4px 6px",
         borderRadius: 10,
-        // no selection ring on a clean (spotlit-in-film) shot
-        boxShadow: selected && !cleanShot ? "0 0 0 1.5px rgba(224,40,74,0.45)" : undefined,
+        // no selection ring on a clean shot (spotlit) OR in film (never a box on camera)
+        boxShadow: selected && !cleanShot && !nav.film ? "0 0 0 1.5px rgba(224,40,74,0.45)" : undefined,
         overflow: "visible",
       }}
     >
@@ -195,18 +195,16 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
       {/* resize "edit box" hidden on a clean shot so the spotlight isn't fenced in */}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={160} minHeight={40} />
 
-      {/* GRAB HANDLE (L4): a bare heading is hard to grab — this hover grip is a
-          clear drag affordance. It's NOT nodrag, so pointer-down on it drags the
-          node (the whole padding box drags too); text edits on DOUBLE-click.
-          Hidden on a clean spotlit-in-film shot. */}
+      {/* MOVE GRIP (Lee) — a hover-revealed pill on the TOP border is the drag-to-move
+          affordance; the resize handles do the resizing. NOT nodrag, so pointer-down on
+          it drags the node; text edits on DOUBLE-click. sa-move-grip → hover-only in
+          film so a take never shows it. Hidden on a clean spotlit shot. */}
       {!cleanShot && (
       <div
-        className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
-        title="Drag to move"
-        style={{ color: NEON.muted }}
-      >
-        <GripVertical className="h-4 w-4" />
-      </div>
+        className={`sa-move-grip absolute -top-2.5 left-1/2 h-4 w-11 -translate-x-1/2 cursor-move rounded-full transition-opacity ${selected || d.posLock ? "opacity-60" : "opacity-0 group-hover/el:opacity-60"}`}
+        title="Drag to move · corners + edges resize"
+        style={{ background: "rgba(147,160,180,0.32)", border: "1px solid rgba(147,160,180,0.5)" }}
+      />
       )}
 
       {/* ELEMENT chrome: level · clone · lock · × — no deck, no flip, no gear.

@@ -235,9 +235,15 @@ export const FILM_MODE_CSS = `
   .film-mode .sa-chrome { display: none !important; }
   .film-mode .conn-dot,
   .film-mode .react-flow__handle { display: none !important; }
-  /* RESIZE STAYS LIVE IN FILM (improvise while filming): a selected card keeps its
-     NodeResizer handles so Lee can nudge size/position mid-take. They only show
-     on the selected card, so an unselected shot is still clean. */
+  /* RESIZE STAYS LIVE IN FILM but the BOX IS OFF-CAMERA (Lee): the NodeResizer line +
+     handles, the move grip, and the selection ring all hide at REST and reveal only
+     when you HOVER the node — so a take never shows a text box, yet you can still
+     hover to move/resize an element mid-take. */
+  .film-mode .react-flow__resize-control { opacity: 0 !important; transition: opacity 120ms ease; }
+  .film-mode .react-flow__node:hover .react-flow__resize-control.handle { opacity: 1 !important; }
+  .film-mode .react-flow__node:hover .react-flow__resize-control.line { opacity: 0.4 !important; }
+  .film-mode .sa-move-grip { opacity: 0 !important; }
+  .film-mode .react-flow__node:hover .sa-move-grip { opacity: 0.65 !important; }
   .film-mode .zone-actions { display: none !important; }
   /* Legend V2 (item 4): the collection number is an authoring aid — off camera. */
   .film-mode .legend-collnum { display: none !important; }
@@ -273,13 +279,12 @@ export const FILM_MODE_CSS = `
      reveal, flip, spotlight, deal). Exiting film restores everything (no
      persisted state — purely a mode gate). The camera bubble is a separate
      overlay, not a node, so it stays draggable. */
+  /* Only the true STRUCTURE stays inert in film. Design ELEMENTS (heading, text,
+     gates, exam cue, …) are now LIVE so Lee can move/resize them mid-take (their
+     chrome is hover-only per the rule above), per his ask. */
   .film-mode .react-flow__node-frame,
   .film-mode .react-flow__node-lesson,
-  .film-mode .react-flow__node-zone,
-  .film-mode .react-flow__node-heading,
-  .film-mode .react-flow__node-text,
-  .film-mode .react-flow__node-paygate,
-  .film-mode .react-flow__node-signupgate {
+  .film-mode .react-flow__node-zone {
     pointer-events: none !important;
   }
   /* FRAME FULLY LOCKED IN FILM: the frame node AND all its own descendants

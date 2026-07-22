@@ -68,7 +68,7 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
       minHeight={minHeight}
       keepAspectRatio={keepAspect}
       lineStyle={{ borderColor: NEON.yellow }}
-      handleStyle={{ width: 7, height: 7, borderRadius: 2, background: NEON.yellow, border: "none" }}
+      handleStyle={{ width: 10, height: 10, borderRadius: 3, background: NEON.yellow, border: "1.5px solid rgba(0,0,0,0.35)" }}
       onResizeStart={() => {
         const me = rf.getNode(id);
         if (me) start.current = { pos: { ...me.position }, w: (me.data as { w?: number }).w, h: (me.data as { h?: number }).h };
@@ -166,7 +166,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
         width: d.w ?? 300,
         minHeight: d.h ?? 60,
         background: "transparent",
-        border: cleanShot ? "1px solid transparent" : `1px ${selected ? "solid" : "dashed"} ${selected ? c.border : "rgba(147,160,180,0.25)"}`,
+        border: cleanShot || nav.film ? "1px solid transparent" : `1px ${selected ? "solid" : "dashed"} ${selected ? c.border : "rgba(147,160,180,0.25)"}`,
         padding: "6px 8px",
         overflow: "visible",
       }}
@@ -178,7 +178,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
           padding box drags too. Edit is DOUBLE-click. Hidden on a clean shot. */}
       {!cleanShot && (
       <div
-        className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
+        className={`sa-move-grip absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
         title="Drag to move"
         style={{ color: NEON.muted }}
       >
@@ -323,7 +323,7 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
       {/* GRAB HANDLE — a clear affordance; the whole box drags too. Hidden clean. */}
       {!cleanShot && (
       <div
-        className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
+        className={`sa-move-grip absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
         title="Drag to move"
         style={{ color: NEON.muted }}
       >
@@ -479,7 +479,7 @@ export function CeqTeaseNode({ id, data, selected }: NodeProps) {
       {!editing && !cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={260} minHeight={90} />
       {!cleanShot && (
-        <div className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`} title="Drag to move" style={{ color: NEON.muted }}>
+        <div className={`sa-move-grip absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`} title="Drag to move" style={{ color: NEON.muted }}>
           <GripVertical className="h-4 w-4" />
         </div>
       )}
