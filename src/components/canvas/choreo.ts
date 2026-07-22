@@ -60,6 +60,35 @@ export function framePartIds(d: CardData): string[] {
   }
 }
 
+/** Part id + a short human label, in reveal order — the G-explode picker (Item 3).
+ *  Aligned with framePartIds. Empty ⇒ the card has no natural parts. */
+export function framePartLabels(d: CardData): { id: string; label: string }[] {
+  switch (d.kind) {
+    case "je":
+      return (d as JeCard).lines.map((l, i) => ({ id: l.id, label: (l as { account?: string }).account || `line ${i + 1}` }));
+    case "computation":
+      return (d as ComputationCard).steps.map((s, i) => ({ id: s.id, label: s.label || `step ${i + 1}` }));
+    case "formula":
+      return (d as FormulaCard).segments.map((s, i) => ({ id: s.id, label: s.label || `part ${i + 1}` }));
+    case "list": {
+      const l = d as ListCard;
+      if (l.progressiveReveal) return [];
+      return [...(l.description ? [{ id: "desc", label: "definition" }] : []), ...l.rows.map((r, i) => ({ id: r.id, label: (r as { text?: string }).text || `item ${i + 1}` }))];
+    }
+    case "legend": {
+      const l = d as unknown as LegendCard;
+      return [...(l.slips ?? []).map((s, i) => ({ id: s.id, label: (s as { text?: string }).text || `slip ${i + 1}` })), ...(l.flavor ? [{ id: "flavor", label: "flavor line" }] : [])];
+    }
+    case "schedule": {
+      const out: { id: string; label: string }[] = [];
+      (d as ScheduleCard).rows.forEach((row, r) => row.forEach((cl, c) => { if (cl.v !== "") out.push({ id: `${r}·${c}`, label: String(cl.v) }); }));
+      return out;
+    }
+    default:
+      return [];
+  }
+}
+
 /** A patch that sets a card's parts to exactly the VISIBLE set (or the whole card).
  *  Order-independent: each part's `hidden` is `!visible.has(id)`. `whole` overrides
  *  the set (everything visible). Touches the SAME fields as the derived walk. */

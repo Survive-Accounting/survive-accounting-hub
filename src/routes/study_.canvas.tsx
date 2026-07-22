@@ -60,7 +60,7 @@ import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blan
 import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
-import { framePartIds, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
+import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
 import { ChoreoScrubber } from "@/components/canvas/ChoreoScrubber";
 import { type CeqSetDef } from "@/components/canvas/ceq-set";
 import { LegendHud } from "@/components/canvas/LegendHud";
@@ -1079,6 +1079,7 @@ function PresentCanvas() {
   const [choreoExploded, setChoreoExploded] = useState<string | null>(null);
   const choreoExplodedRef = useRef<string | null>(null);
   choreoExplodedRef.current = choreoExploded;
+  const hoveredNodeRef = useRef<string | null>(null); // last card the pointer entered (for G-explode)
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
   // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
   // film / OFF outside; followReveals default on. The controller reads them live.
@@ -2181,13 +2182,70 @@ function PresentCanvas() {
     });
   }, [choreographFrameId, choreoTick, choreoExploded, rf, choreoQueuedIds]);
 
+  /** Toggle a single PART of a card in the queue (G-explode, Item 3): append a reveal
+   *  step targeting that part id (arbitrary order, revealed in place), or remove it. */
+  const choreoPartToggle = useCallback((cardNodeId: string, partId: string) => {
+    const fid = choreographRef.current;
+    if (!fid) return;
+    const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const has = cur.some((c) => c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === partId);
+    const next: RecCue[] = has
+      ? cur.filter((c) => !(c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === partId))
+      : [...cur, { id: cardId("cc"), kind: "reveal", cardId: cardNodeId, targetId: partId, label: "Reveal", target: partId }];
+    const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: next }, has ? "un-choreograph part" : "choreograph part");
+    if (c) bus.dispatch(c);
+    setChoreoTick((t) => t + 1);
+  }, [rf]);
+
+  /** Leave the exploded card: if some parts were queued but not all (and no whole/rest
+   *  step already), append ONE "rest of <card>" step so no part is stranded (Item 3). */
+  const finishExplode = useCallback((cardNodeId: string) => {
+    const fid = choreographRef.current;
+    if (fid) {
+      const node = rf.getNode(cardNodeId);
+      const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+      const partCues = cur.filter((c) => c.kind === "reveal" && c.cardId === cardNodeId && c.targetId && c.targetId !== WHOLE_TARGET && c.targetId !== REST_TARGET);
+      const hasWholeOrRest = cur.some((c) => c.kind === "reveal" && c.cardId === cardNodeId && (c.targetId === WHOLE_TARGET || c.targetId === REST_TARGET));
+      const allParts = node ? framePartIds(node.data as never) : [];
+      const coveredAll = allParts.length > 0 && partCues.length >= allParts.length;
+      if (partCues.length > 0 && !hasWholeOrRest && !coveredAll) {
+        const label = (node?.data as { title?: string })?.title || (node?.data as { kind?: string })?.kind || "card";
+        const next = [...cur, { id: cardId("cc"), kind: "reveal" as const, cardId: cardNodeId, targetId: REST_TARGET, label: "Reveal", target: `rest of ${label}` }];
+        const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: next }, "choreograph rest-of-card");
+        if (c) bus.dispatch(c);
+      }
+    }
+    setChoreoExploded(null);
+    setChoreoTick((t) => t + 1);
+  }, [rf]);
+
+  /** G in choreograph → explode the HOVERED card into part targets (or finish the
+   *  current explode). Cards with no natural parts (note / scenery / CEQ / t-account)
+   *  just toast — G never fakes granularity. */
+  const explodeHovered = useCallback(() => {
+    if (!choreographRef.current) return;
+    if (choreoExplodedRef.current) { finishExplode(choreoExplodedRef.current); return; } // G again = done
+    const id = hoveredNodeRef.current;
+    const node = id ? rf.getNode(id) : null;
+    if (!node || node.parentId !== choreographRef.current || isContainerType(node.type)) { flashToast("Hover a card, then press G to explode it into parts"); return; }
+    if (framePartIds(node.data as never).length === 0) { flashToast("No parts to explode — click the card for a single whole reveal"); return; }
+    setChoreoExploded(id);
+    setChoreoTick((t) => t + 1);
+  }, [rf, finishExplode, flashToast]);
+
   // In choreograph mode a click on a frame child toggles its whole-element step
-  // (Item 2). Part-level clicks (Item 3) are handled inside the exploded card.
+  // (Item 2). While a card is exploded, clicking ANOTHER card finishes the explode
+  // first; clicks on the exploded card itself defer to its part picker.
   const onNodeClick = useCallback((_e: unknown, node: { id: string; parentId?: string; type?: string }) => {
     if (!choreographRef.current) return;
     if (node.parentId !== choreographRef.current || isContainerType(node.type)) return;
+    if (choreoExplodedRef.current) {
+      if (choreoExplodedRef.current === node.id) return; // handled by the part picker
+      finishExplode(choreoExplodedRef.current);
+    }
     choreoToggle(node.id);
-  }, [choreoToggle]);
+  }, [choreoToggle, finishExplode]);
+  const onNodeMouseEnter = useCallback((_e: unknown, node: { id?: string }) => { hoveredNodeRef.current = node?.id ?? null; }, []);
 
   /** CUE SHEET PHASE 2 — perform the frame's NEXT (dir=1) / undo its LAST (dir=-1)
    *  cue from the explicit cueOrder. Returns "handled" (a content cue ran → the
@@ -4428,6 +4486,7 @@ function PresentCanvas() {
           setChoreoEntry(fid); // opens Start fresh / Append
         },
       },
+      { combo: "g", group: "Modes", description: "Choreograph: explode the hovered card into per-part steps (G again = done)", handler: () => explodeHovered() },
       { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
       { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
       { combo: "p", group: "Modes", description: "Teleprompter — the current frame's script (authoring + film)", handler: () => setPrompter((v) => { const on = !v; if (on && !currentFrameRef.current) flashToast("Enter a frame — the prompter reads the current frame's script"); return on; }) },
@@ -4507,7 +4566,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep, explodeHovered],
   );
   useKeymap(bindings);
 
@@ -4625,9 +4684,41 @@ function PresentCanvas() {
       )}
       {choreographFrameId && (
         <div className="fixed left-1/2 top-3 z-[85] -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold shadow-lg" style={{ background: "rgba(240,194,75,0.16)", border: "1px solid rgba(240,194,75,0.5)", color: "#f0c24b" }}>
-          ● Choreographing — click to add · click again to remove · G = explode a card · C/Esc to finish
+          ● Choreographing — click to add · click again to remove · G = explode the hovered card · C/Esc to finish
         </div>
       )}
+      {/* G-EXPLODE picker (Item 3) — the exploded card's parts as chips; click in
+          reveal order (arbitrary), each plays IN PLACE. "+ rest of card" reveals the
+          remainder as one step so no part is stranded. */}
+      {choreoExploded && choreographFrameId && (() => {
+        void choreoTick; // re-read the queue after each part toggle
+        const node = rf.getNode(choreoExploded);
+        if (!node) return null;
+        const parts = framePartLabels(node.data as never);
+        const cues = (rf.getNode(choreographFrameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+        const isPart = (t?: string) => !!t && t !== WHOLE_TARGET && t !== REST_TARGET;
+        const orderOf = (pid: string) => { let n = 0; for (const c of cues) { if (c.kind === "reveal" && c.cardId === choreoExploded && isPart(c.targetId)) { n++; if (c.targetId === pid) return n; } } return 0; };
+        const hasRest = cues.some((c) => c.kind === "reveal" && c.cardId === choreoExploded && c.targetId === REST_TARGET);
+        const title = (node.data as { title?: string }).title || (node.data as { kind?: string }).kind || "card";
+        return (
+          <div className="fixed bottom-16 left-1/2 z-[90] max-w-[92vw] -translate-x-1/2 rounded-lg border px-3 py-2 shadow-2xl" style={{ background: "#0b1020", borderColor: "rgba(240,194,75,0.55)", color: "#e8ecf5" }}>
+            <div className="mb-1.5 flex items-center justify-between gap-4">
+              <span className="text-[12px] font-semibold" style={{ color: "#f0c24b" }}>Explode “{title}” — click parts in reveal order</span>
+              <button className="nodrag rounded px-2 py-0.5 text-[11px]" style={{ border: "1px solid rgba(255,255,255,0.25)" }} onClick={() => finishExplode(choreoExploded)}>Done</button>
+            </div>
+            <div className="flex max-w-[86vw] flex-wrap gap-1.5">
+              {parts.map((p) => { const o = orderOf(p.id); const q = o > 0; return (
+                <button key={p.id} className="nodrag rounded px-2 py-1 text-[11.5px]" style={{ background: q ? "rgba(240,194,75,0.18)" : "rgba(255,255,255,0.06)", border: `1px solid ${q ? "rgba(240,194,75,0.6)" : "rgba(255,255,255,0.15)"}`, color: q ? "#f0c24b" : "#e8ecf5" }} onClick={() => choreoPartToggle(choreoExploded, p.id)}>
+                  {o ? `${o}. ` : ""}{p.label}
+                </button>
+              ); })}
+              <button className="nodrag rounded px-2 py-1 text-[11.5px] font-semibold" style={{ background: hasRest ? "rgba(43,108,176,0.4)" : "rgba(43,108,176,0.22)", border: "1px solid rgba(43,108,176,0.6)", color: "#cfe3ff" }} onClick={() => choreoPartToggle(choreoExploded, REST_TARGET)}>
+                {hasRest ? "✓ rest of card" : "+ rest of card"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* SCRUBBER (Item 4) — one dot per queue step under the current frame; drag/click
           seeks via the shared materializer. Shown when the frame has a queue. */}
@@ -4761,6 +4852,7 @@ function PresentCanvas() {
         onMoveStart={onMoveStart}
         onDelete={onDelete}
         onNodeClick={onNodeClick}
+        onNodeMouseEnter={onNodeMouseEnter}
         onNodeDoubleClick={onNodeDoubleClick}
         onConnect={onConnect}
         onEdgeClick={onEdgeClick}
