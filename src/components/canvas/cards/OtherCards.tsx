@@ -1,12 +1,13 @@
 // The simpler card types: T-account (live balance), Computation (step reveal),
 // CEQ (distractor feedback), Memorize (kind badge), Note (neon marker), Video (Mux).
-import { type ReactNode, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { type NodeProps, useReactFlow } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
 import { useFrameNav } from "../FrameNavContext";
+import { renderInline } from "../inline-md";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { playSfx } from "../sfx";
 import { BIG_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
@@ -181,25 +182,7 @@ function stepPx(len: number, steps: { max?: number; px: number }[]): number {
   return steps[steps.length - 1].px;
 }
 const chipLetter = (i: number) => String.fromCharCode(65 + (i % 26)); // A, B, C, …
-
-// INLINE EMPHASIS (redesign Item 2) — a tiny markdown subset: **bold** and
-// ==highlight==. Malformed / unmatched markers render literally (never crash). Only
-// used for DISPLAY; editing shows the raw markers in the text field.
-function renderInline(text: string): ReactNode {
-  const out: ReactNode[] = [];
-  const re = /(\*\*([^*]+?)\*\*|==([^=]+?)==)/g;
-  let last = 0;
-  let k = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) out.push(text.slice(last, m.index));
-    if (m[2] != null) out.push(<strong key={k++} style={{ fontWeight: 900 }}>{m[2]}</strong>);
-    else out.push(<mark key={k++} style={{ background: "rgba(214,158,46,0.38)", color: PAPER.red, padding: "0 3px", borderRadius: 3, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }}>{m[3]}</mark>);
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return out.length ? out : text;
-}
+// Inline **bold** / ==highlight== now lives in ../inline-md (shared with memos).
 
 export function CeqCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CeqCard;

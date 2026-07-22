@@ -18,7 +18,8 @@ import { calcRows } from "../je-logic";
 import { useEditSignal } from "../ui";
 import { spotStyle, spotTargetProps, useCardDim, useSpotlight } from "../SpotlightContext";
 import { MEMO_SELF_TARGET } from "../spotlight";
-import { NEON } from "../theme";
+import { renderInline } from "../inline-md";
+import { DISPLAY_FONT, NEON } from "../theme";
 import { PrincipleTagPicker } from "../PrincipleTagPicker";
 import type { MemoCard, MemoKind } from "../types";
 
@@ -36,6 +37,22 @@ export const MEMO_KIND_OPTIONS: MemoKind[] = ["note", "tip", "trap", "cheat", "c
 
 /** Item 5 — the four category tags that replaced the kind buttons (+ free text). */
 export const MEMO_CATEGORIES = ["STEPS", "EXAM TRAPS", "CHEAT CODES", "OTHER TIPS"] as const;
+
+/** Per-category inline glyph (redesign Item 2) — one emoji system, tasteful + camera-
+ *  legible. Falls back to the memoKind (calc) then a bulb. Covers the spec's 5 named
+ *  categories including ON THE EXAM if it ever appears as a category string. */
+function memoGlyph(category: string | undefined, kind: MemoKind): string {
+  switch ((category ?? "").toUpperCase()) {
+    case "CHEAT CODES": return "💡";
+    case "EXAM TRAPS": return "⚠️";
+    case "STEPS": return "🔢";
+    case "ON THE EXAM": return "🎯";
+    case "OTHER TIPS": return "💬";
+    default: return kind === "calc" ? "🧮" : "💡";
+  }
+}
+const MEMO_MAXW = 340; // ≈ 42ch at 13px — long memos wrap here; short ones stay compact
+const MEMO_HL = { bg: "rgba(252,163,17,0.32)", color: "#FFE9B8" }; // amber highlight on the dark memo
 
 export function MemoCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as MemoCard;
@@ -59,11 +76,12 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
   }, [stp.state, id, rf]);
   const mk = d.memoKind ?? "note";
   const calc = mk === "calc";
-  // Item 3: memo nodes are a SINGLE look now — dark body, GOLD border, icon only
-  // (no kind chip). Kind collapsed to note|calc; the old trap/tip/cheat became
-  // category tags. calc keeps its Calculator icon.
+  // Dark body, GOLD border. The category is shown by an INLINE glyph at the start of
+  // the text (redesign Item 2) — no standalone icon row. Font unified to the canvas
+  // DISPLAY stack (Sora), the same one headings use (Item 3).
   const GOLD = { edge: "rgba(252,163,17,0.55)", ink: "#F5D48F" };
-  const Icon = calc ? Calculator : Lightbulb;
+  const glyph = memoGlyph(d.category, mk);
+  const glyphStyle = { fontSize: "1.22em", marginRight: 5, verticalAlign: "-1px" } as const;
 
   return (
     <div
@@ -71,47 +89,45 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
       onPointerDownCapture={(e) => { toFront(); if ((e.ctrlKey || e.metaKey) && sp) { e.preventDefault(); e.stopPropagation(); sp.start(id, MEMO_SELF_TARGET); } }}
       className="group/el animate-in fade-in relative rounded-md duration-150"
       style={{
-        width: d.w ?? 200,
-        minHeight: d.h ?? 56,
-        padding: "6px 8px",
-        color: "rgba(244,246,250,0.92)",
+        // AUTO-SIZE (Item 2): shrink to content, wrap long memos at a readable measure.
+        // A manual resize (d.w / d.h) still wins.
+        width: d.w ?? "fit-content",
+        maxWidth: d.w ?? MEMO_MAXW,
+        minHeight: d.h ?? undefined,
+        padding: 15,
+        color: "rgba(244,246,250,0.94)",
         background: "rgba(16,27,49,0.94)",
         border: `1px solid ${deckFlash ? NEON.yellow : selected ? GOLD.ink : GOLD.edge}`,
         boxShadow: deckFlash ? `0 0 0 3px ${NEON.yellow}, 0 0 20px -2px ${NEON.yellow}` : selected ? `0 0 18px -6px ${GOLD.ink}` : "0 10px 24px -12px rgba(0,0,0,0.6)",
+        fontFamily: DISPLAY_FONT,
         ...spotStyle(stp.state),
         ...dim,
       }}
     >
       <ConnectionDots color={GOLD.ink} />
       <ElementChrome id={id} posLock={d.posLock} selected={selected} />
-      <ElementResizer id={id} selected={selected} minWidth={140} minHeight={48} />
+      <ElementResizer id={id} selected={selected} minWidth={120} minHeight={44} />
 
-      {/* header: icon only (+ optional title / category tag) — no kind chip */}
-      <div className="mb-0.5 flex items-center gap-1">
-        <Icon className="h-3 w-3 shrink-0" style={{ color: GOLD.ink }} />
-        {d.title ? (
-          <span className="min-w-0 flex-1 truncate text-[11px] font-bold" style={{ color: GOLD.ink }}>{d.title}</span>
-        ) : (
-          <span className="min-w-0 flex-1" />
-        )}
+      {/* category tag + deck chip — hover chrome, top-right (no dead flow row above text) */}
+      <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/el:opacity-100">
         {d.category ? (
-          <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: GOLD.ink, border: `1px solid ${GOLD.edge}` }}>
-            {d.category}
-          </span>
+          <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: GOLD.ink, background: "rgba(16,27,49,0.9)", border: `1px solid ${GOLD.edge}` }}>{d.category}</span>
         ) : null}
-        {/* DECK CHIP (item 4b) — hover-revealed; drag onto a memo deck to assign */}
-        <span className="shrink-0 opacity-0 transition-opacity group-hover/el:opacity-100"><DeckChip nodeId={id} deckId={d.deckId} /></span>
+        <DeckChip nodeId={id} deckId={d.deckId} />
       </div>
 
-      {/* body — double-click to edit (single click/drag moves the node) */}
+      {/* body — glyph INLINE at the start of the text (Item 2); **bold** / ==highlight==
+          (Item 3). Double-click to edit (single click/drag moves the node). */}
       <div
         ref={bodyRef}
-        className="cursor-move whitespace-pre-wrap leading-snug"
+        className="cursor-move whitespace-pre-wrap"
+        style={{ fontSize: 13, lineHeight: 1.35 }}
         title="Double-click to edit · drag to move"
         onDoubleClick={(e) => { setAnchor(e.currentTarget); setEditing(true); }}
       >
         {calc && d.body ? (
-          <span className="grid grid-cols-[1fr_auto] gap-x-1 text-[10.5px] tabular-nums" style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>
+          <span className="grid grid-cols-[1fr_auto] gap-x-1.5 text-[12px] tabular-nums" style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>
+            <span className="col-span-2 mb-0.5" aria-hidden style={{ fontSize: "1.2em" }}>{glyph}</span>
             {calcRows(d.body).map((r, ri) =>
               r.right === null ? (
                 <span key={ri} className="col-span-2 text-right">{r.left}</span>
@@ -123,10 +139,25 @@ export function MemoCardNode({ id, data, selected }: NodeProps) {
               ),
             )}
           </span>
-        ) : d.body ? (
-          <span className="text-[11px]">{d.body}</span>
+        ) : d.body || d.title ? (
+          <>
+            {d.title ? (
+              <div className="font-bold" style={{ color: GOLD.ink }}>
+                <span aria-hidden style={glyphStyle}>{glyph}</span>
+                {renderInline(d.title, MEMO_HL)}
+              </div>
+            ) : null}
+            {d.body ? (
+              <div style={d.title ? { marginTop: 3 } : undefined}>
+                {!d.title ? <span aria-hidden style={glyphStyle}>{glyph}</span> : null}
+                {renderInline(d.body, MEMO_HL)}
+              </div>
+            ) : null}
+          </>
         ) : (
-          <span className="text-[11px] italic" style={{ opacity: 0.5 }}>Double-click to write…</span>
+          <span className="italic" style={{ opacity: 0.55 }}>
+            <span aria-hidden style={glyphStyle}>{glyph}</span>Double-click to write…
+          </span>
         )}
       </div>
 
