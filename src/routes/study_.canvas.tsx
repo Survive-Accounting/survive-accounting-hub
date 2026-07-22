@@ -67,6 +67,7 @@ import { type CeqSetDef } from "@/components/canvas/ceq-set";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
+import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonType, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
@@ -1827,6 +1828,8 @@ function PresentCanvas() {
   const [newLessonOpen, setNewLessonOpen] = useState(false);
   const [newLessonType, setNewLessonType] = useState<LessonType>("CEQ_CRAM");
   const [newLessonTopic, setNewLessonTopic] = useState("");
+  // GRID-BY-TYPE VIEW (ITEM 4) — read-only projection overlay; toggling is lossless.
+  const [gridByType, setGridByType] = useState(false);
   // ONE lesson cell = a lesson node + its 4 beat frames (Hook · Teach · M/P ·
   // Check, one sub-frame each at row 0). Reused by the scaffold and by the
   // ghost-cell "+ add lesson" click, so every cell is stamped identically.
@@ -5453,6 +5456,8 @@ function PresentCanvas() {
           <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
           <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>
           <TB title="Storyboard — every frame in film order; click one to jump in" active={storyboardOpen} onClick={() => setStoryboardOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>
+          {/* GRID BY TYPE (ITEM 4) — read-only projection: type columns × topic rows. */}
+          <TB title="Grid by type — lessons projected into type columns × topic rows (read-only; toggle back is lossless)" active={gridByType} onClick={() => setGridByType((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
           <TB title="Camera-safe guides — phone-safe, camera bubble, watermark + end-screen zones (enter a frame)" active={safeGuides} onClick={() => { const nv = !safeGuides; setSafeGuides(nv); if (nv && !currentFrameId) flashToast("Enter a frame to see the safe zones"); }}><Frame className="h-3.5 w-3.5" /></TB>
           {/* Birds-eye button removed — Esc bottoms out at the CURRENT lesson's
               overview (fitCurrentLesson), never the whole course. */}
@@ -6106,6 +6111,9 @@ function PresentCanvas() {
           </div>
         </div>
       )}
+
+      {/* GRID BY TYPE (ITEM 4) — read-only projection overlay. */}
+      {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} />}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (
