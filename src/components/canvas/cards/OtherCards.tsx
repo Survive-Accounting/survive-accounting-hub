@@ -8,7 +8,7 @@ import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
 import { useFrameNav } from "../FrameNavContext";
 import { renderInline } from "../inline-md";
-import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
+import { MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
 import { playSfx } from "../sfx";
 import { BIG_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
@@ -262,7 +262,6 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
               // resolveCeqChoice), never on a click. Click-to-pick is a silent self-check.
               onClick={() => { if (editing) return; setPicked(c.id); }}
             >
-              <MemoAnchor subId={c.id} />
               {/* LETTER CHIP (A, B, C… by position) */}
               <span
                 className="grid shrink-0 place-items-center rounded-md font-black"
@@ -279,9 +278,11 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 className="min-w-0 flex-1"
                 style={{ fontSize: choicePx, fontWeight: 600, lineHeight: 1.3, color: st === "right" ? PAPER.green : PAPER.ink, textDecoration: st === "wrong" ? "line-through" : undefined, textDecorationThickness: st === "wrong" ? "2px" : undefined }}
               >
-                {editing
-                  ? <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing placeholder="Choice" />
-                  : renderInline(c.text || "")}
+                <TextAnchor subId={c.id} nodeId={id}>
+                  {editing
+                    ? <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing placeholder="Choice" />
+                    : renderInline(c.text || "")}
+                </TextAnchor>
               </span>
               {!editing && (
                 <MemoLightbulb

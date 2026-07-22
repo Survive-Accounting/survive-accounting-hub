@@ -4,8 +4,9 @@
 // ordinary RF edge) to a handle on the target. Because both are real nodes/edges,
 // the memo drags freely (the arrow follows), edits in place, persists, and is
 // collectable into a memo deck — all reused, nothing bespoke.
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Lightbulb } from "lucide-react";
-import { Handle, Position, useReactFlow } from "@xyflow/react";
+import { Handle, Position, useReactFlow, useUpdateNodeInternals } from "@xyflow/react";
 
 import { bus, type RfLike } from "./commands";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -16,7 +17,8 @@ import { cardId } from "./types";
 export const memoAnchorId = (subId: string) => `anc:${subId}`;
 
 /** The invisible target Handle a sub-element exposes so a memo arrow can anchor
- *  to THAT component (not just the card). Drop inside the segment/row element. */
+ *  to THAT component (not just the card). Drop inside the segment/row element.
+ *  Element-EDGE anchor — the fallback when a target has no measurable text. */
 export function MemoAnchor({ subId }: { subId: string }) {
   return (
     <Handle
@@ -26,6 +28,55 @@ export function MemoAnchor({ subId }: { subId: string }) {
       isConnectable={false}
       style={{ right: -2, width: 6, height: 6, background: "transparent", border: "none", opacity: 0, pointerEvents: "none" }}
     />
+  );
+}
+
+/** TEXT anchor (redesign Item 1) — wraps a target's TEXT run and drops the memo
+ *  anchor handle ~7px past the END of the rendered text (not the padded container
+ *  edge), so a memo arrow lands right at the glyphs. Measures the real text box
+ *  (offset geometry, no per-frame tick) and re-resolves via updateNodeInternals when
+ *  the text reflows (edit / resize) — a ResizeObserver on the run; node move/scale
+ *  are handled by React Flow's own node observer. Empty text → element-edge fallback.
+ *
+ *  The handle stays Position.Right (the common right-approach case — Lee's repro).
+ *  A wrapped/multi-line run reports its block box, so the anchor lands at the block's
+ *  right edge + vertical centre. */
+export function TextAnchor({ subId, nodeId, children }: { subId: string; nodeId: string; children: ReactNode }) {
+  const updateNodeInternals = useUpdateNodeInternals();
+  const ref = useRef<HTMLSpanElement>(null);
+  const [end, setEnd] = useState<{ x: number; y: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      if (!el.offsetParent || el.offsetWidth === 0) { setEnd((p) => (p === null ? p : null)); return; }
+      const x = el.offsetLeft + el.offsetWidth;
+      const y = el.offsetTop + el.offsetHeight / 2;
+      setEnd((p) => (p && p.x === x && p.y === y ? p : { x, y }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+  // when the handle's position changes, tell RF to re-read this node's handles so the
+  // edge re-routes to the new text-end anchor.
+  useEffect(() => { updateNodeInternals(nodeId); }, [end, nodeId, updateNodeInternals]);
+  return (
+    <>
+      {/* inline-block so a single-line run shrinks to the glyphs (anchor lands at the
+          last glyph); wraps within the row at 100% for long text */}
+      <span ref={ref} style={{ display: "inline-block", maxWidth: "100%", verticalAlign: "middle" }}>{children}</span>
+      <Handle
+        type="target"
+        position={Position.Right}
+        id={memoAnchorId(subId)}
+        isConnectable={false}
+        style={end
+          ? { left: end.x + 7, right: "auto", top: end.y, transform: "translate(-50%, -50%)", width: 6, height: 6, background: "transparent", border: "none", opacity: 0, pointerEvents: "none" }
+          : { right: -2, width: 6, height: 6, background: "transparent", border: "none", opacity: 0, pointerEvents: "none" }}
+      />
+    </>
   );
 }
 

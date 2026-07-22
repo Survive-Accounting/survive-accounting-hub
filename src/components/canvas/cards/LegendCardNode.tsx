@@ -8,7 +8,7 @@ import { ArrowDown, ArrowUp, Copy, ImagePlus, Lock, LockOpen, Minus, Plus, Trash
 
 import { useCardActions } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
-import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
+import { MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
 import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
 import { EditableText, useEditSignal } from "../ui";
 import { uploadImageFile } from "./ImageCardNode";
@@ -174,11 +174,12 @@ export function LegendCardNode({ id, data, selected }: NodeProps) {
                 className="group/slip animate-in fade-in slide-in-from-bottom-1 relative flex items-start gap-1.5 py-0.5 text-[11px] leading-snug duration-200"
                 style={{ ...spotStyle(st.state), opacity: editing && s.hidden ? 0.4 : st.state === "dim" ? 0.85 : 1 }}
               >
-                {/* per-SLIP memo anchor — a memo can point at THIS slip */}
-                <MemoAnchor subId={s.id} />
                 <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: FRAME.gold }} />
+                {/* per-SLIP memo anchor lands at the END of the slip's text (TextAnchor) */}
                 <span className="min-w-0 flex-1 whitespace-pre-wrap">
-                  <EditableText value={s.text} onChange={(v) => patchSlip(s.id, v)} editing={editing} placeholder={`Slip ${i + 1}`} multiline />
+                  <TextAnchor subId={s.id} nodeId={id}>
+                    <EditableText value={s.text} onChange={(v) => patchSlip(s.id, v)} editing={editing} placeholder={`Slip ${i + 1}`} multiline />
+                  </TextAnchor>
                 </span>
                 <MemoLightbulb
                   targetId={id}

@@ -15,7 +15,7 @@ import { useFrameNav } from "../FrameNavContext";
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { useCanvasSettings } from "../CanvasSettingsContext";
-import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
+import { MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
 import { spotStyle, spotTargetProps, useSpotlight } from "../SpotlightContext";
 import { EditableText, useEditSignal } from "../ui";
 import { NEON, PAPER } from "../theme";
@@ -200,11 +200,12 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           const st = spotTargetProps(sp, id, r.key);
           return (
           <li key={r.key} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), paddingLeft: r.indent ? 18 : 0, ...progStyle(descOff + outlineRows.length + i) }}>
-            <MemoAnchor subId={r.key} />
             {bullet(outlineRows.length + i)}
             <span className="min-w-0 flex-1 font-medium" style={{ color: PAPER.ink }}>
-              {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
-              {r.text}
+              <TextAnchor subId={r.key} nodeId={id}>
+                {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
+                {r.text}
+              </TextAnchor>
             </span>
             <MemoLightbulb targetId={id} handleId={memoAnchorId(r.key)} title="Attach a memo to this account" className="h-5 w-5 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100" style={{ color: PAPER.navy }} />
             {chipEl(r.chip)}
@@ -222,13 +223,15 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
           const st = spotTargetProps(sp, id, r.id);
           return (
           <li key={r.id} {...st.props} className="group/row relative flex items-center gap-1.5 text-[14px]" style={{ ...spotStyle(st.state), opacity: prog ? (progHidden(descOff + outlineRows.length + pulledRows.length + i) ? (nav.film ? 0 : 0.15) : 1) : (r.hidden ? 0.15 : st.state === "dim" ? 0.85 : 1), paddingLeft: r.indent ? 18 : 0 }}>
-            <MemoAnchor subId={r.id} />
             {bullet(outlineRows.length + pulledRows.length + i)}
             {/* No default "you are here" emphasis (Lee's call) — emphasis comes only
-                from the user's spotlight/super-spotlight. */}
+                from the user's spotlight/super-spotlight. The memo anchor lands at the
+                END of the rendered text (TextAnchor), not the row edge. */}
             <span className="min-w-0 flex-1 break-words" style={{ color: PAPER.ink, fontWeight: 500 }}>
-              {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
-              <EditableText value={r.text} onChange={(v) => patchRow(r.id, { text: v })} editing={editing} placeholder="Item" />
+              <TextAnchor subId={r.id} nodeId={id}>
+                {r.indent && <span style={{ color: PAPER.inkMuted }}>Less: </span>}
+                <EditableText value={r.text} onChange={(v) => patchRow(r.id, { text: v })} editing={editing} placeholder="Item" />
+              </TextAnchor>
             </span>
             <MemoLightbulb targetId={id} handleId={memoAnchorId(r.id)} title="Attach a memo to this item" className="h-5 w-5 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100" style={{ color: PAPER.navy }} />
             {chipEl(r.chip, editing ? () => cycleChip(r) : undefined)}
