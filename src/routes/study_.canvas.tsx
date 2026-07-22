@@ -5118,9 +5118,14 @@ function PresentCanvas() {
           {drawerPanel === "key" && <LegendHud docked />}
         </BrandBar>
       )}
-      {/* Corner watermark — toggleable; and NEVER over a frame's full-bleed
-          background loop (the branded loop is the mark; the video reads over it). */}
-      {!chrome && watermarkOn && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { bgSrc?: string } | undefined)?.bgSrc) && <BrandWatermark />}
+      {/* Corner watermark — toggleable; NEVER over a frame's full-bleed background loop
+          (the branded loop is the mark), and suppressed while a CEQ is SPOTLIT since the
+          redesigned CEQ carries its own in-card logotype (redesign Item 4 — reuses the
+          existing spotlight signal, no new mechanism built). */}
+      {!chrome && watermarkOn
+        && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { bgSrc?: string } | undefined)?.bgSrc)
+        && !(spot.focusTarget && rf.getNode(spot.focusTarget.cardId)?.type === "ceq")
+        && <BrandWatermark />}
 
       {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection; owns its
           own subscriptions so pan/zoom doesn't re-render the route */}

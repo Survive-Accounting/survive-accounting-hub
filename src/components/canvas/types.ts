@@ -289,6 +289,9 @@ export interface CeqCard extends CardBase {
   /** AUTO-TAGS (choreo Item 7): accumulated in film, e.g. "CEQ_DISTRACTOR" the first
    *  time a wrong choice is Enter-resolved on camera. Metadata only, queryable later. */
   tags?: string[];
+  /** WIDTH PRESET (redesign Item 6): standard (default) or wide. The only per-card
+   *  design knob. A manual resize (w) still wins if set. */
+  wide?: boolean;
 }
 
 // ---- Memorize ----

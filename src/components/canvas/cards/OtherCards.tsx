@@ -1,6 +1,6 @@
 // The simpler card types: T-account (live balance), Computation (step reveal),
 // CEQ (distractor feedback), Memorize (kind badge), Note (neon marker), Video (Mux).
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { type NodeProps, useReactFlow } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -9,7 +9,7 @@ import { EditableNumber, EditableText, fmtNum } from "../ui";
 import { useFrameNav } from "../FrameNavContext";
 import { MemoAnchor, MemoLightbulb, memoAnchorId } from "../MemoLightbulb";
 import { playSfx } from "../sfx";
-import { NEON, NOTE_COLORS, PAPER } from "../theme";
+import { BIG_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
   cardId,
   type CeqCard,
@@ -152,15 +152,54 @@ export function ComputationCardNode({ id, data, selected }: NodeProps) {
 }
 
 // ============================== CEQ ==============================
-// STEM TYPE-OUT (choreo Item 5): on deal / frame-entry in film the stem types
-// itself in (clip reveal), then the options fade up staggered — one composed
-// "deal" animation. Scoped under .film-mode so authoring never plays it.
+// VISUAL REDESIGN (on-camera legibility) — behaviour is UNCHANGED from the
+// choreograph/live-keys build (one-step deal, auto-focus, up/down emphasis, Enter
+// resolution + per-choice memos, chaching only on correct-Enter, CEQ_DISTRACTOR).
+// This block is styling only.
+//
+// STEM TYPE-OUT (choreo Item 5): on deal / frame-entry in film the stem types itself
+// in, then options fade up staggered. Plus a one-time PULSE on a correct resolve
+// (synced to the chaching). Scoped under .film-mode so authoring never plays type-out.
 const CEQ_TYPEOUT_CSS = `
 @keyframes sa-ceq-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2% 0 0); } }
 .film-mode .sa-ceq-type { animation: sa-ceq-type 520ms steps(24, end) both; }
 @keyframes sa-ceq-opt { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .film-mode .sa-ceq-opt { animation: sa-ceq-opt 240ms ease both; }
+@keyframes sa-ceq-pulse { 0% { transform: scale(1); } 42% { transform: scale(1.045); } 100% { transform: scale(1); } }
+.sa-ceq-pulse { animation: sa-ceq-pulse 420ms ease; }
 `;
+
+// STEPPED text sizing (redesign Item 1) — 3 preset px sizes (L / M / S) chosen by
+// character count, NOT continuous scaling (so a deck doesn't jitter). LEE: tune the
+// numbers here — the `max` is the inclusive upper char count for that step.
+const STEM_STEPS = [{ max: 46, px: 30 }, { max: 120, px: 24 }, { px: 19 }]; // L · M · S
+const CHOICE_STEPS = [{ max: 22, px: 20 }, { max: 55, px: 17 }, { px: 15 }];
+const CEQ_STD_W = 400;
+const CEQ_WIDE_W = 560;
+function stepPx(len: number, steps: { max?: number; px: number }[]): number {
+  for (const s of steps) if (s.max == null || len <= s.max) return s.px;
+  return steps[steps.length - 1].px;
+}
+const chipLetter = (i: number) => String.fromCharCode(65 + (i % 26)); // A, B, C, …
+
+// INLINE EMPHASIS (redesign Item 2) — a tiny markdown subset: **bold** and
+// ==highlight==. Malformed / unmatched markers render literally (never crash). Only
+// used for DISPLAY; editing shows the raw markers in the text field.
+function renderInline(text: string): ReactNode {
+  const out: ReactNode[] = [];
+  const re = /(\*\*([^*]+?)\*\*|==([^=]+?)==)/g;
+  let last = 0;
+  let k = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    if (m[2] != null) out.push(<strong key={k++} style={{ fontWeight: 900 }}>{m[2]}</strong>);
+    else out.push(<mark key={k++} style={{ background: "rgba(214,158,46,0.38)", color: PAPER.red, padding: "0 3px", borderRadius: 3, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }}>{m[3]}</mark>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out.length ? out : text;
+}
 
 export function CeqCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CeqCard;
@@ -194,45 +233,72 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
   })();
   const patchChoice = (cid: string, p: Record<string, unknown>) => update({ choices: d.choices.map((c) => (c.id === cid ? { ...c, ...p } : c)) });
   const chosen = d.choices.find((c) => c.id === picked);
+  // Stepped, char-count text sizing (Item 1) + width preset (Item 6). Manual resize (w) wins.
+  const stemPx = stepPx((d.prompt || "").length, STEM_STEPS);
+  const choicePx = stepPx(d.choices.reduce((mx, c) => Math.max(mx, (c.text || "").length), 0), CHOICE_STEPS);
+  const cardW = d.w ?? (d.wide ? CEQ_WIDE_W : CEQ_STD_W);
 
   return (
-    <BaseCard id={id} data={d} selected={selected} accent={NEON.pink}>
+    <BaseCard id={id} data={d} selected={selected} accent={NEON.pink} fixedWidth={cardW}>
       <style>{CEQ_TYPEOUT_CSS}</style>
-      <p key={typeKey} className={`mb-2 text-[13px] leading-relaxed${editing ? "" : " sa-ceq-type"}`} style={{ color: PAPER.ink }}>
-        <EditableText value={d.prompt} onChange={(v) => update({ prompt: v })} editing={editing} multiline placeholder="Prompt" />
+      {/* In-card logotype (Item 4) — subtle, non-interactive. */}
+      <div className="pointer-events-none mb-1 inline-flex items-baseline gap-1 select-none" style={{ opacity: 0.4, lineHeight: 1 }} aria-hidden>
+        <span style={{ fontFamily: BIG_FONT, fontWeight: 900, fontSize: 9, letterSpacing: "0.12em", color: PAPER.navy }}>SURVIVE</span>
+        <span style={{ fontWeight: 800, fontSize: 6.5, letterSpacing: "0.3em", color: PAPER.gold }}>ACCOUNTING</span>
+      </div>
+      {/* STEM — large, bold, top-aligned, generous line height. Inline **bold** / ==highlight==. */}
+      <p key={typeKey} className={editing ? "mb-3" : "mb-3 sa-ceq-type"} style={{ fontSize: stemPx, fontWeight: 800, lineHeight: 1.28, color: PAPER.ink }}>
+        {editing
+          ? <EditableText value={d.prompt} onChange={(v) => update({ prompt: v })} editing multiline placeholder="Prompt" />
+          : renderInline(d.prompt || "")}
       </p>
-      <div key={`${typeKey}-opts`} className="space-y-1">
+      <div key={`${typeKey}-opts`} className="space-y-2">
         {d.choices.map((c, ci) => {
-          // RESOLUTION (Item 6): a choice is "revealed" via Enter-resolve (c.resolved),
-          // the legacy student click (picked), or reveal-all. Correct → green, a
-          // resolved/picked distractor → red + strikethrough. Multiple coexist.
+          // STATE (Item 3, VISUAL ONLY — logic unchanged): a choice is "revealed" via
+          // Enter-resolve (c.resolved), the legacy student click (picked), or reveal-all.
           const resolved = !!c.resolved;
           const revealed = d.revealedAnswer || picked === c.id || resolved;
-          const showState = revealed ? (c.correct ? "right" : picked === c.id || resolved ? "wrong" : null) : null;
-          // EMPHASIS (Item 6): amber "we're looking at this one" pointer while the CEQ
-          // is focused (selected). Reveals nothing — distinct from the resolution colour.
+          const st = revealed ? (c.correct ? "right" : picked === c.id || resolved ? "wrong" : null) : null;
+          // EMPHASIS = amber ring + amber chip, NO fill (distinct from resolution).
           const emphasized = !!selected && !editing && d.emphasis === c.id;
+          const chip = st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : emphasized ? "#B8860B" : PAPER.inkMuted;
+          const chipSize = Math.round(choicePx * 1.55);
           return (
             <div
               key={c.id}
-              className={`group/choice nodrag relative flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-[12.5px] transition-colors${editing ? "" : " sa-ceq-opt"}`}
+              className={`group/choice nodrag relative flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors${editing ? "" : " sa-ceq-opt"}${st === "right" ? " sa-ceq-pulse" : ""}`}
               style={{
-                borderColor: showState === "right" ? PAPER.green : showState === "wrong" ? PAPER.red : emphasized ? "rgba(214,158,46,0.95)" : PAPER.line,
-                color: showState === "right" ? PAPER.green : PAPER.ink,
-                background: showState === "right" ? "rgba(30,127,79,0.07)" : showState === "wrong" ? "rgba(194,24,50,0.06)" : emphasized ? "rgba(214,158,46,0.10)" : "transparent",
-                boxShadow: emphasized ? "0 0 0 2px rgba(214,158,46,0.9), 0 0 14px rgba(214,158,46,0.35)" : undefined,
-                textDecoration: showState === "wrong" ? "line-through" : undefined,
+                borderColor: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : emphasized ? "rgba(184,134,11,0.95)" : PAPER.line,
+                background: st === "right" ? "rgba(30,127,79,0.12)" : st === "wrong" ? "rgba(194,24,50,0.09)" : "transparent",
+                boxShadow: emphasized ? "0 0 0 2px rgba(184,134,11,0.85), 0 0 16px rgba(184,134,11,0.3)" : undefined,
+                filter: st === "wrong" ? "grayscale(0.35)" : undefined,
                 animationDelay: editing ? undefined : `${520 + ci * 80}ms`,
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              // SOUND DISCIPLINE (Item 8): the win sound ("confirm"/chaching) fires
-              // ONLY on a correct-answer ENTER-resolve (resolveCeqChoice), never on a
-              // click. Click-to-pick stays a silent visual self-check.
+              // SOUND DISCIPLINE: the win sound fires ONLY on a correct-Enter (route
+              // resolveCeqChoice), never on a click. Click-to-pick is a silent self-check.
               onClick={() => { if (editing) return; setPicked(c.id); }}
             >
               <MemoAnchor subId={c.id} />
-              <span className="min-w-0 flex-1">
-                <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing={editing} placeholder="Choice" />
+              {/* LETTER CHIP (A, B, C… by position) */}
+              <span
+                className="grid shrink-0 place-items-center rounded-md font-black"
+                style={{
+                  width: chipSize, height: chipSize, fontSize: Math.round(choicePx * 0.82),
+                  color: st ? "#fff" : chip,
+                  background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : emphasized ? "rgba(184,134,11,0.16)" : "transparent",
+                  border: `1.5px solid ${chip}`,
+                }}
+              >
+                {chipLetter(ci)}
+              </span>
+              <span
+                className="min-w-0 flex-1"
+                style={{ fontSize: choicePx, fontWeight: 600, lineHeight: 1.3, color: st === "right" ? PAPER.green : PAPER.ink, textDecoration: st === "wrong" ? "line-through" : undefined, textDecorationThickness: st === "wrong" ? "2px" : undefined }}
+              >
+                {editing
+                  ? <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing placeholder="Choice" />
+                  : renderInline(c.text || "")}
               </span>
               {!editing && (
                 <MemoLightbulb
@@ -276,44 +342,33 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
           <EditableText value={chosen.feedback ?? ""} onChange={(v) => patchChoice(chosen.id, { feedback: v })} editing={editing} multiline placeholder="Feedback for this distractor" />
         </div>
       )}
-      <div className="mt-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <button
-            className="nodrag rounded px-1.5 py-0.5 text-[11px] font-semibold"
-            style={{ color: PAPER.gold, border: "1px solid rgba(138,90,0,0.4)" }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => update({ revealedAnswer: !d.revealedAnswer })}
-          >
-            {d.revealedAnswer ? "hide answer" : "reveal answer"}
-          </button>
-          {/* CORRECT-ANSWER SOUND toggle (Lee) — per CEQ: plays the confirm SFX
-              when the right choice is picked in film. Authoring chrome (hidden on
-              camera). Default on. */}
-          <button
-            className="sa-chrome nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
-            title="Correct-answer win sound for THIS question — plays when the correct choice is resolved (Enter, film). Click to toggle."
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => update({ confirmSfx: d.confirmSfx === false ? true : false })}
-            style={{ color: d.confirmSfx === false ? PAPER.inkFaint : PAPER.green, border: `1px solid ${d.confirmSfx === false ? PAPER.line : "rgba(31,157,87,0.5)"}` }}
-          >
-            🔔 {d.confirmSfx === false ? "off" : "on"}
-          </button>
-          {/* STEM KEYPAD toggle (choreo Item 5) — plays the keypad cue as the stem
-              types out on deal (film). Default on (undefined ⇒ plays). */}
-          <button
-            className="sa-chrome nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
-            title="Keypad type-out sound for THIS question's stem (film). Click to toggle."
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => update({ keypadSfx: d.keypadSfx === false ? true : false })}
-            style={{ color: d.keypadSfx === false ? PAPER.inkFaint : PAPER.navy, border: `1px solid ${d.keypadSfx === false ? PAPER.line : "rgba(20,33,61,0.4)"}` }}
-          >
-            ⌨ {d.keypadSfx === false ? "off" : "on"}
-          </button>
-        </div>
+      {/* AUTHORING CHROME (hidden on camera) — sound toggles + width preset. The legacy
+          "reveal answer" button is REMOVED (Item 5): Enter-resolution is the only path. */}
+      <div className="sa-chrome mt-2 flex items-center gap-1.5">
+        <button
+          className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
+          title="Correct-answer win sound — plays when the correct choice is resolved (Enter, film). Toggle."
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => update({ confirmSfx: d.confirmSfx === false ? true : false })}
+          style={{ color: d.confirmSfx === false ? PAPER.inkFaint : PAPER.green, border: `1px solid ${d.confirmSfx === false ? PAPER.line : "rgba(31,157,87,0.5)"}` }}
+        >
+          🔔 {d.confirmSfx === false ? "off" : "on"}
+        </button>
+        <button
+          className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
+          title="Keypad type-out sound for the stem (film). Toggle."
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => update({ keypadSfx: d.keypadSfx === false ? true : false })}
+          style={{ color: d.keypadSfx === false ? PAPER.inkFaint : PAPER.navy, border: `1px solid ${d.keypadSfx === false ? PAPER.line : "rgba(20,33,61,0.4)"}` }}
+        >
+          ⌨ {d.keypadSfx === false ? "off" : "on"}
+        </button>
+        <span className="mx-0.5 h-4 w-px" style={{ background: PAPER.line }} />
+        {/* WIDTH PRESET (Item 6): standard | wide — the ONLY design knob. Clears manual resize. */}
+        <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Standard width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: false, w: undefined })} style={{ color: !d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${!d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>std</button>
+        <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Wide width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: true, w: undefined })} style={{ color: d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>wide</button>
         {picked && (
-          <button className="nodrag text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => setPicked(null)}>
-            reset
-          </button>
+          <button className="nodrag ml-auto text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => setPicked(null)}>reset</button>
         )}
       </div>
     </BaseCard>
