@@ -1,7 +1,7 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
 import { useRef, useState } from "react";
-import { NodeResizer, useReactFlow } from "@xyflow/react";
+import { useReactFlow } from "@xyflow/react";
 import { Lightbulb, Lock, LockOpen, Minus, Pencil, Plus, Copy, Scaling, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
 import { ConnectionDots } from "./ConnectionDots";
@@ -51,6 +51,72 @@ export function CardScaleHandle({ scale, onScale, corner = "br" }: { scale: numb
         <Scaling className="h-3 w-3" />
       </button>
     </div>
+  );
+}
+
+/** Below this scale a card's text risks illegibility on a 1080p capture — we
+ *  WARN (never block) so Lee knows a tiny card may not read on camera. */
+export const MIN_LEGIBLE_SCALE = 0.4;
+
+/** UNIFIED RESIZE FRAME (Item 1+2). transformOrigin is top-left, so the RIGHT /
+ *  BOTTOM / BOTTOM-RIGHT grips grow the card toward the bottom-right WITHOUT
+ *  moving it — that's the spec rule (resize never repositions; only the TOP edge
+ *  moves). Every grip drives `data.scale` UNIFORMLY, so the card scales as ONE
+ *  unit — box, padding and TEXT together (crisp CSS transform, same mechanism as
+ *  the JE/note/CEQ cards). Proportional to the drag: the grip tracks the pointer's
+ *  distance from the top-left anchor, so dragging a corner to ~58% renders ~58%.
+ *  Grips are `nodrag` (they never trigger a node move) and hover-revealed, so an
+ *  unselected shot is clean; they also survive film (no `.sa-chrome`, hover-only). */
+export function CardResizeFrame({ scale, onScale, accent }: { scale: number; onScale: (s: number) => void; accent: string }) {
+  const [pct, setPct] = useState<number | null>(null);
+  const begin = (axis: "d" | "x" | "y") => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const nodeEl = (e.currentTarget as HTMLElement).closest(".react-flow__node") as HTMLElement | null;
+    if (!nodeEl) return;
+    const r = nodeEl.getBoundingClientRect();
+    const ax = r.left, ay = r.top; // top-left = the transformOrigin anchor
+    const base = axis === "x" ? r.width : axis === "y" ? r.height : Math.hypot(r.width, r.height);
+    if (base <= 0) return;
+    const s0 = scale;
+    const move = (ev: PointerEvent) => {
+      const cur = axis === "x" ? ev.clientX - ax : axis === "y" ? ev.clientY - ay : Math.hypot(ev.clientX - ax, ev.clientY - ay);
+      const s = clampScale(s0 * Math.max(0.05, cur / base));
+      setPct(Math.round(s * 100));
+      onScale(s);
+    };
+    const up = () => {
+      setPct(null);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  // hidden → pointer-events:none so an invisible grip never eats a content click
+  const g = "nodrag absolute z-[7] opacity-0 pointer-events-none transition-opacity group-hover/shell:opacity-90 group-hover/shell:pointer-events-auto group-hover/cluster:opacity-90 group-hover/cluster:pointer-events-auto";
+  const dot = { background: accent, boxShadow: "0 0 0 1px rgba(0,0,0,0.35)" };
+  return (
+    <>
+      {/* RIGHT edge — resize (uniform scale) */}
+      <div title="Drag to resize" onPointerDown={begin("x")} className={`${g} right-0 top-1/2 h-9 w-[7px] -translate-y-1/2 rounded-l`} style={{ ...dot, cursor: "ew-resize" }} />
+      {/* BOTTOM edge — resize (uniform scale) */}
+      <div title="Drag to resize" onPointerDown={begin("y")} className={`${g} bottom-0 left-1/2 h-[7px] w-9 -translate-x-1/2 rounded-t`} style={{ ...dot, cursor: "ns-resize" }} />
+      {/* BOTTOM-RIGHT corner — the primary uniform-resize grip */}
+      <div title="Drag to resize" onPointerDown={begin("d")} className={`${g} bottom-0 right-0 h-3.5 w-3.5 rounded-tl`} style={{ ...dot, cursor: "nwse-resize" }} />
+      {/* live % while dragging */}
+      {pct !== null && (
+        <span className="nodrag absolute bottom-1 left-1 z-[8] rounded px-1 text-[9px] font-bold tabular-nums" style={{ background: "rgba(251,249,244,0.92)", border: `1px solid ${PAPER.cardEdge}`, color: PAPER.inkMuted }}>
+          {pct}%
+        </span>
+      )}
+      {/* legibility floor — warn, don't block */}
+      {scale < MIN_LEGIBLE_SCALE && (
+        <span className="nodrag absolute right-1 top-1 z-[8] rounded px-1 py-px text-[8.5px] font-bold" style={{ background: "#3a0d12", color: "#ffb3bd", border: "1px solid rgba(224,40,74,0.6)" }} title="This card may be too small to read on a 1080p capture">
+          ⚠ tiny
+        </span>
+      )}
+    </>
   );
 }
 
@@ -252,16 +318,17 @@ export function BaseCard({
     >
       {/* hover connection dots — drag from one to grow an arrow (V2) */}
       <ConnectionDots />
-      {!noResize && (
-        // Resize any card on HOVER or when selected — no need to select first, and
-        // it stays live in film so Lee can size a card mid-take.
-        <NodeResizer
-          isVisible={hover || !!selected}
-          minWidth={220}
-          minHeight={90}
-          lineStyle={{ borderColor: accent }}
-          handleStyle={{ width: 9, height: 9, borderRadius: 2, background: accent, border: "none" }}
-          onResize={(_, p) => update({ w: Math.round(p.width), h: Math.round(p.height) })}
+      {/* UNIFIED RESIZE (Item 1+2): grips on the right/bottom/corner drive uniform
+          SCALE so the text scales with the card; they never move it. The TOP edge
+          is the move handle (header when shown; the strip below when chrome hidden). */}
+      {!noResize && <CardResizeFrame scale={scale} onScale={(s) => update({ scale: s })} accent={accent} />}
+      {/* TOP MOVE STRIP — only needed when the header (the natural top drag zone) is
+          hidden; NOT nodrag, so a pointer-down here drags the whole card. */}
+      {data.hideChrome && (
+        <div
+          className="sa-move-grip absolute left-0 right-0 top-0 z-[6] h-3 cursor-move opacity-0 transition-opacity group-hover/shell:opacity-100"
+          title="Drag to move"
+          style={{ background: "linear-gradient(rgba(147,160,180,0.35), transparent)" }}
         />
       )}
       {/* Header (drag handle for the whole card) — brand navy band. Alt+click the
@@ -314,7 +381,10 @@ export function BaseCard({
         </div>
       </div>
       )}
-      <div className={`nowheel min-h-0 flex-1 p-2.5 ${clipX ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"}`} style={emphasized ? { overflow: "visible" } : undefined}>{children}</div>
+      {/* BODY is `nodrag`: the card moves ONLY from the top (header / move strip),
+          never by grabbing its middle — so reaching for a resize grip never nudges
+          the card (Item 1). Content clicks/edits are unaffected. */}
+      <div className={`nodrag nowheel min-h-0 flex-1 p-2.5 ${clipX ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"}`} style={emphasized ? { overflow: "visible" } : undefined}>{children}</div>
       {/* POSITION LOCK (B2) — bottom-right: freezes the spot (no drag), edits
           still work. The JE review-lock is the stricter cousin (edits too). */}
       <button
@@ -326,8 +396,6 @@ export function BaseCard({
       >
         {data.posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
       </button>
-      {/* FILMING SCALE (FF-2 UI) — corner grip + % readout, undoable, persists */}
-      <CardScaleHandle scale={scale} onScale={(s) => update({ scale: s })} />
     </div>
   );
 }
