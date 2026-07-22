@@ -175,28 +175,18 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
   const typeKey = inCurrentFrame ? `ceq-${nav.currentFrameId}` : "ceq-static";
   // KEYPAD on stem type-out — CEQ defaults ON (the deal IS a type-out); silence by
   // toggling keypadSfx === false. Fires once per frame entry in film (caller-gated).
-  const wasInFrame = useRef(false);
+  // KEYPAD on stem type-out (Item 5): fire once each time this CEQ's frame becomes
+  // the live film frame — tracked off the (film && in-frame) EDGE so it also fires
+  // when film is toggled on while already parked in the frame (not just on deal).
+  // Per-choice memos are hidden DERIVEDLY in the route (film-gated), never here, so
+  // they can't strand invisible in authoring.
+  const wasFilmInFrame = useRef(false);
   useEffect(() => {
-    const entering = nav.film && inCurrentFrame && !wasInFrame.current;
-    wasInFrame.current = inCurrentFrame;
-    if (!entering) return;
-    if (d.keypadSfx !== false) playSfx("keypad"); // stem type-out keypad (Item 5)
-    // MEMOS reveal ONLY on Enter-resolution (Item 6): on frame entry in film, hide
-    // every choice-memo whose choice isn't already resolved (resolveCeqChoice reveals
-    // it later). Uses cueHidden — the same flag the cue walk hides memos with.
-    const edges = rf.getEdges();
-    for (const c of d.choices) {
-      if (c.resolved) continue;
-      const anchor = memoAnchorId(c.id);
-      for (const e of edges) {
-        if (e.target === id && e.targetHandle === anchor) {
-          const m = rf.getNode(e.source);
-          if (m && !(m.data as { cueHidden?: boolean }).cueHidden) rf.updateNodeData(e.source, { cueHidden: true });
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inCurrentFrame, nav.film]);
+    const live = nav.film && inCurrentFrame;
+    const entering = live && !wasFilmInFrame.current;
+    wasFilmInFrame.current = live;
+    if (entering && d.keypadSfx !== false) playSfx("keypad");
+  }, [inCurrentFrame, nav.film, d.keypadSfx]);
   const [picked, setPicked] = ((): [string | null, (v: string | null) => void] => {
     // picked choice lives in node data so it round-trips through scenes
     const v = (d as unknown as { picked?: string | null }).picked ?? null;

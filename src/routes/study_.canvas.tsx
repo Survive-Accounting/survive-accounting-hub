@@ -60,7 +60,6 @@ import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blan
 import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
-import { memoAnchorId } from "@/components/canvas/MemoLightbulb";
 import { framePartIds, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
 import { ChoreoScrubber } from "@/components/canvas/ChoreoScrubber";
 import { type CeqSetDef } from "@/components/canvas/ceq-set";
@@ -1491,16 +1490,29 @@ function PresentCanvas() {
   const dragFrozen = (d: CardData) => !!(d as CardBase).posLock || !!(d as { reviewLock?: boolean }).reviewLock;
   // FRAMES ARE STATIC: never draggable (cards move WITHIN a frame, not the frame).
   const nodeFrozen = (n: { type?: string; data: unknown }) => n.type === "frame" || dragFrozen(n.data as CardData);
+    // CEQ per-choice memos (Item 6): in FILM a memo anchored to a CEQ choice stays
+    // hidden until that choice is Enter-resolved. DERIVED (never persisted) so it
+    // recomputes on every film-toggle / resolve, and authoring always shows the memo
+    // for editing — the safe alternative to a persisted cueHidden that could strand it.
   useEffect(() => {
-    const stale = liveNodes.some((n) => {
-      const d = n.data as unknown as CardData;
-      return !!n.hidden !== offCanvas(d) || (n.hidden && n.selected) || (n.draggable === false) !== nodeFrozen(n);
-    });
+    const filmHiddenMemos = new Set<string>();
+    if (film) {
+      const byId = new Map(liveNodes.map((n) => [n.id, n]));
+      for (const e of rf.getEdges()) {
+        const th = e.targetHandle;
+        if (!th || !th.startsWith("anc:")) continue;
+        const tgt = byId.get(e.target);
+        if (!tgt || (tgt.data as { kind?: string }).kind !== "ceq") continue;
+        const choice = (tgt.data as unknown as { choices?: { id: string; resolved?: boolean }[] }).choices?.find((c) => c.id === th.slice(4));
+        if (choice && !choice.resolved) filmHiddenMemos.add(e.source);
+      }
+    }
+    const hiddenOf = (n: (typeof liveNodes)[number]) => offCanvas(n.data as unknown as CardData) || filmHiddenMemos.has(n.id);
+    const stale = liveNodes.some((n) => !!n.hidden !== hiddenOf(n) || (n.hidden && n.selected) || (n.draggable === false) !== nodeFrozen(n));
     if (stale) {
       rf.setNodes((nds) =>
         nds.map((n) => {
-          const d = n.data as unknown as CardData;
-          const off = offCanvas(d);
+          const off = hiddenOf(n as (typeof liveNodes)[number]);
           const frozen = nodeFrozen(n);
           // off-canvas cards are also DESELECTED — otherwise the show key would step the
           // reveals of an invisible staged card instead of summoning the next one.
@@ -1511,7 +1523,7 @@ function PresentCanvas() {
         }),
       );
     }
-  }, [liveNodes, rf]);
+  }, [liveNodes, rf, film]);
 
   // Z-ORDER: any node that lacks a zIndex is BRAND NEW (spawned, cloned, dealt,
   // generated, pasted, or a fresh memo) — give it the top of its tier so it lands
@@ -1949,8 +1961,10 @@ function PresentCanvas() {
       bus.dispatch({
         label: "deal card",
         do: () => {
-          // dealt member: stays IN the deck roster, just visible again
-          rf.updateNodeData(id, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, faceDown: fd });
+          // dealt member: stays IN the deck roster, just visible again. A dealt CEQ
+          // starts with NO emphasis pointer (clear any stale one from a prior session)
+          // so an immediate Enter can't resolve a leftover choice.
+          rf.updateNodeData(id, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, faceDown: fd, ...(d.kind === "ceq" ? { emphasis: undefined } : {}) });
           rf.setNodes((nds) =>
             nds.map((n) =>
               n.id === id
@@ -2040,7 +2054,7 @@ function PresentCanvas() {
     if (!sel) return false;
     const d = sel.data as unknown as { choices?: { id: string }[]; emphasis?: string };
     const choices = d.choices ?? [];
-    if (choices.length === 0) return true; // focused but empty — still swallow the arrow
+    if (choices.length === 0) return false; // nothing to emphasise → let the arrow fall through to frame nav
     const cur = choices.findIndex((c) => c.id === d.emphasis);
     const nx = cur < 0 ? (dir > 0 ? 0 : choices.length - 1) : (cur + dir + choices.length) % choices.length;
     rf.updateNodeData(sel.id, { emphasis: choices[nx].id });
@@ -2048,9 +2062,10 @@ function PresentCanvas() {
   }, [rf]);
 
   /** Enter on the emphasised CEQ choice → toggle its resolution. Correct → green +
-   *  win sound (film, respecting confirmSfx) + reveal its memo; wrong → red + strike
-   *  + reveal its memo, NO win sound. Enter again clears it. Resolved choices persist
-   *  and coexist. ONE undoable command (choice flag + its memos' visibility). */
+   *  win sound (film, respecting confirmSfx); wrong → red + strike, NO win sound. The
+   *  choice's per-choice memo shows/hides DERIVEDLY from resolved (film-gated in the
+   *  node sync), so nothing to patch on the memo. Enter again clears it; resolved
+   *  choices persist and coexist. One undoable command. */
   const resolveCeqChoice = useCallback((cardId: string, choiceId: string) => {
     const node = rf.getNode(cardId);
     if (!node) return;
@@ -2058,9 +2073,7 @@ function PresentCanvas() {
     const choice = d.choices.find((c) => c.id === choiceId);
     if (!choice) return;
     const nowResolved = !choice.resolved;
-    const rfl = rf as unknown as RfLike;
-    const cmds: (Command | null)[] = [];
-    cmds.push(patchDataFnCmd(rfl, cardId, (prev) => {
+    const cmd = patchDataFnCmd(rf as unknown as RfLike, cardId, (prev) => {
       const pd = prev as unknown as { choices: { id: string; resolved?: boolean }[]; tags?: string[] };
       const choices = pd.choices.map((c) => (c.id === choiceId ? { ...c, resolved: nowResolved } : c));
       // AUTO-TAG (Item 7): the FIRST time a WRONG choice is Enter-resolved in FILM,
@@ -2069,13 +2082,7 @@ function PresentCanvas() {
       const patch: { choices: typeof choices; tags?: string[] } = { choices };
       if (nowResolved && !choice.correct && filmRef.current && !(pd.tags ?? []).includes("CEQ_DISTRACTOR")) patch.tags = [...(pd.tags ?? []), "CEQ_DISTRACTOR"];
       return patch;
-    }, nowResolved ? "resolve CEQ choice" : "clear CEQ choice"));
-    // reveal / hide the choice's memos (edges anchored at anc:<choiceId>)
-    const anchor = memoAnchorId(choiceId);
-    for (const e of rf.getEdges()) {
-      if (e.target === cardId && e.targetHandle === anchor) cmds.push(patchDataCmd(rfl, e.source, { cueHidden: !nowResolved }, nowResolved ? "reveal memo" : "hide memo"));
-    }
-    const cmd = compositeCmd(cmds.filter(Boolean) as Command[], nowResolved ? "resolve CEQ choice" : "clear CEQ choice");
+    }, nowResolved ? "resolve CEQ choice" : "clear CEQ choice");
     if (cmd) bus.dispatch(cmd);
     // WIN SOUND — only on correct + resolving-on + film (respect the per-CEQ toggle).
     if (nowResolved && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("confirm");
@@ -4590,6 +4597,10 @@ function PresentCanvas() {
         // CEQ arm (Item 5): a forward "ready" with a CEQ still tucked in THIS frame is
         // teeing up the next QUESTION, not a frame move — relabel the same indicator.
         const ceqNext = armState === "ready" && (() => {
+          // The CEQ arm-between only runs on DERIVED frames — recorded / cueOrder /
+          // stackDeal frames take higher-precedence paths, so don't relabel theirs.
+          const fd = rf.getNode(currentFrameId)?.data as { recordedCues?: RecCue[]; cueOrder?: string[]; stackDeal?: boolean } | undefined;
+          if (fd?.recordedCues?.length || fd?.cueOrder?.length || fd?.stackDeal) return false;
           const ns = rf.getNodes();
           const nt = nextTuckedInFrame(ns as never, currentFrameId);
           return !!nt && (nt.data as { kind?: string }).kind === "ceq" && ns.some((n) => n.parentId === currentFrameId && (n.data as { kind?: string }).kind === "ceq" && (n.data as { deckMember?: boolean }).deckMember && !isTucked(n.data as never));
