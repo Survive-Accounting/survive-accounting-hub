@@ -124,11 +124,17 @@ export function startSpot(cardId: string, targets: string[], targetId: string): 
 // ---- CLICK-TOGGLE MODEL (Lee's redesign) -----------------------------------
 // Two independent emphasis layers keyed by `${cardId}::${targetId}`:
 //   • regular = MANY gold pills (Ctrl+click toggles each).
-//   • superKey = ONE flame (Ctrl+Shift+click; setting a new one replaces it).
+//   • superKey = ONE super-spotlight with a TONE:
+//       "focus" (Ctrl+Shift+click)     → 🔥 gold flame — "look HERE, this matters".
+//       "warn"  (Ctrl+Alt+Shift+click) → 🚨 red siren  — "this is BAD / a trap".
+//     Setting a new super replaces the previous one.
 // A key lives in at most one layer. Pure reducers so the behaviour is testable.
+export type SuperTone = "focus" | "warn";
 export interface SpotSets {
   regular: Set<string>;
   superKey: string | null;
+  /** Tone of the current super. Absent ⇒ "focus" (back-compat for old callers). */
+  superTone?: SuperTone;
 }
 export const spotKey = (cardId: string, targetId: string) => `${cardId}::${targetId}`;
 
@@ -138,14 +144,17 @@ export function applyRegularClick(s: SpotSets, k: string): SpotSets {
   const regular = new Set(s.regular);
   if (s.superKey === k) { regular.add(k); return { regular, superKey: null }; }
   if (regular.has(k)) regular.delete(k); else regular.add(k);
-  return { regular, superKey: s.superKey };
+  return { regular, superKey: s.superKey, superTone: s.superTone };
 }
 
-/** Ctrl+Shift+click a target. On the current SUPER → toggle it off. Otherwise →
- *  make it the ONE super (replacing any previous), and drop it from regular. */
-export function applySuperClick(s: SpotSets, k: string): SpotSets {
-  if (s.superKey === k) return { regular: s.regular, superKey: null };
+/** Ctrl+Shift+click (tone "focus") / Ctrl+Alt+Shift+click (tone "warn"). Clicking
+ *  the SAME target with the SAME tone toggles it off; the same target with a NEW
+ *  tone switches tone (focus↔warn); any other target becomes the ONE super and
+ *  is dropped from regular. */
+export function applySuperClick(s: SpotSets, k: string, tone: SuperTone = "focus"): SpotSets {
+  const cur = s.superTone ?? "focus";
+  if (s.superKey === k && cur === tone) return { regular: s.regular, superKey: null };
   const regular = new Set(s.regular);
   regular.delete(k);
-  return { regular, superKey: k };
+  return { regular, superKey: k, superTone: tone };
 }

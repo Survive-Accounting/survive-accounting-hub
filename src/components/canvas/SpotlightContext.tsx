@@ -4,7 +4,7 @@
 // spotlight state through useSpotTarget (per target) + useCardDim (whole card).
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
-import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SpotState } from "./spotlight";
+import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SpotState, type SuperTone } from "./spotlight";
 
 /** The target the camera should push toward — the most recent emphasis, super
  *  taking precedence over the regular pills. Null when nothing is emphasized. */
@@ -32,11 +32,14 @@ interface SpotlightApi {
   focusTargetId: () => string | null;
   targetState: (cardId: string, targetId: string) => SpotTargetState;
   cardDim: (cardId: string) => boolean;
-  /** DOUBLE-EMPHASIS (🔥) — a fixed, elective "on fire" mark: Ctrl+Shift+click a
-   *  target to toggle it. Independent of the movable spotlight (can stack on it),
-   *  never persisted. Multiple targets can burn at once. */
-  toggleFlame: (cardId: string, targetId: string) => void;
+  /** SUPER-SPOTLIGHT — the ONE elective mark. Tone "focus" = 🔥 gold flame
+   *  (Ctrl+Shift+click); tone "warn" = 🚨 red siren (Ctrl+Alt+Shift+click) for
+   *  "this is BAD / a trap". Toggles off on a same-tone re-click; switches tone
+   *  otherwise. Never persisted. */
+  toggleFlame: (cardId: string, targetId: string, tone?: SuperTone) => void;
   isFlamed: (cardId: string, targetId: string) => boolean;
+  /** Tone of the super on this target, or null if it isn't the super. */
+  flameTone: (cardId: string, targetId: string) => SuperTone | null;
   /** True when this card owns ANY lit target (a regular pill or the super flame).
    *  Cards read it to UNCLIP their overflow so an enlarged spotlit/flamed row
    *  (scale 1.2 / 1.4) spills past the card edge and stays legible instead of
@@ -85,15 +88,17 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
     setFocus(focusFrom(next, key));
     if (next.regular.has(key)) onActionRef.current?.(cardId, targetId, "regular");
   }, [focusFrom]);
-  // Ctrl+Shift+click → the ONE super (replaces the previous; re-click toggles off).
-  const toggleFlame = useCallback((cardId: string, targetId: string) => {
+  // Ctrl+Shift+click (focus 🔥) / Ctrl+Alt+Shift+click (warn 🚨) → the ONE super
+  // (replaces the previous; same-tone re-click toggles off; other tone switches).
+  const toggleFlame = useCallback((cardId: string, targetId: string, tone: SuperTone = "focus") => {
     const key = spotKey(cardId, targetId);
-    const next = applySuperClick(setsRef.current, key);
+    const next = applySuperClick(setsRef.current, key, tone);
     setsRef.current = next; setSets(next);
     setFocus(focusFrom(next, key));
     if (next.superKey === key) onActionRef.current?.(cardId, targetId, "super");
   }, [focusFrom]);
   const isFlamed = useCallback((cardId: string, targetId: string) => sets.superKey === spotKey(cardId, targetId), [sets]);
+  const flameTone = useCallback((cardId: string, targetId: string): SuperTone | null => (sets.superKey === spotKey(cardId, targetId) ? (sets.superTone ?? "focus") : null), [sets]);
   const cardHasEmphasis = useCallback((cardId: string): boolean => {
     const prefix = `${cardId}::`;
     if (sets.superKey && sets.superKey.startsWith(prefix)) return true;
@@ -117,8 +122,8 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
   return useMemo<SpotlightApi>(() => ({
     spot: null, active, followReveals: false,
     start, move: noop, tryReenter: noReenter, exit, editSpot: noop, onReveal: noop,
-    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed, cardHasEmphasis, focusTarget: focus,
-  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed, cardHasEmphasis, focus]);
+    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed, flameTone, cardHasEmphasis, focusTarget: focus,
+  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed, flameTone, cardHasEmphasis, focus]);
 }
 
 /** WARM performance styling for a target. The spotlight now reads as a GOLD
@@ -164,19 +169,23 @@ export function spotStyle(state: SpotTargetState): React.CSSProperties {
 export function spotTargetProps(sp: SpotlightApi | null, cardId: string, targetId: string) {
   const state = sp?.targetState(cardId, targetId) ?? null;
   const flamed = sp?.isFlamed(cardId, targetId) ?? false;
+  const tone = sp?.flameTone(cardId, targetId) ?? null;
   return {
     state,
     flamed,
+    tone,
     props: {
       "data-spot-target": targetId,
       "data-flame": flamed ? "on" : undefined,
+      // "warn" ⇒ 🚨 red siren (BAD/trap); "focus"/absent ⇒ 🔥 gold flame.
+      "data-flame-tone": flamed ? (tone ?? "focus") : undefined,
       onPointerDownCapture: (e: React.PointerEvent) => {
-        // Ctrl+SHIFT+click → toggle the 🔥 double-emphasis (checked first, since
-        // it's also a ctrl-click). Ctrl/Cmd+click alone → move the spotlight here.
-        // stopImmediatePropagation on the NATIVE event so React Flow's own pointer
-        // listeners (drag / selection box) never see the click.
+        // Ctrl+SHIFT+click → super-spotlight (checked first, since it's also a
+        // ctrl-click). +ALT ⇒ the "warn" 🚨 siren tone. Ctrl/Cmd+click alone →
+        // move the spotlight here. stopImmediatePropagation on the NATIVE event so
+        // React Flow's own pointer listeners (drag / selection box) never see it.
         if (!sp) return;
-        if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(cardId, targetId); return; }
+        if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(cardId, targetId, e.altKey ? "warn" : "focus"); return; }
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
           // TOGGLE (Lee's call): Ctrl+click a target that is already the single

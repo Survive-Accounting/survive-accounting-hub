@@ -83,7 +83,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
   // of via FLAME_CSS, so the positioning transform is ours to control.
   const spotClick = (sid: string) => (e: React.PointerEvent) => {
     if (!sp) return;
-    if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(id, sid); return; }
+    if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(id, sid, e.altKey ? "warn" : "focus"); return; }
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); if (sp.targetState(id, sid) === "spot") sp.exit(); else sp.start(id, sid); }
   };
 
@@ -179,6 +179,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
         {placed.map((s, i) => {
           const spotState = sp?.targetState(id, s.id) ?? null;
           const flamed = sp?.isFlamed(id, s.id) ?? false;
+          const warn = (sp?.flameTone(id, s.id) ?? null) === "warn"; // 🚨 red "BAD" super
           const isSpot = spotState === "spot";
           const bigScale = flamed ? 2.15 : 1.7;
           return (
@@ -209,14 +210,16 @@ export function CycleNode({ id, data, selected }: NodeProps) {
                     fontSize: pillFont,
                     color: "#F4EFE6",
                     background: "linear-gradient(180deg, rgba(37,52,88,0.96), rgba(16,24,44,0.96))",
-                    border: `1.5px solid ${isSpot ? (flamed ? "#FF7A00" : "#FCA311") : "rgba(252,163,17,0.55)"}`,
+                    border: `1.5px solid ${isSpot ? (flamed ? (warn ? "#FF1E32" : "#FF7A00") : "#FCA311") : "rgba(252,163,17,0.55)"}`,
                     boxShadow: isSpot
                       ? (flamed
-                          ? "0 0 0 3px rgba(9,13,26,0.95), 0 0 28px rgba(255,122,0,0.9)"
+                          ? (warn
+                              ? "0 0 0 3px rgba(9,13,26,0.95), 0 0 28px rgba(255,30,50,0.95)"
+                              : "0 0 0 3px rgba(9,13,26,0.95), 0 0 28px rgba(255,122,0,0.9)")
                           : "0 0 0 3px rgba(9,13,26,0.95), 0 0 22px rgba(252,163,17,0.75)")
                       : "0 6px 16px -8px rgba(0,0,0,0.8), 0 0 0 3px rgba(9,13,26,0.9)",
                   }}
-                  title="Click to edit · Ctrl-click to spotlight (Ctrl+Shift = super)"
+                  title="Click to edit · Ctrl-click to spotlight (Ctrl+Shift = 🔥 · Ctrl+Alt+Shift = 🚨)"
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); setEditingStep(s.id); }}
                 >

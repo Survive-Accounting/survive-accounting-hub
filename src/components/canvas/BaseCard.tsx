@@ -289,7 +289,8 @@ export function BaseCard({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       // ALT+CLICK (#288): toggle the header/chrome off for a clean on-camera card.
-      onClickCapture={(e) => { if (e.altKey) { e.stopPropagation(); update({ hideChrome: !data.hideChrome }); } }}
+      // ALT+CLICK toggles chrome — but ONLY pure Alt (Ctrl+Alt+Shift is the 🚨 warn super).
+      onClickCapture={(e) => { if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.stopPropagation(); update({ hideChrome: !data.hideChrome }); } }}
       className="group/shell animate-in fade-in zoom-in-95 relative flex flex-col overflow-hidden rounded-xl duration-150"
       style={{
         width: fixedWidth ?? data.w ?? undefined,

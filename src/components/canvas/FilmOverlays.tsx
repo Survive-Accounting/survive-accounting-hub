@@ -218,6 +218,22 @@ export const FLAME_CSS = `
     50%  {             transform: translateY(-2px) scaleX(-1); }
     100% { left: 100%; transform: translateY(0)    scaleX(1); }
   }
+
+  /* WARN tone (🚨 red siren) — Ctrl+ALT+Shift+click: "this is BAD / a trap".
+     Rides on the same data-flame="on" (scale 1.4 + moving bar + travelling emoji)
+     but recolours everything RED and swaps the emoji to a siren. A pulsing red
+     outline (spotStyle never sets outline, so no !important cascade fight) makes
+     the target read as a warning on camera. */
+  [data-flame-tone="warn"] { outline: 2px solid rgba(255,45,60,0.9); outline-offset: 2px; border-radius: 8px; animation: sa-siren-pulse 0.66s ease-in-out infinite; }
+  [data-flame-tone="warn"]::after {
+    background: linear-gradient(90deg, transparent, #FF1E32 25%, #FF7A7A 50%, #FF1E32 75%, transparent);
+    filter: drop-shadow(0 0 6px rgba(255,30,50,0.95));
+  }
+  [data-flame-tone="warn"]::before { content: "🚨"; filter: drop-shadow(0 0 5px rgba(255,30,50,0.95)); }
+  @keyframes sa-siren-pulse {
+    0%, 100% { outline-color: rgba(255,45,60,0.5);  outline-offset: 1px; }
+    50%      { outline-color: rgba(255,90,100,1);   outline-offset: 3px; }
+  }
 `;
 
 /** CSS that removes at-rest card chrome in film mode. Interactions keep working —
