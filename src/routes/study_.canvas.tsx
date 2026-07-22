@@ -1822,6 +1822,11 @@ function PresentCanvas() {
   const [scaffoldOpen, setScaffoldOpen] = useState(false);
   const [scaffoldName, setScaffoldName] = useState("");
   const [scaffoldCourseId, setScaffoldCourseId] = useState<string>("");
+  // NEW-LESSON PROMPT (topic-grouping batch, ITEM 3) — creating a lesson asks for
+  // its type + topic, then scaffolds ordinary frames by type. Default CEQ_CRAM.
+  const [newLessonOpen, setNewLessonOpen] = useState(false);
+  const [newLessonType, setNewLessonType] = useState<LessonType>("CEQ_CRAM");
+  const [newLessonTopic, setNewLessonTopic] = useState("");
   // ONE lesson cell = a lesson node + its 4 beat frames (Hook · Teach · M/P ·
   // Check, one sub-frame each at row 0). Reused by the scaffold and by the
   // ghost-cell "+ add lesson" click, so every cell is stamped identically.
@@ -1868,6 +1873,64 @@ function PresentCanvas() {
     const outlineFrame = { id: outlineFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(2) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 2), title: "Outline" } as unknown as CardNode["data"] };
     return [lesson, introFrame, ceqFrame, outlineFrame, ...frames, titleCard, ceqCard] as CardNode[];
   }, []);
+
+  // TYPE SCAFFOLD (ITEM 3) — per-type frame arcs. Ordinary frames (blankFrameData),
+  // deletable/retaggable, no special behavior. Column = beat, row = subIndex, so
+  // stacked CRAM frames sit in the cram column. CONCEPT reuses the 4-beat arc
+  // (buildLessonCell); the others are simpler linear runs.
+  const TYPE_FRAME_SPECS: Record<Exclude<LessonType, "CONCEPT">, { beat: Beat; sub: number; title: string }[]> = useMemo(() => ({
+    CEQ_CRAM: [
+      { beat: "hook", sub: 0, title: "Hook" },
+      { beat: "cram", sub: 0, title: "CRAM launch" },
+      { beat: "cram", sub: 1, title: "CRAM" },
+      { beat: "cram", sub: 2, title: "Outro" },
+    ],
+    CEQ_FULL: [
+      { beat: "hook", sub: 0, title: "Hook" },
+      { beat: "cram", sub: 0, title: "CRAM" },
+      { beat: "cram", sub: 1, title: "CRAM" },
+      { beat: "cram", sub: 2, title: "Outro" },
+    ],
+    EXTRA: [
+      { beat: "hook", sub: 0, title: "" },
+    ],
+  }), []);
+
+  /** Build a lesson cell of a given TYPE at pos. CONCEPT → the existing 4-beat
+   *  arc (stamped with type/topic); others → their linear frame run. */
+  const buildTypedLessonCell = useCallback((pos: { x: number; y: number }, opts: { label: string; pathOrder: number; check: boolean; lessonType: LessonType; topic: string }): CardNode[] => {
+    if (opts.lessonType === "CONCEPT") {
+      return buildLessonCell(pos, opts.label, opts.pathOrder, opts.check).map((n) =>
+        n.type === "lesson" ? ({ ...n, data: { ...n.data, lessonType: "CONCEPT", topic: opts.topic } } as CardNode) : n,
+      );
+    }
+    const cell = lessonCellSize();
+    const lid = cardId("lesson");
+    const lesson = {
+      id: lid, type: "lesson", position: { x: pos.x, y: pos.y }, width: cell.w, height: cell.h,
+      data: { label: opts.label, w: cell.w, h: cell.h, pathOrder: opts.pathOrder, check: opts.check, lessonType: opts.lessonType, topic: opts.topic } as unknown as CardNode["data"],
+    };
+    const frames = TYPE_FRAME_SPECS[opts.lessonType].map((sp) => ({
+      id: cardId("frame"), type: "frame", parentId: lid,
+      position: { x: columnX(BEAT_COLUMNS.indexOf(sp.beat)), y: rowY(sp.sub) }, width: FRAME_W, height: FRAME_H,
+      data: { ...blankFrameData(sp.beat, sp.sub), title: sp.title } as unknown as CardNode["data"],
+    }));
+    return [lesson, ...frames] as CardNode[];
+  }, [buildLessonCell, TYPE_FRAME_SPECS]);
+
+  /** Create a NEW typed lesson at viewport center from the new-lesson prompt. */
+  const createTypedLesson = useCallback(() => {
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const cell = lessonCellSize();
+    const topic = newLessonTopic.trim();
+    const label = topic || "New lesson";
+    const nodes = buildTypedLessonCell({ x: Math.round(center.x - cell.w / 2), y: Math.round(center.y - cell.h / 2) }, { label, pathOrder: 0, check: false, lessonType: newLessonType, topic: topic || label });
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `new ${newLessonType} lesson`));
+    setNewLessonOpen(false);
+    setNewLessonTopic("");
+    window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.2, nodes: nodes.filter((n) => n.type === "lesson").map((n) => ({ id: n.id })) }), 60);
+  }, [rf, buildTypedLessonCell, newLessonType, newLessonTopic]);
 
   const spawnRegionScaffold = useCallback(() => {
     const course = (coursesQuery.data ?? []).find((c) => c.id === scaffoldCourseId);
@@ -3400,27 +3463,13 @@ function PresentCanvas() {
     );
   }, [rf]);
 
+  // ITEM 3: adding a lesson now PROMPTS for type + topic (default CEQ_CRAM), then
+  // scaffolds ordinary frames by type. The bare-lesson path was replaced.
   const addLesson = useCallback(() => {
-    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
-    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
-    bus.dispatch(
-      addNodesCmd(
-        rf as unknown as RfLike,
-        [
-          {
-            id: cardId("lesson"),
-            type: "lesson",
-            position: { x: center.x - 230, y: center.y - 140 },
-            width: 460,
-            height: 280,
-            zIndex: -1,
-            data: { kind: "note", label: "New lesson", w: 460, h: 280, pathOrder: null } as unknown as CardData & Record<string, unknown>,
-          },
-        ],
-        "add lesson",
-      ),
-    );
-  }, [rf]);
+    setNewLessonType("CEQ_CRAM");
+    setNewLessonTopic("");
+    setNewLessonOpen(true);
+  }, []);
 
   // ---- drag undo: snapshot {position, parentId} at drag start; one command per drag ----
   const dragStart = useRef<Map<string, { position: { x: number; y: number }; parentId?: string }> | null>(null);
@@ -5375,6 +5424,9 @@ function PresentCanvas() {
               </>
             )}
           </div>
+          {/* ADD LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames
+              by type. Re-instates the lesson-add entry the +Card menu had dropped. */}
+          <TB title="Add a lesson — pick type + topic, then scaffold its frames" onClick={addLesson}><LayoutTemplate className="h-3.5 w-3.5" /></TB>
           {/* DECK — the run-of-show roster (replaces the top-right badge) */}
           <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); setAddElemOpen(false); }} />
           {/* FILE — save / load / export / import (floppy icon; moved onto the old
@@ -6049,6 +6101,52 @@ function PresentCanvas() {
                 onClick={spawnRegionScaffold}
               >
                 scaffold
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
+      {newLessonOpen && (
+        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setNewLessonOpen(false)}>
+          <div className="w-96 max-w-[92vw] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>New lesson</div>
+            <div className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>type</div>
+            <div className="mt-1 grid grid-cols-2 gap-1">
+              {LESSON_TYPES.map((t) => {
+                const on = newLessonType === t;
+                const scaffoldHint = t === "CEQ_CRAM" ? "Hook · CRAM launch · CRAM · Outro" : t === "CEQ_FULL" ? "Hook · CRAM · CRAM · Outro" : t === "CONCEPT" ? "Hook · Teach · Model · Cram" : "one empty frame";
+                return (
+                  <button key={t} className="rounded px-2 py-1 text-left" style={{ border: `1px solid ${on ? NEON.yellow : NEON.borderSoft}`, background: on ? "rgba(252,163,17,0.12)" : "transparent" }} onClick={() => setNewLessonType(t)}>
+                    <div className="text-[11px] font-bold" style={{ color: on ? NEON.yellow : NEON.text }}>{LESSON_TYPE_LABEL[t]}</div>
+                    <div className="text-[8.5px] normal-case" style={{ color: NEON.muted }}>{scaffoldHint}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <label className="mt-3 block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
+              topic
+              <input
+                autoFocus
+                className="mt-0.5 w-full rounded bg-black/30 px-2 py-1 text-[12px] font-normal normal-case outline-none"
+                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                placeholder="groups sibling lessons into a row (also the lesson label)"
+                value={newLessonTopic}
+                onChange={(e) => setNewLessonTopic(e.target.value)}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") createTypedLesson(); }}
+              />
+            </label>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setNewLessonOpen(false)}>
+                cancel
+              </button>
+              <button
+                className="rounded px-2.5 py-1 text-[11.5px] font-bold"
+                style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                onClick={createTypedLesson}
+              >
+                create lesson
               </button>
             </div>
           </div>
