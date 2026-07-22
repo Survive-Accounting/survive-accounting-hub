@@ -15,6 +15,7 @@ export type CardKind =
   | "list"
   | "image"
   | "legend"
+  | "testimonial"
   | "formula"
   | "heading"
   | "text"
@@ -49,6 +50,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   list: "card",
   image: "card",
   legend: "card",
+  testimonial: "card",
   outline: "card",
   formula: "card",
   heading: "element",
@@ -349,6 +351,26 @@ export interface LegendCard extends CardBase {
   cornerChip?: string; // LEGACY — the DR=CR stat, removed from the V2 render
 }
 
+/** How a testimonial is attributed. Default "generic" (content-portable: describe
+ *  the context, not hard coordinates — reusable across placements). */
+export type AttrMode = "none" | "generic" | "specific" | "custom";
+/** TESTIMONIAL CARD — a student review shown on a frame. There is NO testimonials
+ *  DB table in this repo (the marketing carousel is a third-party testimonial.to
+ *  iframe), so every field below is a LOCAL, card-only value the author types in;
+ *  editing NEVER writes back to any source. Trim/excerpt the quote freely. */
+export interface TestimonialCard extends CardBase {
+  kind: "testimonial";
+  quote: string; // the review text — local, editable, supports **bold** / ==highlight==
+  stars: number; // 0–5 visual rating (local)
+  studentName: string; // e.g. "Maya R."
+  photoUrl?: string; // optional student photo (canvas-media); hidden when showPhoto=false
+  showPhoto?: boolean; // per-card toggle so a tight frame can drop the photo
+  attrMode: AttrMode; // which attribution line to render
+  attrGeneric?: string; // (b) portable descriptor — e.g. "Intro Accounting student"
+  attrSpecific?: string; // (c) specific — e.g. "ACCY 201 · Ole Miss"
+  attrCustom?: string; // free text for one-offs
+}
+
 // ---- Equation lens (A = L + E arrows) — see equation-derive.ts -----------------
 /** Which bucket a formula segment represents (drives derivation). ale preset
  *  uses assets/liabilities/equity (rev/exp fold into equity); the re preset uses
@@ -596,6 +618,7 @@ export type CardData =
   | ListCard
   | ImageCard
   | LegendCard
+  | TestimonialCard
   | FormulaCard
   | HeadingCard
   | TextElement

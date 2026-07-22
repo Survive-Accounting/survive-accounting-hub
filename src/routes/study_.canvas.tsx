@@ -45,6 +45,7 @@ import { VideoCardNode } from "@/components/canvas/cards/VideoCardNode";
 import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
 import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
 import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
+import { TestimonialCardNode } from "@/components/canvas/cards/TestimonialCardNode";
 import { OutlineCardNode } from "@/components/canvas/cards/OutlineCardNode";
 import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
 import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
@@ -670,6 +671,7 @@ const nodeTypes = {
   list: withFaceDown(ListCardNode),
   image: withFaceDown(ImageCardNode),
   legend: withFaceDown(LegendCardNode),
+  testimonial: withFaceDown(TestimonialCardNode),
   formula: withFaceDown(FormulaCardNode),
   outline: withFaceDown(OutlineCardNode),
   // ELEMENTS: plain — never face-down (elements don't deck)
@@ -849,6 +851,7 @@ const ADD_CARD_KINDS: { kind: Parameters<typeof blankCard>[0]; label: string; pr
   { kind: "computation", label: "Computation" },
   { kind: "formula", label: "A = L + E" },
   { kind: "legend", label: "Legend" },
+  { kind: "testimonial", label: "Testimonial" },
   { kind: "schedule", label: "Table", preset: "generic" },
   { kind: "ceq", label: "Question" },
   { kind: "memorize", label: "Memorize" },

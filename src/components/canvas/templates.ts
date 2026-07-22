@@ -99,6 +99,21 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
         flavor: "",
         setLabel: "Legends · 001",
       };
+    case "testimonial":
+      // Local, card-only values (there is no testimonials DB source). Attribution
+      // defaults to the portable "generic" option per the content-portability rule.
+      return {
+        kind: "testimonial",
+        quote: "",
+        stars: 5,
+        studentName: "",
+        showPhoto: true,
+        attrMode: "generic",
+        attrGeneric: "",
+        attrSpecific: "",
+        attrCustom: "",
+        editMode: true,
+      };
     case "list":
       return {
         kind: "list",
@@ -225,6 +240,7 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   list: "List",
   image: "Image",
   legend: "Legend card",
+  testimonial: "Testimonial",
   outline: "Course outline",
   formula: "Formula",
   heading: "Heading",
