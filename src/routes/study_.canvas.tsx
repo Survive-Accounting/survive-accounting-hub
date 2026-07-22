@@ -61,6 +61,8 @@ import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, TextElementNode } 
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { memoAnchorId } from "@/components/canvas/MemoLightbulb";
+import { framePartIds, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
+import { ChoreoScrubber } from "@/components/canvas/ChoreoScrubber";
 import { type CeqSetDef } from "@/components/canvas/ceq-set";
 import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
@@ -1067,6 +1069,17 @@ function PresentCanvas() {
   const [choreographFrameId, setChoreographFrameId] = useState<string | null>(null);
   const choreographRef = useRef<string | null>(null);
   choreographRef.current = choreographFrameId;
+  // Entry popover (Start fresh / Append) for the frame about to be choreographed;
+  // choreoTick forces the ghost effect to re-read the queue after each edit;
+  // choreoExploded = the card whose PARTS are clickable via G (Item 3).
+  const [choreoEntry, setChoreoEntry] = useState<string | null>(null);
+  const choreoEntryRef = useRef<string | null>(null);
+  choreoEntryRef.current = choreoEntry;
+  const [choreoTick, setChoreoTick] = useState(0);
+  const [playheadTick, setPlayheadTick] = useState(0); // bumps when the scrubber playhead moves, so the bar re-renders
+  const [choreoExploded, setChoreoExploded] = useState<string | null>(null);
+  const choreoExplodedRef = useRef<string | null>(null);
+  choreoExplodedRef.current = choreoExploded;
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
   // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
   // film / OFF outside; followReveals default on. The controller reads them live.
@@ -2068,6 +2081,107 @@ function PresentCanvas() {
     if (nowResolved && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("confirm");
   }, [rf]);
 
+  // ---- CHOREOGRAPH + SCRUBBER (Items 2-4) -----------------------------------
+  // A frame's space-walk queue is its recordedCues (explicit steps). Choreograph
+  // builds it by clicking; the materializer applies any step of it — the ONE
+  // apply/unapply path Space / Shift+Space / the scrubber all share.
+
+  /** Node ids that already have a step in the frame's queue (for ghost/lit + toggle). */
+  const choreoQueuedIds = useCallback((frameId: string): Set<string> => {
+    const cues = (rf.getNode(frameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const s = new Set<string>();
+    for (const c of cues) { if (c.cardId) s.add(c.cardId); if (c.memoId) s.add(c.memoId); }
+    return s;
+  }, [rf]);
+
+  /** Apply the frame's queue up to step `n` — materialise absolute state (deal/tuck,
+   *  per-part reveal, scenery cueHidden, memo, spotlight) and move the transient
+   *  playhead. NOT undoable (playback is rehearsal; building the queue is the edit). */
+  const applyFrameToStep = useCallback((frameId: string, n: number) => {
+    const nodes = rf.getNodes();
+    const kids = nodes.filter((x) => x.parentId === frameId);
+    const cards = kids.filter((x) => !isContainerType(x.type) && (x.data as { kind?: string }).kind !== "memo");
+    const memos = kids.filter((x) => (x.data as { kind?: string }).kind === "memo");
+    const cues = (rf.getNode(frameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const clamped = Math.max(0, Math.min(n, cues.length));
+    const { patches, spot } = materializeFrame(cards as never, memos as never, cues, clamped);
+    if (patches.size) rf.setNodes((nds) => nds.map((nd) => (patches.has(nd.id) ? { ...nd, data: { ...nd.data, ...patches.get(nd.id) } } : nd)));
+    recPlayIdxRef.current.set(frameId, clamped);
+    setPlayheadTick((t) => t + 1);
+    // spotlight follows the queue ONLY when it actually contains spotlight cues —
+    // otherwise a manual spotlight is left untouched.
+    if (cues.some((c) => c.kind === "spot" || c.kind === "super")) {
+      if (spot) { spotRef.current?.start(spot.cardId, spot.targetId); if (spot.super) spotRef.current?.toggleFlame(spot.cardId, spot.targetId); }
+      else spotRef.current?.exit();
+    }
+  }, [rf]);
+
+  /** Toggle a whole element in the choreograph queue: not queued → append its step
+   *  (deal for a deck member, memo for a memo, else a whole-card reveal); already
+   *  queued → remove ALL its steps (re-ghost). ONE undoable command; the queue
+   *  persists with the scene. */
+  const choreoToggle = useCallback((nodeId: string) => {
+    const fid = choreographRef.current;
+    if (!fid) return;
+    const node = rf.getNode(nodeId);
+    if (!node || node.parentId !== fid || isContainerType(node.type)) return;
+    const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const already = cur.some((c) => c.cardId === nodeId || c.memoId === nodeId);
+    const kind = (node.data as { kind?: string }).kind;
+    const label = (node.data as { title?: string }).title || kind || "element";
+    let next: RecCue[];
+    if (already) {
+      next = cur.filter((c) => c.cardId !== nodeId && c.memoId !== nodeId);
+    } else if (kind === "memo") {
+      next = [...cur, { id: cardId("cc"), kind: "memo", memoId: nodeId, label: "Memo", target: label }];
+    } else if ((node.data as { deckMember?: boolean }).deckMember && !isElementKind(kind)) {
+      next = [...cur, { id: cardId("cc"), kind: "deal", cardId: nodeId, label: "Deal", target: label }];
+    } else {
+      next = [...cur, { id: cardId("cc"), kind: "reveal", cardId: nodeId, targetId: WHOLE_TARGET, label: "Reveal", target: label }];
+    }
+    const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: next }, already ? "un-choreograph" : "choreograph step");
+    if (c) bus.dispatch(c);
+    setChoreoTick((t) => t + 1);
+  }, [rf]);
+
+  /** Enter choreograph on `fid`: "fresh" clears the queue, "append" keeps it. */
+  const startChoreo = useCallback((fid: string, mode: "fresh" | "append") => {
+    if (mode === "fresh") { const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: [] }, "choreograph: start fresh"); if (c) bus.dispatch(c); }
+    setChoreoEntry(null);
+    setChoreographFrameId(fid);
+    setChoreoTick((t) => t + 1);
+    flashToast(mode === "fresh" ? "Choreograph: click elements in reveal order · C / Esc to finish" : "Choreograph: appending — click to add steps");
+  }, [rf, flashToast]);
+
+  // GHOST the choreographed frame's children: queued = full opacity, un-queued = 20%,
+  // the G-exploded card gets a dashed outline. Driven by node.className + CHOREO_CSS.
+  // Re-runs on mode / queue (choreoTick) / explode changes; clears every choreo class
+  // on exit.
+  useEffect(() => {
+    const fid = choreographFrameId;
+    const queued = fid ? choreoQueuedIds(fid) : new Set<string>();
+    rf.setNodes((nds) => {
+      let changed = false;
+      const next = nds.map((n) => {
+        let cls = n.className;
+        if (fid && n.parentId === fid && !isContainerType(n.type)) {
+          const want = choreoExploded === n.id ? "choreo-explode" : queued.has(n.id) ? "choreo-lit" : "choreo-ghost";
+          if (cls !== want) { cls = want; changed = true; }
+        } else if (cls && cls.startsWith("choreo-")) { cls = undefined; changed = true; }
+        return cls === n.className ? n : { ...n, className: cls };
+      });
+      return changed ? next : nds;
+    });
+  }, [choreographFrameId, choreoTick, choreoExploded, rf, choreoQueuedIds]);
+
+  // In choreograph mode a click on a frame child toggles its whole-element step
+  // (Item 2). Part-level clicks (Item 3) are handled inside the exploded card.
+  const onNodeClick = useCallback((_e: unknown, node: { id: string; parentId?: string; type?: string }) => {
+    if (!choreographRef.current) return;
+    if (node.parentId !== choreographRef.current || isContainerType(node.type)) return;
+    choreoToggle(node.id);
+  }, [choreoToggle]);
+
   /** CUE SHEET PHASE 2 — perform the frame's NEXT (dir=1) / undo its LAST (dir=-1)
    *  cue from the explicit cueOrder. Returns "handled" (a content cue ran → the
    *  key handler returns), "boundary" (forward: next is Advance; reverse: at the
@@ -2122,26 +2236,9 @@ function PresentCanvas() {
   }, [rf, deal, disarm]);
 
   // ---- CUE RECORDER (Lee) --------------------------------------------------
-  // Execute one recorded cue's effect (recorded playback + click-to-play). Spot/
-  // super go through the live spotlight controller; reveal/deal/memo mirror the
-  // derived walk. onAction is guarded on recording, so playback never re-records.
-  const executeRecCue = useCallback((cue: RecCue) => {
-    const rfl = rf as unknown as RfLike;
-    if (cue.kind === "reveal" && cue.cardId) {
-      const d = rf.getNode(cue.cardId)?.data as CardData | undefined;
-      if (d) { const c = patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, cue.revealCount ?? 0) as Record<string, unknown>, "reveal (rec)"); if (c) bus.dispatch(c); }
-      rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === cue.cardId) ? { ...n, selected: n.id === cue.cardId } : n)));
-    } else if (cue.kind === "deal" && cue.cardId) {
-      deal(cue.cardId);
-    } else if (cue.kind === "memo" && cue.memoId) {
-      const c = patchDataCmd(rfl, cue.memoId, { cueHidden: false }, "reveal memo (rec)"); if (c) bus.dispatch(c);
-    } else if (cue.kind === "spot" && cue.cardId) {
-      spotRef.current?.start(cue.cardId, cue.targetId ?? "self");
-      if (cue.superOnEntry) spotRef.current?.toggleFlame(cue.cardId, cue.targetId ?? "self");
-    } else if (cue.kind === "super" && cue.cardId) {
-      spotRef.current?.toggleFlame(cue.cardId, cue.targetId ?? "self");
-    }
-  }, [rf, deal]);
+  // (Recorded playback is now the shared materializer — applyFrameToStep — so Space,
+  // Shift+Space and the scrubber all replay a recording the same way; the old
+  // per-cue executeRecCue was retired.)
   // Append a reveal/deal cue while recording (spotlights are captured via onAction).
   const recordStepCue = useCallback((frameId: string, cue: Omit<RecCue, "id">) => {
     const c = patchDataFnCmd(rf as unknown as RfLike, frameId, (prev) => ({ recordedCues: [...((prev.recordedCues as RecCue[]) ?? []), { ...cue, id: cardId("rc") }] }), "record step");
@@ -3987,16 +4084,17 @@ function PresentCanvas() {
           //       advances past (→ is the manual roll to the next lesson).
           // Any reveal/deal DISARMS. Not inside a frame → the old cross-lesson walk.
           e.preventDefault();
-          // RECORDED PLAYBACK (Lee): a frame WITH a recording plays it back — each
-          // Space fires the next recorded cue (spotlight / reveal / deal), then
-          // arms + advances when exhausted. Only while NOT recording; frames with
-          // no recording fall through to the derived walk, byte-for-byte unchanged.
+          // RECORDED / CHOREOGRAPHED PLAYBACK: a frame WITH a queue (recordedCues)
+          // advances its playhead by one and MATERIALISES that step (Item 4 — the same
+          // apply path the scrubber + Shift+Space use), then arms + advances when
+          // exhausted. Only while NOT recording; queueless frames fall through to the
+          // derived walk, byte-for-byte unchanged.
           const recF = currentFrameRef.current;
           if (recF && !cueRecordingRef.current) {
             const rc = (rf.getNode(recF)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
             if (rc && rc.length) {
               const idx = recPlayIdxRef.current.get(recF) ?? 0;
-              if (idx < rc.length) { executeRecCue(rc[idx]); recPlayIdxRef.current.set(recF, idx + 1); disarm(); return; }
+              if (idx < rc.length) { applyFrameToStep(recF, idx + 1); disarm(); return; }
               if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkNext(rf.getNodes() as never, recF) ? "ready" : "end"); return; } // in-frame only → just flag the move
               const nf = frameWalkNext(rf.getNodes() as never, recF);
               if (armStateRef.current !== "ready") { setArmState(nf ? "ready" : "end"); return; }
@@ -4098,6 +4196,23 @@ function PresentCanvas() {
           // one column-major frame (arm-then-move, mirroring forward). Never steps
           // before the lesson's first frame (← is the manual roll).
           e.preventDefault();
+          // RECORDED / CHOREOGRAPHED reverse (Item 4): a frame WITH a queue steps its
+          // playhead back one and re-materialises — the exact inverse of forward, same
+          // apply path as the scrubber. At step 0 it arms the back-move (mirrors the
+          // forward end). Higher precedence than cueOrder, matching the forward key.
+          const recFB = currentFrameRef.current;
+          if (recFB && !cueRecordingRef.current) {
+            const rcb = (rf.getNode(recFB)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
+            if (rcb && rcb.length) {
+              const idx = recPlayIdxRef.current.get(recFB) ?? 0;
+              if (idx > 0) { applyFrameToStep(recFB, idx - 1); disarm(); return; }
+              if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkPrev(rf.getNodes() as never, recFB) ? "ready-back" : "start"); return; }
+              const pf = frameWalkPrev(rf.getNodes() as never, recFB);
+              if (armStateRef.current !== "ready-back") { setArmState(pf ? "ready-back" : "start"); return; }
+              if (!pf) return;
+              enterFrame(pf.id); setArmState(null); return;
+            }
+          }
           // CUE-DRIVEN reverse (Phase 2): a cueOrder frame un-does its cues in
           // reverse; non-cue frames keep the derived reverse walk below.
           const cueFB = currentFrameRef.current;
@@ -4281,7 +4396,10 @@ function PresentCanvas() {
             rf.setEdges((eds) => eds.map((ed) => (ed.selected ? { ...ed, selected: false } : ed)));
             return;
           }
-          // RUNG 5.9 — leave choreograph mode first (its queue persists with the scene)
+          // RUNG 5.9 — choreograph: close the G-explode focus, then the entry popover,
+          // then the mode itself (each queue-edit persists with the scene).
+          if (choreoExplodedRef.current) { setChoreoExploded(null); return; }
+          if (choreoEntryRef.current) { setChoreoEntry(null); return; }
           if (choreographRef.current) { setChoreographFrameId(null); flashToast("Choreograph off"); return; }
           // RUNG 6 — leave the framed shot back to the lesson (FRAMES)
           if (currentFrameRef.current) { exitFrame(); return; }
@@ -4296,13 +4414,11 @@ function PresentCanvas() {
         group: "Modes",
         description: "Choreograph the current frame — click elements in the order they should reveal (Esc to finish)",
         handler: () => {
+          if (choreographRef.current) { setChoreographFrameId(null); setChoreoExploded(null); flashToast("Choreograph off"); return; } // exit — queue persists
+          if (choreoEntryRef.current) { setChoreoEntry(null); return; } // cancel the entry popover
           const fid = currentFrameRef.current;
-          setChoreographFrameId((cur) => {
-            if (cur) { flashToast("Choreograph off"); return null; } // exit — the queue persists with the scene
-            if (!fid) { flashToast("Enter a frame to choreograph its space-walk"); return null; }
-            flashToast("Choreograph: click elements in reveal order · C or Esc to finish");
-            return fid;
-          });
+          if (!fid) { flashToast("Enter a frame to choreograph its space-walk"); return; }
+          setChoreoEntry(fid); // opens Start fresh / Append
         },
       },
       { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
@@ -4384,7 +4500,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep],
   );
   useKeymap(bindings);
 
@@ -4481,6 +4597,39 @@ function PresentCanvas() {
         const target = back ? frameWalkPrev(rf.getNodes() as never, currentFrameId) : frameWalkNext(rf.getNodes() as never, currentFrameId);
         const label = ceqNext ? "next question" : armState === "end" ? "end of lesson" : armState === "start" ? "start of lesson" : !target ? (back ? "start of lesson" : "end of lesson") : frameCellLabel(target as never);
         return <FrameArmCue state={armState} nextLabel={label} showHud={rehearsalHud} />;
+      })()}
+
+      {/* CHOREOGRAPH (Items 2-3) — ghost/lit opacity for the frame's elements while
+          building its reveal queue by clicking; entry offers Start fresh vs Append. */}
+      <style>{`.choreo-ghost{opacity:.2!important;cursor:pointer!important;transition:opacity 120ms}.choreo-lit{opacity:1!important;cursor:pointer!important}.choreo-explode{opacity:1!important;outline:2px dashed #f0c24b;outline-offset:3px;border-radius:8px}`}</style>
+      {choreoEntry && (
+        <div className="fixed left-1/2 top-20 z-[90] -translate-x-1/2 rounded-lg border px-3 py-2.5 shadow-2xl" style={{ background: "#0b1020", borderColor: "rgba(255,255,255,0.16)", color: "#e8ecf5" }}>
+          <div className="text-[12.5px] font-semibold">Choreograph this frame</div>
+          <div className="mb-2 mt-0.5 text-[11px]" style={{ color: "rgba(232,236,245,0.65)" }}>Click elements in the order they should reveal.</div>
+          <div className="flex gap-2">
+            <button className="nodrag rounded px-2.5 py-1 text-[12px] font-semibold" style={{ background: "#2b6cb0", color: "#fff" }} onClick={() => startChoreo(choreoEntry, "fresh")}>Start fresh</button>
+            <button className="nodrag rounded px-2.5 py-1 text-[12px]" style={{ border: "1px solid rgba(255,255,255,0.28)", color: "#e8ecf5" }} onClick={() => startChoreo(choreoEntry, "append")}>Append</button>
+          </div>
+        </div>
+      )}
+      {choreographFrameId && (
+        <div className="fixed left-1/2 top-3 z-[85] -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold shadow-lg" style={{ background: "rgba(240,194,75,0.16)", border: "1px solid rgba(240,194,75,0.5)", color: "#f0c24b" }}>
+          ● Choreographing — click to add · click again to remove · G = explode a card · C/Esc to finish
+        </div>
+      )}
+
+      {/* SCRUBBER (Item 4) — one dot per queue step under the current frame; drag/click
+          seeks via the shared materializer. Shown when the frame has a queue. */}
+      {(() => {
+        void playheadTick; // re-render when the playhead moves
+        if (!currentFrameId) return null;
+        const cues = (rf.getNode(currentFrameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
+        if (!cues || !cues.length || cueRecording) return null;
+        const cw = window.innerWidth, chh = window.innerHeight;
+        const iw = Math.min(cw, (chh * 16) / 9), ih = (iw * 9) / 16;
+        const left = (cw - iw) / 2, top = (chh - ih) / 2;
+        const pos = recPlayIdxRef.current.get(currentFrameId) ?? 0;
+        return <ChoreoScrubber left={left + iw * 0.12} width={iw * 0.76} top={top + ih + 8} steps={cues.length} pos={pos} onSeek={(k) => applyFrameToStep(currentFrameId, k)} />;
       })()}
 
       {/* ARROW-NAV ARM LIGHT — a glowing edge on the side of the pending move
@@ -4600,6 +4749,7 @@ function PresentCanvas() {
         onNodeDragStop={onNodeDragStop}
         onMoveStart={onMoveStart}
         onDelete={onDelete}
+        onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onConnect={onConnect}
         onEdgeClick={onEdgeClick}
