@@ -1484,7 +1484,15 @@ function PresentCanvas() {
   // them. ELEMENTS are never off-canvas — self-heals any stray membership.
   // cueHidden (Cue Sheet Phase 2): a memo in a cue-driven frame is hidden until
   // its memo cue fires; RF hides the node AND its pointer arrow (hidden endpoint).
-  const offCanvas = (d: CardData) => (!isElementKind(d.kind) && isTucked(d)) || !!(d as { cueHidden?: boolean }).cueHidden;
+  // cueHidden hides cards/memos in both modes (unchanged), but SCENERY (heading /
+  // text / gate / exam cue) only in FILM: the choreograph materialiser writes
+  // cueHidden on scenery to reveal it on cue, and that must NEVER strand a scenery
+  // element invisible while AUTHORING (bug: Start-Here frame #1.6 — the #1/#2 text
+  // lines vanished in authoring after a choreograph/scrub pass, since offCanvas hid
+  // cueHidden regardless of mode). Authoring always shows scenery for editing.
+  const offCanvas = (d: CardData) =>
+    (!isElementKind(d.kind) && isTucked(d)) ||
+    (!!(d as { cueHidden?: boolean }).cueHidden && (!isElementKind(d.kind) || filmRef.current));
   // LOCKS: posLock (B2, any card — position frozen, edits fine) and the JE
   // reviewLock (A3 — superset: also freezes edits inside the card face) both
   // pin the node by syncing React Flow's draggable flag off.
