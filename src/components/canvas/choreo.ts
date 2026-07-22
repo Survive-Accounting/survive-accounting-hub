@@ -10,6 +10,7 @@
 // walk (revealPatchForCount). Legacy recorded reveal cues (revealCount, no targetId)
 // keep their cumulative meaning, so old takes still play.
 import { revealPatchForCount } from "./cue-sheet";
+import { applyRegularClick, applySuperClick, type SpotSets, spotKey } from "./spotlight";
 import {
   type CardData,
   type ComputationCard,
@@ -136,8 +137,11 @@ export interface MaterializeResult {
   /** nodeId → the patch that brings it to the state at step `n`. Only GOVERNED
    *  nodes (named by some cue) appear; unreferenced nodes are left untouched. */
   patches: Map<string, NodePatch>;
-  /** The spotlight active at step `n` (last spot/super cue ≤ n), or null. */
-  spot: { cardId: string; targetId: string; super: boolean } | null;
+  /** The ACCUMULATED spotlight state at step `n` — every spot/super cue in 0..n
+   *  folded through the same toggle reducers the live cursor uses (so multiple
+   *  pills + one flame replay exactly, and reverse un-does them). Apply by
+   *  clearing then replaying these keys. */
+  spots: SpotSets;
 }
 
 /** Fold cues[0..n] into the exact frame state. `n` = steps applied (0 = blank /
@@ -163,7 +167,7 @@ export function materializeFrame(cards: FrameNodeLike[], memos: FrameNodeLike[],
   const revealParts = new Map<string, Set<string>>();
   const legacyCount = new Map<string, number>();
   const memoShown = new Set<string>();
-  let spot: MaterializeResult["spot"] = null;
+  let spots: SpotSets = { regular: new Set<string>(), superKey: null };
   for (let i = 0; i < k; i++) {
     const c = cues[i];
     if (c.kind === "deal" && c.cardId) dealt.add(c.cardId);
@@ -174,7 +178,11 @@ export function materializeFrame(cards: FrameNodeLike[], memos: FrameNodeLike[],
       else if (c.revealCount != null) legacyCount.set(c.cardId, Math.max(legacyCount.get(c.cardId) ?? 0, c.revealCount));
       else revealWhole.add(c.cardId); // reveal with no target + no count = whole
     } else if (c.kind === "memo" && c.memoId) memoShown.add(c.memoId);
-    else if ((c.kind === "spot" || c.kind === "super") && c.cardId) spot = { cardId: c.cardId, targetId: c.targetId ?? "self", super: c.kind === "super" };
+    // Spotlight cues are TOGGLES — fold them through the same reducers the live
+    // cursor uses so many pills + one flame accumulate (and reverse un-does them).
+    // A legacy spot cue with superOnEntry enters as the flame.
+    else if (c.kind === "spot" && c.cardId) spots = (c.superOnEntry ? applySuperClick : applyRegularClick)(spots, spotKey(c.cardId, c.targetId ?? "self"));
+    else if (c.kind === "super" && c.cardId) spots = applySuperClick(spots, spotKey(c.cardId, c.targetId ?? "self"));
   }
 
   const patches = new Map<string, NodePatch>();
@@ -198,7 +206,7 @@ export function materializeFrame(cards: FrameNodeLike[], memos: FrameNodeLike[],
   }
   for (const m of memos) if (memoGoverned.has(m.id)) patches.set(m.id, { cueHidden: !memoShown.has(m.id) });
 
-  return { patches, spot };
+  return { patches, spots };
 }
 
 /** Cue ids attached to a card/element/memo (used to remove an element's steps when

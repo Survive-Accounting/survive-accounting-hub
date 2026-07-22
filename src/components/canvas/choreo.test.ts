@@ -115,10 +115,22 @@ describe("materializeFrame", () => {
     expect(lines.map((l) => l.hidden)).toEqual([false, false, true]); // first 2 visible
   });
 
-  it("spot: tracks the last spot/super cue ≤ n", () => {
+  it("spots: fold spot/super toggles into the accumulated set (multi-pill + one flame)", () => {
     const sc: RecCue[] = [cue({ kind: "spot", cardId: "j1", targetId: "l1" }), cue({ kind: "super", cardId: "j1", targetId: "l2" })];
-    expect(materializeFrame(cards, memos, sc, 1).spot).toEqual({ cardId: "j1", targetId: "l1", super: false });
-    expect(materializeFrame(cards, memos, sc, 2).spot).toEqual({ cardId: "j1", targetId: "l2", super: true });
-    expect(materializeFrame(cards, memos, sc, 0).spot).toBeNull();
+    const at1 = materializeFrame(cards, memos, sc, 1).spots;
+    expect([...at1.regular]).toEqual(["j1::l1"]);
+    expect(at1.superKey).toBeNull();
+    const at2 = materializeFrame(cards, memos, sc, 2).spots;
+    expect([...at2.regular]).toEqual(["j1::l1"]);
+    expect(at2.superKey).toBe("j1::l2");
+    const at0 = materializeFrame(cards, memos, sc, 0).spots;
+    expect(at0.regular.size).toBe(0);
+    expect(at0.superKey).toBeNull();
+  });
+
+  it("spots: a spot toggled twice cancels — reverse-safe", () => {
+    const sc: RecCue[] = [cue({ kind: "spot", cardId: "j1", targetId: "l1" }), cue({ kind: "spot", cardId: "j1", targetId: "l1" })];
+    expect(materializeFrame(cards, memos, sc, 1).spots.regular.size).toBe(1);
+    expect(materializeFrame(cards, memos, sc, 2).spots.regular.size).toBe(0);
   });
 });

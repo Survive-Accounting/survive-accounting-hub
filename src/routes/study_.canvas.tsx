@@ -2112,15 +2112,17 @@ function PresentCanvas() {
     const memos = kids.filter((x) => (x.data as { kind?: string }).kind === "memo");
     const cues = (rf.getNode(frameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
     const clamped = Math.max(0, Math.min(n, cues.length));
-    const { patches, spot } = materializeFrame(cards as never, memos as never, cues, clamped);
+    const { patches, spots } = materializeFrame(cards as never, memos as never, cues, clamped);
     if (patches.size) rf.setNodes((nds) => nds.map((nd) => (patches.has(nd.id) ? { ...nd, data: { ...nd.data, ...patches.get(nd.id) } } : nd)));
     recPlayIdxRef.current.set(frameId, clamped);
     setPlayheadTick((t) => t + 1);
-    // spotlight follows the queue ONLY when it actually contains spotlight cues —
-    // otherwise a manual spotlight is left untouched.
+    // Spotlight follows the queue ONLY when it actually contains spot cues (a manual
+    // spotlight on a plain reveal queue is left alone). start()/toggleFlame() are
+    // TOGGLES, so CLEAR first then replay the accumulated set — idempotent, no flicker.
     if (cues.some((c) => c.kind === "spot" || c.kind === "super")) {
-      if (spot) { spotRef.current?.start(spot.cardId, spot.targetId); if (spot.super) spotRef.current?.toggleFlame(spot.cardId, spot.targetId); }
-      else spotRef.current?.exit();
+      spotRef.current?.exit();
+      for (const key of spots.regular) { const s = key.indexOf("::"); spotRef.current?.start(key.slice(0, s), key.slice(s + 2)); }
+      if (spots.superKey) { const s = spots.superKey.indexOf("::"); spotRef.current?.toggleFlame(spots.superKey.slice(0, s), spots.superKey.slice(s + 2)); }
     }
   }, [rf]);
 
@@ -2189,9 +2191,12 @@ function PresentCanvas() {
     if (!fid) return;
     const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
     const has = cur.some((c) => c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === partId);
+    // A WHOLE reveal for this card would clobber part cues in the materializer, so
+    // parts supersede it: strip any whole-card reveal when adding a part.
+    const stripped = has ? cur : cur.filter((c) => !(c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === WHOLE_TARGET));
     const next: RecCue[] = has
       ? cur.filter((c) => !(c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === partId))
-      : [...cur, { id: cardId("cc"), kind: "reveal", cardId: cardNodeId, targetId: partId, label: "Reveal", target: partId }];
+      : [...stripped, { id: cardId("cc"), kind: "reveal", cardId: cardNodeId, targetId: partId, label: "Reveal", target: partId }];
     const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: next }, has ? "un-choreograph part" : "choreograph part");
     if (c) bus.dispatch(c);
     setChoreoTick((t) => t + 1);
@@ -2229,6 +2234,17 @@ function PresentCanvas() {
     const node = id ? rf.getNode(id) : null;
     if (!node || node.parentId !== choreographRef.current || isContainerType(node.type)) { flashToast("Hover a card, then press G to explode it into parts"); return; }
     if (framePartIds(node.data as never).length === 0) { flashToast("No parts to explode — click the card for a single whole reveal"); return; }
+    // A deck member must DEAL as its own step before its parts can reveal — ensure a
+    // deal cue exists (part cues alone would leave it never dealt onto the stage).
+    if ((node.data as { deckMember?: boolean }).deckMember && !isElementKind((node.data as { kind?: string }).kind)) {
+      const fid = choreographRef.current;
+      const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+      if (!cur.some((c) => c.kind === "deal" && c.cardId === id)) {
+        const lbl = (node.data as { title?: string }).title || (node.data as { kind?: string }).kind || "card";
+        const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: [...cur, { id: cardId("cc"), kind: "deal", cardId: id!, label: "Deal", target: lbl }] }, "choreograph deal");
+        if (c) bus.dispatch(c);
+      }
+    }
     setChoreoExploded(id);
     setChoreoTick((t) => t + 1);
   }, [rf, finishExplode, flashToast]);
@@ -2246,6 +2262,7 @@ function PresentCanvas() {
     choreoToggle(node.id);
   }, [choreoToggle, finishExplode]);
   const onNodeMouseEnter = useCallback((_e: unknown, node: { id?: string }) => { hoveredNodeRef.current = node?.id ?? null; }, []);
+  const onNodeMouseLeave = useCallback(() => { hoveredNodeRef.current = null; }, []);
 
   /** CUE SHEET PHASE 2 — perform the frame's NEXT (dir=1) / undo its LAST (dir=-1)
    *  cue from the explicit cueOrder. Returns "handled" (a content cue ran → the
@@ -2357,6 +2374,9 @@ function PresentCanvas() {
     }
     setCurrentFrameId(frameId);
     recPlayIdxRef.current.set(frameId, 0); // restart recorded playback for this frame
+    // In FILM, a frame WITH a queue starts BLANK (step 0) so the visual and the
+    // scrubber agree and the first Space never pops from a persisted state (review #3).
+    if (filmRef.current && (rf.getNode(frameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues?.length) applyFrameToStep(frameId, 0);
     if (f.parentId) lastLessonRef.current = f.parentId; // remember the lesson we're working in (for on-load)
     lastUserView.current = Date.now(); // suppress auto-fit fighting the frame camera
     // EXACT FIT (the whole point: frame bounds = the viewport). Compute the
@@ -4487,7 +4507,7 @@ function PresentCanvas() {
         },
       },
       { combo: "g", group: "Modes", description: "Choreograph: explode the hovered card into per-part steps (G again = done)", handler: () => explodeHovered() },
-      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
+      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { setChoreographFrameId(null); setChoreoExploded(null); setChoreoEntry(null); if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
       { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
       { combo: "p", group: "Modes", description: "Teleprompter — the current frame's script (authoring + film)", handler: () => setPrompter((v) => { const on = !v; if (on && !currentFrameRef.current) flashToast("Enter a frame — the prompter reads the current frame's script"); return on; }) },
       { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
@@ -4598,6 +4618,9 @@ function PresentCanvas() {
   // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
   const onNodeDoubleClick = useCallback(
     (_e: unknown, node: CardNode) => {
+      // While CHOREOGRAPHING, a double-click is two queue toggles + the editor — swallow
+      // it so a card doesn't start editing mid-choreograph (clicks build the queue).
+      if (choreographRef.current && node.parentId === choreographRef.current && !isContainerType(node.type)) return;
       // DIVE INTO A FRAME — double-clicking a FRAME zooms into it. This works in
       // FILM too (Lee wants to jump into a frame while filming); only CARD
       // focus-zoom is suppressed in film (the camera stays pinned to the frame).
@@ -4853,6 +4876,7 @@ function PresentCanvas() {
         onDelete={onDelete}
         onNodeClick={onNodeClick}
         onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
         onNodeDoubleClick={onNodeDoubleClick}
         onConnect={onConnect}
         onEdgeClick={onEdgeClick}
