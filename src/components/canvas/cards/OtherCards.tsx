@@ -162,7 +162,8 @@ export function ComputationCardNode({ id, data, selected }: NodeProps) {
 // in, then options fade up staggered. Plus a one-time PULSE on a correct resolve
 // (synced to the chaching). Scoped under .film-mode so authoring never plays type-out.
 const CEQ_TYPEOUT_CSS = `
-@keyframes sa-ceq-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2% 0 0); } }
+/* -20% end margin so a stem that overflows its box isn't cropped by the held clip. */
+@keyframes sa-ceq-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -20% 0 0); } }
 .film-mode .sa-ceq-type { animation: sa-ceq-type 520ms steps(24, end) both; }
 @keyframes sa-ceq-opt { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .film-mode .sa-ceq-opt { animation: sa-ceq-opt 240ms ease both; }

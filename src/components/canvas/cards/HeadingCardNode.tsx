@@ -63,7 +63,10 @@ const UNDERLINE_CSS = `
  *  stepped clip reveal) when the heading's frame is entered. Scoped under
  *  .film-mode so authoring never plays it. */
 const TYPEWRITER_CSS = `
-@keyframes sa-typewrite { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -2% 0 0); } }
+/* End margin is generous (-20%) so a long unbreakable word that OVERFLOWS the
+   heading box (e.g. "SurviveAccounting.com" wider than a narrow box) isn't
+   cropped by the held final clip — the clip is box-anchored, the text isn't. */
+@keyframes sa-typewrite { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -20% 0 0); } }
 .film-mode .sa-typewrite { animation: sa-typewrite 620ms steps(26, end) both; }
 `;
 
