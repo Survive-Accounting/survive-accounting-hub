@@ -3674,14 +3674,14 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, lastLessonId: lastLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, lastLessonId: lastLessonRef.current },
         decks, // NAMED DECKS (P3)
         ceqSets, // CEQ SET factories
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, ceqSets]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, ceqSets]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -3759,6 +3759,14 @@ function PresentCanvas() {
       { const rt = (nj.sceneSettings as { readTimeThreshold?: number } | undefined)?.readTimeThreshold; if (typeof rt === "number" && rt > 0) setReadTimeThreshold(rt); }
       { const sx = (nj.sceneSettings as { sfx?: Partial<SfxConfig> } | undefined)?.sfx; setSfx({ muted: sx?.muted ?? SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume, ...(sx?.volume ?? {}) }, file: { ...SFX_DEFAULT.file, ...(sx?.file ?? {}) } }); } // reveal/transition SFX config
       setCoaOrder((nj.sceneSettings as { coaOrder?: string[] } | undefined)?.coaOrder ?? []); // custom Chart-of-Accounts order (Lee)
+      // ITEM 12 (persistence fix) — filming-feel settings that used to reset each
+      // reload now travel with the scene. Additive keys; old scenes lack them and
+      // fall back to their defaults.
+      { const fd = (nj.sceneSettings as { spotFocusDim?: string } | undefined)?.spotFocusDim; setSpotFocusDim(fd === "on" || fd === "off" ? fd : "auto"); } // default auto
+      { const cpm = (nj.sceneSettings as { cinePushMs?: number } | undefined)?.cinePushMs; if (typeof cpm === "number" && cpm > 0) setCinePushMs(cpm); } // default 700
+      { const cpi = (nj.sceneSettings as { cinePushIntensity?: number } | undefined)?.cinePushIntensity; if (typeof cpi === "number" && cpi >= 0) setCinePushIntensity(cpi); } // default 1
+      { const cam = (nj.sceneSettings as { cineAmbientMs?: number } | undefined)?.cineAmbientMs; if (typeof cam === "number" && cam > 0) setCineAmbientMs(cam); } // default 6000
+      setShowFrameHeader((nj.sceneSettings as { showFrameHeader?: boolean } | undefined)?.showFrameHeader !== false); // default on
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
