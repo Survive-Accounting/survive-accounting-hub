@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Columns3, Copy, Download, ExternalLink, Eye, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, Eye, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -232,7 +232,6 @@ const LESSON_TINTS = {
 // CANVAS VOCABULARY — Lee calls these "Lessons", never "Chapters" (2026-07). The
 // DB rows are still `chapters`; only the on-canvas LABEL flips "Ch N ·" → "Lesson N ·".
 const lessonLabelOf = (ch: Parameters<typeof chapterLabel>[0]) => chapterLabel(ch).replace(/^Ch\s+/i, "Lesson ");
-const BEAT_LABELS = ["Hook", "Teach", "Model · Practice", "Check"] as const;
 /** Stable parity for a lesson with no pathOrder, so the two tints still alternate. */
 const lessonHash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i)) | 0; return Math.abs(h); };
 
@@ -394,25 +393,6 @@ function LessonNode({ id, data, selected }: NodeProps) {
         }}
       />
 
-      {/* BEAT GUIDES (L2): four L→R sections with faint dividers + small labels —
-          a soft guide for authoring AND students, never hard containers. Shown
-          whenever enabled (toggle lives in the hover chrome); sits BEHIND cards. */}
-      {(d as { beats?: boolean }).beats && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-2 top-9 z-0">
-          {[1, 2, 3].map((k) => (
-            <div key={k} className="absolute top-0 bottom-0" style={{ left: `${(k / 4) * 100}%`, width: 1, background: tint.edge }} />
-          ))}
-          {BEAT_LABELS.map((lab, k) => (
-            <div
-              key={lab}
-              className="absolute top-0 text-[9px] font-bold uppercase tracking-wider"
-              style={{ left: `calc(${(k / 4) * 100}% + 8px)`, color: NEON.muted, opacity: 0.7 }}
-            >
-              {lab}
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Grid column headers + empty-beat placeholders removed (frames-only). */}
 
@@ -460,14 +440,6 @@ function LessonNode({ id, data, selected }: NodeProps) {
             onClick={togglePathing}
           >
             <Milestone className="h-3 w-3" style={{ color: pathing === "OPTIONAL" ? NEON.muted : tint.ink, opacity: pathing === "OPTIONAL" ? 0.6 : 1 }} />
-          </button>
-          <button
-            className={chromeBtn}
-            title={(d as { beats?: boolean }).beats ? "Hide the beat guides (Hook · Teach · Model-Practice · Check)" : "Show beat guides (Hook · Teach · Model-Practice · Check)"}
-            onPointerDown={stop}
-            onClick={() => update({ beats: !(d as { beats?: boolean }).beats })}
-          >
-            <Columns3 className="h-3 w-3" style={{ color: (d as { beats?: boolean }).beats ? tint.ink : NEON.muted }} />
           </button>
           <button
             className={chromeBtn}
