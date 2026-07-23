@@ -1719,14 +1719,14 @@ function PresentCanvas() {
   );
   const onPaneClick = useCallback(() => clearEdgeGlow(), [clearEdgeGlow]);
 
-  // ---- MULTI-SELECT (PROMPT B): Ctrl+drag = marquee — INCLUDING inside
-  // lesson/region boxes. Containers are nodes, so a drag starting on one would
-  // move it instead of drawing the box; while Ctrl is held a body class turns
-  // their pointer-events off, the gesture falls through to the pane, and RF's
-  // selectionKeyCode (Control) draws the marquee (ctrl+DRAG). Ctrl+CLICK is
-  // SPOTLIGHT now (SpotlightContext) — multiSelectionKeyCode is ["Shift"] only so
-  // RF no longer eats the ctrl+click; shift-click multi-selects. Cards inside
-  // containers select normally — the marquee tests ABSOLUTE positions.
+  // ---- CTRL PASS-THROUGH: while Ctrl is held, a body class (`sa-ctrl`) turns
+  // lesson/region CONTAINER pointer-events OFF (see the `body.sa-ctrl` rule in
+  // ArrowEdge.tsx) so a Ctrl+CLICK falls THROUGH a container to the card / target
+  // under it — that click is SPOTLIGHT (SpotlightContext). This body-class effect
+  // is LIVE and required by that CSS; do not remove without removing the rule.
+  // NOTE (correcting an old comment): the marquee is SHIFT+drag and multi-select
+  // is SHIFT+click (selectionKeyCode / multiSelectionKeyCode = ["Shift"]); Ctrl is
+  // NOT the marquee key. It used to be Ctrl+drag, before Ctrl became spotlight.
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.add("sa-ctrl"); };
     const up = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.remove("sa-ctrl"); };
