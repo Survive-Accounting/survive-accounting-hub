@@ -10,7 +10,7 @@ import { useFrameNav } from "../FrameNavContext";
 import { renderInline } from "../inline-md";
 import { MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
 import { playSfx } from "../sfx";
-import { BIG_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
+import { NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
   cardId,
   type CeqCard,
@@ -224,11 +224,6 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
   return (
     <BaseCard id={id} data={d} selected={selected} accent={NEON.pink} fixedWidth={cardW}>
       <style>{CEQ_TYPEOUT_CSS}</style>
-      {/* In-card logotype (Item 4) — subtle, non-interactive. */}
-      <div className="pointer-events-none mb-1 inline-flex items-baseline gap-1 select-none" style={{ opacity: 0.4, lineHeight: 1 }} aria-hidden>
-        <span style={{ fontFamily: BIG_FONT, fontWeight: 900, fontSize: 9, letterSpacing: "0.12em", color: PAPER.navy }}>SURVIVE</span>
-        <span style={{ fontWeight: 800, fontSize: 6.5, letterSpacing: "0.3em", color: PAPER.gold }}>ACCOUNTING</span>
-      </div>
       {/* STEM — large, bold, top-aligned, generous line height. Inline **bold** / ==highlight==. */}
       <p key={typeKey} className={editing ? "mb-3" : "mb-3 sa-ceq-type"} style={{ fontSize: stemPx, fontWeight: 800, lineHeight: 1.28, color: PAPER.ink }}>
         {editing
