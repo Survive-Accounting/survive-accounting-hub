@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { applyRegularClick, applySuperClick, moveSpot, scheduleRowTarget, spotKey, spotlightTargetsOf, spotMembership, startSpot, type SpotSets, type SpotState } from "./spotlight";
+import { applyRegularClick, applySuperClick, scheduleRowTarget, spotKey, spotlightTargetsOf, type SpotSets } from "./spotlight";
 import type { CardData } from "./types";
 
 describe("click-toggle model — regular (many) + super (one)", () => {
@@ -80,45 +80,7 @@ describe("spotlightTargetsOf — registry per kind", () => {
   });
 });
 
-describe("startSpot", () => {
-  test("indexes the clicked target", () => expect(startSpot("card", ["r0", "r1", "r2"], "r2")).toEqual({ cardId: "card", index: 2, anchor: null }));
-  test("unknown target → index 0", () => expect(startSpot("card", ["r0"], "zzz").index).toBe(0));
-});
-
-describe("moveSpot — reading-order walk + escape hatch", () => {
-  const s: SpotState = { cardId: "c", index: 1, anchor: null };
-  test("down advances", () => expect(moveSpot(s, 5, 1)).toEqual({ cardId: "c", index: 2, anchor: null }));
-  test("up retreats", () => expect(moveSpot(s, 5, -1)).toEqual({ cardId: "c", index: 0, anchor: null }));
-  test("down clamps at last", () => expect(moveSpot({ cardId: "c", index: 4, anchor: null }, 5, 1)).toMatchObject({ index: 4 }));
-  test("up off the FIRST target EXITS", () => expect(moveSpot({ cardId: "c", index: 0, anchor: null }, 5, -1)).toBe("exit"));
-  test("ctrl-jump snaps to edges", () => {
-    expect(moveSpot(s, 5, 1, { jump: true })).toMatchObject({ index: 4, anchor: null });
-    expect(moveSpot(s, 5, -1, { jump: true })).toMatchObject({ index: 0, anchor: null });
-  });
-});
-
-describe("moveSpot — shift-extend range", () => {
-  test("sets an anchor and grows the band", () => {
-    let st: SpotState = { cardId: "c", index: 1, anchor: null };
-    st = moveSpot(st, 5, 1, { range: true }) as SpotState;
-    expect(st).toEqual({ cardId: "c", index: 2, anchor: 1 });
-    st = moveSpot(st, 5, 1, { range: true }) as SpotState;
-    expect(st).toEqual({ cardId: "c", index: 3, anchor: 1 });
-  });
-  test("range membership covers the whole band", () => {
-    const st: SpotState = { cardId: "c", index: 3, anchor: 1 };
-    expect(spotMembership(st, 0)).toBe(false);
-    expect(spotMembership(st, 1)).toBe("range");
-    expect(spotMembership(st, 2)).toBe("range");
-    expect(spotMembership(st, 3)).toBe("range");
-    expect(spotMembership(st, 4)).toBe(false);
-  });
-  test("single membership is exact", () => {
-    const st: SpotState = { cardId: "c", index: 2, anchor: null };
-    expect(spotMembership(st, 2)).toBe("single");
-    expect(spotMembership(st, 1)).toBe(false);
-  });
-  test("range never exits (clamps at top)", () => {
-    expect(moveSpot({ cardId: "c", index: 0, anchor: 2 }, 5, -1, { range: true })).toMatchObject({ index: 0, anchor: 2 });
-  });
-});
+// NOTE (deletion run, ITEM 3): the startSpot / moveSpot / spotMembership describe
+// blocks were removed with those functions — they tested the deleted index/range
+// cursor model. The live click-toggle reducers (applyRegularClick/applySuperClick)
+// and spotlightTargetsOf above remain fully covered.

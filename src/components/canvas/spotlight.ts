@@ -77,48 +77,15 @@ export function revealedTargetId(before: CardData, patch: Partial<CardData>): st
   }
 }
 
+// SpotState is a remnant of the old index/range CURSOR model. Its movers
+// (moveSpot/startSpot/spotMembership) were deleted in the deletion run — the
+// click-toggle model below replaced them. The interface itself is RETAINED only
+// because SpotlightContext's dormant `spot` field is typed with it (spotTrapFlip
+// reads spot.cardId). Removing it fully is an attended follow-up.
 export interface SpotState {
   cardId: string;
-  /** Focus index into spotlightTargetsOf(card). */
   index: number;
-  /** Range anchor (shift-extend); null = single-target spotlight. */
   anchor: number | null;
-}
-
-/** Is target `index` spotlit under `state`? "single" one target, "range" inside a
- *  shift-extended band, false otherwise. */
-export function spotMembership(state: SpotState, index: number): "single" | "range" | false {
-  if (state.anchor == null) return state.index === index ? "single" : false;
-  const lo = Math.min(state.anchor, state.index);
-  const hi = Math.max(state.anchor, state.index);
-  return index >= lo && index <= hi ? "range" : false;
-}
-
-/** Move the focus within a card of `n` targets.
- *  - dir -1 past the FIRST target → "exit" (the escape hatch).
- *  - shift (range) extends the band from the anchor; ctrl (jump) snaps to an edge.
- *  Returns the next state, or "exit" to leave Spotlight. */
-export function moveSpot(state: SpotState, n: number, dir: -1 | 1, opts?: { range?: boolean; jump?: boolean }): SpotState | "exit" {
-  if (n <= 0) return "exit";
-  if (opts?.jump) {
-    const index = dir < 0 ? 0 : n - 1;
-    return { ...state, index, anchor: opts.range ? (state.anchor ?? state.index) : null };
-  }
-  if (opts?.range) {
-    const anchor = state.anchor ?? state.index;
-    const index = Math.max(0, Math.min(n - 1, state.index + dir));
-    return { ...state, index, anchor };
-  }
-  // plain move — up off the top exits
-  if (dir < 0 && state.index === 0) return "exit";
-  const index = Math.max(0, Math.min(n - 1, state.index + dir));
-  return { cardId: state.cardId, index, anchor: null };
-}
-
-/** Start (or restart) a spotlight on a specific target id of a card. */
-export function startSpot(cardId: string, targets: string[], targetId: string): SpotState {
-  const index = Math.max(0, targets.indexOf(targetId));
-  return { cardId, index, anchor: null };
 }
 
 // ---- CLICK-TOGGLE MODEL (Lee's redesign) -----------------------------------
