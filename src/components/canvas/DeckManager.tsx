@@ -20,7 +20,7 @@ import { nextStageOrder } from "./BaseCard";
 import { useCanvasSettings } from "./CanvasSettingsContext";
 import { DECK_DND_MIME, useDecks } from "./DecksContext";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, isContainerType, type CeqCard, type DeckDef } from "./types";
+import { cardId, isContainerType, type CeqCard, type DeckDef, type MemoKind } from "./types";
 import { CeqSetPreviewer } from "./CeqSetPreviewer";
 import { NEON } from "./theme";
 
@@ -28,6 +28,12 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
   const rf = useReactFlow();
   const nodes = useNodes();
   const nav = useFrameNav();
+  // MEMO LIBRARY (Phase 2) — existing scene memos the CEQ previewer can attach
+  // (reuse) copies of. { id, title, body, memoKind, category }.
+  const memoLibrary = nodes
+    .filter((n) => n.type === "memo")
+    .map((n) => { const d = n.data as { title?: string; body?: string; memoKind?: MemoKind; category?: string }; return { id: n.id, title: d.title, body: d.body ?? "", memoKind: d.memoKind, category: d.category }; })
+    .filter((m) => (m.title || m.body || "").trim().length > 0);
   const { flashDeck } = useDecks();
   const { coa, courseId, jeLibrary } = useCanvasSettings();
   // ITEM 6: the scene course's REAL chapters (active, in order) drive the seed —
@@ -212,9 +218,24 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
       const at = { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
       newNodes = cards.map((c, i) => { const n = mk(c, i, at, i > 0); return { ...n, data: { ...n.data, wide: true, hideChrome: true, posLock: true } }; });
     }
+    // MATERIALISE ATTACHED MEMOS (Phase 2, Lee): one memo node per set-memo, placed
+    // at its card's position + the memo's frame-local offset (dx/dy), sharing the
+    // card's tucked state + deckId so it deals/clears WITH the card. Re-deal replaces
+    // them too (they carry the same deckId, so they're in `existing`).
+    const memoNodes = order.flatMap((a, i) => {
+      const card = newNodes[i];
+      const cardTucked = !!(card.data as { tucked?: boolean }).tucked;
+      return (a.memos ?? []).map((m) => {
+        const pos = { x: card.position.x + m.dx, y: card.position.y + m.dy };
+        return {
+          id: cardId("memo"), type: "memo", parentId: frameId, position: pos, selected: false,
+          data: { kind: "memo", memoKind: m.memoKind ?? "note", title: m.title, body: m.body, category: m.category, w: m.w, deckId, deckMember: true, deckLessonId: lessonId, tucked: cardTucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set-memo", deckPos: pos, posLock: true } as Record<string, unknown>,
+        };
+      });
+    });
     const cmds = [
       removeSnap.length ? { label: "clear frame copy", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
-      addNodesCmd(rf as unknown as RfLike, newNodes as never, `deal ${cards.length} CEQ`),
+      addNodesCmd(rf as unknown as RfLike, [...newNodes, ...memoNodes] as never, `deal ${cards.length} CEQ${memoNodes.length ? ` + ${memoNodes.length} memos` : ""}`),
       patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: mode === "stack" }, "deal mode"),
     ].filter((c): c is NonNullable<typeof c> => !!c);
     const cmd = compositeCmd(cmds, `deal set → ${mode}`);
@@ -586,7 +607,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
         {seedNote && <div className="px-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>{seedNote}</div>}
       {/* CEQ SET PREVIEWER (Lee) — portaled to body so the center modal isn't
           clipped by the deck panel's aside. */}
-      {(() => { const s = previewSet ? ceqSets.find((x) => x.id === previewSet) : null; return s ? createPortal(<CeqSetPreviewer set={s} setCeqSets={setCeqSets} onClose={() => setPreviewSet(null)} />, document.body) : null; })()}
+      {(() => { const s = previewSet ? ceqSets.find((x) => x.id === previewSet) : null; return s ? createPortal(<CeqSetPreviewer set={s} setCeqSets={setCeqSets} memoLibrary={memoLibrary} onClose={() => setPreviewSet(null)} />, document.body) : null; })()}
     </div>
   );
 }

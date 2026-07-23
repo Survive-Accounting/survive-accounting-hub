@@ -7,24 +7,64 @@
 //
 // Phase 2 (memos in the previewer) lands on top of this shell.
 import { useState } from "react";
-import { ArrowDown, ArrowUp, ArrowDownUp, GripVertical, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowDownUp, GripVertical, StickyNote, X } from "lucide-react";
 
-import { correctFor, fillStem, filmOrder, type CeqSetAccount, type CeqSetDef } from "./ceq-set";
+import { correctFor, fillStem, filmOrder, type CeqSetAccount, type CeqSetDef, type CeqSetMemo } from "./ceq-set";
 import { NEON } from "./theme";
+import { cardId, type MemoKind } from "./types";
 
 const DIFF_TONE: Record<string, string> = { easy: "#3BF5A0", medium: NEON.yellow, hard: "#FF8B9E" };
 
-export function CeqSetPreviewer({ set, setCeqSets, onClose }: {
+/** A memo the previewer can attach a COPY of (from the scene's existing memos). */
+export interface MemoLibraryItem { id: string; title?: string; body: string; memoKind?: MemoKind; category?: string }
+
+// Where a memo sits relative to its dealt card (frame-local offset). The dealt
+// stack card is ~560 wide; presets place the memo just outside each edge.
+const MEMO_POS: Record<string, { dx: number; dy: number }> = {
+  right: { dx: 580, dy: 20 },
+  below: { dx: 0, dy: 540 },
+  left: { dx: -300, dy: 20 },
+  above: { dx: 0, dy: -140 },
+};
+const MEMO_POS_ORDER = ["right", "below", "left", "above"] as const;
+const MEMO_POS_ARROW: Record<string, string> = { right: "→", below: "↓", left: "←", above: "↑" };
+/** Which preset a memo's dx/dy currently matches (defaults to "right"). */
+function memoPosKey(m: CeqSetMemo): (typeof MEMO_POS_ORDER)[number] {
+  for (const k of MEMO_POS_ORDER) if (MEMO_POS[k].dx === m.dx && MEMO_POS[k].dy === m.dy) return k;
+  return "right";
+}
+
+export function CeqSetPreviewer({ set, setCeqSets, memoLibrary, onClose }: {
   set: CeqSetDef;
   setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void;
+  memoLibrary: MemoLibraryItem[];
   onClose: () => void;
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
+  // which question's "+ memo" picker is open, and the new-memo draft text.
+  const [memoPickerFor, setMemoPickerFor] = useState<string | null>(null);
+  const [newMemoText, setNewMemoText] = useState("");
   const includedCount = set.accounts.filter((a) => a.include).length;
 
   const patchAccounts = (fn: (accs: CeqSetAccount[]) => CeqSetAccount[]) =>
     setCeqSets((prev) => prev.map((s) => (s.id === set.id ? { ...s, accounts: fn(s.accounts) } : s)));
+
+  // ---- memos on a question (Phase 2) ----
+  const patchMemos = (accountId: string, fn: (memos: CeqSetMemo[]) => CeqSetMemo[]) =>
+    patchAccounts((accs) => accs.map((a) => (a.accountId === accountId ? { ...a, memos: fn(a.memos ?? []) } : a)));
+  const attachMemo = (accountId: string, src: { title?: string; body: string; memoKind?: MemoKind; category?: string }) => {
+    const memo: CeqSetMemo = { id: cardId("setmemo"), title: src.title, body: src.body, memoKind: src.memoKind, category: src.category, ...MEMO_POS.right };
+    patchMemos(accountId, (ms) => [...ms, memo]);
+  };
+  const removeMemo = (accountId: string, memoId: string) =>
+    patchMemos(accountId, (ms) => ms.filter((m) => m.id !== memoId));
+  const cycleMemoPos = (accountId: string, memoId: string) =>
+    patchMemos(accountId, (ms) => ms.map((m) => {
+      if (m.id !== memoId) return m;
+      const next = MEMO_POS_ORDER[(MEMO_POS_ORDER.indexOf(memoPosKey(m)) + 1) % MEMO_POS_ORDER.length];
+      return { ...m, ...MEMO_POS[next] };
+    }));
 
   const reorder = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0) return;
@@ -109,13 +149,56 @@ export function CeqSetPreviewer({ set, setCeqSets, onClose }: {
                       );
                     })}
                   </div>
+                  {/* MEMOS attached to this question (Phase 2) — travel with the set,
+                      materialise positioned near the card on every deal. */}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    <StickyNote className="h-3 w-3" style={{ color: NEON.muted }} />
+                    {(a.memos ?? []).map((m) => (
+                      <span key={m.id} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px]" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
+                        <button title="Cycle position around the card (right → below → left → above)" className="font-bold" style={{ color: NEON.cyan }} onClick={() => cycleMemoPos(a.accountId, m.id)}>{MEMO_POS_ARROW[memoPosKey(m)]}</button>
+                        <span className="max-w-[150px] truncate">{m.title || m.body}</span>
+                        <button title="Remove memo" style={{ color: NEON.muted }} onClick={() => removeMemo(a.accountId, m.id)}><X className="h-2.5 w-2.5" /></button>
+                      </span>
+                    ))}
+                    <button className="rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} title="Attach a memo to this question" onClick={() => { setMemoPickerFor(memoPickerFor === a.accountId ? null : a.accountId); setNewMemoText(""); }}>
+                      {memoPickerFor === a.accountId ? "close" : "+ memo"}
+                    </button>
+                  </div>
+                  {memoPickerFor === a.accountId && (
+                    <div className="mt-1 rounded-md p-1.5" style={{ background: "rgba(0,0,0,0.35)", border: `1px solid ${NEON.borderSoft}` }}>
+                      {memoLibrary.length > 0 && (
+                        <div className="mb-1.5">
+                          <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Reuse from your memo library</div>
+                          <div className="mt-0.5 flex max-h-28 flex-col gap-0.5 overflow-y-auto">
+                            {memoLibrary.map((lm) => (
+                              <button key={lm.id} className="truncate rounded px-1.5 py-0.5 text-left text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Attach a copy of this memo" onClick={() => attachMemo(a.accountId, { title: lm.title, body: lm.body, memoKind: lm.memoKind, category: lm.category })}>
+                                {lm.title ? <span className="font-bold">{lm.title}: </span> : null}{lm.body}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Or write a new one</div>
+                      <div className="mt-0.5 flex items-center gap-1">
+                        <input
+                          value={newMemoText}
+                          onChange={(e) => setNewMemoText(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter" && newMemoText.trim()) { attachMemo(a.accountId, { body: newMemoText.trim() }); setNewMemoText(""); } }}
+                          placeholder="New memo text…"
+                          className="min-w-0 flex-1 rounded px-1.5 py-1 text-[10px] outline-none"
+                          style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                        />
+                        <button className="rounded px-2 py-1 text-[9.5px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} disabled={!newMemoText.trim()} onClick={() => { if (newMemoText.trim()) { attachMemo(a.accountId, { body: newMemoText.trim() }); setNewMemoText(""); } }}>add</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
         <div className="px-4 py-2 text-[9.5px]" style={{ color: NEON.muted, borderTop: `1px solid ${NEON.borderSoft}` }}>
-          Reordering here sets the deal order. When you're ready, enter a frame and hit the stack-deal button on this set. (Memos in the previewer are next.)
+          Reordering sets the deal order; memos attach per question and deal with their card. When you're ready, enter a frame and hit the stack-deal button on this set.
         </div>
       </div>
     </div>

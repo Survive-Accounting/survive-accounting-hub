@@ -8,7 +8,7 @@
 // the Chart-of-Accounts grouping uses (groupNameForType) — contra folds to its
 // base type — so there is one source of truth for "what type is this account".
 import { groupNameForType, type CoaGroupName } from "./coa-groups";
-import { type CeqCard, type CeqChoice } from "./types";
+import { type CeqCard, type CeqChoice, type MemoKind } from "./types";
 
 /** The "not one of the five base types" answer — CORRECT for a contra/adjunct
  *  account (Accumulated Depreciation, Dividends, …), a distractor otherwise. */
@@ -32,6 +32,20 @@ export function correctOptionForType(accountType: string): CeqOption {
   return GROUP_TO_OPTION[groupNameForType(accountType)];
 }
 
+/** A memo attached to a set QUESTION (Lee, Phase 2). Stored on the set so it
+ *  travels with it and materialises onto the frame — positioned — every time the
+ *  set is dealt. dx/dy are the frame-local offset from the dealt card's top-left. */
+export interface CeqSetMemo {
+  id: string;
+  title?: string;
+  body: string;
+  memoKind?: MemoKind;
+  category?: string;
+  dx: number;
+  dy: number;
+  w?: number;
+}
+
 export interface CeqSetAccount {
   /** COA account id, or a synthetic id for an off-COA teaching account (e.g. COGS). */
   accountId: string;
@@ -46,6 +60,8 @@ export interface CeqSetAccount {
   feedback?: Partial<Record<CeqOption, string>>;
   /** True when this account is NOT in the set's COA (added for teaching). */
   offCoa?: boolean;
+  /** Memos attached to THIS question (Phase 2) — materialise with the card on deal. */
+  memos?: CeqSetMemo[];
 }
 
 export interface CeqSetDef {
