@@ -9,13 +9,13 @@
 // removes MEMBERSHIP only. Pure ordering/grouping logic lives in deck-logic.
 import { useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ChevronDown, ChevronRight, Download, ExternalLink, EyeOff, Hand, Layers3, ListFilter, RotateCcw, Shuffle, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, ExternalLink, EyeOff, Hand, Layers3, ListFilter, RotateCcw, Shuffle, Trash2, X } from "lucide-react";
 
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./commands";
 import { useFrameNav } from "./FrameNavContext";
 import { nextStageOrder } from "./BaseCard";
 import { CardPopover } from "./CardPopover";
-import { deckMembers, isMember, isTucked, lessonGroups, nextTucked, categoryOf, type DeckNode } from "./deck-logic";
+import { deckMembers, isMember, isTucked, lessonGroups, lessonIdOf, nextTucked, categoryOf, type DeckNode } from "./deck-logic";
 import { blankFrom, JE_PRESETS } from "./je-logic";
 import { CARD_KIND_LABEL } from "./templates";
 import { NEON } from "./theme";
@@ -222,6 +222,25 @@ export function Deck({
     if (c) bus.dispatch(c);
   };
 
+  /** DELETE LOOSE (Lee): remove every LOOSE deck-member card — a deck member with
+   *  no lesson home (the "Loose" roster group), i.e. test-deal debris — and drop any
+   *  named deck left with zero members. Confirmed + ONE undo restores everything. */
+  const deleteLoose = () => {
+    const all = rf.getNodes();
+    const loose = all.filter((n) => !isContainerType(n.type) && isMember(n.data as unknown as CardBase) && lessonIdOf(n as unknown as DeckNode, all as unknown as DeckNode[]) == null);
+    if (loose.length === 0) { window.alert("No loose cards to delete."); return; }
+    if (!window.confirm(`Delete ${loose.length} loose card${loose.length === 1 ? "" : "s"} (and any deck left empty)?\n\nThis clears test-deal debris. One undo (Ctrl+Z) restores everything.`)) return;
+    const ids = new Set(loose.map((n) => n.id));
+    const snap = loose.map((n) => structuredClone(n));
+    const keptDeckIds = new Set(all.filter((n) => !ids.has(n.id)).map((n) => (n.data as { deckId?: string }).deckId).filter(Boolean));
+    const prevDecks = decks;
+    bus.dispatch({
+      label: `delete ${loose.length} loose cards`,
+      do: () => { rf.setNodes((nds) => nds.filter((n) => !ids.has(n.id))); setDecks((p) => p.filter((dk) => keptDeckIds.has(dk.id))); },
+      undo: () => { rf.setNodes((nds) => [...nds, ...snap.map((n) => structuredClone(n))]); setDecks(() => prevDecks); },
+    });
+  };
+
   /** Drop dragId in front of targetId (or at the end when targetId is null). */
   const reorder = (targetId: string | null) => {
     if (!dragId || dragId === targetId) return;
@@ -273,6 +292,9 @@ export function Deck({
         </DeckBtn>
         <DeckBtn title="Tuck every deck member (loose cards stay put)" onClick={reset}>
           <RotateCcw className="h-3 w-3" /> reset
+        </DeckBtn>
+        <DeckBtn title="Delete all LOOSE cards (deck members with no lesson) + any deck left empty — clears test-deal debris. One undo restores." onClick={deleteLoose}>
+          <Trash2 className="h-3 w-3" /> delete loose
         </DeckBtn>
       </div>
       <div className="flex items-center gap-2 px-2.5 py-1" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
