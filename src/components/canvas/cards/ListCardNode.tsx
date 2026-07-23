@@ -163,9 +163,10 @@ export function ListCardNode({ id, data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* Item 6: the one-line "definition" was a duplicate inline title — the
-          title lives ONLY in the top bar now; the description sits directly
-          under the bar. (d.definition kept in the type for old scenes; unused.) */}
+      {/* Item 6: the old one-line "definition" (a duplicate inline title) and its
+          type field were removed — the title lives ONLY in the top bar; the
+          description sits directly under it. Old scenes' `definition` values
+          round-trip harmlessly as untyped extra data (read by nothing). */}
       {/* DESCRIPTION (L4): a short paragraph, inline-editable, reveal-able as a step */}
       {(d.description || editing) && (
         (d.descHidden && !prog) ? (

@@ -577,8 +577,6 @@ export interface ListRow {
 }
 export interface ListCard extends CardBase {
   kind: "list";
-  /** One-word/one-line definition under the title. */
-  definition?: string;
   /** DESCRIPTION (L4): a short paragraph under the title, inline-editable,
    *  reveal-able as its own stepper step (descHidden). */
   description?: string;

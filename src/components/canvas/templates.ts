@@ -117,7 +117,6 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
     case "list":
       return {
         kind: "list",
-        definition: "",
         rows: [
           { id: cardId("r"), text: "" },
           { id: cardId("r"), text: "" },
