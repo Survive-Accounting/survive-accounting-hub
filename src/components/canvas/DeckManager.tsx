@@ -5,6 +5,7 @@
 // live in the scene (persisted); the canvas_decks table (0090) is the reusable
 // library layer. Deal-into-grid + memo highlight render in P4.
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useNodes, useReactFlow } from "@xyflow/react";
 
@@ -20,6 +21,7 @@ import { useCanvasSettings } from "./CanvasSettingsContext";
 import { DECK_DND_MIME, useDecks } from "./DecksContext";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, isContainerType, type CeqCard, type DeckDef } from "./types";
+import { CeqSetPreviewer } from "./CeqSetPreviewer";
 import { NEON } from "./theme";
 
 export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; ceqSets: CeqSetDef[]; setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void; lessonScope?: string | null }) {
@@ -112,6 +114,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
 
   // ---- CEQ SET FACTORY -------------------------------------------------------
   const [expandedSet, setExpandedSet] = useState<string | null>(null);
+  const [previewSet, setPreviewSet] = useState<string | null>(null); // CEQ Set Previewer modal (organize + reorder)
   const lessonOpts = rf.getNodes().filter((n) => n.type === "lesson").map((n) => ({ id: n.id, label: String((n.data as { label?: string }).label ?? "Lesson") }));
 
   const newAccountTypeSet = () => {
@@ -172,7 +175,10 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     // under that lesson topic in the roster, NOT in Loose. (lessonIdOf only walks a
     // DIRECT lesson parent; a card in a frame would otherwise read as Loose.)
     const lessonId = frame.parentId && rf.getNode(frame.parentId)?.type === "lesson" ? frame.parentId : null;
-    const order = filmOrder(set.accounts);
+    // DEAL IN THE SET'S MANUAL ORDER (Lee): the accounts array order IS the
+    // pedagogical deal order — reorder it in the CEQ Set Previewer. (Was filmOrder,
+    // an auto easy→hard sort; that now lives behind the previewer's "auto-sort".)
+    const order = set.accounts.filter((a) => a.include);
     if (order.length === 0) { setSeedNote("include at least one account first"); return; }
     const cards = generateCeqCards(set, order);
     const deckId = `${set.id}::${frameId}`; // one copy per (set, frame) — re-deal replaces it
@@ -528,6 +534,9 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
                     <button className="min-w-0 flex-1 truncate text-left text-[11px] font-semibold" style={{ color: NEON.text }} onClick={() => setExpandedSet(open2 ? null : set.id)} title="Expand to include/exclude accounts, set difficulty + correct answer">
                       {set.name} <span style={{ color: NEON.muted }}>· {inc} in{set.deckId ? " · ✓ deck" : ""}</span>
                     </button>
+                    {/* ORGANIZE (Lee) — open the wide previewer to see full stems + choices,
+                        reorder into deal order, and (soon) attach memos. */}
+                    <button title="Organize this set — full question preview (stem + choices), reorder into the exact deal order, total count." onClick={() => setPreviewSet(set.id)} style={{ color: NEON.yellow }}><ListOrdered className="h-3 w-3" /></button>
                     {/* DEAL INTO THE FRAME YOU'RE IN (Lee) — repeatable across frames: grid in
                         a teaser, stack in a cram. Each is its own copy. */}
                     <button title={gridActive ? "Grid-dealt into THIS frame (click to re-deal). Fills the grid with every card, visible (teaser)." : "Grid-deal into the frame you're in — fills its grid with every card, visible (teaser). Repeatable per frame."} onClick={() => dealSetIntoFrame(set, "grid")} className="grid h-4 w-4 place-items-center" style={dealBtn(gridActive)}><Grid3x3 className="h-3 w-3" /></button>
@@ -577,6 +586,9 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
           {seedNote && <div className="px-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>{seedNote}</div>}
         </div>
       )}
+      {/* CEQ SET PREVIEWER (Lee) — portaled to body so the center modal isn't
+          clipped by the deck panel's aside. */}
+      {(() => { const s = previewSet ? ceqSets.find((x) => x.id === previewSet) : null; return s ? createPortal(<CeqSetPreviewer set={s} setCeqSets={setCeqSets} onClose={() => setPreviewSet(null)} />, document.body) : null; })()}
     </div>
   );
 }
