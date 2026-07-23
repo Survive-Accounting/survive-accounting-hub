@@ -16,22 +16,10 @@ import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "./com
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type MemoCard } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
+import { lessonNodeOf, topicKey, topicOfLessonNode, topicOfNode } from "./memo-scope";
 import { NEON } from "./theme";
 
 const NONE = "__none__"; // sentinel for an uncategorised memo in the category filter
-
-/** Walk parentId up to the enclosing lesson (≤6 hops). Null if none. */
-function lessonOf(rf: ReturnType<typeof useReactFlow>, start: { parentId?: string }): string | null {
-  let cur: { parentId?: string } | undefined = start;
-  let guard = 0;
-  while (cur?.parentId && guard++ < 6) {
-    const p = rf.getNode(cur.parentId);
-    if (!p) return null;
-    if (p.type === "lesson") return p.id;
-    cur = p;
-  }
-  return null;
-}
 
 const catKey = (c: string | undefined) => {
   const up = String(c ?? "").toUpperCase().trim();
@@ -43,18 +31,23 @@ export function MemoLibraryPanel() {
   const nodes = useNodes(); // re-render as memos/frames change
   const nav = useFrameNav();
 
-  // The frame we'd add into, and its lesson (the default library scope).
+  // The frame we'd add into, and its TOPIC (the default library scope). Memos are
+  // reusable across a whole topic (Lee), so the scope is a topic — which groups
+  // several lessons — not a single lesson.
   const curFrame = nav.currentFrameId ? rf.getNode(nav.currentFrameId) : null;
-  const frameLessonId = curFrame?.type === "frame" && curFrame.parentId && rf.getNode(curFrame.parentId)?.type === "lesson" ? curFrame.parentId : null;
+  const frameTopic = curFrame?.type === "frame" ? topicOfLessonNode(lessonNodeOf(rf, curFrame)) : "";
 
-  const lessons = useMemo(
-    () => rf.getNodes().filter((n) => n.type === "lesson").map((n) => ({ id: n.id, label: String((n.data as { label?: string }).label ?? "Lesson") })),
+  // Distinct topics present in the scene (display string, de-duped case-insensitively).
+  const topics = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const n of rf.getNodes()) if (n.type === "lesson") { const t = topicOfLessonNode(n); if (t) { const k = topicKey(t); if (!seen.has(k)) seen.set(k, t); } }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes.length],
-  );
+  }, [nodes.length]);
 
-  const [lessonPick, setLessonPick] = useState<string | null>(null);
-  const lessonId = lessonPick ?? frameLessonId ?? lessons[0]?.id ?? null;
+  const [topicPick, setTopicPick] = useState<string | null>(null);
+  const topicSel = topicPick ?? (frameTopic || null) ?? topics[0] ?? null;
+  const topicSelKey = topicSel ? topicKey(topicSel) : null;
 
   const [catFilter, setCatFilter] = useState<Set<string>>(() => new Set([...MEMO_CATEGORIES, NONE]));
   const [sel, setSel] = useState<Set<string>>(() => new Set());
@@ -64,16 +57,16 @@ export function MemoLibraryPanel() {
   // ties broken by node array index for stability). Filtered list is display.
   const orderIndex = useMemo(() => new Map(nodes.map((n, i) => [n.id, i])), [nodes]);
   const fullMemos = useMemo(() => {
-    if (!lessonId) return [];
+    if (!topicSelKey) return [];
     return rf.getNodes()
-      .filter((n) => n.type === "memo" && lessonOf(rf, n) === lessonId)
+      .filter((n) => n.type === "memo" && topicKey(topicOfNode(rf, n)) === topicSelKey)
       .sort((a, b) => {
         const la = (a.data as unknown as MemoCard).libOrder ?? Number.MAX_SAFE_INTEGER;
         const lb = (b.data as unknown as MemoCard).libOrder ?? Number.MAX_SAFE_INTEGER;
         return la - lb || (orderIndex.get(a.id)! - orderIndex.get(b.id)!);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessonId, nodes, orderIndex]);
+  }, [topicSelKey, nodes, orderIndex]);
 
   const shown = fullMemos.filter((m) => catFilter.has(catKey((m.data as unknown as MemoCard).category)));
 
@@ -143,17 +136,17 @@ export function MemoLibraryPanel() {
         <Layers className="h-3 w-3" /> Memo library
       </div>
 
-      {/* LESSON SCOPE */}
+      {/* TOPIC SCOPE — memos are reusable across the whole topic (spans lessons). */}
       <label className="flex flex-col gap-0.5">
-        <span className="text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Lesson</span>
+        <span className="text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Topic</span>
         <select
-          value={lessonId ?? ""}
-          onChange={(e) => { setLessonPick(e.target.value || null); setSel(new Set()); }}
+          value={topicSel ?? ""}
+          onChange={(e) => { setTopicPick(e.target.value || null); setSel(new Set()); }}
           className="rounded bg-black/40 px-1 py-0.5 text-[10px]"
           style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
         >
-          {lessons.length === 0 && <option value="">no lessons in scene</option>}
-          {lessons.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+          {topics.length === 0 && <option value="">no topics in scene</option>}
+          {topics.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </label>
 
@@ -182,7 +175,7 @@ export function MemoLibraryPanel() {
 
       {/* MEMO LIST */}
       <div className="flex max-h-[46vh] flex-col gap-1 overflow-y-auto pr-0.5">
-        {shown.length === 0 && <div className="px-0.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>No memos in this lesson match the filter.</div>}
+        {shown.length === 0 && <div className="px-0.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>No memos in this topic match the filter.</div>}
         {shown.map((m) => {
           const d = m.data as unknown as MemoCard;
           const on = sel.has(m.id);

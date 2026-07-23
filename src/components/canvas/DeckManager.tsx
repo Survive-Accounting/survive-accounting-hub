@@ -22,16 +22,23 @@ import { DECK_DND_MIME, useDecks } from "./DecksContext";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, isContainerType, type CeqCard, type DeckDef, type MemoKind } from "./types";
 import { CeqSetPreviewer } from "./CeqSetPreviewer";
+import { lessonNodeOf, topicKey, topicOfLessonNode, topicOfNode } from "./memo-scope";
 import { NEON } from "./theme";
 
 export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; ceqSets: CeqSetDef[]; setCeqSets: (fn: (prev: CeqSetDef[]) => CeqSetDef[]) => void; lessonScope?: string | null }) {
   const rf = useReactFlow();
   const nodes = useNodes();
   const nav = useFrameNav();
-  // MEMO LIBRARY (Phase 2) — existing scene memos the CEQ previewer can attach
-  // (reuse) copies of. { id, title, body, memoKind, category }.
+  // MEMO LIBRARY (Phase 2) — memos the CEQ previewer can attach (reuse) copies of.
+  // Scoped to the CURRENT TOPIC (Lee): a topic groups several lessons (Cram Tease,
+  // Cram Full, …), and a memo written in any of them is reusable across the whole
+  // topic. Topic derives from the lesson you're in (current frame's lesson, else
+  // the deck-panel's lessonScope). No topic known ⇒ show all (hide nothing).
+  const curLessonNode = nav.currentFrameId ? lessonNodeOf(rf, rf.getNode(nav.currentFrameId) ?? {}) : (lessonScope ? rf.getNode(lessonScope) ?? null : null);
+  const curTopicKey = topicKey(topicOfLessonNode(curLessonNode));
   const memoLibrary = nodes
     .filter((n) => n.type === "memo")
+    .filter((n) => !curTopicKey || topicKey(topicOfNode(rf, n)) === curTopicKey)
     .map((n) => { const d = n.data as { title?: string; body?: string; memoKind?: MemoKind; category?: string }; return { id: n.id, title: d.title, body: d.body ?? "", memoKind: d.memoKind, category: d.category }; })
     .filter((m) => (m.title || m.body || "").trim().length > 0);
   const { flashDeck } = useDecks();

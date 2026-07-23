@@ -10,10 +10,14 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, ArrowDownUp, GripVertical, StickyNote, X } from "lucide-react";
 
 import { correctFor, fillStem, filmOrder, type CeqSetAccount, type CeqSetDef, type CeqSetMemo } from "./ceq-set";
+import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { NEON } from "./theme";
 import { cardId, type MemoKind } from "./types";
 
 const DIFF_TONE: Record<string, string> = { easy: "#3BF5A0", medium: NEON.yellow, hard: "#FF8B9E" };
+
+// Category → memo kind (drives the card's icon/accent). Uncategorised ⇒ no kind ⇒ no icon.
+const CAT_KIND: Record<string, MemoKind> = { STEPS: "note", "EXAM TRAPS": "trap", "CHEAT CODES": "cheat", "OTHER TIPS": "tip" };
 
 /** A memo the previewer can attach a COPY of (from the scene's existing memos). */
 export interface MemoLibraryItem { id: string; title?: string; body: string; memoKind?: MemoKind; category?: string }
@@ -42,9 +46,10 @@ export function CeqSetPreviewer({ set, setCeqSets, memoLibrary, onClose }: {
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
-  // which question's "+ memo" picker is open, and the new-memo draft text.
+  // which question's "+ memo" picker is open, the new-memo draft text, and its category.
   const [memoPickerFor, setMemoPickerFor] = useState<string | null>(null);
   const [newMemoText, setNewMemoText] = useState("");
+  const [newMemoCat, setNewMemoCat] = useState<string>("OTHER TIPS");
   const includedCount = set.accounts.filter((a) => a.include).length;
 
   const patchAccounts = (fn: (accs: CeqSetAccount[]) => CeqSetAccount[]) =>
@@ -59,6 +64,13 @@ export function CeqSetPreviewer({ set, setCeqSets, memoLibrary, onClose }: {
   };
   const removeMemo = (accountId: string, memoId: string) =>
     patchMemos(accountId, (ms) => ms.filter((m) => m.id !== memoId));
+  // Write + attach a brand-new memo with the chosen category (kind follows category).
+  const addNewMemo = (accountId: string) => {
+    const body = newMemoText.trim();
+    if (!body) return;
+    attachMemo(accountId, { body, category: newMemoCat || undefined, memoKind: newMemoCat ? CAT_KIND[newMemoCat] : undefined });
+    setNewMemoText("");
+  };
   const cycleMemoPos = (accountId: string, memoId: string) =>
     patchMemos(accountId, (ms) => ms.map((m) => {
       if (m.id !== memoId) return m;
@@ -179,16 +191,31 @@ export function CeqSetPreviewer({ set, setCeqSets, memoLibrary, onClose }: {
                         </div>
                       )}
                       <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Or write a new one</div>
-                      <div className="mt-0.5 flex items-center gap-1">
+                      {/* category chips — click the active one again to leave it uncategorised */}
+                      <div className="mt-0.5 flex flex-wrap gap-1">
+                        {MEMO_CATEGORIES.map((c) => {
+                          const on = newMemoCat === c;
+                          return (
+                            <button key={c} className="rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wide"
+                              style={{ color: on ? "#0B1322" : NEON.muted, background: on ? NEON.yellow : "transparent", border: `1px solid ${on ? NEON.yellow : NEON.borderSoft}` }}
+                              title={on ? "Selected — click to leave uncategorised" : `Categorise new memo as ${c}`}
+                              onClick={() => setNewMemoCat(on ? "" : c)}>
+                              {c}
+                            </button>
+                          );
+                        })}
+                        {!newMemoCat && <span className="self-center text-[8.5px] italic" style={{ color: NEON.muted }}>uncat.</span>}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
                         <input
                           value={newMemoText}
                           onChange={(e) => setNewMemoText(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter" && newMemoText.trim()) { attachMemo(a.accountId, { body: newMemoText.trim() }); setNewMemoText(""); } }}
+                          onKeyDown={(e) => { if (e.key === "Enter") addNewMemo(a.accountId); }}
                           placeholder="New memo text…"
                           className="min-w-0 flex-1 rounded px-1.5 py-1 text-[10px] outline-none"
                           style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
                         />
-                        <button className="rounded px-2 py-1 text-[9.5px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} disabled={!newMemoText.trim()} onClick={() => { if (newMemoText.trim()) { attachMemo(a.accountId, { body: newMemoText.trim() }); setNewMemoText(""); } }}>add</button>
+                        <button className="rounded px-2 py-1 text-[9.5px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} disabled={!newMemoText.trim()} onClick={() => addNewMemo(a.accountId)}>add</button>
                       </div>
                     </div>
                   )}
