@@ -37,7 +37,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     .filter((c) => c.id !== "__unassigned__" && c.status !== "archived" && c.chapter_name)
     .sort((a, b) => (a.chapter_number ?? 999) - (b.chapter_number ?? 999));
   const courseChapters: SeedChapter[] = courseChaptersFull.map((c) => ({ number: c.chapter_number, name: c.chapter_name as string }));
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false); // NAMED DECKS — collapsed by default (Lee: out of the way; CEQ sets are the main flow)
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null); // deck row a card is hovering over (item 4a)
   const [orderDeck, setOrderDeck] = useState<string | null>(null); // deck whose deal-order list is open (Lee: rearrange deal order)
@@ -510,12 +510,15 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
           >
             <ListChecks className="h-3 w-3" /> seed Start Here decks
           </button>
-          {/* CEQ SET FACTORY — a template + COA source that generates one card per
-              included account, in film order, into a named deck. */}
-          <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
-              <ListChecks className="h-3 w-3" /> CEQ sets <span style={{ color: NEON.muted }}>({ceqSets.length})</span>
-            </div>
+        </div>
+      )}
+
+      {/* CEQ SETS (Lee) — un-nested from Named Decks so it's ALWAYS visible (the main
+          flow for building cram videos). Named Decks collapses independently above. */}
+      <div className="mt-1.5">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
+          <ListChecks className="h-3 w-3" /> CEQ sets <span style={{ color: NEON.muted }}>({ceqSets.length})</span>
+        </div>
             {ceqSets.map((set) => {
               const inc = set.accounts.filter((a) => a.include).length;
               const open2 = expandedSet === set.id;
@@ -579,14 +582,8 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
             <button className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} title="Create the What-type-of-account set from the scene course COA (difficulty ramp preset; COGS auto-added)" onClick={newAccountTypeSet}>
               <Plus className="h-3 w-3" /> new: what type of account?
             </button>
-          </div>
-
-          {/* MEMO SUMMARY moved out (Lee) — memos are now browsed, curated, and
-              added to a frame from the "Memos" section of the LEFT drawer
-              (MemoLibraryPanel), replacing the old dump-all button. */}
-          {seedNote && <div className="px-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>{seedNote}</div>}
         </div>
-      )}
+        {seedNote && <div className="px-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>{seedNote}</div>}
       {/* CEQ SET PREVIEWER (Lee) — portaled to body so the center modal isn't
           clipped by the deck panel's aside. */}
       {(() => { const s = previewSet ? ceqSets.find((x) => x.id === previewSet) : null; return s ? createPortal(<CeqSetPreviewer set={s} setCeqSets={setCeqSets} onClose={() => setPreviewSet(null)} />, document.body) : null; })()}
