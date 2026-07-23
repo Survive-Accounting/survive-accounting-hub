@@ -20,7 +20,7 @@ import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, type RfLike } from "./c
 import { blankFrameData, BEAT_COLUMNS, beatColOf, columnX, framesInBeat, nextSubIndex, RESERVED_ROWS, rowY, subIndexOf } from "./frames";
 import { isUnlinked, MARK_KINDS, markLabel, newMark, parseAtTokens } from "./card-marks";
 import { downloadText } from "./export";
-import { courseScriptMarkdown, cycleScriptState, hasScript, SCRIPT_STATE_META, scriptTree } from "./script-doc";
+import { courseScriptMarkdown, scriptTree } from "./script-doc";
 import { estimateFrameSeconds, formatReadTime, isOverReadTime } from "./script-timing";
 import { NEON } from "./theme";
 import { cardId, FRAME_H, FRAME_W, isContainerType, type Beat, type CardMark, type FrameScript, type MarkKind } from "./types";
@@ -125,11 +125,6 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
   // ---- script + mark writes (undoable; keystrokes coalesce) ------------------
   const patchScript = (frameId: string, key: "entry" | "beats" | "exit", value: string) => {
     const c = patchDataFnCmd(rfl, frameId, (prev) => ({ script: { ...((prev.script as FrameScript) ?? {}), [key]: value } }), "edit script", `d:${frameId}:script:${key}`);
-    if (c) bus.dispatch(c);
-  };
-  // SCRIPT STATE (Phase 3): set the writing status on a frame's script.
-  const setScriptState = (frameId: string, state: "draft" | "review" | "final") => {
-    const c = patchDataFnCmd(rfl, frameId, (prev) => ({ script: { ...((prev.script as FrameScript) ?? {}), scriptState: state } }), "script state");
     if (c) bus.dispatch(c);
   };
   // frame NAME (editable) — coalesced keystrokes; hook frames default 1=Intro, 2=Outline, 3=Teaser.
