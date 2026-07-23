@@ -125,7 +125,7 @@ export function Deck({
   const nodes = useNodes();
   const nav = useFrameNav();
   const [dragId, setDragId] = useState<string | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(["__loose__"])); // Loose collapsed by default (Lee: out of the way)
   const [importFor, setImportFor] = useState<{ lessonId: string; anchor: HTMLElement } | null>(null);
   const [importPick, setImportPick] = useState<Set<string>>(new Set());
   // ONE LESSON AT A TIME (Lee) — default to just the lesson you're in; toggle to
