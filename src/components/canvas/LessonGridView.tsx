@@ -6,7 +6,7 @@
 // treatments render here too, plus an estimated-runtime chip (soft warn past
 // ~3:00 — warning only, never blocks). This NEVER moves nodes — toggling back to
 // the canvas is lossless because no placement data is read or written.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
 import { Lock, X } from "lucide-react";
 
@@ -27,9 +27,10 @@ interface LessonRow {
   pathing: LessonPathing;
   pathOrder: number;
   runtimeS: number;
+  frameCount: number;
 }
 
-export function LessonGridView({ onClose }: { onClose: () => void }) {
+export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => void; onActivateLesson?: (id: string) => void }) {
   const nodes = useNodes();
   const rf = useReactFlow();
 
@@ -39,8 +40,10 @@ export function LessonGridView({ onClose }: { onClose: () => void }) {
       .filter((n) => n.type === "lesson")
       .map((n) => {
         const d = n.data as unknown as LessonBox;
-        const scripts = all.filter((f) => f.type === "frame" && f.parentId === n.id).map((f) => (f.data as { script?: FrameScript }).script);
+        const frames = all.filter((f) => f.type === "frame" && f.parentId === n.id);
+        const scripts = frames.map((f) => (f.data as { script?: FrameScript }).script);
         return {
+          frameCount: frames.length,
           id: n.id,
           label: (d.label || "").trim() || "Lesson",
           lessonType: d.lessonType ?? "CONCEPT",
@@ -63,11 +66,61 @@ export function LessonGridView({ onClose }: { onClose: () => void }) {
 
   const cellOf = (topic: string, type: LessonType) => lessons.filter((l) => l.topic === topic && l.lessonType === type);
 
+  // Per-cell selection when a (topic, type) cell holds >1 lesson (dropdown pick).
+  const [cellPick, setCellPick] = useState<Record<string, string>>({});
+
   const jump = (id: string) => {
-    // Close FIRST (never let a camera hiccup keep the overlay stuck), then move
-    // the camera to the lesson on the next tick once the overlay has unmounted.
+    // Close FIRST (never let a camera hiccup keep the overlay stuck), then make
+    // that lesson ACTIVE (mounts it + flies the camera) once the overlay has
+    // unmounted. Falls back to a plain camera fit if no activator was passed.
     onClose();
-    if (rf.getNode(id)) window.setTimeout(() => { void rf.fitView({ nodes: [{ id }], duration: 400, padding: 0.25 }); }, 30);
+    if (!rf.getNode(id)) return;
+    window.setTimeout(() => {
+      if (onActivateLesson) onActivateLesson(id);
+      else void rf.fitView({ nodes: [{ id }], duration: 400, padding: 0.25 });
+    }, 30);
+  };
+
+  // One lesson chip — badges (Free/Paid, Optional), FRAME COUNT, runtime. Jumps on click.
+  const chip = (l: LessonRow, t: LessonType) => {
+    const paid = l.access === "PAID";
+    const optional = l.pathing === "OPTIONAL";
+    const over = l.runtimeS > RUNTIME_WARN_S;
+    const rt = formatReadTime(l.runtimeS);
+    return (
+      <button
+        key={l.id}
+        onClick={() => jump(l.id)}
+        className="flex flex-col items-start gap-1 rounded-md px-2 py-1.5 text-left transition-transform hover:-translate-y-px"
+        title={`${l.label} — jump to this lesson`}
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: `1px solid ${TYPE_TONE[t]}55`,
+          filter: paid ? "grayscale(0.55)" : undefined,
+          opacity: optional ? 0.72 : 1,
+          transform: optional ? "rotate(-1.2deg)" : undefined,
+        }}
+      >
+        <div className="flex w-full items-center gap-1">
+          <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: NEON.text }}>{l.label}</span>
+          {paid && <Lock className="h-3 w-3 shrink-0" style={{ color: "#FF8B9E" }} />}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={paid ? { color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>
+            {paid ? "Paid" : "Free"}
+          </span>
+          {optional && <span className="rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide italic" style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}` }}>Optional</span>}
+          <span className="rounded px-1 py-0.5 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`${l.frameCount} frame${l.frameCount === 1 ? "" : "s"}`}>
+            {l.frameCount}f
+          </span>
+          {rt && (
+            <span className="rounded px-1 py-0.5 text-[8px] font-bold tabular-nums" style={over ? { color: "#FFD08A", border: "1px solid rgba(252,163,17,0.55)", background: "rgba(252,163,17,0.12)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={over ? "Over ~3:00 — consider tightening (warning only)" : "Estimated runtime from the script"}>
+              {over ? "⚠ " : ""}{rt}
+            </span>
+          )}
+        </div>
+      </button>
+    );
   };
 
   return (
@@ -102,45 +155,25 @@ export function LessonGridView({ onClose }: { onClose: () => void }) {
                 </div>
                 {LESSON_TYPES.map((t) => {
                   const cell = cellOf(topic, t);
+                  const key = `${topic}::${t}`;
+                  // >1 lesson in a cell → a dropdown picks which one; the picked
+                  // lesson's chip renders below it. Exactly 1 → the chip directly.
+                  const pickedId = cell.length > 1 && cellPick[key] && cell.some((l) => l.id === cellPick[key]) ? cellPick[key] : cell[0]?.id;
+                  const picked = cell.find((l) => l.id === pickedId);
                   return (
                     <div key={t} className="flex flex-col gap-1.5 rounded-md p-1.5" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}`, minHeight: 44 }}>
-                      {cell.map((l) => {
-                        const paid = l.access === "PAID";
-                        const optional = l.pathing === "OPTIONAL";
-                        const over = l.runtimeS > RUNTIME_WARN_S;
-                        const rt = formatReadTime(l.runtimeS);
-                        return (
-                          <button
-                            key={l.id}
-                            onClick={() => jump(l.id)}
-                            className="flex flex-col items-start gap-1 rounded-md px-2 py-1.5 text-left transition-transform hover:-translate-y-px"
-                            title={`${l.label} — jump to this lesson`}
-                            style={{
-                              background: "rgba(255,255,255,0.04)",
-                              border: `1px solid ${TYPE_TONE[t]}55`,
-                              filter: paid ? "grayscale(0.55)" : undefined,
-                              opacity: optional ? 0.72 : 1,
-                              transform: optional ? "rotate(-1.2deg)" : undefined,
-                            }}
-                          >
-                            <div className="flex w-full items-center gap-1">
-                              <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: NEON.text }}>{l.label}</span>
-                              {paid && <Lock className="h-3 w-3 shrink-0" style={{ color: "#FF8B9E" }} />}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1">
-                              <span className="rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={paid ? { color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>
-                                {paid ? "Paid" : "Free"}
-                              </span>
-                              {optional && <span className="rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide italic" style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}` }}>Optional</span>}
-                              {rt && (
-                                <span className="rounded px-1 py-0.5 text-[8px] font-bold tabular-nums" style={over ? { color: "#FFD08A", border: "1px solid rgba(252,163,17,0.55)", background: "rgba(252,163,17,0.12)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={over ? "Over ~3:00 — consider tightening (warning only)" : "Estimated runtime from the script"}>
-                                  {over ? "⚠ " : ""}{rt}
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {cell.length > 1 && (
+                        <select
+                          value={pickedId}
+                          onChange={(e) => setCellPick((p) => ({ ...p, [key]: e.target.value }))}
+                          className="rounded bg-black/50 px-1 py-0.5 text-[10px] font-semibold"
+                          style={{ color: NEON.text, border: `1px solid ${TYPE_TONE[t]}77` }}
+                          title={`${cell.length} ${LESSON_TYPE_LABEL[t]} lessons in this topic — pick one`}
+                        >
+                          {cell.map((l) => <option key={l.id} value={l.id}>{l.label} · {l.frameCount}f</option>)}
+                        </select>
+                      )}
+                      {cell.length > 1 ? (picked && chip(picked, t)) : cell.map((l) => chip(l, t))}
                     </div>
                   );
                 })}

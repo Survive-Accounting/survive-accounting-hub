@@ -4,7 +4,7 @@
 //
 // Hotkeys: c = choreograph the current frame (click reveals in order) · space = reveal next hidden element on the selected card ·
 // f / double-click = focus-zoom a card · Esc = back to full view · Delete = remove selection.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Background,
@@ -235,6 +235,47 @@ const lessonLabelOf = (ch: Parameters<typeof chapterLabel>[0]) => chapterLabel(c
 /** Stable parity for a lesson with no pathOrder, so the two tints still alternate. */
 const lessonHash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i)) | 0; return Math.abs(h); };
 
+// ACTIVE-LESSON GATING (Lee — the lag fix): exactly ONE lesson is "active"
+// canvas-wide; only its frames/cards/elements mount. Every other lesson renders
+// as a collapsed chip with ZERO descendant nodes mounted (they stay in the store
+// but carry hidden:true, so React Flow doesn't render them — no data is deleted).
+// Switching active toggles hidden flags; nothing is added or removed.
+const ActiveLessonContext = createContext<{ activeLessonId: string | null; setActiveLesson: (id: string) => void }>({
+  activeLessonId: null,
+  setActiveLesson: () => {},
+});
+
+/** Which lesson owns a node — direct child of a lesson, or a child of one of the
+ *  lesson's frames (the same 2-tier membership the duplicate paths use). Lesson
+ *  nodes, orphans, and top-level furniture return null (never gated). */
+function lessonOwnerOf(n: { type?: string; parentId?: string }, lessonIds: Set<string>, frameToLesson: Map<string, string>): string | null {
+  if (!n.parentId || n.type === "lesson") return null;
+  if (lessonIds.has(n.parentId)) return n.parentId; // direct lesson child (loose card / lesson heading)
+  return frameToLesson.get(n.parentId) ?? null; // child of one of the lesson's frames
+}
+
+/** Compute hidden flags for gating: every gated descendant of a NON-active lesson
+ *  is hidden; the active lesson's descendants are shown. activeId===null ⇒ show
+ *  all (no gating). Returns a Map(nodeId → hidden) covering only gated nodes. */
+function computeLessonHidden(nodes: { id: string; type?: string; parentId?: string }[], activeId: string | null): Map<string, boolean> {
+  const lessonIds = new Set(nodes.filter((n) => n.type === "lesson" && !n.parentId).map((n) => n.id));
+  const frameToLesson = new Map<string, string>();
+  for (const n of nodes) if (n.type === "frame" && n.parentId && lessonIds.has(n.parentId)) frameToLesson.set(n.id, n.parentId);
+  const out = new Map<string, boolean>();
+  for (const n of nodes) {
+    const owner = lessonOwnerOf(n, lessonIds, frameToLesson);
+    if (owner != null) out.set(n.id, activeId == null ? false : owner !== activeId);
+  }
+  return out;
+}
+
+/** Pure: return a node array with gating hidden flags applied (for LOAD time, so
+ *  non-active descendants never mount at all — the actual lag fix). */
+function markLessonHidden<T extends { id: string; type?: string; parentId?: string; hidden?: boolean }>(nodes: T[], activeId: string | null): T[] {
+  const hidden = computeLessonHidden(nodes, activeId);
+  return nodes.map((n) => (hidden.has(n.id) ? { ...n, hidden: hidden.get(n.id)! } : n));
+}
+
 function LessonNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as LessonBox;
   const { update, remove } = useCardActions(id);
@@ -310,6 +351,38 @@ function LessonNode({ id, data, selected }: NodeProps) {
 
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   const chromeBtn = "nodrag zone-actions grid h-4 w-4 place-items-center rounded opacity-60 hover:opacity-100";
+
+  // ACTIVE-LESSON GATING — when this lesson isn't the active one, render a compact
+  // chip (title · badges · frame count) with ZERO frames/cards mounted (they carry
+  // hidden:true). Click to make it active (mounts it, unmounts the others).
+  const { activeLessonId, setActiveLesson } = useContext(ActiveLessonContext);
+  const collapsed = activeLessonId != null && id !== activeLessonId;
+  const frameCount = nodes.filter((n) => n.type === "frame" && n.parentId === id).length;
+  if (collapsed) {
+    return (
+      <div className="relative h-full w-full">
+        <ConnectionDots color={tint.edgeOn} />
+        <button
+          className="absolute left-0 top-0 flex max-w-[260px] flex-col items-start gap-1 rounded-xl px-3 py-2 text-left transition-transform hover:-translate-y-px"
+          style={{ background: "rgba(16,24,44,0.92)", border: `1.5px solid ${selected ? tint.edgeOn : NEON.borderSoft}`, boxShadow: "0 6px 18px -10px rgba(0,0,0,0.8)" }}
+          title="Collapsed lesson — click to make it active (loads its frames)"
+          onClick={() => setActiveLesson(id)}
+        >
+          <div className="flex w-full items-center gap-1.5">
+            {d.check && <Flag className="h-3 w-3 shrink-0" style={{ color: "#FF8B9E" }} />}
+            <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: NEON.text }}>{headingText || d.label || "Lesson"}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider" style={{ color: "#0B0F1E", background: typeTone }}>{LESSON_TYPE_LABEL[lessonType]}</span>
+            <span className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider" style={access === "PAID" ? { color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.55)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{access === "PAID" ? "Paid" : "Free"}</span>
+            {pathing === "OPTIONAL" && <span className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider italic" style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}` }}>Optional</span>}
+            <span className="rounded px-1.5 py-0.5 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`${frameCount} frame${frameCount === 1 ? "" : "s"}`}>{frameCount}f</span>
+          </div>
+          {d.topic && d.topic !== (headingText || d.label) ? <div className="max-w-full truncate text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>{d.topic}</div> : null}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -735,6 +808,13 @@ const nodeTypes = {
 // upgrade in place: arrowhead, ×-on-select, pulse, straight-while-dragging.
 const edgeTypes = { smoothstep: ArrowEdge };
 
+// PERF: hoist the stable <ReactFlow> prop objects to module scope so they don't
+// get a fresh identity every render (a new object each render can defeat RF's
+// internal prop memoization). These never change, so a module constant is safe.
+const RF_CONNECTION_LINE_STYLE = { stroke: NEON.cyan, strokeWidth: 2 };
+const RF_PRO_OPTIONS = { hideAttribution: true };
+const RF_STYLE = { background: "transparent" };
+
 // ---------------------------------------------------------------------------
 // Spacebar stepper — reveal the NEXT hidden element on a card, reading order.
 // Returns a patched data object, or null when nothing left to reveal.
@@ -940,6 +1020,7 @@ interface TabSnap {
     focusPalette: boolean;
     courseId: string | null;
     chapterId: string | null;
+    activeLessonId?: string | null; // ACTIVE-LESSON GATING — which lesson is mounted
   };
   bg: BgConfig;
   film: boolean;
@@ -1197,6 +1278,11 @@ function PresentCanvas() {
   }, []);
   const decksCtx = useMemo(() => ({ decks, highlightId: deckHighlightId, flashDeck }), [decks, deckHighlightId, flashDeck]);
   const [currentFrameId, setCurrentFrameId] = useState<string | null>(null); // FRAMES: the frame the camera is fitted to
+  // ACTIVE-LESSON GATING (Lee — lag fix): the one lesson whose frames/cards are
+  // mounted. Others render as collapsed chips (hidden descendants). Persisted in
+  // sceneSettings.activeLessonId; ref mirrors state for serialize + callbacks.
+  const [activeLessonId, setActiveLessonIdState] = useState<string | null>(null);
+  const activeLessonRef = useRef<string | null>(null);
   const currentFrameRef = useRef<string | null>(null);
   currentFrameRef.current = currentFrameId;
   const [frameTransitions, setFrameTransitions] = useState(true); // F3: animate enter/step (off = instant cut)
@@ -1568,7 +1654,12 @@ function PresentCanvas() {
         if (choice && !choice.resolved) filmHiddenMemos.add(e.source);
       }
     }
-    const hiddenOf = (n: (typeof liveNodes)[number]) => offCanvas(n.data as unknown as CardData) || filmHiddenMemos.has(n.id);
+    // ACTIVE-LESSON GATING (Lee — lag fix): descendants of a NON-active lesson are
+    // hidden here. This effect is the SINGLE owner of node.hidden, so gating must
+    // live inside hiddenOf or it gets reverted on the next reconcile. Lesson nodes
+    // themselves are never gated (they render as collapsed chips).
+    const gateHidden = activeLessonId != null ? computeLessonHidden(liveNodes, activeLessonId) : null;
+    const hiddenOf = (n: (typeof liveNodes)[number]) => offCanvas(n.data as unknown as CardData) || filmHiddenMemos.has(n.id) || gateHidden?.get(n.id) === true;
     const stale = liveNodes.some((n) => !!n.hidden !== hiddenOf(n) || (n.hidden && n.selected) || (n.draggable === false) !== nodeFrozen(n));
     if (stale) {
       rf.setNodes((nds) =>
@@ -1584,7 +1675,7 @@ function PresentCanvas() {
         }),
       );
     }
-  }, [liveNodes, rf, film]);
+  }, [liveNodes, rf, film, activeLessonId]);
 
   // Z-ORDER: any node that lacks a zIndex is BRAND NEW (spawned, cloned, dealt,
   // generated, pasted, or a fresh memo) — give it the top of its tier so it lands
@@ -1782,6 +1873,17 @@ function PresentCanvas() {
   // sceneSettings.lastLessonId so a reload lands on the lesson Lee was working in.
   const lastLessonRef = useRef<string | null>(null);
 
+  // Make `lessonId` the active lesson: the hiddenOf reconciler (which OWNS node
+  // .hidden) folds gating in and unmounts the rest; here we just record the choice
+  // and fly the camera to its grid (never deletes; nothing structural changes).
+  const setActiveLesson = useCallback((lessonId: string) => {
+    activeLessonRef.current = lessonId;
+    lastLessonRef.current = lessonId; // keep on-load camera + save consistent
+    setActiveLessonIdState(lessonId);
+    const l = rf.getNode(lessonId);
+    if (l) { const d = l.data as { w?: number; h?: number }; void rf.fitBounds({ x: l.position.x, y: l.position.y, width: d.w ?? lessonCellSize().w, height: d.h ?? lessonCellSize().h }, { duration: 300, padding: 0.08 }); }
+  }, [rf]);
+
   // NEW-LESSON PROMPT (topic-grouping batch, ITEM 3) — creating a lesson asks for
   // its type + topic, then scaffolds ordinary frames by type. Default CEQ_CRAM.
   const [newLessonOpen, setNewLessonOpen] = useState(false);
@@ -1891,8 +1993,11 @@ function PresentCanvas() {
     bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `new ${newLessonType} lesson`));
     setNewLessonOpen(false);
     setNewLessonTopic("");
-    window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.2, nodes: nodes.filter((n) => n.type === "lesson").map((n) => ({ id: n.id })) }), 60);
-  }, [rf, buildTypedLessonCell, newLessonType, newLessonTopic]);
+    // ACTIVE-LESSON GATING — a brand-new lesson becomes the active one (mounts it,
+    // collapses the rest) and the camera flies to it.
+    const newLid = nodes.find((n) => n.type === "lesson")?.id;
+    if (newLid) window.setTimeout(() => setActiveLesson(newLid), 60);
+  }, [rf, buildTypedLessonCell, newLessonType, newLessonTopic, setActiveLesson]);
 
 
   // REFLOW / TIDY (path nav #4): re-run the snaking layout on the region's
@@ -2898,8 +3003,10 @@ function PresentCanvas() {
         if (newDecks.length) setDecks((prev) => prev.filter((d) => !newDeckIds.has(d.id)));
       },
     });
-    window.setTimeout(() => void rf.fitBounds({ x: dest.x, y: dest.y, width: cell.w, height: cell.h }, { duration: 500, padding: 0.12 }), 60);
-  }, [rf, decks, toClone]);
+    // ACTIVE-LESSON GATING — the duplicate becomes the active lesson (mounts it,
+    // collapses the rest, flies the camera to it).
+    window.setTimeout(() => setActiveLesson(newLessonId), 60);
+  }, [rf, decks, toClone, setActiveLesson]);
 
   // ---- SNIPPET LIBRARY (PROMPT 2 — personal clip-bin) ------------------------
   // Save a card or a multi-selection as a reusable snippet (global across
@@ -3676,7 +3783,7 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, lastLessonId: lastLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, lastLessonId: lastLessonRef.current, activeLessonId: activeLessonRef.current },
         decks, // NAMED DECKS (P3)
         ceqSets, // CEQ SET factories
       }),
@@ -3727,10 +3834,24 @@ function PresentCanvas() {
       }
       // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
       bus.clear(); // history refers to nodes that no longer exist
+      // ACTIVE-LESSON GATING (Lee — lag fix): resolve which lesson is active from
+      // the persisted setting (activeLessonId, else lastLessonId, else first by
+      // path order) BEFORE hydration, then mark non-active descendants hidden so
+      // React Flow never even mounts them. Additive read — tolerant of absence.
+      const aset = nj.sceneSettings as { activeLessonId?: string | null; lastLessonId?: string | null } | undefined;
+      const loadedLessons = (nj.nodes ?? []).filter((n) => (n as { type?: string }).type === "lesson" && !(n as { parentId?: string }).parentId) as CardNode[];
+      const poOf = (n: CardNode) => { const v = (n.data as { pathOrder?: unknown }).pathOrder; return typeof v === "number" ? v : Number.POSITIVE_INFINITY; };
+      const hasLesson = (lid: string | null | undefined): lid is string => !!lid && loadedLessons.some((l) => l.id === lid);
+      const activeId = (hasLesson(aset?.activeLessonId) ? aset!.activeLessonId! : null)
+        ?? (hasLesson(aset?.lastLessonId) ? aset!.lastLessonId! : null)
+        ?? [...loadedLessons].sort((a, b) => poOf(a) - poOf(b) || a.position.y - b.position.y || a.position.x - b.position.x)[0]?.id
+        ?? null;
+      activeLessonRef.current = activeId;
+      setActiveLessonIdState(activeId);
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
       // MEMBERSHIP FIX 5 — parents before children so RF v12 never hydrates a child
       // detached at the origin (a stranded/teleporting element). Content-only reorder.
-      rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]))), isElementKind))))))))));
+      rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]))), isElementKind))))))))), activeId));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -3779,7 +3900,7 @@ function PresentCanvas() {
       // the saved viewport, never auto-enter a frame (that was the "goes one place
       // then another" confusion). Falls back to the first lesson by path order.
       void vp;
-      const startLessonId = (nj.sceneSettings as { lastLessonId?: string | null } | undefined)?.lastLessonId ?? null;
+      const startLessonId = activeId; // camera targets the ACTIVE lesson (same as gating)
       lastLessonRef.current = startLessonId;
       setCurrentFrameId(null);
       window.setTimeout(() => {
@@ -3809,8 +3930,8 @@ function PresentCanvas() {
       if (expected > 0) {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
-            // MEMBERSHIP FIX 5 — parents before children (see above).
-            rf.setNodes(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]))), isElementKind))))))))));
+            // MEMBERSHIP FIX 5 — parents before children (see above). Re-mark gating.
+            rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[]))), isElementKind))))))))), activeLessonRef.current));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -3865,7 +3986,7 @@ function PresentCanvas() {
       nodes: structuredClone(rf.getNodes()) as CardNode[],
       edges: structuredClone(rf.getEdges()) as unknown[],
       viewport: rf.getViewport(),
-      settings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId },
+      settings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, activeLessonId: activeLessonRef.current },
       bg: bgCfg,
       film,
       savedAt,
@@ -3890,6 +4011,10 @@ function PresentCanvas() {
       setFocusPalette(s.settings.focusPalette);
       setSceneCourseId(s.settings.courseId);
       setSceneChapterId(s.settings.chapterId);
+      // ACTIVE-LESSON GATING — snapshot nodes already carry their hidden flags;
+      // restore the active id so LessonNode renders the right one expanded.
+      activeLessonRef.current = s.settings.activeLessonId ?? null;
+      setActiveLessonIdState(s.settings.activeLessonId ?? null);
       setBgCfg(s.bg);
       setFilm(s.film);
       if (s.viewport) setTimeout(() => rf.setViewport(s.viewport!), 0);
@@ -4741,11 +4866,14 @@ function PresentCanvas() {
 
   const chrome = !film;
 
+  const activeLessonCtx = useMemo(() => ({ activeLessonId, setActiveLesson }), [activeLessonId, setActiveLesson]);
+
   return (
     <CanvasSettingsContext.Provider value={canvasSettings}>
     <DecksContext.Provider value={decksCtx}>
     <FrameNavContext.Provider value={frameNav}>
     <SpotlightCtx.Provider value={spot}>
+    <ActiveLessonContext.Provider value={activeLessonCtx}>
     <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
     <div
       className={`fixed inset-0 ${film ? "film-mode" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
@@ -4993,11 +5121,11 @@ function PresentCanvas() {
         connectionMode={ConnectionMode.Loose}
         connectionRadius={28}
         connectionLineType={ConnectionLineType.SmoothStep}
-        connectionLineStyle={{ stroke: NEON.cyan, strokeWidth: 2 }}
+        connectionLineStyle={RF_CONNECTION_LINE_STYLE}
         multiSelectionKeyCode={["Shift"]}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        proOptions={{ hideAttribution: true }}
+        proOptions={RF_PRO_OPTIONS}
         minZoom={0.08}
         maxZoom={2.5}
         // FIGMA-STYLE NAV: wheel = zoom at the cursor; drag on empty canvas =
@@ -5019,7 +5147,7 @@ function PresentCanvas() {
         // by the arrows (the "arrows move the whole CEQ element" bug).
         disableKeyboardA11y
         deleteKeyCode={["Delete", "Backspace"]}
-        style={{ background: "transparent" }}
+        style={RF_STYLE}
         fitView
       >
         {bgCfg.mode !== "video" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
@@ -5968,7 +6096,7 @@ function PresentCanvas() {
       )}
 
       {/* GRID BY TYPE (ITEM 4) — read-only projection overlay. */}
-      {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} />}
+      {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (
@@ -6235,6 +6363,7 @@ function PresentCanvas() {
       )}
     </div>
     </FrameTakesProvider>
+    </ActiveLessonContext.Provider>
     </SpotlightCtx.Provider>
     </FrameNavContext.Provider>
     </DecksContext.Provider>
