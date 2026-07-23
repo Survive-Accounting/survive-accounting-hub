@@ -57,7 +57,7 @@ import { DecksContext } from "@/components/canvas/DecksContext";
 import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
 import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
-import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, REGION, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
@@ -100,7 +100,6 @@ import { ScriptEditor } from "@/components/canvas/ScriptEditor";
 import { FrameScriptDock, FrameScriptDockBody } from "@/components/canvas/FrameScriptDock";
 import { FrameTakesProvider, LessonMediaBar, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
-import { hubLayout, plateForCourse } from "@/components/canvas/hub-layout";
 import { LessonPublishControl } from "@/components/canvas/lesson-publish";
 import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
 import { onMissingMigration } from "@/lib/missing-migration";
@@ -1814,15 +1813,6 @@ function PresentCanvas() {
   // sceneSettings.lastLessonId so a reload lands on the lesson Lee was working in.
   const lastLessonRef = useRef<string | null>(null);
 
-  // ---- REGION SCAFFOLD (PROMPT C, the Wednesday accelerator): one dialog
-  // (region name + course) stamps a laid-out cluster — full-width header
-  // banner (heading ELEMENT; its slot doubles as the future animation spot),
-  // one lesson box per ACTIVE chapter left-to-right in path order, and a
-  // final full-width "Course Wrap-up · Cram Decks" lesson. Everything is
-  // ordinary editable nodes after the stamp; ONE undoable command.
-  const [scaffoldOpen, setScaffoldOpen] = useState(false);
-  const [scaffoldName, setScaffoldName] = useState("");
-  const [scaffoldCourseId, setScaffoldCourseId] = useState<string>("");
   // NEW-LESSON PROMPT (topic-grouping batch, ITEM 3) — creating a lesson asks for
   // its type + topic, then scaffolds ordinary frames by type. Default CEQ_CRAM.
   const [newLessonOpen, setNewLessonOpen] = useState(false);
@@ -1935,80 +1925,6 @@ function PresentCanvas() {
     window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.2, nodes: nodes.filter((n) => n.type === "lesson").map((n) => ({ id: n.id })) }), 60);
   }, [rf, buildTypedLessonCell, newLessonType, newLessonTopic]);
 
-  const spawnRegionScaffold = useCallback(() => {
-    const course = (coursesQuery.data ?? []).find((c) => c.id === scaffoldCourseId);
-    if (!course) return;
-    const chapters = course.chapters
-      .filter((ch) => ch.status !== "archived")
-      .sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
-    if (chapters.length === 0) return;
-    // REGION GRID (supersedes the snake): chapters become fixed-footprint lesson
-    // CELLS laid in a 5-wide reading-order grid with reserved space, so a sub-
-    // frame never overlaps a neighbour. The WRAP-UP chapter is pulled out and
-    // centered below the grid as the destination. Empty slots render as ghost
-    // "+ add lesson" placeholders (an overlay, not nodes).
-    const gridChapters = chapters.filter((ch) => !isWrapUpName(ch.name));
-    const wrapChapter = chapters.find((ch) => isWrapUpName(ch.name)) ?? null;
-    const cell = lessonCellSize();
-    const HEADER_H = 96;
-    const HEADER_GAP = 60;
-    const HOME_H = 150;
-    const rl = regionLayout(gridChapters.length, 0, 0, !!wrapChapter, cell);
-    const name = scaffoldName.trim() || courseLabel(course);
-
-    // WHERE THE REGION LANDS: inside the course's HUB PLATE (Start Here today; the
-    // four future plates once lit) so the scaffold nests in its box under the
-    // SURVIVE ACCOUNTING crown instead of floating over the hub. Unknown courses
-    // fall back to the viewport centre (old behaviour).
-    const slot = plateForCourse(course.course_name ?? name);
-    let ox: number, gridTop: number, homeX: number, homeY: number;
-    let regionHeader: CardNode[];
-    let fitRect: { x: number; y: number; w: number; h: number } | null;
-    if (slot === "start") {
-      const hub = hubLayout();
-      ox = hub.regionOrigin.x;
-      gridTop = hub.regionOrigin.y;
-      homeX = hub.homeOrigin.x;
-      homeY = hub.homeOrigin.y;
-      regionHeader = []; // the hub crown IS the region header — no duplicate
-      fitRect = hub.startPlate;
-    } else {
-      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
-      const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
-      const fullH = HEADER_H + HEADER_GAP + rl.gridH + (rl.wrapUp ? REGION.wrapGapY + cell.h : 0);
-      ox = center.x - rl.gridW / 2;
-      const oy = center.y - fullH / 2;
-      gridTop = oy + HEADER_H + HEADER_GAP;
-      homeX = ox;
-      homeY = oy - HOME_H;
-      regionHeader = [{ id: cardId("heading"), type: "heading", position: { x: ox, y: oy },
-        data: { kind: "heading", text: `${name} [animation slot — region header]`, level: 1, w: rl.gridW } as unknown as CardNode["data"] }];
-      fitRect = null;
-    }
-
-    // Every lesson's Hook-2 outline list shows the WHOLE course (grid + wrap-up).
-    const allLabels = [...gridChapters.map(lessonLabelOf), ...(wrapChapter ? [lessonLabelOf(wrapChapter)] : [])];
-    const nodes: CardNode[] = [
-      { id: cardId("heading"), type: "heading", position: { x: homeX, y: homeY },
-        data: { kind: "heading", text: `Welcome — start here [${name}]`, level: 2 } as unknown as CardNode["data"] },
-      { id: cardId("asklee"), type: "asklee", position: { x: homeX + Math.min(560, rl.gridW - 300), y: homeY + 6 },
-        data: { kind: "asklee" } as unknown as CardNode["data"] },
-      ...regionHeader,
-      // GRID CHAPTERS → cells in reading order (reserved footprint each).
-      ...gridChapters.flatMap((ch, i) => buildLessonCell({ x: ox + rl.cells[i].x, y: gridTop + rl.cells[i].y }, lessonLabelOf(ch), i + 1, false, allLabels)),
-      // WRAP-UP → centered below, region-level red Check tint, same 4-beat arc.
-      ...(wrapChapter && rl.wrapUp
-        ? buildLessonCell({ x: ox + rl.wrapUp.x, y: gridTop + rl.wrapUp.y }, lessonLabelOf(wrapChapter), gridChapters.length + 1, true, allLabels)
-        : []),
-    ] as CardNode[];
-    bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `region scaffold: ${name}`));
-    setScaffoldOpen(false);
-    setScaffoldName("");
-    window.setTimeout(() => {
-      if (fitRect) void rf.fitBounds({ x: fitRect.x, y: fitRect.y, width: fitRect.w, height: fitRect.h }, { duration: 500, padding: 0.06 });
-      else void rf.fitView({ duration: 300, padding: 0.15 });
-    }, 60);
-  }, [rf, coursesQuery.data, scaffoldCourseId, scaffoldName, buildLessonCell]);
 
   // REFLOW / TIDY (path nav #4): re-run the snaking layout on the region's
   // lessons (ordered by pathOrder, then reading order) — even spacing, clean
@@ -6057,58 +5973,6 @@ function PresentCanvas() {
               <button type="submit" disabled={!snipName.trim()} className="rounded px-2.5 py-1 text-[11px] font-bold disabled:opacity-40" style={{ background: NEON.pink, color: "#0B1322" }}>Save</button>
             </div>
           </form>
-        </div>
-      )}
-
-      {/* REGION SCAFFOLD dialog (PROMPT C) */}
-      {scaffoldOpen && (
-        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setScaffoldOpen(false)}>
-          <div className="w-96 max-w-[92vw] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Add region scaffold</div>
-            <label className="block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
-              region name
-              <input
-                className="mt-0.5 w-full rounded bg-black/30 px-2 py-1 text-[12px] font-normal normal-case outline-none"
-                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
-                placeholder="defaults to the course name"
-                value={scaffoldName}
-                onChange={(e) => setScaffoldName(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()}
-              />
-            </label>
-            <label className="mt-2 block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
-              course
-              <select
-                className="mt-0.5 w-full rounded bg-black/40 px-1 py-1 text-[11px] font-normal normal-case outline-none"
-                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
-                value={scaffoldCourseId}
-                onChange={(e) => setScaffoldCourseId(e.target.value)}
-              >
-                <option value="">— pick —</option>
-                {(coursesQuery.data ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{courseLabel(c)} ({c.chapters.filter((ch) => ch.status !== "archived").length} lessons)</option>
-                ))}
-              </select>
-            </label>
-            <p className="mt-2 text-[10.5px] leading-snug" style={{ color: NEON.muted }}>
-              Stamps a full-width header + one lesson laid on a snaking path (row 1 →, row 2 ←, …),
-              path order following the snake, the course’s final lesson at the end. Everything is ordinary
-              editable nodes afterwards — one Ctrl+Z removes the stamp; “Tidy layout” re-snakes later.
-            </p>
-            <div className="mt-3 flex justify-end gap-2">
-              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setScaffoldOpen(false)}>
-                cancel
-              </button>
-              <button
-                className="rounded px-2.5 py-1 text-[11.5px] font-bold disabled:opacity-40"
-                style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
-                disabled={!scaffoldCourseId}
-                onClick={spawnRegionScaffold}
-              >
-                scaffold
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
