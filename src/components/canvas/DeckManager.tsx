@@ -168,6 +168,10 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     if (!frameId) { setSeedNote("Enter a frame first (double-click a frame), then deal grid / stack."); return; }
     const frame = rf.getNode(frameId);
     if (!frame || frame.type !== "frame") { setSeedNote("Enter a frame first (double-click a frame), then deal grid / stack."); return; }
+    // ATTACH TO THE LESSON (Lee): stamp the frame's lesson so dealt cards group
+    // under that lesson topic in the roster, NOT in Loose. (lessonIdOf only walks a
+    // DIRECT lesson parent; a card in a frame would otherwise read as Loose.)
+    const lessonId = frame.parentId && rf.getNode(frame.parentId)?.type === "lesson" ? frame.parentId : null;
     const order = filmOrder(set.accounts);
     if (order.length === 0) { setSeedNote("include at least one account first"); return; }
     const cards = generateCeqCards(set, order);
@@ -179,7 +183,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
     const mk = (c: CeqCard, i: number, pos: { x: number; y: number }, tucked: boolean) => ({
       id: cardId("ceq"), type: "ceq", parentId: frameId, position: { ...pos }, selected: false,
-      data: { ...c, title: set.name, deckId, deckMember: true, tucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set", deckPos: { ...pos } } as Record<string, unknown>,
+      data: { ...c, title: set.name, deckId, deckMember: true, deckLessonId: lessonId, tucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set", deckPos: { ...pos } } as Record<string, unknown>,
     });
     let newNodes: ReturnType<typeof mk>[];
     if (mode === "grid") {
