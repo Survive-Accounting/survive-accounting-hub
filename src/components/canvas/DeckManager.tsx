@@ -205,6 +205,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
       data: { ...c, title: set.name, deckId, deckMember: true, deckLessonId: lessonId, tucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set", deckPos: { ...pos } } as Record<string, unknown>,
     });
     let newNodes: ReturnType<typeof mk>[];
+    let stackAt: { x: number; y: number } | null = null; // persisted so the spot sticks
     if (mode === "grid") {
       // teaser: all cards laid in the frame's grid, VISIBLE — "here's what's coming"
       const cols = Math.max(1, Math.ceil(Math.sqrt(cards.length)));
@@ -222,7 +223,17 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
       // cram card); the rest tuck behind it and Space flips to the next — each one
       // appears in the identical spot with the identical settings.
       const CW = 560, CH = 520; // wide CEQ (CEQ_WIDE_W)
-      const at = { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
+      // STACK ANCHOR (Lee): the stack deals ONTO the spot YOU chose — not the frame
+      // centre. Precedence: (1) the position of THIS set's top card already in the
+      // frame (deal once, drag it where you want, re-deal → lands there); (2) the
+      // frame's saved stackAt; (3) frame centre, only on the very first deal. The
+      // chosen spot is persisted to frame.stackAt so it sticks across clear/re-deal.
+      const prevTop = existing.find((n) => n.type === "ceq" && (n.data as { stageOrder?: number }).stageOrder === 0) ?? existing.find((n) => n.type === "ceq");
+      const stored = (frame.data as { stackAt?: { x: number; y: number } }).stackAt;
+      const at = prevTop
+        ? { x: Math.round(prevTop.position.x), y: Math.round(prevTop.position.y) }
+        : stored ?? { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
+      stackAt = at;
       newNodes = cards.map((c, i) => { const n = mk(c, i, at, i > 0); return { ...n, data: { ...n.data, wide: true, hideChrome: true, posLock: true } }; });
     }
     // MATERIALISE ATTACHED MEMOS (Phase 2, Lee): one memo node per set-memo, placed
@@ -243,7 +254,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     const cmds = [
       removeSnap.length ? { label: "clear frame copy", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
       addNodesCmd(rf as unknown as RfLike, [...newNodes, ...memoNodes] as never, `deal ${cards.length} CEQ${memoNodes.length ? ` + ${memoNodes.length} memos` : ""}`),
-      patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: mode === "stack" }, "deal mode"),
+      patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: mode === "stack", ...(stackAt ? { stackAt } : {}) }, "deal mode"),
     ].filter((c): c is NonNullable<typeof c> => !!c);
     const cmd = compositeCmd(cmds, `deal set → ${mode}`);
     if (cmd) bus.dispatch(cmd);
