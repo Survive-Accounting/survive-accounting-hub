@@ -1153,9 +1153,8 @@ function PresentCanvas() {
   const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
   const [chromaBlack, setChromaBlack] = useState(false); // "k": solid-black world bg in film (chroma-key testing)
   // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
-  // film / OFF outside; followReveals default on. The controller reads them live.
+  // film / OFF outside. The controller reads it live.
   const [spotFocusDim, setSpotFocusDim] = useState<FocusDimMode>("auto");
-  const [spotFollowReveals, setSpotFollowReveals] = useState(true);
   // CUE RECORDER (Lee): record mode captures spotlights + reveals + deals into the
   // frame's recordedCues; a frame WITH a recording plays it back on Space.
   const [cueRecording, setCueRecording] = useState(false);
@@ -1163,7 +1162,7 @@ function PresentCanvas() {
   cueRecordingRef.current = cueRecording;
   const recPlayIdxRef = useRef<Map<string, number>>(new Map()); // per-frame recorded-playback cursor
   const spot = useSpotlightController({
-    film, focusDimMode: spotFocusDim, followReveals: spotFollowReveals,
+    film, focusDimMode: spotFocusDim,
     // record spotlight / super clicks (only while recording, inside a frame)
     onAction: (cid, targetId, tier) => {
       if (!cueRecordingRef.current) return;
@@ -5459,10 +5458,6 @@ function PresentCanvas() {
                     ))}
                   </div>
                 </div>
-                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: spotFollowReveals ? NEON.yellow : NEON.muted }}>
-                  <input type="checkbox" checked={spotFollowReveals} onChange={(e) => setSpotFollowReveals(e.target.checked)} style={{ accentColor: "#FCA311" }} />
-                  Spotlight follows reveals
-                </label>
                 {/* SPACE-WALK (film performance) toggles */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Filming</div>
                 <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: spaceAdvancesFrames ? NEON.yellow : NEON.muted }}>
