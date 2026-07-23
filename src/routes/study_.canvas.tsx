@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Columns3, Copy, Download, ExternalLink, Eye, Film, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Columns3, Copy, Download, ExternalLink, Eye, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -971,7 +971,6 @@ interface TabSnap {
   };
   bg: BgConfig;
   film: boolean;
-  clean: boolean;
   savedAt: string | null;
 }
 interface TabEntry {
@@ -1128,8 +1127,7 @@ function PresentCanvas() {
   const [popRestoreDismissed, setPopRestoreDismissed] = useState(false);
   const savePopMemory = (wins: Partial<Record<PopKey, Window>>) => { try { localStorage.setItem("sa-canvas-popouts", JSON.stringify(Object.keys(wins))); } catch { /* ignore */ } };
   const isPopped = (key: PopKey) => !!popWins[key];
-  const [clean, setClean] = useState(false);
-  const [film, setFilm] = useState(false); // "v": clean screen + at-rest card chrome off + spotlight/ripple
+  const [film, setFilm] = useState(false); // "v": chrome off (at-rest card chrome) + spotlight/ripple — the sole chrome-off mode
   const filmRef = useRef(film);
   filmRef.current = film;
   // CHOREOGRAPH MODE ("c") — click the current frame's elements in the order they
@@ -3873,11 +3871,10 @@ function PresentCanvas() {
     setSceneCourseId(null);
     setSceneChapterId(null);
     setFilm(false);
-    setClean(false);
   }, [rf]);
 
   // ---- SCENE TABS (workspace chrome): ONE React Flow instance; every tab is a
-  // full snapshot (nodes, edges, viewport, settings, film/clean) swapped in and
+  // full snapshot (nodes, edges, viewport, settings, film) swapped in and
   // out on switch — deck, space-walk, film mode, and selection all ride the
   // snapshot, so they're per-tab by construction. Undo history is per-visit
   // (the bus clears on switch: its commands reference the other tab's nodes).
@@ -3889,10 +3886,9 @@ function PresentCanvas() {
       settings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId },
       bg: bgCfg,
       film,
-      clean,
       savedAt,
     }),
-    [rf, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, bgCfg, film, clean, savedAt],
+    [rf, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, bgCfg, film, savedAt],
   );
 
   const applySnap = useCallback(
@@ -3914,7 +3910,6 @@ function PresentCanvas() {
       setSceneChapterId(s.settings.chapterId);
       setBgCfg(s.bg);
       setFilm(s.film);
-      setClean(s.clean);
       if (s.viewport) setTimeout(() => rf.setViewport(s.viewport!), 0);
     },
     [rf],
@@ -4533,7 +4528,7 @@ function PresentCanvas() {
           e.preventDefault();
           // RUNG 1 — close any open route-level dialog/popover/menu FIRST (Esc just
           // dismisses what's open; it never zooms the board out from under an open
-          // menu). The bottom toolbar stays put — clean/film are lower rungs.
+          // menu). The bottom toolbar stays put — film is a lower rung.
           if (rehearse) { setRehearse(null); return; }
           if (safeGuides) { setSafeGuides(false); return; }
           if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor || snipMenu || snipSaveIds || rearrangeOpen) {
@@ -4592,9 +4587,7 @@ function PresentCanvas() {
           if (choreographRef.current) { setChoreographFrameId(null); flashToast("Choreograph off"); return; }
           // RUNG 6 — leave the framed shot back to the lesson (FRAMES)
           if (currentFrameRef.current) { exitFrame(); return; }
-          // RUNG 7 — clean screen off
-          if (clean) { setClean(false); return; }
-          // RUNG 8 (TOP) — bottom out at a BIRDS-EYE of the CURRENT lesson only.
+          // RUNG 7 (TOP) — bottom out at a BIRDS-EYE of the CURRENT lesson only.
           fitCurrentLesson();
         },
       },
@@ -4692,7 +4685,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, clean, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep, explodeHovered],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep, explodeHovered],
   );
   useKeymap(bindings);
 
@@ -4764,7 +4757,7 @@ function PresentCanvas() {
     [focusNode, enterFrame],
   );
 
-  const chrome = !clean && !film;
+  const chrome = !film;
 
   return (
     <CanvasSettingsContext.Provider value={canvasSettings}>
@@ -4773,7 +4766,7 @@ function PresentCanvas() {
     <SpotlightCtx.Provider value={spot}>
     <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
     <div
-      className={`fixed inset-0 ${film ? "film-mode" : ""} ${clean ? "sa-clean" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
+      className={`fixed inset-0 ${film ? "film-mode" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
       style={{ background: chrome ? BACKSTAGE_BG[backstage] : chromaBlack ? "#000" : NEON.bg }}
       onDragOver={(e) => { if (e.dataTransfer.types.includes(SNIPPET_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
       onDrop={(e) => { const id = e.dataTransfer.getData(SNIPPET_DND_MIME); if (!id) return; e.preventDefault(); spawnSnippetById(id, rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}
@@ -4788,7 +4781,7 @@ function PresentCanvas() {
       <style>{CONNECTION_DOTS_CSS}</style>
       <style>{ARROW_EDGE_CSS}</style>
       <style>{FLAME_CSS}</style>
-      {/* card tap feedback — always on (authoring); the audience never sees it in film/clean */}
+      {/* card tap feedback — always on (authoring); the audience never sees it in film */}
       {chrome && <CardTapPulse />}
       {film && (
         <>
@@ -5082,7 +5075,7 @@ function PresentCanvas() {
       {/* FRAME HUD — while inside a frame: the LESSON's whole layout as a strip of
           draggable THUMBNAILS (drag one onto another to SWAP; click to jump). The
           beat labels the column, so no "HOOK 1" chip; the frame is identified by
-          its #lesson.frame code. Auto-hidden in film/clean unless toggled on. */}
+          its #lesson.frame code. Auto-hidden in film unless toggled on. */}
       {currentFrameId && chrome && showFrameHeader && (() => {
         const fnode = rf.getNode(currentFrameId);
         const fd = fnode?.data as FrameBox | undefined;
@@ -5185,7 +5178,7 @@ function PresentCanvas() {
 
       {/* BRAND BAR + DRAWER (workspace chrome) — the drawer is the menu:
           Cards (palette) and Key (legend) open as panels inside it, keeping
-          the canvas top-left clean. Film/clean swap the bar for the watermark. */}
+          the canvas top-left clean. Film swaps the bar for the watermark. */}
       {chrome && (
         <BrandBar
           items={[{ key: "cards", label: "Cards" }, { key: "outline", label: "Outline" }, { key: "memos", label: "Memos" }, { key: "key", label: "Key" }]}
@@ -5685,7 +5678,6 @@ function PresentCanvas() {
               </div>
             )}
           </div>
-          <TB title="Clean screen (chrome off)" onClick={() => setClean(true)}><Film className="h-3.5 w-3.5" /></TB>
           {savedAt && <span className="pl-1 text-[10px]" style={{ color: NEON.muted }}>saved {savedAt}</span>}
         </div>
       )}

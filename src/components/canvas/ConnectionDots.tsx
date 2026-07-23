@@ -40,5 +40,5 @@ export const CONNECTION_DOTS_CSS = `
 .react-flow__node:hover .conn-dot,
 .sa-connecting .conn-dot { opacity: 1; }
 .conn-dot.connectingto, .conn-dot.valid { opacity: 1; transform: scale(1.35); }
-.film-mode .conn-dot, .sa-clean .conn-dot { opacity: 0 !important; pointer-events: none; }
+.film-mode .conn-dot { opacity: 0 !important; pointer-events: none; }
 `;

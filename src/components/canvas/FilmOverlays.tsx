@@ -188,8 +188,8 @@ export const CARD_CURSOR_CSS = `
      specificity fight with the node div above) */
   .react-flow__node input, .react-flow__node textarea, .react-flow__node [contenteditable="true"] { cursor: text; }
   .react-flow__node button, .react-flow__node a, .react-flow__node select, .react-flow__node [role="button"] { cursor: pointer; }
-  /* film/clean present views: no move cursor for the audience */
-  .film-mode .react-flow__node, .sa-clean .react-flow__node { cursor: default; }
+  /* film present view: no move cursor for the audience */
+  .film-mode .react-flow__node { cursor: default; }
 `;
 
 /** DOUBLE-EMPHASIS 🔥 — an always-on (authoring + film) flame that runs across
