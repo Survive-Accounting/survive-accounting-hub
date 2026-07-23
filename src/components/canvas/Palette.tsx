@@ -2,7 +2,7 @@
 // then the LIBRARY (every entry / computation / memorize / question from the scenario
 // docs), searchable + filtered by course family, chapter, and card type. Fully collapsible.
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, Layers, Pencil, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Layers, Pencil, Search, Trash2 } from "lucide-react";
 
 import { NEON } from "./theme";
 import { SNIPPET_DND_MIME } from "./snippet-payload";
@@ -183,8 +183,6 @@ function MoreBlanks({ onSpawn }: { onSpawn: (d: CardData) => void }) {
 export function Palette({
   library,
   onSpawn,
-  collapsed = false,
-  onToggle,
   focus = false,
   sceneCourseKey = null,
   docked = false,
@@ -196,8 +194,6 @@ export function Palette({
   /** Pre-filtered by the route: ACTIVE + AUTHORED only (content reset). */
   library: LibraryItem[];
   onSpawn: (data: CardData) => void;
-  collapsed?: boolean;
-  onToggle?: () => void;
   /** ON: BLANK section shows only JE / T-account / Note / Heading. */
   focus?: boolean;
   /** Scene course context — the library's course filter follows it. */
@@ -246,19 +242,6 @@ export function Palette({
     );
   }, [library, q, course, chapter, kind]);
 
-  if (!docked && collapsed) {
-    return (
-      <button
-        onClick={onToggle}
-        title="Open card palette"
-        className="absolute left-3 top-14 z-40 grid h-9 w-9 place-items-center rounded-lg"
-        style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.pink, boxShadow: NEON.glow }}
-      >
-        <ChevronsRight className="h-4 w-4" />
-      </button>
-    );
-  }
-
   return (
     <aside
       className={
@@ -268,15 +251,6 @@ export function Palette({
       }
       style={docked ? { color: NEON.text } : { background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
     >
-      {!docked && (
-        <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.pink }}>Cards</span>
-          <button onClick={onToggle} title="Collapse palette" className="ml-auto" style={{ color: NEON.muted }}>
-            <ChevronsLeft className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
       {/* BLANK — three groups: CARDS · ELEMENTS · BRIDGE (+ MORE, collapsed) */}
       <div className="px-3 pt-2">
         <BlankGroup

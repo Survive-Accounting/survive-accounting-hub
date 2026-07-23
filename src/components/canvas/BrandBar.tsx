@@ -27,7 +27,7 @@ export function Wordmark({ size = 13 }: { size?: number }) {
 }
 
 export function BrandBar({ items = [], activeItem = null, onItem, children }: {
-  /** Drawer menu entries (Cards, Key, …). Empty = the old placeholder. */
+  /** Drawer menu entries (Cards, Key, …). */
   items?: DrawerItem[];
   /** Which entry's panel is open (its body arrives via children). */
   activeItem?: string | null;
@@ -79,36 +79,23 @@ export function BrandBar({ items = [], activeItem = null, onItem, children }: {
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        {items.length === 0 ? (
-          <div className="grid place-items-center px-4 py-10">
-            <div
-              className="w-full rounded-lg px-3 py-6 text-center text-[11px] font-semibold uppercase tracking-wider"
-              style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}
+        <div className="flex gap-1 px-2 py-1.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
+          {items.map((it) => (
+            <button
+              key={it.key}
+              className="rounded-md px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider transition-colors"
+              style={{
+                color: activeItem === it.key ? NEON.yellow : NEON.muted,
+                background: activeItem === it.key ? "rgba(252,163,17,0.12)" : "transparent",
+                border: `1px solid ${activeItem === it.key ? "rgba(252,163,17,0.45)" : "transparent"}`,
+              }}
+              onClick={() => onItem?.(activeItem === it.key ? null : it.key)}
             >
-              menu coming soon
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex gap-1 px-2 py-1.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-              {items.map((it) => (
-                <button
-                  key={it.key}
-                  className="rounded-md px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider transition-colors"
-                  style={{
-                    color: activeItem === it.key ? NEON.yellow : NEON.muted,
-                    background: activeItem === it.key ? "rgba(252,163,17,0.12)" : "transparent",
-                    border: `1px solid ${activeItem === it.key ? "rgba(252,163,17,0.45)" : "transparent"}`,
-                  }}
-                  onClick={() => onItem?.(activeItem === it.key ? null : it.key)}
-                >
-                  {it.label}
-                </button>
-              ))}
-            </div>
-            {panelOpen && <div className="min-h-0 flex-1 overflow-hidden p-2">{children}</div>}
-          </>
-        )}
+              {it.label}
+            </button>
+          ))}
+        </div>
+        {panelOpen && <div className="min-h-0 flex-1 overflow-hidden p-2">{children}</div>}
       </div>
     </>
   );
