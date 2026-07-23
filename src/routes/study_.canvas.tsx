@@ -2369,10 +2369,10 @@ function PresentCanvas() {
       if (cue.kind === "deal" && cue.cardId) { deal(cue.cardId); disarm(); return "handled"; }
       if (cue.kind === "reveal" && cue.cardId) {
         const d = dataOf(cue.cardId);
-        if (d) { dispatch(patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, cue.revealCount ?? 0) as Record<string, unknown>, "reveal (cue)")); select(cue.cardId); spotRef.current?.onReveal(cue.cardId, cue.cardId); }
+        if (d) { dispatch(patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, cue.revealCount ?? 0) as Record<string, unknown>, "reveal (cue)")); select(cue.cardId); }
         disarm(); return "handled";
       }
-      if (cue.kind === "memo" && cue.memoId) { dispatch(patchDataCmd(rfl, cue.memoId, { cueHidden: false }, "reveal memo (cue)")); spotRef.current?.onReveal(cue.memoId, cue.memoId); disarm(); return "handled"; }
+      if (cue.kind === "memo" && cue.memoId) { dispatch(patchDataCmd(rfl, cue.memoId, { cueHidden: false }, "reveal memo (cue)")); disarm(); return "handled"; }
       return "handled";
     }
     // reverse — undo the LAST done, non-advance cue
@@ -4332,7 +4332,6 @@ function PresentCanvas() {
             const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
             if (c) bus.dispatch(c);
             const tid = revealedTargetId(sel.data as unknown as CardData, patch as Partial<CardData>);
-            if (tid) spotRef.current?.onReveal(sel.id, tid);
             if (cueRecordingRef.current && recF) recordStepCue(recF, { kind: "reveal", cardId: sel.id, revealCount: currentRevealCount({ ...(sel.data as unknown as CardData), ...(patch as Partial<CardData>) } as CardData), label: "Reveal", target: tid || (sel.data as { title?: string; kind?: string }).title || (sel.data as { kind?: string }).kind || "card" });
             disarm(); return;
           }

@@ -14,24 +14,17 @@ export type FocusDimMode = "auto" | "on" | "off"; // auto = ON in film, OFF outs
 export type SpotTargetState = "spot" | "range" | "dim" | null;
 
 interface SpotlightApi {
+  /** RETAINED (deletion run): always null in the click-toggle model, but the film
+   *  trap-flip (spotTrapFlip) still reads spot.cardId. Dormant, not yet removable. */
   spot: SpotState | null;
   active: boolean;
   followReveals: boolean;
   /** Ctrl+click a target → begin (or restart) here. */
   start: (cardId: string, targetId: string) => void;
-  /** Arrow movement while active. dir ±1; range = shift-extend; jump = ctrl edge. */
-  move: (dir: -1 | 1, opts?: { range?: boolean; jump?: boolean }) => void;
-  /** ↓ immediately after an ↑-exit re-enters the last card; else false (caller falls through). */
-  tryReenter: (dir: -1 | 1) => boolean;
   exit: () => void;
-  /** F2 — open inline edit on the spotlit target (authoring only; caller gates film). */
-  editSpot: () => void;
-  /** Follow-reveals: jump the spotlight onto a just-revealed target. */
-  onReveal: (cardId: string, targetId: string) => void;
   /** The currently spotlit target id (single-focus) — powers the film trap-flip. */
   focusTargetId: () => string | null;
   targetState: (cardId: string, targetId: string) => SpotTargetState;
-  cardDim: (cardId: string) => boolean;
   /** SUPER-SPOTLIGHT — the ONE elective mark. Tone "focus" = 🔥 gold flame
    *  (Ctrl+Shift+click); tone "warn" = 🚨 red siren (Ctrl+Alt+Shift+click) for
    *  "this is BAD / a trap". Toggles off on a same-tone re-click; switches tone
@@ -56,9 +49,10 @@ export type { SpotlightApi };
 
 /** The controller — CLICK-TOGGLE model (Lee's redesign). Regular spotlights are a
  *  MANY-set of gold pills; super is a SINGLE flame. No movable cursor / arrow-nav
- *  anymore (arrow keys belong to frame navigation). The old cursor methods stay on
- *  the API as inert no-ops so the keymap keeps type-checking; only `active` (any
- *  emphasis present) and `exit` (clear all) still do anything for the keymap. */
+ *  anymore (arrow keys belong to frame navigation); the old cursor no-op methods
+ *  (move/tryReenter/editSpot/onReveal/cardDim) were removed. The always-null `spot`
+ *  field is RETAINED because spotTrapFlip still reads it (dormant film trap-flip).
+ *  `active` (any emphasis) and `exit` (clear all) drive the keymap. */
 export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: FocusDimMode; followReveals?: boolean; onAction?: (cardId: string, targetId: string, tier: "regular" | "super") => void }): SpotlightApi {
   const [sets, setSets] = useState<SpotSets>(() => ({ regular: new Set(), superKey: null }));
   const setsRef = useRef(sets);
@@ -114,16 +108,13 @@ export function useSpotlightController(_opts?: { film?: boolean; focusDimMode?: 
   const exit = useCallback(() => { const n = { regular: new Set<string>(), superKey: null }; setsRef.current = n; setSets(n); setFocus(null); }, []);
 
   const active = sets.regular.size > 0 || sets.superKey != null;
-  const noop = useCallback(() => {}, []);
-  const noReenter = useCallback(() => false, []);
   const noFocus = useCallback(() => null, []);
-  const noDim = useCallback(() => false, []);
 
   return useMemo<SpotlightApi>(() => ({
     spot: null, active, followReveals: false,
-    start, move: noop, tryReenter: noReenter, exit, editSpot: noop, onReveal: noop,
-    focusTargetId: noFocus, targetState, cardDim: noDim, toggleFlame, isFlamed, flameTone, cardHasEmphasis, focusTarget: focus,
-  }), [active, start, noop, noReenter, exit, noFocus, targetState, noDim, toggleFlame, isFlamed, flameTone, cardHasEmphasis, focus]);
+    start, exit,
+    focusTargetId: noFocus, targetState, toggleFlame, isFlamed, flameTone, cardHasEmphasis, focusTarget: focus,
+  }), [active, start, exit, noFocus, targetState, toggleFlame, isFlamed, flameTone, cardHasEmphasis, focus]);
 }
 
 /** WARM performance styling for a target. The spotlight now reads as a GOLD
@@ -203,10 +194,11 @@ export function useSpotTarget(cardId: string, targetId: string) {
   return spotTargetProps(sp, cardId, targetId);
 }
 
-/** Whole-card dim (a sibling card in the spotlit frame). Returns a style fragment. */
-export function useCardDim(cardId: string): React.CSSProperties {
-  const sp = useSpotlight();
-  return sp?.cardDim(cardId) ? { opacity: 0.85, transition: "opacity 150ms ease" } : {};
+/** Whole-card dim — retained for card call sites, but the dim feature is inert
+ *  in the click-toggle model (there is no sibling-dim), so it returns nothing. */
+export function useCardDim(_cardId: string): React.CSSProperties {
+  useSpotlight(); // keep the hook shape/subscription for callers
+  return {};
 }
 
 /** Does this card own any lit target? Cards use it to UNCLIP overflow while an
