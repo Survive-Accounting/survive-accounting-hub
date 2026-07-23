@@ -5458,7 +5458,26 @@ function PresentCanvas() {
                   Watermark <span className="opacity-60">(Survive Accounting mark on the recording)</span>
                 </label>
                 {/* REVEAL & TRANSITION SOUNDS (Lee) — film-only cues: keypad (per-element),
-                    advance swoosh (every frame advance), cram launch (first CRAM frame). */}
+                    advance swoosh (every frame advance), cram launch (first CRAM frame).
+
+                    SOUND PRECEDENCE (ITEM 13 — the rule when the three sound places
+                    disagree). A cue is a chain of AND-gates in playSfx (sfx.ts): it is
+                    audible ONLY IF, in order:
+                      1. this GLOBAL "Mute all" is OFF  AND  prefers-reduced-motion is OFF
+                         → either one is a MASTER KILL: nothing plays, no matter what a
+                           per-frame 🔊 popover or a per-card 🔔/⌨ toggle says.
+                      2. this event's GLOBAL volume slider is > 0 (0 = silent everywhere
+                         for that event, again overriding any per-frame/per-card toggle).
+                      3. the firing SOURCE's own toggle is ON — the per-frame 🔊 popover
+                         (swoosh / cram-launch / keypad-on-entry) or the per-card toggle
+                         (CEQ 🔔 confirm / ⌨ keypad, Heading/Text ⌨ keypad). This only
+                         decides whether THAT source attempts the event; other sources of
+                         the same event are independent.
+                      4. we're in FILM/preview (every caller gates on film; silent while
+                         authoring).
+                    So: global mute/volume are the master switches; the per-frame and
+                    per-card toggles are per-source ENABLES, never volume overrides.
+                    "Global muted but a frame/card toggle on" → SILENT (global wins). */}
                 <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Sounds <span className="font-normal normal-case opacity-60">(film only)</span></div>
                 <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: sfx.muted ? NEON.yellow : NEON.muted }}>
                   <input type="checkbox" checked={sfx.muted} onChange={(e) => setSfx((s) => ({ ...s, muted: e.target.checked }))} style={{ accentColor: "#FCA311" }} />
