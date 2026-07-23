@@ -192,9 +192,14 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
       const slots = gridSlots(cards.length, { originX: pad, originY: pad, cols, cellW, cellH, gapX: gap, gapY: gap });
       newNodes = cards.map((c, i) => mk(c, i, slots[i], false));
     } else {
-      // cram: stacked at the frame centre, TUCKED — Space flips them one at a time
-      const at = { x: Math.round(fw / 2 - 170), y: Math.round(fh / 2 - 110) };
-      newNodes = cards.map((c, i) => mk(c, i, at, true));
+      // cram: cards STACKED on top of each other, centred in the frame. Centre with
+      // the REAL CEQ size (400 wide; ~520 tall for a stem + up to 5 choices) so the
+      // pile lands centred, not offset top-left. The TOP card is dealt VISIBLE (so
+      // it's obvious the stack landed, and it's the first cram card); the rest tuck
+      // behind it and Space flips to the next.
+      const CW = 400, CH = 520;
+      const at = { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
+      newNodes = cards.map((c, i) => mk(c, i, at, i > 0));
     }
     const cmds = [
       removeSnap.length ? { label: "clear frame copy", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
@@ -503,6 +508,16 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
             {ceqSets.map((set) => {
               const inc = set.accounts.filter((a) => a.include).length;
               const open2 = expandedSet === set.id;
+              // DEAL-STATE FEEDBACK (Lee): show which mode THIS set is dealt in for the
+              // frame you're in, so the grid/stack buttons read as on/off, not silent.
+              const fid = nav.currentFrameId;
+              const dealtHere = !!fid && nodes.some((n) => (n.data as { deckId?: string }).deckId === `${set.id}::${fid}`);
+              const stackMode = !!(nodes.find((n) => n.id === fid)?.data as { stackDeal?: boolean } | undefined)?.stackDeal;
+              const gridActive = dealtHere && !stackMode;
+              const stackActive = dealtHere && stackMode;
+              const dealBtn = (active: boolean): React.CSSProperties => active
+                ? { color: "#0B1322", background: NEON.yellow, borderRadius: 4 }
+                : { color: NEON.cyan };
               return (
                 <div key={set.id} className="mt-1 rounded-md px-1.5 py-1" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.25)" }}>
                   <div className="flex items-center gap-1">
@@ -511,8 +526,8 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
                     </button>
                     {/* DEAL INTO THE FRAME YOU'RE IN (Lee) — repeatable across frames: grid in
                         a teaser, stack in a cram. Each is its own copy. */}
-                    <button title="Grid-deal into the frame you're in — fills its grid with every card, visible (teaser). Repeatable per frame." onClick={() => dealSetIntoFrame(set, "grid")} style={{ color: NEON.cyan }}><Grid3x3 className="h-3 w-3" /></button>
-                    <button title="Stack-deal into the frame you're in — stacked + tucked at centre, Space flips one at a time (cram). Repeatable per frame." onClick={() => dealSetIntoFrame(set, "stack")} style={{ color: NEON.cyan }}><SquareStack className="h-3 w-3" /></button>
+                    <button title={gridActive ? "Grid-dealt into THIS frame (click to re-deal). Fills the grid with every card, visible (teaser)." : "Grid-deal into the frame you're in — fills its grid with every card, visible (teaser). Repeatable per frame."} onClick={() => dealSetIntoFrame(set, "grid")} className="grid h-4 w-4 place-items-center" style={dealBtn(gridActive)}><Grid3x3 className="h-3 w-3" /></button>
+                    <button title={stackActive ? "Stack-dealt into THIS frame (click to re-deal). Stacked at centre; Space flips one at a time (cram)." : "Stack-deal into the frame you're in — stacked at centre, top card visible, Space flips one at a time (cram). Repeatable per frame."} onClick={() => dealSetIntoFrame(set, "stack")} className="grid h-4 w-4 place-items-center" style={dealBtn(stackActive)}><SquareStack className="h-3 w-3" /></button>
                     <button title="Delete this set (keeps any approved deck)" onClick={() => removeSet(set.id)} style={{ color: NEON.muted }}><Trash2 className="h-3 w-3" /></button>
                   </div>
                   {open2 && (
