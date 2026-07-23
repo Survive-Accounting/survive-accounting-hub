@@ -202,14 +202,15 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
       const slots = gridSlots(cards.length, { originX: pad, originY: pad, cols, cellW, cellH, gapX: gap, gapY: gap });
       newNodes = cards.map((c, i) => mk(c, i, slots[i], false));
     } else {
-      // cram: cards STACKED on top of each other, centred in the frame. Centre with
-      // the REAL CEQ size (400 wide; ~520 tall for a stem + up to 5 choices) so the
-      // pile lands centred, not offset top-left. The TOP card is dealt VISIBLE (so
-      // it's obvious the stack landed, and it's the first cram card); the rest tuck
-      // behind it and Space flips to the next.
-      const CW = 400, CH = 520;
+      // cram: cards STACKED on top of each other, centred + UNIFORM (Lee). Every
+      // card SHARES one look so they land exactly on top of one another: WIDE width,
+      // chrome HIDDEN (clean for filming — the settings bar off), and posLock
+      // (locked in place). Centre a wide card. The TOP card deals VISIBLE (the first
+      // cram card); the rest tuck behind it and Space flips to the next — each one
+      // appears in the identical spot with the identical settings.
+      const CW = 560, CH = 520; // wide CEQ (CEQ_WIDE_W)
       const at = { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
-      newNodes = cards.map((c, i) => mk(c, i, at, i > 0));
+      newNodes = cards.map((c, i) => { const n = mk(c, i, at, i > 0); return { ...n, data: { ...n.data, wide: true, hideChrome: true, posLock: true } }; });
     }
     const cmds = [
       removeSnap.length ? { label: "clear frame copy", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
