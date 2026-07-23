@@ -2107,8 +2107,9 @@ function PresentCanvas() {
   /** Enter on the emphasised CEQ choice → toggle its resolution. Correct → green +
    *  win sound (film, respecting confirmSfx); wrong → red + strike, NO win sound. The
    *  choice's per-choice memo shows/hides DERIVEDLY from resolved (film-gated in the
-   *  node sync), so nothing to patch on the memo. Enter again clears it; resolved
-   *  choices persist and coexist. One undoable command. */
+   *  node sync), so nothing to patch on the memo. Enter again clears it. SINGLE-SELECT
+   *  (Lee): resolving a choice clears every other choice's resolved state — at most
+   *  one choice is selected at a time. One undoable command. */
   const resolveCeqChoice = useCallback((cardId: string, choiceId: string) => {
     const node = rf.getNode(cardId);
     if (!node) return;
@@ -2118,7 +2119,8 @@ function PresentCanvas() {
     const nowResolved = !choice.resolved;
     const cmd = patchDataFnCmd(rf as unknown as RfLike, cardId, (prev) => {
       const pd = prev as unknown as { choices: { id: string; resolved?: boolean }[]; tags?: string[] };
-      const choices = pd.choices.map((c) => (c.id === choiceId ? { ...c, resolved: nowResolved } : c));
+      // SINGLE-SELECT: the resolved choice is the ONLY one; all others clear.
+      const choices = pd.choices.map((c) => ({ ...c, resolved: c.id === choiceId ? nowResolved : false }));
       // AUTO-TAG (Item 7): the FIRST time a WRONG choice is Enter-resolved in FILM,
       // tag this CEQ "CEQ_DISTRACTOR" — metadata only, survives reload in the scene
       // JSON (CeqCard.tags). Authoring/preview resolutions never tag.
@@ -5012,6 +5014,10 @@ function PresentCanvas() {
         zoomOnDoubleClick={false}
         selectionKeyCode={["Shift"]}
         selectionOnDrag={false}
+        // The keymap OWNS the arrow keys (CEQ emphasis / frame nav / JE line hop).
+        // Disable RF's built-in keyboard a11y so a selected node isn't ALSO nudged
+        // by the arrows (the "arrows move the whole CEQ element" bug).
+        disableKeyboardA11y
         deleteKeyCode={["Delete", "Backspace"]}
         style={{ background: "transparent" }}
         fitView
