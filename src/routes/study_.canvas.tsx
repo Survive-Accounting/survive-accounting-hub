@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, Eye, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, ClipboardPaste, Copy, Download, ExternalLink, Eye, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
@@ -233,6 +233,15 @@ const LESSON_TINTS = {
 // CANVAS VOCABULARY — Lee calls these "Lessons", never "Chapters" (2026-07). The
 // DB rows are still `chapters`; only the on-canvas LABEL flips "Ch N ·" → "Lesson N ·".
 const lessonLabelOf = (ch: Parameters<typeof chapterLabel>[0]) => chapterLabel(ch).replace(/^Ch\s+/i, "Lesson ");
+
+// COPY / PASTE clipboard (Lee) — in-memory + localStorage. A frame clip is one
+// frame + its contents; a scaffold clip is a lesson's frames + contents (NO
+// lesson-level fields). Stored as CloneNode[] so paste reuses cloneNodeSet and
+// survives reload / source deletion.
+type FrameClip = { kind: "frame"; nodes: CloneNode[]; edges: CloneEdge[]; rootId: string; label: string };
+type ScaffoldClip = { kind: "scaffold"; nodes: CloneNode[]; edges: CloneEdge[]; frameIds: string[]; label: string };
+type CanvasClip = FrameClip | ScaffoldClip;
+const CLIP_KEY = "sa-canvas-clipboard";
 /** Stable parity for a lesson with no pathOrder, so the two tints still alternate. */
 const lessonHash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i)) | 0; return Math.abs(h); };
 
@@ -531,6 +540,16 @@ function LessonNode({ id, data, selected }: NodeProps) {
           <button className={chromeBtn} title="Duplicate lesson (frames, cards, scripts, decks) into the next empty cell" onPointerDown={stop} onClick={() => frameNav.duplicateLesson(id)}>
             <Copy className="h-3 w-3" />
           </button>
+          {/* COPY / PASTE SCAFFOLD (Lee) — copy this lesson's frame buildout; paste
+              APPENDS it into another lesson (target keeps its own type/topic/access). */}
+          <button className={chromeBtn} title="Copy this lesson's frame scaffold (frames + contents, not its type/topic/access)" onPointerDown={stop} onClick={() => frameNav.copyScaffold(id)}>
+            <ClipboardCopy className="h-3 w-3" />
+          </button>
+          {frameNav.hasScaffoldClip && (
+            <button className={chromeBtn} title="Paste the copied scaffold here — appends its frames (never overwrites)" onPointerDown={stop} onClick={() => frameNav.pasteScaffold(id)}>
+              <ClipboardPaste className="h-3 w-3" style={{ color: NEON.cyan }} />
+            </button>
+          )}
           <button className={chromeBtn} title="Fit to contents (one undo step)" onPointerDown={stop} onClick={hug}>
             <Shrink className="h-3 w-3" />
           </button>
@@ -2905,6 +2924,14 @@ function PresentCanvas() {
   // (same ids — rebinding is how swap-many works). Fresh node ids throughout;
   // deck membership does NOT carry on a frame copy. ONE undoable bus command.
   const [dupFrameFor, setDupFrameFor] = useState<string | null>(null); // frame → dialog
+  // COPY/PASTE clipboard — in-memory state mirrored to localStorage (survives reload).
+  const [clip, setClipState] = useState<CanvasClip | null>(() => {
+    try { return JSON.parse(localStorage.getItem(CLIP_KEY) || "null") as CanvasClip | null; } catch { return null; }
+  });
+  const setClip = useCallback((c: CanvasClip | null) => {
+    setClipState(c);
+    try { if (c) localStorage.setItem(CLIP_KEY, JSON.stringify(c)); else localStorage.removeItem(CLIP_KEY); } catch { /* ignore */ }
+  }, []);
 
   /** Minimal node slice the copier needs (never clone RF internals like measured). */
   const toClone = useCallback((n: CardNode): CloneNode => ({
@@ -3008,6 +3035,94 @@ function PresentCanvas() {
     // collapses the rest, flies the camera to it).
     window.setTimeout(() => setActiveLesson(newLessonId), 60);
   }, [rf, decks, toClone, setActiveLesson]);
+
+  // ---- COPY / PASTE (clipboard) — reuses cloneNodeSet + the frame-grid helpers -
+  /** Copy a frame + its contents (cards/elements/memos + wholly-internal arrows). */
+  const copyFrame = useCallback((frameId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const src = all.find((n) => n.id === frameId && n.type === "frame");
+    if (!src) return;
+    const nodes = [src, ...all.filter((n) => n.parentId === frameId)].map(toClone);
+    const ids = new Set(nodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => ids.has(e.source) && ids.has(e.target));
+    setClip({ kind: "frame", nodes, edges, rootId: frameId, label: String((src.data as { title?: string }).title ?? "frame") });
+    flashToast("Frame copied — paste below any frame");
+  }, [rf, toClone, setClip, flashToast]);
+
+  /** Paste the copied frame immediately BELOW the target frame (same beat, next
+   *  row; the column slides down). Cross-lesson OK. Fresh ids; source untouched. */
+  const pasteFrameBelow = useCallback((targetFrameId: string) => {
+    if (clip?.kind !== "frame") return;
+    const target = rf.getNode(targetFrameId) as CardNode | undefined;
+    if (!target?.parentId) return;
+    const lessonId = target.parentId;
+    const beat = beatColOf(target as never);
+    if (nextSubIndex(rf.getNodes() as never, lessonId, beat) >= RESERVED_ROWS) { flashToast(`${BEAT_LABEL[beat]} full — max ${RESERVED_ROWS} frames per beat`); return; }
+    const subIndex = subIndexOf(target as never) + 1;
+    const shiftCmds = openBeatGap(lessonId, beat, subIndex);
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(clip.nodes, clip.edges, (k) => cardId(k), { stripDeck: true });
+    const newFrameId = idMap.get(clip.rootId);
+    if (!newFrameId) return;
+    const placed = orderParentsFirst(cloned).map((n) => (n.id === newFrameId
+      ? { ...n, parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...n.data, beat, subIndex, filmStatus: undefined, introTake: undefined } }
+      : n));
+    const addCmd = addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "paste frame");
+    const cmd = shiftCmds.length ? compositeCmd([...shiftCmds, addCmd], "paste frame") : addCmd;
+    if (cmd) bus.dispatch(cmd);
+    const lesson = rf.getNode(lessonId);
+    if (lesson) { const p = gridPos(beat, subIndex); window.setTimeout(() => void rf.fitBounds({ x: lesson.position.x + p.x, y: lesson.position.y + p.y, width: FRAME_W, height: FRAME_H }, { duration: 400, padding: 0.35 }), 40); }
+  }, [clip, rf, gridPos, openBeatGap, flashToast]);
+
+  /** Copy a lesson's FRAME SCAFFOLD: all its frames + their contents (NOT the
+   *  lesson node or its type/topic/access/pathing). */
+  const copyScaffold = useCallback((lessonId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const frames = all.filter((n) => n.type === "frame" && n.parentId === lessonId);
+    if (frames.length === 0) { flashToast("No frames to copy in this lesson"); return; }
+    const frameIds = new Set(frames.map((f) => f.id));
+    const nodes = [...frames, ...all.filter((n) => n.parentId && frameIds.has(n.parentId))].map(toClone);
+    const ids = new Set(nodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => ids.has(e.source) && ids.has(e.target));
+    setClip({ kind: "scaffold", nodes, edges, frameIds: frames.map((f) => f.id), label: String((all.find((n) => n.id === lessonId)?.data as { label?: string })?.label ?? "lesson") });
+    flashToast(`Scaffold copied (${frames.length} frame${frames.length === 1 ? "" : "s"}) — paste into a lesson`);
+  }, [rf, toClone, setClip, flashToast]);
+
+  /** Paste the copied scaffold into a lesson — APPENDS its frames (keeping each
+   *  frame's beat), never overwriting; the target keeps its own lesson fields.
+   *  A beat with no room overflows to the next beat with room; if none, that
+   *  frame is skipped (reported). */
+  const pasteScaffold = useCallback((lessonId: string) => {
+    if (clip?.kind !== "scaffold") return;
+    const target = rf.getNode(lessonId);
+    if (!target || target.type !== "lesson") return;
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(clip.nodes, clip.edges, (k) => cardId(k), { stripDeck: true });
+    const next: Partial<Record<Beat, number>> = {};
+    const roomBase = (b: Beat) => nextSubIndex(rf.getNodes() as never, lessonId, b);
+    const placements = new Map<string, { beat: Beat; sub: number }>();
+    let skipped = 0;
+    for (const srcFid of clip.frameIds) {
+      const srcFrame = clip.nodes.find((n) => n.id === srcFid);
+      const cloneId = idMap.get(srcFid);
+      if (!srcFrame || !cloneId) continue;
+      let beat = ((srcFrame.data as { beat?: Beat }).beat ?? "hook") as Beat;
+      if (next[beat] === undefined) next[beat] = roomBase(beat);
+      if ((next[beat] ?? 0) >= RESERVED_ROWS) {
+        const alt = BEAT_COLUMNS.find((b) => { if (next[b] === undefined) next[b] = roomBase(b); return (next[b] ?? 0) < RESERVED_ROWS; });
+        if (!alt) { skipped++; continue; }
+        beat = alt;
+      }
+      const sub = next[beat] ?? 0;
+      next[beat] = sub + 1;
+      placements.set(cloneId, { beat, sub });
+    }
+    const placed = orderParentsFirst(cloned).map((n) => {
+      const p = placements.get(n.id);
+      return p ? { ...n, parentId: lessonId, position: gridPos(p.beat, p.sub), width: FRAME_W, height: FRAME_H, data: { ...n.data, beat: p.beat, subIndex: p.sub, filmStatus: undefined, introTake: undefined } } : n;
+    });
+    const addCmd = addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "paste scaffold");
+    if (addCmd) bus.dispatch(addCmd);
+    flashToast(skipped ? `Pasted ${placements.size} frame(s); ${skipped} skipped (lesson full)` : `Pasted ${placements.size} frame(s)`);
+  }, [clip, rf, gridPos, flashToast]);
 
   // ---- SNIPPET LIBRARY (PROMPT 2 — personal clip-bin) ------------------------
   // Save a card or a multi-selection as a reusable snippet (global across
@@ -3160,7 +3275,7 @@ function PresentCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrameId]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold" }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */

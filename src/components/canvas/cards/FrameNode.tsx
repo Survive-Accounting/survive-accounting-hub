@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { Clapperboard, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Plus, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
+import { Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Film, Loader2, Lock, LockOpen, Maximize2, Pause, Play, Plus, Smartphone, Sparkles, StickyNote, Upload, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
@@ -426,6 +426,12 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               Shift-click to pick a target lesson + beat. Cards, script, @marks,
               world + scenario bindings copy; deck membership does not. */}
           <button className={btn} style={{ color: NEON.text }} title="Duplicate frame → next slot in this beat (Shift-click: choose lesson + beat)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); if (e.shiftKey) nav.duplicateDialog(id); else nav.duplicate(id); }}><Copy className="h-3 w-3" /></button>
+          {/* COPY / PASTE-BELOW (Lee) — copy this frame; paste it below any frame
+              (cross-lesson OK, fresh ids, source untouched). */}
+          <button className={btn} style={{ color: NEON.text }} title="Copy this frame (+ its cards) to the clipboard" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.copyFrame(id); }}><ClipboardCopy className="h-3 w-3" /></button>
+          {nav.hasFrameClip && (
+            <button className={btn} style={{ color: NEON.cyan }} title="Paste the copied frame BELOW this one (cross-lesson OK)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.pasteFrameBelow(id); }}><ClipboardPaste className="h-3 w-3" /></button>
+          )}
           <button className={btn} style={{ color: NEON.text }} title="Enter frame" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); nav.enter(id); }}><Maximize2 className="h-3 w-3" /></button>
           <button className={btn} style={{ color: NEON.red }} title="Delete frame (its cards go loose in the lesson)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); deleteFrame(); }}><X className="h-3.5 w-3.5" /></button>
         </span>

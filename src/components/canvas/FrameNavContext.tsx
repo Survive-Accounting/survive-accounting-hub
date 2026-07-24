@@ -33,6 +33,22 @@ export interface FrameNav {
   /** DUPLICATE a whole lesson cell (frames, cards, scripts, named decks) to the
    *  next empty region cell. One undoable step. */
   duplicateLesson: (lessonId: string) => void;
+  // ---- COPY / PASTE (clipboard: in-memory + localStorage) --------------------
+  /** Copy a frame (+ its cards/elements/arrows) to the clipboard. */
+  copyFrame: (frameId: string) => void;
+  /** Paste the copied frame immediately BELOW this frame (same beat, next row;
+   *  cross-lesson allowed). Fresh ids; the source is untouched. */
+  pasteFrameBelow: (frameId: string) => void;
+  /** A frame is on the clipboard (enables the paste-below control). */
+  hasFrameClip: boolean;
+  /** Copy a lesson's FRAME SCAFFOLD (its frames + contents; NOT the lesson's
+   *  type/topic/access/pathing) to the clipboard. */
+  copyScaffold: (lessonId: string) => void;
+  /** Paste the copied scaffold into this lesson — APPENDS frames (never
+   *  overwrites); the target keeps its own type/topic/access/pathing. */
+  pasteScaffold: (lessonId: string) => void;
+  /** A scaffold is on the clipboard (enables the paste-scaffold control). */
+  hasScaffoldClip: boolean;
 }
 
 const noop = () => {};
@@ -50,6 +66,12 @@ export const FrameNavContext = createContext<FrameNav>({
   duplicate: noop,
   duplicateDialog: noop,
   duplicateLesson: noop,
+  copyFrame: noop,
+  pasteFrameBelow: noop,
+  hasFrameClip: false,
+  copyScaffold: noop,
+  pasteScaffold: noop,
+  hasScaffoldClip: false,
 });
 
 export const useFrameNav = () => useContext(FrameNavContext);
