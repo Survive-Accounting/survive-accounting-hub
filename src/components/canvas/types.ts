@@ -698,6 +698,13 @@ export type LessonPathing = "RECOMMENDED" | "OPTIONAL";
 export type LessonStatus = "UNFILMED" | "FILMED" | "PUBLISHED";
 export const LESSON_STATUSES: LessonStatus[] = ["UNFILMED", "FILMED", "PUBLISHED"];
 
+/** RUN LOGGING (cram-filming batch) — our own clock for a whole-take cram film.
+ *  F9 starts/ends a "run"; events are timestamped from t=0. Stored on the lesson,
+ *  last 3 runs kept. `ms` = elapsed from the run's t=0. */
+export type RunEventKind = "resolve" | "deal" | "frame";
+export interface RunEvent { ms: number; kind: RunEventKind; label: string; correct?: boolean; ceqN?: number }
+export interface FilmRun { id: string; startedAt: number; endedAt?: number; events: RunEvent[] }
+
 export interface LessonBox {
   label: string; // manual label; a contained heading's text wins for display
   w: number;
@@ -720,6 +727,8 @@ export interface LessonBox {
    *  (single continuous cram take). Setting muxPlaybackId flips status → PUBLISHED. */
   muxPlaybackId?: string | null;
   muxAssetId?: string | null;
+  /** RUN LOGS (cram-filming batch) — the last 3 F9 timing runs for this lesson. */
+  runs?: FilmRun[];
   /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
    *  visual seed of the free/paid gate (roadmap). */
   check?: boolean;

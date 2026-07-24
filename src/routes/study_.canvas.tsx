@@ -70,7 +70,7 @@ import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonStatus, type LessonType, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FilmRun, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonStatus, type LessonType, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -99,6 +99,7 @@ import { BackstageStage } from "@/components/canvas/BackstageStage";
 import { CueSheet } from "@/components/canvas/CueSheet";
 import { ScriptEditor } from "@/components/canvas/ScriptEditor";
 import { FrameScriptDock, FrameScriptDockBody } from "@/components/canvas/FrameScriptDock";
+import { RunTimerBody, RunReadout, mmss } from "@/components/canvas/RunTimer";
 import { FrameTakesProvider, LessonMediaBar, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
 import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
 import { LessonPublishControl } from "@/components/canvas/lesson-publish";
@@ -116,8 +117,8 @@ import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
 // Panels that can be popped out to the director's second-monitor window.
-type PopKey = "teleprompter" | "cuesheet" | "deck" | "script";
-const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script"];
+type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer";
+const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script", "runtimer"];
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -1397,6 +1398,67 @@ function PresentCanvas() {
   const returnPop = useCallback((key: PopKey) => {
     setPopWins((p) => { const n = { ...p }; delete n[key]; savePopMemory(n); return n; });
   }, []);
+
+  // RUN LOGGING (Lee) — F9 starts/ends a timed "run" of a whole cram take. Events
+  // (CEQ resolve, deal, frame advance) are stamped in ms from t=0 and stored on
+  // the ACTIVE LESSON node (last 3 runs) — additive scene JSON, no SQL. The live
+  // clock drives a 2nd-monitor popout ("runtimer", off OBS Window Capture of the
+  // main window) and a readout panel that lists a finished run as mm:ss + label.
+  const [runActive, setRunActive] = useState(false);
+  const runActiveRef = useRef(false);
+  runActiveRef.current = runActive;
+  const runStartRef = useRef<number | null>(null);
+  const [runEvents, setRunEvents] = useState<RunEvent[]>([]);
+  const runEventsRef = useRef<RunEvent[]>([]);
+  runEventsRef.current = runEvents;
+  const [runElapsed, setRunElapsed] = useState(0);
+  const [runCeqTotal, setRunCeqTotal] = useState(0);
+  const [lastRun, setLastRun] = useState<FilmRun | null>(null);
+  const [runReadoutOpen, setRunReadoutOpen] = useState(false);
+  /** Append an event to the live run (no-op unless a run is active). Stable. */
+  const logRunEvent = useCallback((kind: RunEvent["kind"], label: string, correct?: boolean) => {
+    if (!runActiveRef.current || runStartRef.current == null) return;
+    const ms = Date.now() - runStartRef.current;
+    setRunEvents((prev) => [...prev, { ms, kind, label, correct }]);
+  }, []);
+  /** Tick the elapsed clock ~4×/s while a run is active (drives the popout timer). */
+  useEffect(() => {
+    if (!runActive) return;
+    const iv = window.setInterval(() => { if (runStartRef.current != null) setRunElapsed(Date.now() - runStartRef.current); }, 250);
+    return () => window.clearInterval(iv);
+  }, [runActive]);
+  /** F9 — start a run (t=0, opens the timer popout) or end it (commit to the
+   *  active lesson, keeping the last 3, and surface the readout). */
+  const toggleRun = useCallback(() => {
+    if (runActiveRef.current) {
+      const started = runStartRef.current ?? Date.now();
+      const ended = Date.now();
+      const run: FilmRun = { id: `run-${started}`, startedAt: started, endedAt: ended, events: runEventsRef.current };
+      runActiveRef.current = false;
+      runStartRef.current = null;
+      setRunActive(false);
+      setLastRun(run);
+      if (run.events.length) setRunReadoutOpen(true);
+      const lid = activeLessonRef.current;
+      if (lid && run.events.length && rf.getNode(lid)) {
+        const prevRuns = (rf.getNode(lid)?.data as { runs?: FilmRun[] } | undefined)?.runs ?? [];
+        const c = patchDataFnCmd(rf as unknown as RfLike, lid, () => ({ runs: [...prevRuns, run].slice(-3) }), "log film run", `d:${lid}:runs`);
+        if (c) bus.dispatch(c);
+      }
+      flashToast(`Run logged — ${mmss(ended - started)} · ${run.events.length} events`);
+    } else {
+      runStartRef.current = Date.now();
+      runActiveRef.current = true;
+      setRunActive(true);
+      setRunEvents([]);
+      runEventsRef.current = [];
+      setRunElapsed(0);
+      const all = rf.getNodes();
+      const lid = activeLessonRef.current;
+      setRunCeqTotal(lid ? all.filter((n) => n.type === "ceq" && lessonIdOf(n as never, all as never) === lid).length : all.filter((n) => n.type === "ceq").length);
+      openPop("runtimer", 480, 360);
+    }
+  }, [rf, flashToast, openPop]);
   // FAIL-LOUD: a dark feature's table missing → a visible toast naming the
   // migration (the data layer also console.errors). Held longer than a flash.
   useEffect(() => onMissingMigration((m) => {
@@ -1920,6 +1982,9 @@ function PresentCanvas() {
     lastLessonRef.current = lessonId; // keep on-load camera + save consistent
     setActiveLessonIdState(lessonId);
     const l = rf.getNode(lessonId);
+    // Point the run readout at the newly-active lesson's stored runs (unless a run
+    // is live — that one owns the readout until F9 ends it).
+    if (!runActiveRef.current) { const ar = (l?.data as { runs?: FilmRun[] } | undefined)?.runs ?? []; setLastRun(ar.length ? ar[ar.length - 1] : null); setRunReadoutOpen(false); }
     if (l) { const d = l.data as { w?: number; h?: number }; void rf.fitBounds({ x: l.position.x, y: l.position.y, width: d.w ?? lessonCellSize().w, height: d.h ?? lessonCellSize().h }, { duration: 300, padding: 0.08 }); }
   }, [rf]);
 
@@ -2177,8 +2242,10 @@ function PresentCanvas() {
       // free-canvas decks re-fit to keep the newly dealt card on screen.
       const inFrame = !!node.parentId && rf.getNode(node.parentId)?.type === "frame";
       if (!inFrame) setTimeout(maybeAutoFit, 40); // after the store settles
+      // RUN LOG — dealing a CEQ marks a new question on screen ("next card").
+      if (d.kind === "ceq") logRunEvent("deal", `dealt: ${(d as { prompt?: string }).prompt?.trim().slice(0, 44) || "CEQ"}`);
     },
-    [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit],
+    [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit, logRunEvent],
   );
 
   /** STACK DEAL (Lee) — flashcard mode: one of the frame's deck cards at a time in
@@ -2267,7 +2334,9 @@ function PresentCanvas() {
     if (cmd) bus.dispatch(cmd);
     // WIN SOUND — only on correct + resolving-on + film (respect the per-CEQ toggle).
     if (nowResolved && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("confirm");
-  }, [rf]);
+    // RUN LOG — a resolve marks a CEQ answered (right/wrong); clears aren't logged.
+    if (nowResolved) { const p = (node.data as { prompt?: string }).prompt?.trim(); logRunEvent("resolve", `${p ? p.slice(0, 44) : "CEQ"} — ${choice.correct ? "✓ right" : "✗ wrong"}`, !!choice.correct); }
+  }, [rf, logRunEvent]);
 
   // ---- CHOREOGRAPH + SCRUBBER (Items 2-4) -----------------------------------
   // A frame's space-walk queue is its recordedCues (explicit steps). Choreograph
@@ -2552,6 +2621,8 @@ function PresentCanvas() {
       if (fd?.swooshSfx ?? !cramOn) playSfx("swoosh");
       if (fd?.keypadOnEntry) playSfx("keypad");
     }
+    // RUN LOG — a genuine frame change (not a re-fit of the same frame) is a beat.
+    if (currentFrameRef.current !== frameId) { const ft = (f.data as { title?: string } | undefined)?.title?.trim(); logRunEvent("frame", `frame → ${ft || frameCellLabel(f as never)}`); }
     setCurrentFrameId(frameId);
     recPlayIdxRef.current.set(frameId, 0); // restart recorded playback for this frame
     // In FILM, a frame WITH a queue starts BLANK (step 0) so the visual and the
@@ -2573,7 +2644,7 @@ function PresentCanvas() {
     // SMOOTH ZOOM-IN (Lee): the double-click-into-a-frame gesture animates like the
     // element focus-zoom (modern + eye-catching). Space-walk / nav stay as-is.
     void rf.setViewport({ x, y, zoom }, { duration: opts?.smooth ? 460 : filmRef.current && frameTransitionsRef.current ? 280 : 0 });
-  }, [rf, isCramLaunchFrame]);
+  }, [rf, isCramLaunchFrame, logRunEvent]);
 
   // Keep the frame pinned to its exact 16:9 fit when the window resizes.
   useEffect(() => {
@@ -3975,6 +4046,9 @@ function PresentCanvas() {
         ?? null;
       activeLessonRef.current = activeId;
       setActiveLessonIdState(activeId);
+      // RUN LOG — surface the active lesson's most recent stored run so the readout
+      // reopen chip survives a reload. Any live run state resets on load.
+      { const ar = activeId ? ((loadedLessons.find((l) => l.id === activeId)?.data as { runs?: FilmRun[] } | undefined)?.runs ?? []) : []; setLastRun(ar.length ? ar[ar.length - 1] : null); setRunActive(false); runActiveRef.current = false; runStartRef.current = null; setRunReadoutOpen(false); }
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
       // MEMBERSHIP FIX 5 — parents before children so RF v12 never hydrates a child
       // detached at the origin (a stranded/teleporting element). Content-only reorder.
@@ -4916,10 +4990,13 @@ function PresentCanvas() {
       { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
       { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
+      // RUN TIMESTAMP LOGGING (Lee) — F9 starts/ends a timed run of a whole cram
+      // take, opening the 2nd-monitor timer popout and logging CEQ/frame events.
+      { combo: "f9", group: "Film", description: "Start / end a timed RUN — logs CEQ resolves, deals & frame advances with timestamps (timer popout)", handler: (e) => { e.preventDefault(); toggleRun(); } },
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, resolveCeqChoice, applyFrameToStep, explodeHovered],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, resolveCeqChoice, applyFrameToStep, explodeHovered, toggleRun],
   );
   useKeymap(bindings);
 
@@ -5156,6 +5233,37 @@ function PresentCanvas() {
         >
           {toast}
         </div>
+      )}
+      {/* RUN RECORDING INDICATOR (Lee) — a small, DARK pill so it barely reads if it
+          lands in an OBS Window Capture of the main window (it is capture-visible —
+          the real off-stage clock is the runtimer popout). Top-right, out of the
+          teleprompter/rehearsal lanes; pure cue, never blocks the canvas. */}
+      {runActive && (
+        <div className="pointer-events-none fixed right-3 top-3 z-[82] flex items-center gap-1.5 rounded-full px-2 py-1 text-[10.5px] font-bold" style={{ background: "rgba(4,6,12,0.7)", border: "1px solid rgba(255,92,110,0.4)", color: "#F3C6CC" }}>
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ background: "#FF5C6E" }} />
+          <span className="uppercase tracking-wider">REC</span>
+          <span className="tabular-nums" style={{ color: "#E9EDF5" }}>{mmss(runElapsed)}</span>
+        </div>
+      )}
+      {/* RUN READOUT — last run's events as mm:ss + label, copy-to-clipboard.
+          Authoring only; auto-opens when a run ends. */}
+      {chrome && runReadoutOpen && (
+        <div className="fixed bottom-24 left-3 z-[81] w-[300px] overflow-hidden rounded-xl shadow-2xl" style={{ background: "rgba(11,19,34,0.95)", border: `1px solid ${NEON.border}`, backdropFilter: "blur(6px)" }}>
+          <header className="flex items-center gap-1.5 border-b px-2.5 py-1.5" style={{ borderColor: NEON.borderSoft }}>
+            <Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: NEON.text }}>Run readout</span>
+            <button className="ml-auto grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setRunReadoutOpen(false)} title="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </header>
+          <RunReadout run={lastRun} />
+        </div>
+      )}
+      {/* Re-open the readout after it's been closed (a run has been logged). */}
+      {chrome && !runReadoutOpen && !runActive && lastRun && (
+        <button className="fixed bottom-24 left-3 z-[81] flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: "rgba(8,12,24,0.82)", border: `1px solid ${NEON.borderSoft}`, color: NEON.cyan }} onClick={() => setRunReadoutOpen(true)} title="Show the last run's timing readout">
+          <Timer className="h-3.5 w-3.5" /> Last run · {mmss((lastRun.endedAt ?? 0) - lastRun.startedAt)}
+        </button>
       )}
       {/* LAST REHEARSAL — persisted total, top-center (Lee's call). Authoring only,
           hidden while a run is live (the HUD shows the running total then). */}
@@ -6049,6 +6157,20 @@ function PresentCanvas() {
       {isPopped("script") && (
         <PanelPopout win={popWins.script!} title="Script" onReturn={() => returnPop("script")}>
           <FrameScriptDockBody frameId={currentFrameId} cramMode={cramMode} />
+        </PanelPopout>
+      )}
+
+      {/* RUN TIMER — the F9 run clock on the director's 2nd monitor. It is a
+          SEPARATE window, so an OBS Window Capture of the MAIN canvas never sees
+          it: the big elapsed time, current CEQ number and 3:00 colour shift stay
+          off-stage. Renders whenever the popout is open (even between runs). */}
+      {isPopped("runtimer") && (
+        <PanelPopout win={popWins.runtimer!} title="Run timer" onReturn={() => returnPop("runtimer")}>
+          <RunTimerBody
+            elapsedMs={runElapsed}
+            ceqN={Math.min(runCeqTotal || 999, runEvents.filter((e) => e.kind === "resolve").length + 1)}
+            ceqTotal={runCeqTotal}
+          />
         </PanelPopout>
       )}
 
