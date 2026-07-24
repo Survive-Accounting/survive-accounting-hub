@@ -129,6 +129,13 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
   const [expandedSet, setExpandedSet] = useState<string | null>(null);
   const [previewSet, setPreviewSet] = useState<string | null>(null); // CEQ Set Previewer modal (organize + reorder)
   const lessonOpts = rf.getNodes().filter((n) => n.type === "lesson").map((n) => ({ id: n.id, label: String((n.data as { label?: string }).label ?? "Lesson") }));
+  // COUNT REALITY (Lee, cram usability) — decks approved from a CEQ set whose set
+  // was later removed still live under Named decks; surface that so "CEQ sets (0)"
+  // isn't misleading when set-derived content clearly exists. Display only.
+  const orphanSetDeckCount = decks.filter((deck) =>
+    !ceqSets.some((s) => s.deckId === deck.id) &&
+    deckMembersOf(nodes as { data?: { deckId?: string; stageOrder?: number; deckCategory?: string }; id: string }[], deck.id).some((m) => (m.data as { deckCategory?: string })?.deckCategory === "ceq:set"),
+  ).length;
 
   const newAccountTypeSet = () => {
     const coaAccts = coa.flatMap((g) => g.accounts).map((a) => ({ id: a.name, name: a.name, accountType: a.type }));
@@ -412,6 +419,10 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
 
       {open && (
         <div className="mt-1 space-y-1">
+          {/* EMPTY STATE (Lee, cram usability) — say what a named deck is + how to make one. */}
+          {decks.filter((deck) => !lessonScope || deck.lessonId === lessonScope || !deck.lessonId).length === 0 && (
+            <div className="px-0.5 py-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>No named decks yet — a deck groups cards so you can deal + skeleton-grid them together. Create a card or memo deck below, or seed the Start Here roadmap.</div>
+          )}
           {/* ONE LESSON AT A TIME (Lee): when scoped, show only this lesson's named
               decks (plus unassigned decks, which belong to no lesson). */}
           {decks.filter((deck) => !lessonScope || deck.lessonId === lessonScope || !deck.lessonId).map((deck) => {
@@ -462,12 +473,21 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
                     {count} {memo ? "memos" : "cards"}{slotCount ? ` · ${slotCount} slots` : ""}
                   </span>
                 </div>
-                {/* FROM SET (Lee, item 6) — this deck is the approved output of a CEQ
-                    set; re-approving that set UPDATES this deck in place (never a
-                    sibling). A same-named deck WITHOUT this badge is an orphan copy. */}
-                {(() => { const fromSet = ceqSets.find((s) => s.deckId === deck.id); return fromSet ? (
-                  <div className="mt-0.5 truncate text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }} title={`Approved from CEQ set "${fromSet.name}" — re-approve updates this deck in place`}>from set: {fromSet.name}</div>
-                ) : null; })()}
+                {/* FROM SET (Lee, item 6 + cram usability) — this deck is the approved
+                    output of a CEQ set; re-approving that set UPDATES this deck in place
+                    (never a sibling). If the set was since REMOVED, the cards still carry
+                    the "ceq:set" category, so we still label the row (set-derived) instead
+                    of leaving a 46-card deck looking unexplained. */}
+                {(() => {
+                  const fromSet = ceqSets.find((s) => s.deckId === deck.id);
+                  if (fromSet) return (
+                    <div className="mt-0.5 truncate text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }} title={`Approved from CEQ set "${fromSet.name}" — re-approve updates this deck in place`}>from set: {fromSet.name}</div>
+                  );
+                  const orphanFromSet = deckMembersOf(nodes as { data?: { deckId?: string; stageOrder?: number; deckCategory?: string }; id: string }[], deck.id).some((m) => (m.data as { deckCategory?: string })?.deckCategory === "ceq:set");
+                  return orphanFromSet ? (
+                    <div className="mt-0.5 truncate text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} title="These cards were approved from a CEQ set that has since been removed — the deck still deals normally; re-create the set to edit them as a set again.">from a CEQ set · set removed</div>
+                  ) : null;
+                })()}
                 <div className="mt-1 flex items-center gap-1">
                   <DeckMini title={deck.runMode === "shuffle" ? "Shuffle on reset" : "Deal in sequence"} active={deck.runMode === "shuffle"} onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { runMode: deck.runMode === "shuffle" ? "sequence" : "shuffle" }))}>
                     <Shuffle className="h-3 w-3" />
@@ -557,6 +577,17 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
         <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
           <ListChecks className="h-3 w-3" /> CEQ sets <span style={{ color: NEON.muted }}>({ceqSets.length})</span>
         </div>
+        {/* COUNT REALITY (Lee, item 4) — flag set-derived decks whose set was removed
+            so "(0)" doesn't read as "no CEQ content" when a 46-card deck sits below. */}
+        {orphanSetDeckCount > 0 && (
+          <div className="px-0.5 text-[8.5px] leading-snug" style={{ color: NEON.muted }} title="These decks were approved from CEQ sets whose set was later removed. They live under Named decks and still deal normally.">
+            + {orphanSetDeckCount} approved deck{orphanSetDeckCount > 1 ? "s" : ""} under Named decks (set removed)
+          </div>
+        )}
+        {/* EMPTY STATE (Lee, item 5) — say what a CEQ set is + how to add one. */}
+        {ceqSets.length === 0 && orphanSetDeckCount === 0 && (
+          <div className="px-0.5 mt-0.5 text-[9px] leading-snug" style={{ color: NEON.muted }}>No CEQ sets yet — a set builds one exam question per account (e.g. “what type of account?”). Create one below, then deal it into a frame as a grid or a stack.</div>
+        )}
             {ceqSets.map((set) => {
               const inc = set.accounts.filter((a) => a.include).length;
               const open2 = expandedSet === set.id;

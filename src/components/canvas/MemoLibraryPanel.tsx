@@ -175,7 +175,13 @@ export function MemoLibraryPanel() {
 
       {/* MEMO LIST */}
       <div className="flex max-h-[46vh] flex-col gap-1 overflow-y-auto pr-0.5">
-        {shown.length === 0 && <div className="px-0.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>No memos in this topic match the filter.</div>}
+        {shown.length === 0 && (
+          <div className="px-0.5 py-2 text-[10px] italic leading-snug" style={{ color: NEON.muted }}>
+            {fullMemos.length === 0
+              ? "No memos in this topic yet — add a Memo from the Palette or attach one to a card (its 💡); it then shows here to reuse across the whole topic."
+              : "No memos match the category filter — turn a category back on above."}
+          </div>
+        )}
         {shown.map((m) => {
           const d = m.data as unknown as MemoCard;
           const on = sel.has(m.id);

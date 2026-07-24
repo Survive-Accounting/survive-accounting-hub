@@ -1,8 +1,8 @@
 // The simpler card types: T-account (live balance), Computation (step reveal),
 // CEQ (distractor feedback), Memorize (kind badge), Note (neon marker), Video (Mux).
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type NodeProps, useReactFlow } from "@xyflow/react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Settings2, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
@@ -217,6 +217,10 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
   })();
   const patchChoice = (cid: string, p: Record<string, unknown>) => update({ choices: d.choices.map((c) => (c.id === cid ? { ...c, ...p } : c)) });
   const chosen = d.choices.find((c) => c.id === picked);
+  // CRAM-MODE CHROME (Lee, usability pass) — the CEQ sound/width toggles collapse
+  // behind one gear so the crowded authoring row is quiet by default. Off cram, the
+  // row shows inline exactly as before (no behaviour change). Purely display state.
+  const [optsOpen, setOptsOpen] = useState(false);
   // Stepped, char-count text sizing (Item 1) + width preset (Item 6). Manual resize (w) wins.
   const stemPx = stepPx((d.prompt || "").length, STEM_STEPS);
   const choicePx = stepPx(d.choices.reduce((mx, c) => Math.max(mx, (c.text || "").length), 0), CHOICE_STEPS);
@@ -332,34 +336,58 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
         </div>
       )}
       {/* AUTHORING CHROME (hidden on camera) — sound toggles + width preset. The legacy
-          "reveal answer" button is REMOVED (Item 5): Enter-resolution is the only path. */}
-      <div className="sa-chrome mt-2 flex items-center gap-1.5">
-        <button
-          className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
-          title="Correct-answer win sound — plays when the correct choice is resolved (Enter, film). Toggle."
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => update({ confirmSfx: d.confirmSfx === false ? true : false })}
-          style={{ color: d.confirmSfx === false ? PAPER.inkFaint : PAPER.green, border: `1px solid ${d.confirmSfx === false ? PAPER.line : "rgba(31,157,87,0.5)"}` }}
-        >
-          🔔 {d.confirmSfx === false ? "off" : "on"}
-        </button>
-        <button
-          className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
-          title="Keypad type-out sound for the stem (film). Toggle."
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => update({ keypadSfx: d.keypadSfx === false ? true : false })}
-          style={{ color: d.keypadSfx === false ? PAPER.inkFaint : PAPER.navy, border: `1px solid ${d.keypadSfx === false ? PAPER.line : "rgba(20,33,61,0.4)"}` }}
-        >
-          ⌨ {d.keypadSfx === false ? "off" : "on"}
-        </button>
-        <span className="mx-0.5 h-4 w-px" style={{ background: PAPER.line }} />
-        {/* WIDTH PRESET (Item 6): standard | wide — the ONLY design knob. Clears manual resize. */}
-        <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Standard width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: false, w: undefined })} style={{ color: !d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${!d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>std</button>
-        <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Wide width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: true, w: undefined })} style={{ color: d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>wide</button>
-        {(d.emphasis || d.choices.some((c) => c.resolved)) && (
-          <button className="nodrag ml-auto text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ emphasis: undefined, choices: d.choices.map((c) => ({ ...c, resolved: false })) })}>reset</button>
-        )}
-      </div>
+          "reveal answer" button is REMOVED (Item 5): Enter-resolution is the only path.
+          In CRAM MODE these collapse behind one ⚙ gear (row identical, just tucked). */}
+      {(() => {
+        // The sound/width row — SAME markup + handlers whether inline or tucked.
+        const optsRow = (
+          <>
+            <button
+              className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
+              title="Correct-answer win sound — plays when the correct choice is resolved (Enter, film). Toggle."
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => update({ confirmSfx: d.confirmSfx === false ? true : false })}
+              style={{ color: d.confirmSfx === false ? PAPER.inkFaint : PAPER.green, border: `1px solid ${d.confirmSfx === false ? PAPER.line : "rgba(31,157,87,0.5)"}` }}
+            >
+              🔔 {d.confirmSfx === false ? "off" : "on"}
+            </button>
+            <button
+              className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold"
+              title="Keypad type-out sound for the stem (film). Toggle."
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => update({ keypadSfx: d.keypadSfx === false ? true : false })}
+              style={{ color: d.keypadSfx === false ? PAPER.inkFaint : PAPER.navy, border: `1px solid ${d.keypadSfx === false ? PAPER.line : "rgba(20,33,61,0.4)"}` }}
+            >
+              ⌨ {d.keypadSfx === false ? "off" : "on"}
+            </button>
+            <span className="mx-0.5 h-4 w-px" style={{ background: PAPER.line }} />
+            {/* WIDTH PRESET (Item 6): standard | wide — the ONLY design knob. Clears manual resize. */}
+            <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Standard width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: false, w: undefined })} style={{ color: !d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${!d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>std</button>
+            <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Wide width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: true, w: undefined })} style={{ color: d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>wide</button>
+          </>
+        );
+        return (
+          <div className={`sa-chrome mt-2 flex items-center gap-1.5${nav.cramMode ? " flex-wrap" : ""}`}>
+            {nav.cramMode ? (
+              <>
+                <button
+                  className="nodrag inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
+                  title="CEQ settings — win/keypad sounds + card width"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => setOptsOpen((v) => !v)}
+                  style={{ color: optsOpen ? PAPER.navy : PAPER.inkMuted, border: `1px solid ${optsOpen ? "rgba(20,33,61,0.5)" : PAPER.line}` }}
+                >
+                  <Settings2 className="h-3 w-3" /> settings
+                </button>
+                {optsOpen && optsRow}
+              </>
+            ) : optsRow}
+            {(d.emphasis || d.choices.some((c) => c.resolved)) && (
+              <button className="nodrag ml-auto text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ emphasis: undefined, choices: d.choices.map((c) => ({ ...c, resolved: false })) })}>reset</button>
+            )}
+          </div>
+        );
+      })()}
     </BaseCard>
   );
 }

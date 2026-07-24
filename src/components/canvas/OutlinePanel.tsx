@@ -162,8 +162,8 @@ export function OutlinePanel() {
       )}
 
       {lessons.length === 0 && (
-        <p className="px-2 py-2 text-[11px] italic" style={{ color: NEON.muted }}>
-          No lessons yet — “Add region scaffold” lays a snaking path, or add a lesson.
+        <p className="px-2 py-2 text-[11px] italic leading-snug" style={{ color: NEON.muted }}>
+          No lessons yet — use “Add lesson” in the toolbar (pick a type + topic and it scaffolds the frames). Each lesson then shows here, grouped by topic.
         </p>
       )}
 

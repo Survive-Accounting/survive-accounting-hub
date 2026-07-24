@@ -295,6 +295,24 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   const btn = "nodrag grid h-5 w-5 place-items-center rounded";
 
+  // SOUNDS ON ENTRY (Lee, cram usability) — surface the per-frame swoosh / cram-
+  // launch / keypad toggles on the frame chrome in CRAM MODE, so they're reachable
+  // without entering the frame + opening the HUD's 🔊 popover. SAME fields and SAME
+  // derived defaults as that popover (isCramLaunchFrame parity) — no new settings,
+  // same toggles, just one level up. Only computed/shown when cramMode is on.
+  const frameParentId = rf.getNode(id)?.parentId;
+  const cramLaunchDefault = (() => {
+    const mode = (lessonData as { cramSfx?: string } | undefined)?.cramSfx ?? "auto";
+    if (mode === "off") return false;
+    if (mode !== "auto") return mode === id;
+    if (!frameParentId) return false;
+    const cram = framesInBeat(rf.getNodes() as never, frameParentId, "cram");
+    return cram.length > 0 && cram[0].id === id;
+  })();
+  const cramSfxOn = d.cramLaunchSfx ?? cramLaunchDefault;
+  const swooshSfxOn = d.swooshSfx ?? !cramSfxOn;
+  const keypadSfxOn = d.keypadOnEntry ?? false;
+
   return (
     <div
       className="group/frame relative h-full w-full rounded-lg"
@@ -376,7 +394,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
       >
         {/* FRAME CODE (#lesson.frame) — the beat is already the grid column, so no
             "HOOK 1" chip (Lee's call); this identifies the frame instead. */}
-        <span className="shrink-0 rounded px-1 text-[10px] font-bold tabular-nums" style={{ color: meta.color, border: `1px solid ${meta.edge}` }}>
+        <span className="shrink-0 rounded px-1 text-[10px] font-bold tabular-nums" style={{ color: meta.color, border: `1px solid ${meta.edge}` }} title={`Frame code ${frameCode} — #lesson.position (${meta.label} beat)`}>
           {frameCode}
         </span>
         {/* TAKE BOARD: film status chip (authoring chrome — header hides in film) */}
@@ -408,6 +426,14 @@ export function FrameNode({ id, data, selected }: NodeProps) {
             </button>
           )}
           {!nav.cramMode && <button data-bg-toggle className={btn} style={{ color: bgLoop || d.world || lessonData?.worldDefault ? meta.color : NEON.text }} title="Frame visuals — world, background loop, layout template" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>}
+          {/* SOUNDS ON ENTRY (cram usability) — the same swoosh / cram-launch / keypad
+              toggles as the in-frame HUD 🔊 popover, surfaced here so cram authoring
+              can set them without entering the frame. Cram mode only. */}
+          {nav.cramMode && (<>
+            <button className={`${btn} text-[11px]`} style={{ opacity: swooshSfxOn ? 1 : 0.4, filter: swooshSfxOn ? undefined : "grayscale(1)" }} title={`Advance swoosh on entry — ${swooshSfxOn ? "on (click to mute)" : "off (click to enable)"}`} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); update({ swooshSfx: !swooshSfxOn }); }}>🌀</button>
+            <button className={`${btn} text-[11px]`} style={{ opacity: cramSfxOn ? 1 : 0.4, filter: cramSfxOn ? undefined : "grayscale(1)" }} title={`Cram launch on entry — ${cramSfxOn ? "on (click to mute)" : "off (click to enable)"}`} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); update({ cramLaunchSfx: !cramSfxOn }); }}>🚀</button>
+            <button className={`${btn} text-[11px]`} style={{ opacity: keypadSfxOn ? 1 : 0.4, filter: keypadSfxOn ? undefined : "grayscale(1)" }} title={`Keypad on entry — ${keypadSfxOn ? "on (click to mute)" : "off (click to enable)"}`} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); update({ keypadOnEntry: !keypadSfxOn }); }}>⌨️</button>
+          </>)}
           <button className={btn} style={{ color: phoneCheck ? (phoneWarnCount ? "#FF8B9E" : "#7EF3C0") : NEON.text }} title="Phone-landscape check — flags text/edges that won't read on a phone" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setPhoneCheck((v) => !v); }}><Smartphone className="h-3 w-3" /></button>
           {/* TAKE BOARD: review the frame's uploaded takes (latest plays inline) */}
           <button className={btn} style={{ color: takeCount ? meta.color : NEON.text }} title={takeCount ? `Takes (${takeCount}) — review the latest clip` : "Takes — drop an OBS clip on the frame to upload"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setTakesOpen((v) => !v); }}>
