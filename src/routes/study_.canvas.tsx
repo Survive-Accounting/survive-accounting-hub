@@ -2116,7 +2116,18 @@ function PresentCanvas() {
       const d = node.data as unknown as CardData;
       const fw = node.measured?.width ?? (d.kind === "je" ? jeCardWidth : ((d as CardData & { w?: number }).w ?? 300));
       const fh = node.measured?.height ?? 190;
-      const target = d.deckPos ?? nextFreeGridSlot(fw, fh);
+      // DEAL-IN-PLACE for CEQ (Lee, item 2): the next card lands ON the currently-
+      // dealt card of the same deck (drag that card anywhere and the next deal
+      // follows). Falls back to the remembered deckPos, then a free grid slot, when
+      // nothing of this deck is out yet. Non-CEQ decks keep the grid-slot behaviour.
+      const deckId = (d as { deckId?: string }).deckId;
+      const ceqSibling = d.kind === "ceq" && deckId
+        ? rf.getNodes()
+            .filter((n) => n.id !== id && (n.data as { deckId?: string }).deckId === deckId && (n.data as { deckMember?: boolean }).deckMember && !(n.data as { tucked?: boolean }).tucked && !n.hidden)
+            .sort((a, b) => ((a.data as { stageOrder?: number }).stageOrder ?? 0) - ((b.data as { stageOrder?: number }).stageOrder ?? 0))
+            .pop()
+        : null;
+      const target = ceqSibling ? { x: ceqSibling.position.x, y: ceqSibling.position.y } : (d.deckPos ?? nextFreeGridSlot(fw, fh));
       const before = {
         deckMember: d.deckMember,
         tucked: d.tucked,
@@ -2131,17 +2142,11 @@ function PresentCanvas() {
         do: () => {
           // dealt member: stays IN the deck roster, just visible again. A dealt CEQ
           // starts with NO emphasis pointer (clear any stale one from a prior session)
-          // so an immediate Enter can't resolve a leftover choice.
+          // so an immediate Enter can't resolve a leftover choice. NO auto-focus
+          // (Lee, item 4): dealing never selects the card — arrows stay frame nav;
+          // emphasis comes from CLICKING a choice.
           rf.updateNodeData(id, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, faceDown: fd, ...(d.kind === "ceq" ? { emphasis: undefined } : {}) });
-          rf.setNodes((nds) =>
-            nds.map((n) =>
-              n.id === id
-                ? { ...n, position: { ...target }, hidden: false, selected: true }
-                : n.selected
-                  ? { ...n, selected: false }
-                  : n,
-            ),
-          );
+          rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...target }, hidden: false } : n)));
         },
         undo: () => {
           rf.updateNodeData(id, { deckMember: before.deckMember, tucked: before.tucked, staged: before.staged, minimized: before.minimized, faceDown: before.faceDown });
@@ -2212,23 +2217,10 @@ function PresentCanvas() {
   }, [rf]);
   const frameIsStack = useCallback((frameId: string) => !!(rf.getNode(frameId)?.data as { stackDeal?: boolean } | undefined)?.stackDeal, [rf]);
 
-  // ---- CEQ LIVE-TEACHING (Item 6) — focus emphasis pointer + Enter resolution ----
-  /** Cycle the amber emphasis pointer through the FOCUSED CEQ's choices. Returns
-   *  true when a CEQ is focused (selected) so the caller stops — the focus state
-   *  fully gates the arrows (frame nav never runs at the same time). Transient: the
-   *  pointer is written straight to node data, never onto the undo stack. */
-  const ceqEmphasisMove = useCallback((dir: 1 | -1): boolean => {
-    const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
-    if (!sel) return false;
-    const d = sel.data as unknown as { choices?: { id: string }[]; emphasis?: string };
-    const choices = d.choices ?? [];
-    if (choices.length === 0) return false; // nothing to emphasise → let the arrow fall through to frame nav
-    const cur = choices.findIndex((c) => c.id === d.emphasis);
-    const nx = cur < 0 ? (dir > 0 ? 0 : choices.length - 1) : (cur + dir + choices.length) % choices.length;
-    rf.updateNodeData(sel.id, { emphasis: choices[nx].id });
-    return true;
-  }, [rf]);
-
+  // ---- CEQ LIVE-TEACHING — CLICK a choice to emphasise (amber ring), Enter to
+  //      resolve. Arrows are ALWAYS frame nav now (Lee, item 4): the old
+  //      arrow-cycling ceqEmphasisMove is removed; emphasis is set by the click
+  //      handler in CeqCardNode (selects the card + sets data.emphasis).
   /** Enter on the emphasised CEQ choice → toggle its resolution. Correct → green +
    *  win sound (film, respecting confirmSfx); wrong → red + strike, NO win sound. The
    *  choice's per-choice memo shows/hides DERIVEDLY from resolved (film-gated in the
@@ -4862,22 +4854,21 @@ function PresentCanvas() {
       {
         combo: "arrowup",
         group: "Frames",
-        description: "Previous sub-frame (↑) — or, when a CEQ is focused, cycle its choice emphasis up",
-        // ↑/↓ move FREELY between sub-frames (no spotlight hijack — spotlights are
-        // click-only now; arrows belong to the frames). BUT a focused CEQ (Item 6)
-        // fully gates them to emphasis navigation — the two never fire at once.
-        handler: (e) => { if (ceqEmphasisMove(-1)) { e.preventDefault(); return; } if (frameFreeNav()) { e.preventDefault(); stepSub(-1); } },
+        description: "Previous sub-frame (↑)",
+        // ↑/↓ ALWAYS move between sub-frames now (Lee, item 4) — CEQ emphasis is
+        // CLICK-driven, so the arrows are never hijacked by a dealt CEQ.
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(-1); } },
       },
       {
         combo: "arrowdown",
         group: "Frames",
-        description: "Next sub-frame (↓) — or, when a CEQ is focused, cycle its choice emphasis down",
-        handler: (e) => { if (ceqEmphasisMove(1)) { e.preventDefault(); return; } if (frameFreeNav()) { e.preventDefault(); stepSub(1); } },
+        description: "Next sub-frame (↓)",
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(1); } },
       },
       {
         combo: "enter",
         group: "CEQ",
-        description: "Resolve the emphasised CEQ choice — correct → win + memo · wrong → strike + memo (Enter again clears)",
+        description: "Resolve the CLICKED CEQ choice (amber ring) — correct → win + memo · wrong → strike + memo (Enter again clears)",
         handler: (e) => {
           const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
           if (!sel) return; // no CEQ focused → leave Enter to its native behaviour
@@ -4908,7 +4899,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqEmphasisMove, resolveCeqChoice, applyFrameToStep, explodeHovered],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, resolveCeqChoice, applyFrameToStep, explodeHovered],
   );
   useKeymap(bindings);
 

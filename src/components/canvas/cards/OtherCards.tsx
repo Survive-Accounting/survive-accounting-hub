@@ -254,9 +254,15 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 animationDelay: editing ? undefined : `${520 + ci * 80}ms`,
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              // SOUND DISCIPLINE: the win sound fires ONLY on a correct-Enter (route
-              // resolveCeqChoice), never on a click. Click-to-pick is a silent self-check.
-              onClick={() => { if (editing) return; setPicked(c.id); }}
+              // CLICK = EMPHASISE (Lee, item 4): a click puts the amber ring on this
+              // choice and SELECTS the card so Enter resolves it. It does NOT reveal
+              // right/wrong (that's Enter's job). The win sound fires ONLY on a
+              // correct-Enter (route resolveCeqChoice), never on a click.
+              onClick={() => {
+                if (editing) return;
+                rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, selected: true } : n.selected ? { ...n, selected: false } : n)));
+                update({ emphasis: c.id });
+              }}
             >
               {/* LETTER CHIP (A, B, C… by position) */}
               <span
@@ -272,9 +278,12 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
               </span>
               <span
                 className="min-w-0 flex-1"
-                style={{ fontSize: choicePx, fontWeight: 600, lineHeight: 1.3, color: st === "right" ? PAPER.green : PAPER.ink, textDecoration: st === "wrong" ? "line-through" : undefined, textDecorationThickness: st === "wrong" ? "2px" : undefined }}
+                style={{ fontSize: choicePx, fontWeight: 600, lineHeight: 1.3, color: st === "right" ? PAPER.green : PAPER.ink }}
               >
-                <TextAnchor subId={c.id} nodeId={id}>
+                {/* strike lives on TextAnchor's inline-block span (line-through does
+                    not inherit across inline-block), sized in em so it survives the
+                    1080p downscale. */}
+                <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}>
                   {editing
                     ? <EditableText value={c.text} onChange={(v) => patchChoice(c.id, { text: v })} editing placeholder="Choice" />
                     : renderInline(c.text || "")}
@@ -347,8 +356,8 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
         {/* WIDTH PRESET (Item 6): standard | wide — the ONLY design knob. Clears manual resize. */}
         <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Standard width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: false, w: undefined })} style={{ color: !d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${!d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>std</button>
         <button className="nodrag rounded px-1.5 py-0.5 text-[10px] font-bold" title="Wide width" onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ wide: true, w: undefined })} style={{ color: d.wide ? PAPER.navy : PAPER.inkFaint, border: `1px solid ${d.wide ? "rgba(20,33,61,0.5)" : PAPER.line}` }}>wide</button>
-        {picked && (
-          <button className="nodrag ml-auto text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => setPicked(null)}>reset</button>
+        {(d.emphasis || d.choices.some((c) => c.resolved)) && (
+          <button className="nodrag ml-auto text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ emphasis: undefined, choices: d.choices.map((c) => ({ ...c, resolved: false })) })}>reset</button>
         )}
       </div>
     </BaseCard>

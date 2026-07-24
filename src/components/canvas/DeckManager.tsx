@@ -169,7 +169,11 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     ].filter((c): c is NonNullable<typeof c> => !!c);
     const cmd = compositeCmd(cmds, "approve set as deck");
     if (cmd) bus.dispatch(cmd);
-    setDecks((prev) => (set.deckId ? updateDeck(prev, deckId, { slots, lessonId, name: set.name }) : addDeck(prev, { ...newDeckDef(set.name, "cards"), id: deckId, lessonId, runMode: "sequence", slots })));
+    // IDEMPOTENT (Lee, item 6): branch on whether the linked deck actually EXISTS,
+    // not just on set.deckId being set — so a stale link (deck deleted) re-creates
+    // THAT SAME deck id in place instead of silently no-oping. `deckId` is
+    // set.deckId ?? a fresh id, so a re-approve never spawns a sibling.
+    setDecks((prev) => (prev.some((dk) => dk.id === deckId) ? updateDeck(prev, deckId, { slots, lessonId, name: set.name }) : addDeck(prev, { ...newDeckDef(set.name, "cards"), id: deckId, lessonId, runMode: "sequence", slots })));
     setCeqSets((prev) => prev.map((s) => (s.id === set.id ? { ...s, deckId } : s)));
     setSeedNote(`approved ${cards.length} cards → "${set.name}". Film order: ${order.map((a) => a.name).join(" · ")}`);
   };
@@ -204,38 +208,23 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
       id: cardId("ceq"), type: "ceq", parentId: frameId, position: { ...pos }, selected: false,
       data: { ...c, title: set.name, deckId, deckMember: true, deckLessonId: lessonId, tucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set", deckPos: { ...pos } } as Record<string, unknown>,
     });
-    let newNodes: ReturnType<typeof mk>[];
     let stackAt: { x: number; y: number } | null = null; // persisted so the spot sticks
-    if (mode === "grid") {
-      // teaser: all cards laid in the frame's grid, VISIBLE — "here's what's coming"
-      const cols = Math.max(1, Math.ceil(Math.sqrt(cards.length)));
-      const rows = Math.ceil(cards.length / cols);
-      const pad = 40, gap = 24;
-      const cellW = Math.max(120, (fw - 2 * pad - (cols - 1) * gap) / cols);
-      const cellH = Math.max(90, (fh - 2 * pad - (rows - 1) * gap) / rows);
-      const slots = gridSlots(cards.length, { originX: pad, originY: pad, cols, cellW, cellH, gapX: gap, gapY: gap });
-      newNodes = cards.map((c, i) => mk(c, i, slots[i], false));
-    } else {
-      // cram: cards STACKED on top of each other, centred + UNIFORM (Lee). Every
-      // card SHARES one look so they land exactly on top of one another: WIDE width,
-      // chrome HIDDEN (clean for filming — the settings bar off), and posLock
-      // (locked in place). Centre a wide card. The TOP card deals VISIBLE (the first
-      // cram card); the rest tuck behind it and Space flips to the next — each one
-      // appears in the identical spot with the identical settings.
-      const CW = 560, CH = 520; // wide CEQ (CEQ_WIDE_W)
-      // STACK ANCHOR (Lee): the stack deals ONTO the spot YOU chose — not the frame
-      // centre. Precedence: (1) the position of THIS set's top card already in the
-      // frame (deal once, drag it where you want, re-deal → lands there); (2) the
-      // frame's saved stackAt; (3) frame centre, only on the very first deal. The
-      // chosen spot is persisted to frame.stackAt so it sticks across clear/re-deal.
-      const prevTop = existing.find((n) => n.type === "ceq" && (n.data as { stageOrder?: number }).stageOrder === 0) ?? existing.find((n) => n.type === "ceq");
-      const stored = (frame.data as { stackAt?: { x: number; y: number } }).stackAt;
-      const at = prevTop
-        ? { x: Math.round(prevTop.position.x), y: Math.round(prevTop.position.y) }
-        : stored ?? { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
-      stackAt = at;
-      newNodes = cards.map((c, i) => { const n = mk(c, i, at, i > 0); return { ...n, data: { ...n.data, wide: true, hideChrome: true, posLock: true } }; });
-    }
+    // DEAL-IN-PLACE (Lee, items 1-2) — grid-spread and centre placement are gone:
+    // EVERY card deals onto the ANCHOR — the spot of THIS set's current top card in
+    // the frame, else the frame's saved stackAt, else the frame centre on the very
+    // first deal. Cards are MOVABLE (NO posLock): drag the top card and the next
+    // deal lands where you dragged it (the anchor reads the live position). The top
+    // card shows; the rest tuck behind it and Space flips through, each in the
+    // identical spot with the identical look (wide, chrome hidden for filming). The
+    // old grid/stack `mode` now only labels the button — both deal in place.
+    const CW = 560, CH = 520; // wide CEQ (CEQ_WIDE_W)
+    const prevTop = existing.find((n) => n.type === "ceq" && (n.data as { stageOrder?: number }).stageOrder === 0) ?? existing.find((n) => n.type === "ceq");
+    const stored = (frame.data as { stackAt?: { x: number; y: number } }).stackAt;
+    const at = prevTop
+      ? { x: Math.round(prevTop.position.x), y: Math.round(prevTop.position.y) }
+      : stored ?? { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
+    stackAt = at;
+    const newNodes = cards.map((c, i) => { const n = mk(c, i, at, i > 0); return { ...n, data: { ...n.data, wide: true, hideChrome: true } }; });
     // MATERIALISE ATTACHED MEMOS (Phase 2, Lee): one memo node per set-memo, placed
     // at its card's position + the memo's frame-local offset (dx/dy), sharing the
     // card's tucked state + deckId so it deals/clears WITH the card. Re-deal replaces
@@ -247,14 +236,14 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
         const pos = { x: card.position.x + m.dx, y: card.position.y + m.dy };
         return {
           id: cardId("memo"), type: "memo", parentId: frameId, position: pos, selected: false,
-          data: { kind: "memo", memoKind: m.memoKind ?? "note", title: m.title, body: m.body, category: m.category, w: m.w, deckId, deckMember: true, deckLessonId: lessonId, tucked: cardTucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set-memo", deckPos: pos, posLock: true } as Record<string, unknown>,
+          data: { kind: "memo", memoKind: m.memoKind ?? "note", title: m.title, body: m.body, category: m.category, w: m.w, deckId, deckMember: true, deckLessonId: lessonId, tucked: cardTucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set-memo", deckPos: pos } as Record<string, unknown>,
         };
       });
     });
     const cmds = [
       removeSnap.length ? { label: "clear frame copy", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
       addNodesCmd(rf as unknown as RfLike, [...newNodes, ...memoNodes] as never, `deal ${cards.length} CEQ${memoNodes.length ? ` + ${memoNodes.length} memos` : ""}`),
-      patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: mode === "stack", ...(stackAt ? { stackAt } : {}) }, "deal mode"),
+      patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: true, ...(stackAt ? { stackAt } : {}) }, "deal mode"),
     ].filter((c): c is NonNullable<typeof c> => !!c);
     const cmd = compositeCmd(cmds, `deal set → ${mode}`);
     if (cmd) bus.dispatch(cmd);
@@ -469,6 +458,12 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
                     {count} {memo ? "memos" : "cards"}{slotCount ? ` · ${slotCount} slots` : ""}
                   </span>
                 </div>
+                {/* FROM SET (Lee, item 6) — this deck is the approved output of a CEQ
+                    set; re-approving that set UPDATES this deck in place (never a
+                    sibling). A same-named deck WITHOUT this badge is an orphan copy. */}
+                {(() => { const fromSet = ceqSets.find((s) => s.deckId === deck.id); return fromSet ? (
+                  <div className="mt-0.5 truncate text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }} title={`Approved from CEQ set "${fromSet.name}" — re-approve updates this deck in place`}>from set: {fromSet.name}</div>
+                ) : null; })()}
                 <div className="mt-1 flex items-center gap-1">
                   <DeckMini title={deck.runMode === "shuffle" ? "Shuffle on reset" : "Deal in sequence"} active={deck.runMode === "shuffle"} onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { runMode: deck.runMode === "shuffle" ? "sequence" : "shuffle" }))}>
                     <Shuffle className="h-3 w-3" />

@@ -41,7 +41,7 @@ export function MemoAnchor({ subId }: { subId: string }) {
  *  The handle stays Position.Right (the common right-approach case — Lee's repro).
  *  A wrapped/multi-line run reports its block box, so the anchor lands at the block's
  *  right edge + vertical centre. */
-export function TextAnchor({ subId, nodeId, children }: { subId: string; nodeId: string; children: ReactNode }) {
+export function TextAnchor({ subId, nodeId, children, strike }: { subId: string; nodeId: string; children: ReactNode; strike?: boolean }) {
   const updateNodeInternals = useUpdateNodeInternals();
   const ref = useRef<HTMLSpanElement>(null);
   const [end, setEnd] = useState<{ x: number; y: number } | null>(null);
@@ -65,8 +65,10 @@ export function TextAnchor({ subId, nodeId, children }: { subId: string; nodeId:
   return (
     <>
       {/* inline-block so a single-line run shrinks to the glyphs (anchor lands at the
-          last glyph); wraps within the row at 100% for long text */}
-      <span ref={ref} style={{ display: "inline-block", maxWidth: "100%", verticalAlign: "middle" }}>{children}</span>
+          last glyph); wraps within the row at 100% for long text. NOTE: inline-block
+          BREAKS text-decoration inheritance from the parent, so a wrong-answer
+          strike (Lee) must be applied HERE, not on an ancestor. */}
+      <span ref={ref} style={{ display: "inline-block", maxWidth: "100%", verticalAlign: "middle", textDecoration: strike ? "line-through" : undefined, textDecorationThickness: strike ? "0.12em" : undefined }}>{children}</span>
       <Handle
         type="target"
         position={Position.Right}
