@@ -93,19 +93,20 @@ export function PipelineTestPanel() {
       setPhase("mux-raw"); addLog(`${stamp()} · Mux encoding the raw clip…`);
       let assetId: string | null = null;
       let raw: string | null = null;
+      let master: string | null = null; // temporary source URL Auphonic reads
       for (let i = 0; i < 90 && !raw; i++) {
         const r: UploadRes = await resolvePipelineTestUpload({ data: { uploadId, assetId } });
         assetId = r.assetId;
         if (r.status === "errored") throw new Error(r.error ?? "Mux upload errored");
-        if (r.status === "ready") { raw = r.playbackId; break; }
+        if (r.status === "ready") { raw = r.playbackId; master = r.masterUrl; break; }
         await sleep(4000);
       }
-      if (!raw) throw new Error("Timed out waiting for Mux to encode the raw clip.");
+      if (!raw || !master) throw new Error("Timed out waiting for Mux to encode the clip + prepare its source.");
       setRawPb(raw); addLog(`${stamp()} · raw clip ready (${raw.slice(0, 12)}…)`);
 
-      // 3) start Auphonic from the raw Mux MP4
+      // 3) start Auphonic from the raw clip's master (source) file URL
       setPhase("auphonic"); addLog(`${stamp()} · starting Auphonic…`);
-      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { playbackId: raw } });
+      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: master } });
 
       // 4) Auphonic done → ingest → final Mux asset → public playback id (PROCESSED)
       let muxAssetId: string | null = null;

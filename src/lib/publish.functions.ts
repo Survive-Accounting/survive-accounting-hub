@@ -340,13 +340,17 @@ export const resolvePreview = createServerFn({ method: "POST" })
 // no DB row — the client holds the cursor (upload id → asset id → auphonic uuid →
 // final asset id) and passes it back each poll, mirroring resolvePreview. Steps:
 //   1. createPipelineTestUpload   → Mux direct-upload URL (client PUTs the file)
-//   2. resolvePipelineTestUpload  → upload→asset→public playback id (the RAW clip)
-//   3. startPipelineTestAuphonic  → Auphonic production from the raw Mux MP4
+//   2. resolvePipelineTestUpload  → upload→asset→public playback id (RAW preview,
+//                                    HLS) + a temporary MASTER (source) URL
+//   3. startPipelineTestAuphonic  → Auphonic production from the master file URL
 //   4. resolvePipelineTestAuphonic→ Auphonic done → ingest to a FINAL Mux asset →
 //                                    public playback id (the PROCESSED clip)
 // The panel previews raw vs processed side by side. Fail-loud env gating throughout.
 
-/** 1) Create a Mux direct upload (mp4_support so Auphonic can read the static MP4). */
+/** 1) Create a Mux direct upload. Playback is HLS-only (no mp4_support — the
+ *  deprecated "standard" rendition is rejected on basic assets). Auphonic still
+ *  needs a downloadable source file, so we enable master_access:"temporary" — a
+ *  time-limited URL to the ORIGINAL upload (NOT a streaming MP4 rendition). */
 export const createPipelineTestUpload = createServerFn({ method: "POST" })
   .handler(async (): Promise<{ uploadUrl: string; uploadId: string }> => {
     muxAuth();
@@ -354,41 +358,49 @@ export const createPipelineTestUpload = createServerFn({ method: "POST" })
       method: "POST",
       body: JSON.stringify({
         cors_origin: "*",
-        new_asset_settings: { playback_policy: ["public"], passthrough: "pipeline-test", video_quality: "basic", mp4_support: "standard" },
+        new_asset_settings: { playback_policy: ["public"], passthrough: "pipeline-test", video_quality: "basic", master_access: "temporary" },
       }),
     });
     return { uploadUrl: upload.url, uploadId: upload.id };
   });
 
-/** 2) Advance the raw upload: upload → asset → public playback id. Stateless. */
+/** 2) Advance the raw upload: upload → asset → public playback id (RAW preview) +
+ *  the temporary MASTER (source) URL that Auphonic will read. Stateless. Not
+ *  "ready" until BOTH the playback id and the master are ready. */
 export const resolvePipelineTestUpload = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ uploadId: z.string().min(6), assetId: z.string().nullable().optional() }).parse(d))
-  .handler(async ({ data }): Promise<{ status: "uploading" | "processing" | "ready" | "errored"; assetId: string | null; playbackId: string | null; error: string | null }> => {
+  .handler(async ({ data }): Promise<{ status: "uploading" | "processing" | "ready" | "errored"; assetId: string | null; playbackId: string | null; masterUrl: string | null; error: string | null }> => {
     muxAuth();
     let assetId = data.assetId ?? null;
     if (!assetId) {
       const up = await muxApi(`/video/v1/uploads/${data.uploadId}`);
-      if (up.status === "errored") return { status: "errored", assetId: null, playbackId: null, error: up.error?.message ?? "Mux upload errored" };
-      if (!up.asset_id) return { status: "uploading", assetId: null, playbackId: null, error: null };
+      if (up.status === "errored") return { status: "errored", assetId: null, playbackId: null, masterUrl: null, error: up.error?.message ?? "Mux upload errored" };
+      if (!up.asset_id) return { status: "uploading", assetId: null, playbackId: null, masterUrl: null, error: null };
       assetId = up.asset_id as string;
     }
     const asset = await muxApi(`/video/v1/assets/${assetId}`);
-    if (asset.status === "errored") return { status: "errored", assetId, playbackId: null, error: asset.errors?.messages?.join("; ") ?? "Mux asset errored" };
-    if (asset.status !== "ready") return { status: "processing", assetId, playbackId: null, error: null };
+    if (asset.status === "errored") return { status: "errored", assetId, playbackId: null, masterUrl: null, error: asset.errors?.messages?.join("; ") ?? "Mux asset errored" };
+    if (asset.status !== "ready") return { status: "processing", assetId, playbackId: null, masterUrl: null, error: null };
     const pb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
-    return { status: "ready", assetId, playbackId: pb, error: null };
+    // master (the downloadable source Auphonic reads) is prepared asynchronously —
+    // keep polling until it's ready, then hand back its temporary URL.
+    if (asset.master?.status === "errored") return { status: "errored", assetId, playbackId: pb, masterUrl: null, error: `Mux master access failed: ${asset.master?.error ?? "unknown"}` };
+    const masterUrl: string | null = asset.master?.status === "ready" ? (asset.master?.url ?? null) : null;
+    if (!masterUrl) return { status: "processing", assetId, playbackId: pb, masterUrl: null, error: null };
+    return { status: "ready", assetId, playbackId: pb, masterUrl, error: null };
   });
 
-/** 3) Start an Auphonic production from the raw clip's Mux MP4 (single body input). */
+/** 3) Start an Auphonic production from the raw clip's MASTER file URL (Mux's
+ *  temporary download of the original upload — a real MP4 Auphonic can fetch). */
 export const startPipelineTestAuphonic = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ playbackId: z.string().min(6) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ fileUrl: z.string().url() }).parse(d))
   .handler(async ({ data }): Promise<{ auphonicUuid: string }> => {
     const prod = await auphonic("productions.json", {
       method: "POST",
       body: JSON.stringify({
         preset: requireEnv("AUPHONIC_PRESET_UUID"),
         metadata: { title: `Pipeline test ${new Date().toISOString()}` },
-        multi_input_files: [{ input_file: muxMp4(data.playbackId), type: "multitrack", id: "body" }],
+        multi_input_files: [{ input_file: data.fileUrl, type: "multitrack", id: "body" }],
         output_files: [{ format: "video", ending: "mp4" }],
         // loudness match only; never cut fillers/silence (same as the real pipeline)
         algorithms: { normloudness: true, filler_cutter: false, silence_cutter: false },
