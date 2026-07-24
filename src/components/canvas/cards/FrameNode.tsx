@@ -407,7 +407,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               {d.bgPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
             </button>
           )}
-          <button data-bg-toggle className={btn} style={{ color: bgLoop || d.world || lessonData?.worldDefault ? meta.color : NEON.text }} title="Frame visuals — world, background loop, layout template" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>
+          {!nav.cramMode && <button data-bg-toggle className={btn} style={{ color: bgLoop || d.world || lessonData?.worldDefault ? meta.color : NEON.text }} title="Frame visuals — world, background loop, layout template" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setBgMenu((v) => !v); }}><Film className="h-3 w-3" /></button>}
           <button className={btn} style={{ color: phoneCheck ? (phoneWarnCount ? "#FF8B9E" : "#7EF3C0") : NEON.text }} title="Phone-landscape check — flags text/edges that won't read on a phone" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setPhoneCheck((v) => !v); }}><Smartphone className="h-3 w-3" /></button>
           {/* TAKE BOARD: review the frame's uploaded takes (latest plays inline) */}
           <button className={btn} style={{ color: takeCount ? meta.color : NEON.text }} title={takeCount ? `Takes (${takeCount}) — review the latest clip` : "Takes — drop an OBS clip on the frame to upload"} onPointerDown={stop} onClick={(e) => { e.stopPropagation(); setTakesOpen((v) => !v); }}>
@@ -439,7 +439,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
 
       {/* BACKGROUND PICKER — loop chooser + opacity slider (author-facing). nodrag/
           nowheel so the slider works; stops propagation so clicks don't enter. */}
-      {bgMenu && createPortal((
+      {bgMenu && !nav.cramMode && createPortal((
         // A FIXED right-side drawer (portaled to <body>) so it ALWAYS sits above
         // every card + header (Lee's call), never gets clipped by the frame, and
         // fits the screen height with its own scroll. Sticky header carries an

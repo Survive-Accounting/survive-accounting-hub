@@ -12,7 +12,14 @@ import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
 import { BEAT_COLUMNS, beatColOf, framesInLesson } from "./frames";
 import { BEAT_META } from "./cards/FrameNode";
-import { isContainerType, type CardBase, type CardNode, type FrameBox } from "./types";
+import { isContainerType, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type CardBase, type CardNode, type FrameBox, type LessonBox, type LessonStatus, type LessonType } from "./types";
+
+// PUBLISH-STATUS colour per lesson row (Lee): red = UNFILMED, amber = FILMED,
+// green = PUBLISHED.
+const STATUS_TONE: Record<LessonStatus, string> = { UNFILMED: "#FF5C6C", FILMED: "#FCA311", PUBLISHED: "#3BF5A0" };
+const statusOf = (l: CardNode): LessonStatus => ((l.data as unknown as LessonBox).status ?? "UNFILMED");
+const topicOf = (l: CardNode): string => (((l.data as unknown as LessonBox).topic || (l.data as unknown as LessonBox).label || "").trim() || "(no topic)");
+const lessonTypeOf = (l: CardNode): LessonType => ((l.data as unknown as LessonBox).lessonType ?? "CONCEPT");
 
 /** Absolute rect of a node (a card parented to a lesson carries a relative pos). */
 function absRect(n: CardNode, byId: Map<string, CardNode>) {
@@ -116,6 +123,24 @@ export function OutlinePanel() {
       return next;
     });
 
+  // TOPIC GROUPS (Lee) — lessons grouped by topic; within a topic, sorted by type
+  // (CRAM · FULL · CONCEPT · EXTRA) so CEQ siblings sit together, then path order.
+  const topicGroups = useMemo(() => {
+    const m = new Map<string, CardNode[]>();
+    for (const l of lessons) { const t = topicOf(l); const arr = m.get(t) ?? []; arr.push(l); m.set(t, arr); }
+    for (const arr of m.values()) arr.sort((a, b) => LESSON_TYPES.indexOf(lessonTypeOf(a)) - LESSON_TYPES.indexOf(lessonTypeOf(b)) || pathOrderOf(a) - pathOrderOf(b));
+    return [...m.entries()];
+  }, [lessons]);
+  const publishedCount = useMemo(() => lessons.filter((l) => statusOf(l) === "PUBLISHED").length, [lessons]);
+
+  // CLICK a lesson row → make it the ACTIVE lesson (mounts it, collapses the rest,
+  // flies the camera). Status cycles UNFILMED → FILMED → PUBLISHED on the chip.
+  const activate = (l: CardNode) => nav.activateLesson(l.id);
+  const cycleStatus = (l: CardNode) => {
+    const cur = statusOf(l);
+    rf.updateNodeData(l.id, { status: LESSON_STATUSES[(LESSON_STATUSES.indexOf(cur) + 1) % LESSON_STATUSES.length] });
+  };
+
   return (
     <div className="nodrag nowheel max-h-[70vh] w-full overflow-y-auto px-0.5 py-1 text-[12px]" style={{ color: NEON.text }}>
       {/* Region row */}
@@ -129,6 +154,13 @@ export function OutlinePanel() {
         <span className="min-w-0 flex-1 truncate">{regionLabel}</span>
       </button>
 
+      {/* PUBLISH COUNT (Lee) — X of Y lessons published (green when all done). */}
+      {lessons.length > 0 && (
+        <div className="px-1.5 pb-1 text-[10px] font-bold tracking-wide" style={{ color: publishedCount === lessons.length ? STATUS_TONE.PUBLISHED : NEON.muted }}>
+          {publishedCount} of {lessons.length} published
+        </div>
+      )}
+
       {lessons.length === 0 && (
         <p className="px-2 py-2 text-[11px] italic" style={{ color: NEON.muted }}>
           No lessons yet — “Add region scaffold” lays a snaking path, or add a lesson.
@@ -136,7 +168,11 @@ export function OutlinePanel() {
       )}
 
       <div className="ml-1 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
-        {lessons.map((l) => {
+        {topicGroups.map(([topic, topicLessons]) => (
+        <div key={topic}>
+          {/* TOPIC header (Lee) — groups CEQ_CRAM / CEQ_FULL siblings together. */}
+          <div className="px-1 pt-1.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>{topic}</div>
+          {topicLessons.map((l) => {
           const frames = framesByLesson.get(l.id) ?? [];
           const looseKids = cardsByLesson.m.get(l.id) ?? []; // cards directly in the lesson (not in a frame)
           const hasContent = frames.length > 0 || looseKids.length > 0;
@@ -159,24 +195,23 @@ export function OutlinePanel() {
             <div key={l.id}>
               <div
                 className="group/row flex items-center gap-1 rounded px-1 py-0.5"
-                style={here ? { background: "rgba(252,163,17,0.14)", boxShadow: "inset 2px 0 0 " + NEON.yellow } : undefined}
+                style={{ boxShadow: `inset 3px 0 0 ${STATUS_TONE[statusOf(l)]}`, ...(here ? { background: "rgba(252,163,17,0.14)" } : {}) }}
+                title={`${statusOf(l)}${here ? " · you are here" : ""}`}
               >
                 <button className="shrink-0 rounded p-0.5 hover:bg-white/10" style={{ color: NEON.muted }} onClick={() => toggle(l.id)} title={isCol ? "Expand" : "Collapse"}>
                   {hasContent ? (isCol ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <span className="inline-block h-3 w-3" />}
                 </button>
-                {here && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: NEON.yellow, boxShadow: `0 0 6px ${NEON.yellow}` }} />}
                 <button
                   className="flex min-w-0 flex-1 items-center gap-1.5 rounded py-0.5 text-left hover:text-white"
                   style={{ color: here ? NEON.yellow : NEON.text }}
-                  onClick={() => fly(l)}
-                  title="Fly here"
+                  onClick={() => activate(l)}
+                  title="Make this the active lesson (loads its frames)"
                 >
-                  {Number.isFinite(po) && (
-                    <span className="shrink-0 rounded px-1 text-[9px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{po}</span>
-                  )}
-                  <Frame className="h-3 w-3 shrink-0 opacity-50" />
+                  <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{LESSON_TYPE_LABEL[lessonTypeOf(l)]}</span>
                   <span className="min-w-0 flex-1 truncate">{labelOf(l)}</span>
                 </button>
+                {/* STATUS chip (Lee) — click to cycle UNFILMED → FILMED → PUBLISHED. */}
+                <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-black uppercase tracking-wide opacity-70 hover:opacity-100" style={{ color: STATUS_TONE[statusOf(l)], border: `1px solid ${STATUS_TONE[statusOf(l)]}` }} onClick={(e) => { e.stopPropagation(); cycleStatus(l); }} title={`Status: ${statusOf(l)} — click to cycle`}>{statusOf(l).slice(0, 3)}</button>
               </div>
               {!isCol && hasContent && (
                 <div className="ml-4 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
@@ -227,7 +262,9 @@ export function OutlinePanel() {
               )}
             </div>
           );
-        })}
+          })}
+        </div>
+        ))}
 
         {cardsByLesson.loose.length > 0 && (
           <div className="mt-1">

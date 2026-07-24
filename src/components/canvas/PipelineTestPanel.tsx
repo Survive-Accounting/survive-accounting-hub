@@ -4,6 +4,7 @@
 // side so you can hear/see whether the pipeline is working. Stateless: the client
 // holds the cursor and polls the four server fns; no DB rows are written.
 import { useEffect, useRef, useState } from "react";
+import { useReactFlow } from "@xyflow/react";
 import { CheckCircle2, Film, Loader2, Upload, XCircle } from "lucide-react";
 
 import {
@@ -62,7 +63,15 @@ function HlsVideo({ playbackId }: { playbackId: string }) {
   );
 }
 
-export function PipelineTestPanel() {
+export function PipelineTestPanel({ cramMode, activeLessonId }: { cramMode?: boolean; activeLessonId?: string | null } = {}) {
+  const rf = useReactFlow();
+  // In CRAM MODE the pipeline is per-LESSON: the finished Mux video attaches to the
+  // active lesson and flips its status to PUBLISHED (whole-take cram videos, one
+  // file per lesson). Otherwise it's the standalone raw-vs-processed probe.
+  const lessonNode = cramMode && activeLessonId ? rf.getNode(activeLessonId) : null;
+  const lessonLabel = (lessonNode?.data as { topic?: string; label?: string } | undefined);
+  const lessonName = (lessonLabel?.topic || lessonLabel?.label || "the active lesson");
+  const lessonVideo = (lessonNode?.data as { muxPlaybackId?: string | null } | undefined)?.muxPlaybackId ?? null;
   const [phase, setPhase] = useState<Phase>("idle");
   const [note, setNote] = useState<string>("");
   const [log, setLog] = useState<string[]>([]);
@@ -122,6 +131,12 @@ export function PipelineTestPanel() {
       }
       if (!final) throw new Error("Timed out waiting for the final Mux asset.");
       setFinalPb(final); setPhase("ready");
+      // CRAM MODE (item 3) — attach the finished video to the active lesson and flip
+      // its status to PUBLISHED (whole-take cram video, one per lesson).
+      if (cramMode && activeLessonId) {
+        rf.updateNodeData(activeLessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED" });
+        addLog(`${stamp()} · attached to "${lessonName}" → PUBLISHED`);
+      }
       addLog(`${stamp()} · ✓ done in ${Math.round((Date.now() - t0) / 1000)}s`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -142,11 +157,20 @@ export function PipelineTestPanel() {
   return (
     <div className="flex flex-col gap-2 p-1 text-[11px]" style={{ color: NEON.text }}>
       <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
-        <Film className="h-3 w-3" /> Pipeline test
+        <Film className="h-3 w-3" /> {cramMode ? "Lesson video" : "Pipeline test"}
       </div>
       <div className="text-[9.5px] leading-snug" style={{ color: NEON.muted }}>
-        Uploads one file → Auphonic (loudness) → Mux, then previews raw vs processed. Runs on the deployed env (needs the Mux + Auphonic keys).
+        {cramMode
+          ? <>One whole-take file → Auphonic → Mux → attaches to <b style={{ color: NEON.text }}>{lessonName}</b> and flips it to PUBLISHED. Runs on the deployed env.</>
+          : <>Uploads one file → Auphonic (loudness) → Mux, then previews raw vs processed. Runs on the deployed env (needs the Mux + Auphonic keys).</>}
       </div>
+      {cramMode && !activeLessonId && <div className="rounded px-2 py-1 text-[9.5px]" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.4)" }}>No active lesson — click a lesson in the Outline first.</div>}
+      {cramMode && lessonVideo && !finalPb && (
+        <div className="flex flex-col gap-1">
+          <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "#3BF5A0" }}>Current lesson video (published)</div>
+          <HlsVideo playbackId={lessonVideo} />
+        </div>
+      )}
 
       {/* PICK + RUN */}
       <input ref={inputRef} type="file" accept="video/*,.mkv" className="hidden" onChange={onPick} disabled={running} />
@@ -154,9 +178,9 @@ export function PipelineTestPanel() {
         className="flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[11px] font-bold uppercase tracking-wide disabled:opacity-50"
         style={{ color: running ? NEON.muted : "#0B0F1E", background: running ? "transparent" : NEON.cyan, border: `1px solid ${running ? NEON.borderSoft : NEON.cyan}` }}
         onClick={() => inputRef.current?.click()}
-        disabled={running}
+        disabled={running || (cramMode && !activeLessonId)}
       >
-        <Upload className="h-3.5 w-3.5" /> {running ? "Running…" : "Pick a video to test"}
+        <Upload className="h-3.5 w-3.5" /> {running ? "Running…" : cramMode ? "Pick the lesson video" : "Pick a video to test"}
       </button>
       {fileName && <div className="truncate text-[9.5px]" style={{ color: NEON.muted }} title={fileName}>{fileName}</div>}
 

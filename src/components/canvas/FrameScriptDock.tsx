@@ -12,7 +12,7 @@ import { NEON } from "./theme";
 import type { FrameScript } from "./types";
 
 /** The editable body — shared by the docked panel and the pop-out window. */
-export function FrameScriptDockBody({ frameId }: { frameId: string | null }) {
+export function FrameScriptDockBody({ frameId, cramMode }: { frameId: string | null; cramMode?: boolean }) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
   const nodes = useNodes(); // reactive — reflects edits from anywhere
@@ -33,6 +33,30 @@ export function FrameScriptDockBody({ frameId }: { frameId: string | null }) {
   const beatLines = parseScriptLines(script?.beats);
   const FIELD = "nodrag nowheel w-full resize-none rounded px-2 py-1.5 text-[12.5px] leading-snug outline-none focus:ring-1";
   const fieldStyle = { background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text } as const;
+
+  // CRAM MODE (Lee, item 4) — jot a line PER QUESTION instead of the frame script.
+  // Notes live on each CEQ card (data.note); the frame's own script is untouched.
+  if (cramMode) {
+    const ceqs = nodes
+      .filter((n) => n.parentId === frameId && n.type === "ceq")
+      .sort((a, b) => (((a.data as { stageOrder?: number }).stageOrder ?? 0) - ((b.data as { stageOrder?: number }).stageOrder ?? 0)));
+    const setNote = (id: string, value: string) => { const c = patchDataFnCmd(rfl, id, () => ({ note: value }), "edit CEQ note", `d:${id}:note`); if (c) bus.dispatch(c); };
+    return (
+      <div className="flex flex-col gap-2 p-2.5 text-[12px]">
+        <div className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Per-question notes · {title || "cram"}</div>
+        {ceqs.length === 0 && <div className="text-[11.5px]" style={{ color: NEON.muted }}>No CEQ cards in this frame yet — deal a set into it.</div>}
+        {ceqs.map((c, i) => {
+          const cd = c.data as { prompt?: string; note?: string };
+          return (
+            <div key={c.id} className="flex flex-col gap-1">
+              <label className="truncate text-[10.5px] font-semibold" style={{ color: NEON.text }} title={cd.prompt}>{i + 1}. {cd.prompt || "Question"}</label>
+              <textarea rows={2} className={FIELD} style={fieldStyle} placeholder="A line to say for this question…" value={cd.note ?? ""} onChange={(e) => setNote(c.id, e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2 p-2.5 text-[12px]">
@@ -72,7 +96,7 @@ export function FrameScriptDockBody({ frameId }: { frameId: string | null }) {
 }
 
 /** The docked panel — sits on the right so the frame's visual stays in view. */
-export function FrameScriptDock({ frameId, onClose, onPopOut }: { frameId: string | null; onClose: () => void; onPopOut: () => void }) {
+export function FrameScriptDock({ frameId, onClose, onPopOut, cramMode }: { frameId: string | null; onClose: () => void; onPopOut: () => void; cramMode?: boolean }) {
   return (
     <div
       className="fixed right-3 top-16 bottom-16 z-[70] flex w-[338px] flex-col overflow-hidden rounded-xl shadow-2xl"
@@ -91,7 +115,7 @@ export function FrameScriptDock({ frameId, onClose, onPopOut }: { frameId: strin
         </div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <FrameScriptDockBody frameId={frameId} />
+        <FrameScriptDockBody frameId={frameId} cramMode={cramMode} />
       </div>
     </div>
   );

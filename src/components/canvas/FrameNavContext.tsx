@@ -49,6 +49,11 @@ export interface FrameNav {
   pasteScaffold: (lessonId: string) => void;
   /** A scaffold is on the clipboard (enables the paste-scaffold control). */
   hasScaffoldClip: boolean;
+  /** CRAM MODE (Lee) — chrome-filtered CEQ authoring; hides frame-visuals etc. */
+  cramMode: boolean;
+  /** Make a lesson the ACTIVE one (mounts its subtree, collapses the rest) and fly
+   *  the camera to it. Used by the outline navigator. */
+  activateLesson: (lessonId: string) => void;
 }
 
 const noop = () => {};
@@ -72,6 +77,8 @@ export const FrameNavContext = createContext<FrameNav>({
   copyScaffold: noop,
   pasteScaffold: noop,
   hasScaffoldClip: false,
+  cramMode: false,
+  activateLesson: noop,
 });
 
 export const useFrameNav = () => useContext(FrameNavContext);

@@ -277,6 +277,9 @@ export interface CeqCard extends CardBase {
   prompt: string;
   choices: CeqChoice[];
   revealedAnswer?: boolean;
+  /** PER-CEQ SCRIPT NOTE (cram-mode batch) — a line Lee jots per question, shown
+   *  in the script dock while cram mode is on. Additive; frame script untouched. */
+  note?: string;
   /** CORRECT-ANSWER SOUND (Lee): play the confirm SFX when the right choice is
    *  picked on THIS question in film. Default ON (undefined ⇒ plays); toggle off
    *  per card. */
@@ -690,6 +693,10 @@ export const LESSON_TYPE_LABEL: Record<LessonType, string> = { CEQ_CRAM: "CRAM",
 export type LessonAccess = "FREE" | "PAID";
 /** Pathing — RECOMMENDED (on the main path) vs OPTIONAL (satellite/dimmed). */
 export type LessonPathing = "RECOMMENDED" | "OPTIONAL";
+/** PUBLISH STATUS (cram-mode batch) — the outline colour-codes lesson rows by it:
+ *  red = UNFILMED, amber = FILMED, green = PUBLISHED. Default UNFILMED. Additive. */
+export type LessonStatus = "UNFILMED" | "FILMED" | "PUBLISHED";
+export const LESSON_STATUSES: LessonStatus[] = ["UNFILMED", "FILMED", "PUBLISHED"];
 
 export interface LessonBox {
   label: string; // manual label; a contained heading's text wins for display
@@ -706,6 +713,13 @@ export interface LessonBox {
   topic?: string;
   access?: LessonAccess;
   pathing?: LessonPathing;
+  /** PUBLISH STATUS (cram-mode batch) — default UNFILMED; flips to PUBLISHED when a
+   *  lesson Mux asset is set. Additive/nullable. */
+  status?: LessonStatus;
+  /** WHOLE-VIDEO PIPELINE (cram-mode batch) — the lesson's finished Mux video
+   *  (single continuous cram take). Setting muxPlaybackId flips status → PUBLISHED. */
+  muxPlaybackId?: string | null;
+  muxAssetId?: string | null;
   /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
    *  visual seed of the free/paid gate (roadmap). */
   check?: boolean;

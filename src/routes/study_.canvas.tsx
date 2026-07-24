@@ -70,7 +70,7 @@ import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonType, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonStatus, type LessonType, type ListCard, type RecCue, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -316,7 +316,10 @@ function LessonNode({ id, data, selected }: NodeProps) {
   const lessonType: LessonType = d.lessonType ?? "CONCEPT";
   const access: LessonAccess = d.access ?? "FREE";
   const pathing: LessonPathing = d.pathing ?? "RECOMMENDED";
+  const status: LessonStatus = d.status ?? "UNFILMED";
+  const statusTone = status === "PUBLISHED" ? "#3BF5A0" : status === "FILMED" ? "#FCA311" : "#FF5C6C";
   const cycleType = () => { const i = LESSON_TYPES.indexOf(lessonType); update({ lessonType: LESSON_TYPES[(i + 1) % LESSON_TYPES.length] }); };
+  const cycleStatus = () => { const i = LESSON_STATUSES.indexOf(status); update({ status: LESSON_STATUSES[(i + 1) % LESSON_STATUSES.length] }); };
   const toggleAccess = () => update({ access: access === "PAID" ? "FREE" : "PAID" });
   const togglePathing = () => update({ pathing: pathing === "OPTIONAL" ? "RECOMMENDED" : "OPTIONAL" });
   const typeTone = lessonType === "CEQ_CRAM" ? "#FF8B9E" : lessonType === "CEQ_FULL" ? NEON.yellow : lessonType === "CONCEPT" ? NEON.cyan : NEON.muted;
@@ -427,6 +430,16 @@ function LessonNode({ id, data, selected }: NodeProps) {
           onClick={cycleType}
         >
           {LESSON_TYPE_LABEL[lessonType]}
+        </button>
+        {/* PUBLISH STATUS (cram-mode batch) — click to cycle UNFILMED → FILMED →
+            PUBLISHED; the outline colour-codes rows by it. */}
+        <button
+          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+          style={{ color: statusTone, background: `${statusTone}22`, border: `1px solid ${statusTone}` }}
+          title={`Publish status: ${status} — click to cycle`}
+          onClick={cycleStatus}
+        >
+          {status}
         </button>
         <button
           className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
@@ -1356,6 +1369,12 @@ function PresentCanvas() {
     return () => { window.removeEventListener("pointerdown", onPointer, true); window.removeEventListener("keydown", onKey, true); };
   }, [arrowArm]);
   const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
+  // CRAM MODE (Lee) — a chrome-FILTERING mode on the same canvas, tuned for
+  // CEQ_CRAM / CEQ_FULL authoring: hides frame-by-frame furniture (rearrange,
+  // storyboard, visual mix, cue sheet, safe guides, frame-header, grid-by-type,
+  // teleprompter, frame-visuals) and trims the palette to CEQ/memo/heading/note.
+  // Persisted in scene settings; additive.
+  const [cramMode, setCramMode] = useState(false);
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
   const [copiedFrameId, setCopiedFrameId] = useState<string | null>(null); // frame on the clipboard (rearrange copy/paste)
@@ -3267,7 +3286,7 @@ function PresentCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrameId]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold" }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -3891,14 +3910,14 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, lastLessonId: lastLessonRef.current, activeLessonId: activeLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, lastLessonId: lastLessonRef.current, activeLessonId: activeLessonRef.current },
         decks, // NAMED DECKS (P3)
         ceqSets, // CEQ SET factories
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, ceqSets]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, ceqSets]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -3998,6 +4017,7 @@ function PresentCanvas() {
       { const cpi = (nj.sceneSettings as { cinePushIntensity?: number } | undefined)?.cinePushIntensity; if (typeof cpi === "number" && cpi >= 0) setCinePushIntensity(cpi); } // default 1
       { const cam = (nj.sceneSettings as { cineAmbientMs?: number } | undefined)?.cineAmbientMs; if (typeof cam === "number" && cam > 0) setCineAmbientMs(cam); } // default 6000
       setShowFrameHeader((nj.sceneSettings as { showFrameHeader?: boolean } | undefined)?.showFrameHeader !== false); // default on
+      setCramMode((nj.sceneSettings as { cramMode?: boolean } | undefined)?.cramMode === true); // CRAM MODE — default off
       const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
       setSceneCourseId(ss?.courseId ?? null);
       setSceneChapterId(ss?.chapterId ?? null);
@@ -5422,7 +5442,7 @@ function PresentCanvas() {
           {drawerPanel === "outline" && <OutlinePanel />}
           {drawerPanel === "memos" && <MemoLibraryPanel />}
           {drawerPanel === "key" && <LegendHud docked />}
-          {drawerPanel === "pipeline" && <PipelineTestPanel />}
+          {drawerPanel === "pipeline" && <PipelineTestPanel cramMode={cramMode} activeLessonId={activeLessonId} />}
         </BrandBar>
       )}
       {/* Corner watermark — toggleable; NEVER over a frame's full-bleed background loop
@@ -5524,7 +5544,7 @@ function PresentCanvas() {
             title="Scene name"
           />
           {/* CUE SHEET — moved to the leftmost tool slot (Lee's call, swapped with File) */}
-          <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>
+          {!cramMode && <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>}
           <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
           {/* ADD CARD — card-kind picker (upward). Replaces Add region / Add lesson. */}
@@ -5534,7 +5554,7 @@ function PresentCanvas() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setAddCardOpen(false)} />
                 <div className="absolute bottom-9 left-0 z-50 grid w-64 grid-cols-2 gap-0.5 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
-                  {ADD_CARD_KINDS.map((c) => (
+                  {(cramMode ? ADD_CARD_KINDS.filter((c) => (["ceq", "note", "heading"] as string[]).includes(c.kind)) : ADD_CARD_KINDS).map((c) => (
                     <BgOption key={c.label} label={c.label} active={false} onClick={() => { setAddCardOpen(false); spawn(c.kind === "formula" ? formulaAle() : blankCard(c.kind, c.preset)); }} />
                   ))}
                 </div>
@@ -5549,7 +5569,7 @@ function PresentCanvas() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setAddElemOpen(false)} />
                 <div className="absolute bottom-9 left-0 z-50 grid w-64 grid-cols-2 gap-0.5 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
-                  {ADD_ELEMENT_BLANKS.map((b) => (
+                  {(cramMode ? ADD_ELEMENT_BLANKS.filter((b) => ["Heading", "Memo"].includes(b.label)) : ADD_ELEMENT_BLANKS).map((b) => (
                     <BgOption key={b.label} label={b.label} active={false} onClick={() => { setAddElemOpen(false); spawn(b.make()); }} />
                   ))}
                 </div>
@@ -5582,16 +5602,19 @@ function PresentCanvas() {
             )}
           </div>
           <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
-          <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>
-          <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>
-          <TB title="Storyboard — every frame in film order; click one to jump in" active={storyboardOpen} onClick={() => setStoryboardOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>
+          {!cramMode && <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>}
+          {!cramMode && <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>}
+          {!cramMode && <TB title="Storyboard — every frame in film order; click one to jump in" active={storyboardOpen} onClick={() => setStoryboardOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>}
           {/* GRID BY TYPE (ITEM 4) — read-only projection: type columns × topic rows. */}
-          <TB title="Grid by type — lessons projected into type columns × topic rows (read-only; toggle back is lossless)" active={gridByType} onClick={() => setGridByType((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
-          <TB title="Camera-safe guides — phone-safe, camera bubble, watermark + end-screen zones (enter a frame)" active={safeGuides} onClick={() => { const nv = !safeGuides; setSafeGuides(nv); if (nv && !currentFrameId) flashToast("Enter a frame to see the safe zones"); }}><Frame className="h-3.5 w-3.5" /></TB>
+          {!cramMode && <TB title="Grid by type — lessons projected into type columns × topic rows (read-only; toggle back is lossless)" active={gridByType} onClick={() => setGridByType((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>}
+          {!cramMode && <TB title="Camera-safe guides — phone-safe, camera bubble, watermark + end-screen zones (enter a frame)" active={safeGuides} onClick={() => { const nv = !safeGuides; setSafeGuides(nv); if (nv && !currentFrameId) flashToast("Enter a frame to see the safe zones"); }}><Frame className="h-3.5 w-3.5" /></TB>}
           {/* Birds-eye button removed — Esc bottoms out at the CURRENT lesson's
               overview (fitCurrentLesson), never the whole course. */}
           {/* FRAME HEADER panel — on-camera header toggle + THIS lesson's intro/outro/preview */}
-          <TB title="Rearrange frames (r) — full-grid drag reorder + copy/paste" active={rearrangeOpen} onClick={() => setRearrangeOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>
+          {!cramMode && <TB title="Rearrange frames (r) — full-grid drag reorder + copy/paste" active={rearrangeOpen} onClick={() => setRearrangeOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>}
+          {/* CRAM MODE toggle — always visible; on = chrome-filtered CEQ authoring. */}
+          <TB title={cramMode ? "Cram mode ON — chrome trimmed for CEQ authoring (click for full canvas)" : "Cram mode — trim the canvas to CEQ authoring (hides frame-by-frame tools)"} active={cramMode} onClick={() => setCramMode((v) => !v)}><Projector className="h-3.5 w-3.5" style={cramMode ? { color: NEON.yellow } : undefined} /></TB>
+          {!cramMode && (
           <div className="relative">
             <TB title="Frame header — header HUD + this lesson's intro / outro / preview" active={frameHeaderOpen} onClick={() => setFrameHeaderOpen((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>
             {frameHeaderOpen && (
@@ -5613,6 +5636,7 @@ function PresentCanvas() {
               </>
             )}
           </div>
+          )}
           <div className="relative">
             <TB title="Canvas settings (JE width, default preset)" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
               <Settings2 className="h-3.5 w-3.5" />
@@ -6020,11 +6044,11 @@ function PresentCanvas() {
           (same data as the modal + teleprompter). Pops to a window like the
           teleprompter. Only while inside a frame. */}
       {scriptDock && currentFrameId && !isPopped("script") && (
-        <FrameScriptDock frameId={currentFrameId} onClose={() => setScriptDock(false)} onPopOut={() => openPop("script", 420, 640)} />
+        <FrameScriptDock frameId={currentFrameId} onClose={() => setScriptDock(false)} onPopOut={() => openPop("script", 420, 640)} cramMode={cramMode} />
       )}
       {isPopped("script") && (
         <PanelPopout win={popWins.script!} title="Script" onReturn={() => returnPop("script")}>
-          <FrameScriptDockBody frameId={currentFrameId} />
+          <FrameScriptDockBody frameId={currentFrameId} cramMode={cramMode} />
         </PanelPopout>
       )}
 
