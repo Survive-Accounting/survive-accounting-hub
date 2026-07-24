@@ -1,33 +1,32 @@
-// PIPELINE TEST (Lee) — a left-drawer probe of the Auphonic → Mux pipeline for
-// ONE video file. Pick a file → it uploads to Mux (raw) → runs through Auphonic
-// (loudness) → ingests into a final Mux asset → previews RAW vs PROCESSED side by
-// side so you can hear/see whether the pipeline is working. Stateless: the client
-// holds the cursor and polls the four server fns; no DB rows are written.
+// PIPELINE TEST (Lee) — a left-drawer probe of the Supabase → Auphonic → Mux
+// pipeline for ONE video file. Pick a file → it stages in DURABLE Supabase Storage
+// → Auphonic reads that permanent URL (loudness) → ingests into a final Mux asset
+// → previews RAW (straight from Supabase) vs PROCESSED (Mux) so you can hear/see
+// whether the pipeline is working. Stateless: the client holds the cursor and
+// polls the server fns; no DB rows are written.
 import { useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { CheckCircle2, Film, Loader2, Upload, XCircle } from "lucide-react";
 
 import {
-  createPipelineTestUpload,
-  resolvePipelineTestUpload,
+  createPipelineTestStagingUpload,
   startPipelineTestAuphonic,
   resolvePipelineTestAuphonic,
 } from "@/lib/publish.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { NEON } from "./theme";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Explicit result types break a self-referential inference cycle (the poll feeds
+// Explicit result type breaks a self-referential inference cycle (the poll feeds
 // the prior asset id back into the next call).
-type UploadRes = Awaited<ReturnType<typeof resolvePipelineTestUpload>>;
 type AuphRes = Awaited<ReturnType<typeof resolvePipelineTestAuphonic>>;
 
-type Phase = "idle" | "uploading" | "mux-raw" | "auphonic" | "encoding" | "ready" | "error";
+type Phase = "idle" | "uploading" | "auphonic" | "encoding" | "ready" | "error";
 
 const PHASE_LABEL: Record<Phase, string> = {
   idle: "Ready",
-  uploading: "Uploading to Mux",
-  "mux-raw": "Mux encoding the raw clip",
+  uploading: "Staging in Supabase",
   auphonic: "Auphonic processing",
   encoding: "Encoding the final Mux asset",
   ready: "Done",
@@ -75,7 +74,7 @@ export function PipelineTestPanel({ cramMode, activeLessonId }: { cramMode?: boo
   const [phase, setPhase] = useState<Phase>("idle");
   const [note, setNote] = useState<string>("");
   const [log, setLog] = useState<string[]>([]);
-  const [rawPb, setRawPb] = useState<string | null>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [finalPb, setFinalPb] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -88,36 +87,24 @@ export function PipelineTestPanel({ cramMode, activeLessonId }: { cramMode?: boo
   const run = async (file: File) => {
     if (runningRef.current) return;
     runningRef.current = true;
-    setLog([]); setRawPb(null); setFinalPb(null); setNote(""); setFileName(file.name);
+    setLog([]); setRawUrl(null); setFinalPb(null); setNote(""); setFileName(file.name);
     const t0 = Date.now();
     try {
-      // 1) Mux direct upload + PUT the bytes
-      setPhase("uploading"); addLog(`${stamp()} · creating Mux upload…`);
-      const { uploadUrl, uploadId } = await createPipelineTestUpload();
-      addLog(`${stamp()} · uploading ${(file.size / 1e6).toFixed(1)} MB to Mux…`);
-      const put = await fetch(uploadUrl, { method: "PUT", body: file });
-      if (!put.ok) throw new Error(`Mux upload PUT failed (${put.status})`);
+      // 1) STAGE the raw file in durable Supabase Storage — Auphonic reads THIS
+      //    permanent URL (no expiring Mux master). Client PUTs straight to Storage.
+      setPhase("uploading"); addLog(`${stamp()} · opening Supabase upload…`);
+      const ext = file.name.includes(".") ? file.name.split(".").pop()! : "mp4";
+      const { path, token, publicUrl } = await createPipelineTestStagingUpload({ data: { ext } });
+      addLog(`${stamp()} · uploading ${(file.size / 1e6).toFixed(1)} MB to Supabase…`);
+      const { error: upErr } = await supabase.storage.from("canvas-media").uploadToSignedUrl(path, token, file, { contentType: file.type || "video/mp4" });
+      if (upErr) throw new Error(`Supabase upload failed: ${upErr.message}`);
+      setRawUrl(publicUrl); addLog(`${stamp()} · raw file staged in Supabase`);
 
-      // 2) upload → asset → public playback id (the RAW clip)
-      setPhase("mux-raw"); addLog(`${stamp()} · Mux encoding the raw clip…`);
-      let assetId: string | null = null;
-      let raw: string | null = null;
-      let master: string | null = null; // temporary source URL Auphonic reads
-      for (let i = 0; i < 90 && !raw; i++) {
-        const r: UploadRes = await resolvePipelineTestUpload({ data: { uploadId, assetId } });
-        assetId = r.assetId;
-        if (r.status === "errored") throw new Error(r.error ?? "Mux upload errored");
-        if (r.status === "ready") { raw = r.playbackId; master = r.masterUrl; break; }
-        await sleep(4000);
-      }
-      if (!raw || !master) throw new Error("Timed out waiting for Mux to encode the clip + prepare its source.");
-      setRawPb(raw); addLog(`${stamp()} · raw clip ready (${raw.slice(0, 12)}…)`);
-
-      // 3) start Auphonic from the raw clip's master (source) file URL
+      // 2) start Auphonic from the durable Supabase URL
       setPhase("auphonic"); addLog(`${stamp()} · starting Auphonic…`);
-      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: master } });
+      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: publicUrl } });
 
-      // 4) Auphonic done → ingest → final Mux asset → public playback id (PROCESSED)
+      // 3) Auphonic done → ingest → final Mux asset → public playback id (PROCESSED)
       let muxAssetId: string | null = null;
       let final: string | null = null;
       for (let i = 0; i < 240 && !final; i++) {
@@ -161,8 +148,8 @@ export function PipelineTestPanel({ cramMode, activeLessonId }: { cramMode?: boo
       </div>
       <div className="text-[9.5px] leading-snug" style={{ color: NEON.muted }}>
         {cramMode
-          ? <>One whole-take file → Auphonic → Mux → attaches to <b style={{ color: NEON.text }}>{lessonName}</b> and flips it to PUBLISHED. Runs on the deployed env.</>
-          : <>Uploads one file → Auphonic (loudness) → Mux, then previews raw vs processed. Runs on the deployed env (needs the Mux + Auphonic keys).</>}
+          ? <>One whole-take file → Supabase → Auphonic → Mux → attaches to <b style={{ color: NEON.text }}>{lessonName}</b> and flips it to PUBLISHED. Runs on the deployed env.</>
+          : <>Stages one file in Supabase → Auphonic (loudness) → Mux, then previews raw vs processed. Runs on the deployed env (needs the Supabase + Mux + Auphonic keys).</>}
       </div>
       {cramMode && !activeLessonId && <div className="rounded px-2 py-1 text-[9.5px]" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.4)" }}>No active lesson — click a lesson in the Outline first.</div>}
       {cramMode && lessonVideo && !finalPb && (
@@ -195,10 +182,11 @@ export function PipelineTestPanel({ cramMode, activeLessonId }: { cramMode?: boo
       {note && <div className="rounded-md px-2 py-1 text-[9.5px] leading-snug" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.4)" }}>{note}</div>}
 
       {/* PREVIEWS */}
-      {rawPb && (
+      {rawUrl && (
         <div className="flex flex-col gap-1">
-          <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Raw (straight from Mux)</div>
-          <HlsVideo playbackId={rawPb} />
+          <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Raw (staged in Supabase)</div>
+          <video controls playsInline src={rawUrl} style={{ width: "100%", borderRadius: 8, background: "#000", aspectRatio: "16 / 9" }} />
+          <div className="text-[8.5px] leading-snug" style={{ color: NEON.muted }}>Plays straight from Supabase — some source codecs (e.g. .mkv) may not preview in-browser; the pipeline still runs.</div>
         </div>
       )}
       {finalPb && (

@@ -336,62 +336,39 @@ export const resolvePreview = createServerFn({ method: "POST" })
   });
 
 // ---- PIPELINE TEST (Lee) ----------------------------------------------------
-// A self-contained probe of the Auphonic → Mux pipeline for ONE file. STATELESS:
-// no DB row — the client holds the cursor (upload id → asset id → auphonic uuid →
-// final asset id) and passes it back each poll, mirroring resolvePreview. Steps:
-//   1. createPipelineTestUpload   → Mux direct-upload URL (client PUTs the file)
-//   2. resolvePipelineTestUpload  → upload→asset→public playback id (RAW preview,
-//                                    HLS) + a temporary MASTER (source) URL
-//   3. startPipelineTestAuphonic  → Auphonic production from the master file URL
-//   4. resolvePipelineTestAuphonic→ Auphonic done → ingest to a FINAL Mux asset →
-//                                    public playback id (the PROCESSED clip)
-// The panel previews raw vs processed side by side. Fail-loud env gating throughout.
+// A self-contained probe of the Supabase → Auphonic → Mux pipeline for ONE file.
+// SUPABASE-STAGING (Lee's architecture): the raw file lands in DURABLE Supabase
+// Storage FIRST, so Auphonic reads a permanent public URL — no Mux
+// master_access:"temporary", which was expiring mid-run. Mux only ever pulls the
+// FINISHED file. STATELESS — the client holds the cursor (staging path → auphonic
+// uuid → final asset id) and passes it back each poll. Steps:
+//   1. createPipelineTestStagingUpload → a signed Supabase upload URL; the client
+//      PUTs the file STRAIGHT to Storage (never through the server fn / Vercel body
+//      limit) and reads the durable public URL (also the RAW preview source).
+//   2. startPipelineTestAuphonic       → Auphonic production from the Supabase URL.
+//   3. resolvePipelineTestAuphonic     → Auphonic done → download → re-stash in
+//      Supabase → ingest to a FINAL Mux asset → public playback id (PROCESSED).
+// Fail-loud env gating throughout.
 
-/** 1) Create a Mux direct upload. Playback is HLS-only (no mp4_support — the
- *  deprecated "standard" rendition is rejected on basic assets). Auphonic still
- *  needs a downloadable source file, so we enable master_access:"temporary" — a
- *  time-limited URL to the ORIGINAL upload (NOT a streaming MP4 rendition). */
-export const createPipelineTestUpload = createServerFn({ method: "POST" })
-  .handler(async (): Promise<{ uploadUrl: string; uploadId: string }> => {
-    muxAuth();
-    const upload = await muxApi("/video/v1/uploads", {
-      method: "POST",
-      body: JSON.stringify({
-        cors_origin: "*",
-        new_asset_settings: { playback_policy: ["public"], passthrough: "pipeline-test", video_quality: "basic", master_access: "temporary" },
-      }),
-    });
-    return { uploadUrl: upload.url, uploadId: upload.id };
+/** 1) A signed Supabase Storage upload URL for the raw file. The client uploads
+ *  the bytes DIRECTLY to Storage (bypasses the Vercel server-fn body limit) and
+ *  reads the durable public URL — which Auphonic fetches and the panel previews
+ *  as RAW. Path carries a fresh id, so no collision / upsert needed. */
+export const createPipelineTestStagingUpload = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ ext: z.string().max(12).optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ path: string; token: string; publicUrl: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ext = (data.ext ?? "mp4").replace(/[^a-z0-9]/gi, "").slice(0, 8) || "mp4";
+    const uid = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const path = `pipeline-test/raw-${uid}.${ext}`;
+    const { data: signed, error } = await supabaseAdmin.storage.from("canvas-media").createSignedUploadUrl(path);
+    if (error || !signed) throw new Error(`Could not open a Supabase upload — ${error?.message ?? "no signed URL returned"}. Ensure the "canvas-media" bucket exists.`);
+    const { data: pub } = supabaseAdmin.storage.from("canvas-media").getPublicUrl(path);
+    return { path, token: signed.token, publicUrl: pub.publicUrl };
   });
 
-/** 2) Advance the raw upload: upload → asset → public playback id (RAW preview) +
- *  the temporary MASTER (source) URL that Auphonic will read. Stateless. Not
- *  "ready" until BOTH the playback id and the master are ready. */
-export const resolvePipelineTestUpload = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ uploadId: z.string().min(6), assetId: z.string().nullable().optional() }).parse(d))
-  .handler(async ({ data }): Promise<{ status: "uploading" | "processing" | "ready" | "errored"; assetId: string | null; playbackId: string | null; masterUrl: string | null; error: string | null }> => {
-    muxAuth();
-    let assetId = data.assetId ?? null;
-    if (!assetId) {
-      const up = await muxApi(`/video/v1/uploads/${data.uploadId}`);
-      if (up.status === "errored") return { status: "errored", assetId: null, playbackId: null, masterUrl: null, error: up.error?.message ?? "Mux upload errored" };
-      if (!up.asset_id) return { status: "uploading", assetId: null, playbackId: null, masterUrl: null, error: null };
-      assetId = up.asset_id as string;
-    }
-    const asset = await muxApi(`/video/v1/assets/${assetId}`);
-    if (asset.status === "errored") return { status: "errored", assetId, playbackId: null, masterUrl: null, error: asset.errors?.messages?.join("; ") ?? "Mux asset errored" };
-    if (asset.status !== "ready") return { status: "processing", assetId, playbackId: null, masterUrl: null, error: null };
-    const pb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
-    // master (the downloadable source Auphonic reads) is prepared asynchronously —
-    // keep polling until it's ready, then hand back its temporary URL.
-    if (asset.master?.status === "errored") return { status: "errored", assetId, playbackId: pb, masterUrl: null, error: `Mux master access failed: ${asset.master?.error ?? "unknown"}` };
-    const masterUrl: string | null = asset.master?.status === "ready" ? (asset.master?.url ?? null) : null;
-    if (!masterUrl) return { status: "processing", assetId, playbackId: pb, masterUrl: null, error: null };
-    return { status: "ready", assetId, playbackId: pb, masterUrl, error: null };
-  });
-
-/** 3) Start an Auphonic production from the raw clip's MASTER file URL (Mux's
- *  temporary download of the original upload — a real MP4 Auphonic can fetch). */
+/** 2) Start an Auphonic production from the raw clip's DURABLE Supabase URL (a
+ *  real MP4 Auphonic can fetch, with no expiry — the reason we stage in Supabase). */
 export const startPipelineTestAuphonic = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ fileUrl: z.string().url() }).parse(d))
   .handler(async ({ data }): Promise<{ auphonicUuid: string }> => {
