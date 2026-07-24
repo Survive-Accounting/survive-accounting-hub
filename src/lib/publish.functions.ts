@@ -335,6 +335,105 @@ export const resolvePreview = createServerFn({ method: "POST" })
     return { status: "ready", playbackId: pb, error: null };
   });
 
+// ---- PIPELINE TEST (Lee) ----------------------------------------------------
+// A self-contained probe of the Auphonic → Mux pipeline for ONE file. STATELESS:
+// no DB row — the client holds the cursor (upload id → asset id → auphonic uuid →
+// final asset id) and passes it back each poll, mirroring resolvePreview. Steps:
+//   1. createPipelineTestUpload   → Mux direct-upload URL (client PUTs the file)
+//   2. resolvePipelineTestUpload  → upload→asset→public playback id (the RAW clip)
+//   3. startPipelineTestAuphonic  → Auphonic production from the raw Mux MP4
+//   4. resolvePipelineTestAuphonic→ Auphonic done → ingest to a FINAL Mux asset →
+//                                    public playback id (the PROCESSED clip)
+// The panel previews raw vs processed side by side. Fail-loud env gating throughout.
+
+/** 1) Create a Mux direct upload (mp4_support so Auphonic can read the static MP4). */
+export const createPipelineTestUpload = createServerFn({ method: "POST" })
+  .handler(async (): Promise<{ uploadUrl: string; uploadId: string }> => {
+    muxAuth();
+    const upload = await muxApi("/video/v1/uploads", {
+      method: "POST",
+      body: JSON.stringify({
+        cors_origin: "*",
+        new_asset_settings: { playback_policy: ["public"], passthrough: "pipeline-test", video_quality: "basic", mp4_support: "standard" },
+      }),
+    });
+    return { uploadUrl: upload.url, uploadId: upload.id };
+  });
+
+/** 2) Advance the raw upload: upload → asset → public playback id. Stateless. */
+export const resolvePipelineTestUpload = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ uploadId: z.string().min(6), assetId: z.string().nullable().optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ status: "uploading" | "processing" | "ready" | "errored"; assetId: string | null; playbackId: string | null; error: string | null }> => {
+    muxAuth();
+    let assetId = data.assetId ?? null;
+    if (!assetId) {
+      const up = await muxApi(`/video/v1/uploads/${data.uploadId}`);
+      if (up.status === "errored") return { status: "errored", assetId: null, playbackId: null, error: up.error?.message ?? "Mux upload errored" };
+      if (!up.asset_id) return { status: "uploading", assetId: null, playbackId: null, error: null };
+      assetId = up.asset_id as string;
+    }
+    const asset = await muxApi(`/video/v1/assets/${assetId}`);
+    if (asset.status === "errored") return { status: "errored", assetId, playbackId: null, error: asset.errors?.messages?.join("; ") ?? "Mux asset errored" };
+    if (asset.status !== "ready") return { status: "processing", assetId, playbackId: null, error: null };
+    const pb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+    return { status: "ready", assetId, playbackId: pb, error: null };
+  });
+
+/** 3) Start an Auphonic production from the raw clip's Mux MP4 (single body input). */
+export const startPipelineTestAuphonic = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ playbackId: z.string().min(6) }).parse(d))
+  .handler(async ({ data }): Promise<{ auphonicUuid: string }> => {
+    const prod = await auphonic("productions.json", {
+      method: "POST",
+      body: JSON.stringify({
+        preset: requireEnv("AUPHONIC_PRESET_UUID"),
+        metadata: { title: `Pipeline test ${new Date().toISOString()}` },
+        multi_input_files: [{ input_file: muxMp4(data.playbackId), type: "multitrack", id: "body" }],
+        output_files: [{ format: "video", ending: "mp4" }],
+        // loudness match only; never cut fillers/silence (same as the real pipeline)
+        algorithms: { normloudness: true, filler_cutter: false, silence_cutter: false },
+        action: "start",
+      }),
+    });
+    return { auphonicUuid: prod.uuid };
+  });
+
+/** 4) Advance Auphonic → ingest → final Mux asset → public playback id. Stateless. */
+export const resolvePipelineTestAuphonic = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ auphonicUuid: z.string().min(6), muxAssetId: z.string().nullable().optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ stage: "auphonic" | "ingesting" | "encoding" | "ready" | "errored"; auphonicStatus: string | null; muxAssetId: string | null; playbackId: string | null; error: string | null }> => {
+    muxAuth();
+    // Not yet ingested → poll Auphonic; when Done, download + stash + create Mux asset.
+    if (!data.muxAssetId) {
+      const prod = await auphonic(`production/${data.auphonicUuid}.json`);
+      const ss = String(prod.status_string ?? "");
+      if (ss === "Error") return { stage: "errored", auphonicStatus: ss, muxAssetId: null, playbackId: null, error: prod.error_message ?? "Auphonic production failed" };
+      if (ss !== "Done") return { stage: "auphonic", auphonicStatus: ss || "Processing", muxAssetId: null, playbackId: null, error: null };
+      const out = (prod.output_files ?? []).find((f: { download_url?: string }) => f.download_url) ?? prod.output_files?.[0];
+      if (!out?.download_url) return { stage: "errored", auphonicStatus: ss, muxAssetId: null, playbackId: null, error: "Auphonic finished but returned no downloadable output." };
+      const key = requireEnv("AUPHONIC_API_KEY");
+      const dl = await fetch(out.download_url, { headers: { Authorization: `bearer ${key}` } });
+      if (!dl.ok) return { stage: "errored", auphonicStatus: ss, muxAssetId: null, playbackId: null, error: `Auphonic result download failed (${dl.status}).` };
+      const bytes = new Uint8Array(await dl.arrayBuffer());
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const path = `pipeline-test/${data.auphonicUuid}.mp4`;
+      const up = await supabaseAdmin.storage.from("canvas-media").upload(path, bytes, { contentType: "video/mp4", upsert: true });
+      if (up.error) return { stage: "errored", auphonicStatus: ss, muxAssetId: null, playbackId: null, error: `Storing the Auphonic result failed: ${up.error.message}` };
+      const { data: pub } = supabaseAdmin.storage.from("canvas-media").getPublicUrl(path);
+      const asset = await muxApi("/video/v1/assets", {
+        method: "POST",
+        body: JSON.stringify({ input: [{ url: pub.publicUrl }], playback_policy: ["public"], passthrough: "pipeline-test" }),
+      });
+      return { stage: "ingesting", auphonicStatus: ss, muxAssetId: asset.id, playbackId: null, error: null };
+    }
+    // Final Mux asset → ready.
+    const asset = await muxApi(`/video/v1/assets/${data.muxAssetId}`);
+    if (asset.status === "errored") return { stage: "errored", auphonicStatus: "Done", muxAssetId: data.muxAssetId, playbackId: null, error: asset.errors?.messages?.join("; ") ?? "Final Mux asset failed" };
+    if (asset.status !== "ready") return { stage: "encoding", auphonicStatus: "Done", muxAssetId: data.muxAssetId, playbackId: null, error: null };
+    const pb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+    return { stage: "ready", auphonicStatus: "Done", muxAssetId: data.muxAssetId, playbackId: pb, error: null };
+  });
+
 // ---- reads ------------------------------------------------------------------
 /** Every publish row for the given lessons (newest version first). */
 export const listLessonVideos = createServerFn({ method: "POST" })
