@@ -208,23 +208,27 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
       id: cardId("ceq"), type: "ceq", parentId: frameId, position: { ...pos }, selected: false,
       data: { ...c, title: set.name, deckId, deckMember: true, deckLessonId: lessonId, tucked, stageOrder: i, slotIndex: i, deckCategory: "ceq:set", deckPos: { ...pos } } as Record<string, unknown>,
     });
-    let stackAt: { x: number; y: number } | null = null; // persisted so the spot sticks
-    // DEAL-IN-PLACE (Lee, items 1-2) — grid-spread and centre placement are gone:
-    // EVERY card deals onto the ANCHOR — the spot of THIS set's current top card in
-    // the frame, else the frame's saved stackAt, else the frame centre on the very
-    // first deal. Cards are MOVABLE (NO posLock): drag the top card and the next
-    // deal lands where you dragged it (the anchor reads the live position). The top
-    // card shows; the rest tuck behind it and Space flips through, each in the
-    // identical spot with the identical look (wide, chrome hidden for filming). The
-    // old grid/stack `mode` now only labels the button — both deal in place.
-    const CW = 560, CH = 520; // wide CEQ (CEQ_WIDE_W)
-    const prevTop = existing.find((n) => n.type === "ceq" && (n.data as { stageOrder?: number }).stageOrder === 0) ?? existing.find((n) => n.type === "ceq");
-    const stored = (frame.data as { stackAt?: { x: number; y: number } }).stackAt;
-    const at = prevTop
-      ? { x: Math.round(prevTop.position.x), y: Math.round(prevTop.position.y) }
-      : stored ?? { x: Math.round(fw / 2 - CW / 2), y: Math.round(Math.max(40, fh / 2 - CH / 2)) };
-    stackAt = at;
-    const newNodes = cards.map((c, i) => { const n = mk(c, i, at, i > 0); return { ...n, data: { ...n.data, wide: true, hideChrome: true } }; });
+    // DEAL SPOT (Lee, items 2-3) — cards deal at the frame's saved dealSpot, else the
+    // FRAME CENTRE (grid/stack placement removed). The spot is captured from a DRAG:
+    // if this set already has its (visible) top card in the frame, its live position
+    // — where you dragged it — becomes the spot and is persisted to frame.dealSpot,
+    // so every later deal lands there. A spot that would push the card OUT of the
+    // frame's visible bounds (e.g. after a resize) falls back to centre — cards never
+    // deal partly off-frame (which also strands their top drag-grip out of view). NO
+    // posLock: cards are movable, and their top move-grip is now always in view.
+    const CW = 560, CH = 480; // wide CEQ (CEQ_WIDE_W) — sizing estimate for the fit test
+    const centre = { x: Math.max(0, Math.round((fw - CW) / 2)), y: Math.max(0, Math.round((fh - CH) / 2)) };
+    const prevTop = existing.find((n) => n.type === "ceq" && !(n.data as { tucked?: boolean }).tucked) ?? existing.find((n) => n.type === "ceq");
+    const savedSpot = (frame.data as { dealSpot?: { x: number; y: number } }).dealSpot;
+    const candidate = prevTop ? { x: Math.round(prevTop.position.x), y: Math.round(prevTop.position.y) } : savedSpot ?? centre;
+    // IN VIEW = fits horizontally AND the card's top + enough of it shows (the top
+    // move-grip must stay grabbable). A CEQ card can be nearly as tall as a small
+    // frame, so we DON'T require the whole card to fit — only the top + ~60% (min
+    // 150px). A spot that fails (partly off the top/sides) falls back to centre.
+    const minVis = Math.min(CH, Math.max(150, Math.round(fh * 0.6)));
+    const fits = candidate.x >= 0 && candidate.x + CW <= fw && candidate.y >= 0 && candidate.y + minVis <= fh;
+    const dealSpot = fits ? candidate : centre;
+    const newNodes = cards.map((c, i) => { const n = mk(c, i, dealSpot, i > 0); return { ...n, data: { ...n.data, wide: true, hideChrome: true } }; });
     // MATERIALISE ATTACHED MEMOS (Phase 2, Lee): one memo node per set-memo, placed
     // at its card's position + the memo's frame-local offset (dx/dy), sharing the
     // card's tucked state + deckId so it deals/clears WITH the card. Re-deal replaces
@@ -243,7 +247,7 @@ export function DeckManager({ decks, setDecks, ceqSets, setCeqSets, lessonScope 
     const cmds = [
       removeSnap.length ? { label: "clear frame copy", do: () => rf.setNodes((nds) => nds.filter((n) => !existingIds.has(n.id))), undo: () => rf.setNodes((nds) => [...nds, ...removeSnap.map((n) => structuredClone(n))]) } : null,
       addNodesCmd(rf as unknown as RfLike, [...newNodes, ...memoNodes] as never, `deal ${cards.length} CEQ${memoNodes.length ? ` + ${memoNodes.length} memos` : ""}`),
-      patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: true, ...(stackAt ? { stackAt } : {}) }, "deal mode"),
+      patchDataCmd(rf as unknown as RfLike, frameId, { stackDeal: true, dealSpot }, "deal mode"),
     ].filter((c): c is NonNullable<typeof c> => !!c);
     const cmd = compositeCmd(cmds, `deal set → ${mode}`);
     if (cmd) bus.dispatch(cmd);
