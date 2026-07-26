@@ -182,19 +182,44 @@ export function migrateFrameLocks<T extends { type?: string; data?: Record<strin
   return changed ? out : nodes;
 }
 
+/** LESSON CATEGORY (prompt 3 — TRUE taxonomy rename). Value-rewrite the OLD lesson
+ *  type {CEQ_CRAM,CEQ_FULL,CONCEPT,EXTRA} → the new `category` {CEQ,TEACH,PRACTICE,
+ *  NERD_OUT} at scene load, and drop the old `lessonType` field. CEQ_FULL also flips
+ *  access → PAID (CEQ videos use access as the Free/Paid variant; no separate
+ *  cram/full category). Idempotent: a lesson already on `category` (no `lessonType`)
+ *  is left alone. Scene-JSON only — the lesson type was never a DB column, so there
+ *  is no SQL. Runs BEFORE migrateLessonFields (which then fills any missing default). */
+const LESSON_CATEGORY_MAP: Record<string, string> = { CEQ_CRAM: "CEQ", CEQ_FULL: "CEQ", CONCEPT: "TEACH", EXTRA: "NERD_OUT" };
+export function migrateLessonCategory<T extends { type?: string; parentId?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  let changed = false;
+  const out = nodes.map((n) => {
+    if (n.type !== "lesson") return n;
+    const d = n.data as (Record<string, unknown> & { lessonType?: unknown; category?: unknown; access?: unknown }) | undefined;
+    if (!d) return n;
+    if (d.lessonType === undefined) return n; // already migrated (or born on `category`)
+    const old = typeof d.lessonType === "string" ? d.lessonType : undefined;
+    const patch: Record<string, unknown> = { lessonType: undefined }; // drop the old field
+    if (d.category === undefined) patch.category = old && LESSON_CATEGORY_MAP[old] ? LESSON_CATEGORY_MAP[old] : "TEACH";
+    if (old === "CEQ_FULL" && d.access !== "PAID") patch.access = "PAID"; // CEQ_FULL → CEQ + Paid
+    changed = true;
+    return { ...n, data: { ...n.data, ...patch } };
+  });
+  return changed ? out : nodes;
+}
+
 /** LESSON FIELDS (topic-grouping batch): fill the new lesson-node fields at read
  *  time so pre-existing scenes load unchanged with sensible defaults —
- *  lessonType=CONCEPT, topic=label, access=FREE, pathing=RECOMMENDED. Each field
- *  is filled ONLY when absent (idempotent; never rewrites an author's choice).
- *  Additive, scene-JSON only — no SQL. Lessons are RF nodes (type "lesson"). */
+ *  category=TEACH, topic=label, access=FREE, pathing=RECOMMENDED. Each field is
+ *  filled ONLY when absent (idempotent; never rewrites an author's choice). Runs
+ *  AFTER migrateLessonCategory. Additive, scene-JSON only — no SQL. */
 export function migrateLessonFields<T extends { type?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
   let changed = false;
   const out = nodes.map((n) => {
     if (n.type !== "lesson") return n;
-    const d = n.data as (Record<string, unknown> & { lessonType?: unknown; topic?: unknown; access?: unknown; pathing?: unknown; label?: unknown }) | undefined;
+    const d = n.data as (Record<string, unknown> & { category?: unknown; topic?: unknown; access?: unknown; pathing?: unknown; label?: unknown }) | undefined;
     if (!d) return n;
     const patch: Record<string, unknown> = {};
-    if (d.lessonType === undefined) patch.lessonType = "CONCEPT";
+    if (d.category === undefined) patch.category = "TEACH";
     if (d.topic === undefined) patch.topic = typeof d.label === "string" ? d.label : "";
     if (d.access === undefined) patch.access = "FREE";
     if (d.pathing === undefined) patch.pathing = "RECOMMENDED";

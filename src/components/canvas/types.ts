@@ -707,13 +707,15 @@ export interface ZoneBox {
 }
 
 // ---- Lessons (the finer grouping tier: one taught section) ----
-/** LESSON TYPE (topic-grouping batch) — the four lesson archetypes. Drives the
- *  create-time frame scaffold and the type column in the grid-by-type view.
- *  Default CONCEPT for pre-existing lessons (served at read time). */
-export type LessonType = "CEQ_CRAM" | "CEQ_FULL" | "CONCEPT" | "EXTRA";
-export const LESSON_TYPES: LessonType[] = ["CEQ_CRAM", "CEQ_FULL", "CONCEPT", "EXTRA"];
-/** Short display label per type (badges + grid columns). */
-export const LESSON_TYPE_LABEL: Record<LessonType, string> = { CEQ_CRAM: "CRAM", CEQ_FULL: "FULL", CONCEPT: "CONCEPT", EXTRA: "EXTRA" };
+/** LESSON CATEGORY (prompt 3 — TRUE taxonomy rename). The four archetypes. Drives
+ *  the create-time frame scaffold and the category column in the grid-by-type view.
+ *  CEQ videos use the EXISTING `access` field as the variant (Free / Paid) — there
+ *  is no separate cram/full category. The old model {CEQ_CRAM,CEQ_FULL,CONCEPT,EXTRA}
+ *  is rewritten at scene load by migrateLessonCategory (scene-io.ts). Default TEACH. */
+export type LessonCategory = "CEQ" | "TEACH" | "PRACTICE" | "NERD_OUT";
+export const LESSON_CATEGORIES: LessonCategory[] = ["CEQ", "TEACH", "PRACTICE", "NERD_OUT"];
+/** Short display label per category (badges + grid columns). */
+export const LESSON_CATEGORY_LABEL: Record<LessonCategory, string> = { CEQ: "CEQ", TEACH: "Teach", PRACTICE: "Practice", NERD_OUT: "Nerd Out" };
 /** Access tier — display + edit only in this batch; the student gate is still
  *  position-based (study_.dashboard.tsx FREE_THROUGH), untouched here. */
 export type LessonAccess = "FREE" | "PAID";
@@ -739,9 +741,10 @@ export interface LessonBox {
   pathOrder?: number | null;
   /** LESSON FIELDS (topic-grouping batch) — all additive/nullable, in the scene
    *  JSON. Defaults served at read time by migrateLessonFields (scene-io.ts):
-   *  lessonType=CONCEPT, topic=label, access=FREE, pathing=RECOMMENDED. Named
-   *  `lessonType` (not `type`) to avoid clashing with the RF node `type`. */
-  lessonType?: LessonType;
+   *  category=TEACH, topic=label, access=FREE, pathing=RECOMMENDED. Named `category`
+   *  (not `type`) to avoid clashing with the RF node `type`. Prompt 3: renamed from
+   *  `lessonType`; old values map via migrateLessonCategory (CEQ_FULL → CEQ+PAID). */
+  category?: LessonCategory;
   /** Topic label — groups sibling lessons into a row in the grid-by-type view. */
   topic?: string;
   access?: LessonAccess;

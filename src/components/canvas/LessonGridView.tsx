@@ -1,27 +1,26 @@
-// GRID-BY-TYPE VIEW (topic-grouping batch, ITEM 4) — a read-only projection of
-// the lesson nodes into a table: COLUMNS are the four lesson types in priority
-// order (CEQ_CRAM · CEQ_FULL · CONCEPT · EXTRA), ROWS are topics. Each lesson
-// renders as a chip in its (type, topic) cell; same-type siblings on one topic
-// stack in the cell. FREE/PAID (gate B&W + lock) and OPTIONAL (dimmed/off-axis)
-// treatments render here too, plus an estimated-runtime chip (soft warn past
-// ~3:00 — warning only, never blocks). This NEVER moves nodes — toggling back to
-// the canvas is lossless because no placement data is read or written.
+// GRID-BY-CATEGORY VIEW (prompt 3) — a read-only projection of the lesson nodes
+// into a table: COLUMNS are the four lesson categories in priority order (CEQ ·
+// Teach · Practice · Nerd Out), ROWS are topics. Each lesson renders as a chip in
+// its (category, topic) cell; same-category siblings on one topic stack in the
+// cell — so the CEQ cell shows its Free/Paid siblings together. FREE/PAID (gate
+// B&W + lock) and OPTIONAL (dimmed/off-axis) treatments render here too, plus an
+// estimated-runtime chip (soft warn past ~3:00). NEVER moves nodes — lossless.
 import { useMemo, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
 import { Lock, X } from "lucide-react";
 
 import { estimateTotalSeconds, formatReadTime } from "./script-timing";
-import { LESSON_TYPES, LESSON_TYPE_LABEL, type FrameScript, type LessonAccess, type LessonBox, type LessonPathing, type LessonType } from "./types";
+import { LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type FrameScript, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing } from "./types";
 import { NEON } from "./theme";
 
 const RUNTIME_WARN_S = 180; // ~3:00 — soft warning only
 
-const TYPE_TONE: Record<LessonType, string> = { CEQ_CRAM: "#FF8B9E", CEQ_FULL: NEON.yellow, CONCEPT: NEON.cyan, EXTRA: NEON.muted };
+const CATEGORY_TONE: Record<LessonCategory, string> = { CEQ: "#FF8B9E", TEACH: NEON.cyan, PRACTICE: "#7EF3C0", NERD_OUT: NEON.muted };
 
 interface LessonRow {
   id: string;
   label: string;
-  lessonType: LessonType;
+  category: LessonCategory;
   topic: string;
   access: LessonAccess;
   pathing: LessonPathing;
@@ -46,7 +45,7 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
           frameCount: frames.length,
           id: n.id,
           label: (d.label || "").trim() || "Lesson",
-          lessonType: d.lessonType ?? "CONCEPT",
+          category: d.category ?? "TEACH",
           topic: (d.topic ?? d.label ?? "").trim() || "(no topic)",
           access: d.access ?? "FREE",
           pathing: d.pathing ?? "RECOMMENDED",
@@ -64,9 +63,9 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
     return [...byTopic.keys()].sort((a, b) => (byTopic.get(a)! - byTopic.get(b)!) || a.localeCompare(b));
   }, [lessons]);
 
-  const cellOf = (topic: string, type: LessonType) => lessons.filter((l) => l.topic === topic && l.lessonType === type);
+  const cellOf = (topic: string, cat: LessonCategory) => lessons.filter((l) => l.topic === topic && l.category === cat);
 
-  // Per-cell selection when a (topic, type) cell holds >1 lesson (dropdown pick).
+  // Per-cell selection when a (topic, category) cell holds >1 lesson (dropdown pick).
   const [cellPick, setCellPick] = useState<Record<string, string>>({});
 
   const jump = (id: string) => {
@@ -82,7 +81,7 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
   };
 
   // One lesson chip — badges (Free/Paid, Optional), FRAME COUNT, runtime. Jumps on click.
-  const chip = (l: LessonRow, t: LessonType) => {
+  const chip = (l: LessonRow, t: LessonCategory) => {
     const paid = l.access === "PAID";
     const optional = l.pathing === "OPTIONAL";
     const over = l.runtimeS > RUNTIME_WARN_S;
@@ -95,7 +94,7 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
         title={`${l.label} — jump to this lesson`}
         style={{
           background: "rgba(255,255,255,0.04)",
-          border: `1px solid ${TYPE_TONE[t]}55`,
+          border: `1px solid ${CATEGORY_TONE[t]}55`,
           filter: paid ? "grayscale(0.55)" : undefined,
           opacity: optional ? 0.72 : 1,
           transform: optional ? "rotate(-1.2deg)" : undefined,
@@ -127,7 +126,7 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
     <div className="absolute inset-0 z-[60] flex flex-col" style={{ background: "rgba(6,10,20,0.97)", color: NEON.text }}>
       {/* header */}
       <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-        <div className="text-[15px] font-bold uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}>Lessons by type</div>
+        <div className="text-[15px] font-bold uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}>Lessons by category</div>
         <div className="flex items-center gap-3">
           <div className="text-[11px]" style={{ color: NEON.muted }}>{lessons.length} lessons · {topics.length} topics · read-only view (toggle back is lossless)</div>
           <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}` }} title="Close (back to canvas)" onClick={onClose}><X className="h-4 w-4" /></button>
@@ -139,12 +138,12 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
         {lessons.length === 0 ? (
           <div className="grid h-full place-items-center text-[13px]" style={{ color: NEON.muted }}>No lessons in this scene yet.</div>
         ) : (
-          <div className="grid gap-2" style={{ gridTemplateColumns: `180px repeat(${LESSON_TYPES.length}, minmax(180px, 1fr))` }}>
+          <div className="grid gap-2" style={{ gridTemplateColumns: `180px repeat(${LESSON_CATEGORIES.length}, minmax(180px, 1fr))` }}>
             {/* column headers */}
             <div />
-            {LESSON_TYPES.map((t) => (
-              <div key={t} className="sticky top-0 rounded-md px-2 py-2 text-center text-[13px] font-bold uppercase tracking-widest" style={{ color: "#0B0F1E", background: TYPE_TONE[t] }}>
-                {LESSON_TYPE_LABEL[t]}
+            {LESSON_CATEGORIES.map((t) => (
+              <div key={t} className="sticky top-0 rounded-md px-2 py-2 text-center text-[13px] font-bold uppercase tracking-widest" style={{ color: "#0B0F1E", background: CATEGORY_TONE[t] }}>
+                {LESSON_CATEGORY_LABEL[t]}
               </div>
             ))}
             {/* topic rows */}
@@ -153,7 +152,7 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
                 <div className="flex items-center rounded-md px-2 py-2 text-[12px] font-bold uppercase tracking-wider" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
                   {topic}
                 </div>
-                {LESSON_TYPES.map((t) => {
+                {LESSON_CATEGORIES.map((t) => {
                   const cell = cellOf(topic, t);
                   const key = `${topic}::${t}`;
                   // >1 lesson in a cell → a dropdown picks which one; the picked
@@ -167,10 +166,10 @@ export function LessonGridView({ onClose, onActivateLesson }: { onClose: () => v
                           value={pickedId}
                           onChange={(e) => setCellPick((p) => ({ ...p, [key]: e.target.value }))}
                           className="rounded bg-black/50 px-1 py-0.5 text-[10px] font-semibold"
-                          style={{ color: NEON.text, border: `1px solid ${TYPE_TONE[t]}77` }}
-                          title={`${cell.length} ${LESSON_TYPE_LABEL[t]} lessons in this topic — pick one`}
+                          style={{ color: NEON.text, border: `1px solid ${CATEGORY_TONE[t]}77` }}
+                          title={`${cell.length} ${LESSON_CATEGORY_LABEL[t]} lessons in this topic — pick one`}
                         >
-                          {cell.map((l) => <option key={l.id} value={l.id}>{l.label} · {l.frameCount}f</option>)}
+                          {cell.map((l) => <option key={l.id} value={l.id}>{l.label} · {t === "CEQ" ? `${l.access === "PAID" ? "Paid" : "Free"} · ` : ""}{l.frameCount}f</option>)}
                         </select>
                       )}
                       {cell.length > 1 ? (picked && chip(picked, t)) : cell.map((l) => chip(l, t))}

@@ -12,14 +12,14 @@ import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
 import { BEAT_COLUMNS, beatColOf, framesInLesson } from "./frames";
 import { BEAT_META } from "./cards/FrameNode";
-import { isContainerType, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type CardBase, type CardNode, type FrameBox, type LessonBox, type LessonStatus, type LessonType } from "./types";
+import { isContainerType, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type CardBase, type CardNode, type FrameBox, type LessonBox, type LessonStatus, type LessonCategory } from "./types";
 
 // PUBLISH-STATUS colour per lesson row (Lee): red = UNFILMED, amber = FILMED,
 // green = PUBLISHED.
 const STATUS_TONE: Record<LessonStatus, string> = { UNFILMED: "#FF5C6C", FILMED: "#FCA311", PUBLISHED: "#3BF5A0" };
 const statusOf = (l: CardNode): LessonStatus => ((l.data as unknown as LessonBox).status ?? "UNFILMED");
 const topicOf = (l: CardNode): string => (((l.data as unknown as LessonBox).topic || (l.data as unknown as LessonBox).label || "").trim() || "(no topic)");
-const lessonTypeOf = (l: CardNode): LessonType => ((l.data as unknown as LessonBox).lessonType ?? "CONCEPT");
+const lessonCategoryOf = (l: CardNode): LessonCategory => ((l.data as unknown as LessonBox).category ?? "TEACH");
 
 /** Absolute rect of a node (a card parented to a lesson carries a relative pos). */
 function absRect(n: CardNode, byId: Map<string, CardNode>) {
@@ -128,7 +128,7 @@ export function OutlinePanel() {
   const topicGroups = useMemo(() => {
     const m = new Map<string, CardNode[]>();
     for (const l of lessons) { const t = topicOf(l); const arr = m.get(t) ?? []; arr.push(l); m.set(t, arr); }
-    for (const arr of m.values()) arr.sort((a, b) => LESSON_TYPES.indexOf(lessonTypeOf(a)) - LESSON_TYPES.indexOf(lessonTypeOf(b)) || pathOrderOf(a) - pathOrderOf(b));
+    for (const arr of m.values()) arr.sort((a, b) => LESSON_CATEGORIES.indexOf(lessonCategoryOf(a)) - LESSON_CATEGORIES.indexOf(lessonCategoryOf(b)) || pathOrderOf(a) - pathOrderOf(b));
     return [...m.entries()];
   }, [lessons]);
   const publishedCount = useMemo(() => lessons.filter((l) => statusOf(l) === "PUBLISHED").length, [lessons]);
@@ -170,7 +170,7 @@ export function OutlinePanel() {
       <div className="ml-1 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
         {topicGroups.map(([topic, topicLessons]) => (
         <div key={topic}>
-          {/* TOPIC header (Lee) — groups CEQ_CRAM / CEQ_FULL siblings together. */}
+          {/* TOPIC header (Lee) — groups CEQ / Teach / Practice / Nerd Out siblings. */}
           <div className="px-1 pt-1.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>{topic}</div>
           {topicLessons.map((l) => {
           const frames = framesByLesson.get(l.id) ?? [];
@@ -207,7 +207,7 @@ export function OutlinePanel() {
                   onClick={() => activate(l)}
                   title="Make this the active lesson (loads its frames)"
                 >
-                  <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{LESSON_TYPE_LABEL[lessonTypeOf(l)]}</span>
+                  <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{LESSON_CATEGORY_LABEL[lessonCategoryOf(l)]}</span>
                   <span className="min-w-0 flex-1 truncate">{labelOf(l)}</span>
                 </button>
                 {/* STATUS chip (Lee) — click to cycle UNFILMED → FILMED → PUBLISHED. */}
