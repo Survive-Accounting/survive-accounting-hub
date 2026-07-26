@@ -1,14 +1,15 @@
 // The simpler card types: T-account (live balance), Computation (step reveal),
 // CEQ (distractor feedback), Memorize (kind badge), Note (neon marker), Video (Mux).
 import { useEffect, useRef, useState } from "react";
-import { type NodeProps, useReactFlow } from "@xyflow/react";
+import { type NodeProps, useReactFlow, useUpdateNodeInternals } from "@xyflow/react";
 import { Plus, Settings2, Trash2 } from "lucide-react";
 
 import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
 import { useFrameNav } from "../FrameNavContext";
 import { renderInline } from "../inline-md";
-import { MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
+import { ChainAnchor, MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
+import { CeqChainEditor } from "../CeqChainEditor";
 import { playSfx } from "../sfx";
 import { NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
@@ -191,6 +192,11 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
   const nav = useFrameNav();
   const rf = useReactFlow();
   const editing = !!d.editMode;
+  // CHAIN anchors (prompt 1) mount per choice (on !editing); tell React Flow to
+  // re-read this node's handles when the choice set or edit mode changes so chain
+  // arrows resolve to the left letter-chip anchor.
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => { updateNodeInternals(id); }, [id, updateNodeInternals, editing, d.choices.length]);
   // TYPE-OUT: re-key the stem + options when THIS CEQ's frame is entered so the
   // film animation replays exactly once per entry (mirrors HeadingCardNode).
   const parentId = rf.getNode(id)?.parentId;
@@ -221,6 +227,9 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
   // behind one gear so the crowded authoring row is quiet by default. Off cram, the
   // row shows inline exactly as before (no behaviour change). Purely display state.
   const [optsOpen, setOptsOpen] = useState(false);
+  // CHAIN EDITOR (prompt 1) — the per-choice revealable-chain authoring panel.
+  const [chainOpen, setChainOpen] = useState(false);
+  const chainCount = d.choices.reduce((s, c) => s + (c.chain?.length ?? 0), 0);
   // Stepped, char-count text sizing (Item 1) + width preset (Item 6). Manual resize (w) wins.
   const stemPx = stepPx((d.prompt || "").length, STEM_STEPS);
   const choicePx = stepPx(d.choices.reduce((mx, c) => Math.max(mx, (c.text || "").length), 0), CHOICE_STEPS);
@@ -268,9 +277,10 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 update({ emphasis: c.id });
               }}
             >
-              {/* LETTER CHIP (A, B, C… by position) */}
+              {/* LETTER CHIP (A, B, C… by position) — also the LEFT anchor for this
+                  choice's CHAIN memos (prompt 1): their arrows land here + wrap around. */}
               <span
-                className="grid shrink-0 place-items-center rounded-md font-black"
+                className="relative grid shrink-0 place-items-center rounded-md font-black"
                 style={{
                   width: chipSize, height: chipSize, fontSize: Math.round(choicePx * 0.82),
                   color: st ? "#fff" : chip,
@@ -279,6 +289,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 }}
               >
                 {chipLetter(ci)}
+                {!editing && <ChainAnchor subId={c.id} />}
               </span>
               <span
                 className="min-w-0 flex-1"
@@ -368,6 +379,16 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
         );
         return (
           <div className={`sa-chrome mt-2 flex items-center gap-1.5${nav.cramMode ? " flex-wrap" : ""}`}>
+            {/* CHAIN EDITOR (prompt 1) — per-choice revealable chains, walked with Enter. */}
+            <button
+              className="nodrag inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
+              title="Chains — attach ordered revealables per choice (Enter-walked after the resolve)"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setChainOpen(true)}
+              style={{ color: chainCount ? PAPER.navy : PAPER.inkMuted, border: `1px solid ${chainCount ? "rgba(20,33,61,0.5)" : PAPER.line}` }}
+            >
+              ⛓ chains{chainCount ? ` ${chainCount}` : ""}
+            </button>
             {nav.cramMode ? (
               <>
                 <button
@@ -383,11 +404,12 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
               </>
             ) : optsRow}
             {(d.emphasis || d.choices.some((c) => c.resolved)) && (
-              <button className="nodrag ml-auto text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ emphasis: undefined, choices: d.choices.map((c) => ({ ...c, resolved: false })) })}>reset</button>
+              <button className="nodrag ml-auto text-[10.5px] underline" style={{ color: PAPER.inkMuted }} onPointerDown={(e) => e.stopPropagation()} onClick={() => update({ emphasis: undefined, choices: d.choices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) })}>reset</button>
             )}
           </div>
         );
       })()}
+      {chainOpen && <CeqChainEditor nodeId={id} onClose={() => setChainOpen(false)} />}
     </BaseCard>
   );
 }

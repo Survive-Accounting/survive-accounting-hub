@@ -261,6 +261,16 @@ export interface TAccountCard extends CardBase {
 }
 
 // ---- CEQ ----
+/** CHAIN ITEM (Lee, prompt 1) — one revealable attached to a choice, walked with
+ *  Enter. Kind-typed for the future (t-account / je / computation); ONLY 'memo' is
+ *  implemented now. `memoNodeId` references a first-class memo NODE; `label` is the
+ *  human name shown in run logs + authoring. Additive. */
+export type ChainItemKind = "memo";
+export interface CeqChainItem {
+  kind: ChainItemKind;
+  memoNodeId: string;
+  label: string;
+}
 export interface CeqChoice {
   id: string;
   text: string;
@@ -268,9 +278,25 @@ export interface CeqChoice {
   feedback?: string;
   /** LIVE-TEACHING resolution (choreo Item 6): the choice has been Enter-resolved
    *  (locked in). Its result is c.correct ? green : red+strike. Persists + coexists
-   *  with other resolved choices; Enter again clears it. Transient teaching state,
-   *  round-trips in the scene JSON (no DB column). */
+   *  with other resolved choices. Transient teaching state, round-trips in the scene
+   *  JSON (no DB column). Prompt 1: Enter no longer toggles it off — Shift+Enter
+   *  steps back through the chain and un-resolves past item 1. */
   resolved?: boolean;
+  /** ORDERED CHAIN (prompt 1) — revealables walked with Enter AFTER the resolve. */
+  chain?: CeqChainItem[];
+  /** How many chain items are currently revealed (0..chain.length). Transient teaching
+   *  state (round-trips in scene JSON); 0 whenever the choice is not resolved. */
+  chainShown?: number;
+}
+/** CEQ CHAIN TEMPLATE (prompt 1, part 5) — captured chain STRUCTURE keyed by choice
+ *  index (0=A, 1=B, …): ordered kinds + labels, content EMPTY. Load applies empty
+ *  labeled slots at the same indices. Named/listed/deletable; stored in localStorage
+ *  (cross-scene). Ship ZERO defaults. */
+export interface CeqChainTemplate {
+  id: string;
+  name: string;
+  /** slots[choiceIndex] = ordered { kind, label } with NO content. */
+  slots: { kind: ChainItemKind; label: string }[][];
 }
 export interface CeqCard extends CardBase {
   kind: "ceq";
@@ -701,7 +727,7 @@ export const LESSON_STATUSES: LessonStatus[] = ["UNFILMED", "FILMED", "PUBLISHED
 /** RUN LOGGING (cram-filming batch) — our own clock for a whole-take cram film.
  *  F9 starts/ends a "run"; events are timestamped from t=0. Stored on the lesson,
  *  last 3 runs kept. `ms` = elapsed from the run's t=0. */
-export type RunEventKind = "resolve" | "deal" | "frame";
+export type RunEventKind = "resolve" | "deal" | "frame" | "reveal";
 export interface RunEvent { ms: number; kind: RunEventKind; label: string; correct?: boolean; ceqN?: number }
 export interface FilmRun { id: string; startedAt: number; endedAt?: number; events: RunEvent[] }
 

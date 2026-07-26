@@ -50,12 +50,16 @@ export function RunReadout({ run }: { run: FilmRun | null }) {
       </div>
       {lines.length === 0 && <div style={{ color: NEON.muted }}>No events logged in this run.</div>}
       <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto font-mono text-[10.5px] leading-relaxed">
-        {run.events.map((e, i) => (
-          <div key={i} className="flex gap-2" style={{ color: e.kind === "resolve" ? (e.correct ? "#3BF5A0" : "#FF8B9E") : NEON.muted }}>
-            <span className="tabular-nums" style={{ color: NEON.muted }}>{mmss(e.ms)}</span>
-            <span className="min-w-0 flex-1 truncate">{e.label}</span>
-          </div>
-        ))}
+        {run.events.map((e, i) => {
+          const tone = e.kind === "resolve" ? (e.correct ? "#3BF5A0" : "#FF8B9E") : e.kind === "reveal" ? "#FCD34D" : NEON.muted;
+          return (
+            <div key={i} className="flex gap-2" style={{ color: tone }}>
+              <span className="tabular-nums" style={{ color: NEON.muted }}>{mmss(e.ms)}</span>
+              {e.kind === "reveal" && <span aria-hidden style={{ color: "#FCA311" }}>↳</span>}
+              <span className="min-w-0 flex-1 truncate">{e.label}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

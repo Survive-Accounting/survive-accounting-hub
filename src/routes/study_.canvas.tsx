@@ -70,7 +70,7 @@ import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type DeckDef, type FilmRun, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonStatus, type LessonType, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonStatus, type LessonType, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -1746,9 +1746,29 @@ function PresentCanvas() {
     const filmHiddenMemos = new Set<string>();
     if (film) {
       const byId = new Map(liveNodes.map((n) => [n.id, n]));
+      // CHAIN memos (prompt 1) — a memo listed in a choice.chain is hidden until its
+      // index < the choice's chainShown (only >0 once resolved, walked with Enter).
+      // Chains REPLACE memo-on-resolve; the memo node is referenced by memoNodeId, so
+      // revealing accumulates them one Enter at a time (their arrows hide with them).
+      const chainMemoIds = new Set<string>();
+      for (const n of liveNodes) {
+        if ((n.data as { kind?: string }).kind !== "ceq") continue;
+        for (const c of ((n.data as unknown as { choices?: CeqChoice[] }).choices ?? [])) {
+          const shown = c.chainShown ?? 0;
+          (c.chain ?? []).forEach((it, i) => {
+            if (it.kind === "memo" && it.memoNodeId) {
+              chainMemoIds.add(it.memoNodeId);
+              if (i >= shown) filmHiddenMemos.add(it.memoNodeId);
+            }
+          });
+        }
+      }
+      // LEGACY edge-anchored memos (NOT chain members) — hidden until the choice
+      // resolves (the pre-chain behaviour, kept for scenes that used it).
       for (const e of rf.getEdges()) {
         const th = e.targetHandle;
         if (!th || !th.startsWith("anc:")) continue;
+        if (chainMemoIds.has(e.source)) continue; // chain memos handled above
         const tgt = byId.get(e.target);
         if (!tgt || (tgt.data as { kind?: string }).kind !== "ceq") continue;
         const choice = (tgt.data as unknown as { choices?: { id: string; resolved?: boolean }[] }).choices?.find((c) => c.id === th.slice(4));
@@ -2192,6 +2212,23 @@ function PresentCanvas() {
   // ---- DEAL: card leaves the deck for its REMEMBERED canvas spot (else the next
   // free grid slot), selected on arrival; mount animation = the entrance. One
   // dispatcher command — undo returns it to the deck at its old order.
+  /** SWEEP (prompt 1) — reset resolutions + revealed chain on the given CEQ cards
+   *  (the board sweep when advancing to the next question). Returns a plan folded
+   *  into the caller's undoable command so undo restores the swept teaching state.
+   *  Snapshots NOW (pre-advance); only dirty CEQ cards are touched. Shared by deal +
+   *  stackStep so BOTH advance paths sweep — the Space dispatcher is untouched. */
+  const ceqSweepPlan = useCallback((candidateIds: string[]) => {
+    const snap = candidateIds
+      .map((cid) => ({ id: cid, data: rf.getNode(cid)?.data as { kind?: string; choices?: CeqChoice[] } | undefined }))
+      .filter((s): s is { id: string; data: { kind?: string; choices: CeqChoice[] } } => s.data?.kind === "ceq" && Array.isArray(s.data.choices) && s.data.choices.some((c) => c.resolved || (c.chainShown ?? 0) > 0))
+      .map((s) => ({ id: s.id, choices: structuredClone(s.data.choices) }));
+    return {
+      any: snap.length > 0,
+      reset: () => { for (const s of snap) rf.updateNodeData(s.id, { choices: s.choices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) }); },
+      restore: () => { for (const s of snap) rf.updateNodeData(s.id, { choices: structuredClone(s.choices) }); },
+    };
+  }, [rf]);
+
   const deal = useCallback(
     (id: string) => {
       const node = rf.getNode(id);
@@ -2221,19 +2258,27 @@ function PresentCanvas() {
         position: { ...node.position },
       };
       const fd = dealFaceDown;
+      // SWEEP (prompt 1): dealing the next CEQ clears the OUTGOING card's + its deck
+      // siblings' resolutions + revealed chain items; the incoming card also starts
+      // NEUTRAL. Folded into this one undoable deal command (undo restores the board).
+      const sweep = d.kind === "ceq" && deckId
+        ? ceqSweepPlan(rf.getNodes().filter((n) => n.id !== id && (n.data as { deckId?: string }).deckId === deckId && (n.data as { kind?: string }).kind === "ceq").map((n) => n.id))
+        : { any: false, reset: () => {}, restore: () => {} };
+      const dealtChoices = d.kind === "ceq" ? structuredClone((d as unknown as { choices?: CeqChoice[] }).choices ?? []) : null;
       bus.dispatch({
         label: "deal card",
         do: () => {
           // dealt member: stays IN the deck roster, just visible again. A dealt CEQ
-          // starts with NO emphasis pointer (clear any stale one from a prior session)
-          // so an immediate Enter can't resolve a leftover choice. NO auto-focus
-          // (Lee, item 4): dealing never selects the card — arrows stay frame nav;
-          // emphasis comes from CLICKING a choice.
-          rf.updateNodeData(id, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, faceDown: fd, ...(d.kind === "ceq" ? { emphasis: undefined } : {}) });
+          // starts NEUTRAL — no emphasis pointer AND no resolved/revealed state (so a
+          // re-deal after Shift+Space re-walks fresh). NO auto-focus (Lee, item 4):
+          // dealing never selects the card; emphasis comes from CLICKING a choice.
+          rf.updateNodeData(id, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, faceDown: fd, ...(dealtChoices ? { emphasis: undefined, choices: dealtChoices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) } : {}) });
           rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...target }, hidden: false } : n)));
+          sweep.reset();
         },
         undo: () => {
-          rf.updateNodeData(id, { deckMember: before.deckMember, tucked: before.tucked, staged: before.staged, minimized: before.minimized, faceDown: before.faceDown });
+          sweep.restore();
+          rf.updateNodeData(id, { deckMember: before.deckMember, tucked: before.tucked, staged: before.staged, minimized: before.minimized, faceDown: before.faceDown, ...(dealtChoices ? { choices: dealtChoices } : {}) });
           rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position }, selected: false } : n)));
         },
       });
@@ -2245,7 +2290,7 @@ function PresentCanvas() {
       // RUN LOG — dealing a CEQ marks a new question on screen ("next card").
       if (d.kind === "ceq") logRunEvent("deal", `dealt: ${(d as { prompt?: string }).prompt?.trim().slice(0, 44) || "CEQ"}`);
     },
-    [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit, logRunEvent],
+    [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit, logRunEvent, ceqSweepPlan],
   );
 
   /** STACK DEAL (Lee) — flashcard mode: one of the frame's deck cards at a time in
@@ -2284,58 +2329,83 @@ function PresentCanvas() {
     const beforeShow = { pos: { ...showNode.position }, deckMember: sd.deckMember, tucked: sd.tucked, staged: sd.staged, minimized: sd.minimized };
     const hideNode = hideId ? rf.getNode(hideId) : null;
     const beforeHideTucked = hideNode ? (hideNode.data as { tucked?: boolean }).tucked : undefined;
+    // SWEEP (prompt 1): flipping to the next stacked CEQ clears the OUTGOING card's +
+    // sibling CEQs' resolutions/revealed chain; the incoming card starts NEUTRAL too.
+    // Same helper deal uses — the Space dispatcher is untouched.
+    const sweep = ceqSweepPlan(members.filter((m) => m.id !== showId).map((m) => m.id));
+    const showChoices = (showNode.data as { kind?: string; choices?: CeqChoice[] }).kind === "ceq" ? structuredClone((showNode.data as { choices?: CeqChoice[] }).choices ?? []) : null;
     bus.dispatch({
       label: "stack deal",
       do: () => {
-        rf.updateNodeData(showId, { deckMember: true, tucked: false, staged: undefined, minimized: undefined });
+        rf.updateNodeData(showId, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, ...(showChoices ? { choices: showChoices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) } : {}) });
         if (hideId) rf.updateNodeData(hideId, { tucked: true });
         rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...centre }, hidden: false, selected: true } : n.selected ? { ...n, selected: false } : n)));
+        sweep.reset();
       },
       undo: () => {
         // restore every membership field (not just tucked) so a legacy staged/
         // minimized member re-hides correctly, mirroring deal's undo.
-        rf.updateNodeData(showId, { deckMember: beforeShow.deckMember, tucked: beforeShow.tucked, staged: beforeShow.staged, minimized: beforeShow.minimized });
+        sweep.restore();
+        rf.updateNodeData(showId, { deckMember: beforeShow.deckMember, tucked: beforeShow.tucked, staged: beforeShow.staged, minimized: beforeShow.minimized, ...(showChoices ? { choices: showChoices } : {}) });
         if (hideId) rf.updateNodeData(hideId, { tucked: beforeHideTucked });
         rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...beforeShow.pos }, selected: false } : n)));
       },
     });
     return true;
-  }, [rf]);
+  }, [rf, ceqSweepPlan]);
   const frameIsStack = useCallback((frameId: string) => !!(rf.getNode(frameId)?.data as { stackDeal?: boolean } | undefined)?.stackDeal, [rf]);
 
   // ---- CEQ LIVE-TEACHING — CLICK a choice to emphasise (amber ring), Enter to
   //      resolve. Arrows are ALWAYS frame nav now (Lee, item 4): the old
   //      arrow-cycling ceqEmphasisMove is removed; emphasis is set by the click
   //      handler in CeqCardNode (selects the card + sets data.emphasis).
-  /** Enter on the emphasised CEQ choice → toggle its resolution. Correct → green +
-   *  win sound (film, respecting confirmSfx); wrong → red + strike, NO win sound. The
-   *  choice's per-choice memo shows/hides DERIVEDLY from resolved (film-gated in the
-   *  node sync), so nothing to patch on the memo. Enter again clears it. SINGLE-SELECT
-   *  (Lee): resolving a choice clears every other choice's resolved state — at most
-   *  one choice is selected at a time. One undoable command. */
-  const resolveCeqChoice = useCallback((cardId: string, choiceId: string) => {
+  /** ENTER / SHIFT+ENTER CHAIN WALK (prompt 1) on the emphasised CEQ choice.
+   *  dir=+1 (Enter): first press RESOLVES (correct → green + chaching; wrong → red +
+   *  strike; NO memo yet), each further press reveals the NEXT chain item (they
+   *  accumulate). dir=-1 (Shift+Enter): hides the most-recent revealed item, and
+   *  stepping back past item 1 UN-RESOLVES (returns the choice to NEUTRAL). Past the
+   *  end (either direction) = no-op. MULTI-SELECT: only this choice changes — other
+   *  choices keep their resolved + revealed state (distractor + correct chains
+   *  coexist). Chaching fires ONLY on the correct-resolve transition, never on chain
+   *  reveals. Chain memo visibility is DERIVED from chainShown in the hiddenOf
+   *  reconciler (film-gated). One undoable command per press. */
+  const ceqStep = useCallback((cardId: string, choiceId: string, dir: 1 | -1) => {
     const node = rf.getNode(cardId);
     if (!node) return;
-    const d = node.data as unknown as { choices: { id: string; correct?: boolean; resolved?: boolean }[]; confirmSfx?: boolean };
+    const d = node.data as unknown as { choices: CeqChoice[]; confirmSfx?: boolean; prompt?: string };
     const choice = d.choices.find((c) => c.id === choiceId);
     if (!choice) return;
-    const nowResolved = !choice.resolved;
+    const chainLen = choice.chain?.length ?? 0;
+    const wasResolved = !!choice.resolved;
+    const shown = choice.chainShown ?? 0;
+    // Resolve the transition (no-op past either end).
+    let nextResolved = wasResolved;
+    let nextShown = shown;
+    let action: "resolve" | "reveal" | "hide" | "unresolve" | "noop" = "noop";
+    if (dir > 0) {
+      if (!wasResolved) { nextResolved = true; nextShown = 0; action = "resolve"; }
+      else if (shown < chainLen) { nextShown = shown + 1; action = "reveal"; }
+    } else {
+      if (shown > 0) { nextShown = shown - 1; action = "hide"; }
+      else if (wasResolved) { nextResolved = false; nextShown = 0; action = "unresolve"; }
+    }
+    if (action === "noop") return;
     const cmd = patchDataFnCmd(rf as unknown as RfLike, cardId, (prev) => {
-      const pd = prev as unknown as { choices: { id: string; resolved?: boolean }[]; tags?: string[] };
-      // SINGLE-SELECT: the resolved choice is the ONLY one; all others clear.
-      const choices = pd.choices.map((c) => ({ ...c, resolved: c.id === choiceId ? nowResolved : false }));
-      // AUTO-TAG (Item 7): the FIRST time a WRONG choice is Enter-resolved in FILM,
-      // tag this CEQ "CEQ_DISTRACTOR" — metadata only, survives reload in the scene
-      // JSON (CeqCard.tags). Authoring/preview resolutions never tag.
+      const pd = prev as unknown as { choices: CeqChoice[]; tags?: string[] };
+      // MULTI-SELECT (prompt 1): ONLY this choice changes; others keep their state.
+      const choices = pd.choices.map((c) => (c.id === choiceId ? { ...c, resolved: nextResolved, chainShown: nextShown } : c));
       const patch: { choices: typeof choices; tags?: string[] } = { choices };
-      if (nowResolved && !choice.correct && filmRef.current && !(pd.tags ?? []).includes("CEQ_DISTRACTOR")) patch.tags = [...(pd.tags ?? []), "CEQ_DISTRACTOR"];
+      // AUTO-TAG (Item 7): first WRONG resolve in FILM tags CEQ_DISTRACTOR (metadata).
+      if (action === "resolve" && !choice.correct && filmRef.current && !(pd.tags ?? []).includes("CEQ_DISTRACTOR")) patch.tags = [...(pd.tags ?? []), "CEQ_DISTRACTOR"];
       return patch;
-    }, nowResolved ? "resolve CEQ choice" : "clear CEQ choice");
+    }, action === "resolve" ? "resolve CEQ" : action === "unresolve" ? "un-resolve CEQ" : action === "reveal" ? "reveal chain item" : "hide chain item");
     if (cmd) bus.dispatch(cmd);
-    // WIN SOUND — only on correct + resolving-on + film (respect the per-CEQ toggle).
-    if (nowResolved && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("confirm");
-    // RUN LOG — a resolve marks a CEQ answered (right/wrong); clears aren't logged.
-    if (nowResolved) { const p = (node.data as { prompt?: string }).prompt?.trim(); logRunEvent("resolve", `${p ? p.slice(0, 44) : "CEQ"} — ${choice.correct ? "✓ right" : "✗ wrong"}`, !!choice.correct); }
+    // CHACHING — ONLY on the correct-resolve transition (film, per-CEQ confirmSfx). Never on reveals.
+    if (action === "resolve" && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("confirm");
+    // RUN LOG (part 6): resolve (choice + correct/wrong) and each chain reveal WITH the memo label + elapsed ms.
+    const stem = d.prompt?.trim();
+    if (action === "resolve") logRunEvent("resolve", `${stem ? stem.slice(0, 40) : "CEQ"} — ${choice.correct ? "✓ right" : "✗ wrong"}`, !!choice.correct);
+    else if (action === "reveal") logRunEvent("reveal", choice.chain?.[nextShown - 1]?.label || "chain item");
   }, [rf, logRunEvent]);
 
   // ---- CHOREOGRAPH + SCRUBBER (Items 2-4) -----------------------------------
@@ -4962,14 +5032,27 @@ function PresentCanvas() {
       {
         combo: "enter",
         group: "CEQ",
-        description: "Resolve the CLICKED CEQ choice (amber ring) — correct → win + memo · wrong → strike + memo (Enter again clears)",
+        description: "Walk the CLICKED CEQ choice (amber ring): 1st Enter resolves (correct → chaching · wrong → strike), each further Enter reveals the next chain item",
         handler: (e) => {
           const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
           if (!sel) return; // no CEQ focused → leave Enter to its native behaviour
           const emp = (sel.data as unknown as { emphasis?: string }).emphasis;
           if (!emp) return;
           e.preventDefault();
-          resolveCeqChoice(sel.id, emp);
+          ceqStep(sel.id, emp, 1);
+        },
+      },
+      {
+        combo: "shift+enter",
+        group: "CEQ",
+        description: "Step BACK through the CLICKED CEQ choice's chain — hides the last revealed item; past item 1 un-resolves the choice (neutral)",
+        handler: (e) => {
+          const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
+          if (!sel) return;
+          const emp = (sel.data as unknown as { emphasis?: string }).emphasis;
+          if (!emp) return;
+          e.preventDefault();
+          ceqStep(sel.id, emp, -1);
         },
       },
       // F2 GLOBAL EDIT (item 4): one binding — edit the spotlit target if a
@@ -4996,7 +5079,7 @@ function PresentCanvas() {
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
-    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, resolveCeqChoice, applyFrameToStep, explodeHovered, toggleRun],
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqStep, applyFrameToStep, explodeHovered, toggleRun],
   );
   useKeymap(bindings);
 

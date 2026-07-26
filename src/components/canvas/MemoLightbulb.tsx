@@ -16,6 +16,23 @@ import { cardId } from "./types";
  *  reuse the card's own "l"/"r" ConnectionDots instead. */
 export const memoAnchorId = (subId: string) => `anc:${subId}`;
 
+/** LEFT anchor for a CHAIN memo (prompt 1) — a choice's chain-memo arrows land HERE
+ *  (by the letter chip) and wrap around the card; the memo sits to the card's RIGHT.
+ *  Same routing/edge as memoAnchorId, only the side + id differ. Placed inside the
+ *  (position:relative) letter chip so React Flow reads its real DOM position. */
+export const chainAnchorId = (subId: string) => `ancL:${subId}`;
+export function ChainAnchor({ subId }: { subId: string }) {
+  return (
+    <Handle
+      type="target"
+      position={Position.Left}
+      id={chainAnchorId(subId)}
+      isConnectable={false}
+      style={{ left: 0, top: "50%", width: 6, height: 6, background: "transparent", border: "none", opacity: 0, pointerEvents: "none" }}
+    />
+  );
+}
+
 /** The invisible target Handle a sub-element exposes so a memo arrow can anchor
  *  to THAT component (not just the card). Drop inside the segment/row element.
  *  Element-EDGE anchor — the fallback when a target has no measurable text. */
