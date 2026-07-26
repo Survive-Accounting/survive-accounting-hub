@@ -35,8 +35,9 @@ export const MEMO_ACCENTS: Record<MemoKind, { edge: string; ink: string; label: 
 
 export const MEMO_KIND_OPTIONS: MemoKind[] = ["note", "tip", "trap", "cheat", "calc"];
 
-/** Item 5 — the four category tags that replaced the kind buttons (+ free text). */
-export const MEMO_CATEGORIES = ["STEPS", "EXAM TRAPS", "CHEAT CODES", "OTHER TIPS"] as const;
+/** Item 5 — the category tags that replaced the kind buttons (+ free text). Prompt 4
+ *  adds ELEMENT for design pieces (A=L+E, formulas) so they're triageable + filterable. */
+export const MEMO_CATEGORIES = ["STEPS", "EXAM TRAPS", "CHEAT CODES", "OTHER TIPS", "ELEMENT"] as const;
 
 /** Per-category inline glyph (redesign Item 2) — one emoji system, tasteful + camera-
  *  legible. NO TAG → NO ICON (Lee): a memo with no category renders clean, no glyph.
@@ -48,6 +49,7 @@ function memoGlyph(category: string | undefined): string | null {
     case "STEPS": return "🔢";
     case "ON THE EXAM": return "🎯";
     case "OTHER TIPS": return "💬";
+    case "ELEMENT": return "🧩";
     default: return null; // uncategorised memo → no icon
   }
 }

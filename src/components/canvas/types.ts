@@ -306,6 +306,9 @@ export interface CeqCard extends CardBase {
   /** PER-CEQ SCRIPT NOTE (cram-mode batch) — a line Lee jots per question, shown
    *  in the script dock while cram mode is on. Additive; frame script untouched. */
   note?: string;
+  /** COPY LINK (prompt 4) — set on a paste: the id of the ORIGINAL CEQ this was
+   *  copied from (outline copy/paste). The copy is independent. Additive. */
+  sourceId?: string;
   /** CORRECT-ANSWER SOUND (Lee): play the confirm SFX when the right choice is
    *  picked on THIS question in film. Default ON (undefined ⇒ plays); toggle off
    *  per card. */
@@ -588,6 +591,12 @@ export interface MemoCard extends CardBase {
    *  the order memos fill a frame when added from the library. Additive: absent
    *  on old memos (they sort last, stable). NOT the memo-deck deal order. */
   libOrder?: number;
+  /** SHORT LABEL (prompt 4) — the name shown in the outline / Ctrl+K / chain lists.
+   *  Default = truncated body/title; renamable inline in the outline. Additive. */
+  label?: string;
+  /** COPY LINK (prompt 4) — set on a paste: the id of the ORIGINAL memo this was
+   *  copied from. The copy is fully independent (never a live reference). Additive. */
+  sourceId?: string;
 }
 
 // ---- List (reveal list: 5 account types, the accounting cycle, …) ----

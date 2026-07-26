@@ -118,8 +118,8 @@ import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
 // Panels that can be popped out to the director's second-monitor window.
-type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer";
-const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script", "runtimer"];
+type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline";
+const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script", "runtimer", "outline"];
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -1377,6 +1377,7 @@ function PresentCanvas() {
   // teleprompter, frame-visuals) and trims the palette to CEQ/memo/heading/note.
   // Persisted in scene settings; additive.
   const [cramMode, setCramMode] = useState(false);
+  const [videoSlotSeq, setVideoSlotSeq] = useState(0); // OUTLINE v2: bump to force-open the active lesson's video slot
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
   const [copiedFrameId, setCopiedFrameId] = useState<string | null>(null); // frame on the clipboard (rearrange copy/paste)
@@ -3426,7 +3427,23 @@ function PresentCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrameId]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson]);
+  // OUTLINE v2 (prompt 4) — activate a lesson AND force its video slot open.
+  const openVideoSlot = useCallback((lessonId: string) => { setActiveLesson(lessonId); setVideoSlotSeq((s) => s + 1); }, [setActiveLesson]);
+  // OUTLINE v2 (prompt 4) — navigate to a CEQ: activate its lesson, enter its frame,
+  // select the card (opens it for editing). Waits a tick so the lesson mounts first.
+  const focusCeq = useCallback((ceqId: string) => {
+    const node = rf.getNode(ceqId);
+    if (!node) return;
+    const frameId = node.parentId && rf.getNode(node.parentId)?.type === "frame" ? node.parentId : null;
+    const lessonId = frameId ? (rf.getNode(frameId)?.parentId ?? null) : lessonIdOf(node as never, rf.getNodes() as never);
+    if (lessonId) setActiveLesson(lessonId);
+    window.setTimeout(() => {
+      if (frameId) enterFrame(frameId, { smooth: true });
+      rf.setNodes((nds) => nds.map((n) => (n.id === ceqId ? { ...n, selected: true } : n.selected ? { ...n, selected: false } : n)));
+    }, 90);
+  }, [rf, setActiveLesson, enterFrame]);
+
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, openVideoSlot, focusCeq }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, openVideoSlot, focusCeq]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -5506,7 +5523,7 @@ function PresentCanvas() {
       {/* LESSON VIDEO SLOT (prompt 2) — one lesson becomes one video. Sits above the
           active lesson's frames (grid view; the frame HUD owns the top while inside a
           frame). Drop raw files → stage in Supabase → Publish → Auphonic → Mux. */}
-      {chrome && activeLessonId && !currentFrameId && <LessonVideoSlot lessonId={activeLessonId} cramMode={cramMode} />}
+      {chrome && activeLessonId && !currentFrameId && <LessonVideoSlot lessonId={activeLessonId} cramMode={cramMode} openSignal={videoSlotSeq} />}
 
       {/* FRAME HUD — while inside a frame: the LESSON's whole layout as a strip of
           draggable THUMBNAILS (drag one onto another to SWAP; click to jump). The
@@ -5634,7 +5651,13 @@ function PresentCanvas() {
               onDeleteSnippet={deleteSnippet}
             />
           )}
-          {drawerPanel === "outline" && <OutlinePanel />}
+          {drawerPanel === "outline" && !isPopped("outline") && (
+            <div className="relative">
+              <button className="absolute right-0.5 top-0.5 z-20 grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => openPop("outline", 1040, 720)} title="Pop out the outline to a landscape window (2nd monitor · capture-invisible)"><ExternalLink className="h-3.5 w-3.5" /></button>
+              <OutlinePanel />
+            </div>
+          )}
+          {drawerPanel === "outline" && isPopped("outline") && <PopoutPlaceholder title="Outline" onReturn={() => returnPop("outline")} style={{ position: "relative", inset: "auto", margin: 8 }} />}
           {drawerPanel === "memos" && <MemoLibraryPanel />}
           {drawerPanel === "key" && <LegendHud docked />}
           {drawerPanel === "pipeline" && <PipelineTestPanel cramMode={cramMode} activeLessonId={activeLessonId} />}
@@ -6258,6 +6281,14 @@ function PresentCanvas() {
             ceqN={Math.min(runCeqTotal || 999, runEvents.filter((e) => e.kind === "resolve").length + 1)}
             ceqTotal={runCeqTotal}
           />
+        </PanelPopout>
+      )}
+
+      {/* OUTLINE v2 landscape popout (prompt 4) — the navigator on the 2nd monitor,
+          off OBS Window Capture of the main canvas; still live (same node store). */}
+      {isPopped("outline") && (
+        <PanelPopout win={popWins.outline!} title="Outline" onReturn={() => returnPop("outline")}>
+          <div style={{ padding: 8 }}><OutlinePanel /></div>
         </PanelPopout>
       )}
 

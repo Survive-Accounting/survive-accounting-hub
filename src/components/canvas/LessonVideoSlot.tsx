@@ -5,7 +5,7 @@
 // playback attaches to the lesson and its status flips PUBLISHED (outline green).
 // Raw never touches Mux; no master_access. Runs on the deployed env (Supabase/Mux/
 // Auphonic keys). MULTI-FILE concat is deferred (see report) — Publish needs one.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
 import { ArrowDown, ArrowUp, CheckCircle2, Clapperboard, Loader2, Play, Upload, X } from "lucide-react";
 
@@ -24,12 +24,14 @@ function HlsVideo({ playbackId, style }: { playbackId: string; style?: React.CSS
   return <video ref={ref} controls playsInline poster={`https://image.mux.com/${playbackId}/thumbnail.jpg?time=0`} src={`https://stream.mux.com/${playbackId}/high.mp4`} style={{ width: "100%", borderRadius: 8, background: "#000", aspectRatio: "16 / 9", ...style }} />;
 }
 
-export function LessonVideoSlot({ lessonId, cramMode }: { lessonId: string; cramMode?: boolean }) {
+export function LessonVideoSlot({ lessonId, cramMode, openSignal }: { lessonId: string; cramMode?: boolean; openSignal?: number }) {
   const rf = useReactFlow();
   const nodes = useNodes(); // reactive — staging list + status follow edits
   const node = nodes.find((n) => n.id === lessonId);
   const d = node?.data as unknown as LessonBox | undefined;
   const [open, setOpen] = useState(false);
+  // OUTLINE v2 — clicking the Video node bumps openSignal to force the slot open.
+  useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
   const [busy, setBusy] = useState<false | "uploading" | "publishing">(false);
   const [note, setNote] = useState<string | null>(null);
   const [previewIdx, setPreviewIdx] = useState(0);
