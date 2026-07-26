@@ -70,6 +70,7 @@ import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
 import { LessonVideoSlot } from "@/components/canvas/LessonVideoSlot";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
+import { CeqStudio } from "@/components/canvas/CeqStudio";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
@@ -1302,6 +1303,7 @@ function PresentCanvas() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
+  const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
   const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
   // ITEM 4e — a transient "flash this deck's member cards" pulse (auto-clears).
   const [deckHighlightId, setDeckHighlightId] = useState<string | null>(null);
@@ -5799,6 +5801,8 @@ function PresentCanvas() {
           <TB title="Add a lesson — pick type + topic, then scaffold its frames" onClick={addLesson}><LayoutTemplate className="h-3.5 w-3.5" /></TB>
           {/* DECK — the run-of-show roster (replaces the top-right badge) */}
           <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); setAddElemOpen(false); }} />
+          {/* CEQ STUDIO (prompt 5) — day-to-day CEQ authoring in one 3-pane panel. */}
+          <TB title={ceqStudioOpen ? "Close CEQ Studio" : "CEQ Studio — sets · questions + chains · memo library"} active={ceqStudioOpen} onClick={() => setCeqStudioOpen((v) => !v)}><ListOrdered className="h-3.5 w-3.5" /></TB>
           {/* FILE — save / load / export / import (floppy icon; moved onto the old
               region-scaffold slot, which Lee no longer uses) */}
           <div className="relative">
@@ -6469,6 +6473,9 @@ function PresentCanvas() {
 
       {/* GRID BY TYPE (ITEM 4) — read-only projection overlay. */}
       {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
+      {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
+          chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
+      {chrome && ceqStudioOpen && <CeqStudio decks={decks} setDecks={setDecks} onClose={() => setCeqStudioOpen(false)} />}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (
