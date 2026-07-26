@@ -68,6 +68,7 @@ import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
+import { LessonVideoSlot } from "@/components/canvas/LessonVideoSlot";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_TYPES, LESSON_TYPE_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonPathing, type LessonStatus, type LessonType, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
@@ -5503,6 +5504,11 @@ function PresentCanvas() {
           </>
         );
       })()}
+
+      {/* LESSON VIDEO SLOT (prompt 2) — one lesson becomes one video. Sits above the
+          active lesson's frames (grid view; the frame HUD owns the top while inside a
+          frame). Drop raw files → stage in Supabase → Publish → Auphonic → Mux. */}
+      {chrome && activeLessonId && !currentFrameId && <LessonVideoSlot lessonId={activeLessonId} cramMode={cramMode} />}
 
       {/* FRAME HUD — while inside a frame: the LESSON's whole layout as a strip of
           draggable THUMBNAILS (drag one onto another to SWAP; click to jump). The

@@ -753,6 +753,10 @@ export interface LessonBox {
    *  (single continuous cram take). Setting muxPlaybackId flips status → PUBLISHED. */
   muxPlaybackId?: string | null;
   muxAssetId?: string | null;
+  /** VIDEO STAGING (prompt 2) — ordered RAW files staged in Supabase Storage (NOT
+   *  Mux). The lesson video slot drag-drops here; Publish runs the staged pipeline
+   *  (Supabase → Auphonic → Mux). Additive scene JSON; the raw never touches Mux. */
+  videoStaging?: { path: string; url: string; name: string }[];
   /** RUN LOGS (cram-filming batch) — the last 3 F9 timing runs for this lesson. */
   runs?: FilmRun[];
   /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
