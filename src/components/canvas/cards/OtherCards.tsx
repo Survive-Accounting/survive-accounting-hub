@@ -8,7 +8,7 @@ import { BaseCard, IconBtn, useCardActions } from "../BaseCard";
 import { EditableNumber, EditableText, fmtNum } from "../ui";
 import { useFrameNav } from "../FrameNavContext";
 import { renderInline } from "../inline-md";
-import { ChainAnchor, MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
+import { MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
 import { CeqChainEditor } from "../CeqChainEditor";
 import { playSfx } from "../sfx";
 import { NEON, NOTE_COLORS, PAPER } from "../theme";
@@ -277,10 +277,9 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 update({ emphasis: c.id });
               }}
             >
-              {/* LETTER CHIP (A, B, C… by position) — also the LEFT anchor for this
-                  choice's CHAIN memos (prompt 1): their arrows land here + wrap around. */}
+              {/* LETTER CHIP (A, B, C… by position) */}
               <span
-                className="relative grid shrink-0 place-items-center rounded-md font-black"
+                className="grid shrink-0 place-items-center rounded-md font-black"
                 style={{
                   width: chipSize, height: chipSize, fontSize: Math.round(choicePx * 0.82),
                   color: st ? "#fff" : chip,
@@ -289,7 +288,6 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
                 }}
               >
                 {chipLetter(ci)}
-                {!editing && <ChainAnchor subId={c.id} />}
               </span>
               <span
                 className="min-w-0 flex-1"
@@ -388,6 +386,15 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
               style={{ color: chainCount ? PAPER.navy : PAPER.inkMuted, border: `1px solid ${chainCount ? "rgba(20,33,61,0.5)" : PAPER.line}` }}
             >
               ⛓ chains{chainCount ? ` ${chainCount}` : ""}
+            </button>
+            <button
+              className="nodrag inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
+              title="Open this question in CEQ Studio"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => nav.openStudio(id)}
+              style={{ color: PAPER.navy, border: `1px solid ${PAPER.line}` }}
+            >
+              ⧉ studio
             </button>
             {nav.cramMode ? (
               <>

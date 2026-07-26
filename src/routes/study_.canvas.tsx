@@ -1304,6 +1304,7 @@ function PresentCanvas() {
   const [sceneName, setSceneName] = useState("Untitled scene");
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
   const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
+  const [studioFocusCeq, setStudioFocusCeq] = useState<string | null>(null); // open Studio focused on this CEQ
   const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
   // ITEM 4e — a transient "flash this deck's member cards" pulse (auto-clears).
   const [deckHighlightId, setDeckHighlightId] = useState<string | null>(null);
@@ -3445,7 +3446,9 @@ function PresentCanvas() {
     }, 90);
   }, [rf, setActiveLesson, enterFrame]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, openVideoSlot, focusCeq }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, openVideoSlot, focusCeq]);
+  const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
+
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, openVideoSlot, focusCeq, openStudio }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, openVideoSlot, focusCeq, openStudio]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -6475,7 +6478,7 @@ function PresentCanvas() {
       {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
       {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
           chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
-      {chrome && ceqStudioOpen && <CeqStudio decks={decks} setDecks={setDecks} onClose={() => setCeqStudioOpen(false)} />}
+      {chrome && ceqStudioOpen && <CeqStudio decks={decks} setDecks={setDecks} initialCeqId={studioFocusCeq} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); }} />}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (

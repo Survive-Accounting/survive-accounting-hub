@@ -14,7 +14,7 @@ import { useNodes, useReactFlow } from "@xyflow/react";
 import { Check, ChevronDown, ChevronRight, Clapperboard, ClipboardCopy, ClipboardPaste, Layers, ListVideo, Search, X } from "lucide-react";
 
 import { addNodesAndEdgesCmd, bus, patchDataFnCmd, type RfLike } from "./commands";
-import { chainAnchorId } from "./MemoLightbulb";
+import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
@@ -122,7 +122,7 @@ export function OutlinePanel() {
     const count = rf.getEdges().filter((e) => e.target === ceqId && String(e.id).startsWith("chn-")).length;
     const memoId = cardId("memo");
     const memoNode = { id: memoId, type: "memo", parentId: ceq?.parentId, position: { x: (ceq?.position.x ?? 0) + w + 64, y: (ceq?.position.y ?? 0) + count * 78 }, selected: false, data: { kind: "memo", memoKind: clipItem.memoKind ?? "note", title: clipItem.title, body: clipItem.body ?? "", category: clipItem.category, label: clipItem.label, sourceId: clipItem.sourceId } };
-    const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: chainAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
+    const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "paste chain memo"); if (add) bus.dispatch(add);
     const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label: clipItem.label ?? "memo" }] } : c)) }), "paste into chain");
     if (patch) bus.dispatch(patch);

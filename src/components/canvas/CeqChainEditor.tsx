@@ -14,7 +14,7 @@ import { useNodes, useReactFlow } from "@xyflow/react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Save, Trash2, X } from "lucide-react";
 
 import { addNodesAndEdgesCmd, bus, patchDataFnCmd, type RfLike } from "./commands";
-import { chainAnchorId } from "./MemoLightbulb";
+import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { lessonNodeOf, topicKey, topicOfLessonNode, topicOfNode } from "./memo-scope";
 import { captureChainTemplate, deleteChainTemplate, listChainTemplates } from "./ceq-chain-templates";
@@ -56,7 +56,7 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
   /** Add an existing memo node to a choice's chain + draw the left-anchored arrow. */
   const addLibraryMemo = (choiceId: string, memoNodeId: string, label: string) => {
     const item: CeqChainItem = { kind: "memo", memoNodeId, label };
-    const edge = { id: chainEdgeId(choiceId, memoNodeId), source: memoNodeId, sourceHandle: "l", target: nodeId, targetHandle: chainAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
+    const edge = { id: chainEdgeId(choiceId, memoNodeId), source: memoNodeId, sourceHandle: "l", target: nodeId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const addEdge = addNodesAndEdgesCmd(rfl, [] as never, [edge] as never, "chain arrow");
     if (addEdge) bus.dispatch(addEdge);
     patchChoice(choiceId, (c) => ({ ...c, chain: [...(c.chain ?? []), item] }));
@@ -69,7 +69,7 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
     const count = rf.getEdges().filter((e) => e.target === nodeId && String(e.id).startsWith("chn-")).length;
     const memoId = cardId("memo");
     const memoNode = { id: memoId, type: "memo", parentId: node.parentId, position: { x: node.position.x + w + 64, y: node.position.y + count * 78 }, selected: false, data: { kind: "memo", memoKind: "note", title: label ?? "", body: "", w: 200 } };
-    const edge = { id: chainEdgeId(choiceId, memoId), source: memoId, sourceHandle: "l", target: nodeId, targetHandle: chainAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
+    const edge = { id: chainEdgeId(choiceId, memoId), source: memoId, sourceHandle: "l", target: nodeId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const cmd = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "create chain memo");
     if (cmd) bus.dispatch(cmd);
     patchChoice(choiceId, (c) => ({ ...c, chain: [...(c.chain ?? []), { kind: "memo", memoNodeId: memoId, label: label ?? memoLabel(undefined, "") } as CeqChainItem] }));
@@ -120,7 +120,7 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
       for (const slot of slots) {
         const memoId = cardId("memo");
         newNodes.push({ id: memoId, type: "memo", parentId: node.parentId, position: { x: node.position.x + w + 64, y: node.position.y + stagger * 78 }, selected: false, data: { kind: "memo", memoKind: "note", title: slot.label, body: "", w: 200 } });
-        newEdges.push({ id: chainEdgeId(c.id, memoId), source: memoId, sourceHandle: "l", target: nodeId, targetHandle: chainAnchorId(c.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
+        newEdges.push({ id: chainEdgeId(c.id, memoId), source: memoId, sourceHandle: "l", target: nodeId, targetHandle: memoAnchorId(c.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
         items.push({ kind: slot.kind, memoNodeId: memoId, label: slot.label });
         stagger++;
       }

@@ -43,6 +43,9 @@ export function LessonVideoSlot({ lessonId, cramMode, openSignal }: { lessonId: 
   const files = d.videoStaging ?? [];
   const published = d.muxPlaybackId ?? null;
   const name = (d.topic || d.label || "this lesson");
+  const isCeq = (d.category ?? "TEACH") === "CEQ";
+  const paid = d.access === "PAID";
+  const variant = isCeq ? (paid ? "Paid" : "Free") : null; // Free/Paid only meaningful for CEQ lessons
   const set = (patch: Partial<LessonBox>) => rf.updateNodeData(lessonId, patch);
 
   const stageFiles = async (picked: File[]) => {
@@ -101,6 +104,7 @@ export function LessonVideoSlot({ lessonId, cramMode, openSignal }: { lessonId: 
       {/* COLLAPSED BAR */}
       <div className="flex items-center gap-2 rounded-full px-3 py-1.5 shadow-xl" style={{ background: "rgba(11,19,34,0.95)", border: `1px solid ${cramMode ? NEON.border : NEON.borderSoft}`, backdropFilter: "blur(6px)" }}>
         <Clapperboard className="h-4 w-4 shrink-0" style={{ color: statusTone }} />
+        {variant && <span className="shrink-0 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide" style={paid ? { color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.55)" } : { color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} title={paid ? "This is the PAID CEQ video" : "This is the FREE CEQ video"}>{variant}</span>}
         <button className="min-w-0 truncate text-[11.5px] font-bold" style={{ color: NEON.text }} onClick={() => setOpen((v) => !v)} title="Open the lesson video slot">
           Lesson video{published ? " · published" : files.length ? ` · ${files.length} staged` : ""}
         </button>

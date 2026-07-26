@@ -585,8 +585,15 @@ export interface MemoCard extends CardBase {
   /** Optional name shown above the body; the memo's label in a memo deck. */
   title?: string;
   body: string;
-  /** Free author tag for memo-deck filtering. */
+  /** Free author tag for memo-deck filtering (the top-level category — one of
+   *  MEMO_CATEGORIES, incl ELEMENT). */
   category?: string;
+  /** SUB-CATEGORY (Lee) — a free-text second tier under `category` (e.g. Cheat Codes
+   *  → "Bank Reconciliations", Other Tips → "1 Word Definition"). Additive. */
+  subcategory?: string;
+  /** COURSE tag (Lee) — memos are reusable across courses; this optional tag lets the
+   *  library filter by course until richer tagging lands. Additive. */
+  course?: string;
   /** Memo LIBRARY order (left-drawer curation). Lesson-wide sort key that sets
    *  the order memos fill a frame when added from the library. Additive: absent
    *  on old memos (they sort last, stable). NOT the memo-deck deal order. */

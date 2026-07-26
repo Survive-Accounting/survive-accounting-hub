@@ -5,14 +5,14 @@
 // one model / two doors); MEMO LIBRARY = every memo with label + category (incl
 // ELEMENT), search/filter, bulk triage for the unfiled pile, and drag-onto-a-choice
 // to attach to a chain. No new storage beyond panel prefs.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
 import { CheckSquare, ChevronRight, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
-import { addDeck, deckMembersOf, gridSlots, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
+import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
-import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patchDataFnCmd, type RfLike } from "./commands";
-import { chainAnchorId } from "./MemoLightbulb";
+import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
+import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
@@ -26,7 +26,7 @@ const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 
-export function CeqStudio({ decks, setDecks, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; onClose: () => void }) {
+export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; initialCeqId?: string | null; onClose: () => void }) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
   const nodes = useNodes(); // reactive
@@ -34,10 +34,20 @@ export function CeqStudio({ decks, setDecks, onClose }: { decks: DeckDef[]; setD
   const cardDecks = decks.filter((d) => d.payloadType === "cards");
   const [setId, setSetId] = useState<string | null>(cardDecks[0]?.id ?? null);
   const [qId, setQId] = useState<string | null>(null);
+  // OPEN FROM A CEQ (Lee) — pre-select the set (its deck) + that question.
+  useEffect(() => {
+    if (!initialCeqId) return;
+    const n = rf.getNode(initialCeqId);
+    const deckId = (n?.data as { deckId?: string } | undefined)?.deckId;
+    if (deckId && cardDecks.some((d) => d.id === deckId)) setSetId(deckId);
+    setQId(initialCeqId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCeqId]);
   const [chainFor, setChainFor] = useState<string | null>(null); // CEQ node whose chain editor is open
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
   const [catFilter, setCatFilter] = useState<Set<string>>(() => new Set([...MEMO_CATEGORIES, NONE]));
+  const [courseFilter, setCourseFilter] = useState<string>("all");
   const [sel, setSel] = useState<Set<string>>(() => new Set());
 
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
@@ -84,8 +94,9 @@ export function CeqStudio({ decks, setDecks, onClose }: { decks: DeckDef[]; setD
     if (cmd) bus.dispatch(cmd);
   };
 
-  /** DEAL the set into the current frame — reparent its CEQ cards (+ their chain
-   *  memos) into the frame as a tucked stack so the space-walk / Enter-walk works. */
+  /** DEAL the set into the current frame — reparent its CEQ cards ONLY (a tucked
+   *  stack). Chain memos stay put and are revealed via Enter-walk (place them where
+   *  you want with the CEQ previewer). No memos are dealt onto the board. */
   const dealIntoFrame = () => {
     const frameId = nav.currentFrameId;
     if (!frameId || !deck) { setNote("Enter a frame first, then Deal."); return; }
@@ -95,32 +106,49 @@ export function CeqStudio({ decks, setDecks, onClose }: { decks: DeckDef[]; setD
     const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
     const centre = { x: Math.max(0, Math.round((fw - 560) / 2)), y: Math.max(0, Math.round((fh - 480) / 2)) };
     const members = questions.map((q) => rf.getNode(q.id)).filter((n): n is NonNullable<typeof n> => !!n);
-    const memoIds = new Set<string>();
-    for (const m of members) for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) if (it.memoNodeId) memoIds.add(it.memoNodeId);
-    const memoNodes = [...memoIds].map((mid) => rf.getNode(mid)).filter((n): n is NonNullable<typeof n> => !!n);
-    const slots = gridSlots(memoNodes.length, { originX: Math.round(centre.x + 600), originY: 60, cols: 1, cellW: 220, cellH: 90, gapX: 20, gapY: 12 });
+    const ids = new Set(members.map((m) => m.id));
     bus.dispatch({
       label: `deal ${deck.name} into frame`,
       do: () => rf.setNodes((nds) => nds.map((n) => {
+        if (!ids.has(n.id)) return n;
         const mi = members.findIndex((m) => m.id === n.id);
-        if (mi >= 0) return { ...n, parentId: frameId, position: { ...centre }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined } } as typeof n;
-        const gi = memoNodes.findIndex((m) => m.id === n.id);
-        if (gi >= 0) return { ...n, parentId: frameId, position: { ...slots[gi] } } as typeof n;
-        return n;
+        return { ...n, parentId: frameId, position: { ...centre }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined } } as typeof n;
       })),
       undo: () => { /* transient staging move — re-deal to redo; not separately undone */ },
     });
     const c = patchDataCmd(rfl, frameId, { stackDeal: true, dealSpot: centre }, "stack deal"); if (c) bus.dispatch(c);
-    setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} into the frame — Space flips, Enter-walks chains.`);
+    setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} (cards only) — Space flips, Enter reveals chain memos.`);
   };
 
   // ---- MEMO LIBRARY ---------------------------------------------------------
-  const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string }; return { id: n.id, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase() }; }), [nodes]);
-  const shownMemos = memos.filter((m) => catFilter.has(m.category || NONE)).filter((m) => { const q = memoQuery.trim().toLowerCase(); return !q || m.label.toLowerCase().includes(q); });
+  const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string }; return { id: n.id, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase(), subcategory: d.subcategory || "", course: d.course || "" }; }), [nodes]);
+  const courses = useMemo(() => [...new Set(memos.map((m) => m.course).filter(Boolean))].sort(), [memos]);
+  const shownMemos = memos
+    .filter((m) => catFilter.has(m.category || NONE))
+    .filter((m) => courseFilter === "all" || m.course === courseFilter)
+    .filter((m) => { const q = memoQuery.trim().toLowerCase(); return !q || m.label.toLowerCase().includes(q) || m.subcategory.toLowerCase().includes(q); });
   const toggleCat = (c: string) => setCatFilter((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n; });
   const toggleSel = (id: string) => setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const bulkCategory = (cat: string) => { if (sel.size === 0) return; const cmd = compositeCmd([...sel].map((id) => patchDataCmd(rfl, id, { category: cat }, "set category")).filter((c): c is NonNullable<typeof c> => !!c), "bulk categorise"); if (cmd) bus.dispatch(cmd); setNote(`Set ${sel.size} memo${sel.size === 1 ? "" : "s"} → ${cat}`); };
-  const bulkLabel = () => { if (sel.size === 0) return; const base = window.prompt("Set label for the selected memos"); if (base == null) return; const cmd = compositeCmd([...sel].map((id) => patchDataCmd(rfl, id, { label: base.trim() }, "set label")).filter((c): c is NonNullable<typeof c> => !!c), "bulk label"); if (cmd) bus.dispatch(cmd); };
+  const bulkPrompt = (field: "subcategory" | "label" | "course", label: string) => { if (sel.size === 0) return; const val = window.prompt(label); if (val == null) return; const cmd = compositeCmd([...sel].map((id) => patchDataCmd(rfl, id, { [field]: val.trim() }, `set ${field}`)).filter((c): c is NonNullable<typeof c> => !!c), `bulk ${field}`); if (cmd) bus.dispatch(cmd); setNote(`Set ${field} on ${sel.size} memo${sel.size === 1 ? "" : "s"}.`); };
+  /** REMOVE DUPLICATES — keep one memo per (title/label · body · category · subcat),
+   *  delete the rest that AREN'T referenced by a chain/attach edge (never breaks a chain). */
+  const removeDupes = () => {
+    const memoNodes = rf.getNodes().filter((n) => n.type === "memo");
+    const referenced = new Set(rf.getEdges().map((e) => e.source));
+    const seen = new Set<string>();
+    const toDelete: string[] = [];
+    for (const n of memoNodes) {
+      const d = n.data as { title?: string; body?: string; category?: string; subcategory?: string; label?: string };
+      const key = `${(d.label || d.title || "").trim().toLowerCase()}␟${(d.body || "").trim().toLowerCase()}␟${(d.category || "").toLowerCase()}␟${(d.subcategory || "").toLowerCase()}`;
+      if (seen.has(key)) { if (!referenced.has(n.id)) toDelete.push(n.id); } else seen.add(key);
+    }
+    if (toDelete.length === 0) { setNote("No removable duplicates found."); return; }
+    const cmd = removeNodesCmd(rfl, toDelete, `remove ${toDelete.length} duplicate memos`);
+    if (cmd) bus.dispatch(cmd);
+    setSel(new Set());
+    setNote(`Removed ${toDelete.length} duplicate memo${toDelete.length === 1 ? "" : "s"} (kept referenced ones).`);
+  };
   const allShownSel = shownMemos.length > 0 && shownMemos.every((m) => sel.has(m.id));
 
   /** Drop a memo onto a choice → attach it (existing node) to that choice's chain. */
@@ -128,7 +156,7 @@ export function CeqStudio({ decks, setDecks, onClose }: { decks: DeckDef[]; setD
     const m = rf.getNode(memoId); if (!m) return;
     const md = m.data as { label?: string; title?: string; body?: string };
     const label = md.label || memoText(md.title, md.body);
-    const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: chainAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
+    const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const add = addNodesAndEdgesCmd(rfl, [] as never, [edge] as never, "chain arrow"); if (add) bus.dispatch(add);
     const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "attach memo");
     if (patch) bus.dispatch(patch);
@@ -222,7 +250,15 @@ export function CeqStudio({ decks, setDecks, onClose }: { decks: DeckDef[]; setD
         {/* PANE 3 — MEMO LIBRARY */}
         <div className={COL} style={{ maxWidth: 260, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Memo library <span style={{ color: NEON.muted }}>({memos.length})</span></div>
-          <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search labels" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} /></div>
+          <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search title / sub-category" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} /></div>
+          {courses.length > 0 && (
+            <div className="flex items-center gap-1 px-1.5 pt-1"><span className="text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Course</span>
+              <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="min-w-0 flex-1 rounded bg-black/40 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
+                <option value="all">all courses</option>
+                {courses.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
           <div className="flex flex-wrap gap-1 p-1.5">
             {[...MEMO_CATEGORIES, NONE].map((c) => { const on = catFilter.has(c); return (
               <button key={c} className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: on ? "#0B1322" : NEON.muted, background: on ? NEON.yellow : "transparent", border: `1px solid ${on ? NEON.yellow : NEON.borderSoft}` }} onClick={() => toggleCat(c)}>{c === NONE ? "Unfiled" : c}</button>
@@ -239,17 +275,22 @@ export function CeqStudio({ decks, setDecks, onClose }: { decks: DeckDef[]; setD
                 onDragStart={(e) => { e.dataTransfer.setData(MEMO_DND, m.id); e.dataTransfer.effectAllowed = "copy"; }}
                 title="Drag onto a choice to attach · click to select">
                 <button className="shrink-0" style={{ color: on ? NEON.yellow : NEON.muted }} onClick={() => toggleSel(m.id)}>{on ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>
-                <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: NEON.text }}>{m.label}</span>
+                <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: NEON.text }}>{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
                 {m.category && <span className="shrink-0 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }}>{m.category === "ELEMENT" ? "🧩" : m.category.slice(0, 4)}</span>}
               </div>
             ); })}
           </div>
           {/* bulk triage */}
           <div className="flex flex-col gap-1 border-t p-1.5" style={{ borderColor: NEON.borderSoft }}>
-            <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Bulk ({sel.size})</div>
+            <div className="flex items-center justify-between text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>
+              <span>Bulk ({sel.size})</span>
+              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={removeDupes} title="Delete duplicate memos (same title/body/category/subcat); keeps any that are attached to a chain">remove dupes</button>
+            </div>
             <div className="flex flex-wrap gap-1">
-              {MEMO_CATEGORIES.map((c) => <button key={c} className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkCategory(c)} disabled={sel.size === 0}>{c === "ELEMENT" ? "🧩 ELEMENT" : c}</button>)}
-              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkLabel} disabled={sel.size === 0}>set label…</button>
+              {MEMO_CATEGORIES.map((c) => <button key={c} className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkCategory(c)} disabled={sel.size === 0} title="Set the top-level category">{c === "ELEMENT" ? "🧩 ELEMENT" : c}</button>)}
+              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkPrompt("subcategory", "Sub-category for the selected memos (e.g. Bank Reconciliations)")} disabled={sel.size === 0} title="Set a sub-category under the category">set sub…</button>
+              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkPrompt("label", "Title (display name) for the selected memos")} disabled={sel.size === 0} title="Set the memo TITLE / display name (not the category)">set title…</button>
+              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkPrompt("course", "Course tag for the selected memos")} disabled={sel.size === 0} title="Tag with a course (for the course filter)">set course…</button>
             </div>
           </div>
         </div>
