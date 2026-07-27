@@ -1038,6 +1038,10 @@ export type DeckPayloadType = "cards" | "memos";
 export type DeckRunMode = "sequence" | "shuffle";
 /** A fixed slot on the canvas a dealt item locks into (P4 skeleton grid). */
 export interface DeckSlot { x: number; y: number }
+/** CEQ Studio GLOBAL clips (intro/outro/transition) that a set inherits when it has
+ *  no local drop. Persisted in the SCENE (sceneSettings.globalClips) so they survive
+ *  across sessions/URLs — localStorage was per-origin and dropped them on a new deploy. */
+export interface GlobalClips { intro?: TakeRef; outro?: TakeRef; transition?: TakeRef }
 /** One placed element in a set's baseline layout — frame-local position + optional
  *  scale (data.scale). Used for the CEQ card and each chain-memo slot. */
 export interface DeckSlotLayout { x: number; y: number; scale?: number }

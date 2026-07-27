@@ -25,7 +25,7 @@ import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, sta
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type CeqChoice, type DeckDef, type TakeRef } from "./types";
+import { cardId, type CeqCard, type CeqChoice, type DeckDef, type GlobalClips, type TakeRef } from "./types";
 import { NEON } from "./theme";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
@@ -34,7 +34,8 @@ const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 
-export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
+export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
+  const gc = globalClips ?? {};
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
   const nodes = useNodes(); // reactive
@@ -103,10 +104,10 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const stitchCeqs = useMemo(() => questions.map((q) => { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; return { id: q.id, prompt: d?.prompt ?? "", take: d?.take, free: d?.free }; }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   // RESOLVED intro/outro = the set's own local drop, else the GLOBAL fallback. Preview,
   // stitch lists and publish all read these, so what you preview is what publishes.
-  const resolvedIntro = deck?.intro ?? prefs.globalIntro;
-  const resolvedOutro = deck?.outro ?? prefs.globalOutro;
-  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, transition: prefs.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, prefs.transition]);
-  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, transition: prefs.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, prefs.transition]);
+  const resolvedIntro = deck?.intro ?? gc.intro;
+  const resolvedOutro = deck?.outro ?? gc.outro;
+  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition]);
+  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
   // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
   // question number, stem and angle note. Lee's batch-filming worklist.
@@ -211,7 +212,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     setTakeBusy(key); setNote(`Uploading ${kind}…`);
     try {
       const fresh = await stageTake(file);
-      if (kind === "transition") setPrefs({ transition: withPrev(fresh, prefs.transition) });
+      if (kind === "transition") setGlobalClips?.({ transition: withPrev(fresh, gc.transition) });
       else if (deck) setDecks((prev) => updateDeck(prev, deck.id, { [kind]: withPrev(fresh, deck[kind]) }));
       setNote(`Attached ${kind} (${fmtDur(fresh.duration)}).`);
     } catch (e) { setNote(`${kind} upload failed: ${e instanceof Error ? e.message : String(e)}`); }
@@ -223,20 +224,20 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
    *  Toggle the globe on a slot: if the set is already INHERITING the global, turn
    *  the shared global OFF for everyone; otherwise PROMOTE this slot's resolved clip
    *  to the shared global AND drop this set's local so it inherits the global too
-   *  (every set then reads the one file). Stored in panel prefs (localStorage), the
-   *  same shared place the transition lives. */
+   *  (every set then reads the one file). Stored in the SCENE (globalClips), the
+   *  same shared place the transition lives — persists across sessions/deploys. */
   const toggleGlobal = (kind: "intro" | "outro") => {
     if (!deck) return;
     const local = kind === "intro" ? deck.intro : deck.outro;
-    const global = kind === "intro" ? prefs.globalIntro : prefs.globalOutro;
+    const global = kind === "intro" ? gc.intro : gc.outro;
     if (!local && global) { // inheriting → clear the shared global for all sets
-      if (kind === "intro") setPrefs({ globalIntro: undefined }); else setPrefs({ globalOutro: undefined });
+      setGlobalClips?.(kind === "intro" ? { intro: undefined } : { outro: undefined });
       setNote(`Cleared the global ${kind} — sets no longer inherit it.`);
       return;
     }
     const resolved = local ?? global;
     if (!resolved) return;
-    if (kind === "intro") setPrefs({ globalIntro: resolved }); else setPrefs({ globalOutro: resolved });
+    setGlobalClips?.(kind === "intro" ? { intro: resolved } : { outro: resolved });
     setDecks((prev) => updateDeck(prev, deck.id, kind === "intro" ? { intro: undefined } : { outro: undefined }));
     setNote(`Global ${kind} set → every set without its own now inherits "${resolved.name ?? "the clip"}".`);
   };
@@ -244,7 +245,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const clearSlotLocal = (kind: "intro" | "outro") => {
     if (!deck) return;
     setDecks((prev) => updateDeck(prev, deck.id, kind === "intro" ? { intro: undefined } : { outro: undefined }));
-    const global = kind === "intro" ? prefs.globalIntro : prefs.globalOutro;
+    const global = kind === "intro" ? gc.intro : gc.outro;
     setNote(global ? `Cleared this set's ${kind} — it falls back to the global.` : `Cleared this set's ${kind}.`);
   };
 
@@ -712,9 +713,9 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                 <div className="mt-2 flex flex-col gap-1 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
                   <div className="px-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Set clips — drop a video</div>
                   {([
-                    { label: "Intro", kind: "intro", key: `intro:${setId}`, local: deck.intro, global: prefs.globalIntro, onFile: (f: File) => dropSlot("intro", f) },
-                    { label: "Transition", kind: "transition", key: "transition", local: prefs.transition, global: undefined as TakeRef | undefined, onFile: (f: File) => dropSlot("transition", f) },
-                    { label: "Outro", kind: "outro", key: `outro:${setId}`, local: deck.outro, global: prefs.globalOutro, onFile: (f: File) => dropSlot("outro", f) },
+                    { label: "Intro", kind: "intro", key: `intro:${setId}`, local: deck.intro, global: gc.intro, onFile: (f: File) => dropSlot("intro", f) },
+                    { label: "Transition", kind: "transition", key: "transition", local: gc.transition, global: undefined as TakeRef | undefined, onFile: (f: File) => dropSlot("transition", f) },
+                    { label: "Outro", kind: "outro", key: `outro:${setId}`, local: deck.outro, global: gc.outro, onFile: (f: File) => dropSlot("outro", f) },
                   ] as const).map((s) => {
                     // RESOLVED = the set's own clip, else the shared global fallback. The
                     // globe/CLEAR + GLOBAL/CUSTOM badge only apply to intro/outro (gkind);

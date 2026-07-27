@@ -72,7 +72,7 @@ import { LessonVideoSlot } from "@/components/canvas/LessonVideoSlot";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { CeqStudio } from "@/components/canvas/CeqStudio";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type GlobalClips, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -1307,6 +1307,14 @@ function PresentCanvas() {
   const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
   const [studioFocusCeq, setStudioFocusCeq] = useState<string | null>(null); // open Studio focused on this CEQ
   const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
+  // CEQ Studio GLOBAL clips (intro/outro/transition). PERSISTED IN THE SCENE (below)
+  // so they survive across sessions/deploys — they used to live only in localStorage
+  // (per-origin) and vanished on a new preview URL. Migrate the old localStorage value
+  // as the initial seed so an already-set global outro carries over.
+  const [globalClips, setGlobalClipsState] = useState<GlobalClips>(() => {
+    try { const p = JSON.parse(localStorage.getItem("sa-ceq-studio-prefs") || "{}") as { globalIntro?: GlobalClips["intro"]; globalOutro?: GlobalClips["outro"]; transition?: GlobalClips["transition"] }; return { intro: p.globalIntro, outro: p.globalOutro, transition: p.transition }; } catch { return {}; }
+  });
+  const setGlobalClips = useCallback((patch: Partial<GlobalClips>) => setGlobalClipsState((prev) => ({ ...prev, ...patch })), []);
   // ITEM 4e — a transient "flash this deck's member cards" pulse (auto-clears).
   const [deckHighlightId, setDeckHighlightId] = useState<string | null>(null);
   const deckFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4090,14 +4098,14 @@ function PresentCanvas() {
           const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
           return { ...e, data };
         }),
-        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, lastLessonId: lastLessonRef.current, activeLessonId: activeLessonRef.current },
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, globalClips, lastLessonId: lastLessonRef.current, activeLessonId: activeLessonRef.current },
         decks, // NAMED DECKS (P3)
         ceqSets, // CEQ SET factories
       }),
       viewport_json: JSON.stringify(vp),
       bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, ceqSets]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, ceqSets, globalClips]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -4188,6 +4196,7 @@ function PresentCanvas() {
       { const pc = (nj.sceneSettings as { prompterCorner?: string } | undefined)?.prompterCorner; setPrompterCorner(pc === "tl" || pc === "tr" ? pc : "tc"); } // teleprompter corner, default top-center
       { const cl = (nj.sceneSettings as { introClipLength?: number } | undefined)?.introClipLength; if (typeof cl === "number" && cl > 0) setIntroClipLength(cl); setAutoTrimIntros((nj.sceneSettings as { autoTrimIntros?: boolean } | undefined)?.autoTrimIntros !== false); } // auto-trim default on
       { const bn = (nj.sceneSettings as { beatNotes?: Record<string, string> } | undefined)?.beatNotes; if (bn && typeof bn === "object") setBeatNotes((prev) => ({ ...prev, ...bn })); } // global director notes travel with the scene, merged over the local set
+      { const gc = (nj.sceneSettings as { globalClips?: GlobalClips } | undefined)?.globalClips; if (gc && typeof gc === "object") setGlobalClipsState(gc); } // CEQ Studio global intro/outro/transition — scene-persisted so they don't drop on a new deploy
       { const rm = (nj.sceneSettings as { riffMultiplier?: number } | undefined)?.riffMultiplier; if (typeof rm === "number" && rm > 0) setRiffMultiplier(rm); } // read-time riff (PROMPT 3)
       { const rt = (nj.sceneSettings as { readTimeThreshold?: number } | undefined)?.readTimeThreshold; if (typeof rt === "number" && rt > 0) setReadTimeThreshold(rt); }
       { const sx = (nj.sceneSettings as { sfx?: Partial<SfxConfig> } | undefined)?.sfx; setSfx({ muted: sx?.muted ?? SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume, ...(sx?.volume ?? {}) }, file: { ...SFX_DEFAULT.file, ...(sx?.file ?? {}) } }); } // reveal/transition SFX config
@@ -6494,10 +6503,10 @@ function PresentCanvas() {
       {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
       {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
           chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
-      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} initialCeqId={studioFocusCeq} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); }} />}
+      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); }} />}
       {isPopped("ceqstudio") && (
         <PanelPopout win={popWins.ceqstudio!} title="CEQ Studio" onReturn={() => returnPop("ceqstudio")}>
-          <CeqStudio decks={decks} setDecks={setDecks} initialCeqId={studioFocusCeq} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); }} />
+          <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); }} />
         </PanelPopout>
       )}
 
