@@ -5109,9 +5109,9 @@ function PresentCanvas() {
       { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
       { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
-      // RUN TIMESTAMP LOGGING (Lee) — F9 starts/ends a timed run of a whole cram
-      // take, opening the 2nd-monitor timer popout and logging CEQ/frame events.
-      { combo: "f9", group: "Film", description: "Start / end a timed RUN — logs CEQ resolves, deals & frame advances with timestamps (timer popout)", handler: (e) => { e.preventDefault(); toggleRun(); } },
+      // RUN TIMESTAMP LOGGING (F9) removed (Lee) — it got in the way of the new
+      // filming flow; time is tracked off-screen in the CEQ Studio previewer now. The
+      // run machinery (toggleRun/readout/popout) stays defined but is unreachable.
       { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
@@ -5380,12 +5380,7 @@ function PresentCanvas() {
           <RunReadout run={lastRun} />
         </div>
       )}
-      {/* Re-open the readout after it's been closed (a run has been logged). */}
-      {chrome && !runReadoutOpen && !runActive && lastRun && (
-        <button className="fixed bottom-24 left-3 z-[81] flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: "rgba(8,12,24,0.82)", border: `1px solid ${NEON.borderSoft}`, color: NEON.cyan }} onClick={() => setRunReadoutOpen(true)} title="Show the last run's timing readout">
-          <Timer className="h-3.5 w-3.5" /> Last run · {mmss((lastRun.endedAt ?? 0) - lastRun.startedAt)}
-        </button>
-      )}
+      {/* Last-run pill removed (Lee) — out of the way of the new filming flow. */}
       {/* LAST REHEARSAL — persisted total, top-center (Lee's call). Authoring only,
           hidden while a run is live (the HUD shows the running total then). */}
       {chrome && !rehearse && lastRehearsalTotalS != null && (
