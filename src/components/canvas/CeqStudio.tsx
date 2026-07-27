@@ -158,13 +158,30 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const duplicateQuestion = (srcId: string) => {
     const src = rf.getNode(srcId); if (!src || !deck) return;
     const sd = src.data as unknown as CeqCard;
-    const order = nextStageOrder(rf.getNodes() as never);
+    const i = questions.findIndex((q) => q.id === srcId);
+    const insertAt = i < 0 ? questions.length : i + 1; // DIRECTLY below the source
     const id = cardId("ceq");
     const pos = { x: 520, y: 210 };
-    const node = { id, type: "ceq", position: pos, selected: false, data: { kind: "ceq", title: deck.name, prompt: sd.prompt, choices: sd.choices.map((c) => ({ id: cardId("ch"), text: c.text, correct: c.correct })), scale: sd.scale, deckId: deck.id, deckMember: true, tucked: true, stageOrder: order, slotIndex: questions.length, deckCategory: "ceq:studio", deckPos: pos } };
-    const cmd = addNodesCmd(rfl, [node] as never, "duplicate question"); if (cmd) bus.dispatch(cmd);
+    const node = { id, type: "ceq", position: pos, selected: false, data: { kind: "ceq", title: deck.name, prompt: sd.prompt, choices: sd.choices.map((c) => ({ id: cardId("ch"), text: c.text, correct: c.correct })), scale: sd.scale, deckId: deck.id, deckMember: true, tucked: true, stageOrder: insertAt, slotIndex: insertAt, deckCategory: "ceq:studio", deckPos: pos } };
+    // Renumber stageOrder = new index so the dupe lands right under the source and
+    // everything below it shifts down one (instead of appending at the bottom).
+    const newOrder = [...questions.slice(0, insertAt), { id }, ...questions.slice(insertAt)];
+    const reindex = newOrder.map((q, idx) => (q.id === id ? null : patchDataCmd(rfl, q.id, { stageOrder: idx }, "reorder"))).filter((c): c is NonNullable<typeof c> => !!c);
+    const add = addNodesCmd(rfl, [node] as never, "duplicate question");
+    const cmd = compositeCmd([add, ...reindex].filter((c): c is NonNullable<typeof c> => !!c), "duplicate question");
+    if (cmd) bus.dispatch(cmd);
     setQId(id);
-    setNote("Duplicated the question (empty chains) — edit the stem.");
+    setExpandedQ((s) => new Set(s).add(id));
+    setNote("Duplicated the question directly below (empty chains) — edit the stem.");
+  };
+  /** Delete a question from the set — removes the CEQ card + its chain arrows (the
+   *  chained memos stay in the library). Undoable via the command bus. */
+  const deleteQuestion = (id: string) => {
+    const rm = removeNodesCmd(rfl, [id], "delete question");
+    if (!rm) return;
+    if (qId === id) { const i = questions.findIndex((q) => q.id === id); const next = questions[i + 1] ?? questions[i - 1] ?? null; setQId(next ? next.id : null); }
+    bus.dispatch(rm);
+    setNote("Deleted the question (Ctrl+Z to undo).");
   };
   /** Jump to the next/prev question in the set (Space / ‹ › in the previewer). */
   const gotoQuestion = (dir: 1 | -1) => {
@@ -667,7 +684,8 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={take ? `Take ${fmtDur(take.duration)} attached — click to preview · drop a clip to replace` : "Drop a video clip here to attach this question's take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : take ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
                       <button disabled={i === 0} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
                       <button disabled={i === questions.length - 1} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => duplicateQuestion(q.id)} title="Duplicate question (Ctrl+D)"><Copy className="h-3 w-3" /></button>
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => duplicateQuestion(q.id)} title="Duplicate question directly below (Ctrl+D)"><Copy className="h-3 w-3" /></button>
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.red }} onClick={() => deleteQuestion(q.id)} title="Delete question (removes the card + its chain arrows; keeps the memos · Ctrl+Z to undo)"><Trash2 className="h-3 w-3" /></button>
                     </div>
                     {takePreview === q.id && take && (
                       <div className="my-1 ml-4 flex flex-col gap-0.5">
