@@ -48,6 +48,26 @@ export function videoFromDrop(e: React.DragEvent): File | null {
 
 export const fmtDur = (s?: number) => { const t = Math.max(0, Math.round(s ?? 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 
+// ---- DERIVED stitch lists (never stored independently) -----------------------
+export type StitchItem = { kind: "intro" | "transition" | "ceq" | "outro"; ceqId?: string; take: TakeRef; label: string };
+/** FULL = intro → transition → all clip-bearing CEQs in DECK ORDER → outro.
+ *  FREE = same but only free-flagged CEQs. CEQs without a clip are skipped and
+ *  returned in `missing`. Order is derived from the passed ceqs (deck order) only. */
+export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; transition?: TakeRef; outro?: TakeRef; ceqs: { id: string; prompt: string; take?: TakeRef; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
+  const items: StitchItem[] = [];
+  const missing: { id: string; prompt: string }[] = [];
+  if (opts.intro) items.push({ kind: "intro", take: opts.intro, label: "Intro" });
+  if (opts.transition) items.push({ kind: "transition", take: opts.transition, label: "Transition" });
+  for (const c of opts.ceqs) {
+    if (mode === "free" && !c.free) continue;
+    if (!c.take) { missing.push({ id: c.id, prompt: c.prompt }); continue; }
+    items.push({ kind: "ceq", ceqId: c.id, take: c.take, label: c.prompt });
+  }
+  if (opts.outro) items.push({ kind: "outro", take: opts.outro, label: "Outro" });
+  return { items, missing };
+}
+export const stitchRuntime = (items: StitchItem[]) => items.reduce((s, it) => s + (it.take.duration ?? 0), 0);
+
 // ---- panel prefs (localStorage; wrap toggle + the shared transition file) ----
 export interface CeqStudioPrefs { wrapStems?: boolean; transition?: TakeRef }
 const PREFS_KEY = "sa-ceq-studio-prefs";

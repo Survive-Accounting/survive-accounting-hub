@@ -319,6 +319,9 @@ export interface CeqCard extends CardBase {
   note?: string;
   /** TAKE SLOT (CEQ Studio) — one staged raw clip filmed for THIS question. Additive. */
   take?: TakeRef;
+  /** FREE cut (CEQ Studio) — include this question in the FREE stitch list (the FULL
+   *  list is every clip-bearing CEQ). Additive; the stitch order stays deck-derived. */
+  free?: boolean;
   /** COPY LINK (prompt 4) — set on a paste: the id of the ORIGINAL CEQ this was
    *  copied from (outline copy/paste). The copy is independent. Additive. */
   sourceId?: string;

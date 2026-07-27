@@ -7,7 +7,7 @@
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, Library, Lightbulb, ListChecks, Loader2, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -17,7 +17,8 @@ import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
 import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
-import { fmtDur, loadPrefs, savePrefs, stageTake, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
+import { buildStitch, fmtDur, loadPrefs, savePrefs, stageTake, stitchRuntime, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
+import { CeqStitch } from "./CeqStitch";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type CeqChoice, type DeckDef } from "./types";
@@ -65,6 +66,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [takeBusy, setTakeBusy] = useState<string | null>(null); // slot key currently uploading
   const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline
   const [dragKey, setDragKey] = useState<string | null>(null); // slot key a clip is hovering
+  const [stitchMode, setStitchMode] = useState<"free" | "full" | null>(null); // center = sequential preview
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set()); // questions whose memo list stays shown
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
   const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
@@ -91,6 +93,11 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const allEdges = useEdges();
   const chainMemoIds = useMemo(() => { const s = new Set<string>(); (qd?.choices ?? []).forEach((c) => (c.chain ?? []).forEach((it) => s.add(it.memoNodeId))); return s; }, [ceqSig]); // eslint-disable-line react-hooks/exhaustive-deps
   const previewEdges = useMemo(() => allEdges.filter((e) => chainMemoIds.has(e.source)).map((e) => ({ id: e.id, source: e.source, target: e.target })), [allEdges, chainMemoIds]);
+  // DERIVED Free/Full stitch lists — order comes from `questions` (deck order) ONLY.
+  const stitchCeqs = useMemo(() => questions.map((q) => { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; return { id: q.id, prompt: d?.prompt ?? "", take: d?.take, free: d?.free }; }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stitchFree = useMemo(() => buildStitch("free", { intro: deck?.intro, transition: prefs.transition, outro: deck?.outro, ceqs: stitchCeqs }), [stitchCeqs, deck?.intro, deck?.outro, prefs.transition]);
+  const stitchFull = useMemo(() => buildStitch("full", { intro: deck?.intro, transition: prefs.transition, outro: deck?.outro, ceqs: stitchCeqs }), [stitchCeqs, deck?.intro, deck?.outro, prefs.transition]);
+  const freeCount = stitchCeqs.filter((c) => c.free).length;
 
   // ---- SETS -----------------------------------------------------------------
   const newSet = () => {
@@ -489,8 +496,11 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
         {/* PANE 2 — QUESTIONS + editor */}
         <div className={COL} style={{ flex: 1.4, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>
-            <span className="truncate">Questions {deck && <span style={{ color: NEON.muted }}>· {deck.name} ({questions.length})</span>}</span>
+            <span className="truncate">Questions {deck && <span style={{ color: NEON.muted }}>· {deck.name}</span>}</span>
+            {deck && <span className="shrink-0 text-[8.5px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Free-flagged CEQs · all CEQs">Free {freeCount} · Full {questions.length}</span>}
+            {deck && <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + transition + takes + outro)">~{fmtDur(stitchRuntime(stitchFree.items))}/{fmtDur(stitchRuntime(stitchFull.items))}</span>}
             <div className="ml-auto flex shrink-0 items-center gap-1">
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap full stems ↔ clamp to 2 lines (saved)"><WrapText className="h-3 w-3" /> wrap</button>}
               {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
               {deck && memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
@@ -510,6 +520,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
                       <button className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[10.5px] ${wrapStems ? "whitespace-normal break-words" : "line-clamp-2"}`} style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {p}</button>
                       {chained && <span className="mt-0.5 shrink-0" title="Has ≥1 chain item"><Lightbulb className="h-3 w-3" style={{ color: "rgba(252,163,17,0.55)" }} /></span>}
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded text-[8px] font-black" style={{ color: qdata?.free ? "#0B0F1E" : NEON.muted, background: qdata?.free ? "#3BF5A0" : "transparent", border: `1px solid ${qdata?.free ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => patchQ(q.id, { free: !qdata?.free })} title={qdata?.free ? "In the FREE cut — click to remove" : "Add to the FREE cut"}>F</button>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={take ? `Take ${fmtDur(take.duration)} attached — click to preview · drop a clip to replace` : "Drop a video clip here to attach this question's take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : take ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
                       <button disabled={i === 0} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
                       <button disabled={i === questions.length - 1} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
@@ -557,7 +568,11 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1">
-                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                  {stitchMode ? (
+                    <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
+                  ) : (
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                  )}
                 </div>
                 {qd && (
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
