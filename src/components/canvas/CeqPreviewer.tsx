@@ -5,20 +5,37 @@
 // (writes position + data.scale back to the real node, so text scales and the deal
 // matches). It also draws + shows chain arrows (memo → choice / memo → memo).
 //
+// ARROWS mirror the real frame EXACTLY: each choice exposes the same right-side
+// text-end anchor the live CEQ card uses (TextAnchor → id `anc:<choiceId>`), and a
+// memo's arrow leaves its LEFT source ("l"), so the arrow lands on the right side of
+// the choice text — not wrapped around the card. Handles are threaded through from
+// the real edges (CeqStudio's previewEdges now keeps source/targetHandle).
+//
 // PRACTICE (mouse-free, when the pointer is over the preview): CEQ opens BLANK.
 //   Tab / Shift+Tab  — move the emphasis between answer choices (Tab-on-blank → A).
 //   Enter            — resolve the emphasised choice (green / red+strike), then each
 //                      further Enter reveals the next chain item of THAT choice.
 //   Shift+Enter      — step back.
-//   Space            — jump to the next question.  ` (backquote) — reset to blank.
-// A start/stop timer times the run. Practice state is LOCAL — it never dirties the
-// real CEQ, and resets when you switch questions.
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+//   Space            — next question.  Shift+Space — previous.  ` — reset to blank.
+// Keys are captured (capture phase + stopImmediatePropagation) while the pointer is
+// over the preview, so the canvas space-walk / keymap never steals them.
+//
+// REHEARSAL SPOTLIGHTS (mirror the live performance gestures, LOCAL to the preview —
+// never touches the real global spotlight): Ctrl+click a choice / memo / arrow = gold
+// pill; Ctrl+Shift+click = 🔥 super-flame; Ctrl+Alt+Shift+click = 🚨 siren; re-Ctrl+
+// click a lit target clears. Plain / Shift+click still selects an arrow (RF).
+// A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
+// dirty the real CEQ, and reset when you switch questions.
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Timer } from "lucide-react";
 
+import { FLAME_CSS } from "./FilmOverlays";
 import { renderInline } from "./inline-md";
+import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
+import { spotStyle } from "./SpotlightContext";
+import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
 import { NEON, PAPER } from "./theme";
 import { clampScale, type CeqCard } from "./types";
 
@@ -28,6 +45,9 @@ const PracticeContext = createContext<{ emph: number | null; resolved: Set<numbe
 const RevealContext = createContext<Set<string>>(new Set());
 /** Live resize: write a node's data.scale (mini + main store). */
 const ScaleContext = createContext<(id: string, s: number) => void>(() => {});
+/** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
+interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void }
+const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {} });
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
@@ -36,7 +56,7 @@ export const dealCentre = (fw: number, fh: number) => ({ x: Math.max(0, Math.rou
 export const defaultMemoPos = (fw: number, fh: number, i: number) => { const c = dealCentre(fw, fh); return { x: Math.min(fw - 210, c.x + CARD_W + 70), y: Math.max(20, c.y + i * 160) }; };
 
 type MainRf = Pick<ReactFlowInstance, "getNode" | "setNodes" | "setEdges">;
-export type PreviewEdge = { id: string; source: string; target: string };
+export type PreviewEdge = { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null };
 const HANDLE: React.CSSProperties = { width: 9, height: 9, background: NEON.cyan, border: "1.5px solid #05070d" };
 
 /** A corner grip that drives a node's data.scale (300 screen-px ≈ full range). */
@@ -65,10 +85,13 @@ function FrameBgNode({ data }: NodeProps) {
 }
 
 /** Lightweight mock of the CEQ card — BLANK until practiced (emphasis ring, then
- *  green/strike on resolve). Scales with data.scale. */
+ *  green/strike on resolve). Each choice carries the SAME right-side text-end memo
+ *  anchor the real card uses (TextAnchor → `anc:<choiceId>`). Scales with data.scale.
+ *  Ctrl+click a choice = rehearsal spotlight (local). */
 function CeqPreviewNode({ id, data }: NodeProps) {
   const pr = useContext(PracticeContext);
-  const d = data as unknown as { stem: string; choices: { text: string; correct?: boolean }[]; scale?: number };
+  const spot = useContext(PreviewSpotContext);
+  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number };
   const s = d.scale ?? 1;
   return (
     <div style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", padding: 16 * s }}>
@@ -81,44 +104,65 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           const border = st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : emph ? "#B8860B" : PAPER.line;
           const bg = st === "right" ? "rgba(30,127,79,0.12)" : st === "wrong" ? "rgba(194,24,50,0.09)" : "transparent";
           const chipC = st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : emph ? "#B8860B" : PAPER.inkMuted;
+          const key = spotKey(id, c.id);
+          const spState = spot.state(key);
+          const flamed = spot.flamed(key);
           return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${border}`, background: bg, padding: `${9 * s}px ${12 * s}px`, boxShadow: emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined }}>
+            <div
+              key={c.id ?? i}
+              data-flame={flamed ? "on" : undefined}
+              data-flame-tone={flamed ? spot.tone(key) : undefined}
+              onPointerDownCapture={(e) => spot.onClick(key, e)}
+              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${border}`, background: bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...spotStyle(spState) }}
+            >
               <span style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}` }}>{LETTER(i)}</span>
-              <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink, textDecoration: st === "wrong" ? "line-through" : undefined, textDecorationThickness: st === "wrong" ? `${0.1 * 18 * s}px` : undefined }}>{c.text || ""}</span>
+              <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink }}>
+                <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}>{c.text || ""}</TextAnchor>
+              </span>
             </div>
           );
         })}
       </div>
-      <Handle type="target" position={Position.Left} style={{ ...HANDLE, background: PAPER.inkMuted }} />
       <ScaleGrip id={id} scale={s} color={NEON.yellow} />
     </div>
   );
 }
 
-/** A chain memo chip; grayed until revealed by the practice walk. Scales with data.scale. */
+/** A chain memo chip; grayed until revealed by the practice walk. The arrow leaves
+ *  its LEFT source ("l") — matching the real memo card — and a right target ("r")
+ *  receives drops. Ctrl+click = rehearsal spotlight (local). Scales with data.scale. */
 function MemoPreviewNode({ id, data }: NodeProps) {
   const revealed = useContext(RevealContext);
+  const spot = useContext(PreviewSpotContext);
   const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number };
   const s = d.scale ?? 1;
   const walked = revealed.has(id);
+  const key = spotKey(id, "self");
+  const spState = spot.state(key);
+  const flamed = spot.flamed(key);
   return (
-    <div style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : 0.4, filter: walked ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab" }}>
+    <div
+      data-flame={flamed ? "on" : undefined}
+      data-flame-tone={flamed ? spot.tone(key) : undefined}
+      onPointerDownCapture={(e) => spot.onClick(key, e)}
+      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : 0.4, filter: walked ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...spotStyle(spState) }}
+    >
       <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>
       <div style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>
       <div style={{ fontSize: 14 * s, color: NEON.text, lineHeight: 1.25 }}>{d.label}</div>
-      <Handle type="target" position={Position.Left} style={HANDLE} />
-      <Handle type="source" position={Position.Right} style={HANDLE} />
+      <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
+      <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
       <ScaleGrip id={id} scale={s} color={NEON.cyan} />
     </div>
   );
 }
 
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode };
+const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
 function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
   const cd = ceq?.data as unknown as CeqCard | undefined;
-  const centre = dealCentre(frameW, frameH);
   // Flat walk list: each chain memo with its choice index + position within the chain.
   const walk = useMemo(() => {
     const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number }[] = [];
@@ -131,7 +175,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   const [emph, setEmph] = useState<number | null>(null);
   const [resolved, setResolved] = useState<Set<number>>(new Set());
   const [shown, setShown] = useState<Map<number, number>>(new Map());
-  useEffect(() => { setEmph(null); setResolved(new Set()); setShown(new Map()); }, [ceqId]); // BLANK on open / question change
+  // ---- REHEARSAL SPOTLIGHT (local; never touches the real global spotlight) --
+  const [spots, setSpots] = useState<SpotSets>(EMPTY_SPOTS);
+  const [selEdgeIds, setSelEdgeIds] = useState<Set<string>>(new Set());
+  useEffect(() => { setEmph(null); setResolved(new Set()); setShown(new Map()); setSpots(EMPTY_SPOTS); }, [ceqId]); // BLANK on open / question change
   const nChoices = cd?.choices.length ?? 0;
   const chainLenOf = (ci: number) => cd?.choices[ci]?.chain?.length ?? 0;
   const resetPractice = () => { setEmph(null); setResolved(new Set()); setShown(new Map()); };
@@ -150,6 +197,26 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   };
   const revealedMemoIds = useMemo(() => { const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown]);
   const revealedCount = revealedMemoIds.size;
+
+  // Rehearsal-spotlight click: Ctrl+Shift = super (Alt ⇒ siren); Ctrl = toggle a gold
+  // pill (re-click a lit target clears all). Mirror the live gesture + stop the native
+  // event so a draggable preview node never starts a drag on the spotlight click.
+  const spotClick = useCallback((key: string, e: React.PointerEvent) => {
+    if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); setSpots((s) => applySuperClick(s, key, e.altKey ? "warn" : "focus")); return; }
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); setSpots((s) => (s.regular.has(key) || s.superKey === key ? EMPTY_SPOTS : applyRegularClick(s, key))); }
+  }, []);
+  const spotApi = useMemo<PreviewSpotApi>(() => ({
+    state: (key) => (spots.regular.has(key) || spots.superKey === key ? "spot" : null),
+    flamed: (key) => spots.superKey === key,
+    tone: () => spots.superTone ?? "focus",
+    onClick: spotClick,
+  }), [spots, spotClick]);
+  // Ctrl+click an ARROW spotlights it too (same local layer, keyed on the edge id).
+  const onEdgeClick = useCallback((e: React.MouseEvent, edge: Edge) => {
+    const key = spotKey(edge.id, "self");
+    if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); setSpots((s) => applySuperClick(s, key, e.altKey ? "warn" : "focus")); return; }
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); setSpots((s) => (s.regular.has(key) || s.superKey === key ? EMPTY_SPOTS : applyRegularClick(s, key))); }
+  }, []);
 
   const build = useMemo(() => () => {
     if (!ceq || !cd) return [];
@@ -179,15 +246,22 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   const edges: Edge[] = useMemo(() => (chainEdges ?? [])
     .filter((e) => miniIds.has(e.source) && miniIds.has(e.target))
     .map((e) => {
-      const on = revealedMemoIds.has(e.source) && (e.target === ceqId || revealedMemoIds.has(e.target));
-      return { id: e.id, source: e.source, target: e.target, type: "smoothstep", style: { stroke: on ? "#E0284A" : "rgba(147,160,180,0.45)", strokeWidth: 2.5, opacity: on ? 1 : 0.4, strokeDasharray: on ? undefined : "5 4" }, markerEnd: { type: MarkerType.ArrowClosed, color: on ? "#E0284A" : "rgba(147,160,180,0.5)" } } as Edge;
+      const revealed = revealedMemoIds.has(e.source) && (e.target === ceqId || revealedMemoIds.has(e.target));
+      const sk = spotKey(e.id, "self");
+      const flamedE = spots.superKey === sk;
+      const spotE = spots.regular.has(sk) || flamedE;
+      const selectedE = selEdgeIds.has(e.id);
+      const stroke = flamedE ? "#FCA311" : spotE ? "#FFD36A" : selectedE ? NEON.cyan : revealed ? "#E0284A" : "rgba(147,160,180,0.45)";
+      const width = flamedE ? 4 : spotE || selectedE ? 3.5 : 2.5;
+      const lit = revealed || spotE || selectedE;
+      return { id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined, type: "smoothstep", style: { stroke, strokeWidth: width, opacity: lit ? 1 : 0.4, strokeDasharray: lit ? undefined : "5 4" }, markerEnd: { type: MarkerType.ArrowClosed, color: stroke } } as Edge;
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chainEdges, miniIds, revealedMemoIds, ceqId]);
+    [chainEdges, miniIds, revealedMemoIds, ceqId, spots, selEdgeIds]);
   const onConnect = (c: Connection) => {
     if (!c.source || !c.target || c.source === c.target) return;
     const id = `chn-arrow-${c.source}-${c.target}`;
-    mainRf.setEdges((eds) => (eds.some((e) => e.id === id) ? eds : [...eds, { id, source: c.source!, target: c.target!, type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } } as Edge]));
+    mainRf.setEdges((eds) => (eds.some((e) => e.id === id) ? eds : [...eds, { id, source: c.source!, target: c.target!, sourceHandle: c.sourceHandle ?? "l", targetHandle: c.targetHandle ?? undefined, type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } } as Edge]));
   };
 
   // Timer for a practice run.
@@ -196,25 +270,27 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   const startRef = useRef<number | null>(null);
   useEffect(() => { if (!running) return; const iv = window.setInterval(() => { if (startRef.current != null) setElapsed(Date.now() - startRef.current); }, 250); return () => window.clearInterval(iv); }, [running]);
   const toggleRun = () => { if (running) { setRunning(false); return; } startRef.current = Date.now() - elapsed; setRunning(true); };
-  const resetAll = () => { resetPractice(); setRunning(false); setElapsed(0); startRef.current = null; };
+  const resetAll = () => { resetPractice(); setSpots(EMPTY_SPOTS); setRunning(false); setElapsed(0); startRef.current = null; };
 
   // Practice KEYS — only while the pointer is over the preview (so Tab/Enter/Space
-  // don't hijack the rest of the Studio). Ignored while typing in a field.
+  // don't hijack the rest of the Studio). CAPTURE phase + stopImmediatePropagation so
+  // the canvas keymap's own "space" show-key (bubble phase, registered earlier) never
+  // steals Space. Ignored while typing in a field.
   const engagedRef = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!engagedRef.current) return;
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-      if (e.key === "Tab") { e.preventDefault(); tabNav(e.shiftKey ? -1 : 1); return; }
-      if (e.key === "Enter") { e.preventDefault(); if (e.shiftKey) retreat(); else advance(); return; }
-      if (e.key === " " || e.code === "Space") { e.preventDefault(); onNextQuestion?.(); return; }
-      if (e.key === "`" || e.code === "Backquote") { e.preventDefault(); resetPractice(); return; }
+      if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); tabNav(e.shiftKey ? -1 : 1); return; }
+      if (e.key === "Enter") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; }
+      if (e.key === " " || e.code === "Space") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
+      if (e.key === "`" || e.code === "Backquote") { e.preventDefault(); e.stopImmediatePropagation(); resetPractice(); return; }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emph, resolved, shown, cd, onNextQuestion]);
+  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion]);
 
   if (!ceq || !cd) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
 
@@ -222,43 +298,51 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
     <PracticeContext.Provider value={{ emph, resolved }}>
       <RevealContext.Provider value={revealedMemoIds}>
         <ScaleContext.Provider value={setScale}>
-          <div className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
-            <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)" }}>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onNodeDragStop={onDragStop as never}
-                onConnect={onConnect}
-                onSelectionChange={({ nodes: sel }) => onSelectMemo?.((sel.find((n) => n.type === "memoPreview")?.id) ?? null)}
-                onInit={(inst) => { fitRef.current = inst; }}
-                nodeTypes={nodeTypes}
-                fitView
-                fitViewOptions={{ padding: 0.14 }}
-                minZoom={0.04}
-                maxZoom={2}
-                proOptions={{ hideAttribution: true }}
-                connectionMode={ConnectionMode.Loose}
-                nodesConnectable
-                elementsSelectable
-                deleteKeyCode={null}
-                zoomOnDoubleClick={false}
-              >
-                <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="rgba(147,160,180,0.18)" />
-              </ReactFlow>
-            </div>
-            {/* PRACTICE BAR — hover the preview, then Tab/Enter/Space/` (mouse-free). */}
-            <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)" }}>
-              <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
-              <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
-              <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
-              <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{revealedCount}/{walk.length} shown</span>
-              <div className="ml-auto flex items-center gap-1">
-                <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question"><ChevronLeft className="h-3.5 w-3.5" /></button>
-                <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onNextQuestion?.()} title="Next question (Space)"><ChevronRight className="h-3.5 w-3.5" /></button>
+          <PreviewSpotContext.Provider value={spotApi}>
+            {/* FLAME/SIREN CSS injected locally so it works even when the Studio is
+                popped out to a 2nd window (the global copy lives on the main canvas). */}
+            <style>{FLAME_CSS}</style>
+            <div className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
+              <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)" }}>
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onNodeDragStop={onDragStop as never}
+                  onConnect={onConnect}
+                  onEdgeClick={onEdgeClick}
+                  onSelectionChange={({ nodes: sel, edges: selE }) => { onSelectMemo?.((sel.find((n) => n.type === "memoPreview")?.id) ?? null); setSelEdgeIds(new Set(selE.map((e) => e.id))); }}
+                  onInit={(inst) => { fitRef.current = inst; }}
+                  nodeTypes={nodeTypes}
+                  fitView
+                  fitViewOptions={{ padding: 0.14 }}
+                  minZoom={0.04}
+                  maxZoom={2}
+                  proOptions={{ hideAttribution: true }}
+                  connectionMode={ConnectionMode.Loose}
+                  nodesConnectable
+                  elementsSelectable
+                  deleteKeyCode={null}
+                  zoomOnDoubleClick={false}
+                >
+                  <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="rgba(147,160,180,0.18)" />
+                </ReactFlow>
+              </div>
+              {/* PRACTICE BAR — hover the preview, then Tab/Enter/Space/` (mouse-free).
+                  Ctrl+click a choice/memo/arrow = spotlight · +Shift = 🔥 · +Alt+Shift = 🚨. */}
+              <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)" }}>
+                <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
+                <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
+                <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
+                <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{revealedCount}/{walk.length} shown</span>
+                <span className="hidden text-[9px] lg:inline" style={{ color: NEON.muted }} title="Rehearse the live gestures right here">· Ctrl+click = spotlight · +Shift = 🔥</span>
+                <div className="ml-auto flex items-center gap-1">
+                  <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question (Shift+Space)"><ChevronLeft className="h-3.5 w-3.5" /></button>
+                  <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onNextQuestion?.()} title="Next question (Space)"><ChevronRight className="h-3.5 w-3.5" /></button>
+                </div>
               </div>
             </div>
-          </div>
+          </PreviewSpotContext.Provider>
         </ScaleContext.Provider>
       </RevealContext.Provider>
     </PracticeContext.Provider>

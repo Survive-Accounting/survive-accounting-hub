@@ -97,7 +97,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   // chains (memo → choice, memo → memo, …). Reactive so drawn arrows show at once.
   const allEdges = useEdges();
   const chainMemoIds = useMemo(() => { const s = new Set<string>(); (qd?.choices ?? []).forEach((c) => (c.chain ?? []).forEach((it) => s.add(it.memoNodeId))); return s; }, [ceqSig]); // eslint-disable-line react-hooks/exhaustive-deps
-  const previewEdges = useMemo(() => allEdges.filter((e) => chainMemoIds.has(e.source)).map((e) => ({ id: e.id, source: e.source, target: e.target })), [allEdges, chainMemoIds]);
+  const previewEdges = useMemo(() => allEdges.filter((e) => chainMemoIds.has(e.source)).map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle })), [allEdges, chainMemoIds]);
   // DERIVED Free/Full stitch lists — order comes from `questions` (deck order) ONLY.
   const stitchCeqs = useMemo(() => questions.map((q) => { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; return { id: q.id, prompt: d?.prompt ?? "", take: d?.take, free: d?.free }; }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   const stitchFree = useMemo(() => buildStitch("free", { intro: deck?.intro, transition: prefs.transition, outro: deck?.outro, ceqs: stitchCeqs }), [stitchCeqs, deck?.intro, deck?.outro, prefs.transition]);
