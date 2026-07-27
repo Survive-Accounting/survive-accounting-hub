@@ -5014,6 +5014,7 @@ function PresentCanvas() {
       { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("ceq"); } },
       { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("list"); } },
       { combo: "d", group: "Cards", description: "Duplicate the selected card (lands underneath)", handler: () => duplicateSelected() },
+      { combo: "ctrl+d", group: "Cards", description: "Duplicate the selected card (Ctrl+D)", handler: (e) => { e.preventDefault(); duplicateSelected(); } },
       { combo: ">", group: "Cards", description: "Grow the selected card(s) / element(s)", handler: () => scaleSelected(1.06) },
       { combo: "<", group: "Cards", description: "Shrink the selected card(s) / element(s)", handler: () => scaleSelected(1 / 1.06) },
       { combo: "ctrl+shift+>", group: "Cards", description: "Grow the selected card(s) — bigger step (Canva-style)", handler: (e) => { e.preventDefault(); scaleSelected(1.12); } },

@@ -60,6 +60,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set()); // questions whose memo list stays shown
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
   const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
+  const [qClip, setQClip] = useState<{ prompt: string; scale: number; choices: { text: string; correct?: boolean }[]; memos: { label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[] } | null>(null); // copied whole question
 
   // SET ORGANISATION (Lee) — filter the sets list by course → chapter.
   const setCourses = useMemo(() => [...new Set(cardDecks.map((d) => d.course).filter((c): c is string => !!c))].sort(), [cardDecks]);
@@ -285,6 +286,42 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
 
   const toggleChainSel = (memoNodeId: string) => setSelChainMemos((p) => { const n = new Set(p); n.has(memoNodeId) ? n.delete(memoNodeId) : n.add(memoNodeId); return n; });
 
+  /** Copy the CURRENT question (stem + choices + its chain memos, deep) to the
+   *  question clipboard. */
+  const copyQuestion = () => {
+    if (!qId || !qd) return;
+    const memos: NonNullable<typeof qClip>["memos"] = [];
+    qd.choices.forEach((ch, ci) => (ch.chain ?? []).forEach((it) => {
+      const m = rf.getNode(it.memoNodeId); if (!m) return;
+      const md = m.data as { title?: string; body?: string; memoKind?: string; category?: string; subcategory?: string; scale?: number };
+      memos.push({ label: it.label, title: md.title ?? "", body: md.body ?? "", memoKind: md.memoKind ?? "note", category: md.category ?? "", subcategory: md.subcategory ?? "", x: Math.round(m.position.x), y: Math.round(m.position.y), scale: md.scale ?? 1, choiceIdx: ci });
+    }));
+    setQClip({ prompt: qd.prompt, scale: (qNode?.data as { scale?: number } | undefined)?.scale ?? 1, choices: qd.choices.map((c) => ({ text: c.text, correct: c.correct })), memos });
+    setMemoClip([]);
+    setNote(`Copied the question (${memos.length} memo${memos.length === 1 ? "" : "s"}) — Ctrl+V to paste into this set.`);
+  };
+  /** Paste the copied question into the current set (fresh ids, its memos too). */
+  const pasteQuestion = () => {
+    if (!qClip || !deck) return;
+    const order = nextStageOrder(rf.getNodes() as never);
+    const ceqId = cardId("ceq");
+    const choiceIds = qClip.choices.map(() => cardId("ch"));
+    const chainByChoice = new Map<string, { kind: "memo"; memoNodeId: string; label: string }[]>();
+    const memoNodes: Record<string, unknown>[] = [];
+    const newEdges: Record<string, unknown>[] = [];
+    for (const clip of qClip.memos) {
+      const cid = choiceIds[clip.choiceIdx]; if (!cid) continue;
+      const memoId = cardId("memo");
+      memoNodes.push({ id: memoId, type: "memo", position: { x: clip.x, y: clip.y }, selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, scale: clip.scale } });
+      newEdges.push({ id: `chn-${cid}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(cid), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
+      const arr = chainByChoice.get(cid) ?? []; arr.push({ kind: "memo", memoNodeId: memoId, label: clip.label }); chainByChoice.set(cid, arr);
+    }
+    const ceqNode = { id: ceqId, type: "ceq", position: { x: 520, y: 210 }, selected: false, data: { kind: "ceq", title: deck.name, prompt: qClip.prompt, scale: qClip.scale, choices: qClip.choices.map((c, i) => ({ id: choiceIds[i], text: c.text, correct: c.correct, ...(chainByChoice.has(choiceIds[i]) ? { chain: chainByChoice.get(choiceIds[i]) } : {}) })), deckId: deck.id, deckMember: true, tucked: true, stageOrder: order, slotIndex: questions.length, deckCategory: "ceq:studio", deckPos: { x: 520, y: 210 } } };
+    const add = addNodesAndEdgesCmd(rfl, [ceqNode, ...memoNodes] as never, newEdges as never, "paste question"); if (add) bus.dispatch(add);
+    setQId(ceqId);
+    setNote(`Pasted a question (${qClip.memos.length} memo${qClip.memos.length === 1 ? "" : "s"}).`);
+  };
+
   // KEYBOARD — Delete (detach/delete), Ctrl+C/Ctrl+V (copy/paste memos),
   // Ctrl+D (duplicate the question). Ignored while typing in a field.
   useEffect(() => {
@@ -293,8 +330,8 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
       const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
       if (typing) return;
       const ctrl = e.ctrlKey || e.metaKey;
-      if (ctrl && (e.key === "c" || e.key === "C")) { if (selChainMemos.size > 0) { e.preventDefault(); copyMemos(); } return; }
-      if (ctrl && (e.key === "v" || e.key === "V")) { if (memoClip.length > 0 && qId) { e.preventDefault(); pasteMemos(qId); } return; }
+      if (ctrl && (e.key === "c" || e.key === "C")) { e.preventDefault(); if (selChainMemos.size > 0) copyMemos(); else if (qId) copyQuestion(); return; }
+      if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (memoClip.length > 0 && qId) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
       if (ctrl && (e.key === "d" || e.key === "D")) { if (qId) { e.preventDefault(); duplicateQuestion(qId); } return; }
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
@@ -303,7 +340,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewSelMemo, qId, sel, selChainMemos, memoClip]);
+  }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip]);
 
   /** CREATE a brand-new memo straight from the Studio, attached to a choice's chain
    *  and placed (frame-local) so it shows immediately in the previewer. */
