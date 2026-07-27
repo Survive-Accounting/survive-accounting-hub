@@ -86,7 +86,7 @@ export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqI
 }
 
 // ---- panel prefs (localStorage; wrap toggle + the shared transition file) ----
-export interface CeqStudioPrefs { wrapStems?: boolean; transition?: TakeRef }
+export interface CeqStudioPrefs { wrapStems?: boolean; transition?: TakeRef; videoLibOpen?: boolean; costOn?: boolean }
 const PREFS_KEY = "sa-ceq-studio-prefs";
 export function loadPrefs(): CeqStudioPrefs {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as CeqStudioPrefs; } catch { return {}; }

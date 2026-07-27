@@ -19,6 +19,7 @@ import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { CeqStitch } from "./CeqStitch";
+import { CeqVideoLibrary } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
 import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
 import type { LessonBox } from "./types";
@@ -203,6 +204,18 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     if (stitch.missing.length > 0) { setNote(`Publish blocked — ${stitch.missing.length} CEQ(s) in the ${mode} cut have no clip: ${stitch.missing.map((m) => (m.prompt || "?").slice(0, 18)).join(", ")}. Attach clips first.`); return; }
     if (stitch.items.filter((i) => i.kind === "ceq").length === 0) { setNote(`No CEQ clips in the ${mode} cut.`); return; }
     const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+    // Resolve the target lesson + the Mux passthrough scheme UP FRONT so the final
+    // asset carries them: {course}/{topic}/{lesson-name}/{free|full}.
+    const access = mode === "free" ? "FREE" : "PAID";
+    const lessonId = targetLesson(access);
+    const ld = lessonId ? (rf.getNode(lessonId)?.data as unknown as LessonBox | undefined) : undefined;
+    const course = deck.course || "Course";
+    const topic = ld?.topic || deck.chapter || "Topic";
+    const lessonName = ld?.label || deck.name;
+    const sanitize = (s: string) => s.replace(/\//g, "-").trim();
+    const passthrough = `${sanitize(course)}/${sanitize(topic)}/${sanitize(lessonName)}/${mode}`.slice(0, 250);
+    const title = `${lessonName} — ${mode === "free" ? "Free" : "Full"} CEQ`;
+    const runtimeS = Math.round(stitchRuntime(stitch.items) - Math.max(0, stitch.items.length - 1) * (DEFAULT_CROSSFADE_MS / 1000));
     setPublishBusy(mode); setNote(`Publishing ${mode} — detecting the Auphonic preset…`);
     try {
       // Don't double intro/outro if the Auphonic preset already prepends/appends them.
@@ -212,23 +225,21 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
       if (slots.hasIntro) items = items.filter((i) => i.kind !== "intro");
       const urls = items.map((i) => i.take.url);
       // 1) Mux multi-input concat (hard cut)
-      const { assetId } = await startCeqConcat({ data: { urls, passthrough: `ceq-${mode}` } });
+      const { assetId } = await startCeqConcat({ data: { urls, passthrough: `ceq-concat-${mode}` } });
       let mp4Url: string | null = null;
       for (let i = 0; i < 120 && !mp4Url; i++) { const r: Awaited<ReturnType<typeof resolveCeqConcat>> = await resolveCeqConcat({ data: { assetId } }); if (r.status === "errored") throw new Error(r.error ?? "Mux concat failed"); if (r.status === "ready") { mp4Url = r.mp4Url; break; } setNote(`Mux concatenating ${items.length} clips…`); await sleep(4000); }
       if (!mp4Url) throw new Error("Timed out waiting for the Mux concat.");
-      // 2) Auphonic → Supabase → FINAL Mux (reuse the staged pipeline)
+      // 2) Auphonic → Supabase → FINAL Mux (reuse the staged pipeline; carry passthrough + title)
       const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: mp4Url } });
       let muxAssetId: string | null = null; let final: string | null = null;
-      for (let i = 0; i < 240 && !final; i++) { const r: Awaited<ReturnType<typeof resolvePipelineTestAuphonic>> = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId } }); muxAssetId = r.muxAssetId; if (r.stage === "errored") throw new Error(r.error ?? "Pipeline errored"); if (r.stage === "ready") { final = r.playbackId; break; } setNote(r.stage === "auphonic" ? `Auphonic: ${r.auphonicStatus ?? "processing"}…` : "Mux ingesting the processed file…"); await sleep(5000); }
+      for (let i = 0; i < 240 && !final; i++) { const r: Awaited<ReturnType<typeof resolvePipelineTestAuphonic>> = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId, passthrough, title } }); muxAssetId = r.muxAssetId; if (r.stage === "errored") throw new Error(r.error ?? "Pipeline errored"); if (r.stage === "ready") { final = r.playbackId; break; } setNote(r.stage === "auphonic" ? `Auphonic: ${r.auphonicStatus ?? "processing"}…` : "Mux ingesting the processed file…"); await sleep(5000); }
       if (!final) throw new Error("Timed out waiting for the final Mux asset.");
-      // 3) manifest + attach to the Free/Paid CEQ lesson
+      // 3) manifest + attach to the Free/Paid CEQ lesson (+ library metadata)
       const manifest = stitchManifest(stitch.items, DEFAULT_CROSSFADE_MS);
-      const access = mode === "free" ? "FREE" : "PAID";
-      const lessonId = targetLesson(access);
       if (lessonId) {
-        const prevAsset = (rf.getNode(lessonId)?.data as unknown as LessonBox | undefined)?.muxAssetId ?? null;
-        rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest });
-        setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed).${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Concat asset: ${assetId}.`);
+        const prevAsset = ld?.muxAssetId ?? null;
+        rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest, muxPublishedAt: Date.now(), muxDurationS: runtimeS, videoCourse: course, videoChapter: topic });
+        setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed). passthrough "${passthrough}".${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Concat asset: ${assetId}.`);
       } else setNote(`Published ${mode} ✓ (playback ${final}) — no ${access} CEQ lesson found to attach to. Final asset ${muxAssetId}, concat ${assetId}.`);
     } catch (e) { setNote(`Publish ${mode} failed: ${e instanceof Error ? e.message : String(e)}`); }
     finally { setPublishBusy(null); }
@@ -501,6 +512,8 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
+        {/* PANE 0 — VIDEO LIBRARY (leftmost; published videos grouped Course → Chapter) */}
+        <CeqVideoLibrary open={prefs.videoLibOpen !== false} onToggle={() => setPrefs({ videoLibOpen: prefs.videoLibOpen === false })} costOn={!!prefs.costOn} onToggleCost={() => setPrefs({ costOn: !prefs.costOn })} />
         {/* PANE 1 — SETS (collapsible; filter by course → chapter) */}
         {!setsOpen ? (
           <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the sets list">

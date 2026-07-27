@@ -390,7 +390,7 @@ export const startPipelineTestAuphonic = createServerFn({ method: "POST" })
 
 /** 4) Advance Auphonic → ingest → final Mux asset → public playback id. Stateless. */
 export const resolvePipelineTestAuphonic = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ auphonicUuid: z.string().min(6), muxAssetId: z.string().nullable().optional() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ auphonicUuid: z.string().min(6), muxAssetId: z.string().nullable().optional(), passthrough: z.string().max(250).optional(), title: z.string().max(250).optional() }).parse(d))
   .handler(async ({ data }): Promise<{ stage: "auphonic" | "ingesting" | "encoding" | "ready" | "errored"; auphonicStatus: string | null; muxAssetId: string | null; playbackId: string | null; error: string | null }> => {
     muxAuth();
     // Not yet ingested → poll Auphonic; when Done, download + stash + create Mux asset.
@@ -412,7 +412,7 @@ export const resolvePipelineTestAuphonic = createServerFn({ method: "POST" })
       const { data: pub } = supabaseAdmin.storage.from("canvas-media").getPublicUrl(path);
       const asset = await muxApi("/video/v1/assets", {
         method: "POST",
-        body: JSON.stringify({ input: [{ url: pub.publicUrl }], playback_policy: ["public"], passthrough: "pipeline-test" }),
+        body: JSON.stringify({ input: [{ url: pub.publicUrl }], playback_policy: ["public"], passthrough: data.passthrough ?? "pipeline-test", ...(data.title ? { meta: { title: data.title.slice(0, 250) } } : {}) }),
       });
       return { stage: "ingesting", auphonicStatus: ss, muxAssetId: asset.id, playbackId: null, error: null };
     }

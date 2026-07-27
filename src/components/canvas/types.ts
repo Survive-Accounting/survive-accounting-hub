@@ -788,6 +788,12 @@ export interface LessonBox {
    *  (single continuous cram take). Setting muxPlaybackId flips status → PUBLISHED. */
   muxPlaybackId?: string | null;
   muxAssetId?: string | null;
+  /** VIDEO LIBRARY (CEQ Studio) — set at publish so the library can group + cost the
+   *  published videos without re-querying Mux. Additive. */
+  muxPublishedAt?: number;   // epoch ms of the publish
+  muxDurationS?: number;     // published video length, seconds (stitch runtime)
+  videoCourse?: string;      // course for Course → Chapter grouping (from the set)
+  videoChapter?: string;     // chapter/topic for grouping (from the set)
   /** VIDEO STAGING (prompt 2) — ordered RAW files staged in Supabase Storage (NOT
    *  Mux). The lesson video slot drag-drops here; Publish runs the staged pipeline
    *  (Supabase → Auphonic → Mux). Additive scene JSON; the raw never touches Mux. */

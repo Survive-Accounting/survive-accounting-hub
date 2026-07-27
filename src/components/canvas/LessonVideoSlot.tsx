@@ -7,10 +7,11 @@
 // Auphonic keys). MULTI-FILE concat is deferred (see report) — Publish needs one.
 import { useEffect, useRef, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ArrowDown, ArrowUp, CheckCircle2, Clapperboard, Loader2, Play, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, Clapperboard, ExternalLink, Loader2, Play, Upload, X } from "lucide-react";
 
 import { createPipelineTestStagingUpload, startPipelineTestAuphonic, resolvePipelineTestAuphonic } from "@/lib/publish.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { muxAssetUrl } from "./mux-rates";
 import { NEON } from "./theme";
 import type { LessonBox } from "./types";
 
@@ -121,7 +122,9 @@ export function LessonVideoSlot({ lessonId, cramMode, openSignal }: { lessonId: 
           {/* PUBLISHED preview */}
           {published && (
             <div className="flex flex-col gap-1">
-              <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: "#3BF5A0" }}>Published video</div>
+              <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: "#3BF5A0" }}>Published video
+                {d.muxAssetId && <a href={muxAssetUrl(d.muxAssetId)} target="_blank" rel="noreferrer" className="ml-auto grid h-4 w-4 place-items-center rounded" style={{ color: NEON.cyan }} title="View in Mux"><ExternalLink className="h-3 w-3" /></a>}
+              </div>
               <HlsVideo playbackId={published} />
             </div>
           )}
