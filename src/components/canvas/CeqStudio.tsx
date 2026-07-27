@@ -15,7 +15,7 @@ import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patc
 import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
-import { CeqPreviewer } from "./CeqPreviewer";
+import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
@@ -61,6 +61,11 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   // Re-seed signature for the live previewer — CONTENT only (stem/choices/chain), NOT
   // positions, so dragging a memo (which writes position back) never re-seeds/fights.
   const ceqSig = qd ? `${qId}|${qd.prompt}|${qd.choices.map((c) => `${c.text}:${c.correct ? 1 : 0}:${(c.chain ?? []).map((it) => `${it.memoNodeId}~${it.label}`).join(",")}`).join("|")}` : "";
+  // The frame the set will be dealt into — the previewer mirrors ITS size so the
+  // composition you build == the dealt frame exactly. Defaults to a 1600×900 stage.
+  const targetFrame = nav.currentFrameId ? rf.getNode(nav.currentFrameId) : null;
+  const frameW = (targetFrame?.data as { w?: number } | undefined)?.w ?? targetFrame?.width ?? 1600;
+  const frameH = (targetFrame?.data as { h?: number } | undefined)?.h ?? targetFrame?.height ?? 900;
 
   // ---- SETS -----------------------------------------------------------------
   const newSet = () => {
@@ -101,7 +106,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     if (c) bus.dispatch(c);
   };
   /** Flat walk list for a question (choice order → chain index) for the outline. */
-  const walkOf = (q: { id: string }) => { const cc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices ?? []; const list: { choiceId: string; idx: number; label: string; letter: string; num: number }[] = []; cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it, i) => list.push({ choiceId: ch.id, idx: i, label: it.label, letter: LETTER(ci), num: list.length + 1 }))); return list; };
+  const walkOf = (q: { id: string }) => { const cc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices ?? []; const list: { choiceId: string; idx: number; label: string; letter: string; num: number; memoNodeId: string }[] = []; cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it, i) => list.push({ choiceId: ch.id, idx: i, label: it.label, letter: LETTER(ci), num: list.length + 1, memoNodeId: it.memoNodeId }))); return list; };
   const patchChoice = (id: string, choiceId: string, patch: Partial<CeqChoice>) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (ch.id === choiceId ? { ...ch, ...patch } : ch)) }), "edit choice"); if (c) bus.dispatch(c); };
   const setCorrect = (id: string, choiceId: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => ({ ...ch, correct: ch.id === choiceId })) }), "mark correct"); if (c) bus.dispatch(c); };
   const addChoice = (id: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: [...(prev as unknown as { choices: CeqChoice[] }).choices, { id: cardId("ch"), text: "" }] }), "add choice"); if (c) bus.dispatch(c); };
@@ -114,9 +119,11 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     if (cmd) bus.dispatch(cmd);
   };
 
-  /** DEAL the set into the current frame — reparent its CEQ cards ONLY (a tucked
-   *  stack). Chain memos stay put and are revealed via Enter-walk (place them where
-   *  you want with the CEQ previewer). No memos are dealt onto the board. */
+  /** DEAL the set into the current frame — reparent its CEQ cards (a tucked stack)
+   *  AND their chain memos, each at the EXACT position it holds in this previewer.
+   *  The CEQ sits at the deal-centre; memos keep their frame-local spots but are
+   *  hidden in film until Enter-walked (the hiddenOf reconciler owns that). So the
+   *  frame is film-ready — no post-deal editing. */
   const dealIntoFrame = () => {
     const frameId = nav.currentFrameId;
     if (!frameId || !deck) { setNote("Enter a frame first, then Deal."); return; }
@@ -124,20 +131,22 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     if (!frame || frame.type !== "frame") { setNote("Enter a frame first, then Deal."); return; }
     const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
     const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
-    const centre = { x: Math.max(0, Math.round((fw - 560) / 2)), y: Math.max(0, Math.round((fh - 480) / 2)) };
+    const centre = dealCentre(fw, fh);
     const members = questions.map((q) => rf.getNode(q.id)).filter((n): n is NonNullable<typeof n> => !!n);
-    const ids = new Set(members.map((m) => m.id));
+    const memberIds = new Set(members.map((m) => m.id));
+    const memoIds = new Set<string>();
+    for (const m of members) for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) if (it.memoNodeId) memoIds.add(it.memoNodeId);
     bus.dispatch({
       label: `deal ${deck.name} into frame`,
       do: () => rf.setNodes((nds) => nds.map((n) => {
-        if (!ids.has(n.id)) return n;
-        const mi = members.findIndex((m) => m.id === n.id);
-        return { ...n, parentId: frameId, position: { ...centre }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined } } as typeof n;
+        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); return { ...n, parentId: frameId, position: { ...centre }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined } } as typeof n; }
+        if (memoIds.has(n.id)) return { ...n, parentId: frameId, position: { ...n.position } } as typeof n; // frame-local position already set from the previewer
+        return n;
       })),
       undo: () => { /* transient staging move — re-deal to redo; not separately undone */ },
     });
     const c = patchDataCmd(rfl, frameId, { stackDeal: true, dealSpot: centre }, "stack deal"); if (c) bus.dispatch(c);
-    setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} (cards only) — Space flips, Enter reveals chain memos.`);
+    setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} + ${memoIds.size} memo${memoIds.size === 1 ? "" : "s"} — positions match this preview. Film-ready (Enter reveals the memos).`);
   };
 
   // ---- MEMO LIBRARY ---------------------------------------------------------
@@ -170,6 +179,30 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     setNote(`Removed ${toDelete.length} duplicate memo${toDelete.length === 1 ? "" : "s"} (kept referenced ones).`);
   };
   const allShownSel = shownMemos.length > 0 && shownMemos.every((m) => sel.has(m.id));
+
+  /** CREATE a brand-new memo straight from the Studio, attached to a choice's chain
+   *  and placed (frame-local) so it shows immediately in the previewer. */
+  const createMemoForChoice = (ceqId: string, choiceId: string) => {
+    const text = window.prompt("New memo text");
+    if (text == null) return;
+    const label = text.trim() || "Memo";
+    const memoId = cardId("memo");
+    const cc = (rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
+    const chainCount = cc.reduce((s, ch) => s + (ch.chain?.length ?? 0), 0);
+    const memoNode = { id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, chainCount), selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category: "" } };
+    const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
+    const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "create chain memo"); if (add) bus.dispatch(add);
+    const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "add memo to chain"); if (patch) bus.dispatch(patch);
+    setNote(`Created memo "${clip(label, 24)}" — drag it in the preview to place it.`);
+  };
+  /** Rename a chain memo's label (and its memo node's title) — the outline "rename". */
+  const renameChainMemo = (ceqId: string, choiceId: string, idx: number, memoNodeId: string, cur: string) => {
+    const next = window.prompt("Memo label", cur);
+    if (next == null) return;
+    const label = next.trim() || "Memo";
+    const p1 = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: (c.chain ?? []).map((it, i) => (i === idx ? { ...it, label } : it)) } : c)) }), "rename memo label"); if (p1) bus.dispatch(p1);
+    const p2 = patchDataCmd(rfl, memoNodeId, { title: label, label }, "rename memo"); if (p2) bus.dispatch(p2);
+  };
 
   /** Drop a memo onto a choice → attach it (existing node) to that choice's chain. */
   const attachMemoToChoice = (ceqId: string, choiceId: string, memoId: string) => {
@@ -242,7 +275,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                     {qId === q.id && walk.map((w, wi) => (
                       <div key={`${w.choiceId}-${w.idx}`} className="ml-3 flex items-center gap-0.5 py-0.5 text-[9.5px]">
                         <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-[7.5px] font-black" style={{ color: "#0B0F1E", background: NEON.yellow }}>{w.num}</span>
-                        <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }} title={`Choice ${w.letter}: ${w.label}`}>{w.label}</span>
+                        <span className="min-w-0 flex-1 cursor-text truncate" style={{ color: NEON.text }} title={`Choice ${w.letter}: ${w.label} — double-click to rename`} onDoubleClick={() => renameChainMemo(q.id, w.choiceId, w.idx, w.memoNodeId, w.label)}>{w.label}</span>
                         <button disabled={w.idx === 0} className="grid h-3.5 w-3.5 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, -1)} title="Earlier in walk"><ArrowUp className="h-2.5 w-2.5" /></button>
                         <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, 1)} title="Later in walk"><ArrowDown className="h-2.5 w-2.5" /></button>
                       </div>
@@ -254,7 +287,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1">
-                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} />
+                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} />
                 </div>
                 {qd && (
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
@@ -266,7 +299,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                       <div className="max-h-[38vh] overflow-y-auto px-2 pb-2">
                         <div className="flex flex-col gap-2">
                           <textarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onChange={(e) => patchQ(qId!, { prompt: e.target.value })} placeholder="The question stem…" />
-                          <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click ○ to mark correct · drop a memo to chain it</div>
+                          <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click ○ to mark correct · +💡 or drop a memo to chain it</div>
                           {qd.choices.map((ch, ci) => (
                             <div key={ch.id} className="flex items-center gap-1 rounded px-1 py-0.5" style={{ border: `1px solid ${ch.correct ? "rgba(59,245,160,0.5)" : NEON.borderSoft}` }}
                               onDragOver={(e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
@@ -274,6 +307,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                               <button className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8px] font-black" style={{ color: ch.correct ? "#0B0F1E" : NEON.muted, background: ch.correct ? "#3BF5A0" : "transparent", border: `1px solid ${ch.correct ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => setCorrect(qId!, ch.id)} title="Mark correct">{LETTER(ci)}</button>
                               <input className="min-w-0 flex-1 bg-transparent text-[12px] outline-none" style={{ color: NEON.text }} value={ch.text} onChange={(e) => patchChoice(qId!, ch.id, { text: e.target.value })} placeholder={`Choice ${LETTER(ci)}`} />
                               {(ch.chain?.length ?? 0) > 0 && <span className="shrink-0 text-[8px] tabular-nums" style={{ color: NEON.cyan }} title="chain items">⛓{ch.chain!.length}</span>}
+                              <button className="shrink-0 rounded px-1 text-[9px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => createMemoForChoice(qId!, ch.id)} title="Create a memo chained to this choice (appears in the preview)">+💡</button>
                               <button className="shrink-0" style={{ color: NEON.red }} onClick={() => removeChoice(qId!, ch.id)} title="Remove choice"><X className="h-3 w-3" /></button>
                             </div>
                           ))}
