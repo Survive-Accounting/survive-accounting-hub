@@ -48,6 +48,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [chainFor, setChainFor] = useState<string | null>(null); // CEQ node whose chain editor is open
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
+  const [memoSort, setMemoSort] = useState<"recent" | "az">("recent"); // library sort
   const [catFilter, setCatFilter] = useState<Set<string>>(() => new Set([...MEMO_CATEGORIES, NONE]));
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [sel, setSel] = useState<Set<string>>(() => new Set());
@@ -130,6 +131,14 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     setQId(id);
     setNote("Duplicated the question (empty chains) — edit the stem.");
   };
+  /** Jump to the next/prev question in the set (Space / ‹ › in the previewer). */
+  const gotoQuestion = (dir: 1 | -1) => {
+    if (questions.length === 0) return;
+    const i = questions.findIndex((q) => q.id === qId);
+    const ni = i < 0 ? (dir > 0 ? 0 : questions.length - 1) : (i + dir + questions.length) % questions.length;
+    setQId(questions[ni].id);
+    setExpandedQ((s) => new Set(s).add(questions[ni].id));
+  };
   /** Reorder a chain memo within its choice (the outline "renumber"). */
   const reorderChainMemo = (ceqId: string, choiceId: string, idx: number, dir: -1 | 1) => {
     const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => { if (ch.id !== choiceId) return ch; const arr = [...(ch.chain ?? [])]; const j = idx + dir; if (j < 0 || j >= arr.length) return ch; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return { ...ch, chain: arr }; }) }), "renumber chain");
@@ -182,12 +191,13 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   };
 
   // ---- MEMO LIBRARY ---------------------------------------------------------
-  const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string }; return { id: n.id, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase(), subcategory: d.subcategory || "", course: d.course || "" }; }), [nodes]);
+  const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n, i) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string }; return { id: n.id, order: i, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase(), subcategory: d.subcategory || "", course: d.course || "" }; }), [nodes]);
   const courses = useMemo(() => [...new Set(memos.map((m) => m.course).filter(Boolean))].sort(), [memos]);
   const shownMemos = memos
     .filter((m) => catFilter.has(m.category || NONE))
     .filter((m) => courseFilter === "all" || m.course === courseFilter)
-    .filter((m) => { const q = memoQuery.trim().toLowerCase(); return !q || m.label.toLowerCase().includes(q) || m.subcategory.toLowerCase().includes(q); });
+    .filter((m) => { const q = memoQuery.trim().toLowerCase(); return !q || m.label.toLowerCase().includes(q) || m.subcategory.toLowerCase().includes(q); })
+    .sort((a, b) => (memoSort === "az" ? a.label.localeCompare(b.label) : b.order - a.order)); // recent = newest node first
   const toggleCat = (c: string) => setCatFilter((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n; });
   const toggleSel = (id: string) => setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const bulkCategory = (cat: string) => { if (sel.size === 0) return; const cmd = compositeCmd([...sel].map((id) => patchDataCmd(rfl, id, { category: cat }, "set category")).filter((c): c is NonNullable<typeof c> => !!c), "bulk categorise"); if (cmd) bus.dispatch(cmd); setNote(`Set ${sel.size} memo${sel.size === 1 ? "" : "s"} → ${cat}`); };
@@ -477,7 +487,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1">
-                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} onSelectMemo={setPreviewSelMemo} />
+                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                 </div>
                 {qd && (
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
@@ -523,7 +533,9 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Memo library <span style={{ color: NEON.muted }}>({memos.length})</span>
             <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setLibOpen(false)} title="Collapse the memo library"><ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search title / sub-category" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} /></div>
+          <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search title / sub-category" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} />
+            <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMemoSort((s) => (s === "recent" ? "az" : "recent"))} title="Toggle sort: most recent ↔ A–Z">{memoSort === "recent" ? "recent" : "A–Z"}</button>
+          </div>
           {courses.length > 0 && (
             <div className="flex items-center gap-1 px-1.5 pt-1"><span className="text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Course</span>
               <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="min-w-0 flex-1 rounded bg-black/40 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
