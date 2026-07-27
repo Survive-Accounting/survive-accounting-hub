@@ -266,10 +266,16 @@ export interface TAccountCard extends CardBase {
  *  implemented now. `memoNodeId` references a first-class memo NODE; `label` is the
  *  human name shown in run logs + authoring. Additive. */
 export type ChainItemKind = "memo";
+/** Optional one-shot SFX fired when a chain item is Enter-REVEALED in film (never on
+ *  Shift+Enter hide; re-firing on each forward reveal). Absent ⇒ none. A subset of
+ *  SfxEvent, so it can be passed straight to playSfx(). */
+export type ChainSound = "chaching" | "cramLaunch" | "vinylScratch";
 export interface CeqChainItem {
   kind: ChainItemKind;
   memoNodeId: string;
   label: string;
+  /** REVEAL SOUND (Lee, sound pass) — plays on this item's Enter reveal. Additive. */
+  sound?: ChainSound;
 }
 /** A staged raw video clip (in the Supabase canvas-media bucket) attached to a CEQ
  *  take slot / a set's intro-outro / the shared transition. Additive, scene JSON —
@@ -325,10 +331,13 @@ export interface CeqCard extends CardBase {
   /** COPY LINK (prompt 4) — set on a paste: the id of the ORIGINAL CEQ this was
    *  copied from (outline copy/paste). The copy is independent. Additive. */
   sourceId?: string;
-  /** CORRECT-ANSWER SOUND (Lee): play the confirm SFX when the right choice is
-   *  picked on THIS question in film. Default ON (undefined ⇒ plays); toggle off
-   *  per card. */
+  /** CORRECT-ANSWER SOUND (Lee): play the CHACHING sfx when the right choice is
+   *  Enter-resolved on THIS question in film. Default ON (undefined ⇒ plays); the
+   *  "Chaching on correct" opt-out toggle sets this false to silence just this card. */
   confirmSfx?: boolean;
+  /** BOSS CARD (Lee, sound pass): this CEQ fires the cram-launch one-shot when it is
+   *  DEALT in film (a "boss battle" cue). Default off. Additive. */
+  boss?: boolean;
   /** STEM KEYPAD SOUND (choreo Item 5): play the keypad cue as the stem types out
    *  on deal/frame-entry in film. Unlike text/heading keypad (default off), a CEQ
    *  defaults ON (plays unless === false) — the deal IS a type-out. */

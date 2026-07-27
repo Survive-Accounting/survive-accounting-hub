@@ -18,7 +18,7 @@ import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { lessonNodeOf, topicKey, topicOfLessonNode, topicOfNode } from "./memo-scope";
 import { captureChainTemplate, deleteChainTemplate, listChainTemplates } from "./ceq-chain-templates";
-import { cardId, type CeqCard, type CeqChainItem, type CeqChoice, type CeqChainTemplate } from "./types";
+import { cardId, type ChainSound, type CeqCard, type CeqChainItem, type CeqChoice, type CeqChainTemplate } from "./types";
 import { NEON } from "./theme";
 
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
@@ -98,6 +98,9 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
   };
   const renameItem = (choiceId: string, idx: number, label: string) =>
     patchChoice(choiceId, (c) => ({ ...c, chain: (c.chain ?? []).map((it, i) => (i === idx ? { ...it, label } : it)) }));
+  /** Set / clear a chain item's REVEAL sound (fires on its Enter reveal in film). */
+  const setItemSound = (choiceId: string, idx: number, sound: ChainSound | undefined) =>
+    patchChoice(choiceId, (c) => ({ ...c, chain: (c.chain ?? []).map((it, i) => (i === idx ? { ...it, sound } : it)) }));
 
   // ---- Templates (part 5) --------------------------------------------------
   const saveTemplate = () => {
@@ -180,6 +183,13 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
                     <div key={`${it.memoNodeId}-${i}`} className="flex items-center gap-1">
                       <span className="w-3 shrink-0 text-right text-[9px] tabular-nums" style={{ color: NEON.muted }}>{i + 1}</span>
                       <input className={`min-w-0 flex-1 ${FIELD}`} style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={it.label} onChange={(e) => renameItem(c.id, i, e.target.value)} onKeyDown={(e) => e.stopPropagation()} title="Chain item label (shown in the run log)" />
+                      {/* REVEAL SOUND (sound pass) — fires on this item's Enter reveal (film). */}
+                      <select className="nodrag shrink-0 rounded px-0.5 py-0.5 text-[9px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${it.sound ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`, color: it.sound ? NEON.yellow : NEON.muted }} value={it.sound ?? ""} onChange={(e) => setItemSound(c.id, i, (e.target.value || undefined) as ChainSound | undefined)} onKeyDown={(e) => e.stopPropagation()} title="Sound on this item's Enter reveal (film) — none / chaching / cram launch / vinyl scratch">
+                        <option value="">🔇 none</option>
+                        <option value="chaching">🪙 chaching</option>
+                        <option value="cramLaunch">🚀 cram</option>
+                        <option value="vinylScratch">💿 vinyl</option>
+                      </select>
                       <button disabled={i === 0} className="grid h-4 w-4 place-items-center rounded disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => moveItem(c.id, i, -1)} title="Move earlier"><ArrowUp className="h-3 w-3" /></button>
                       <button disabled={i === chain.length - 1} className="grid h-4 w-4 place-items-center rounded disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => moveItem(c.id, i, 1)} title="Move later"><ArrowDown className="h-3 w-3" /></button>
                       <button className="grid h-4 w-4 place-items-center rounded" style={{ color: NEON.red }} onClick={() => removeItem(c.id, i)} title="Remove from chain (keeps the memo node)"><Trash2 className="h-3 w-3" /></button>

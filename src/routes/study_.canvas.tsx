@@ -2292,7 +2292,12 @@ function PresentCanvas() {
       const inFrame = !!node.parentId && rf.getNode(node.parentId)?.type === "frame";
       if (!inFrame) setTimeout(maybeAutoFit, 40); // after the store settles
       // RUN LOG — dealing a CEQ marks a new question on screen ("next card").
-      if (d.kind === "ceq") logRunEvent("deal", `dealt: ${(d as { prompt?: string }).prompt?.trim().slice(0, 44) || "CEQ"}`);
+      if (d.kind === "ceq") {
+        logRunEvent("deal", `dealt: ${(d as { prompt?: string }).prompt?.trim().slice(0, 44) || "CEQ"}`);
+        // BOSS CARD (sound pass): a boss-flagged CEQ fires the cram-launch one-shot on
+        // deal (film only; respects the global mute via playSfx).
+        if (filmRef.current && (d as { boss?: boolean }).boss) playSfx("cramLaunch");
+      }
     },
     [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit, logRunEvent, ceqSweepPlan],
   );
@@ -2355,6 +2360,9 @@ function PresentCanvas() {
         rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...beforeShow.pos }, selected: false } : n)));
       },
     });
+    // BOSS CARD (sound pass): flipping a boss-flagged CEQ into the stack fires the
+    // cram-launch one-shot (film only; the tucked-stack deal path — mirrors deal()).
+    if (filmRef.current && (showNode.data as { boss?: boolean }).boss) playSfx("cramLaunch");
     return true;
   }, [rf, ceqSweepPlan]);
   const frameIsStack = useCallback((frameId: string) => !!(rf.getNode(frameId)?.data as { stackDeal?: boolean } | undefined)?.stackDeal, [rf]);
@@ -2404,12 +2412,17 @@ function PresentCanvas() {
       return patch;
     }, action === "resolve" ? "resolve CEQ" : action === "unresolve" ? "un-resolve CEQ" : action === "reveal" ? "reveal chain item" : "hide chain item");
     if (cmd) bus.dispatch(cmd);
-    // CHACHING — ONLY on the correct-resolve transition (film, per-CEQ confirmSfx). Never on reveals.
-    if (action === "resolve" && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("confirm");
+    // CHACHING — ONLY on the correct-resolve transition (film, per-CEQ confirmSfx opt-out). Never on reveals.
+    if (action === "resolve" && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("chaching");
+    // PER-CHAIN-ITEM SOUND (sound pass): the revealed item's optional sound fires on
+    // its Enter reveal only (film). Shift+Enter (hide) never re-fires; Enter-forward
+    // again = a fresh "reveal" and fires again. Respects the global mute (playSfx).
+    const revealedItem = action === "reveal" ? choice.chain?.[nextShown - 1] : undefined;
+    if (revealedItem?.sound && filmRef.current) playSfx(revealedItem.sound);
     // RUN LOG (part 6): resolve (choice + correct/wrong) and each chain reveal WITH the memo label + elapsed ms.
     const stem = d.prompt?.trim();
     if (action === "resolve") logRunEvent("resolve", `${stem ? stem.slice(0, 40) : "CEQ"} — ${choice.correct ? "✓ right" : "✗ wrong"}`, !!choice.correct);
-    else if (action === "reveal") logRunEvent("reveal", choice.chain?.[nextShown - 1]?.label || "chain item");
+    else if (action === "reveal") logRunEvent("reveal", revealedItem?.label || "chain item");
   }, [rf, logRunEvent]);
 
   // ---- CHOREOGRAPH + SCRUBBER (Items 2-4) -----------------------------------
