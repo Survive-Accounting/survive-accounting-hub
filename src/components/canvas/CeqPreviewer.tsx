@@ -322,7 +322,17 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
                   onNodeDragStop={onDragStop as never}
                   onConnect={onConnect}
                   onEdgeClick={onEdgeClick}
-                  onSelectionChange={({ nodes: sel, edges: selE }) => { onSelectMemo?.((sel.find((n) => n.type === "memoPreview")?.id) ?? null); setSelEdgeIds(new Set(selE.map((e) => e.id))); }}
+                  onSelectionChange={({ nodes: sel, edges: selE }) => {
+                    onSelectMemo?.((sel.find((n) => n.type === "memoPreview")?.id) ?? null);
+                    // STABILIZE (fix #185): RF re-fires onSelectionChange every time the
+                    // controlled `edges` prop is re-adopted; building a fresh Set here each
+                    // time gave `selEdgeIds` a new reference → the `edges` memo (which reads
+                    // it) recomputed → a new edges array → RF re-adopted → re-fired here …
+                    // an infinite setEdges loop. Return the SAME Set when the selection is
+                    // unchanged so React bails and the cycle can't start.
+                    const ids = selE.map((e) => e.id);
+                    setSelEdgeIds((prev) => (prev.size === ids.length && ids.every((id) => prev.has(id)) ? prev : new Set(ids)));
+                  }}
                   onInit={(inst) => { fitRef.current = inst; }}
                   nodeTypes={nodeTypes}
                   fitView
