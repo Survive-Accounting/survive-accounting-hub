@@ -34,6 +34,7 @@ import { FLAME_CSS } from "./FilmOverlays";
 import { renderInline } from "./inline-md";
 import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
+import { playSfx } from "./sfx";
 import { spotStyle } from "./SpotlightContext";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
 import { NEON, PAPER } from "./theme";
@@ -181,7 +182,14 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   // ---- REHEARSAL SPOTLIGHT (local; never touches the real global spotlight) --
   const [spots, setSpots] = useState<SpotSets>(EMPTY_SPOTS);
   const [selEdgeIds, setSelEdgeIds] = useState<Set<string>>(new Set());
-  useEffect(() => { setEmph(null); setResolved(new Set()); setShown(new Map()); setSpots(EMPTY_SPOTS); }, [ceqId]); // BLANK on open / question change
+  // BOSS test cue (Lee): hear the cram-launch when you ADVANCE to a boss-flagged CEQ
+  // in the previewer (not on the first open). Read the flag fresh from the main store.
+  const bossArmed = useRef(false);
+  useEffect(() => {
+    setEmph(null); setResolved(new Set()); setShown(new Map()); setSpots(EMPTY_SPOTS); // BLANK on open / question change
+    if (bossArmed.current && !!(mainRf.getNode(ceqId)?.data as { boss?: boolean } | undefined)?.boss) playSfx("cramLaunch");
+    bossArmed.current = true;
+  }, [ceqId, mainRf]);
   const nChoices = cd?.choices.length ?? 0;
   const chainLenOf = (ci: number) => cd?.choices[ci]?.chain?.length ?? 0;
   const resetPractice = () => { setEmph(null); setResolved(new Set()); setShown(new Map()); };
@@ -189,8 +197,18 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   const advance = () => { // Enter — resolve the emphasised choice, then walk its chain
     const e = emph == null ? 0 : emph;
     if (emph == null) setEmph(0);
-    if (!resolved.has(e)) { setResolved((r) => new Set(r).add(e)); setShown((s) => new Map(s).set(e, 0)); }
-    else { const cur = shown.get(e) ?? 0; if (cur < chainLenOf(e)) setShown((s) => new Map(s).set(e, cur + 1)); }
+    if (!resolved.has(e)) {
+      setResolved((r) => new Set(r).add(e)); setShown((s) => new Map(s).set(e, 0));
+      // CHACHING test cue (Lee): hear it on the correct-resolve when the CEQ is
+      // chaching-on (confirmSfx !== false). playSfx respects the global mute.
+      if (cd?.choices[e]?.correct && cd?.confirmSfx !== false) playSfx("chaching");
+    } else {
+      const cur = shown.get(e) ?? 0;
+      if (cur < chainLenOf(e)) {
+        setShown((s) => new Map(s).set(e, cur + 1));
+        const it = cd?.choices[e]?.chain?.[cur]; if (it?.sound) playSfx(it.sound); // per-chain-item reveal sound
+      }
+    }
   };
   const retreat = () => { // Shift+Enter
     if (emph == null) return;
@@ -372,12 +390,16 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
 
 /** CONTAINMENT boundary — a bug in the isolated previewer must NEVER take down the
  *  whole authoring canvas (which would surface as the route's "This page didn't load").
- *  It catches, logs, and shows a recoverable fallback scoped to the preview pane; a
- *  question change (key=ceqId) resets it so a bad question doesn't wedge the rest. */
-class PreviewErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+ *  It catches, logs, and shows a recoverable fallback scoped to the preview pane. It is
+ *  NOT keyed on the question (that remounted the whole previewer every advance, resetting
+ *  the pointer-engaged flag so Space/Shift+Space died after one press) — instead it
+ *  clears a stale error when `resetKey` (the question) changes, so a bad question can't
+ *  wedge the pane while a healthy one keeps its mounted state. */
+class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
   static getDerivedStateFromError(error: Error) { return { error }; }
   componentDidCatch(error: Error) { console.error("[CeqPreviewer] crashed (contained):", error); }
+  componentDidUpdate(prev: { resetKey: string }) { if (this.state.error && prev.resetKey !== this.props.resetKey) this.setState({ error: null }); }
   render() {
     if (this.state.error) {
       return (
@@ -397,7 +419,7 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode }, { error: E
 export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
-    <PreviewErrorBoundary key={ceqId}>
+    <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
         <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
       </ReactFlowProvider>
