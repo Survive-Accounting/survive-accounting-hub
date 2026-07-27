@@ -26,13 +26,13 @@
 // click a lit target clears. Plain / Shift+click still selects an arrow (RF).
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Timer } from "lucide-react";
 
 import { FLAME_CSS } from "./FilmOverlays";
 import { renderInline } from "./inline-md";
-import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
+import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { spotStyle } from "./SpotlightContext";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
@@ -116,9 +116,12 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${border}`, background: bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...spotStyle(spState) }}
             >
               <span style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}` }}>{LETTER(i)}</span>
-              <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink }}>
-                <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}>{c.text || ""}</TextAnchor>
-              </span>
+              <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink, textDecoration: st === "wrong" ? "line-through" : undefined, textDecorationThickness: st === "wrong" ? "0.1em" : undefined }}>{c.text || ""}</span>
+              {/* Right-side memo anchor — the SAME id the real card uses (anc:<choiceId>)
+                  so a memo arrow lands on the choice's right edge. A STATIC handle (no
+                  useUpdateNodeInternals) — RF measures it on mount, so no per-render
+                  handle churn in this nested flow. */}
+              <Handle type="target" position={Position.Right} id={memoAnchorId(c.id)} isConnectable={false} style={{ right: -2, top: "50%", transform: "translateY(-50%)", width: 8, height: 8, background: "transparent", border: "none", opacity: 0, pointerEvents: "none" }} />
             </div>
           );
         })}
@@ -357,11 +360,37 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   );
 }
 
+/** CONTAINMENT boundary — a bug in the isolated previewer must NEVER take down the
+ *  whole authoring canvas (which would surface as the route's "This page didn't load").
+ *  It catches, logs, and shows a recoverable fallback scoped to the preview pane; a
+ *  question change (key=ceqId) resets it so a bad question doesn't wedge the rest. */
+class PreviewErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error) { console.error("[CeqPreviewer] crashed (contained):", error); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="grid h-full place-items-center p-3 text-center text-[11px]" style={{ color: NEON.muted }}>
+          <div>
+            <div style={{ color: "#FF8B9E", fontWeight: 700 }}>Preview hit an error.</div>
+            <div className="mt-1">The rest of the Studio is fine — pick another question, or reopen the Studio.</div>
+            <button className="mt-2 rounded px-2 py-0.5 text-[10px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => this.setState({ error: null })}>retry</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
-    <ReactFlowProvider>
-      <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
-    </ReactFlowProvider>
+    <PreviewErrorBoundary key={ceqId}>
+      <ReactFlowProvider>
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
+      </ReactFlowProvider>
+    </PreviewErrorBoundary>
   );
 }
