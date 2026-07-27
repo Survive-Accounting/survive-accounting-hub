@@ -7,7 +7,7 @@
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckSquare, ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Copy, ExternalLink, Library, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, Library, Lightbulb, ListChecks, Loader2, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -17,6 +17,7 @@ import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
 import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
+import { fmtDur, loadPrefs, savePrefs, stageTake, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type CeqChoice, type DeckDef } from "./types";
@@ -58,6 +59,12 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [setsCourseFilter, setSetsCourseFilter] = useState("all"); // filter sets by course
   const [setsChapterFilter, setSetsChapterFilter] = useState("all"); // filter sets by chapter
   const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
+  const [prefs, setPrefsState] = useState<CeqStudioPrefs>(() => loadPrefs()); // panel prefs (wrap toggle + shared transition)
+  const setPrefs = (p: Partial<CeqStudioPrefs>) => setPrefsState((cur) => { const n = { ...cur, ...p }; savePrefs(n); return n; });
+  const wrapStems = !!prefs.wrapStems;
+  const [takeBusy, setTakeBusy] = useState<string | null>(null); // slot key currently uploading
+  const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline
+  const [dragKey, setDragKey] = useState<string | null>(null); // slot key a clip is hovering
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set()); // questions whose memo list stays shown
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
   const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
@@ -139,6 +146,38 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     setQId(questions[ni].id);
     setExpandedQ((s) => new Set(s).add(questions[ni].id));
   };
+
+  // ---- TAKE SLOTS (per-CEQ + per-set intro/outro + shared transition) --------
+  /** Stage a dropped clip into a CEQ's take slot (keeps ONE prior version). */
+  const dropTake = async (ceqId: string, file: File) => {
+    if (takeBusy) return; setTakeBusy(ceqId); setNote("Uploading take to Supabase…");
+    try {
+      const fresh = await stageTake(file);
+      const old = (rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)?.take;
+      patchQ(ceqId, { take: withPrev(fresh, old) });
+      setNote(`Attached take (${fmtDur(fresh.duration)}) — click the ✓ to preview.`);
+    } catch (e) { setNote(`Take upload failed: ${e instanceof Error ? e.message : String(e)}`); }
+    finally { setTakeBusy(null); }
+  };
+  /** Stage a dropped clip into a set's INTRO/OUTRO (per set) or the shared TRANSITION. */
+  const dropSlot = async (kind: "intro" | "outro" | "transition", file: File) => {
+    const key = kind === "transition" ? "transition" : `${kind}:${setId}`;
+    if (takeBusy || (kind !== "transition" && !deck)) return;
+    setTakeBusy(key); setNote(`Uploading ${kind}…`);
+    try {
+      const fresh = await stageTake(file);
+      if (kind === "transition") setPrefs({ transition: withPrev(fresh, prefs.transition) });
+      else if (deck) setDecks((prev) => updateDeck(prev, deck.id, { [kind]: withPrev(fresh, deck[kind]) }));
+      setNote(`Attached ${kind} (${fmtDur(fresh.duration)}).`);
+    } catch (e) { setNote(`${kind} upload failed: ${e instanceof Error ? e.message : String(e)}`); }
+    finally { setTakeBusy(null); }
+  };
+  const clearTake = (ceqId: string) => { patchQ(ceqId, { take: undefined }); if (takePreview === ceqId) setTakePreview(null); };
+  const dragProps = (key: string, onFile: (f: File) => void) => ({
+    onDragOver: (e: React.DragEvent) => { if (Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); if (dragKey !== key) setDragKey(key); } },
+    onDragLeave: (e: React.DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragKey((k) => (k === key ? null : k)); },
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); setDragKey(null); const f = videoFromDrop(e); if (f) void onFile(f); },
+  });
   /** Reorder a chain memo within its choice (the outline "renumber"). */
   const reorderChainMemo = (ceqId: string, choiceId: string, idx: number, dir: -1 | 1) => {
     const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => { if (ch.id !== choiceId) return ch; const arr = [...(ch.chain ?? [])]; const j = idx + dir; if (j < 0 || j >= arr.length) return ch; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return { ...ch, chain: arr }; }) }), "renumber chain");
@@ -450,27 +489,38 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
         {/* PANE 2 — QUESTIONS + editor */}
         <div className={COL} style={{ flex: 1.4, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>
-            Questions {deck && <span style={{ color: NEON.muted }}>· {deck.name} ({questions.length})</span>}
-            {deck && selChainMemos.size > 0 && <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
-            {deck && memoClip.length > 0 && qId && <button className={`${selChainMemos.size > 0 ? "" : "ml-auto "}flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase`} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
-            {deck && <button className={`${selChainMemos.size > 0 || (memoClip.length > 0 && qId) ? "" : "ml-auto "}flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase`} style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> deal into frame</button>}
+            <span className="truncate">Questions {deck && <span style={{ color: NEON.muted }}>· {deck.name} ({questions.length})</span>}</span>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap full stems ↔ clamp to 2 lines (saved)"><WrapText className="h-3 w-3" /> wrap</button>}
+              {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
+              {deck && memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> deal into frame</button>}
+            </div>
           </div>
           {!deck ? (
             <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Pick or create a set on the left.</div>
           ) : (
             <div className="flex min-h-0 flex-1">
-              {/* OUTLINE — CEQ → its chain memos (renumber via up/down) */}
-              <div className="min-h-0 w-48 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
+              {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
+              <div className="min-h-0 w-56 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
-                {questions.map((q, i) => { const p = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; return (
+                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const take = qdata?.take; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const dropOn = dragKey === q.id; return (
                   <div key={q.id}>
-                    <div className="flex items-center gap-0.5">
-                      <button className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
-                      <button className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[10.5px]" style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {clip(p, 18)}</button>
-                      <button disabled={i === 0} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
-                      <button disabled={i === questions.length - 1} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
-                      <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.muted }} onClick={() => duplicateQuestion(q.id)} title="Duplicate question (Ctrl+D) — fresh copy, empty chains"><Copy className="h-3 w-3" /></button>
+                    <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : undefined }} {...dragProps(q.id, (f) => dropTake(q.id, f))}>
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
+                      <button className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[10.5px] ${wrapStems ? "whitespace-normal break-words" : "line-clamp-2"}`} style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {p}</button>
+                      {chained && <span className="mt-0.5 shrink-0" title="Has ≥1 chain item"><Lightbulb className="h-3 w-3" style={{ color: "rgba(252,163,17,0.55)" }} /></span>}
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={take ? `Take ${fmtDur(take.duration)} attached — click to preview · drop a clip to replace` : "Drop a video clip here to attach this question's take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : take ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
+                      <button disabled={i === 0} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
+                      <button disabled={i === questions.length - 1} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => duplicateQuestion(q.id)} title="Duplicate question (Ctrl+D)"><Copy className="h-3 w-3" /></button>
                     </div>
+                    {takePreview === q.id && take && (
+                      <div className="my-1 ml-4 flex flex-col gap-0.5">
+                        <video src={take.url} controls playsInline className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} />
+                        <div className="flex items-center gap-1 text-[8.5px]" style={{ color: NEON.muted }}><span className="min-w-0 flex-1 truncate" title={take.name}>{take.name || "clip"} · {fmtDur(take.duration)}{take.prev ? " · v2" : ""}</span><button style={{ color: NEON.red }} onClick={() => clearTake(q.id)} title="Remove this take">remove</button></div>
+                      </div>
+                    )}
                     {expanded && walk.map((w, wi) => { const msel = selChainMemos.has(w.memoNodeId); return (
                       <div key={`${w.choiceId}-${w.idx}`} className="ml-3 flex items-center gap-0.5 rounded py-0.5 text-[9.5px]" style={{ background: msel ? "rgba(79,163,227,0.18)" : "transparent" }}>
                         <button className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-[7.5px] font-black" style={{ color: "#0B0F1E", background: msel ? NEON.cyan : NEON.yellow }} onClick={() => toggleChainSel(w.memoNodeId)} title="Select for copy (Ctrl+C) — click to toggle">{w.num}</button>
@@ -483,6 +533,26 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                   </div>
                 ); })}
                 <button className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={addQuestion}><Plus className="h-3 w-3" /> question</button>
+                {/* SPECIAL SLOTS — INTRO/OUTRO per set, TRANSITION shared across sets */}
+                <div className="mt-2 flex flex-col gap-1 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+                  <div className="px-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Set clips — drop a video</div>
+                  {([
+                    { label: "Intro", key: `intro:${setId}`, take: deck.intro, onFile: (f: File) => dropSlot("intro", f) },
+                    { label: "Transition", key: "transition", take: prefs.transition, onFile: (f: File) => dropSlot("transition", f) },
+                    { label: "Outro", key: `outro:${setId}`, take: deck.outro, onFile: (f: File) => dropSlot("outro", f) },
+                  ] as const).map((s) => (
+                    <div key={s.key}>
+                      <div className="flex items-center gap-1 rounded px-1 py-0.5" style={{ background: dragKey === s.key ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.2)", outline: dragKey === s.key ? `1px dashed ${NEON.yellow}` : `1px solid ${NEON.borderSoft}` }} {...dragProps(s.key, s.onFile)}>
+                        <span className="w-16 shrink-0 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>{s.label}{s.label === "Transition" ? " ·shared" : ""}</span>
+                        <span className="min-w-0 flex-1 truncate text-[9px]" style={{ color: s.take ? NEON.text : NEON.muted }} title={s.take?.name}>{s.take ? `${s.take.name} · ${fmtDur(s.take.duration)}` : "drop a clip"}</span>
+                        <button className="grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === s.key ? null : s.key))} title={s.take ? "Preview" : "Drop a clip to attach"}>{takeBusy === s.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : s.take ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
+                      </div>
+                      {takePreview === s.key && s.take && (
+                        <div className="my-1 ml-1"><video src={s.take.url} controls playsInline className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} /></div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">

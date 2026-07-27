@@ -271,6 +271,17 @@ export interface CeqChainItem {
   memoNodeId: string;
   label: string;
 }
+/** A staged raw video clip (in the Supabase canvas-media bucket) attached to a CEQ
+ *  take slot / a set's intro-outro / the shared transition. Additive, scene JSON —
+ *  no SQL. `prev` keeps ONE prior version when a slot is re-dropped. */
+export interface TakeRef {
+  url: string;   // durable public URL (Supabase)
+  path: string;  // storage path in canvas-media
+  name?: string; // original filename
+  duration?: number; // seconds, read at attach
+  prev?: { url: string; path: string; name?: string; duration?: number };
+}
+
 export interface CeqChoice {
   id: string;
   text: string;
@@ -306,6 +317,8 @@ export interface CeqCard extends CardBase {
   /** PER-CEQ SCRIPT NOTE (cram-mode batch) — a line Lee jots per question, shown
    *  in the script dock while cram mode is on. Additive; frame script untouched. */
   note?: string;
+  /** TAKE SLOT (CEQ Studio) — one staged raw clip filmed for THIS question. Additive. */
+  take?: TakeRef;
   /** COPY LINK (prompt 4) — set on a paste: the id of the ORIGINAL CEQ this was
    *  copied from (outline copy/paste). The copy is independent. Additive. */
   sourceId?: string;
@@ -1023,6 +1036,10 @@ export interface DeckDef {
    *  can group/filter sets by course → chapter. Additive; free-text. */
   course?: string;
   chapter?: string;
+  /** CEQ Studio special slots (per set): INTRO + OUTRO staged clips. The shared
+   *  TRANSITION lives in panel prefs (one file across all sets). Additive. */
+  intro?: TakeRef;
+  outro?: TakeRef;
   createdAt?: string;
   updatedAt?: string;
 }

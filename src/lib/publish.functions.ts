@@ -355,12 +355,13 @@ export const resolvePreview = createServerFn({ method: "POST" })
  *  reads the durable public URL — which Auphonic fetches and the panel previews
  *  as RAW. Path carries a fresh id, so no collision / upsert needed. */
 export const createPipelineTestStagingUpload = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ ext: z.string().max(12).optional() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ ext: z.string().max(12).optional(), folder: z.string().max(40).optional() }).parse(d))
   .handler(async ({ data }): Promise<{ path: string; token: string; publicUrl: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ext = (data.ext ?? "mp4").replace(/[^a-z0-9]/gi, "").slice(0, 8) || "mp4";
+    const folder = (data.folder ?? "pipeline-test").replace(/[^a-z0-9-]/gi, "").slice(0, 40) || "pipeline-test";
     const uid = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const path = `pipeline-test/raw-${uid}.${ext}`;
+    const path = `${folder}/raw-${uid}.${ext}`;
     const { data: signed, error } = await supabaseAdmin.storage.from("canvas-media").createSignedUploadUrl(path);
     if (error || !signed) throw new Error(`Could not open a Supabase upload — ${error?.message ?? "no signed URL returned"}. Ensure the "canvas-media" bucket exists.`);
     const { data: pub } = supabaseAdmin.storage.from("canvas-media").getPublicUrl(path);
