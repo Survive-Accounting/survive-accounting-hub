@@ -32,7 +32,7 @@ import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Timer } from "lucide
 
 import { FLAME_CSS } from "./FilmOverlays";
 import { renderInline } from "./inline-md";
-import { memoAnchorId } from "./MemoLightbulb";
+import { TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { playSfx } from "./sfx";
 import { spotStyle } from "./SpotlightContext";
@@ -117,12 +117,14 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${border}`, background: bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...spotStyle(spState) }}
             >
               <span style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}` }}>{LETTER(i)}</span>
-              <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink, textDecoration: st === "wrong" ? "line-through" : undefined, textDecorationThickness: st === "wrong" ? "0.1em" : undefined }}>{c.text || ""}</span>
-              {/* Right-side memo anchor — the SAME id the real card uses (anc:<choiceId>)
-                  so a memo arrow lands on the choice's right edge. A STATIC handle (no
-                  useUpdateNodeInternals) — RF measures it on mount, so no per-render
-                  handle churn in this nested flow. */}
-              <Handle type="target" position={Position.Right} id={memoAnchorId(c.id)} isConnectable={false} style={{ right: -2, top: "50%", transform: "translateY(-50%)", width: 8, height: 8, background: "transparent", border: "none", opacity: 0, pointerEvents: "none" }} />
+              {/* TextAnchor drops the anc:<choiceId> handle ~7px past the choice TEXT
+                  (exactly like the real dealt card), so the memo arrow lands AT the choice
+                  — right after "Asset" — not at the card's far edge. It measures the text
+                  end + re-reads on reflow via updateNodeInternals; the #185 loop was a
+                  separate selEdgeIds bug (fixed), so this is safe again. */}
+              <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink }}>
+                <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}>{c.text || ""}</TextAnchor>
+              </span>
             </div>
           );
         })}
@@ -233,10 +235,13 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
     onClick: spotClick,
   }), [spots, spotClick]);
   // Ctrl+click an ARROW spotlights it too (same local layer, keyed on the edge id).
+  // SPOTLIGHT AN ARROW (Lee): Ctrl+Shift+click → super/flame (🔥, +Alt = 🚨); Ctrl OR
+  // SHIFT click → toggle a spotlight on the arrow. Spotlit/flamed arrows ANIMATE (see
+  // the edges memo). Used at Lee's discretion, like the card spotlight/super-spotlight.
   const onEdgeClick = useCallback((e: React.MouseEvent, edge: Edge) => {
     const key = spotKey(edge.id, "self");
     if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); setSpots((s) => applySuperClick(s, key, e.altKey ? "warn" : "focus")); return; }
-    if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); setSpots((s) => (s.regular.has(key) || s.superKey === key ? EMPTY_SPOTS : applyRegularClick(s, key))); }
+    if (e.ctrlKey || e.metaKey || e.shiftKey) { e.preventDefault(); e.stopPropagation(); setSpots((s) => (s.regular.has(key) || s.superKey === key ? EMPTY_SPOTS : applyRegularClick(s, key))); }
   }, []);
 
   const build = useMemo(() => () => {
@@ -275,7 +280,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
       const stroke = flamedE ? "#FCA311" : spotE ? "#FFD36A" : selectedE ? NEON.cyan : revealed ? "#E0284A" : "rgba(147,160,180,0.45)";
       const width = flamedE ? 4 : spotE || selectedE ? 3.5 : 2.5;
       const lit = revealed || spotE || selectedE;
-      return { id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined, type: "smoothstep", style: { stroke, strokeWidth: width, opacity: lit ? 1 : 0.4, strokeDasharray: lit ? undefined : "5 4" }, markerEnd: { type: MarkerType.ArrowClosed, color: stroke } } as Edge;
+      // Spotlit/flamed → RF's flowing-dash `animated` + a glow (Lee's "show animation
+      // of it"). markerEnd sized up so the ← arrowhead reads at the choice.
+      return { id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined, type: "smoothstep", animated: spotE, style: { stroke, strokeWidth: width, opacity: lit ? 1 : 0.4, strokeDasharray: spotE ? undefined : lit ? undefined : "5 4", filter: flamedE ? "drop-shadow(0 0 6px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 4px rgba(255,211,106,0.8))" : undefined }, markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 } } as Edge;
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [chainEdges, miniIds, revealedMemoIds, ceqId, spots, selEdgeIds]);
