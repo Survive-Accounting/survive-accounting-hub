@@ -338,6 +338,11 @@ export interface CeqCard extends CardBase {
   /** BOSS CARD (Lee, sound pass): this CEQ fires the cram-launch one-shot when it is
    *  DEALT in film (a "boss battle" cue). Default off. Additive. */
   boss?: boolean;
+  /** SHORTS-WORTHY (Lee, verticals): flagged for a vertical short; `shortNote` is an
+   *  optional one-line angle ("the contra trap"). Feeds the Shorts-queue worklist.
+   *  Default off. Additive. */
+  short?: boolean;
+  shortNote?: string;
   /** STEM KEYPAD SOUND (choreo Item 5): play the keypad cue as the stem types out
    *  on deal/frame-entry in film. Unlike text/heading keypad (default off), a CEQ
    *  defaults ON (plays unless === false) — the deal IS a type-out. */

@@ -64,6 +64,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [setsCourseFilter, setSetsCourseFilter] = useState("all"); // filter sets by course
   const [setsChapterFilter, setSetsChapterFilter] = useState("all"); // filter sets by chapter
   const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
+  const [shortsQueueOpen, setShortsQueueOpen] = useState(false); // shorts-worthy worklist overlay
   const [prefs, setPrefsState] = useState<CeqStudioPrefs>(() => loadPrefs()); // panel prefs (wrap toggle + shared transition)
   const setPrefs = (p: Partial<CeqStudioPrefs>) => setPrefsState((cur) => { const n = { ...cur, ...p }; savePrefs(n); return n; });
   const wrapStems = !!prefs.wrapStems;
@@ -107,6 +108,17 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, transition: prefs.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, prefs.transition]);
   const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, transition: prefs.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, prefs.transition]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
+  // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
+  // question number, stem and angle note. Lee's batch-filming worklist.
+  const shortsList = useMemo(() => rf.getNodes()
+    .filter((n) => n.type === "ceq" && !!(n.data as { short?: boolean }).short)
+    .map((n) => {
+      const d = n.data as unknown as CeqCard & { deckId?: string };
+      const dk = d.deckId ? cardDecks.find((x) => x.id === d.deckId) : null;
+      const members = d.deckId ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.deckId).filter((m) => (m as { type?: string }).type === "ceq") : [];
+      const qnum = members.findIndex((m) => m.id === n.id) + 1;
+      return { id: n.id, deckId: d.deckId, setName: dk?.name ?? "Loose", tqq: `${dk?.chapter || dk?.name || "Set"} · Q${qnum || "?"}`, stem: d.prompt || "Question", note: d.shortNote || "" };
+    }), [nodes, cardDecks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- SETS -----------------------------------------------------------------
   const newSet = () => {
@@ -538,11 +550,37 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
       <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
         <div className="flex items-center gap-2 text-[14px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.yellow }}><ListChecks className="h-4 w-4" /> CEQ Studio</div>
         <div className="flex items-center gap-2">
-          {!popped && onPopOut && <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} title="Pop out to a window (2nd monitor · capture-invisible)" onClick={onPopOut}><ExternalLink className="h-4 w-4" /></button>}
           {note && <span className="text-[10px]" style={{ color: NEON.muted }}>{note}</span>}
+          <button className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: shortsList.length ? "#0B0F1E" : NEON.muted, background: shortsList.length ? "#FF8B9E" : "transparent", border: `1px solid ${shortsList.length ? "#FF8B9E" : NEON.borderSoft}` }} title="Shorts queue — every shorts-flagged CEQ across all sets (batch-filming worklist)" onClick={() => setShortsQueueOpen(true)}>🎬 Shorts {shortsList.length > 0 && `(${shortsList.length})`}</button>
+          {!popped && onPopOut && <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} title="Pop out to a window (2nd monitor · capture-invisible)" onClick={onPopOut}><ExternalLink className="h-4 w-4" /></button>}
           <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}` }} title="Close" onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
       </div>
+      {/* SHORTS QUEUE (Lee) — the batch-filming worklist of every shorts-flagged CEQ. */}
+      {shortsQueueOpen && (
+        <div className="absolute inset-0 z-[70] flex flex-col" style={{ background: "rgba(6,10,20,0.97)" }} onClick={() => setShortsQueueOpen(false)}>
+          <div className="mx-auto mt-10 flex max-h-[80vh] w-[560px] max-w-[92vw] flex-col overflow-hidden rounded-xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "#FF8B9E" }}>🎬 Shorts queue</span>
+              <span className="text-[10px]" style={{ color: NEON.muted }}>{shortsList.length} flagged</span>
+              <button className="ml-auto grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setShortsQueueOpen(false)} title="Close"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {shortsList.length === 0 ? (
+                <div className="px-2 py-6 text-center text-[11px] italic" style={{ color: NEON.muted }}>No CEQs flagged as shorts yet — toggle 🎬 Short on a question.</div>
+              ) : shortsList.map((s) => (
+                <button key={s.id} className="mb-1 flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }} title="Jump to this question" onClick={() => { if (s.deckId) setSetId(s.deckId); setQId(s.id); setExpandedQ((x) => new Set(x).add(s.id)); setShortsQueueOpen(false); }}>
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tabular-nums" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,110,0.5)" }}>{s.tqq}</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: NEON.text }}>{s.stem}</span>
+                  </div>
+                  {s.note && <div className="pl-1 text-[10px] italic" style={{ color: NEON.yellow }}>angle: {s.note}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         {/* PANE 0 — VIDEO LIBRARY (leftmost; published videos grouped Course → Chapter) */}
@@ -615,7 +653,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
               {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
               <div className="min-h-0 w-56 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
-                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const take = qdata?.take; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const dropOn = dragKey === q.id; return (
+                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const take = qdata?.take; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; return (
                   <div key={q.id}>
                     <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : undefined }} {...dragProps(q.id, (f) => dropTake(q.id, f))}>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
@@ -624,6 +662,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                       {boss && <span className="mt-0.5 shrink-0 text-[10px] leading-none" title="Boss card — cram launch fires when this question is dealt (film)">👑</span>}
                       {chainSound && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="A chain item has a reveal sound">🔊</span>}
                       {chachingOff && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="Chaching-on-correct silenced for this question">🔇</span>}
+                      {isShort && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title={`Shorts-worthy${qdata?.shortNote ? ` — ${qdata.shortNote}` : ""}`}>🎬</span>}
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded text-[8px] font-black" style={{ color: qdata?.free ? "#0B0F1E" : NEON.muted, background: qdata?.free ? "#3BF5A0" : "transparent", border: `1px solid ${qdata?.free ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => patchQ(q.id, { free: !qdata?.free })} title={qdata?.free ? "In the FREE cut — click to remove" : "Add to the FREE cut"}>F</button>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={take ? `Take ${fmtDur(take.duration)} attached — click to preview · drop a clip to replace` : "Drop a video clip here to attach this question's take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : take ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
                       <button disabled={i === 0} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
@@ -701,8 +740,16 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                       {/* SOUND FLAGS (sound pass) — Boss (cram-launch on deal) + Chaching on correct (opt-out). */}
                       <button className="ml-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.boss ? "#0B0F1E" : NEON.muted, background: qd.boss ? NEON.yellow : "transparent", border: `1px solid ${qd.boss ? NEON.yellow : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { boss: !qd.boss })} title="Boss card — fires the cram-launch cue when this question is dealt (film)">👑 Boss</button>
                       <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.confirmSfx === false ? NEON.muted : "#3BF5A0", border: `1px solid ${qd.confirmSfx === false ? NEON.borderSoft : "rgba(59,245,160,0.5)"}` }} onClick={() => patchQ(qId!, { confirmSfx: qd.confirmSfx === false })} title="Chaching on correct — plays by DEFAULT on the correct-Enter (film); click to silence it for this question (opt-out)">Chaching on correct {qd.confirmSfx === false ? "✗" : "✓"}</button>
+                      {/* SHORTS-WORTHY (verticals) — flag + optional one-line angle (note row below). */}
+                      <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.short ? "#0B0F1E" : NEON.muted, background: qd.short ? "#FF8B9E" : "transparent", border: `1px solid ${qd.short ? "#FF8B9E" : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { short: !qd.short })} title="Flag this CEQ as shorts-worthy — it joins the Shorts queue worklist">🎬 Short</button>
                       <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setChainFor(qId)} title="Per-choice chains + save/load template (same model as the card popover)"><Link2 className="h-3 w-3" /> chains & templates</button>
                     </div>
+                    {qd.short && (
+                      <div className="flex items-center gap-1.5 px-2 pb-1">
+                        <span className="shrink-0 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E" }}>Short angle</span>
+                        <input className="nodrag min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[10px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={qd.shortNote ?? ""} onChange={(e) => patchQ(qId!, { shortNote: e.target.value })} placeholder="one-line angle (e.g. the contra trap)" onKeyDown={(e) => e.stopPropagation()} />
+                      </div>
+                    )}
                     {editorOpen && (
                       <div className="max-h-[38vh] overflow-y-auto px-2 pb-2">
                         <div className="flex flex-col gap-2">
