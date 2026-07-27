@@ -28,9 +28,10 @@
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Timer } from "lucide-react";
+import { Clapperboard, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Timer } from "lucide-react";
 
 import { FLAME_CSS } from "./FilmOverlays";
+import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { renderInline } from "./inline-md";
 import { TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -49,6 +50,9 @@ const ScaleContext = createContext<(id: string, s: number) => void>(() => {});
 /** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
 interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void }
 const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {} });
+/** FILM view (the popout mirror): true ⇒ nodes render CLEAN — no scale grips, no
+ *  frame outline/label, no chain-number badges — just the composition the camera sees. */
+const FilmContext = createContext(false);
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
@@ -75,9 +79,12 @@ function ScaleGrip({ id, scale, color }: { id: string; scale: number; color: str
   return <div className="nodrag" onPointerDown={down} title={`Scale ${Math.round(scale * 100)}% — drag to resize (text scales too)`} style={{ position: "absolute", right: -9, bottom: -9, width: 18, height: 18, borderRadius: 5, background: color, border: "2px solid #05070d", cursor: "nwse-resize", zIndex: 20 }} />;
 }
 
-/** The 16:9 frame outline — a visible box you can zoom out to; non-interactive. */
+/** The 16:9 frame outline — a visible guideline in the previewer; in the FILM mirror
+ *  it becomes a clean black stage (no outline/label — the camera sees only the cards). */
 function FrameBgNode({ data }: NodeProps) {
+  const film = useContext(FilmContext);
   const d = data as unknown as { w: number; h: number };
+  if (film) return <div style={{ width: d.w, height: d.h, background: "#05070d", pointerEvents: "none" }} />;
   return (
     <div style={{ width: d.w, height: d.h, borderRadius: 12, border: `2px solid ${NEON.cyan}`, background: "rgba(8,14,26,0.5)", boxShadow: `0 0 0 1px rgba(79,163,227,0.25), inset 0 0 60px rgba(0,0,0,0.35)`, pointerEvents: "none", position: "relative" }}>
       <span style={{ position: "absolute", top: 8, left: 12, fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(79,163,227,0.7)" }}>16:9 frame</span>
@@ -92,6 +99,7 @@ function FrameBgNode({ data }: NodeProps) {
 function CeqPreviewNode({ id, data }: NodeProps) {
   const pr = useContext(PracticeContext);
   const spot = useContext(PreviewSpotContext);
+  const film = useContext(FilmContext);
   const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number };
   const s = d.scale ?? 1;
   return (
@@ -129,7 +137,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           );
         })}
       </div>
-      <ScaleGrip id={id} scale={s} color={NEON.yellow} />
+      {!film && <ScaleGrip id={id} scale={s} color={NEON.yellow} />}
     </div>
   );
 }
@@ -140,6 +148,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
 function MemoPreviewNode({ id, data }: NodeProps) {
   const revealed = useContext(RevealContext);
   const spot = useContext(PreviewSpotContext);
+  const film = useContext(FilmContext);
   const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number };
   const s = d.scale ?? 1;
   const walked = revealed.has(id);
@@ -151,14 +160,15 @@ function MemoPreviewNode({ id, data }: NodeProps) {
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : 0.4, filter: walked ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...spotStyle(spState) }}
+      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: film ? "default" : "grab", ...spotStyle(spState) }}
     >
-      <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>
+      {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
+      {!film && <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>}
       <div style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>
       <div style={{ fontSize: 14 * s, color: NEON.text, lineHeight: 1.25 }}>{d.label}</div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
-      <ScaleGrip id={id} scale={s} color={NEON.cyan} />
+      {!film && <ScaleGrip id={id} scale={s} color={NEON.cyan} />}
     </div>
   );
 }
@@ -258,6 +268,21 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
 
   const fitRef = useRef<{ fitView: (o?: { padding?: number }) => void } | null>(null);
   useEffect(() => { const t = window.setTimeout(() => fitRef.current?.fitView({ padding: 0.14 }), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH]);
+
+  // FILM MODE (Lee) — a popout window on the 2nd monitor that MIRRORS this previewer
+  // (same CEQ + memos + practice/spotlight state, since it's the same React tree), but
+  // rendered CLEAN + fitted to the 16:9 frame for filming. Control here, film there.
+  const [filmWin, setFilmWin] = useState<Window | null>(null);
+  const filmFitRef = useRef<ReactFlowInstance | null>(null);
+  const fitFilm = useCallback(() => filmFitRef.current?.fitView({ nodes: [{ id: "__frame__" }], padding: 0.02, duration: 0 }), []);
+  useEffect(() => {
+    if (!filmWin) return;
+    const refit = () => window.setTimeout(fitFilm, 40);
+    refit();
+    filmWin.addEventListener("resize", refit);
+    return () => filmWin.removeEventListener("resize", refit);
+  }, [filmWin, ceqId, frameW, frameH, nodes, fitFilm]);
+  const toggleFilm = () => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
 
   const onDragStop = (_e: unknown, node: { id: string; position: { x: number; y: number } }) => {
     if (node.id === "__frame__") return;
@@ -379,6 +404,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
               <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)" }}>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
+                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — a clean, full-screen mirror of this preview on your 2nd monitor (control here, film there). Maximize it for a clean 16:9 capture."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{revealedCount}/{walk.length} shown</span>
                 <span className="hidden text-[9px] lg:inline" style={{ color: NEON.muted }} title="Rehearse the live gestures right here">· Ctrl+click = spotlight · +Shift = 🔥</span>
@@ -388,6 +414,36 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
                 </div>
               </div>
             </div>
+            {/* FILM MODE popout — the SAME nodes/edges + Practice/Reveal/Spot state as
+                above (one React tree ⇒ live mirror), rendered CLEAN (FilmContext) and
+                fitted to the 16:9 frame. Read-only; you drive it from the previewer. */}
+            {filmWin && (
+              <PanelPopout win={filmWin} title="Film — CEQ" onReturn={() => setFilmWin(null)}>
+                <FilmContext.Provider value={true}>
+                  <style>{FLAME_CSS}</style>
+                  <ReactFlowProvider>
+                    <ReactFlow
+                      nodes={nodes}
+                      edges={edges}
+                      nodeTypes={nodeTypes}
+                      onInit={(inst) => { filmFitRef.current = inst; window.setTimeout(fitFilm, 60); }}
+                      minZoom={0.02}
+                      maxZoom={4}
+                      proOptions={{ hideAttribution: true }}
+                      nodesDraggable={false}
+                      nodesConnectable={false}
+                      elementsSelectable={false}
+                      panOnDrag={false}
+                      zoomOnScroll={false}
+                      zoomOnPinch={false}
+                      zoomOnDoubleClick={false}
+                      preventScrolling={false}
+                      style={{ width: "100%", height: "100%", background: "#05070d" }}
+                    />
+                  </ReactFlowProvider>
+                </FilmContext.Provider>
+              </PanelPopout>
+            )}
           </PreviewSpotContext.Provider>
         </ScaleContext.Provider>
       </RevealContext.Provider>
