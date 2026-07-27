@@ -6,7 +6,7 @@
 // ELEMENT), search/filter, bulk triage for the unfiled pile, and drag-onto-a-choice
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useState } from "react";
-import { useNodes, useReactFlow } from "@xyflow/react";
+import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
 import { CheckSquare, ChevronDown, ChevronRight, ExternalLink, Library, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
@@ -53,6 +53,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [sel, setSel] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(true); // collapsible stem/choices editor
   const [libOpen, setLibOpen] = useState(true); // collapsible memo-library pane
+  const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
 
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
@@ -66,6 +67,11 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const targetFrame = nav.currentFrameId ? rf.getNode(nav.currentFrameId) : null;
   const frameW = (targetFrame?.data as { w?: number } | undefined)?.w ?? targetFrame?.width ?? 1600;
   const frameH = (targetFrame?.data as { h?: number } | undefined)?.h ?? targetFrame?.height ?? 900;
+  // Chain arrows for the previewer — any edge whose SOURCE is a memo in this CEQ's
+  // chains (memo → choice, memo → memo, …). Reactive so drawn arrows show at once.
+  const allEdges = useEdges();
+  const chainMemoIds = useMemo(() => { const s = new Set<string>(); (qd?.choices ?? []).forEach((c) => (c.chain ?? []).forEach((it) => s.add(it.memoNodeId))); return s; }, [ceqSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const previewEdges = useMemo(() => allEdges.filter((e) => chainMemoIds.has(e.source)).map((e) => ({ id: e.id, source: e.source, target: e.target })), [allEdges, chainMemoIds]);
 
   // ---- SETS -----------------------------------------------------------------
   const newSet = () => {
@@ -182,6 +188,53 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   };
   const allShownSel = shownMemos.length > 0 && shownMemos.every((m) => sel.has(m.id));
 
+  /** DELETE memos from the LIBRARY — removes the nodes (+ their arrows) and strips
+   *  them from any chain that referenced them. One undoable step. */
+  const deleteMemos = (ids: string[]) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    const cmds: NonNullable<ReturnType<typeof patchDataCmd>>[] = [];
+    for (const n of rf.getNodes()) {
+      if (n.type !== "ceq") continue;
+      const choices = (n.data as { choices?: CeqChoice[] }).choices ?? [];
+      if (!choices.some((c) => (c.chain ?? []).some((it) => idSet.has(it.memoNodeId)))) continue;
+      const p = patchDataFnCmd(rfl, n.id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => ({ ...c, chain: (c.chain ?? []).filter((it) => !idSet.has(it.memoNodeId)) })) }), "unchain");
+      if (p) cmds.push(p);
+    }
+    const rm = removeNodesCmd(rfl, ids, `delete ${ids.length} memo${ids.length === 1 ? "" : "s"}`); // removes nodes + their arrows
+    if (rm) cmds.push(rm);
+    const cmd = compositeCmd(cmds, "delete memos"); if (cmd) bus.dispatch(cmd);
+    setSel((p) => { const n = new Set(p); ids.forEach((id) => n.delete(id)); return n; });
+    setNote(`Deleted ${ids.length} memo${ids.length === 1 ? "" : "s"} from the library.`);
+  };
+
+  /** REMOVE a memo from a CHAIN — detach it from the choice (drop the chain entry +
+   *  the arrow) but KEEP the memo node in the library. */
+  const removeFromChain = (ceqId: string, memoNodeId: string) => {
+    const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => ({ ...c, chain: (c.chain ?? []).filter((it) => it.memoNodeId !== memoNodeId) })) }), "remove from chain");
+    const gone = new Set(rf.getEdges().filter((e) => e.source === memoNodeId && e.target === ceqId).map((e) => e.id));
+    const snap = gone.size ? structuredClone(rf.getEdges().filter((e) => gone.has(e.id))) : [];
+    const edgeCmd = gone.size ? { label: "remove chain arrow", do: () => rf.setEdges((eds) => eds.filter((e) => !gone.has(e.id))), undo: () => rf.setEdges((eds) => [...eds, ...structuredClone(snap)]) } : null;
+    const cmd = compositeCmd([patch, edgeCmd].filter((c): c is NonNullable<typeof c> => !!c), "remove from chain"); if (cmd) bus.dispatch(cmd);
+    setPreviewSelMemo(null);
+    setNote("Removed memo from the chain (still in the library).");
+  };
+
+  // DELETE KEY — select a memo in the PREVIEWER → detach from its chain; else select
+  // memo(s) in the LIBRARY (checkboxes) → delete the node(s). Ignored while typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
+      if (sel.size > 0) { e.preventDefault(); deleteMemos([...sel]); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewSelMemo, qId, sel]);
+
   /** CREATE a brand-new memo straight from the Studio, attached to a choice's chain
    *  and placed (frame-local) so it shows immediately in the previewer. */
   const createMemoForChoice = (ceqId: string, choiceId: string) => {
@@ -280,6 +333,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                         <span className="min-w-0 flex-1 cursor-text truncate" style={{ color: NEON.text }} title={`Choice ${w.letter}: ${w.label} — double-click to rename`} onDoubleClick={() => renameChainMemo(q.id, w.choiceId, w.idx, w.memoNodeId, w.label)}>{w.label}</span>
                         <button disabled={w.idx === 0} className="grid h-3.5 w-3.5 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, -1)} title="Earlier in walk"><ArrowUp className="h-2.5 w-2.5" /></button>
                         <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, 1)} title="Later in walk"><ArrowDown className="h-2.5 w-2.5" /></button>
+                        <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.red }} onClick={() => removeFromChain(q.id, w.memoNodeId)} title="Remove from chain (keeps the memo in the library)"><X className="h-2.5 w-2.5" /></button>
                       </div>
                     ))}
                   </div>
@@ -289,7 +343,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1">
-                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} />
+                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} onSelectMemo={setPreviewSelMemo} />
                 </div>
                 {qd && (
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
@@ -362,6 +416,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                 <button className="shrink-0" style={{ color: on ? NEON.yellow : NEON.muted }} onClick={() => toggleSel(m.id)}>{on ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>
                 <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: NEON.text }}>{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
                 {m.category && <span className="shrink-0 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }}>{m.category === "ELEMENT" ? "🧩" : m.category.slice(0, 4)}</span>}
+                <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteMemos([m.id])} title="Delete this memo from the library (also unchains it)"><X className="h-3 w-3" /></button>
               </div>
             ); })}
           </div>
@@ -369,7 +424,10 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
           <div className="flex flex-col gap-1 border-t p-1.5" style={{ borderColor: NEON.borderSoft }}>
             <div className="flex items-center justify-between text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>
               <span>Bulk ({sel.size})</span>
-              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={removeDupes} title="Delete duplicate memos (same title/body/category/subcat); keeps any that are attached to a chain">remove dupes</button>
+              <div className="flex items-center gap-1">
+                <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={() => deleteMemos([...sel])} disabled={sel.size === 0} title="Delete the selected memos from the library (Delete key)">delete ({sel.size})</button>
+                <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={removeDupes} title="Delete duplicate memos (same title/body/category/subcat); keeps any that are attached to a chain">remove dupes</button>
+              </div>
             </div>
             <div className="flex flex-wrap gap-1">
               {MEMO_CATEGORIES.map((c) => <button key={c} className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkCategory(c)} disabled={sel.size === 0} title="Set the top-level category">{c === "ELEMENT" ? "🧩 ELEMENT" : c}</button>)}

@@ -9,10 +9,11 @@
 // #1 #2 #3, grayed until walked → colour once walked; a REHEARSAL bar (start/stop
 // timer + step ◀ ▶) runs a practice walk without touching film state.
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useNodesState, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
+import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Pause, Play, RotateCcw, SkipBack, SkipForward, Timer } from "lucide-react";
 
 import { renderInline } from "./inline-md";
+import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { NEON, PAPER } from "./theme";
 import { clampScale, type CeqCard } from "./types";
 
@@ -30,7 +31,11 @@ export const dealCentre = (fw: number, fh: number) => ({ x: Math.max(0, Math.rou
 /** Default frame-local spot for a NEW memo (stacked to the card's right). */
 export const defaultMemoPos = (fw: number, fh: number, i: number) => { const c = dealCentre(fw, fh); return { x: Math.min(fw - 210, c.x + CARD_W + 70), y: Math.max(20, c.y + i * 160) }; };
 
-type MainRf = Pick<ReactFlowInstance, "getNode" | "setNodes">;
+type MainRf = Pick<ReactFlowInstance, "getNode" | "setNodes" | "setEdges">;
+/** A chain arrow to show in the previewer: memo (source) → choice/other (target). */
+export type PreviewEdge = { id: string; source: string; target: string };
+// Tiny connection handles so chain arrows can render + be drawn memo→memo/choice.
+const HANDLE: React.CSSProperties = { width: 9, height: 9, background: NEON.cyan, border: "1.5px solid #05070d" };
 
 /** A corner grip that drives a node's data.scale (300 screen-px ≈ full range). */
 function ScaleGrip({ id, scale, color }: { id: string; scale: number; color: string }) {
@@ -75,6 +80,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           </div>
         ))}
       </div>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE, background: PAPER.inkMuted }} />
       <ScaleGrip id={id} scale={s} color={NEON.yellow} />
     </div>
   );
@@ -91,6 +97,8 @@ function MemoPreviewNode({ id, data }: NodeProps) {
       <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>
       <div style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>
       <div style={{ fontSize: 14 * s, color: NEON.text, lineHeight: 1.25 }}>{d.label}</div>
+      <Handle type="target" position={Position.Left} style={HANDLE} />
+      <Handle type="source" position={Position.Right} style={HANDLE} />
       <ScaleGrip id={id} scale={s} color={NEON.cyan} />
     </div>
   );
@@ -98,7 +106,7 @@ function MemoPreviewNode({ id, data }: NodeProps) {
 
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode };
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMemo }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; onSelectMemo?: (id: string | null) => void }) {
   const ceq = mainRf.getNode(ceqId);
   const cd = ceq?.data as unknown as CeqCard | undefined;
   // Flat walk list across choices, in walk order (choice order → chain index).
@@ -109,6 +117,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH }: { ceqId: string; main
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainSig]);
   const total = walk.length;
+  const walkNumOf = useMemo(() => new Map(walk.map((w) => [w.memoNodeId, w.num])), [walk]);
+  const [walkStep, setWalkStep] = useState(0); // rehearsal step (also gates arrow reveal)
 
   const build = useMemo(() => () => {
     if (!ceq || !cd) return [];
@@ -133,6 +143,26 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH }: { ceqId: string; main
     if (node.id === "__frame__") return;
     mainRf.setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: { ...node.position } } : n)));
   };
+  // Chain arrows to render: memo → choice/other. Revealed (colour) once the LATER
+  // endpoint's walk step is reached (matches film, where an arrow hides until both
+  // its ends are shown); a memo owning an arrow reveals it as it's walked.
+  const miniIds = useMemo(() => new Set<string>(["__frame__", ceqId, ...walk.map((w) => w.memoNodeId)]), [ceqId, walk]);
+  const edges: Edge[] = useMemo(() => (chainEdges ?? [])
+    .filter((e) => miniIds.has(e.source) && miniIds.has(e.target))
+    .map((e) => {
+      const need = Math.max(walkNumOf.get(e.source) ?? 0, walkNumOf.get(e.target) ?? 0);
+      const on = need > 0 && walkStep >= need;
+      return { id: e.id, source: e.source, target: e.target, type: "smoothstep", style: { stroke: on ? "#E0284A" : "rgba(147,160,180,0.45)", strokeWidth: 2.5, opacity: on ? 1 : 0.4, strokeDasharray: on ? undefined : "5 4" }, markerEnd: { type: MarkerType.ArrowClosed, color: on ? "#E0284A" : "rgba(147,160,180,0.5)" } } as Edge;
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chainEdges, miniIds, walkNumOf, walkStep]);
+  // DRAW a new arrow (memo → memo / choice / card) straight into the MAIN store —
+  // its SOURCE memo becomes the parent, so the walk reveals it with that memo.
+  const onConnect = (c: Connection) => {
+    if (!c.source || !c.target || c.source === c.target) return;
+    const id = `chn-arrow-${c.source}-${c.target}`;
+    mainRf.setEdges((eds) => (eds.some((e) => e.id === id) ? eds : [...eds, { id, source: c.source!, target: c.target!, type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } } as Edge]));
+  };
   // Live resize — write data.scale to the mini node (for the preview) AND the real node.
   const setScale = (nodeId: string, scale: number) => {
     setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
@@ -140,7 +170,6 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH }: { ceqId: string; main
   };
 
   // Rehearsal — a practice walk over the memos; does NOT touch film state.
-  const [walkStep, setWalkStep] = useState(0);
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef<number | null>(null);
@@ -162,8 +191,11 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH }: { ceqId: string; main
           <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)" }}>
             <ReactFlow
               nodes={nodes}
+              edges={edges}
               onNodesChange={onNodesChange}
               onNodeDragStop={onDragStop as never}
+              onConnect={onConnect}
+              onSelectionChange={({ nodes: sel }) => onSelectMemo?.((sel.find((n) => n.type === "memoPreview")?.id) ?? null)}
               onInit={(inst) => { fitRef.current = inst; }}
               nodeTypes={nodeTypes}
               fitView
@@ -171,8 +203,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH }: { ceqId: string; main
               minZoom={0.04}
               maxZoom={2}
               proOptions={{ hideAttribution: true }}
-              nodesConnectable={false}
-              elementsSelectable={false}
+              connectionMode={ConnectionMode.Loose}
+              nodesConnectable
+              elementsSelectable
+              deleteKeyCode={null}
               zoomOnDoubleClick={false}
             >
               <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="rgba(147,160,180,0.18)" />
@@ -195,11 +229,11 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH }: { ceqId: string; main
   );
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900 }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], onSelectMemo }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; onSelectMemo?: (id: string | null) => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <ReactFlowProvider>
-      <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} />
+      <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} onSelectMemo={onSelectMemo} />
     </ReactFlowProvider>
   );
 }
