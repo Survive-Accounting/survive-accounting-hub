@@ -17,8 +17,11 @@ import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
 import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
-import { buildStitch, fmtDur, loadPrefs, savePrefs, stageTake, stitchRuntime, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
+import { buildStitch, fmtDur, loadPrefs, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { CeqStitch } from "./CeqStitch";
+import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
+import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
+import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type CeqChoice, type DeckDef } from "./types";
@@ -67,6 +70,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline
   const [dragKey, setDragKey] = useState<string | null>(null); // slot key a clip is hovering
   const [stitchMode, setStitchMode] = useState<"free" | "full" | null>(null); // center = sequential preview
+  const [publishBusy, setPublishBusy] = useState<"free" | "full" | null>(null);
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set()); // questions whose memo list stays shown
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
   const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
@@ -180,6 +184,55 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     finally { setTakeBusy(null); }
   };
   const clearTake = (ceqId: string) => { patchQ(ceqId, { take: undefined }); if (takePreview === ceqId) setTakePreview(null); };
+
+  /** Which lesson a Free/Full publish attaches to: the CEQ lesson (category CEQ) of
+   *  the matching access in the set's topic; falls back to the set's linked lesson. */
+  const targetLesson = (access: "FREE" | "PAID"): string | null => {
+    const dl = deck?.lessonId ? rf.getNode(deck.lessonId) : null;
+    const topic = (dl?.data as unknown as LessonBox | undefined)?.topic;
+    const cand = rf.getNodes().find((n) => { const ld = n.data as unknown as LessonBox; return n.type === "lesson" && ld.category === "CEQ" && (ld.access ?? "FREE") === access && (!topic || ld.topic === topic); });
+    return cand?.id ?? (access === "FREE" ? deck?.lessonId ?? null : null);
+  };
+
+  /** PUBLISH the Free/Full stitch: Mux concat (hard-cut) → Auphonic → Supabase → Mux
+   *  → attach to the Free/Paid lesson + store the manifest. FAILS LOUD on any missing
+   *  clip (no silent skips at publish, unlike preview). Runs on the deployed env. */
+  const publishStitch = async (mode: "free" | "full") => {
+    if (publishBusy || !deck) return;
+    const stitch = mode === "free" ? stitchFree : stitchFull;
+    if (stitch.missing.length > 0) { setNote(`Publish blocked — ${stitch.missing.length} CEQ(s) in the ${mode} cut have no clip: ${stitch.missing.map((m) => (m.prompt || "?").slice(0, 18)).join(", ")}. Attach clips first.`); return; }
+    if (stitch.items.filter((i) => i.kind === "ceq").length === 0) { setNote(`No CEQ clips in the ${mode} cut.`); return; }
+    const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+    setPublishBusy(mode); setNote(`Publishing ${mode} — detecting the Auphonic preset…`);
+    try {
+      // Don't double intro/outro if the Auphonic preset already prepends/appends them.
+      const slots = await detectAuphonicSlots();
+      let items = stitch.items;
+      if (slots.hasOutro) items = items.filter((i) => i.kind !== "outro");
+      if (slots.hasIntro) items = items.filter((i) => i.kind !== "intro");
+      const urls = items.map((i) => i.take.url);
+      // 1) Mux multi-input concat (hard cut)
+      const { assetId } = await startCeqConcat({ data: { urls, passthrough: `ceq-${mode}` } });
+      let mp4Url: string | null = null;
+      for (let i = 0; i < 120 && !mp4Url; i++) { const r: Awaited<ReturnType<typeof resolveCeqConcat>> = await resolveCeqConcat({ data: { assetId } }); if (r.status === "errored") throw new Error(r.error ?? "Mux concat failed"); if (r.status === "ready") { mp4Url = r.mp4Url; break; } setNote(`Mux concatenating ${items.length} clips…`); await sleep(4000); }
+      if (!mp4Url) throw new Error("Timed out waiting for the Mux concat.");
+      // 2) Auphonic → Supabase → FINAL Mux (reuse the staged pipeline)
+      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: mp4Url } });
+      let muxAssetId: string | null = null; let final: string | null = null;
+      for (let i = 0; i < 240 && !final; i++) { const r: Awaited<ReturnType<typeof resolvePipelineTestAuphonic>> = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId } }); muxAssetId = r.muxAssetId; if (r.stage === "errored") throw new Error(r.error ?? "Pipeline errored"); if (r.stage === "ready") { final = r.playbackId; break; } setNote(r.stage === "auphonic" ? `Auphonic: ${r.auphonicStatus ?? "processing"}…` : "Mux ingesting the processed file…"); await sleep(5000); }
+      if (!final) throw new Error("Timed out waiting for the final Mux asset.");
+      // 3) manifest + attach to the Free/Paid CEQ lesson
+      const manifest = stitchManifest(stitch.items, DEFAULT_CROSSFADE_MS);
+      const access = mode === "free" ? "FREE" : "PAID";
+      const lessonId = targetLesson(access);
+      if (lessonId) {
+        const prevAsset = (rf.getNode(lessonId)?.data as unknown as LessonBox | undefined)?.muxAssetId ?? null;
+        rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest });
+        setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed).${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Concat asset: ${assetId}.`);
+      } else setNote(`Published ${mode} ✓ (playback ${final}) — no ${access} CEQ lesson found to attach to. Final asset ${muxAssetId}, concat ${assetId}.`);
+    } catch (e) { setNote(`Publish ${mode} failed: ${e instanceof Error ? e.message : String(e)}`); }
+    finally { setPublishBusy(null); }
+  };
   const dragProps = (key: string, onFile: (f: File) => void) => ({
     onDragOver: (e: React.DragEvent) => { if (Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); if (dragKey !== key) setDragKey(key); } },
     onDragLeave: (e: React.DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragKey((k) => (k === key ? null : k)); },
@@ -501,6 +554,8 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
             {deck && <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + transition + takes + outro)">~{fmtDur(stitchRuntime(stitchFree.items))}/{fmtDur(stitchRuntime(stitchFull.items))}</span>}
             <div className="ml-auto flex shrink-0 items-center gap-1">
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("free")} title="Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson (deployed env)">{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub free</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("full")} title="Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson (deployed env)">{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub full</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap full stems ↔ clamp to 2 lines (saved)"><WrapText className="h-3 w-3" /> wrap</button>}
               {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
               {deck && memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}

@@ -794,6 +794,9 @@ export interface LessonBox {
   videoStaging?: { path: string; url: string; name: string }[];
   /** RUN LOGS (cram-filming batch) — the last 3 F9 timing runs for this lesson. */
   runs?: FilmRun[];
+  /** CEQ STITCH MANIFEST (CEQ Studio publish) — per-CEQ [start,end] on the published
+   *  video's timeline (player-progress + shorts + interactive index). Metadata only. */
+  ceqManifest?: { ceqId: string; start: number; end: number }[];
   /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
    *  visual seed of the free/paid gate (roadmap). */
   check?: boolean;

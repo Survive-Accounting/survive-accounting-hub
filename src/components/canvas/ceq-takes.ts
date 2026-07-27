@@ -68,6 +68,23 @@ export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; tran
 }
 export const stitchRuntime = (items: StitchItem[]) => items.reduce((s, it) => s + (it.take.duration ?? 0), 0);
 
+/** Player-progress index stored with a published video: per-CEQ [start,end] on the
+ *  FINAL timeline, accounting for the audio crossfade overlap (each join pulls the
+ *  next clip cf earlier). Metadata only — no player work now. */
+export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqId: string; start: number; end: number }[] {
+  const cf = Math.max(0, crossfadeMs) / 1000;
+  const r2 = (n: number) => Math.round(n * 1000) / 1000;
+  const out: { ceqId: string; start: number; end: number }[] = [];
+  let cum = 0;
+  items.forEach((it, i) => {
+    const start = Math.max(0, cum - i * cf);
+    const dur = it.take.duration ?? 0;
+    if (it.kind === "ceq" && it.ceqId) out.push({ ceqId: it.ceqId, start: r2(start), end: r2(start + dur) });
+    cum += dur;
+  });
+  return out;
+}
+
 // ---- panel prefs (localStorage; wrap toggle + the shared transition file) ----
 export interface CeqStudioPrefs { wrapStems?: boolean; transition?: TakeRef }
 const PREFS_KEY = "sa-ceq-studio-prefs";

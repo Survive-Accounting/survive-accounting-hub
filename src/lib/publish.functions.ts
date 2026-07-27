@@ -424,6 +424,53 @@ export const resolvePipelineTestAuphonic = createServerFn({ method: "POST" })
     return { stage: "ready", auphonicStatus: "Done", muxAssetId: data.muxAssetId, playbackId: pb, error: null };
   });
 
+// ---- CEQ STUDIO PUBLISH (Lee) ----------------------------------------------
+// Publish a Free/Full stitch list from the CEQ Studio via the SAME staged path.
+// The ordered staged clips (Supabase URLs) are concatenated by MUX's native
+// multi-input asset (hard-cut video — Vercel has no ffmpeg; the 50ms acrossfade in
+// segment-assembly.ts is the recipe for a future ffmpeg pass, NOT run here) →
+// Auphonic loudness (the existing preset) → processed file back to Supabase → a
+// FINAL Mux asset the client attaches to the Free/Paid lesson. STATELESS, mirroring
+// the pipeline-test fns; the Auphonic→Mux stage REUSES start/resolvePipelineTestAuphonic.
+
+/** Does the Auphonic PRESET already prepend an intro / append an outro? So the
+ *  Studio doesn't DOUBLE the outro (its stitch already includes intro/outro). */
+export const detectAuphonicSlots = createServerFn({ method: "POST" })
+  .handler(async (): Promise<{ hasIntro: boolean; hasOutro: boolean; note: string }> => {
+    const uuid = requireEnv("AUPHONIC_PRESET_UUID");
+    const preset = await auphonic(`preset/${uuid}.json`);
+    const inputs = (preset?.multi_input_files ?? []) as { type?: string }[];
+    const hasIntro = inputs.some((f) => f.type === "intro");
+    const hasOutro = inputs.some((f) => f.type === "outro");
+    return { hasIntro, hasOutro, note: `preset ${hasIntro ? "prepends an intro" : "has no intro"}; ${hasOutro ? "appends an outro" : "has no outro"}` };
+  });
+
+/** 1) Mux multi-input concat of the ordered staged clips (hard-cut). mp4_support so
+ *  Auphonic can read the result. */
+export const startCeqConcat = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ urls: z.array(z.string().url()).min(1), passthrough: z.string().max(120).optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ assetId: string }> => {
+    muxAuth();
+    const asset = await muxApi("/video/v1/assets", {
+      method: "POST",
+      body: JSON.stringify({ input: data.urls.map((url) => ({ url })), playback_policy: ["public"], mp4_support: "standard", passthrough: data.passthrough ?? "ceq-stitch" }),
+    });
+    return { assetId: asset.id };
+  });
+
+/** 2) Poll the concat asset → its high.mp4 URL (what Auphonic reads). */
+export const resolveCeqConcat = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ assetId: z.string().min(6) }).parse(d))
+  .handler(async ({ data }): Promise<{ status: "processing" | "ready" | "errored"; mp4Url: string | null; error: string | null }> => {
+    muxAuth();
+    const asset = await muxApi(`/video/v1/assets/${data.assetId}`);
+    if (asset.status === "errored") return { status: "errored", mp4Url: null, error: asset.errors?.messages?.join("; ") ?? "Mux concat failed" };
+    if (asset.status !== "ready") return { status: "processing", mp4Url: null, error: null };
+    const pb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id;
+    if (!pb) return { status: "errored", mp4Url: null, error: "Concat asset has no public playback id." };
+    return { status: "ready", mp4Url: muxMp4(pb), error: null };
+  });
+
 // ---- reads ------------------------------------------------------------------
 /** Every publish row for the given lessons (newest version first). */
 export const listLessonVideos = createServerFn({ method: "POST" })
