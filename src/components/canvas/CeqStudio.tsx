@@ -16,6 +16,7 @@ import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
 import { CeqPreviewer } from "./CeqPreviewer";
+import { seedCeqSets } from "./ceq-seed";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type CeqChoice, type DeckDef } from "./types";
@@ -68,6 +69,12 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     const def = { ...newDeckDef(name.trim(), "cards"), lessonId: (nav.currentFrameId ? (rf.getNode(nav.currentFrameId)?.parentId ?? null) : null) };
     setDecks((prev) => addDeck(prev, def));
     setSetId(def.id); setQId(null);
+  };
+  const runSeed = () => {
+    if (!window.confirm("Seed the Ch 1–5 CEQ sets? Re-seeding replaces each seeded set's cards (idempotent) — your other sets are untouched.")) return;
+    const rep = seedCeqSets(rf, setDecks);
+    const total = rep.reduce((s, r) => s + r.count, 0);
+    setNote(`Seeded ${rep.length} sets · ${total} questions${rep.some((r) => r.replaced) ? " (replaced existing)" : ""}. Chains/memos empty — add your voice.`);
   };
   const renameSet = (d: DeckDef) => { const n = window.prompt("Rename set", d.name); if (n) setDecks((prev) => updateDeck(prev, d.id, { name: n.trim() })); };
   const deleteSet = (d: DeckDef) => {
@@ -209,6 +216,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
             })}
           </div>
           <button className="m-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={newSet}><Plus className="h-3 w-3" /> new set</button>
+          <button className="mx-1 mb-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="Create the Ch 1–5 CEQ sets (Free + Full each) — mechanical stems/choices, empty chains. Idempotent.">seed Ch 1–5</button>
         </div>
 
         {/* PANE 2 — QUESTIONS + editor */}
