@@ -7,7 +7,7 @@
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, Library, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Copy, ExternalLink, Library, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -57,6 +57,9 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [setsCourseFilter, setSetsCourseFilter] = useState("all"); // filter sets by course
   const [setsChapterFilter, setSetsChapterFilter] = useState("all"); // filter sets by chapter
   const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
+  const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set()); // questions whose memo list stays shown
+  const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
+  const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
 
   // SET ORGANISATION (Lee) — filter the sets list by course → chapter.
   const setCourses = useMemo(() => [...new Set(cardDecks.map((d) => d.course).filter((c): c is string => !!c))].sort(), [cardDecks]);
@@ -113,6 +116,19 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     setQId(id);
   };
   const patchQ = (id: string, patch: Record<string, unknown>) => { const c = patchDataCmd(rfl, id, patch, "edit question"); if (c) bus.dispatch(c); };
+  /** Duplicate a question into the same set (fresh stem/choices, EMPTY chains) — a
+   *  fast start for a similar question. */
+  const duplicateQuestion = (srcId: string) => {
+    const src = rf.getNode(srcId); if (!src || !deck) return;
+    const sd = src.data as unknown as CeqCard;
+    const order = nextStageOrder(rf.getNodes() as never);
+    const id = cardId("ceq");
+    const pos = { x: 520, y: 210 };
+    const node = { id, type: "ceq", position: pos, selected: false, data: { kind: "ceq", title: deck.name, prompt: sd.prompt, choices: sd.choices.map((c) => ({ id: cardId("ch"), text: c.text, correct: c.correct })), scale: sd.scale, deckId: deck.id, deckMember: true, tucked: true, stageOrder: order, slotIndex: questions.length, deckCategory: "ceq:studio", deckPos: pos } };
+    const cmd = addNodesCmd(rfl, [node] as never, "duplicate question"); if (cmd) bus.dispatch(cmd);
+    setQId(id);
+    setNote("Duplicated the question (empty chains) — edit the stem.");
+  };
   /** Reorder a chain memo within its choice (the outline "renumber"). */
   const reorderChainMemo = (ceqId: string, choiceId: string, idx: number, dir: -1 | 1) => {
     const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => { if (ch.id !== choiceId) return ch; const arr = [...(ch.chain ?? [])]; const j = idx + dir; if (j < 0 || j >= arr.length) return ch; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return { ...ch, chain: arr }; }) }), "renumber chain");
@@ -227,20 +243,67 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     setNote("Removed memo from the chain (still in the library).");
   };
 
-  // DELETE KEY — select a memo in the PREVIEWER → detach from its chain; else select
-  // memo(s) in the LIBRARY (checkboxes) → delete the node(s). Ignored while typing.
+  // ---- COPY / PASTE memos across questions (speed) --------------------------
+  /** Copy the outline-selected chain memos (data + frame-local position + which
+   *  choice index they hang off) to the memo clipboard. */
+  const copyMemos = () => {
+    if (selChainMemos.size === 0) return;
+    const clips: typeof memoClip = [];
+    for (const q of questions) {
+      const cc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices ?? [];
+      cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it) => {
+        if (!selChainMemos.has(it.memoNodeId)) return;
+        const m = rf.getNode(it.memoNodeId); if (!m) return;
+        const md = m.data as { title?: string; body?: string; memoKind?: string; category?: string; subcategory?: string; scale?: number };
+        clips.push({ label: it.label, title: md.title ?? "", body: md.body ?? "", memoKind: md.memoKind ?? "note", category: md.category ?? "", subcategory: md.subcategory ?? "", x: Math.round(m.position.x), y: Math.round(m.position.y), scale: md.scale ?? 1, choiceIdx: ci });
+      }));
+    }
+    setMemoClip(clips);
+    setNote(`Copied ${clips.length} memo${clips.length === 1 ? "" : "s"} — select a question, Ctrl+V to paste (same spot).`);
+  };
+  /** Paste the copied memos into `qId` — fresh nodes at the SAME frame-local spot,
+   *  chained to the SAME choice index (A→A, B→B, …). */
+  const pasteMemos = (targetId: string | null) => {
+    if (memoClip.length === 0 || !targetId) return;
+    const target = rf.getNode(targetId); if (!target) return;
+    const tChoices = (target.data as unknown as CeqCard).choices ?? [];
+    const newNodes: Record<string, unknown>[] = [];
+    const newEdges: Record<string, unknown>[] = [];
+    const adds = new Map<string, { kind: "memo"; memoNodeId: string; label: string }[]>();
+    for (const clip of memoClip) {
+      const ch = tChoices[clip.choiceIdx]; if (!ch) continue;
+      const memoId = cardId("memo");
+      newNodes.push({ id: memoId, type: "memo", position: { x: clip.x, y: clip.y }, selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, scale: clip.scale } });
+      newEdges.push({ id: `chn-${ch.id}-${memoId}`, source: memoId, sourceHandle: "l", target: targetId, targetHandle: memoAnchorId(ch.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
+      const arr = adds.get(ch.id) ?? []; arr.push({ kind: "memo", memoNodeId: memoId, label: clip.label }); adds.set(ch.id, arr);
+    }
+    if (newNodes.length === 0) { setNote("Nothing pasted — the target question lacks those choice slots."); return; }
+    const add = addNodesAndEdgesCmd(rfl, newNodes as never, newEdges as never, "paste memos"); if (add) bus.dispatch(add);
+    const patch = patchDataFnCmd(rfl, targetId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (adds.has(c.id) ? { ...c, chain: [...(c.chain ?? []), ...adds.get(c.id)!] } : c)) }), "paste chain memos"); if (patch) bus.dispatch(patch);
+    setNote(`Pasted ${newNodes.length} memo${newNodes.length === 1 ? "" : "s"} into the question.`);
+  };
+
+  const toggleChainSel = (memoNodeId: string) => setSelChainMemos((p) => { const n = new Set(p); n.has(memoNodeId) ? n.delete(memoNodeId) : n.add(memoNodeId); return n; });
+
+  // KEYBOARD — Delete (detach/delete), Ctrl+C/Ctrl+V (copy/paste memos),
+  // Ctrl+D (duplicate the question). Ignored while typing in a field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Delete" && e.key !== "Backspace") return;
       const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (typing) return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && (e.key === "c" || e.key === "C")) { if (selChainMemos.size > 0) { e.preventDefault(); copyMemos(); } return; }
+      if (ctrl && (e.key === "v" || e.key === "V")) { if (memoClip.length > 0 && qId) { e.preventDefault(); pasteMemos(qId); } return; }
+      if (ctrl && (e.key === "d" || e.key === "D")) { if (qId) { e.preventDefault(); duplicateQuestion(qId); } return; }
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
       if (sel.size > 0) { e.preventDefault(); deleteMemos([...sel]); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewSelMemo, qId, sel]);
+  }, [previewSelMemo, qId, sel, selChainMemos, memoClip]);
 
   /** CREATE a brand-new memo straight from the Studio, attached to a choice's chain
    *  and placed (frame-local) so it shows immediately in the previewer. */
@@ -341,7 +404,9 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
         <div className={COL} style={{ flex: 1.4, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>
             Questions {deck && <span style={{ color: NEON.muted }}>· {deck.name} ({questions.length})</span>}
-            {deck && <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> deal into frame</button>}
+            {deck && selChainMemos.size > 0 && <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
+            {deck && memoClip.length > 0 && qId && <button className={`${selChainMemos.size > 0 ? "" : "ml-auto "}flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase`} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
+            {deck && <button className={`${selChainMemos.size > 0 || (memoClip.length > 0 && qId) ? "" : "ml-auto "}flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase`} style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> deal into frame</button>}
           </div>
           {!deck ? (
             <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Pick or create a set on the left.</div>
@@ -350,22 +415,24 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
               {/* OUTLINE — CEQ → its chain memos (renumber via up/down) */}
               <div className="min-h-0 w-48 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
-                {questions.map((q, i) => { const p = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.prompt || "Question"; const walk = qId === q.id ? walkOf(q) : []; return (
+                {questions.map((q, i) => { const p = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; return (
                   <div key={q.id}>
                     <div className="flex items-center gap-0.5">
-                      <button className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[10.5px]" style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => setQId(q.id)}><span className="tabular-nums opacity-60">{i + 1}.</span> {clip(p, 20)}</button>
+                      <button className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
+                      <button className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[10.5px]" style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {clip(p, 18)}</button>
                       <button disabled={i === 0} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
                       <button disabled={i === questions.length - 1} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
+                      <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.muted }} onClick={() => duplicateQuestion(q.id)} title="Duplicate question (Ctrl+D) — fresh copy, empty chains"><Copy className="h-3 w-3" /></button>
                     </div>
-                    {qId === q.id && walk.map((w, wi) => (
-                      <div key={`${w.choiceId}-${w.idx}`} className="ml-3 flex items-center gap-0.5 py-0.5 text-[9.5px]">
-                        <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-[7.5px] font-black" style={{ color: "#0B0F1E", background: NEON.yellow }}>{w.num}</span>
+                    {expanded && walk.map((w, wi) => { const msel = selChainMemos.has(w.memoNodeId); return (
+                      <div key={`${w.choiceId}-${w.idx}`} className="ml-3 flex items-center gap-0.5 rounded py-0.5 text-[9.5px]" style={{ background: msel ? "rgba(79,163,227,0.18)" : "transparent" }}>
+                        <button className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-[7.5px] font-black" style={{ color: "#0B0F1E", background: msel ? NEON.cyan : NEON.yellow }} onClick={() => toggleChainSel(w.memoNodeId)} title="Select for copy (Ctrl+C) — click to toggle">{w.num}</button>
                         <span className="min-w-0 flex-1 cursor-text truncate" style={{ color: NEON.text }} title={`Choice ${w.letter}: ${w.label} — double-click to rename`} onDoubleClick={() => renameChainMemo(q.id, w.choiceId, w.idx, w.memoNodeId, w.label)}>{w.label}</span>
                         <button disabled={w.idx === 0} className="grid h-3.5 w-3.5 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, -1)} title="Earlier in walk"><ArrowUp className="h-2.5 w-2.5" /></button>
                         <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, 1)} title="Later in walk"><ArrowDown className="h-2.5 w-2.5" /></button>
                         <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.red }} onClick={() => removeFromChain(q.id, w.memoNodeId)} title="Remove from chain (keeps the memo in the library)"><X className="h-2.5 w-2.5" /></button>
                       </div>
-                    ))}
+                    ); })}
                   </div>
                 ); })}
                 <button className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={addQuestion}><Plus className="h-3 w-3" /> question</button>
