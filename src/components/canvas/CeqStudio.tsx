@@ -7,7 +7,7 @@
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckSquare, ChevronDown, ChevronRight, ExternalLink, Library, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, Library, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -53,8 +53,15 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const [sel, setSel] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(true); // collapsible stem/choices editor
   const [libOpen, setLibOpen] = useState(true); // collapsible memo-library pane
+  const [setsOpen, setSetsOpen] = useState(true); // collapsible sets pane
+  const [setsCourseFilter, setSetsCourseFilter] = useState("all"); // filter sets by course
+  const [setsChapterFilter, setSetsChapterFilter] = useState("all"); // filter sets by chapter
   const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
 
+  // SET ORGANISATION (Lee) — filter the sets list by course → chapter.
+  const setCourses = useMemo(() => [...new Set(cardDecks.map((d) => d.course).filter((c): c is string => !!c))].sort(), [cardDecks]);
+  const setChapters = useMemo(() => [...new Set(cardDecks.filter((d) => setsCourseFilter === "all" || d.course === setsCourseFilter).map((d) => d.chapter).filter((c): c is string => !!c))].sort(), [cardDecks, setsCourseFilter]);
+  const filteredDecks = cardDecks.filter((d) => (setsCourseFilter === "all" || d.course === setsCourseFilter) && (setsChapterFilter === "all" || d.chapter === setsChapterFilter));
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
   const qNode = qId ? nodes.find((n) => n.id === qId) : null;
@@ -285,12 +292,34 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        {/* PANE 1 — SETS */}
+        {/* PANE 1 — SETS (collapsible; filter by course → chapter) */}
+        {!setsOpen ? (
+          <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the sets list">
+            <ListChecks className="h-4 w-4" />
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>Sets ({cardDecks.length})</span>
+          </button>
+        ) : (
         <div className={COL} style={{ maxWidth: 220, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
-          <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Sets <span style={{ color: NEON.muted }}>({cardDecks.length})</span></div>
+          <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Sets <span style={{ color: NEON.muted }}>({filteredDecks.length === cardDecks.length ? cardDecks.length : `${filteredDecks.length}/${cardDecks.length}`})</span>
+            <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the sets list"><ChevronLeft className="h-3.5 w-3.5" /></button>
+          </div>
+          {setCourses.length > 0 && (
+            <div className="flex flex-col gap-1 px-1.5 pt-1.5">
+              <select value={setsCourseFilter} onChange={(e) => { setSetsCourseFilter(e.target.value); setSetsChapterFilter("all"); }} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Filter sets by course">
+                <option value="all">all courses</option>
+                {setCourses.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {setChapters.length > 0 && (
+                <select value={setsChapterFilter} onChange={(e) => setSetsChapterFilter(e.target.value)} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Filter sets by chapter">
+                  <option value="all">all chapters</option>
+                  {setChapters.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
-            {cardDecks.length === 0 && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>No sets yet — a set is a named deck of CEQ questions.</div>}
-            {cardDecks.map((d) => {
+            {filteredDecks.length === 0 && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>{cardDecks.length === 0 ? "No sets yet — a set is a named deck of CEQ questions." : "No sets match the filter."}</div>}
+            {filteredDecks.map((d) => {
               const count = deckMembersOf(nodes as { id: string; data?: { deckId?: string; stageOrder?: number } }[], d.id).length;
               const laid = (d.slots?.length ?? 0) > 0;
               const on = setId === d.id;
@@ -306,6 +335,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
           <button className="m-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={newSet}><Plus className="h-3 w-3" /> new set</button>
           <button className="mx-1 mb-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="Create the Ch 1–5 CEQ sets (Free + Full each) — mechanical stems/choices, empty chains. Idempotent.">seed Ch 1–5</button>
         </div>
+        )}
 
         {/* PANE 2 — QUESTIONS + editor */}
         <div className={COL} style={{ flex: 1.4, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>

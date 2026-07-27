@@ -1019,6 +1019,10 @@ export interface DeckDef {
   slotsLocal?: boolean;
   /** Show ghosted skeletons for undealt slots (P4). Default true. */
   showSkeletons?: boolean;
+  /** CEQ Studio organisation (Lee) — optional course + chapter tags so the Studio
+   *  can group/filter sets by course → chapter. Additive; free-text. */
+  course?: string;
+  chapter?: string;
   createdAt?: string;
   updatedAt?: string;
 }

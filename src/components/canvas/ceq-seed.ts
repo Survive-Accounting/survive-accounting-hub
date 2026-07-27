@@ -190,7 +190,9 @@ export function seedCeqSets(rf: ReactFlowInstance, setDecks: (fn: (prev: DeckDef
     if (existing.length) { const rm = removeNodesCmd(rfl, existing.map((n) => n.id), `clear ${set.name}`); if (rm) cmds.push(rm); }
     const add = addNodesCmd(rfl, nodes as never, `seed ${set.name}`); if (add) cmds.push(add);
     const cmd = compositeCmd(cmds, `seed ${set.name}`); if (cmd) bus.dispatch(cmd);
-    setDecks((prev) => (prev.some((d) => d.id === deckId) ? updateDeck(prev, deckId, { name: set.name }) : addDeck(prev, { ...newDeckDef(set.name, "cards"), id: deckId })));
+    const chapter = `Ch ${/ch(\d+)/.exec(set.key)?.[1] ?? "?"}`;
+    const course = "Foundations";
+    setDecks((prev) => (prev.some((d) => d.id === deckId) ? updateDeck(prev, deckId, { name: set.name, course, chapter }) : addDeck(prev, { ...newDeckDef(set.name, "cards"), id: deckId, course, chapter })));
     report.push({ name: set.name, count: set.questions.length, replaced: existing.length > 0 });
   }
   return report;
