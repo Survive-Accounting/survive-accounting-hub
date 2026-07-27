@@ -78,12 +78,15 @@ export function LessonVideoSlot({ lessonId, cramMode, openSignal }: { lessonId: 
     if (files.length === 0) { setNote("Stage a raw file first."); return; }
     if (files.length > 1) { setNote("Publish needs a SINGLE file for now — multi-file concat isn't wired on this staged path (no Vercel ffmpeg; Mux concat would put raws on Mux). Keep one file, or combine externally first."); return; }
     setBusy("publishing"); setNote("Auphonic is processing (this runs on the deployed env)…");
+    const san = (s: string) => s.replace(/\//g, "-").trim();
+    const passthrough = `${san(d.topic || "Topic")}/${san(d.label || "Lesson")}/${paid ? "full" : "free"}`.slice(0, 250);
+    const title = `${d.label || "Lesson"} — ${variant ?? "CEQ"}`;
     try {
       const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: files[0].url } });
       let muxAssetId: string | null = null;
       let final: string | null = null;
       for (let i = 0; i < 240 && !final; i++) {
-        const r: AuphRes = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId } });
+        const r: AuphRes = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId, passthrough, title } });
         muxAssetId = r.muxAssetId;
         if (r.stage === "errored") throw new Error(r.error ?? "pipeline errored");
         if (r.stage === "auphonic") setNote(`Auphonic: ${r.auphonicStatus ?? "processing"}…`);
@@ -92,7 +95,7 @@ export function LessonVideoSlot({ lessonId, cramMode, openSignal }: { lessonId: 
         await sleep(5000);
       }
       if (!final) throw new Error("Timed out waiting for the final Mux asset.");
-      set({ muxAssetId, muxPlaybackId: final, status: "PUBLISHED" });
+      set({ muxAssetId, muxPlaybackId: final, status: "PUBLISHED", muxPublishedAt: Date.now(), videoChapter: d.topic });
       setNote("Published ✓ — the outline turns green.");
     } catch (e) {
       setNote(`Publish failed: ${e instanceof Error ? e.message : String(e)}`);
