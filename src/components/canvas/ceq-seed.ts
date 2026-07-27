@@ -174,7 +174,9 @@ export function seedCeqSets(rf: ReactFlowInstance, setDecks: (fn: (prev: DeckDef
     const deckId = `deck-${set.key}`;
     const existing = rf.getNodes().filter((n) => (n.data as { deckId?: string }).deckId === deckId);
     const nodes = set.questions.map((qq, i) => {
-      const pos = { x: 80 + (i % 6) * 300, y: 80 + Math.floor(i / 6) * 260 };
+      // Start every question at the 1600×900 deal-centre so the previewer shows it
+      // centred in the frame (no drift); Lee repositions from there.
+      const pos = { x: 520, y: 210 };
       return {
         id: cardId("ceq"), type: "ceq", position: pos, selected: false,
         data: {

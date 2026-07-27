@@ -131,21 +131,23 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     if (!frame || frame.type !== "frame") { setNote("Enter a frame first, then Deal."); return; }
     const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
     const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
-    const centre = dealCentre(fw, fh);
     const members = questions.map((q) => rf.getNode(q.id)).filter((n): n is NonNullable<typeof n> => !!n);
     const memberIds = new Set(members.map((m) => m.id));
+    // Each CEQ keeps the EXACT position it holds in the previewer (default = the
+    // deal-centre, seeded there); the stack's flip-spot is the first card's spot.
+    const dealSpot = members[0] ? { x: Math.round(members[0].position.x), y: Math.round(members[0].position.y) } : dealCentre(fw, fh);
     const memoIds = new Set<string>();
     for (const m of members) for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) if (it.memoNodeId) memoIds.add(it.memoNodeId);
     bus.dispatch({
       label: `deal ${deck.name} into frame`,
       do: () => rf.setNodes((nds) => nds.map((n) => {
-        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); return { ...n, parentId: frameId, position: { ...centre }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined } } as typeof n; }
+        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); return { ...n, parentId: frameId, position: { ...n.position }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined } } as typeof n; }
         if (memoIds.has(n.id)) return { ...n, parentId: frameId, position: { ...n.position } } as typeof n; // frame-local position already set from the previewer
         return n;
       })),
       undo: () => { /* transient staging move — re-deal to redo; not separately undone */ },
     });
-    const c = patchDataCmd(rfl, frameId, { stackDeal: true, dealSpot: centre }, "stack deal"); if (c) bus.dispatch(c);
+    const c = patchDataCmd(rfl, frameId, { stackDeal: true, dealSpot }, "stack deal"); if (c) bus.dispatch(c);
     setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} + ${memoIds.size} memo${memoIds.size === 1 ? "" : "s"} — positions match this preview. Film-ready (Enter reveals the memos).`);
   };
 
