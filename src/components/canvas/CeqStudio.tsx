@@ -7,7 +7,7 @@
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useState } from "react";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { CheckSquare, ChevronRight, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronRight, ExternalLink, Library, ListChecks, Plus, Search, Square, Trash2, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -15,6 +15,7 @@ import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patc
 import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
+import { CeqPreviewer } from "./CeqPreviewer";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type CeqChoice, type DeckDef } from "./types";
@@ -26,7 +27,7 @@ const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 
-export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; initialCeqId?: string | null; onClose: () => void }) {
+export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
   const nodes = useNodes(); // reactive
@@ -49,11 +50,16 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: D
   const [catFilter, setCatFilter] = useState<Set<string>>(() => new Set([...MEMO_CATEGORIES, NONE]));
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [sel, setSel] = useState<Set<string>>(() => new Set());
+  const [editorOpen, setEditorOpen] = useState(true); // collapsible stem/choices editor
+  const [libOpen, setLibOpen] = useState(true); // collapsible memo-library pane
 
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
   const qNode = qId ? nodes.find((n) => n.id === qId) : null;
   const qd = qNode?.data as unknown as CeqCard | undefined;
+  // Re-seed signature for the live previewer — CONTENT only (stem/choices/chain), NOT
+  // positions, so dragging a memo (which writes position back) never re-seeds/fights.
+  const ceqSig = qd ? `${qId}|${qd.prompt}|${qd.choices.map((c) => `${c.text}:${c.correct ? 1 : 0}:${(c.chain ?? []).map((it) => `${it.memoNodeId}~${it.label}`).join(",")}`).join("|")}` : "";
 
   // ---- SETS -----------------------------------------------------------------
   const newSet = () => {
@@ -82,6 +88,13 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: D
     setQId(id);
   };
   const patchQ = (id: string, patch: Record<string, unknown>) => { const c = patchDataCmd(rfl, id, patch, "edit question"); if (c) bus.dispatch(c); };
+  /** Reorder a chain memo within its choice (the outline "renumber"). */
+  const reorderChainMemo = (ceqId: string, choiceId: string, idx: number, dir: -1 | 1) => {
+    const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => { if (ch.id !== choiceId) return ch; const arr = [...(ch.chain ?? [])]; const j = idx + dir; if (j < 0 || j >= arr.length) return ch; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return { ...ch, chain: arr }; }) }), "renumber chain");
+    if (c) bus.dispatch(c);
+  };
+  /** Flat walk list for a question (choice order → chain index) for the outline. */
+  const walkOf = (q: { id: string }) => { const cc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices ?? []; const list: { choiceId: string; idx: number; label: string; letter: string; num: number }[] = []; cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it, i) => list.push({ choiceId: ch.id, idx: i, label: it.label, letter: LETTER(ci), num: list.length + 1 }))); return list; };
   const patchChoice = (id: string, choiceId: string, patch: Partial<CeqChoice>) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (ch.id === choiceId ? { ...ch, ...patch } : ch)) }), "edit choice"); if (c) bus.dispatch(c); };
   const setCorrect = (id: string, choiceId: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => ({ ...ch, correct: ch.id === choiceId })) }), "mark correct"); if (c) bus.dispatch(c); };
   const addChoice = (id: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: [...(prev as unknown as { choices: CeqChoice[] }).choices, { id: cardId("ch"), text: "" }] }), "add choice"); if (c) bus.dispatch(c); };
@@ -166,10 +179,11 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: D
   const COL = "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg";
   const HEAD = "flex shrink-0 items-center gap-1.5 border-b px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider";
   return (
-    <div className="absolute inset-0 z-[60] flex flex-col" style={{ background: "rgba(6,10,20,0.98)", color: NEON.text }}>
+    <div className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 z-[60] flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text }}>
       <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
         <div className="flex items-center gap-2 text-[14px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.yellow }}><ListChecks className="h-4 w-4" /> CEQ Studio</div>
         <div className="flex items-center gap-2">
+          {!popped && onPopOut && <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} title="Pop out to a window (2nd monitor · capture-invisible)" onClick={onPopOut}><ExternalLink className="h-4 w-4" /></button>}
           {note && <span className="text-[10px]" style={{ color: NEON.muted }}>{note}</span>}
           <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}` }} title="Close" onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
@@ -207,39 +221,58 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: D
             <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Pick or create a set on the left.</div>
           ) : (
             <div className="flex min-h-0 flex-1">
-              {/* list */}
-              <div className="min-h-0 w-40 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
+              {/* OUTLINE — CEQ → its chain memos (renumber via up/down) */}
+              <div className="min-h-0 w-48 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
-                {questions.map((q, i) => { const p = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.prompt || "Question"; return (
-                  <div key={q.id} className="flex items-center gap-0.5">
-                    <button className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[10.5px]" style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => setQId(q.id)}><span className="tabular-nums opacity-60">{i + 1}.</span> {clip(p, 18)}</button>
-                    <button disabled={i === 0} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
-                    <button disabled={i === questions.length - 1} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
+                {questions.map((q, i) => { const p = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.prompt || "Question"; const walk = qId === q.id ? walkOf(q) : []; return (
+                  <div key={q.id}>
+                    <div className="flex items-center gap-0.5">
+                      <button className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[10.5px]" style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => setQId(q.id)}><span className="tabular-nums opacity-60">{i + 1}.</span> {clip(p, 20)}</button>
+                      <button disabled={i === 0} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
+                      <button disabled={i === questions.length - 1} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
+                    </div>
+                    {qId === q.id && walk.map((w, wi) => (
+                      <div key={`${w.choiceId}-${w.idx}`} className="ml-3 flex items-center gap-0.5 py-0.5 text-[9.5px]">
+                        <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-[7.5px] font-black" style={{ color: "#0B0F1E", background: NEON.yellow }}>{w.num}</span>
+                        <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }} title={`Choice ${w.letter}: ${w.label}`}>{w.label}</span>
+                        <button disabled={w.idx === 0} className="grid h-3.5 w-3.5 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, -1)} title="Earlier in walk"><ArrowUp className="h-2.5 w-2.5" /></button>
+                        <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, 1)} title="Later in walk"><ArrowDown className="h-2.5 w-2.5" /></button>
+                      </div>
+                    ))}
                   </div>
                 ); })}
                 <button className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={addQuestion}><Plus className="h-3 w-3" /> question</button>
               </div>
-              {/* editor */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                {!qd ? <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to edit.</div> : (
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Stem (markdown)</label>
-                    <textarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onChange={(e) => patchQ(qId!, { prompt: e.target.value })} placeholder="The question stem…" />
-                    <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click the ○ to mark correct · drop a memo to chain it</div>
-                    {qd.choices.map((ch, ci) => (
-                      <div key={ch.id} className="flex items-center gap-1 rounded px-1 py-0.5" style={{ border: `1px solid ${ch.correct ? "rgba(59,245,160,0.5)" : NEON.borderSoft}` }}
-                        onDragOver={(e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
-                        onDrop={(e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemoToChoice(qId!, ch.id, mid); } }}>
-                        <button className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8px] font-black" style={{ color: ch.correct ? "#0B0F1E" : NEON.muted, background: ch.correct ? "#3BF5A0" : "transparent", border: `1px solid ${ch.correct ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => setCorrect(qId!, ch.id)} title="Mark correct">{LETTER(ci)}</button>
-                        <input className="min-w-0 flex-1 bg-transparent text-[12px] outline-none" style={{ color: NEON.text }} value={ch.text} onChange={(e) => patchChoice(qId!, ch.id, { text: e.target.value })} placeholder={`Choice ${LETTER(ci)}`} />
-                        {(ch.chain?.length ?? 0) > 0 && <span className="shrink-0 text-[8px] tabular-nums" style={{ color: NEON.cyan }} title="chain items">⛓{ch.chain!.length}</span>}
-                        <button className="shrink-0" style={{ color: NEON.red }} onClick={() => removeChoice(qId!, ch.id)} title="Remove choice"><X className="h-3 w-3" /></button>
-                      </div>
-                    ))}
-                    <div className="flex items-center gap-1">
-                      <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => addChoice(qId!)}><Plus className="h-3 w-3" /> choice</button>
-                      <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setChainFor(qId)} title="Per-choice chains + save/load template (same model as the card popover)"><Link2 className="h-3 w-3" /> chains & templates</button>
+              {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="min-h-0 flex-1">
+                  <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} />
+                </div>
+                {qd && (
+                  <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
+                    <div className="flex items-center gap-1 px-2 py-1">
+                      <button className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} onClick={() => setEditorOpen((v) => !v)}>{editorOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} edit stem & choices</button>
+                      <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setChainFor(qId)} title="Per-choice chains + save/load template (same model as the card popover)"><Link2 className="h-3 w-3" /> chains & templates</button>
                     </div>
+                    {editorOpen && (
+                      <div className="max-h-[38vh] overflow-y-auto px-2 pb-2">
+                        <div className="flex flex-col gap-2">
+                          <textarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onChange={(e) => patchQ(qId!, { prompt: e.target.value })} placeholder="The question stem…" />
+                          <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click ○ to mark correct · drop a memo to chain it</div>
+                          {qd.choices.map((ch, ci) => (
+                            <div key={ch.id} className="flex items-center gap-1 rounded px-1 py-0.5" style={{ border: `1px solid ${ch.correct ? "rgba(59,245,160,0.5)" : NEON.borderSoft}` }}
+                              onDragOver={(e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
+                              onDrop={(e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemoToChoice(qId!, ch.id, mid); } }}>
+                              <button className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8px] font-black" style={{ color: ch.correct ? "#0B0F1E" : NEON.muted, background: ch.correct ? "#3BF5A0" : "transparent", border: `1px solid ${ch.correct ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => setCorrect(qId!, ch.id)} title="Mark correct">{LETTER(ci)}</button>
+                              <input className="min-w-0 flex-1 bg-transparent text-[12px] outline-none" style={{ color: NEON.text }} value={ch.text} onChange={(e) => patchChoice(qId!, ch.id, { text: e.target.value })} placeholder={`Choice ${LETTER(ci)}`} />
+                              {(ch.chain?.length ?? 0) > 0 && <span className="shrink-0 text-[8px] tabular-nums" style={{ color: NEON.cyan }} title="chain items">⛓{ch.chain!.length}</span>}
+                              <button className="shrink-0" style={{ color: NEON.red }} onClick={() => removeChoice(qId!, ch.id)} title="Remove choice"><X className="h-3 w-3" /></button>
+                            </div>
+                          ))}
+                          <button className="flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => addChoice(qId!)}><Plus className="h-3 w-3" /> choice</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -247,9 +280,17 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: D
           )}
         </div>
 
-        {/* PANE 3 — MEMO LIBRARY */}
+        {/* PANE 3 — MEMO LIBRARY (collapsible to a thin rail to give the previewer room) */}
+        {!libOpen ? (
+          <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setLibOpen(true)} title="Show the memo library">
+            <Library className="h-4 w-4" />
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>Memos ({memos.length})</span>
+          </button>
+        ) : (
         <div className={COL} style={{ maxWidth: 260, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
-          <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Memo library <span style={{ color: NEON.muted }}>({memos.length})</span></div>
+          <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Memo library <span style={{ color: NEON.muted }}>({memos.length})</span>
+            <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setLibOpen(false)} title="Collapse the memo library"><ChevronRight className="h-3.5 w-3.5" /></button>
+          </div>
           <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search title / sub-category" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} /></div>
           {courses.length > 0 && (
             <div className="flex items-center gap-1 px-1.5 pt-1"><span className="text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Course</span>
@@ -294,6 +335,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onClose }: { decks: D
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {chainFor && <CeqChainEditor nodeId={chainFor} onClose={() => setChainFor(null)} />}

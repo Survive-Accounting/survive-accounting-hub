@@ -119,8 +119,8 @@ import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 
 // Panels that can be popped out to the director's second-monitor window.
-type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline";
-const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script", "runtimer", "outline"];
+type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline" | "ceqstudio";
+const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script", "runtimer", "outline", "ceqstudio"];
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
@@ -6478,7 +6478,12 @@ function PresentCanvas() {
       {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
       {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
           chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
-      {chrome && ceqStudioOpen && <CeqStudio decks={decks} setDecks={setDecks} initialCeqId={studioFocusCeq} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); }} />}
+      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} initialCeqId={studioFocusCeq} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); }} />}
+      {isPopped("ceqstudio") && (
+        <PanelPopout win={popWins.ceqstudio!} title="CEQ Studio" onReturn={() => returnPop("ceqstudio")}>
+          <CeqStudio decks={decks} setDecks={setDecks} initialCeqId={studioFocusCeq} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); }} />
+        </PanelPopout>
+      )}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (
