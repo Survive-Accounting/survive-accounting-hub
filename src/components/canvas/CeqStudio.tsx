@@ -7,7 +7,7 @@
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, Globe, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -25,7 +25,7 @@ import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, sta
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type CeqChoice, type DeckDef } from "./types";
+import { cardId, type CeqCard, type CeqChoice, type DeckDef, type TakeRef } from "./types";
 import { NEON } from "./theme";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
@@ -100,8 +100,12 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
   const previewEdges = useMemo(() => allEdges.filter((e) => chainMemoIds.has(e.source)).map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle })), [allEdges, chainMemoIds]);
   // DERIVED Free/Full stitch lists — order comes from `questions` (deck order) ONLY.
   const stitchCeqs = useMemo(() => questions.map((q) => { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; return { id: q.id, prompt: d?.prompt ?? "", take: d?.take, free: d?.free }; }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
-  const stitchFree = useMemo(() => buildStitch("free", { intro: deck?.intro, transition: prefs.transition, outro: deck?.outro, ceqs: stitchCeqs }), [stitchCeqs, deck?.intro, deck?.outro, prefs.transition]);
-  const stitchFull = useMemo(() => buildStitch("full", { intro: deck?.intro, transition: prefs.transition, outro: deck?.outro, ceqs: stitchCeqs }), [stitchCeqs, deck?.intro, deck?.outro, prefs.transition]);
+  // RESOLVED intro/outro = the set's own local drop, else the GLOBAL fallback. Preview,
+  // stitch lists and publish all read these, so what you preview is what publishes.
+  const resolvedIntro = deck?.intro ?? prefs.globalIntro;
+  const resolvedOutro = deck?.outro ?? prefs.globalOutro;
+  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, transition: prefs.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, prefs.transition]);
+  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, transition: prefs.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, prefs.transition]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
 
   // ---- SETS -----------------------------------------------------------------
@@ -185,6 +189,35 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     finally { setTakeBusy(null); }
   };
   const clearTake = (ceqId: string) => { patchQ(ceqId, { take: undefined }); if (takePreview === ceqId) setTakePreview(null); };
+
+  /** GLOBAL clip inheritance (Lee) — intro/outro resolve to `local ?? global`.
+   *  Toggle the globe on a slot: if the set is already INHERITING the global, turn
+   *  the shared global OFF for everyone; otherwise PROMOTE this slot's resolved clip
+   *  to the shared global AND drop this set's local so it inherits the global too
+   *  (every set then reads the one file). Stored in panel prefs (localStorage), the
+   *  same shared place the transition lives. */
+  const toggleGlobal = (kind: "intro" | "outro") => {
+    if (!deck) return;
+    const local = kind === "intro" ? deck.intro : deck.outro;
+    const global = kind === "intro" ? prefs.globalIntro : prefs.globalOutro;
+    if (!local && global) { // inheriting → clear the shared global for all sets
+      if (kind === "intro") setPrefs({ globalIntro: undefined }); else setPrefs({ globalOutro: undefined });
+      setNote(`Cleared the global ${kind} — sets no longer inherit it.`);
+      return;
+    }
+    const resolved = local ?? global;
+    if (!resolved) return;
+    if (kind === "intro") setPrefs({ globalIntro: resolved }); else setPrefs({ globalOutro: resolved });
+    setDecks((prev) => updateDeck(prev, deck.id, kind === "intro" ? { intro: undefined } : { outro: undefined }));
+    setNote(`Global ${kind} set → every set without its own now inherits "${resolved.name ?? "the clip"}".`);
+  };
+  /** Clear a set's LOCAL intro/outro override — the slot falls back to the global. */
+  const clearSlotLocal = (kind: "intro" | "outro") => {
+    if (!deck) return;
+    setDecks((prev) => updateDeck(prev, deck.id, kind === "intro" ? { intro: undefined } : { outro: undefined }));
+    const global = kind === "intro" ? prefs.globalIntro : prefs.globalOutro;
+    setNote(global ? `Cleared this set's ${kind} — it falls back to the global.` : `Cleared this set's ${kind}.`);
+  };
 
   /** Which lesson a Free/Full publish attaches to: the CEQ lesson (category CEQ) of
    *  the matching access in the set's topic; falls back to the set's linked lesson. */
@@ -619,21 +652,37 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                 <div className="mt-2 flex flex-col gap-1 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
                   <div className="px-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Set clips — drop a video</div>
                   {([
-                    { label: "Intro", key: `intro:${setId}`, take: deck.intro, onFile: (f: File) => dropSlot("intro", f) },
-                    { label: "Transition", key: "transition", take: prefs.transition, onFile: (f: File) => dropSlot("transition", f) },
-                    { label: "Outro", key: `outro:${setId}`, take: deck.outro, onFile: (f: File) => dropSlot("outro", f) },
-                  ] as const).map((s) => (
+                    { label: "Intro", kind: "intro", key: `intro:${setId}`, local: deck.intro, global: prefs.globalIntro, onFile: (f: File) => dropSlot("intro", f) },
+                    { label: "Transition", kind: "transition", key: "transition", local: prefs.transition, global: undefined as TakeRef | undefined, onFile: (f: File) => dropSlot("transition", f) },
+                    { label: "Outro", kind: "outro", key: `outro:${setId}`, local: deck.outro, global: prefs.globalOutro, onFile: (f: File) => dropSlot("outro", f) },
+                  ] as const).map((s) => {
+                    // RESOLVED = the set's own clip, else the shared global fallback. The
+                    // globe/CLEAR + GLOBAL/CUSTOM badge only apply to intro/outro (gkind);
+                    // the transition is inherently shared (SHARED badge, drop-to-replace).
+                    const gkind: "intro" | "outro" | null = s.kind === "intro" || s.kind === "outro" ? s.kind : null;
+                    const resolved = s.local ?? s.global;
+                    const inheriting = !!gkind && !s.local && !!s.global; // showing the shared global
+                    const badge = !gkind ? "SHARED" : s.local ? "CUSTOM" : s.global ? "GLOBAL" : null;
+                    return (
                     <div key={s.key}>
                       <div className="flex items-center gap-1 rounded px-1 py-0.5" style={{ background: dragKey === s.key ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.2)", outline: dragKey === s.key ? `1px dashed ${NEON.yellow}` : `1px solid ${NEON.borderSoft}` }} {...dragProps(s.key, s.onFile)}>
-                        <span className="w-16 shrink-0 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>{s.label}{s.label === "Transition" ? " ·shared" : ""}</span>
-                        <span className="min-w-0 flex-1 truncate text-[9px]" style={{ color: s.take ? NEON.text : NEON.muted }} title={s.take?.name}>{s.take ? `${s.take.name} · ${fmtDur(s.take.duration)}` : "drop a clip"}</span>
-                        <button className="grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === s.key ? null : s.key))} title={s.take ? "Preview" : "Drop a clip to attach"}>{takeBusy === s.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : s.take ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
+                        <span className="w-14 shrink-0 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>{s.label}</span>
+                        <span className="min-w-0 flex-1 truncate text-[9px]" style={{ color: resolved ? NEON.text : NEON.muted }} title={resolved?.name}>{resolved ? `${resolved.name} · ${fmtDur(resolved.duration)}` : "drop a clip"}</span>
+                        {badge && <span className="shrink-0 rounded px-1 text-[7px] font-bold uppercase tracking-wide" style={badge === "GLOBAL" ? { color: "#7CC4FF", border: "1px solid rgba(124,196,255,0.5)" } : badge === "CUSTOM" ? { color: NEON.yellow, border: `1px solid ${NEON.border}` } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={badge === "GLOBAL" ? "Inheriting the shared global clip" : badge === "CUSTOM" ? "This set's own clip — overrides the global" : "Shared across every set"}>{badge}</span>}
+                        {gkind && (
+                          <button className="grid h-4 w-4 shrink-0 place-items-center disabled:opacity-30" style={{ color: inheriting ? "#7CC4FF" : NEON.muted }} disabled={!resolved} onClick={() => toggleGlobal(gkind)} title={inheriting ? `Inheriting the global ${gkind} — click to turn the global OFF for every set` : `Make this the GLOBAL ${gkind} — every set without its own inherits it`}><Globe className="h-3 w-3" /></button>
+                        )}
+                        {gkind && s.local && (
+                          <button className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.red }} onClick={() => { clearSlotLocal(gkind); if (takePreview === s.key) setTakePreview(null); }} title="Clear this set's clip — fall back to the global"><X className="h-3 w-3" /></button>
+                        )}
+                        <button className="grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === s.key ? null : s.key))} title={resolved ? "Preview" : "Drop a clip to attach"}>{takeBusy === s.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : resolved ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
                       </div>
-                      {takePreview === s.key && s.take && (
-                        <div className="my-1 ml-1"><video src={s.take.url} controls playsInline className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} /></div>
+                      {takePreview === s.key && resolved && (
+                        <div className="my-1 ml-1"><video src={resolved.url} controls playsInline className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} /></div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}

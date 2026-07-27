@@ -85,8 +85,11 @@ export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqI
   return out;
 }
 
-// ---- panel prefs (localStorage; wrap toggle + the shared transition file) ----
-export interface CeqStudioPrefs { wrapStems?: boolean; transition?: TakeRef; videoLibOpen?: boolean; costOn?: boolean }
+// ---- panel prefs (localStorage; wrap toggle + the shared transition file + the
+//      GLOBAL intro/outro clips). transition has always been shared (one file for
+//      every set); globalIntro/globalOutro extend that to intro & outro as a FALLBACK
+//      a set inherits when it has no local drop of its own (resolved = local ?? global). ----
+export interface CeqStudioPrefs { wrapStems?: boolean; transition?: TakeRef; videoLibOpen?: boolean; costOn?: boolean; globalIntro?: TakeRef; globalOutro?: TakeRef }
 const PREFS_KEY = "sa-ceq-studio-prefs";
 export function loadPrefs(): CeqStudioPrefs {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as CeqStudioPrefs; } catch { return {}; }
