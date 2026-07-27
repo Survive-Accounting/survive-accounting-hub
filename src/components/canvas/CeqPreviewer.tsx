@@ -28,7 +28,7 @@
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
-import { Clapperboard, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Timer } from "lucide-react";
+import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Pause, Play, RotateCcw, Timer } from "lucide-react";
 
 import { FLAME_CSS } from "./FilmOverlays";
 import { openPopoutWindow, PanelPopout } from "./PanelPopout";
@@ -39,7 +39,7 @@ import { playSfx } from "./sfx";
 import { spotStyle } from "./SpotlightContext";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
 import { NEON, PAPER } from "./theme";
-import { clampScale, type CeqCard } from "./types";
+import { clampScale, type CeqCard, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
 const PracticeContext = createContext<{ emph: number | null; resolved: Set<number> }>({ emph: null, resolved: new Set() });
@@ -176,7 +176,7 @@ function MemoPreviewNode({ id, data }: NodeProps) {
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, onSaveBaseline, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; onSaveBaseline?: (l: DeckLayout) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
   const cd = ceq?.data as unknown as CeqCard | undefined;
   // Flat walk list: each chain memo with its choice index + position within the chain.
@@ -254,14 +254,19 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
     if (e.ctrlKey || e.metaKey || e.shiftKey) { e.preventDefault(); e.stopPropagation(); setSpots((s) => (s.regular.has(key) || s.superKey === key ? EMPTY_SPOTS : applyRegularClick(s, key))); }
   }, []);
 
+  // Seed EVERY question from the SET BASELINE (deck.layout) — NOT the drifting real
+  // node positions — so Q1..Qn deal identically; the default (no saved layout) is the
+  // centred card + right-stacked memos (dealCentre/defaultMemoPos), which matches the
+  // seed spots. Memos key off the FLAT chain-slot index `i` (choice-major, chain-order).
   const build = useMemo(() => () => {
     if (!ceq || !cd) return [];
+    const cb = baseline?.card;
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: 0 }, data: { w: frameW, h: frameH }, draggable: false, selectable: false, zIndex: -10 };
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: { ...ceq.position }, data: { stem: cd.prompt, choices: cd.choices, scale: (ceq.data as { scale?: number }).scale ?? 1 }, draggable: true, zIndex: 1 };
-    const memoNodes = walk.map((w, i) => { const m = mainRf.getNode(w.memoNodeId); return { id: w.memoNodeId, type: "memoPreview", position: m ? { ...m.position } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: (m?.data as { scale?: number } | undefined)?.scale ?? 1 }, draggable: true, zIndex: 5 }; });
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: cb.y } : dealCentre(frameW, frameH), data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
+    const memoNodes = walk.map((w, i) => { const slot = baseline?.memoSlots?.[i]; return { id: w.memoNodeId, type: "memoPreview", position: slot ? { x: slot.x, y: slot.y } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: slot?.scale ?? 1 }, draggable: true, zIndex: 5 }; });
     return [frameNode, ceqNode, ...memoNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH]);
+  }, [ceqId, mainSig, frameW, frameH, baseline]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
@@ -284,13 +289,19 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   }, [filmWin, ceqId, frameW, frameH, nodes, fitFilm]);
   const toggleFilm = () => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
 
-  const onDragStop = (_e: unknown, node: { id: string; position: { x: number; y: number } }) => {
-    if (node.id === "__frame__") return;
-    mainRf.setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: { ...node.position } } : n)));
-  };
-  const setScale = (nodeId: string, scale: number) => {
-    setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
-    mainRf.setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
+  // Drags (via onNodesChange) + grip resizes are TRANSIENT per-instance overrides —
+  // they live ONLY in the local `nodes` state and DIE when build() re-seeds (question
+  // switch / baseline change). We no longer write them back to the real canvas nodes;
+  // the SET BASELINE is the single source of truth. Promote via "Set as layout" only.
+  const setScale = (nodeId: string, scale: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
+  /** SET AS LAYOUT — snapshot the current card + memo geometry as the set's baseline
+   *  (the only thing that changes it). Reads the live local nodes; keys memos by flat
+   *  chain-slot index. Save from the question with the MOST chain items to fill slots. */
+  const saveBaseline = () => {
+    const c = nodes.find((n) => n.id === ceqId);
+    const memoSlots: DeckSlotLayout[] = [];
+    walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y), scale: (m.data as { scale?: number }).scale ?? 1 }; });
+    onSaveBaseline?.({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
   };
 
   const miniIds = useMemo(() => new Set<string>(["__frame__", ceqId, ...walk.map((w) => w.memoNodeId)]), [ceqId, walk]);
@@ -369,7 +380,6 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
                   nodes={nodes}
                   edges={edges}
                   onNodesChange={onNodesChange}
-                  onNodeDragStop={onDragStop as never}
                   onConnect={onConnect}
                   onEdgeClick={onEdgeClick}
                   onSelectionChange={({ nodes: sel, edges: selE }) => {
@@ -405,6 +415,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — a clean, full-screen mirror of this preview on your 2nd monitor (control here, film there). Maximize it for a clean 16:9 capture."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
+                {onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={saveBaseline} title="Set as layout — save THIS card + memo arrangement as the set's baseline. Every question then deals/previews at this geometry. (Save from the question with the most chain memos to fill all slots.)"><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{revealedCount}/{walk.length} shown</span>
                 <span className="hidden text-[9px] lg:inline" style={{ color: NEON.muted }} title="Rehearse the live gestures right here">· Ctrl+click = spotlight · +Shift = 🔥</span>
@@ -479,12 +490,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, onSaveBaseline, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; onSaveBaseline?: (l: DeckLayout) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} onSaveBaseline={onSaveBaseline} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );

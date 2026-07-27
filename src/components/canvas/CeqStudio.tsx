@@ -344,22 +344,25 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
     const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
     const members = questions.map((q) => rf.getNode(q.id)).filter((n): n is NonNullable<typeof n> => !!n);
     const memberIds = new Set(members.map((m) => m.id));
-    // Each CEQ keeps the EXACT position it holds in the previewer (default = the
-    // deal-centre, seeded there); the stack's flip-spot is the first card's spot.
-    const dealSpot = members[0] ? { x: Math.round(members[0].position.x), y: Math.round(members[0].position.y) } : dealCentre(fw, fh);
-    const memoIds = new Set<string>();
-    for (const m of members) for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) if (it.memoNodeId) memoIds.add(it.memoNodeId);
+    // Card + memos land at the SET BASELINE (deck.layout), NOT the drifting previewer
+    // positions — every question deals identically. dealSpot is the stack flip-spot
+    // (stackStep reads it now); memos key off the FLAT chain index PER question so
+    // slot 1 of every question sits in the same baseline spot. Default = centre / right-stack.
+    const cardBase = deck.layout?.card;
+    const dealSpot = cardBase ? { x: Math.round(cardBase.x), y: Math.round(cardBase.y) } : dealCentre(fw, fh);
+    const memoPlace = new Map<string, { x: number; y: number; scale?: number }>();
+    for (const m of members) { let i = 0; for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) { if (it.memoNodeId) memoPlace.set(it.memoNodeId, deck.layout?.memoSlots?.[i] ?? defaultMemoPos(fw, fh, i)); i++; } }
     bus.dispatch({
       label: `deal ${deck.name} into frame`,
       do: () => rf.setNodes((nds) => nds.map((n) => {
-        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); return { ...n, parentId: frameId, position: { ...n.position }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined } } as typeof n; }
-        if (memoIds.has(n.id)) return { ...n, parentId: frameId, position: { ...n.position } } as typeof n; // frame-local position already set from the previewer
+        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); return { ...n, parentId: frameId, position: { x: dealSpot.x, y: dealSpot.y }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined, ...(cardBase?.scale != null ? { scale: cardBase.scale } : {}) } } as typeof n; }
+        if (memoPlace.has(n.id)) { const p = memoPlace.get(n.id)!; return { ...n, parentId: frameId, position: { x: p.x, y: p.y }, data: { ...n.data, ...(p.scale != null ? { scale: p.scale } : {}) } } as typeof n; }
         return n;
       })),
       undo: () => { /* transient staging move — re-deal to redo; not separately undone */ },
     });
     const c = patchDataCmd(rfl, frameId, { stackDeal: true, dealSpot }, "stack deal"); if (c) bus.dispatch(c);
-    setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} + ${memoIds.size} memo${memoIds.size === 1 ? "" : "s"} — positions match this preview. Film-ready (Enter reveals the memos).`);
+    setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} + ${memoPlace.size} memo${memoPlace.size === 1 ? "" : "s"} at the set baseline. Film-ready (Enter reveals the memos).`);
   };
 
   // ---- MEMO LIBRARY ---------------------------------------------------------
@@ -748,7 +751,7 @@ export function CeqStudio({ decks, setDecks, initialCeqId, onPopOut, popped, onC
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (

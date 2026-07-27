@@ -1038,6 +1038,16 @@ export type DeckPayloadType = "cards" | "memos";
 export type DeckRunMode = "sequence" | "shuffle";
 /** A fixed slot on the canvas a dealt item locks into (P4 skeleton grid). */
 export interface DeckSlot { x: number; y: number }
+/** One placed element in a set's baseline layout — frame-local position + optional
+ *  scale (data.scale). Used for the CEQ card and each chain-memo slot. */
+export interface DeckSlotLayout { x: number; y: number; scale?: number }
+/** A CEQ set's baseline geometry (DeckDef.layout). `memoSlots` is keyed by the FLAT
+ *  chain-slot index (choice-major, chain-order — the previewer/walkOf `num - 1`),
+ *  NOT by memo id, so slot 1 of every question in the set lands in the same place. */
+export interface DeckLayout {
+  card?: DeckSlotLayout;
+  memoSlots?: DeckSlotLayout[];
+}
 export interface DeckDef {
   id: string;
   name: string;
@@ -1066,6 +1076,12 @@ export interface DeckDef {
    *  TRANSITION lives in panel prefs (one file across all sets). Additive. */
   intro?: TakeRef;
   outro?: TakeRef;
+  /** CONSISTENT DEAL LAYOUT (Lee) — the set's canonical geometry: every question
+   *  deals/previews at this baseline so nothing drifts. Frame-local px (same coord
+   *  space as dealCentre/defaultMemoPos). Absent ⇒ the default (centred card, memos
+   *  stacked to the right). Only "Set as layout" writes it; per-instance drags never
+   *  do. Additive. */
+  layout?: DeckLayout;
   createdAt?: string;
   updatedAt?: string;
 }

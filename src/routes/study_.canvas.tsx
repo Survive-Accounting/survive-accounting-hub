@@ -2333,7 +2333,11 @@ function PresentCanvas() {
     const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
     const cw = showNode.measured?.width ?? 260;
     const ch = showNode.measured?.height ?? 180;
-    const centre = { x: Math.round(fw / 2 - cw / 2), y: Math.round(fh / 2 - ch / 2) };
+    // FLIP-SPOT: the frame's dealSpot (the CEQ set's BASELINE card position, written by
+    // dealIntoFrame) so every question lands identically; else the frame centre (legacy).
+    // This also fixes the old first-card-at-dealSpot / rest-at-centre divergence.
+    const dealSpot = (frame.data as { dealSpot?: { x: number; y: number } }).dealSpot;
+    const pos = dealSpot ?? { x: Math.round(fw / 2 - cw / 2), y: Math.round(fh / 2 - ch / 2) };
     const sd = showNode.data as { deckMember?: boolean; tucked?: boolean; staged?: boolean; minimized?: boolean };
     const beforeShow = { pos: { ...showNode.position }, deckMember: sd.deckMember, tucked: sd.tucked, staged: sd.staged, minimized: sd.minimized };
     const hideNode = hideId ? rf.getNode(hideId) : null;
@@ -2348,7 +2352,7 @@ function PresentCanvas() {
       do: () => {
         rf.updateNodeData(showId, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, ...(showChoices ? { choices: showChoices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) } : {}) });
         if (hideId) rf.updateNodeData(hideId, { tucked: true });
-        rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...centre }, hidden: false, selected: true } : n.selected ? { ...n, selected: false } : n)));
+        rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...pos }, hidden: false, selected: true } : n.selected ? { ...n, selected: false } : n)));
         sweep.reset();
       },
       undo: () => {
