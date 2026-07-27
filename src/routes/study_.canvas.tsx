@@ -5339,11 +5339,11 @@ function PresentCanvas() {
           {toast}
         </div>
       )}
-      {/* RUN RECORDING INDICATOR (Lee) — a small, DARK pill so it barely reads if it
-          lands in an OBS Window Capture of the main window (it is capture-visible —
-          the real off-stage clock is the runtimer popout). Top-right, out of the
-          teleprompter/rehearsal lanes; pure cue, never blocks the canvas. */}
-      {runActive && (
+      {/* RUN RECORDING INDICATOR (Lee) — a small, DARK pill, AUTHORING-ONLY. It used
+          to be capture-visible on purpose, but time is now tracked off-camera (the CEQ
+          previewer timer + the runtimer popout), so it is gated on `chrome` and never
+          lands in a film capture. Top-right, out of the teleprompter/rehearsal lanes. */}
+      {chrome && runActive && (
         <div className="pointer-events-none fixed right-3 top-3 z-[82] flex items-center gap-1.5 rounded-full px-2 py-1 text-[10.5px] font-bold" style={{ background: "rgba(4,6,12,0.7)", border: "1px solid rgba(255,92,110,0.4)", color: "#F3C6CC" }}>
           <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ background: "#FF5C6E" }} />
           <span className="uppercase tracking-wider">REC</span>

@@ -275,20 +275,28 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
   // Practice KEYS — only while the pointer is over the preview (so Tab/Enter/Space
   // don't hijack the rest of the Studio). CAPTURE phase + stopImmediatePropagation so
   // the canvas keymap's own "space" show-key (bubble phase, registered earlier) never
-  // steals Space. Ignored while typing in a field.
+  // steals Space. Ignored while typing in a field. The listener binds to the window
+  // that OWNS the preview's DOM (rootRef.ownerDocument) — the popout window when the
+  // Studio is popped to a 2nd monitor, the main window when inline — so the keys work
+  // in both. Re-runs when the owner document changes (inline ⇄ popped).
   const engagedRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    // Bind to the window that OWNS the preview's DOM: the popout window when popped,
+    // the main window inline (fallback while rootRef is not yet attached). The effect
+    // re-runs on mount + `cd` change, by which point rootRef is populated.
+    const win = rootRef.current?.ownerDocument?.defaultView ?? window;
     const onKey = (e: KeyboardEvent) => {
       if (!engagedRef.current) return;
-      const el = document.activeElement as HTMLElement | null;
+      const el = (win.document.activeElement ?? document.activeElement) as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); tabNav(e.shiftKey ? -1 : 1); return; }
       if (e.key === "Enter") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; }
       if (e.key === " " || e.code === "Space") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
       if (e.key === "`" || e.code === "Backquote") { e.preventDefault(); e.stopImmediatePropagation(); resetPractice(); return; }
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    win.addEventListener("keydown", onKey, true);
+    return () => win.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion]);
 
@@ -302,7 +310,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, onSelectMem
             {/* FLAME/SIREN CSS injected locally so it works even when the Studio is
                 popped out to a 2nd window (the global copy lives on the main canvas). */}
             <style>{FLAME_CSS}</style>
-            <div className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
+            <div ref={rootRef} className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
               <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)" }}>
                 <ReactFlow
                   nodes={nodes}
