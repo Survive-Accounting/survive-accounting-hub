@@ -9,7 +9,7 @@
 // Web Audio only (no <audio> churn): one lazy AudioContext (needs a user gesture,
 // always present while filming — keys/clicks), decoded buffers cached by filename.
 
-export type SfxEvent = "keypad" | "swoosh" | "cramLaunch" | "confirm";
+export type SfxEvent = "keypad" | "swoosh" | "cramLaunch" | "confirm" | "chaching" | "vinylScratch";
 
 export interface SfxConfig {
   /** Global mute — silences every event. */
@@ -25,11 +25,16 @@ export const SFX_FILES: Record<SfxEvent, string> = {
   swoosh: "swoosh.mp3",
   cramLaunch: "cram-launch.mp3",
   confirm: "confirm.mp3",
+  // NEW (sound-authoring pass): the correct-answer cha-ching + the memorize-this vinyl
+  // scratch. Files live under /sfx/ (same convention as cram-launch.mp3). A missing
+  // file simply plays NOTHING (fail-quiet in load()) — never a fallback to another cue.
+  chaching: "chaching.mp3",
+  vinylScratch: "vinyl-scratch.mp3",
 };
 
 export const SFX_DEFAULT: SfxConfig = {
   muted: false,
-  volume: { keypad: 0.55, swoosh: 0.5, cramLaunch: 0.85, confirm: 0.6 },
+  volume: { keypad: 0.55, swoosh: 0.5, cramLaunch: 0.85, confirm: 0.6, chaching: 0.8, vinylScratch: 0.7 },
   file: { ...SFX_FILES },
 };
 

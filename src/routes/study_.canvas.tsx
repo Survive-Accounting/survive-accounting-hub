@@ -5978,7 +5978,7 @@ function PresentCanvas() {
                   <input type="checkbox" checked={sfx.muted} onChange={(e) => setSfx((s) => ({ ...s, muted: e.target.checked }))} style={{ accentColor: "#FCA311" }} />
                   Mute all <span className="opacity-60">(global)</span>
                 </label>
-                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"], ["confirm", "Correct answer"]] as const).map(([ev, label]) => {
+                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"], ["confirm", "Correct answer"], ["chaching", "Chaching (correct)"], ["vinylScratch", "Vinyl scratch"]] as const).map(([ev, label]) => {
                   const custom = !!globalSfxFiles[ev];
                   const busy = sfxUploading === ev;
                   return (

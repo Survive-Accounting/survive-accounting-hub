@@ -545,13 +545,15 @@ export const uploadCanvasMedia = createServerFn({ method: "POST" })
 const MISSING_SFX_HINT =
   "canvas_sfx missing — run migration/supabase-migrations/0099_canvas_sfx.sql in the Supabase SQL editor";
 
-const SFX_EVENT = z.enum(["keypad", "swoosh", "cramLaunch", "confirm"]);
+const SFX_EVENT = z.enum(["keypad", "swoosh", "cramLaunch", "confirm", "chaching", "vinylScratch"]);
 const sfxFilesSchema = z
   .object({
     keypad: z.string().url(),
     swoosh: z.string().url(),
     cramLaunch: z.string().url(),
     confirm: z.string().url(),
+    chaching: z.string().url(),
+    vinylScratch: z.string().url(),
   })
   .partial();
 export type CanvasSfxFiles = z.infer<typeof sfxFilesSchema>;
