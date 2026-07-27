@@ -1,90 +1,38 @@
-// Note card v2 — TipTap rich text on the marker-style sticky. Bold/italic,
-// bullet + numbered lists, card-level font steps (Ctrl+Shift+> / <), inline
-// image paste → canvas-media. The editor region is nodrag/nowheel and owns its
-// keyboard (incl. ProseMirror's own Ctrl+Z history — the canvas bus stands
-// down while a contenteditable has focus); drag the card by its top strip.
-// Plain-text bodies from old scenes migrate on first render.
-import { useEffect, useRef } from "react";
-import { useReactFlow, type NodeProps } from "@xyflow/react";
-import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
+// Note card v2 — marker-style sticky. RICH TEXT (TipTap) loads ON FIRST EDIT: a note
+// that is only DISPLAYED renders its stored HTML statically (no @tiptap), so film mode
+// and un-edited notes never pay for the editor bundle. Click the body to edit — the
+// heavy editor (bold/italic, lists, font steps, image paste, ProseMirror undo) mounts
+// lazily and autofocuses. Static DISPLAY is byte-identical to the editor's render (same
+// `.note-editor` HTML + CSS). Plain-text bodies from old scenes migrate on first edit.
+import { lazy, Suspense, useState } from "react";
+import { type NodeProps } from "@xyflow/react";
 import { GripHorizontal, Lock, LockOpen, Trash2 } from "lucide-react";
 
 import { CardResizeFrame, useCardActions, useCardScale } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
 import { MemoLightbulb } from "../MemoLightbulb";
 import { NOTE_COLORS } from "../theme";
-import { uploadImageFile } from "./ImageCardNode";
+import { initialContent } from "./note-content";
 import type { CardBase, NoteCard } from "../types";
 
 const FONT_STEPS = [12, 15, 18, 22, 28];
-
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-/** Old scenes stored plain text in `body`; render it as paragraphs once. */
-function initialContent(d: NoteCard): string {
-  if (d.bodyHtml) return d.bodyHtml;
-  if (!d.body) return "";
-  return d.body
-    .split(/\r?\n/)
-    .map((line) => `<p>${escapeHtml(line)}</p>`)
-    .join("");
-}
+const NoteEditor = lazy(() => import("./NoteEditor"));
+const NOTE_EDITOR_CSS = `
+  .note-editor p { margin: 0 0 0.2em; }
+  .note-editor ul { list-style: disc; padding-left: 1.2em; margin: 0.2em 0; }
+  .note-editor ol { list-style: decimal; padding-left: 1.2em; margin: 0.2em 0; }
+  .note-editor img { max-width: 100%; border-radius: 6px; }
+  .note-editor p.is-editor-empty:first-child::before { content: "write…"; opacity: 0.4; float: left; height: 0; pointer-events: none; }
+`;
 
 export function NoteCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as NoteCard;
-  const rf = useReactFlow();
   const { update, remove, toFront } = useCardActions(id);
   const scale = useCardScale(id, d as unknown as CardBase);
   const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
   const fontSize = d.fontSize ?? 15;
-  const lastHtml = useRef<string | null>(null);
-
-  const editor = useEditor({
-    extensions: [StarterKit, Image.configure({ inline: true })],
-    content: initialContent(d),
-    editorProps: {
-      attributes: { class: "note-editor outline-none min-h-[48px]" },
-      handlePaste: (_view, event) => {
-        const file = [...(event.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
-        if (!file) return false; // plain text/HTML: let TipTap handle it
-        event.preventDefault();
-        void uploadImageFile(file)
-          .then((url) => editor?.chain().focus().setImage({ src: url }).run())
-          .catch((err) => console.warn("[note] image paste failed:", err instanceof Error ? err.message : err));
-        return true;
-      },
-    },
-    onCreate: ({ editor: ed }) => {
-      // migrate legacy plain-text bodies ONCE: persist the rendered HTML so the
-      // resync effect has a stable anchor (direct write — migration isn't undoable)
-      if (!d.bodyHtml && d.body) {
-        const html = ed.getHTML();
-        lastHtml.current = html;
-        rf.updateNodeData(id, { bodyHtml: html });
-      }
-    },
-    onUpdate: ({ editor: ed }) => {
-      const html = ed.getHTML();
-      lastHtml.current = html;
-      // coalesceKey (same data keys) folds a typing burst into ONE canvas undo step;
-      // character-level undo stays inside ProseMirror while the editor is focused.
-      update({ bodyHtml: html, body: ed.getText() });
-    },
-  });
-
-  // External data change (canvas Ctrl+Z after blur, scene load) → resync the editor.
-  // Guard on undefined: a legacy note has no bodyHtml until onCreate migrates it —
-  // syncing "" here would wipe the migrated content.
-  useEffect(() => {
-    if (!editor || d.bodyHtml === undefined) return;
-    if (d.bodyHtml !== lastHtml.current && d.bodyHtml !== editor.getHTML()) {
-      lastHtml.current = d.bodyHtml;
-      editor.commands.setContent(d.bodyHtml, { emitUpdate: false });
-    }
-  }, [editor, d.bodyHtml]);
+  const [editing, setEditing] = useState(false);
+  const html = initialContent(d);
 
   return (
     <div
@@ -145,7 +93,8 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
         </button>
       </div>
 
-      {/* editor region — nodrag/nowheel; keyboard + scroll stay inside */}
+      {/* editor region — nodrag/nowheel; keyboard + scroll stay inside. DISPLAY is a
+          static HTML render; the first click/focus mounts the lazy TipTap editor. */}
       <div
         className="nodrag nowheel px-3 pb-3 pt-1"
         style={{ fontSize, lineHeight: 1.45 }}
@@ -162,14 +111,35 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
         }}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <EditorContent editor={editor} />
-        <style>{`
-          .note-editor p { margin: 0 0 0.2em; }
-          .note-editor ul { list-style: disc; padding-left: 1.2em; margin: 0.2em 0; }
-          .note-editor ol { list-style: decimal; padding-left: 1.2em; margin: 0.2em 0; }
-          .note-editor img { max-width: 100%; border-radius: 6px; }
-          .note-editor p.is-editor-empty:first-child::before { content: "write…"; opacity: 0.4; float: left; height: 0; pointer-events: none; }
-        `}</style>
+        {editing ? (
+          <Suspense
+            fallback={
+              html
+                ? <div className="note-editor outline-none min-h-[48px]" dangerouslySetInnerHTML={{ __html: html }} />
+                : <div className="note-editor outline-none min-h-[48px]" />
+            }
+          >
+            <NoteEditor id={id} d={d} />
+          </Suspense>
+        ) : html ? (
+          <div
+            className="note-editor outline-none min-h-[48px] cursor-text"
+            tabIndex={0}
+            onFocus={() => setEditing(true)}
+            onPointerDown={() => setEditing(true)}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        ) : (
+          <div
+            className="note-editor outline-none min-h-[48px] cursor-text"
+            tabIndex={0}
+            onFocus={() => setEditing(true)}
+            onPointerDown={() => setEditing(true)}
+          >
+            <p style={{ opacity: 0.4 }}>write…</p>
+          </div>
+        )}
+        <style>{NOTE_EDITOR_CSS}</style>
       </div>
     </div>
   );

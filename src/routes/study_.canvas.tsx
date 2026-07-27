@@ -114,6 +114,7 @@ import { getCanvasSfx, saveCanvasSfx, uploadCanvasSfxFile, type CanvasSfxFiles }
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FLAME_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
+import { FilmPerfProbe } from "@/components/canvas/FilmPerfProbe";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
@@ -5339,6 +5340,8 @@ function PresentCanvas() {
           {toast}
         </div>
       )}
+      {/* FILM PERF PROBE — opt-in long-task logger (off by default; see the file). */}
+      <FilmPerfProbe />
       {/* RUN RECORDING INDICATOR (Lee) — a small, DARK pill, AUTHORING-ONLY. It used
           to be capture-visible on purpose, but time is now tracked off-camera (the CEQ
           previewer timer + the runtimer popout), so it is gated on `chrome` and never

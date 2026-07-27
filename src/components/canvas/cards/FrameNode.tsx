@@ -348,7 +348,12 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <BgLoopVideo
             key={bgLoop.id}
             base={bgLoop.base}
-            playing={!!d.bgPlaying}
+            // FILM PERF (Lee): decode ONLY the on-camera frame's loop. In film mode a
+            // frame's loop plays solely while it is the entered/current frame and
+            // pauses the instant you advance off it — so N off-camera loops stop
+            // decoding (zero film-output change: they were never captured). Authoring
+            // is unchanged (loops play per the play/pause toggle across the grid).
+            playing={!!d.bgPlaying && (!nav.film || isCurrent)}
             style={{
               opacity: bgOpacity,
               objectFit: bgFit,
