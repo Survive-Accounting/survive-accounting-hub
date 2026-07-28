@@ -30,8 +30,11 @@ import { Component, createContext, useCallback, useContext, useEffect, useMemo, 
 import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Pause, Play, RotateCcw, Timer } from "lucide-react";
 
+import { BrandWatermark } from "./BrandBar";
 import { FLAME_CSS } from "./FilmOverlays";
 import { openPopoutWindow, PanelPopout } from "./PanelPopout";
+import { WorldBackground } from "./WorldBackground";
+import { WORLDS } from "./worlds";
 import { renderInline } from "./inline-md";
 import { TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -53,6 +56,12 @@ const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, fl
 /** FILM view (the popout mirror): true ⇒ nodes render CLEAN — no scale grips, no
  *  frame outline/label, no chain-number badges — just the composition the camera sees. */
 const FilmContext = createContext(false);
+/** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
+ *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
+const PV_CSS = `
+.sa-pv-node .sa-grip-film { opacity: 0; transition: opacity 120ms ease; }
+.sa-pv-node:hover .sa-grip-film { opacity: 1; }
+`;
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
@@ -64,29 +73,36 @@ type MainRf = Pick<ReactFlowInstance, "getNode" | "setNodes" | "setEdges">;
 export type PreviewEdge = { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null };
 const HANDLE: React.CSSProperties = { width: 9, height: 9, background: NEON.cyan, border: "1.5px solid #05070d" };
 
-/** A corner grip that drives a node's data.scale (300 screen-px ≈ full range). */
-function ScaleGrip({ id, scale, color }: { id: string; scale: number; color: string }) {
+/** A corner grip that drives a node's data.scale (300 screen-px ≈ full range).
+ *  `film` ⇒ hover-only (see PV_CSS) so it never shows on camera. Pointer events use
+ *  the grip's OWN window (ev target) so the drag tracks in the popout too. */
+function ScaleGrip({ id, scale, color, film }: { id: string; scale: number; color: string; film?: boolean }) {
   const setScale = useContext(ScaleContext);
   const start = useRef({ v: 0, s: 1 });
   const down = (e: React.PointerEvent) => {
     e.stopPropagation(); e.preventDefault();
     start.current = { v: e.clientX + e.clientY, s: scale };
+    const win = (e.currentTarget as HTMLElement).ownerDocument?.defaultView ?? window;
     const move = (ev: PointerEvent) => setScale(id, clampScale(start.current.s + ((ev.clientX + ev.clientY) - start.current.v) / 300));
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    const up = () => { win.removeEventListener("pointermove", move); win.removeEventListener("pointerup", up); };
+    win.addEventListener("pointermove", move);
+    win.addEventListener("pointerup", up);
   };
-  return <div className="nodrag" onPointerDown={down} title={`Scale ${Math.round(scale * 100)}% — drag to resize (text scales too)`} style={{ position: "absolute", right: -9, bottom: -9, width: 18, height: 18, borderRadius: 5, background: color, border: "2px solid #05070d", cursor: "nwse-resize", zIndex: 20 }} />;
+  return <div className={`nodrag${film ? " sa-grip-film" : ""}`} onPointerDown={down} title={`Scale ${Math.round(scale * 100)}% — drag to resize (text scales too)`} style={{ position: "absolute", right: -9, bottom: -9, width: 18, height: 18, borderRadius: 5, background: color, border: "2px solid #05070d", cursor: "nwse-resize", zIndex: 20 }} />;
 }
 
-/** The 16:9 frame outline — a visible guideline in the previewer; in the FILM mirror
- *  it becomes a clean black stage (no outline/label — the camera sees only the cards). */
+/** The 16:9 frame — a visible guideline in the previewer; in the FILM mirror it
+ *  becomes a clean stage (no outline/label — the camera sees only the cards). Both
+ *  render the set's chosen visual WORLD (worlds.ts) behind the cards when set, so the
+ *  frame reads as a real canvas frame; the world only animates under `.film-mode`. */
 function FrameBgNode({ data }: NodeProps) {
   const film = useContext(FilmContext);
-  const d = data as unknown as { w: number; h: number };
-  if (film) return <div style={{ width: d.w, height: d.h, background: "#05070d", pointerEvents: "none" }} />;
+  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number };
+  const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
+  if (film) return <div style={{ width: d.w, height: d.h, background: "#05070d", position: "relative", overflow: "hidden", pointerEvents: "none" }}>{world}</div>;
   return (
-    <div style={{ width: d.w, height: d.h, borderRadius: 12, border: `2px solid ${NEON.cyan}`, background: "rgba(8,14,26,0.5)", boxShadow: `0 0 0 1px rgba(79,163,227,0.25), inset 0 0 60px rgba(0,0,0,0.35)`, pointerEvents: "none", position: "relative" }}>
+    <div style={{ width: d.w, height: d.h, borderRadius: 12, border: `2px solid ${NEON.cyan}`, background: d.world ? "#05070d" : "rgba(8,14,26,0.5)", boxShadow: `0 0 0 1px rgba(79,163,227,0.25), inset 0 0 60px rgba(0,0,0,0.35)`, pointerEvents: "none", position: "relative", overflow: "hidden" }}>
+      {world}
       <span style={{ position: "absolute", top: 8, left: 12, fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(79,163,227,0.7)" }}>16:9 frame</span>
     </div>
   );
@@ -103,7 +119,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number };
   const s = d.scale ?? 1;
   return (
-    <div style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", padding: 16 * s }}>
+    <div className="sa-pv-node" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", padding: 16 * s }}>
       <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>{renderInline(d.stem || "Question")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 * s }}>
         {d.choices.map((c, i) => {
@@ -137,7 +153,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           );
         })}
       </div>
-      {!film && <ScaleGrip id={id} scale={s} color={NEON.yellow} />}
+      <ScaleGrip id={id} scale={s} color={NEON.yellow} film={film} />
     </div>
   );
 }
@@ -157,10 +173,11 @@ function MemoPreviewNode({ id, data }: NodeProps) {
   const flamed = spot.flamed(key);
   return (
     <div
+      className="sa-pv-node"
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: film ? "default" : "grab", ...spotStyle(spState) }}
+      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...spotStyle(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>}
@@ -168,7 +185,7 @@ function MemoPreviewNode({ id, data }: NodeProps) {
       <div style={{ fontSize: 14 * s, color: NEON.text, lineHeight: 1.25 }}>{d.label}</div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
-      {!film && <ScaleGrip id={id} scale={s} color={NEON.cyan} />}
+      <ScaleGrip id={id} scale={s} color={NEON.cyan} film={film} />
     </div>
   );
 }
@@ -176,7 +193,7 @@ function MemoPreviewNode({ id, data }: NodeProps) {
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, onSaveBaseline, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; onSaveBaseline?: (l: DeckLayout) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, onSaveBaseline, onSetWorld, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
   const cd = ceq?.data as unknown as CeqCard | undefined;
   // Flat walk list: each chain memo with its choice index + position within the chain.
@@ -261,12 +278,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
   const build = useMemo(() => () => {
     if (!ceq || !cd) return [];
     const cb = baseline?.card;
-    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: 0 }, data: { w: frameW, h: frameH }, draggable: false, selectable: false, zIndex: -10 };
+    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: 0 }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: cb.y } : dealCentre(frameW, frameH), data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
     const memoNodes = walk.map((w, i) => { const slot = baseline?.memoSlots?.[i]; return { id: w.memoNodeId, type: "memoPreview", position: slot ? { x: slot.x, y: slot.y } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: slot?.scale ?? 1 }, draggable: true, zIndex: 5 }; });
     return [frameNode, ceqNode, ...memoNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
@@ -275,8 +292,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
   useEffect(() => { const t = window.setTimeout(() => fitRef.current?.fitView({ padding: 0.14 }), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH]);
 
   // FILM MODE (Lee) — a popout window on the 2nd monitor that MIRRORS this previewer
-  // (same CEQ + memos + practice/spotlight state, since it's the same React tree), but
-  // rendered CLEAN + fitted to the 16:9 frame for filming. Control here, film there.
+  // (same CEQ + memos + practice/spotlight state, since it's the same React tree), and
+  // is now INTERACTIVE (drag/resize/spotlight two-way). The view stays fitted to the
+  // 16:9 frame; refit ONLY on open / question change / frame-size / window resize —
+  // NOT on `nodes` changes, else dragging a card in film would snap the view back.
   const [filmWin, setFilmWin] = useState<Window | null>(null);
   const filmFitRef = useRef<ReactFlowInstance | null>(null);
   const fitFilm = useCallback(() => filmFitRef.current?.fitView({ nodes: [{ id: "__frame__" }], padding: 0.02, duration: 0 }), []);
@@ -286,7 +305,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
     refit();
     filmWin.addEventListener("resize", refit);
     return () => filmWin.removeEventListener("resize", refit);
-  }, [filmWin, ceqId, frameW, frameH, nodes, fitFilm]);
+  }, [filmWin, ceqId, frameW, frameH, fitFilm]);
   const toggleFilm = () => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
 
   // Drags (via onNodesChange) + grip resizes are TRANSIENT per-instance overrides —
@@ -336,22 +355,21 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
   const toggleRun = () => { if (running) { setRunning(false); return; } startRef.current = Date.now() - elapsed; setRunning(true); };
   const resetAll = () => { resetPractice(); setSpots(EMPTY_SPOTS); setRunning(false); setElapsed(0); startRef.current = null; };
 
-  // Practice KEYS — only while the pointer is over the preview (so Tab/Enter/Space
-  // don't hijack the rest of the Studio). CAPTURE phase + stopImmediatePropagation so
+  // Practice KEYS (Tab/Enter/Space/`) — CAPTURE phase + stopImmediatePropagation so
   // the canvas keymap's own "space" show-key (bubble phase, registered earlier) never
-  // steals Space. Ignored while typing in a field. The listener binds to the window
-  // that OWNS the preview's DOM (rootRef.ownerDocument) — the popout window when the
-  // Studio is popped to a 2nd monitor, the main window when inline — so the keys work
-  // in both. Re-runs when the owner document changes (inline ⇄ popped).
+  // steals Space. Ignored while typing in a field. Bound to BOTH windows so Lee can
+  // drive from either screen: (a) the window that OWNS the inline preview DOM
+  // (rootRef.ownerDocument — the main window inline, the Studio popout when popped),
+  // gated on the hover-engage flag; and (b) the FILM popout window whenever it's open,
+  // ALWAYS engaged (that window is dedicated to this preview — nothing else to type
+  // there). Native key events fire on the focused window only and don't cross the
+  // window boundary, so one listener can't cover both.
   const engagedRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    // Bind to the window that OWNS the preview's DOM: the popout window when popped,
-    // the main window inline (fallback while rootRef is not yet attached). The effect
-    // re-runs on mount + `cd` change, by which point rootRef is populated.
-    const win = rootRef.current?.ownerDocument?.defaultView ?? window;
-    const onKey = (e: KeyboardEvent) => {
-      if (!engagedRef.current) return;
+    const ownerWin = rootRef.current?.ownerDocument?.defaultView ?? window;
+    const handle = (e: KeyboardEvent, win: Window, forceEngaged: boolean) => {
+      if (!forceEngaged && !engagedRef.current) return;
       const el = (win.document.activeElement ?? document.activeElement) as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); tabNav(e.shiftKey ? -1 : 1); return; }
@@ -359,10 +377,17 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
       if (e.key === " " || e.code === "Space") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
       if (e.key === "`" || e.code === "Backquote") { e.preventDefault(); e.stopImmediatePropagation(); resetPractice(); return; }
     };
-    win.addEventListener("keydown", onKey, true);
-    return () => win.removeEventListener("keydown", onKey, true);
+    const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
+    ownerWin.addEventListener("keydown", onOwnerKey, true);
+    let filmCleanup: (() => void) | undefined;
+    if (filmWin && filmWin !== ownerWin) {
+      const onFilmKey = (e: KeyboardEvent) => handle(e, filmWin, true);
+      filmWin.addEventListener("keydown", onFilmKey, true);
+      filmCleanup = () => filmWin.removeEventListener("keydown", onFilmKey, true);
+    }
+    return () => { ownerWin.removeEventListener("keydown", onOwnerKey, true); filmCleanup?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion]);
+  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin]);
 
   if (!ceq || !cd) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
 
@@ -373,7 +398,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
           <PreviewSpotContext.Provider value={spotApi}>
             {/* FLAME/SIREN CSS injected locally so it works even when the Studio is
                 popped out to a 2nd window (the global copy lives on the main canvas). */}
-            <style>{FLAME_CSS}</style>
+            <style>{FLAME_CSS}{PV_CSS}</style>
             <div ref={rootRef} className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
               <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)" }}>
                 <ReactFlow
@@ -414,8 +439,20 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
               <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)" }}>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
-                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — a clean, full-screen mirror of this preview on your 2nd monitor (control here, film there). Maximize it for a clean 16:9 capture."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
+                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
                 {onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={saveBaseline} title="Set as layout — save THIS card + memo arrangement as the set's baseline. Every question then deals/previews at this geometry. (Save from the question with the most chain memos to fill all slots.)"><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
+                {onSetWorld && (
+                  <select
+                    className="h-6 rounded px-1 text-[9.5px] font-bold uppercase"
+                    style={{ color: world ? NEON.yellow : NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}`, maxWidth: 118 }}
+                    value={world ?? ""}
+                    onChange={(e) => onSetWorld(e.target.value || undefined)}
+                    title="Visual world — a per-set background (orbital grid, deep space, …) shown behind the CEQ in the previewer + film mode. Set once per set."
+                  >
+                    <option value="">No world</option>
+                    {WORLDS.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                )}
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{revealedCount}/{walk.length} shown</span>
                 <span className="hidden text-[9px] lg:inline" style={{ color: NEON.muted }} title="Rehearse the live gestures right here">· Ctrl+click = spotlight · +Shift = 🔥</span>
@@ -425,33 +462,46 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, o
                 </div>
               </div>
             </div>
-            {/* FILM MODE popout — the SAME nodes/edges + Practice/Reveal/Spot state as
-                above (one React tree ⇒ live mirror), rendered CLEAN (FilmContext) and
-                fitted to the 16:9 frame. Read-only; you drive it from the previewer. */}
+            {/* FILM MODE popout — a clean 16:9 canvas frame on the 2nd monitor that is
+                TWO-WAY with this previewer: it renders the SAME nodes/edges + Practice/
+                Reveal/Spot state (one React tree ⇒ live mirror), and its ReactFlow is now
+                INTERACTIVE — dragging / resizing / spotlighting / arrow-drawing here writes
+                the same shared state the previewer reads, so edits flow both directions.
+                Pan/zoom stay LOCKED to the fitted frame so OBS framing never drifts; the
+                world background + brand watermark make it read like a real canvas frame.
+                `film-mode` class lets the world gradient breathe (WorldBackground). */}
             {filmWin && (
-              <PanelPopout win={filmWin} title="Film — CEQ" onReturn={() => setFilmWin(null)}>
+              <PanelPopout win={filmWin} title="Film — CEQ" onReturn={() => setFilmWin(null)} chromeless>
                 <FilmContext.Provider value={true}>
-                  <style>{FLAME_CSS}</style>
-                  <ReactFlowProvider>
-                    <ReactFlow
-                      nodes={nodes}
-                      edges={edges}
-                      nodeTypes={nodeTypes}
-                      onInit={(inst) => { filmFitRef.current = inst; window.setTimeout(fitFilm, 60); }}
-                      minZoom={0.02}
-                      maxZoom={4}
-                      proOptions={{ hideAttribution: true }}
-                      nodesDraggable={false}
-                      nodesConnectable={false}
-                      elementsSelectable={false}
-                      panOnDrag={false}
-                      zoomOnScroll={false}
-                      zoomOnPinch={false}
-                      zoomOnDoubleClick={false}
-                      preventScrolling={false}
-                      style={{ width: "100%", height: "100%", background: "#05070d" }}
-                    />
-                  </ReactFlowProvider>
+                  <style>{FLAME_CSS}{PV_CSS}</style>
+                  <div className="film-mode" style={{ position: "relative", width: "100%", height: "100%" }}>
+                    <ReactFlowProvider>
+                      <ReactFlow
+                        nodes={nodes}
+                        edges={edges}
+                        onNodesChange={onNodesChange}
+                        onConnect={onConnect}
+                        onEdgeClick={onEdgeClick}
+                        nodeTypes={nodeTypes}
+                        onInit={(inst) => { filmFitRef.current = inst; window.setTimeout(fitFilm, 60); }}
+                        minZoom={0.02}
+                        maxZoom={4}
+                        proOptions={{ hideAttribution: true }}
+                        connectionMode={ConnectionMode.Loose}
+                        nodesDraggable
+                        nodesConnectable
+                        elementsSelectable
+                        deleteKeyCode={null}
+                        panOnDrag={false}
+                        zoomOnScroll={false}
+                        zoomOnPinch={false}
+                        zoomOnDoubleClick={false}
+                        preventScrolling={false}
+                        style={{ width: "100%", height: "100%", background: "#05070d" }}
+                      />
+                    </ReactFlowProvider>
+                    <BrandWatermark />
+                  </div>
                 </FilmContext.Provider>
               </PanelPopout>
             )}
@@ -490,12 +540,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, onSaveBaseline, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; onSaveBaseline?: (l: DeckLayout) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, onSaveBaseline, onSetWorld, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} onSaveBaseline={onSaveBaseline} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} onSaveBaseline={onSaveBaseline} onSetWorld={onSetWorld} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );

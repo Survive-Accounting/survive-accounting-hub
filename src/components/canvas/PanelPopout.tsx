@@ -32,11 +32,15 @@ export function openPopoutWindow(name: string, width = 640, height = 900): Windo
   return window.open("", `sa-pop-${name}`, `popup=yes,width=${width},height=${height}`);
 }
 
-export function PanelPopout({ win, title, onReturn, children }: {
+export function PanelPopout({ win, title, onReturn, children, chromeless }: {
   win: Window;
   title: string;
   onReturn: () => void;
   children: ReactNode;
+  /** Hide the header bar so the content fills the whole window — used by FILM MODE
+   *  so the popout reads as a clean 16:9 canvas frame (return via the opener's
+   *  toggle or the OS close button). */
+  chromeless?: boolean;
 }) {
   const [mount, setMount] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -61,13 +65,15 @@ export function PanelPopout({ win, title, onReturn, children }: {
   if (!mount) return null;
   return createPortal(
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${NEON.borderSoft}`, background: NEON.bg2, flexShrink: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: NEON.yellow }}>{title}</span>
-        <span style={{ flex: 1 }} />
-        <button onClick={onReturn} style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 6, padding: "5px 11px", fontSize: 11.5, fontWeight: 600, color: NEON.text, border: `1px solid ${NEON.borderSoft}`, background: "transparent", cursor: "pointer" }}>
-          <ExternalLink style={{ width: 13, height: 13, transform: "scaleX(-1)" }} /> return to canvas
-        </button>
-      </div>
+      {!chromeless && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${NEON.borderSoft}`, background: NEON.bg2, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: NEON.yellow }}>{title}</span>
+          <span style={{ flex: 1 }} />
+          <button onClick={onReturn} style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 6, padding: "5px 11px", fontSize: 11.5, fontWeight: 600, color: NEON.text, border: `1px solid ${NEON.borderSoft}`, background: "transparent", cursor: "pointer" }}>
+            <ExternalLink style={{ width: 13, height: 13, transform: "scaleX(-1)" }} /> return to canvas
+          </button>
+        </div>
+      )}
       <div style={{ flex: 1, minHeight: 0, overflow: "auto", position: "relative" }}>{children}</div>
     </>,
     mount,

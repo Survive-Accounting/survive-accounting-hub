@@ -1086,6 +1086,13 @@ export interface DeckDef {
    *  stacked to the right). Only "Set as layout" writes it; per-instance drags never
    *  do. Additive. */
   layout?: DeckLayout;
+  /** FILM MODE (Lee) — a per-set visual world background (worlds.ts WorldId) drawn
+   *  behind the CEQ card in the previewer + film popout, so a filmed set has a
+   *  consistent sense of place. Mirrors FrameBox's world* fields. Absent ⇒ plain
+   *  stage. Additive; rides in SceneDoc.decks (no DB migration). */
+  world?: string;
+  worldIntensity?: number;
+  worldMotion?: number;
   createdAt?: string;
   updatedAt?: string;
 }
