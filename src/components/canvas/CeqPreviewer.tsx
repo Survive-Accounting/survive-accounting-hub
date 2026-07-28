@@ -99,7 +99,15 @@ function FrameBgNode({ data }: NodeProps) {
   const film = useContext(FilmContext);
   const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number };
   const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
-  if (film) return <div style={{ width: d.w, height: d.h, background: "#05070d", position: "relative", overflow: "hidden", pointerEvents: "none" }}>{world}</div>;
+  // FILM: clean stage + a soft cinematic EDGE GLOW (like the canvas film frame) —
+  // a faint outer bloom into the letterbox + an inner vignette over the world. The
+  // brand watermark lives in the popout wrapper ABOVE this, so it stays crisp.
+  if (film) return (
+    <div style={{ width: d.w, height: d.h, background: "#05070d", position: "relative", overflow: "hidden", pointerEvents: "none", boxShadow: "0 0 48px 8px rgba(96,140,230,0.16), 0 0 0 1px rgba(120,160,235,0.14)" }}>
+      {world}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", boxShadow: "inset 0 0 90px 14px rgba(0,0,0,0.42)" }} />
+    </div>
+  );
   return (
     <div style={{ width: d.w, height: d.h, borderRadius: 12, border: `2px solid ${NEON.cyan}`, background: d.world ? "#05070d" : "rgba(8,14,26,0.5)", boxShadow: `0 0 0 1px rgba(79,163,227,0.25), inset 0 0 60px rgba(0,0,0,0.35)`, pointerEvents: "none", position: "relative", overflow: "hidden" }}>
       {world}
@@ -298,13 +306,16 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // NOT on `nodes` changes, else dragging a card in film would snap the view back.
   const [filmWin, setFilmWin] = useState<Window | null>(null);
   const filmFitRef = useRef<ReactFlowInstance | null>(null);
-  const fitFilm = useCallback(() => filmFitRef.current?.fitView({ nodes: [{ id: "__frame__" }], padding: 0.02, duration: 0 }), []);
+  const fitFilm = useCallback(() => filmFitRef.current?.fitView({ nodes: [{ id: "__frame__" }], padding: 0.012, duration: 0 }), []);
   useEffect(() => {
     if (!filmWin) return;
-    const refit = () => window.setTimeout(fitFilm, 40);
+    // Double-fire (40ms + 240ms) so a maximize/resize that ANIMATES its layout still
+    // lands filled; also refit when the film window regains focus (post-maximize).
+    const refit = () => { window.setTimeout(fitFilm, 40); window.setTimeout(fitFilm, 240); };
     refit();
     filmWin.addEventListener("resize", refit);
-    return () => filmWin.removeEventListener("resize", refit);
+    filmWin.addEventListener("focus", refit);
+    return () => { filmWin.removeEventListener("resize", refit); filmWin.removeEventListener("focus", refit); };
   }, [filmWin, ceqId, frameW, frameH, fitFilm]);
   const toggleFilm = () => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
 
