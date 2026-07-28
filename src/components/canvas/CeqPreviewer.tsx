@@ -61,6 +61,12 @@ const FilmContext = createContext(false);
 const PV_CSS = `
 .sa-pv-node .sa-grip-film { opacity: 0; transition: opacity 120ms ease; }
 .sa-pv-node:hover .sa-grip-film { opacity: 1; }
+/* Modern transitions (Lee): a CEQ slides+fades in when the question changes (the
+   card node remounts on ceqId change), and a chain memo POPS in when it's revealed
+   in film — a touch more emphatic than a plain fade. */
+@keyframes sa-ceq-in { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes sa-memo-pop { 0% { opacity: 0; transform: scale(0.84) translateY(9px); } 55% { opacity: 1; transform: scale(1.05) translateY(0); } 100% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .sa-ceq-in, .sa-memo-pop { animation: none !important; } }
 `;
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
@@ -127,7 +133,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number };
   const s = d.scale ?? 1;
   return (
-    <div className="sa-pv-node" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", padding: 16 * s }}>
+    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", padding: 16 * s, animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
       <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>{renderInline(d.stem || "Question")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 * s }}>
         {d.choices.map((c, i) => {
@@ -181,11 +187,11 @@ function MemoPreviewNode({ id, data }: NodeProps) {
   const flamed = spot.flamed(key);
   return (
     <div
-      className="sa-pv-node"
+      className={`sa-pv-node${film && walked ? " sa-memo-pop" : ""}`}
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...spotStyle(spState) }}
+      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", animation: film && walked ? "sa-memo-pop 340ms cubic-bezier(0.2,0.7,0.3,1)" : undefined, ...spotStyle(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>}
