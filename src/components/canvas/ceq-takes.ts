@@ -49,20 +49,26 @@ export function videoFromDrop(e: React.DragEvent): File | null {
 export const fmtDur = (s?: number) => { const t = Math.max(0, Math.round(s ?? 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 
 // ---- DERIVED stitch lists (never stored independently) -----------------------
-export type StitchItem = { kind: "intro" | "transition" | "ceq" | "outro"; ceqId?: string; take: TakeRef; label: string };
-/** FULL = intro → transition → all clip-bearing CEQs in DECK ORDER → outro.
- *  FREE = same but only free-flagged CEQs. CEQs without a clip are skipped and
- *  returned in `missing`. Order is derived from the passed ceqs (deck order) only. */
-export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; transition?: TakeRef; outro?: TakeRef; ceqs: { id: string; prompt: string; take?: TakeRef; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
+export type StitchItem = { kind: "intro" | "transition" | "ceq" | "wrap" | "outro"; ceqId?: string; clip?: number; take: TakeRef; label: string };
+/** FULL = intro → transition → all clip-bearing CEQs in DECK ORDER (each CEQ's CLIP
+ *  STACK plays base→lookbacks) → WRAP clips → outro. FREE = same but only free-flagged
+ *  CEQs. A CEQ with NO clips is skipped and returned in `missing`. Order is derived
+ *  from the passed ceqs (deck order) only. */
+export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; transition?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
   const items: StitchItem[] = [];
   const missing: { id: string; prompt: string }[] = [];
   if (opts.intro) items.push({ kind: "intro", take: opts.intro, label: "Intro" });
   if (opts.transition) items.push({ kind: "transition", take: opts.transition, label: "Transition" });
   for (const c of opts.ceqs) {
     if (mode === "free" && !c.free) continue;
-    if (!c.take) { missing.push({ id: c.id, prompt: c.prompt }); continue; }
-    items.push({ kind: "ceq", ceqId: c.id, take: c.take, label: c.prompt });
+    // A question's CLIP STACK plays in order (base first, then lookbacks); fall back to
+    // the legacy single `take`. A question with NO clips at all is `missing`.
+    const clips = c.takes && c.takes.length ? c.takes : c.take ? [c.take] : [];
+    if (clips.length === 0) { missing.push({ id: c.id, prompt: c.prompt }); continue; }
+    clips.forEach((t, ci) => items.push({ kind: "ceq", ceqId: c.id, clip: ci, take: t, label: ci === 0 ? c.prompt : `${c.prompt} — lookback ${ci}` }));
   }
+  // WRAP clips (0..n) — end-of-video lookback/summary, after the last question clip.
+  (opts.wrap ?? []).forEach((t, i) => items.push({ kind: "wrap", clip: i, take: t, label: `Wrap ${i + 1}` }));
   if (opts.outro) items.push({ kind: "outro", take: opts.outro, label: "Outro" });
   return { items, missing };
 }
@@ -71,15 +77,18 @@ export const stitchRuntime = (items: StitchItem[]) => items.reduce((s, it) => s 
 /** Player-progress index stored with a published video: per-CEQ [start,end] on the
  *  FINAL timeline, accounting for the audio crossfade overlap (each join pulls the
  *  next clip cf earlier). Metadata only — no player work now. */
-export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqId: string; start: number; end: number }[] {
+export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqId?: string; clip?: number; kind?: "ceq" | "wrap"; start: number; end: number }[] {
   const cf = Math.max(0, crossfadeMs) / 1000;
   const r2 = (n: number) => Math.round(n * 1000) / 1000;
-  const out: { ceqId: string; start: number; end: number }[] = [];
+  const out: { ceqId?: string; clip?: number; kind?: "ceq" | "wrap"; start: number; end: number }[] = [];
   let cum = 0;
   items.forEach((it, i) => {
     const start = Math.max(0, cum - i * cf);
     const dur = it.take.duration ?? 0;
-    if (it.kind === "ceq" && it.ceqId) out.push({ ceqId: it.ceqId, start: r2(start), end: r2(start + dur) });
+    // PER-CLIP entries: each CEQ clip carries its ceqId + clip index; wrap clips are
+    // tagged kind:"wrap". Player/shorts consumers get layer visibility for free.
+    if (it.kind === "ceq" && it.ceqId) out.push({ ceqId: it.ceqId, clip: it.clip ?? 0, kind: "ceq", start: r2(start), end: r2(start + dur) });
+    else if (it.kind === "wrap") out.push({ kind: "wrap", clip: it.clip ?? 0, start: r2(start), end: r2(start + dur) });
     cum += dur;
   });
   return out;

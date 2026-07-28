@@ -30,6 +30,9 @@ import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoic
 import { NEON } from "./theme";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
+/** A question's ordered CLIP STACK — the new `takes` list, else the legacy single
+ *  `take` migrated as a one-item list. The single source of truth for stitch/publish. */
+const cardClips = (d?: { takes?: TakeRef[]; take?: TakeRef }): TakeRef[] => (d?.takes && d.takes.length ? d.takes : d?.take ? [d.take] : []);
 const clip = (s: string, n = 40) => (s.length > n ? s.slice(0, n) + "…" : s);
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const NONE = "__uncat__";
@@ -71,7 +74,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const setPrefs = (p: Partial<CeqStudioPrefs>) => setPrefsState((cur) => { const n = { ...cur, ...p }; savePrefs(n); return n; });
   const wrapStems = !!prefs.wrapStems;
   const [takeBusy, setTakeBusy] = useState<string | null>(null); // slot key currently uploading
-  const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline
+  const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline (clip stack)
+  const [clipRefsOpen, setClipRefsOpen] = useState<string | null>(null); // `${ceqId}:${clipIdx}` whose refs picker is open
+  const [starOnly, setStarOnly] = useState(false); // Starred filter on the question list
   const [dragKey, setDragKey] = useState<string | null>(null); // slot key a clip is hovering
   const [stitchMode, setStitchMode] = useState<"free" | "full" | null>(null); // center = sequential preview
   const [publishBusy, setPublishBusy] = useState<"free" | "full" | null>(null);
@@ -97,6 +102,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const filteredDecks = cardDecks.filter((d) => (setsCourseFilter === "all" || d.course === setsCourseFilter) && (setsChapterFilter === "all" || d.chapter === setsChapterFilter));
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
+  const starCount = useMemo(() => questions.reduce((n, q) => n + ((rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred ? 1 : 0), 0), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   const qNode = qId ? nodes.find((n) => n.id === qId) : null;
   const qd = qNode?.data as unknown as CeqCard | undefined;
   // Re-seed signature for the live previewer — CONTENT only (stem/choices/chain), NOT
@@ -113,13 +119,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const chainMemoIds = useMemo(() => { const s = new Set<string>(); (qd?.choices ?? []).forEach((c) => (c.chain ?? []).forEach((it) => s.add(it.memoNodeId))); return s; }, [ceqSig]); // eslint-disable-line react-hooks/exhaustive-deps
   const previewEdges = useMemo(() => allEdges.filter((e) => chainMemoIds.has(e.source)).map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle })), [allEdges, chainMemoIds]);
   // DERIVED Free/Full stitch lists — order comes from `questions` (deck order) ONLY.
-  const stitchCeqs = useMemo(() => questions.map((q) => { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; return { id: q.id, prompt: d?.prompt ?? "", take: d?.take, free: d?.free }; }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stitchCeqs = useMemo(() => questions.map((q) => { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; return { id: q.id, prompt: d?.prompt ?? "", takes: cardClips(d), free: d?.free }; }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   // RESOLVED intro/outro = the set's own local drop, else the GLOBAL fallback. Preview,
   // stitch lists and publish all read these, so what you preview is what publishes.
   const resolvedIntro = deck?.intro ?? gc.intro;
   const resolvedOutro = deck?.outro ?? gc.outro;
-  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition]);
-  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition]);
+  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap]);
+  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
   // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
   // question number, stem and angle note. Lee's batch-filming worklist.
@@ -206,31 +212,51 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   };
 
   // ---- TAKE SLOTS (per-CEQ + per-set intro/outro + shared transition) --------
-  /** Stage a dropped clip into a CEQ's take slot (keeps ONE prior version). */
+  /** Stage a dropped clip and APPEND it to a CEQ's clip stack (base first, lookbacks
+   *  after). Migrates a legacy single `take` into the list. */
   const dropTake = async (ceqId: string, file: File) => {
-    if (takeBusy) return; setTakeBusy(ceqId); setNote("Uploading take to Supabase…");
+    if (takeBusy) return; setTakeBusy(ceqId); setNote("Uploading clip to Supabase…");
     try {
       const fresh = await stageTake(file);
-      const old = (rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)?.take;
-      patchQ(ceqId, { take: withPrev(fresh, old) });
-      setNote(`Attached take (${fmtDur(fresh.duration)}) — click the ✓ to preview.`);
-    } catch (e) { setNote(`Take upload failed: ${e instanceof Error ? e.message : String(e)}`); }
+      const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined);
+      patchQ(ceqId, { takes: [...clips, fresh], take: undefined });
+      setNote(`Attached clip ${clips.length + 1} (${fmtDur(fresh.duration)}) — ✓ to manage the stack.`);
+    } catch (e) { setNote(`Clip upload failed: ${e instanceof Error ? e.message : String(e)}`); }
     finally { setTakeBusy(null); }
   };
-  /** Stage a dropped clip into a set's INTRO/OUTRO (per set) or the shared TRANSITION. */
-  const dropSlot = async (kind: "intro" | "outro" | "transition", file: File) => {
+  /** Remove one clip from a CEQ's stack. */
+  const removeClip = (ceqId: string, idx: number) => { const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined); patchQ(ceqId, { takes: clips.filter((_, i) => i !== idx), take: undefined }); };
+  /** Reorder a clip within a CEQ's stack (base ↔ lookbacks). */
+  const reorderClip = (ceqId: string, idx: number, dir: -1 | 1) => { const clips = [...cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)]; const j = idx + dir; if (j < 0 || j >= clips.length) return; [clips[idx], clips[j]] = [clips[j], clips[idx]]; patchQ(ceqId, { takes: clips, take: undefined }); };
+  /** Set which earlier questions a clip references (reference picker, per clip). */
+  const setClipRefs = (ceqId: string, idx: number, refs: string[]) => { const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined).map((t, i) => (i === idx ? { ...t, refs: refs.length ? refs : undefined } : t)); patchQ(ceqId, { takes: clips, take: undefined }); };
+  /** Stage a dropped clip into a set's INTRO/OUTRO (per set), the shared TRANSITION, or
+   *  the set's WRAP stack (0..n end-of-video clips, appended). */
+  const dropSlot = async (kind: "intro" | "outro" | "transition" | "wrap", file: File) => {
     const key = kind === "transition" ? "transition" : `${kind}:${setId}`;
     if (takeBusy || (kind !== "transition" && !deck)) return;
     setTakeBusy(key); setNote(`Uploading ${kind}…`);
     try {
       const fresh = await stageTake(file);
       if (kind === "transition") setGlobalClips?.({ transition: withPrev(fresh, gc.transition) });
-      else if (deck) setDecks((prev) => updateDeck(prev, deck.id, { [kind]: withPrev(fresh, deck[kind]) }));
+      else if (kind === "wrap" && deck) setDecks((prev) => updateDeck(prev, deck.id, { wrap: [...(deck.wrap ?? []), fresh] }));
+      else if (deck && (kind === "intro" || kind === "outro")) setDecks((prev) => updateDeck(prev, deck.id, { [kind]: withPrev(fresh, deck[kind]) }));
       setNote(`Attached ${kind} (${fmtDur(fresh.duration)}).`);
     } catch (e) { setNote(`${kind} upload failed: ${e instanceof Error ? e.message : String(e)}`); }
     finally { setTakeBusy(null); }
   };
-  const clearTake = (ceqId: string) => { patchQ(ceqId, { take: undefined }); if (takePreview === ceqId) setTakePreview(null); };
+  /** Remove one clip from the set's WRAP stack. */
+  const removeWrapClip = (idx: number) => { if (!deck) return; setDecks((prev) => updateDeck(prev, deck.id, { wrap: (deck.wrap ?? []).filter((_, i) => i !== idx) })); };
+  /** Clear every STAR in the current set (confirm-guarded). Stars are inert notes. */
+  const clearAllStars = () => {
+    const starred = questions.filter((q) => (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred);
+    if (starred.length === 0) { setNote("No stars to clear."); return; }
+    if (!window.confirm(`Clear the ${starred.length} star${starred.length === 1 ? "" : "s"} in "${deck?.name ?? "this set"}"?`)) return;
+    const cmd = compositeCmd(starred.map((q) => patchDataCmd(rfl, q.id, { starred: false }, "clear star")).filter((c): c is NonNullable<typeof c> => !!c), "clear all stars");
+    if (cmd) bus.dispatch(cmd);
+    setNote(`Cleared ${starred.length} star${starred.length === 1 ? "" : "s"}.`);
+  };
+  const clearTake = (ceqId: string) => { patchQ(ceqId, { take: undefined, takes: undefined }); if (takePreview === ceqId) setTakePreview(null); };
 
   /** GLOBAL clip inheritance (Lee) — intro/outro resolve to `local ?? global`.
    *  Toggle the globe on a slot: if the set is already INHERITING the global, turn
@@ -733,10 +759,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             {deck && <span className="shrink-0 text-[8.5px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Free-flagged CEQs · all CEQs">Free {freeCount} · Full {questions.length}</span>}
             {deck && <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + transition + takes + outro)">~{fmtDur(stitchRuntime(stitchFree.items))}/{fmtDur(stitchRuntime(stitchFull.items))}</span>}
             <div className="ml-auto flex shrink-0 items-center gap-1">
+              {deck && (starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
+              {deck && starCount > 0 && <button className="rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearAllStars} title="Clear ALL stars in this set (confirm)">clear ★</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("free")} title="Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson (deployed env)">{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub free</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("full")} title="Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson (deployed env)">{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub full</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap full stems ↔ clamp to 2 lines (saved)"><WrapText className="h-3 w-3" /> wrap</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap full stems ↔ clamp to 2 lines (saved). (NOT the wrap CLIP slot — that's in Set clips.)"><WrapText className="h-3 w-3" /> wrap stems</button>}
               {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
               {deck && memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> deal into frame</button>}
@@ -749,7 +777,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
               <div className="min-h-0 w-56 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
-                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const take = qdata?.take; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; return (
+                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; return (
                   <div key={q.id}>
                     <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : undefined }} {...dragProps(q.id, (f) => dropTake(q.id, f))}>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
@@ -759,17 +787,40 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                       {chainSound && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="A chain item has a reveal sound">🔊</span>}
                       {chachingOff && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="Chaching-on-correct silenced for this question">🔇</span>}
                       {isShort && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title={`Shorts-worthy${qdata?.shortNote ? ` — ${qdata.shortNote}` : ""}`}>🎬</span>}
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center text-[11px] leading-none" style={{ color: starred ? "#FFD23F" : NEON.muted }} onClick={() => patchQ(q.id, { starred: !starred })} title={starred ? "Starred — a performer's note (affects nothing). Click to unstar." : "Star this question — a performer's note; NO effect on spacewalk / stitch / publish"}>{starred ? "★" : "☆"}</button>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded text-[8px] font-black" style={{ color: qdata?.free ? "#0B0F1E" : NEON.muted, background: qdata?.free ? "#3BF5A0" : "transparent", border: `1px solid ${qdata?.free ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => patchQ(q.id, { free: !qdata?.free })} title={qdata?.free ? "In the FREE cut — click to remove" : "Add to the FREE cut"}>F</button>
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={take ? `Take ${fmtDur(take.duration)} attached — click to preview · drop a clip to replace` : "Drop a video clip here to attach this question's take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : take ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"} — click to manage the stack · drop a video to append a lookback` : "Drop a video clip here to add this question's base take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : clips.length ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
+                      {clips.length > 1 && <span className="mt-0.5 shrink-0 text-[8px] font-bold tabular-nums" style={{ color: "#3BF5A0" }} title={`${clips.length} clips (base + ${clips.length - 1} lookback)`}>{clips.length}</span>}
                       <button disabled={i === 0} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
                       <button disabled={i === questions.length - 1} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => duplicateQuestion(q.id)} title="Duplicate question directly below (Ctrl+D)"><Copy className="h-3 w-3" /></button>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.red }} onClick={() => deleteQuestion(q.id)} title="Delete question (removes the card + its chain arrows; keeps the memos · Ctrl+Z to undo)"><Trash2 className="h-3 w-3" /></button>
                     </div>
-                    {takePreview === q.id && take && (
-                      <div className="my-1 ml-4 flex flex-col gap-0.5">
-                        <video src={take.url} controls playsInline className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} />
-                        <div className="flex items-center gap-1 text-[8.5px]" style={{ color: NEON.muted }}><span className="min-w-0 flex-1 truncate" title={take.name}>{take.name || "clip"} · {fmtDur(take.duration)}{take.prev ? " · v2" : ""}</span><button style={{ color: NEON.red }} onClick={() => clearTake(q.id)} title="Remove this take">remove</button></div>
+                    {takePreview === q.id && (
+                      <div className="my-1 ml-4 flex flex-col gap-1">
+                        {clips.length === 0 && <div className="text-[8.5px] italic" style={{ color: NEON.muted }}>No clips yet — drop a video on this row to add the base explanation.</div>}
+                        {clips.map((t, ci) => { const rk = `${q.id}:${ci}`; const refsOpen = clipRefsOpen === rk; return (
+                          <div key={t.path} className="flex flex-col gap-0.5 rounded p-1" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }}>
+                            <div className="flex items-center gap-1 text-[8.5px]" style={{ color: NEON.muted }}>
+                              <span className="shrink-0 rounded px-1 font-bold uppercase" style={{ color: ci === 0 ? "#3BF5A0" : NEON.cyan, border: `1px solid ${NEON.borderSoft}` }}>{ci === 0 ? "base" : `L${ci}`}</span>
+                              <span className="min-w-0 flex-1 truncate" title={t.name}>{t.name || "clip"} · {fmtDur(t.duration)}</span>
+                              <button disabled={ci === 0} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderClip(q.id, ci, -1)} title="Move earlier"><ArrowUp className="h-3 w-3" /></button>
+                              <button disabled={ci === clips.length - 1} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderClip(q.id, ci, 1)} title="Move later"><ArrowDown className="h-3 w-3" /></button>
+                              <button className="grid h-4 place-items-center rounded px-0.5 text-[8px] font-bold" style={{ color: (t.refs?.length || refsOpen) ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setClipRefsOpen((k) => (k === rk ? null : rk))} title="References earlier questions (lookback)">↩{t.refs?.length ? t.refs.length : ""}</button>
+                              <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.red }} onClick={() => removeClip(q.id, ci)} title="Remove this clip"><X className="h-3 w-3" /></button>
+                            </div>
+                            <video src={t.url} controls playsInline preload="none" className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} />
+                            {refsOpen && (
+                              <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded p-1" style={{ background: "rgba(0,0,0,0.3)" }}>
+                                <div className="text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>References — earlier questions this clip reviews</div>
+                                {questions.filter((qq) => qq.id !== q.id).map((qq) => { const on = (t.refs ?? []).includes(qq.id); const qp = (rf.getNode(qq.id)?.data as unknown as CeqCard | undefined)?.prompt || "Question"; return (
+                                  <button key={qq.id} className="flex items-center gap-1 truncate text-left text-[9px]" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => setClipRefs(q.id, ci, on ? (t.refs ?? []).filter((x) => x !== qq.id) : [...(t.refs ?? []), qq.id])}>{on ? "☑" : "☐"} {clip(qp, 44)}</button>
+                                ); })}
+                              </div>
+                            )}
+                          </div>
+                        ); })}
+                        <div className="text-[8px] italic" style={{ color: NEON.muted }}>Drop a video on the row to append a lookback clip. {clips.length > 0 && <button className="ml-1" style={{ color: NEON.red }} onClick={() => clearTake(q.id)} title="Remove all clips">clear all</button>}</div>
                       </div>
                     )}
                     {expanded && walk.map((w) => { const msel = selChainMemos.has(w.memoNodeId); const ek = `${q.id}|${w.choiceId}|${w.idx}`; const vinyl = w.sound === "vinylScratch"; return (
@@ -825,6 +876,22 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                     </div>
                     );
                   })}
+                  {/* WRAP — 0..n end-of-video lookback/summary clips (played AFTER the last
+                      question clip, BEFORE the outro). Its own stack, drop to append. */}
+                  <div className="mt-1 flex flex-col gap-1 rounded p-1" style={{ background: dragKey === `wrap:${setId}` ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.15)", outline: dragKey === `wrap:${setId}` ? `1px dashed ${NEON.yellow}` : `1px solid ${NEON.borderSoft}` }} {...dragProps(`wrap:${setId}`, (f) => dropSlot("wrap", f))}>
+                    <div className="flex items-center gap-1 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}><span className="w-14 shrink-0">Wrap</span><span className="min-w-0 flex-1 truncate">end-of-video lookbacks — drop to add{(deck.wrap?.length ?? 0) > 0 ? ` · ${deck.wrap!.length}` : ""}</span>{takeBusy === `wrap:${setId}` && <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} />}</div>
+                    {(deck.wrap ?? []).map((t, wi) => (
+                      <div key={t.path} className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1 text-[8.5px]" style={{ color: NEON.muted }}>
+                          <span className="shrink-0 rounded px-1 font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }}>W{wi + 1}</span>
+                          <span className="min-w-0 flex-1 truncate" title={t.name}>{t.name || "clip"} · {fmtDur(t.duration)}</span>
+                          <button className="grid h-4 w-4 place-items-center" onClick={() => setTakePreview((k) => (k === `wrap:${setId}:${wi}` ? null : `wrap:${setId}:${wi}`))} title="Preview"><CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /></button>
+                          <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.red }} onClick={() => removeWrapClip(wi)} title="Remove wrap clip"><X className="h-3 w-3" /></button>
+                        </div>
+                        {takePreview === `wrap:${setId}:${wi}` && <video src={t.url} controls playsInline preload="none" className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} />}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
@@ -841,7 +908,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                     <div className="flex items-center gap-1 px-2 py-1">
                       <button className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} onClick={() => setEditorOpen((v) => !v)}>{editorOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} edit stem & choices</button>
                       {/* SOUND FLAGS (sound pass) — Boss (cram-launch on deal) + Chaching on correct (opt-out). */}
-                      <button className="ml-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.boss ? "#0B0F1E" : NEON.muted, background: qd.boss ? NEON.yellow : "transparent", border: `1px solid ${qd.boss ? NEON.yellow : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { boss: !qd.boss })} title="Boss card — fires the cram-launch cue when this question is dealt (film)">👑 Boss</button>
+                      <button className="ml-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.starred ? "#0B1322" : NEON.muted, background: qd.starred ? "#FFD23F" : "transparent", border: `1px solid ${qd.starred ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { starred: !qd.starred })} title="Star — a performer's note. Inert: NO effect on spacewalk / stitch / publish.">{qd.starred ? "★" : "☆"} Star</button>
+                      <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.boss ? "#0B0F1E" : NEON.muted, background: qd.boss ? NEON.yellow : "transparent", border: `1px solid ${qd.boss ? NEON.yellow : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { boss: !qd.boss })} title="Boss card — fires the cram-launch cue when this question is dealt (film)">👑 Boss</button>
                       <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.confirmSfx === false ? NEON.muted : "#3BF5A0", border: `1px solid ${qd.confirmSfx === false ? NEON.borderSoft : "rgba(59,245,160,0.5)"}` }} onClick={() => patchQ(qId!, { confirmSfx: qd.confirmSfx === false })} title="Chaching on correct — plays by DEFAULT on the correct-Enter (film); click to silence it for this question (opt-out)">Chaching on correct {qd.confirmSfx === false ? "✗" : "✓"}</button>
                       {/* SHORTS-WORTHY (verticals) — flag + optional one-line angle (note row below). */}
                       <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.short ? "#0B0F1E" : NEON.muted, background: qd.short ? "#FF8B9E" : "transparent", border: `1px solid ${qd.short ? "#FF8B9E" : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { short: !qd.short })} title="Flag this CEQ as shorts-worthy — it joins the Shorts queue worklist">🎬 Short</button>

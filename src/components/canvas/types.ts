@@ -291,6 +291,10 @@ export interface TakeRef {
   name?: string; // original filename
   duration?: number; // seconds, read at attach
   prev?: { url: string; path: string; name?: string; duration?: number };
+  /** REFERENCE PICKER (Lee, lookback) — for a lookback clip in a CEQ's stack: the
+   *  ceqIds of EARLIER questions this clip reviews. Base clips usually have none.
+   *  Additive; authoring metadata. */
+  refs?: string[];
 }
 
 export interface CeqChoice {
@@ -328,8 +332,16 @@ export interface CeqCard extends CardBase {
   /** PER-CEQ SCRIPT NOTE (cram-mode batch) — a line Lee jots per question, shown
    *  in the script dock while cram mode is on. Additive; frame script untouched. */
   note?: string;
-  /** TAKE SLOT (CEQ Studio) — one staged raw clip filmed for THIS question. Additive. */
+  /** TAKE SLOT (CEQ Studio) — LEGACY single clip. Superseded by `takes` (migrated as a
+   *  one-item list); still read as a fallback for pre-stack scenes. Additive. */
   take?: TakeRef;
+  /** CLIP STACK (Lee, lookback) — ordered clips for THIS question: the base explanation
+   *  first, appended lookback clips after. Stitch plays them in order. Migrated from a
+   *  legacy single `take` as a one-item list. Additive. */
+  takes?: TakeRef[];
+  /** STAR (Lee) — a performer's-note marker. Purely visual/inert: NEVER affects
+   *  spacewalk, stitch, publish, or any metadata consumer. Cleared via "Clear stars". */
+  starred?: boolean;
   /** FREE cut (CEQ Studio) — include this question in the FREE stitch list (the FULL
    *  list is every clip-bearing CEQ). Additive; the stitch order stays deck-derived. */
   free?: boolean;
@@ -821,7 +833,7 @@ export interface LessonBox {
   runs?: FilmRun[];
   /** CEQ STITCH MANIFEST (CEQ Studio publish) — per-CEQ [start,end] on the published
    *  video's timeline (player-progress + shorts + interactive index). Metadata only. */
-  ceqManifest?: { ceqId: string; start: number; end: number }[];
+  ceqManifest?: { ceqId?: string; clip?: number; kind?: "ceq" | "wrap"; start: number; end: number }[];
   /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
    *  visual seed of the free/paid gate (roadmap). */
   check?: boolean;
@@ -1085,6 +1097,10 @@ export interface DeckDef {
    *  TRANSITION lives in panel prefs (one file across all sets). Additive. */
   intro?: TakeRef;
   outro?: TakeRef;
+  /** WRAP CLIPS (Lee, lookback) — 0..n end-of-video lookback/summary clips for the set,
+   *  played AFTER the last question clip and BEFORE the outro in the stitch. Additive;
+   *  rides in SceneDoc.decks. */
+  wrap?: TakeRef[];
   /** CONSISTENT DEAL LAYOUT (Lee) — the set's canonical geometry: every question
    *  deals/previews at this baseline so nothing drifts. Frame-local px (same coord
    *  space as dealCentre/defaultMemoPos). Absent ⇒ the default (centred card, memos
