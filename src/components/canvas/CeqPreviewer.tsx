@@ -71,7 +71,20 @@ const PV_CSS = `
 @keyframes sa-ceq-in { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes sa-memo-pop { 0% { opacity: 0; transform: scale(0.84) translateY(9px); } 55% { opacity: 1; transform: scale(1.05) translateY(0); } 100% { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .sa-ceq-in, .sa-memo-pop { animation: none !important; } }
+/* SPOTLIGHT GUARDRAILS (Lee) — cap the FLAME super-scale inside the previewer so a
+   flamed choice/memo can't blow outside the CEQ box / frame on a take (beats
+   FLAME_CSS's scale(1.4) !important by specificity; origin stays left-center). */
+.sa-ceq-choice[data-flame="on"] { transform: scale(1.08) !important; }
+.sa-pv-node[data-flame="on"] { transform: scale(1.08) !important; }
 `;
+/** SPOTLIGHT GUARDRAIL — tame spotStyle's size bump so a spotlit choice/memo stays in
+ *  the CEQ box / frame (spotStyle uses scale(1.2), which spilled a full-width choice
+ *  ~100px past the card). The gold pill + glow carry the emphasis; the CEQ card also
+ *  clips its content so the residual growth/glow can never leave the box on camera. */
+function containSpot(state: "spot" | null): React.CSSProperties {
+  const s = spotStyle(state);
+  return state === "spot" ? { ...s, transform: "scale(1.06)" } : s;
+}
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
@@ -137,7 +150,10 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number };
   const s = d.scale ?? 1;
   return (
-    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", padding: 16 * s, animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+      {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
+          into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
+      <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
       <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>{renderInline(d.stem || "Question")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 * s }}>
         {d.choices.map((c, i) => {
@@ -153,10 +169,11 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           return (
             <div
               key={c.id ?? i}
+              className="sa-ceq-choice"
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
-              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${border}`, background: bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...spotStyle(spState) }}
+              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${border}`, background: bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...containSpot(spState) }}
             >
               <span style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}` }}>{LETTER(i)}</span>
               {/* TextAnchor drops the anc:<choiceId> handle ~7px past the choice TEXT
@@ -170,6 +187,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
             </div>
           );
         })}
+      </div>
       </div>
       <ScaleGrip id={id} scale={s} color={NEON.yellow} film={film} />
     </div>
@@ -197,7 +215,7 @@ function MemoPreviewNode({ id, data }: NodeProps) {
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", animation: film && walked ? "sa-memo-pop 340ms cubic-bezier(0.2,0.7,0.3,1)" : undefined, ...spotStyle(spState) }}
+      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", animation: film && walked ? "sa-memo-pop 340ms cubic-bezier(0.2,0.7,0.3,1)" : undefined, ...containSpot(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>}
