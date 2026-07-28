@@ -184,8 +184,9 @@ function MemoPreviewNode({ id, data }: NodeProps) {
   const spot = useContext(PreviewSpotContext);
   const film = useContext(FilmContext);
   const chainToggle = useContext(ChainToggleContext);
-  const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number; hideChoiceLabel?: boolean; hideArrow?: boolean };
+  const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string };
   const s = d.scale ?? 1;
+  const vinyl = d.sound === "vinylScratch";
   const walked = revealed.has(id);
   const key = spotKey(id, "self");
   const spState = spot.state(key);
@@ -200,11 +201,13 @@ function MemoPreviewNode({ id, data }: NodeProps) {
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>}
-      {/* DISPLAY TOGGLES (Lee) — authoring-only, hover-only cluster on the memo. The
-          `choice A` caption toggle (this fix). Never on camera (film hides it). */}
+      {/* DISPLAY TOGGLES (Lee) — authoring-only, hover-only cluster on the memo:
+          choice-caption toggle, arrow show/hide, and vinyl-on-entry. Never on camera. */}
       {!film && (
         <div className="sa-grip-film nodrag" style={{ position: "absolute", top: -9, right: -6, display: "flex", gap: 3, zIndex: 22 }}>
           <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { hideChoiceLabel: !d.hideChoiceLabel }); }} title={d.hideChoiceLabel ? `Show the "choice ${d.choice}" caption` : `Hide the "choice ${d.choice}" caption`} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 10, fontWeight: 900, cursor: "pointer", color: d.hideChoiceLabel ? NEON.muted : "#0B0F1E", background: d.hideChoiceLabel ? "transparent" : NEON.yellow, border: `1px solid ${d.hideChoiceLabel ? NEON.borderSoft : NEON.yellow}` }}>{d.choice}</button>
+          <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { hideArrow: !d.hideArrow }); }} title={d.hideArrow ? "Show the memo → choice arrow" : "Hide the memo → choice arrow"} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 11, fontWeight: 900, cursor: "pointer", color: d.hideArrow ? NEON.muted : "#0B0F1E", background: d.hideArrow ? "transparent" : NEON.cyan, border: `1px solid ${d.hideArrow ? NEON.borderSoft : NEON.cyan}` }}>↜</button>
+          <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { sound: vinyl ? undefined : "vinylScratch" }); }} title={vinyl ? "Vinyl scratch on entry (film) — click to remove" : "Play the vinyl scratch when this memo enters (film)"} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 10, cursor: "pointer", opacity: vinyl ? 1 : 0.5, background: vinyl ? "rgba(252,163,17,0.22)" : "transparent", border: `1px solid ${vinyl ? NEON.yellow : NEON.borderSoft}` }}>💿</button>
         </div>
       )}
       {!d.hideChoiceLabel && <div style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
@@ -244,8 +247,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const cd = ceq?.data as unknown as CeqCard | undefined;
   // Flat walk list: each chain memo with its choice index + position within the chain.
   const walk = useMemo(() => {
-    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean }[] = [];
-    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow })));
+    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string }[] = [];
+    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound })));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainSig]);
@@ -326,7 +329,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const cb = baseline?.card;
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: 0 }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: cb.y } : dealCentre(frameW, frameH), data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
-    const memoNodes = walk.map((w, i) => { const slot = baseline?.memoSlots?.[i]; return { id: w.memoNodeId, type: "memoPreview", position: slot ? { x: slot.x, y: slot.y } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: slot?.scale ?? 1, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow }, draggable: true, zIndex: 5 }; });
+    const memoNodes = walk.map((w, i) => { const slot = baseline?.memoSlots?.[i]; return { id: w.memoNodeId, type: "memoPreview", position: slot ? { x: slot.x, y: slot.y } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: slot?.scale ?? 1, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound }, draggable: true, zIndex: 5 }; });
     return [frameNode, ceqNode, ...memoNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion]);
@@ -373,6 +376,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   };
 
   const miniIds = useMemo(() => new Set<string>(["__frame__", ceqId, ...walk.map((w) => w.memoNodeId)]), [ceqId, walk]);
+  // Memos whose arrow Lee has toggled OFF — the previewer shows them faint (so the
+  // toggle is discoverable), the film mirror drops them entirely (see filmEdges).
+  const hideArrowSources = useMemo(() => new Set(walk.filter((w) => w.hideArrow).map((w) => w.memoNodeId)), [walk]);
   const edges: Edge[] = useMemo(() => (chainEdges ?? [])
     .filter((e) => miniIds.has(e.source) && miniIds.has(e.target))
     .map((e) => {
@@ -381,15 +387,18 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const flamedE = spots.superKey === sk;
       const spotE = spots.regular.has(sk) || flamedE;
       const selectedE = selEdgeIds.has(e.id);
+      const hidden = hideArrowSources.has(e.source);
       const stroke = flamedE ? "#FCA311" : spotE ? "#FFD36A" : selectedE ? NEON.cyan : revealed ? "#E0284A" : "rgba(147,160,180,0.45)";
       const width = flamedE ? 4 : spotE || selectedE ? 3.5 : 2.5;
       const lit = revealed || spotE || selectedE;
       // Spotlit/flamed → RF's flowing-dash `animated` + a glow (Lee's "show animation
       // of it"). markerEnd sized up so the ← arrowhead reads at the choice.
-      return { id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined, type: "smoothstep", animated: spotE, style: { stroke, strokeWidth: width, opacity: lit ? 1 : 0.4, strokeDasharray: spotE ? undefined : lit ? undefined : "5 4", filter: flamedE ? "drop-shadow(0 0 6px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 4px rgba(255,211,106,0.8))" : undefined }, markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 } } as Edge;
+      return { id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined, type: "smoothstep", animated: spotE && !hidden, style: { stroke, strokeWidth: width, opacity: hidden ? 0.14 : lit ? 1 : 0.4, strokeDasharray: hidden ? "3 5" : spotE ? undefined : lit ? undefined : "5 4", filter: hidden ? undefined : flamedE ? "drop-shadow(0 0 6px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 4px rgba(255,211,106,0.8))" : undefined }, markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 } } as Edge;
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chainEdges, miniIds, revealedMemoIds, ceqId, spots, selEdgeIds]);
+    [chainEdges, miniIds, revealedMemoIds, ceqId, spots, selEdgeIds, hideArrowSources]);
+  // FILM edges — the mirror drops arrows toggled OFF entirely (clean take).
+  const filmEdges = useMemo(() => edges.filter((e) => !hideArrowSources.has(e.source)), [edges, hideArrowSources]);
   const onConnect = (c: Connection) => {
     if (!c.source || !c.target || c.source === c.target) return;
     const id = `chn-arrow-${c.source}-${c.target}`;
@@ -528,7 +537,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                     <ReactFlowProvider>
                       <ReactFlow
                         nodes={nodes}
-                        edges={edges}
+                        edges={filmEdges}
                         onNodesChange={onNodesChange}
                         onConnect={onConnect}
                         onEdgeClick={onEdgeClick}
