@@ -26,7 +26,7 @@ import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, sta
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type ChainSound, type CeqChoice, type DeckDef, type GlobalClips, type TakeRef } from "./types";
+import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type DeckDef, type GlobalClips, type TakeRef } from "./types";
 import { NEON } from "./theme";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
@@ -101,7 +101,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const qd = qNode?.data as unknown as CeqCard | undefined;
   // Re-seed signature for the live previewer — CONTENT only (stem/choices/chain), NOT
   // positions, so dragging a memo (which writes position back) never re-seeds/fights.
-  const ceqSig = qd ? `${qId}|${qd.prompt}|${qd.choices.map((c) => `${c.text}:${c.correct ? 1 : 0}:${(c.chain ?? []).map((it) => `${it.memoNodeId}~${it.label}`).join(",")}`).join("|")}` : "";
+  const ceqSig = qd ? `${qId}|${qd.prompt}|${qd.choices.map((c) => `${c.text}:${c.correct ? 1 : 0}:${(c.chain ?? []).map((it) => `${it.memoNodeId}~${it.label}~${it.sound ?? ""}~${it.hideChoiceLabel ? 1 : 0}~${it.hideArrow ? 1 : 0}`).join(",")}`).join("|")}` : "";
   // The frame the set will be dealt into — the previewer mirrors ITS size so the
   // composition you build == the dealt frame exactly. Defaults to a 1600×900 stage.
   const targetFrame = nav.currentFrameId ? rf.getNode(nav.currentFrameId) : null;
@@ -602,6 +602,11 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const setChainSound = (ceqId: string, choiceId: string, idx: number, sound: ChainSound | undefined) => {
     const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (ch.id === choiceId ? { ...ch, chain: (ch.chain ?? []).map((it, i) => (i === idx ? { ...it, sound } : it)) } : ch)) }), "chain reveal sound"); if (c) bus.dispatch(c);
   };
+  /** Patch the chain item that references `memoNodeId` (display toggles from the memo
+   *  node in the previewer — hide choice label / hide arrow / vinyl). Undoable. */
+  const patchChainItem = (ceqId: string, memoNodeId: string, patch: Partial<CeqChainItem>) => {
+    const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => ({ ...ch, chain: (ch.chain ?? []).map((it) => (it.memoNodeId === memoNodeId ? { ...it, ...patch } : it)) })) }), "memo display toggle"); if (c) bus.dispatch(c);
+  };
   /** DUPLICATE a library memo → a copy ("<label> copy", same category/kind, sourceId
    *  link back to the original) placed beside it; opens the copy for inline rename. */
   const duplicateMemo = (id: string) => {
@@ -828,7 +833,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (

@@ -42,7 +42,7 @@ import { playSfx } from "./sfx";
 import { spotStyle } from "./SpotlightContext";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
 import { NEON, PAPER } from "./theme";
-import { clampScale, type CeqCard, type DeckLayout, type DeckSlotLayout } from "./types";
+import { clampScale, type CeqCard, type CeqChainItem, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
 const PracticeContext = createContext<{ emph: number | null; resolved: Set<number> }>({ emph: null, resolved: new Set() });
@@ -56,11 +56,15 @@ const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, fl
 /** FILM view (the popout mirror): true ⇒ nodes render CLEAN — no scale grips, no
  *  frame outline/label, no chain-number badges — just the composition the camera sees. */
 const FilmContext = createContext(false);
+/** Toggle a chain memo's DISPLAY flags from its preview node (hide choice label / hide
+ *  arrow / vinyl-on-entry). Keyed by memoNodeId; writes back through the main store
+ *  (undoable) via CeqStudio's onPatchChainItem. Noop when not authoring. */
+const ChainToggleContext = createContext<(memoNodeId: string, patch: Partial<CeqChainItem>) => void>(() => {});
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
 const PV_CSS = `
-.sa-pv-node .sa-grip-film { opacity: 0; transition: opacity 120ms ease; }
-.sa-pv-node:hover .sa-grip-film { opacity: 1; }
+.sa-pv-node .sa-grip-film { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.sa-pv-node:hover .sa-grip-film { opacity: 1; pointer-events: auto; }
 /* Modern transitions (Lee): a CEQ slides+fades in when the question changes (the
    card node remounts on ceqId change), and a chain memo POPS in when it's revealed
    in film — a touch more emphatic than a plain fade. */
@@ -179,7 +183,8 @@ function MemoPreviewNode({ id, data }: NodeProps) {
   const revealed = useContext(RevealContext);
   const spot = useContext(PreviewSpotContext);
   const film = useContext(FilmContext);
-  const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number };
+  const chainToggle = useContext(ChainToggleContext);
+  const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number; hideChoiceLabel?: boolean; hideArrow?: boolean };
   const s = d.scale ?? 1;
   const walked = revealed.has(id);
   const key = spotKey(id, "self");
@@ -195,7 +200,14 @@ function MemoPreviewNode({ id, data }: NodeProps) {
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>}
-      <div style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>
+      {/* DISPLAY TOGGLES (Lee) — authoring-only, hover-only cluster on the memo. The
+          `choice A` caption toggle (this fix). Never on camera (film hides it). */}
+      {!film && (
+        <div className="sa-grip-film nodrag" style={{ position: "absolute", top: -9, right: -6, display: "flex", gap: 3, zIndex: 22 }}>
+          <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { hideChoiceLabel: !d.hideChoiceLabel }); }} title={d.hideChoiceLabel ? `Show the "choice ${d.choice}" caption` : `Hide the "choice ${d.choice}" caption`} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 10, fontWeight: 900, cursor: "pointer", color: d.hideChoiceLabel ? NEON.muted : "#0B0F1E", background: d.hideChoiceLabel ? "transparent" : NEON.yellow, border: `1px solid ${d.hideChoiceLabel ? NEON.borderSoft : NEON.yellow}` }}>{d.choice}</button>
+        </div>
+      )}
+      {!d.hideChoiceLabel && <div style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
       <div style={{ fontSize: 14 * s, color: NEON.text, lineHeight: 1.25 }}>{d.label}</div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
@@ -227,13 +239,13 @@ function FilmInternalsNudge({ sig }: { sig: string }) {
   return null;
 }
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, onSaveBaseline, onSetWorld, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, onSaveBaseline, onSetWorld, onPatchChainItem, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
   const cd = ceq?.data as unknown as CeqCard | undefined;
   // Flat walk list: each chain memo with its choice index + position within the chain.
   const walk = useMemo(() => {
-    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number }[] = [];
-    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1 })));
+    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean }[] = [];
+    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow })));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainSig]);
@@ -314,7 +326,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const cb = baseline?.card;
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: 0 }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: cb.y } : dealCentre(frameW, frameH), data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
-    const memoNodes = walk.map((w, i) => { const slot = baseline?.memoSlots?.[i]; return { id: w.memoNodeId, type: "memoPreview", position: slot ? { x: slot.x, y: slot.y } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: slot?.scale ?? 1 }, draggable: true, zIndex: 5 }; });
+    const memoNodes = walk.map((w, i) => { const slot = baseline?.memoSlots?.[i]; return { id: w.memoNodeId, type: "memoPreview", position: slot ? { x: slot.x, y: slot.y } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: slot?.scale ?? 1, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow }, draggable: true, zIndex: 5 }; });
     return [frameNode, ceqNode, ...memoNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion]);
@@ -433,6 +445,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       <RevealContext.Provider value={revealedMemoIds}>
         <ScaleContext.Provider value={setScale}>
           <PreviewSpotContext.Provider value={spotApi}>
+           <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
             {/* FLAME/SIREN CSS injected locally so it works even when the Studio is
                 popped out to a 2nd window (the global copy lives on the main canvas). */}
             <style>{FLAME_CSS}{PV_CSS}</style>
@@ -543,6 +556,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 </FilmContext.Provider>
               </PanelPopout>
             )}
+           </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
         </ScaleContext.Provider>
       </RevealContext.Provider>
@@ -587,12 +601,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, onSaveBaseline, onSetWorld, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, onSaveBaseline, onSetWorld, onPatchChainItem, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} onSaveBaseline={onSaveBaseline} onSetWorld={onSetWorld} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} onSaveBaseline={onSaveBaseline} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onSelectMemo={onSelectMemo} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );

@@ -276,6 +276,11 @@ export interface CeqChainItem {
   label: string;
   /** REVEAL SOUND (Lee, sound pass) — plays on this item's Enter reveal. Additive. */
   sound?: ChainSound;
+  /** Per-memo DISPLAY toggles (Lee) — hide the "choice A" caption on the chain memo,
+   *  and/or hide the memo→choice arrow. Authoring shows toggles; film honors them.
+   *  Additive; absent ⇒ shown. */
+  hideChoiceLabel?: boolean;
+  hideArrow?: boolean;
 }
 /** A staged raw video clip (in the Supabase canvas-media bucket) attached to a CEQ
  *  take slot / a set's intro-outro / the shared transition. Additive, scene JSON —
