@@ -36,6 +36,16 @@ test("every question is a valid single-answer MC with distinct, non-empty choice
   }
 });
 
+test("account-type (ch1) sets list choices in the fixed Asset→Liability→Equity→Revenue→Expense order", () => {
+  const ORDER = ["Asset", "Liability", "Equity", "Revenue", "Expense"];
+  for (const set of SEED_SETS.filter((s) => s.key.startsWith("ch1-"))) {
+    expect(set.noRotate, `${set.key} must skip the seed-time rotate`).toBe(true);
+    for (const q of set.questions) {
+      expect(q.choices.map((c) => c.text), `${set.key}: ${q.stem}`).toEqual(ORDER);
+    }
+  }
+});
+
 test("no chains or memos anywhere in the seed", () => {
   for (const set of SEED_SETS) {
     for (const q of set.questions) {

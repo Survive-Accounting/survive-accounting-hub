@@ -12,7 +12,7 @@ import type { ReactFlowInstance } from "@xyflow/react";
 
 type SC = { text: string; correct?: boolean };
 type SQ = { stem: string; choices: SC[] };
-type SSet = { key: string; name: string; questions: SQ[] };
+type SSet = { key: string; name: string; questions: SQ[]; noRotate?: boolean };
 
 /** MC helper — correct first (rotated to a varied slot at seed time). */
 const q = (stem: string, correct: string, ...d: string[]): SQ => ({ stem, choices: [{ text: correct, correct: true }, ...d.map((t) => ({ text: t }))] });
@@ -38,7 +38,11 @@ const COA: { name: string; type: AType }[] = [
 ];
 const TYPES: AType[] = ["Asset", "Liability", "Equity", "Revenue", "Expense"];
 const acc = (name: string) => COA.find((a) => a.name === name)!;
-const ch1Q = (name: string): SQ => { const a = acc(name); return q(`What type of account is ${a.name}?`, a.type, ...TYPES.filter((t) => t !== a.type)); };
+// Account-type questions ALWAYS list their choices in the fixed Asset → Liability →
+// Equity → Revenue → Expense order (Lee's call — static, never shuffled), with the
+// matching type flagged correct. The ch1 sets carry `noRotate` so the seed-time
+// rotate leaves this order untouched.
+const ch1Q = (name: string): SQ => { const a = acc(name); return { stem: `What type of account is ${a.name}?`, choices: TYPES.map((t) => ({ text: t, correct: t === a.type })) }; };
 
 // ---- CH1 · Types of Accounts ------------------------------------------------
 const CH1_FULL_NAMES = ["Cash", "Accounts Receivable", "Supplies", "Prepaid Insurance", "Inventory", "Equipment", "Land", "Accumulated Depreciation", "Accounts Payable", "Notes Payable", "Unearned Revenue", "Salaries Payable", "Common Stock", "Retained Earnings", "Dividends", "Service Revenue", "Sales Revenue", "Rent Expense", "Salaries Expense", "Utilities Expense", "Supplies Expense", "Depreciation Expense"]; // 22
@@ -149,8 +153,8 @@ const CH5_FREE: SQ[] = [CH5_A[1], CH5_A[2], CH5_A[4], CH5_A[6], CH5_B[0], CH5_B[
 
 // ---- the 10 sets ------------------------------------------------------------
 export const SEED_SETS: SSet[] = [
-  { key: "ch1-free", name: "Ch 1 · Types of Accounts — Free", questions: CH1_FREE_NAMES.map(ch1Q) },
-  { key: "ch1-full", name: "Ch 1 · Types of Accounts — Full", questions: CH1_FULL_NAMES.map(ch1Q) },
+  { key: "ch1-free", name: "Ch 1 · Types of Accounts — Free", questions: CH1_FREE_NAMES.map(ch1Q), noRotate: true },
+  { key: "ch1-full", name: "Ch 1 · Types of Accounts — Full", questions: CH1_FULL_NAMES.map(ch1Q), noRotate: true },
   { key: "ch2-free", name: "Ch 2 · A=L+E Effects — Free", questions: CH2_FREE },
   { key: "ch2-full", name: "Ch 2 · A=L+E Effects — Full", questions: CH2_FULL },
   { key: "ch3-free", name: "Ch 3 · Accounting Cycle Order — Free", questions: CH3_FREE },
@@ -181,7 +185,10 @@ export function seedCeqSets(rf: ReactFlowInstance, setDecks: (fn: (prev: DeckDef
         id: cardId("ceq"), type: "ceq", position: pos, selected: false,
         data: {
           kind: "ceq", title: set.name, prompt: qq.stem,
-          choices: rotate(qq.choices, i).map((ch) => ({ id: cardId("ch"), text: ch.text, correct: !!ch.correct })),
+          // Rotate the correct answer to a varied slot per question — EXCEPT sets
+          // flagged noRotate (the account-type ch1 sets), which stay in their fixed
+          // Asset→Liability→Equity→Revenue→Expense order.
+          choices: (set.noRotate ? qq.choices : rotate(qq.choices, i)).map((ch) => ({ id: cardId("ch"), text: ch.text, correct: !!ch.correct })),
           deckId, deckMember: true, tucked: true, stageOrder: i, slotIndex: i, deckCategory: "ceq:studio", deckPos: pos,
         },
       };
