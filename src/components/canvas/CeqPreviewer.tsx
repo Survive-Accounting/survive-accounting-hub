@@ -27,7 +27,7 @@
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
+import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodes, useNodesState, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Pause, Play, RotateCcw, Timer } from "lucide-react";
 
 import { BrandWatermark } from "./BrandBar";
@@ -206,6 +206,26 @@ function MemoPreviewNode({ id, data }: NodeProps) {
 
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
+
+/** FILM ARROW FIX — TextAnchor registers each choice's `anc:<id>` target handle via
+ *  useUpdateNodeInternals, which is SCOPED to its ReactFlowProvider. The film popout is
+ *  a SECOND provider that mounts later, so its handle registration races and the memo
+ *  arrow falls back to the node origin (top-left). Rendered INSIDE the film provider,
+ *  this nudges RF to re-scan every node's handles on open + question change (a few
+ *  settle passes), so the anc handles register and the arrow lands at the choice. */
+function FilmInternalsNudge({ sig }: { sig: string }) {
+  const upd = useUpdateNodeInternals();
+  const filmNodes = useNodes();
+  const idsRef = useRef<string[]>([]);
+  idsRef.current = filmNodes.map((n) => n.id);
+  useEffect(() => {
+    const fire = () => idsRef.current.forEach((id) => upd(id));
+    fire();
+    const timers = [60, 180, 400, 800].map((ms) => window.setTimeout(fire, ms));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [sig, upd]);
+  return null;
+}
 
 function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, onSaveBaseline, onSetWorld, onSelectMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onSelectMemo?: (id: string | null) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
@@ -516,6 +536,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         preventScrolling={false}
                         style={{ width: "100%", height: "100%", background: "#05070d" }}
                       />
+                      <FilmInternalsNudge sig={`${ceqId}|${nodes.length}`} />
                     </ReactFlowProvider>
                     <BrandWatermark />
                   </div>
