@@ -15,6 +15,7 @@ import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patc
 import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
+import { MemoPickerModal } from "./MemoPickerModal";
 import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
@@ -25,7 +26,7 @@ import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, sta
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type CeqChoice, type DeckDef, type GlobalClips, type TakeRef } from "./types";
+import { cardId, type CeqCard, type ChainSound, type CeqChoice, type DeckDef, type GlobalClips, type TakeRef } from "./types";
 import { NEON } from "./theme";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
@@ -78,6 +79,17 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
   const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
   const [qClip, setQClip] = useState<{ prompt: string; scale: number; choices: { text: string; correct?: boolean }[]; memos: { label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[] } | null>(null); // copied whole question
+  // MEMO WORKFLOW (Lee) — the +💡 picker modal, inline edits (replacing prompt()),
+  // bulk-field inline entry, and the library scope filter (question|set|all).
+  const [pickModal, setPickModal] = useState<{ ceqId: string; choiceId: string } | null>(null); // +💡 add-memo modal target
+  const [editMemo, setEditMemo] = useState<string | null>(null); // library row being inline-renamed
+  const [editMemoVal, setEditMemoVal] = useState("");
+  const [editChain, setEditChain] = useState<string | null>(null); // chain-memo row being inline-renamed (key ceqId|choiceId|idx)
+  const [editChainVal, setEditChainVal] = useState("");
+  const [bulkField, setBulkField] = useState<{ field: "subcategory" | "label" | "course"; label: string } | null>(null); // inline bulk-field entry
+  const [bulkVal, setBulkVal] = useState("");
+  const [justCreated, setJustCreated] = useState<Set<string>>(() => new Set()); // fresh (unchained) memos kept visible past the scope filter
+  const memoScope: "question" | "set" | "all" = prefs.memoScope ?? "set"; // default: This set
 
   // SET ORGANISATION (Lee) — filter the sets list by course → chapter.
   const setCourses = useMemo(() => [...new Set(cardDecks.map((d) => d.course).filter((c): c is string => !!c))].sort(), [cardDecks]);
@@ -318,7 +330,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (c) bus.dispatch(c);
   };
   /** Flat walk list for a question (choice order → chain index) for the outline. */
-  const walkOf = (q: { id: string }) => { const cc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices ?? []; const list: { choiceId: string; idx: number; label: string; letter: string; num: number; memoNodeId: string }[] = []; cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it, i) => list.push({ choiceId: ch.id, idx: i, label: it.label, letter: LETTER(ci), num: list.length + 1, memoNodeId: it.memoNodeId }))); return list; };
+  const walkOf = (q: { id: string }) => { const cc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices ?? []; const list: { choiceId: string; idx: number; label: string; letter: string; num: number; memoNodeId: string; sound?: ChainSound }[] = []; cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it, i) => list.push({ choiceId: ch.id, idx: i, label: it.label, letter: LETTER(ci), num: list.length + 1, memoNodeId: it.memoNodeId, sound: it.sound }))); return list; };
   const patchChoice = (id: string, choiceId: string, patch: Partial<CeqChoice>) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (ch.id === choiceId ? { ...ch, ...patch } : ch)) }), "edit choice"); if (c) bus.dispatch(c); };
   const setCorrect = (id: string, choiceId: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => ({ ...ch, correct: ch.id === choiceId })) }), "mark correct"); if (c) bus.dispatch(c); };
   const addChoice = (id: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: [...(prev as unknown as { choices: CeqChoice[] }).choices, { id: cardId("ch"), text: "" }] }), "add choice"); if (c) bus.dispatch(c); };
@@ -369,7 +381,42 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // ---- MEMO LIBRARY ---------------------------------------------------------
   const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n, i) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string }; return { id: n.id, order: i, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase(), subcategory: d.subcategory || "", course: d.course || "" }; }), [nodes]);
   const courses = useMemo(() => [...new Set(memos.map((m) => m.course).filter(Boolean))].sort(), [memos]);
+  // USAGE (Lee) — where each memo is chained, ACROSS ALL SETS. A memo counts once per
+  // CEQ (a "place" = one question / T.QQ), so a memo on two choices of the same
+  // question is one place. Powers the ×N ripple signal + the Set/Question scope.
+  const memoUsage = useMemo(() => {
+    const map = new Map<string, { ceqId: string; tqq: string }[]>();
+    for (const n of rf.getNodes()) {
+      if (n.type !== "ceq") continue;
+      const d = n.data as unknown as CeqCard & { deckId?: string };
+      const ids = new Set<string>();
+      (d.choices ?? []).forEach((c) => (c.chain ?? []).forEach((it) => { if (it.memoNodeId) ids.add(it.memoNodeId); }));
+      if (ids.size === 0) continue;
+      const dk = d.deckId ? cardDecks.find((x) => x.id === d.deckId) : null;
+      const members = d.deckId ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.deckId).filter((m) => (m as { type?: string }).type === "ceq") : [];
+      const qnum = members.findIndex((m) => m.id === n.id) + 1;
+      const tqq = `${dk?.chapter || dk?.name || "Set"} · Q${qnum || "?"}`;
+      ids.forEach((mid) => { const arr = map.get(mid) ?? []; arr.push({ ceqId: n.id, tqq }); map.set(mid, arr); });
+    }
+    return map;
+  }, [nodes, cardDecks]);
+  const usageOf = (id: string) => memoUsage.get(id)?.length ?? 0;
+  const usageTip = (id: string) => { const u = memoUsage.get(id) ?? []; return u.length > 1 ? `Chained in ${u.length} places — editing ripples to all:\n${u.map((x) => x.tqq).join("\n")}` : u.length === 1 ? `Chained in 1 place: ${u[0].tqq}` : "Not chained anywhere yet"; };
+  // SCOPE (Lee) — memos chained on the current SET's questions (setMemoIds) and on the
+  // current QUESTION (chainMemoIds, already computed). The library filters to these.
+  const setMemoIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const q of questions) { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; (d?.choices ?? []).forEach((c) => (c.chain ?? []).forEach((it) => it.memoNodeId && s.add(it.memoNodeId))); }
+    return s;
+  }, [questions, nodes]);
+  // Effective scope: fall back to a broader scope when the narrower one has nothing to
+  // anchor to (no set selected → all; no question selected → set).
+  const effScope: "question" | "set" | "all" = memoScope === "question" ? (qId ? "question" : deck ? "set" : "all") : memoScope === "set" ? (deck ? "set" : "all") : "all";
+  const inScope = (id: string) => effScope === "all" || justCreated.has(id) || (effScope === "set" ? setMemoIds.has(id) : chainMemoIds.has(id));
+  // Full memo list (with body) for the +💡 picker modal — searches ALL memos.
+  const memosForPicker = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string }; return { id: n.id, label: d.label || memoText(d.title, d.body), body: d.body || "", category: (d.category || "").toUpperCase() }; }), [nodes]);
   const shownMemos = memos
+    .filter((m) => inScope(m.id))
     .filter((m) => catFilter.has(m.category || NONE))
     .filter((m) => courseFilter === "all" || m.course === courseFilter)
     .filter((m) => { const q = memoQuery.trim().toLowerCase(); return !q || m.label.toLowerCase().includes(q) || m.subcategory.toLowerCase().includes(q); })
@@ -377,7 +424,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const toggleCat = (c: string) => setCatFilter((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n; });
   const toggleSel = (id: string) => setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const bulkCategory = (cat: string) => { if (sel.size === 0) return; const cmd = compositeCmd([...sel].map((id) => patchDataCmd(rfl, id, { category: cat }, "set category")).filter((c): c is NonNullable<typeof c> => !!c), "bulk categorise"); if (cmd) bus.dispatch(cmd); setNote(`Set ${sel.size} memo${sel.size === 1 ? "" : "s"} → ${cat}`); };
-  const bulkPrompt = (field: "subcategory" | "label" | "course", label: string) => { if (sel.size === 0) return; const val = window.prompt(label); if (val == null) return; const cmd = compositeCmd([...sel].map((id) => patchDataCmd(rfl, id, { [field]: val.trim() }, `set ${field}`)).filter((c): c is NonNullable<typeof c> => !!c), `bulk ${field}`); if (cmd) bus.dispatch(cmd); setNote(`Set ${field} on ${sel.size} memo${sel.size === 1 ? "" : "s"}.`); };
+  /** Apply an inline bulk-field value to the selected memos (replaces window.prompt). */
+  const applyBulkField = (field: "subcategory" | "label" | "course", val: string) => { if (sel.size === 0) return; const cmd = compositeCmd([...sel].map((id) => patchDataCmd(rfl, id, { [field]: val.trim() }, `set ${field}`)).filter((c): c is NonNullable<typeof c> => !!c), `bulk ${field}`); if (cmd) bus.dispatch(cmd); setNote(`Set ${field} on ${sel.size} memo${sel.size === 1 ? "" : "s"}.`); setBulkField(null); setBulkVal(""); };
   /** REMOVE DUPLICATES — keep one memo per (title/label · body · category · subcat),
    *  delete the rest that AREN'T referenced by a chain/attach edge (never breaks a chain). */
   const removeDupes = () => {
@@ -528,28 +576,50 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip]);
 
-  /** CREATE a brand-new memo straight from the Studio, attached to a choice's chain
-   *  and placed (frame-local) so it shows immediately in the previewer. */
-  const createMemoForChoice = (ceqId: string, choiceId: string) => {
-    const text = window.prompt("New memo text");
-    if (text == null) return;
+  /** CREATE a brand-new memo (text + category from the +💡 modal), attached to a
+   *  choice's chain + placed (frame-local) so it shows immediately in the previewer. */
+  const createMemoChained = (ceqId: string, choiceId: string, text: string, category: string) => {
     const label = text.trim() || "Memo";
     const memoId = cardId("memo");
     const cc = (rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
     const chainCount = cc.reduce((s, ch) => s + (ch.chain?.length ?? 0), 0);
-    const memoNode = { id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, chainCount), selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category: "" } };
+    const memoNode = { id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, chainCount), selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category } };
     const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "create chain memo"); if (add) bus.dispatch(add);
     const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "add memo to chain"); if (patch) bus.dispatch(patch);
     setNote(`Created memo "${clip(label, 24)}" — drag it in the preview to place it.`);
   };
-  /** Rename a chain memo's label (and its memo node's title) — the outline "rename". */
-  const renameChainMemo = (ceqId: string, choiceId: string, idx: number, memoNodeId: string, cur: string) => {
-    const next = window.prompt("Memo label", cur);
-    if (next == null) return;
+  /** Commit an inline rename of a CHAIN memo (label on the item + title on the node).
+   *  Replaces the old window.prompt("Memo label"). */
+  const commitEditChain = (ceqId: string, choiceId: string, idx: number, memoNodeId: string, next: string) => {
     const label = next.trim() || "Memo";
     const p1 = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: (c.chain ?? []).map((it, i) => (i === idx ? { ...it, label } : it)) } : c)) }), "rename memo label"); if (p1) bus.dispatch(p1);
     const p2 = patchDataCmd(rfl, memoNodeId, { title: label, label }, "rename memo"); if (p2) bus.dispatch(p2);
+    setEditChain(null); setEditChainVal("");
+  };
+  /** Toggle a chain item's REVEAL sound (fires on its Enter reveal in film). Quick
+   *  vinyl toggle for Lee's memo workflow — the full picker lives in the chain editor. */
+  const setChainSound = (ceqId: string, choiceId: string, idx: number, sound: ChainSound | undefined) => {
+    const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (ch.id === choiceId ? { ...ch, chain: (ch.chain ?? []).map((it, i) => (i === idx ? { ...it, sound } : it)) } : ch)) }), "chain reveal sound"); if (c) bus.dispatch(c);
+  };
+  /** DUPLICATE a library memo → a copy ("<label> copy", same category/kind, sourceId
+   *  link back to the original) placed beside it; opens the copy for inline rename. */
+  const duplicateMemo = (id: string) => {
+    const src = rf.getNode(id); if (!src) return;
+    const d = src.data as { memoKind?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string; label?: string; scale?: number };
+    const label = `${d.label || memoText(d.title, d.body)} copy`;
+    const memoId = cardId("memo");
+    const memoNode = { id: memoId, type: "memo", parentId: src.parentId, position: { x: src.position.x + 28, y: src.position.y + 28 }, selected: false, data: { kind: "memo", memoKind: d.memoKind ?? "note", title: label, body: d.body ?? "", category: d.category ?? "", subcategory: d.subcategory ?? "", course: d.course ?? "", label, sourceId: id, scale: d.scale } };
+    const add = addNodesCmd(rfl, [memoNode] as never, "duplicate memo"); if (add) bus.dispatch(add);
+    setJustCreated((p) => new Set(p).add(memoId)); // keep the (unchained) copy visible under any scope
+    setEditMemo(memoId); setEditMemoVal(label); // open the copy for inline editing
+    setNote(`Duplicated memo → "${clip(label, 24)}" (linked to the original).`);
+  };
+  /** Commit an inline rename of a LIBRARY memo (title + label on the node). */
+  const commitEditMemo = (id: string, next: string) => {
+    const label = next.trim() || "Memo";
+    const p = patchDataCmd(rfl, id, { title: label, label }, "rename memo"); if (p) bus.dispatch(p);
+    setEditMemo(null); setEditMemoVal("");
   };
 
   /** Drop a memo onto a choice → attach it (existing node) to that choice's chain. */
@@ -697,10 +767,16 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                         <div className="flex items-center gap-1 text-[8.5px]" style={{ color: NEON.muted }}><span className="min-w-0 flex-1 truncate" title={take.name}>{take.name || "clip"} · {fmtDur(take.duration)}{take.prev ? " · v2" : ""}</span><button style={{ color: NEON.red }} onClick={() => clearTake(q.id)} title="Remove this take">remove</button></div>
                       </div>
                     )}
-                    {expanded && walk.map((w, wi) => { const msel = selChainMemos.has(w.memoNodeId); return (
+                    {expanded && walk.map((w) => { const msel = selChainMemos.has(w.memoNodeId); const ek = `${q.id}|${w.choiceId}|${w.idx}`; const vinyl = w.sound === "vinylScratch"; return (
                       <div key={`${w.choiceId}-${w.idx}`} className="ml-3 flex items-center gap-0.5 rounded py-0.5 text-[9.5px]" style={{ background: msel ? "rgba(79,163,227,0.18)" : "transparent" }}>
                         <button className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-[7.5px] font-black" style={{ color: "#0B0F1E", background: msel ? NEON.cyan : NEON.yellow }} onClick={() => toggleChainSel(w.memoNodeId)} title="Select for copy (Ctrl+C) — click to toggle">{w.num}</button>
-                        <span className="min-w-0 flex-1 cursor-text truncate" style={{ color: NEON.text }} title={`Choice ${w.letter}: ${w.label} — double-click to rename`} onDoubleClick={() => renameChainMemo(q.id, w.choiceId, w.idx, w.memoNodeId, w.label)}>{w.label}</span>
+                        {editChain === ek ? (
+                          <input autoFocus className="nodrag min-w-0 flex-1 rounded bg-black/40 px-1 text-[9.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.border}` }} value={editChainVal} onChange={(e) => setEditChainVal(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commitEditChain(q.id, w.choiceId, w.idx, w.memoNodeId, editChainVal); else if (e.key === "Escape") { setEditChain(null); setEditChainVal(""); } }} onBlur={() => commitEditChain(q.id, w.choiceId, w.idx, w.memoNodeId, editChainVal)} />
+                        ) : (
+                          <span className="min-w-0 flex-1 cursor-text truncate" style={{ color: NEON.text }} title={`Choice ${w.letter}: ${w.label} — double-click to rename`} onDoubleClick={() => { setEditChain(ek); setEditChainVal(w.label); }}>{w.label}</span>
+                        )}
+                        {/* VINYL on entry (Lee) — one-click reveal-sound toggle; the full sound picker lives in the chain editor. */}
+                        <button className="grid h-3.5 w-3.5 shrink-0 place-items-center" style={{ color: vinyl ? NEON.yellow : NEON.muted, opacity: vinyl ? 1 : 0.45 }} onClick={() => setChainSound(q.id, w.choiceId, w.idx, vinyl ? undefined : "vinylScratch")} title={vinyl ? "💿 Vinyl scratch plays on this item's reveal (film) — click to remove" : "Play the vinyl scratch on this item's reveal (film)"}>💿</button>
                         <button disabled={w.idx === 0} className="grid h-3.5 w-3.5 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, -1)} title="Earlier in walk"><ArrowUp className="h-2.5 w-2.5" /></button>
                         <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, 1)} title="Later in walk"><ArrowDown className="h-2.5 w-2.5" /></button>
                         <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.red }} onClick={() => removeFromChain(q.id, w.memoNodeId)} title="Remove from chain (keeps the memo in the library)"><X className="h-2.5 w-2.5" /></button>
@@ -784,7 +860,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                               <button className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8px] font-black" style={{ color: ch.correct ? "#0B0F1E" : NEON.muted, background: ch.correct ? "#3BF5A0" : "transparent", border: `1px solid ${ch.correct ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => setCorrect(qId!, ch.id)} title="Mark correct">{LETTER(ci)}</button>
                               <input className="min-w-0 flex-1 bg-transparent text-[12px] outline-none" style={{ color: NEON.text }} value={ch.text} onChange={(e) => patchChoice(qId!, ch.id, { text: e.target.value })} placeholder={`Choice ${LETTER(ci)}`} />
                               {(ch.chain?.length ?? 0) > 0 && <span className="shrink-0 text-[8px] tabular-nums" style={{ color: NEON.cyan }} title="chain items">⛓{ch.chain!.length}</span>}
-                              <button className="shrink-0 rounded px-1 text-[9px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => createMemoForChoice(qId!, ch.id)} title="Create a memo chained to this choice (appears in the preview)">+💡</button>
+                              <button className="shrink-0 rounded px-1 text-[9px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPickModal({ ceqId: qId!, choiceId: ch.id })} title="Add a memo to this choice — search existing (shared) or create new">+💡</button>
                               <button className="shrink-0" style={{ color: NEON.red }} onClick={() => removeChoice(qId!, ch.id)} title="Remove choice"><X className="h-3 w-3" /></button>
                             </div>
                           ))}
@@ -813,6 +889,15 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
           <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search title / sub-category" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} />
             <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMemoSort((s) => (s === "recent" ? "az" : "recent"))} title="Toggle sort: most recent ↔ A–Z">{memoSort === "recent" ? "recent" : "A–Z"}</button>
           </div>
+          {/* SCOPE (Lee) — narrow the library to the current question / set, or show all.
+              Persists in panel prefs; category chips + search work WITHIN the scope. */}
+          <div className="flex items-center gap-1 px-1.5 pt-1.5">
+            <span className="text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Scope</span>
+            {([["question", "Question"], ["set", "Set"], ["all", "All"]] as const).map(([k, lbl]) => { const on = memoScope === k; const disabled = (k === "set" && !deck) || (k === "question" && !qId); return (
+              <button key={k} disabled={disabled} className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase disabled:opacity-30" style={{ color: on ? "#0B1322" : NEON.muted, background: on ? NEON.cyan : "transparent", border: `1px solid ${on ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setPrefs({ memoScope: k })} title={k === "question" ? "Only memos chained on the selected question" : k === "set" ? "Only memos chained anywhere in this set" : "Every memo in the scene"}>{lbl}</button>
+            ); })}
+            {effScope !== memoScope && <span className="text-[7.5px] italic" style={{ color: NEON.muted }} title="Nothing selected for the chosen scope — showing the next-broadest">→ {effScope}</span>}
+          </div>
           {courses.length > 0 && (
             <div className="flex items-center gap-1 px-1.5 pt-1"><span className="text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Course</span>
               <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="min-w-0 flex-1 rounded bg-black/40 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
@@ -832,13 +917,20 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {shownMemos.length === 0 && <div className="px-1 py-2 text-[9.5px] italic" style={{ color: NEON.muted }}>No memos match — or none exist yet.</div>}
-            {shownMemos.map((m) => { const on = sel.has(m.id); return (
-              <div key={m.id} draggable className="flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: on ? "rgba(252,163,17,0.1)" : "rgba(0,0,0,0.2)", border: `1px solid ${on ? NEON.border : NEON.borderSoft}` }}
+            {shownMemos.map((m) => { const on = sel.has(m.id); const uses = usageOf(m.id); const editing = editMemo === m.id; return (
+              <div key={m.id} draggable={!editing} className="flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: on ? "rgba(252,163,17,0.1)" : "rgba(0,0,0,0.2)", border: `1px solid ${on ? NEON.border : NEON.borderSoft}` }}
                 onDragStart={(e) => { e.dataTransfer.setData(MEMO_DND, m.id); e.dataTransfer.effectAllowed = "copy"; }}
-                title="Drag onto a choice to attach · click to select">
+                title="Drag onto a choice to attach · click to select · double-click to rename">
                 <button className="shrink-0" style={{ color: on ? NEON.yellow : NEON.muted }} onClick={() => toggleSel(m.id)}>{on ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>
-                <span className="min-w-0 flex-1 truncate text-[10.5px]" style={{ color: NEON.text }}>{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
+                {editing ? (
+                  <input autoFocus className="nodrag min-w-0 flex-1 rounded bg-black/40 px-1 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.border}` }} value={editMemoVal} onChange={(e) => setEditMemoVal(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commitEditMemo(m.id, editMemoVal); else if (e.key === "Escape") { setEditMemo(null); setEditMemoVal(""); } }} onBlur={() => commitEditMemo(m.id, editMemoVal)} />
+                ) : (
+                  <span className="min-w-0 flex-1 cursor-text truncate text-[10.5px]" style={{ color: NEON.text }} onDoubleClick={() => { setEditMemo(m.id); setEditMemoVal(m.label); }}>{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
+                )}
+                {/* ×N usage — the "shared, edits ripple" signal; tooltip lists the T.QQ ids. */}
+                {uses > 1 && <span className="shrink-0 text-[7.5px] font-bold tabular-nums" style={{ color: "#7CC4FF" }} title={usageTip(m.id)}>×{uses}</span>}
                 {m.category && <span className="shrink-0 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }}>{m.category === "ELEMENT" ? "🧩" : m.category.slice(0, 4)}</span>}
+                <button className="shrink-0" style={{ color: NEON.muted }} onClick={() => duplicateMemo(m.id)} title="Duplicate this memo (a linked copy, opens for editing)"><Copy className="h-3 w-3" /></button>
                 <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteMemos([m.id])} title="Delete this memo from the library (also unchains it)"><X className="h-3 w-3" /></button>
               </div>
             ); })}
@@ -854,16 +946,36 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             </div>
             <div className="flex flex-wrap gap-1">
               {MEMO_CATEGORIES.map((c) => <button key={c} className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkCategory(c)} disabled={sel.size === 0} title="Set the top-level category">{c === "ELEMENT" ? "🧩 ELEMENT" : c}</button>)}
-              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkPrompt("subcategory", "Sub-category for the selected memos (e.g. Bank Reconciliations)")} disabled={sel.size === 0} title="Set a sub-category under the category">set sub…</button>
-              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkPrompt("label", "Title (display name) for the selected memos")} disabled={sel.size === 0} title="Set the memo TITLE / display name (not the category)">set title…</button>
-              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => bulkPrompt("course", "Course tag for the selected memos")} disabled={sel.size === 0} title="Tag with a course (for the course filter)">set course…</button>
+              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setBulkField({ field: "subcategory", label: "Sub-category" }); setBulkVal(""); }} disabled={sel.size === 0} title="Set a sub-category under the category">set sub…</button>
+              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setBulkField({ field: "label", label: "Title" }); setBulkVal(""); }} disabled={sel.size === 0} title="Set the memo TITLE / display name (not the category)">set title…</button>
+              <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setBulkField({ field: "course", label: "Course tag" }); setBulkVal(""); }} disabled={sel.size === 0} title="Tag with a course (for the course filter)">set course…</button>
             </div>
+            {/* Inline bulk-field entry (replaces the old window.prompt). Enter applies, Esc cancels. */}
+            {bulkField && (
+              <div className="flex items-center gap-1">
+                <span className="shrink-0 text-[8px] font-bold uppercase" style={{ color: NEON.cyan }}>{bulkField.label}</span>
+                <input autoFocus className="nodrag min-w-0 flex-1 rounded bg-black/40 px-1 py-0.5 text-[9.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.border}` }} value={bulkVal} onChange={(e) => setBulkVal(e.target.value)} placeholder={`${bulkField.label} for ${sel.size} memo${sel.size === 1 ? "" : "s"}…`} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") applyBulkField(bulkField.field, bulkVal); else if (e.key === "Escape") { setBulkField(null); setBulkVal(""); } }} />
+                <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => applyBulkField(bulkField.field, bulkVal)}>set</button>
+                <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setBulkField(null); setBulkVal(""); }}>✕</button>
+              </div>
+            )}
           </div>
         </div>
         )}
       </div>
 
       {chainFor && <CeqChainEditor nodeId={chainFor} onClose={() => setChainFor(null)} />}
+      {pickModal && (
+        <MemoPickerModal
+          memos={memosForPicker}
+          usageCount={usageOf}
+          categories={MEMO_CATEGORIES}
+          defaultCategory="OTHER TIPS"
+          onPick={(memoId) => { attachMemoToChoice(pickModal.ceqId, pickModal.choiceId, memoId); setPickModal(null); }}
+          onCreate={(text, category) => { createMemoChained(pickModal.ceqId, pickModal.choiceId, text, category); setPickModal(null); }}
+          onClose={() => setPickModal(null)}
+        />
+      )}
     </div>
   );
 }

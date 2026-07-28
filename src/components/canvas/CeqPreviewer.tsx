@@ -522,16 +522,25 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
 class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
   static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error) { console.error("[CeqPreviewer] crashed (contained):", error); }
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    // Surface the REAL cause so Lee can report it (we don't fix it blind). Log the
+    // error + React component stack under a clear prefix; the cause line below the
+    // RETRY button shows the message inline so it's visible without the console.
+    console.error("[CeqPreviewer] preview crashed (contained) — cause:", error, "\ncomponent stack:", info?.componentStack ?? "(none)");
+  }
   componentDidUpdate(prev: { resetKey: string }) { if (this.state.error && prev.resetKey !== this.props.resetKey) this.setState({ error: null }); }
   render() {
     if (this.state.error) {
+      const cause = (this.state.error.message || String(this.state.error)).split("\n")[0].slice(0, 200);
       return (
         <div className="grid h-full place-items-center p-3 text-center text-[11px]" style={{ color: NEON.muted }}>
           <div>
             <div style={{ color: "#FF8B9E", fontWeight: 700 }}>Preview hit an error.</div>
             <div className="mt-1">The rest of the Studio is fine — pick another question, or reopen the Studio.</div>
             <button className="mt-2 rounded px-2 py-0.5 text-[10px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => this.setState({ error: null })}>retry</button>
+            {/* One-line cause (full error + component stack are in the console). */}
+            <div className="mx-auto mt-2 max-w-[280px] break-words font-mono text-[9.5px] leading-snug" style={{ color: "#FFB3BE" }} title={cause}>Cause: {cause}</div>
+            <div className="mt-0.5 text-[8.5px]" style={{ color: NEON.muted }}>Full details in the browser console.</div>
           </div>
         </div>
       );

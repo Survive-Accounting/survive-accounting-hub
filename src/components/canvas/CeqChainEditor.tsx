@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNodes, useReactFlow } from "@xyflow/react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, Plus, Save, Trash2, X } from "lucide-react";
 
 import { addNodesAndEdgesCmd, bus, patchDataFnCmd, type RfLike } from "./commands";
 import { memoAnchorId } from "./MemoLightbulb";
@@ -74,6 +74,22 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
     if (cmd) bus.dispatch(cmd);
     patchChoice(choiceId, (c) => ({ ...c, chain: [...(c.chain ?? []), { kind: "memo", memoNodeId: memoId, label: label ?? memoLabel(undefined, "") } as CeqChainItem] }));
     setPickFor(null);
+  };
+
+  /** DUPLICATE a chain item's memo INTO this chain (copy + chain to the same choice
+   *  in one step) — a linked copy ("<label> copy", sourceId → original). */
+  const duplicateIntoChain = (choiceId: string, srcMemoNodeId: string, srcLabel: string) => {
+    const src = rf.getNode(srcMemoNodeId);
+    const sd = src?.data as { memoKind?: string; body?: string; category?: string; subcategory?: string; course?: string; scale?: number } | undefined;
+    const label = `${srcLabel} copy`;
+    const w = (node.width ?? (d.w ?? 400)) as number;
+    const count = rf.getEdges().filter((e) => e.target === nodeId && String(e.id).startsWith("chn-")).length;
+    const memoId = cardId("memo");
+    const memoNode = { id: memoId, type: "memo", parentId: node.parentId, position: { x: node.position.x + w + 64, y: node.position.y + count * 78 }, selected: false, data: { kind: "memo", memoKind: sd?.memoKind ?? "note", title: label, body: sd?.body ?? "", category: sd?.category ?? "", subcategory: sd?.subcategory ?? "", course: sd?.course ?? "", label, sourceId: srcMemoNodeId, scale: sd?.scale } };
+    const edge = { id: chainEdgeId(choiceId, memoId), source: memoId, sourceHandle: "l", target: nodeId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
+    const cmd = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "duplicate memo into chain");
+    if (cmd) bus.dispatch(cmd);
+    patchChoice(choiceId, (c) => ({ ...c, chain: [...(c.chain ?? []), { kind: "memo", memoNodeId: memoId, label } as CeqChainItem] }));
   };
 
   const removeItem = (choiceId: string, idx: number) => {
@@ -190,6 +206,7 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
                         <option value="cramLaunch">🚀 cram</option>
                         <option value="vinylScratch">💿 vinyl</option>
                       </select>
+                      <button className="grid h-4 w-4 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => duplicateIntoChain(c.id, it.memoNodeId, it.label)} title="Duplicate into this chain — a linked copy chained to this choice"><Copy className="h-3 w-3" /></button>
                       <button disabled={i === 0} className="grid h-4 w-4 place-items-center rounded disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => moveItem(c.id, i, -1)} title="Move earlier"><ArrowUp className="h-3 w-3" /></button>
                       <button disabled={i === chain.length - 1} className="grid h-4 w-4 place-items-center rounded disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => moveItem(c.id, i, 1)} title="Move later"><ArrowDown className="h-3 w-3" /></button>
                       <button className="grid h-4 w-4 place-items-center rounded" style={{ color: NEON.red }} onClick={() => removeItem(c.id, i)} title="Remove from chain (keeps the memo node)"><Trash2 className="h-3 w-3" /></button>
