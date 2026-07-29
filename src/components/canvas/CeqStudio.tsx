@@ -5,7 +5,7 @@
 // one model / two doors); MEMO LIBRARY = every memo with label + category (incl
 // ELEMENT), search/filter, bulk triage for the unfiled pile, and drag-onto-a-choice
 // to attach to a chain. No new storage beyond panel prefs.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
 import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, Globe, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
@@ -37,6 +37,7 @@ const clip = (s: string, n = 40) => (s.length > n ? s.slice(0, n) + "…" : s);
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
+const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder
 
 export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
   const gc = globalClips ?? {};
@@ -77,6 +78,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline (clip stack)
   const [clipRefsOpen, setClipRefsOpen] = useState<string | null>(null); // `${ceqId}:${clipIdx}` whose refs picker is open
   const [starOnly, setStarOnly] = useState(false); // Starred filter on the question list
+  const [qMenu, setQMenu] = useState<string | null>(null); // question row whose "…" action menu is open
   const [dragKey, setDragKey] = useState<string | null>(null); // slot key a clip is hovering
   const [stitchMode, setStitchMode] = useState<"free" | "full" | null>(null); // center = sequential preview
   const [publishBusy, setPublishBusy] = useState<"free" | "full" | null>(null);
@@ -350,6 +352,27 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     onDragLeave: (e: React.DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragKey((k) => (k === key ? null : k)); },
     onDrop: (e: React.DragEvent) => { e.preventDefault(); setDragKey(null); const f = videoFromDrop(e); if (f) void onFile(f); },
   });
+  /** Reorder questions by dragging one row onto another (replaces the up/down arrows). */
+  const moveQuestion = (srcId: string, targetId: string) => {
+    if (srcId === targetId) return;
+    const ids = questions.map((q) => q.id);
+    const from = ids.indexOf(srcId), to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(from, 1); ids.splice(to, 0, srcId);
+    const cmd = compositeCmd(ids.map((id, idx) => patchDataCmd(rfl, id, { stageOrder: idx }, "reorder")).filter((c): c is NonNullable<typeof c> => !!c), "reorder questions (drag)");
+    if (cmd) bus.dispatch(cmd);
+  };
+  /** Merged DnD for a question row: a FILE drop appends a take clip (dragProps); a
+   *  dragged ROW (QREORDER mime) reorders. dragProps only reacts to Files, so both
+   *  coexist on one row. */
+  const qRowDnd = (qid: string) => {
+    const dp = dragProps(qid, (f) => dropTake(qid, f));
+    return {
+      onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes(QREORDER)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== `qre:${qid}`) setDragKey(`qre:${qid}`); } else dp.onDragOver(e); },
+      onDragLeave: (e: React.DragEvent) => { if (dragKey === `qre:${qid}`) { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragKey(null); } else dp.onDragLeave(e); },
+      onDrop: (e: React.DragEvent) => { const src = e.dataTransfer.getData(QREORDER); if (src) { e.preventDefault(); setDragKey(null); moveQuestion(src, qid); } else dp.onDrop(e); },
+    };
+  };
   /** Reorder a chain memo within its choice (the outline "renumber"). */
   const reorderChainMemo = (ceqId: string, choiceId: string, idx: number, dir: -1 | 1) => {
     const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => { if (ch.id !== choiceId) return ch; const arr = [...(ch.chain ?? [])]; const j = idx + dir; if (j < 0 || j >= arr.length) return ch; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return { ...ch, chain: arr }; }) }), "renumber chain");
@@ -438,7 +461,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // Effective scope: fall back to a broader scope when the narrower one has nothing to
   // anchor to (no set selected → all; no question selected → set).
   const effScope: "question" | "set" | "all" = memoScope === "question" ? (qId ? "question" : deck ? "set" : "all") : memoScope === "set" ? (deck ? "set" : "all") : "all";
-  const inScope = (id: string) => effScope === "all" || justCreated.has(id) || (effScope === "set" ? setMemoIds.has(id) : chainMemoIds.has(id));
+  const inScope = (id: string) => effScope === "all" || justCreated.has(id) || id === previewSelMemo || (effScope === "set" ? setMemoIds.has(id) : chainMemoIds.has(id));
   // Full memo list (with body) for the +💡 picker modal — searches ALL memos.
   const memosForPicker = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string }; return { id: n.id, label: d.label || memoText(d.title, d.body), body: d.body || "", category: (d.category || "").toUpperCase() }; }), [nodes]);
   const shownMemos = memos
@@ -581,6 +604,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setQId(ceqId);
     setNote(`Pasted a question (${qClip.memos.length} memo${qClip.memos.length === 1 ? "" : "s"}).`);
   };
+
+  // SELECTING a memo in the previewer SURFACES it in the library: open the pane +
+  // scroll its row into view (the row also gets a highlight below). The scroll ref is
+  // attached to the selected row in the shownMemos map.
+  const selMemoRowRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { if (!previewSelMemo) return; setLibOpen(true); const t = window.setTimeout(() => selMemoRowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 60); return () => window.clearTimeout(t); }, [previewSelMemo]);
 
   // KEYBOARD — Delete (detach/delete), Ctrl+C/Ctrl+V (copy/paste memos),
   // Ctrl+D (duplicate the question). Ignored while typing in a field.
@@ -777,9 +806,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
               <div className="min-h-0 w-56 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
-                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; return (
+                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
                   <div key={q.id}>
-                    <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : undefined }} {...dragProps(q.id, (f) => dropTake(q.id, f))}>
+                    <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : reOn ? `1px solid ${NEON.cyan}` : undefined }} {...qRowDnd(q.id)}>
+                      <span className="mt-0.5 shrink-0 cursor-grab select-none text-[11px] leading-none" style={{ color: NEON.muted }} draggable onDragStart={(e) => { e.dataTransfer.setData(QREORDER, q.id); e.dataTransfer.effectAllowed = "move"; }} title="Drag to reorder">⠿</span>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
                       <button className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[10.5px] ${wrapStems ? "whitespace-normal break-words" : "line-clamp-2"}`} style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {p}</button>
                       {chained && <span className="mt-0.5 shrink-0" title="Has ≥1 chain item"><Lightbulb className="h-3 w-3" style={{ color: "rgba(252,163,17,0.55)" }} /></span>}
@@ -788,14 +818,18 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                       {chachingOff && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="Chaching-on-correct silenced for this question">🔇</span>}
                       {isShort && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title={`Shorts-worthy${qdata?.shortNote ? ` — ${qdata.shortNote}` : ""}`}>🎬</span>}
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center text-[11px] leading-none" style={{ color: starred ? "#FFD23F" : NEON.muted }} onClick={() => patchQ(q.id, { starred: !starred })} title={starred ? "Starred — a performer's note (affects nothing). Click to unstar." : "Star this question — a performer's note; NO effect on spacewalk / stitch / publish"}>{starred ? "★" : "☆"}</button>
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded text-[8px] font-black" style={{ color: qdata?.free ? "#0B0F1E" : NEON.muted, background: qdata?.free ? "#3BF5A0" : "transparent", border: `1px solid ${qdata?.free ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => patchQ(q.id, { free: !qdata?.free })} title={qdata?.free ? "In the FREE cut — click to remove" : "Add to the FREE cut"}>F</button>
+                      {qdata?.free && <span className="mt-0.5 shrink-0 rounded text-[8px] font-black" style={{ color: "#3BF5A0" }} title="In the FREE cut">F</span>}
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"} — click to manage the stack · drop a video to append a lookback` : "Drop a video clip here to add this question's base take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : clips.length ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
                       {clips.length > 1 && <span className="mt-0.5 shrink-0 text-[8px] font-bold tabular-nums" style={{ color: "#3BF5A0" }} title={`${clips.length} clips (base + ${clips.length - 1} lookback)`}>{clips.length}</span>}
-                      <button disabled={i === 0} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, -1)} title="Up"><ArrowUp className="h-3 w-3" /></button>
-                      <button disabled={i === questions.length - 1} className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderQ(q.id, 1)} title="Down"><ArrowDown className="h-3 w-3" /></button>
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => duplicateQuestion(q.id)} title="Duplicate question directly below (Ctrl+D)"><Copy className="h-3 w-3" /></button>
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.red }} onClick={() => deleteQuestion(q.id)} title="Delete question (removes the card + its chain arrows; keeps the memos · Ctrl+Z to undo)"><Trash2 className="h-3 w-3" /></button>
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded text-[12px] font-black leading-none" style={{ color: qMenu === q.id ? NEON.yellow : NEON.muted, background: qMenu === q.id ? "rgba(252,163,17,0.14)" : "transparent" }} onClick={() => setQMenu((k) => (k === q.id ? null : q.id))} title="More — free · duplicate · delete">⋯</button>
                     </div>
+                    {qMenu === q.id && (
+                      <div className="mb-1 ml-6 flex flex-col gap-0.5 rounded p-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+                        <button className="rounded px-1.5 py-0.5 text-left text-[10px] font-bold" style={{ color: qdata?.free ? "#3BF5A0" : NEON.text }} onClick={() => patchQ(q.id, { free: !qdata?.free })}>{qdata?.free ? "✓ In free cut — remove" : "Add to free cut"}</button>
+                        <button className="rounded px-1.5 py-0.5 text-left text-[10px] font-bold" style={{ color: NEON.text }} onClick={() => { duplicateQuestion(q.id); setQMenu(null); }}>Duplicate below</button>
+                        <button className="rounded px-1.5 py-0.5 text-left text-[10px] font-bold" style={{ color: NEON.red }} onClick={() => { deleteQuestion(q.id); setQMenu(null); }}>Delete question</button>
+                      </div>
+                    )}
                     {takePreview === q.id && (
                       <div className="my-1 ml-4 flex flex-col gap-1">
                         {clips.length === 0 && <div className="text-[8.5px] italic" style={{ color: NEON.muted }}>No clips yet — drop a video on this row to add the base explanation.</div>}
@@ -990,8 +1024,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {shownMemos.length === 0 && <div className="px-1 py-2 text-[9.5px] italic" style={{ color: NEON.muted }}>No memos match — or none exist yet.</div>}
-            {shownMemos.map((m) => { const on = sel.has(m.id); const uses = usageOf(m.id); const editing = editMemo === m.id; return (
-              <div key={m.id} draggable={!editing} className="flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: on ? "rgba(252,163,17,0.1)" : "rgba(0,0,0,0.2)", border: `1px solid ${on ? NEON.border : NEON.borderSoft}` }}
+            {shownMemos.map((m) => { const on = sel.has(m.id); const uses = usageOf(m.id); const editing = editMemo === m.id; const picked = m.id === previewSelMemo; return (
+              <div key={m.id} ref={picked ? selMemoRowRef : undefined} draggable={!editing} className="flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: picked ? "rgba(79,163,227,0.22)" : on ? "rgba(252,163,17,0.1)" : "rgba(0,0,0,0.2)", border: `1px solid ${picked ? NEON.cyan : on ? NEON.border : NEON.borderSoft}` }}
                 onDragStart={(e) => { e.dataTransfer.setData(MEMO_DND, m.id); e.dataTransfer.effectAllowed = "copy"; }}
                 title="Drag onto a choice to attach · click to select · double-click to rename">
                 <button className="shrink-0" style={{ color: on ? NEON.yellow : NEON.muted }} onClick={() => toggleSel(m.id)}>{on ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>

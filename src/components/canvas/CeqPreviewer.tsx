@@ -358,7 +358,16 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const cb = baseline?.card;
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: 0 }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: cb.y } : dealCentre(frameW, frameH), data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
-    const memoNodes = walk.map((w, i) => { const slot = baseline?.memoSlots?.[i]; return { id: w.memoNodeId, type: "memoPreview", position: slot ? { x: slot.x, y: slot.y } : defaultMemoPos(frameW, frameH, i), data: { label: w.label, walkNum: w.num, choice: w.choice, scale: slot?.scale ?? 1, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound }, draggable: true, zIndex: 5 }; });
+    // SPEEDIER MEMOS (Lee): a memo with no baseline slot of its own MIRRORS the previous
+    // memo's spot + size (Lee places them in the same place, revealing one at a time),
+    // instead of stacking down the right. First memo with no layout falls to defaultMemoPos.
+    let lastGeom: { x: number; y: number; scale: number } | null = null;
+    const memoNodes = walk.map((w, i) => {
+      const slot = baseline?.memoSlots?.[i];
+      const geom = slot ? { x: slot.x, y: slot.y, scale: slot.scale ?? 1 } : lastGeom ?? { ...defaultMemoPos(frameW, frameH, i), scale: 1 };
+      lastGeom = geom;
+      return { id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound }, draggable: true, zIndex: 5 };
+    });
     return [frameNode, ceqNode, ...memoNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion]);
@@ -544,7 +553,6 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 )}
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{revealedCount}/{walk.length} shown</span>
-                <span className="hidden text-[9px] lg:inline" style={{ color: NEON.muted }} title="Rehearse the live gestures right here">· Ctrl+click = spotlight · +Shift = 🔥</span>
                 <div className="ml-auto flex items-center gap-1">
                   <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question (Shift+Space)"><ChevronLeft className="h-3.5 w-3.5" /></button>
                   <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onNextQuestion?.()} title="Next question (Space)"><ChevronRight className="h-3.5 w-3.5" /></button>
